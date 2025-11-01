@@ -125,9 +125,9 @@ class SearchDataSourceItem(BaseModel):
         # Option 1: collection_configs already provided (old format, backward compatibility)
         cc = v.get("collection_configs")
         if isinstance(cc, dict) and cc.get("collection_name"):
-            # Validate collection_configs with our nested model
-            SearchCollectionConfigs(**cc)
-            return v
+        # Validate collection_configs with our nested model
+        SearchCollectionConfigs(**cc)
+        return v
         
         # Option 2: Only index_name provided (new format, will be resolved at runtime)
         index_name = v.get("index_name")

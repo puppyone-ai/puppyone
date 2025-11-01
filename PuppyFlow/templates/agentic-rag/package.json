@@ -75,7 +75,7 @@
                         {
                             "type": "vector",
                             "entries": [],
-                            "status": "done",
+                            "status": "notStarted",
                             "key_path": [
                                 {
                                     "id": "NK-LPz",
@@ -83,14 +83,14 @@
                                     "value": "question"
                                 }
                             ],
-                            "index_name": "collection_demo_faq_kb",
+                            "index_name": "",
                             "value_path": [],
                             "collection_configs": {
-                                "set_name": "collection_WzK6iT_demo",
-                                "model": "text-embedding-ada-002",
+                                "set_name": "",
+                                "model": "",
                                 "vdb_type": "pgvector",
-                                "user_id": "demo-user",
-                                "collection_name": "collection_demo_faq_kb"
+                                "user_id": "",
+                                "collection_name": ""
                             }
                         }
                     ],
@@ -350,7 +350,7 @@
                             "id": "WzK6iT",
                             "label": "FAQ Knowledge Base",
                             "index_item": {
-                                "index_name": "collection_demo_faq_kb"
+                                "index_name": ""
                             }
                         }
                     ],

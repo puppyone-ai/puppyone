@@ -446,8 +446,8 @@ export class CloudTemplateLoader implements TemplateLoader {
                   `[CloudTemplateLoader] ⚠️ Auto-embedding failed for block ${block.id}:`,
                   error
                 );
-                // Fallback: keep entries but mark as notStarted for manual trigger
-                indexingItem.status = 'notStarted';
+                // Mark as error (consistent with frontend manual embedding error handling)
+                indexingItem.status = 'error';
               }
             } else {
               // Auto-embedding disabled or no entries
