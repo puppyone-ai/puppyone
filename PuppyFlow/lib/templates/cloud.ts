@@ -22,6 +22,8 @@ import {
   TemplatePackage,
   WorkflowDefinition,
   ResourceDescriptor,
+  Batch,
+  isBatch,
 } from './types';
 import { PartitioningService, PART_SIZE } from '../storage/partitioning';
 import { VectorIndexing } from '../indexing/vector-indexing';
@@ -353,11 +355,24 @@ export class CloudTemplateLoader implements TemplateLoader {
     } else {
       // Inline storage
       if (resource.mounted_paths?.content) {
+        // For vector_collection, parsedContent must be a valid Batch
+        // Batch = {content: T[], indexing_config: C}
+        if (!isBatch(parsedContent)) {
+          throw new Error(
+            `vector_collection resource ${resource.id} must be a valid Batch: ` +
+              `{content: array, indexing_config: object}. ` +
+              `Got: ${JSON.stringify(parsedContent).substring(0, 200)}`
+          );
+        }
+
+        // Type assertion: parsedContent is now Batch
+        const batch = parsedContent as Batch;
+
         this.updateWorkflowReference(
           workflow,
           block.id,
           resource.mounted_paths.content,
-          parsedContent || resourceContent
+          batch.content
         );
       }
       block.data.storage_class = 'internal';
@@ -394,19 +409,14 @@ export class CloudTemplateLoader implements TemplateLoader {
       };
 
       // Attempt auto-rebuild if enabled
-      // Phase 3.8 Fix: parsedContent is an object with {content: [], indexing_config: {}}
-      // We need to check parsedContent.content, not parsedContent itself
-      const contentArray = parsedContent?.content || parsedContent;
-      if (
-        this.config.enableAutoRebuild &&
-        Array.isArray(contentArray) &&
-        contentArray.length > 0
-      ) {
+      // parsedContent is a Batch for vector_collection resources
+      const batch = parsedContent as Batch;
+      if (this.config.enableAutoRebuild && batch.content.length > 0) {
         try {
           const rebuildResult =
             await VectorAutoRebuildService.attemptAutoRebuild({
               resourceDescriptor: resource,
-              content: contentArray, // Pass the content array, not the wrapper object
+              content: batch.content, // Pass the content array from the Batch
               availableModels,
               userId,
               workspaceId,

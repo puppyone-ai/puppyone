@@ -5,6 +5,49 @@
  * Part of the Template Resource Contract MVP (Phase 1).
  */
 
+/**
+ * Batch - Engineering standard for bulk data processing
+ *
+ * A Batch represents a collection of homogeneous data items with associated
+ * processing configuration. Used for vector collections, graph data, and other
+ * scenarios requiring batch processing.
+ *
+ * @template T - Type of items in the content array
+ * @template C - Type of configuration object
+ *
+ * @example Vector Collection
+ * ```typescript
+ * const faqBatch: Batch<{question: string, answer: string}, VectorIndexingConfig> = {
+ *   content: [
+ *     {question: "What is X?", answer: "X is..."},
+ *     {question: "How to Y?", answer: "Y can be..."}
+ *   ],
+ *   indexing_config: {
+ *     key_path: [{id: "NK-LPz", type: "key", value: "question"}],
+ *     value_path: []
+ *   }
+ * };
+ * ```
+ */
+export interface Batch<T = any, C = any> {
+  content: T[]; // Array of data items (REQUIRED, must be array)
+  indexing_config: C; // Configuration for processing (REQUIRED, structure varies by use case)
+}
+
+/**
+ * Type guard to check if an object is a valid Batch
+ */
+export function isBatch(obj: any): obj is Batch {
+  return (
+    obj !== null &&
+    typeof obj === 'object' &&
+    Array.isArray(obj.content) &&
+    obj.indexing_config !== undefined &&
+    typeof obj.indexing_config === 'object' &&
+    obj.indexing_config !== null
+  );
+}
+
 // Core template package structure
 export interface TemplatePackage {
   metadata: TemplateMetadata;

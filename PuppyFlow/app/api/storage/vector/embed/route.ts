@@ -22,19 +22,9 @@ interface EmbedResponse {
 export async function POST(request: Request) {
   try {
     const body: any = await request.json();
-    console.log(
-      '[Vector Embed Proxy] 📥 Received request from CloudTemplateLoader:',
-      {
-        hasEntries: !!body.entries,
-        entriesLength: body.entries?.length,
-        set_name: body.set_name,
-        user_id: body.user_id,
-      }
-    );
 
     // Build PuppyStorage API URL
     const storageUrl = `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/vector/embed`;
-    console.log('[Vector Embed Proxy] 🎯 Target PuppyStorage URL:', storageUrl);
 
     // Filter and inject auth headers
     const headers = filterRequestHeadersAndInjectAuth(
@@ -45,59 +35,25 @@ export async function POST(request: Request) {
         localFallback: true,
       }
     );
-    console.log(
-      '[Vector Embed Proxy] 🔑 Auth headers prepared:',
-      Object.keys(headers)
-    );
 
-    // Transform PuppyFlow format to PuppyStorage format
-    // PuppyFlow uses: { entries, model, set_name, vdb_type, user_id?, create_new? }
-    // PuppyStorage expects: { chunks: [{content, metadata}], model, set_name, vdb_type, user_id }
-    const storagePayload = {
-      chunks: (body.entries || []).map((entry: any) => {
-        // If entry already has {content, metadata} structure, use it directly
-        if (entry && typeof entry === 'object' && 'content' in entry) {
-          return {
-            content: entry.content,
-            metadata: entry.metadata || {},
-          };
-        }
-        // Otherwise, treat entry as raw content
-        return {
-          content: typeof entry === 'string' ? entry : JSON.stringify(entry),
-          metadata: {},
-        };
-      }),
+    // Phase 1.7: Both PuppyFlow and PuppyStorage now use 'entries' (semantic units)
+    // Direct pass-through - no transformation needed
+    // PuppyStorage also accepts 'chunks' (deprecated) for backward compatibility
+    console.log('[Vector Embed Proxy] Embedding request:', {
+      entriesCount: body.entries?.length || 0,
       set_name: body.set_name,
       model: body.model || 'text-embedding-ada-002',
-      vdb_type: body.vdb_type || 'pgvector',
-      user_id: body.user_id || 'public',
-    };
-
-    console.log('[Vector Embed Proxy] 📤 Sending to PuppyStorage:', {
-      url: storageUrl,
-      chunksCount: storagePayload.chunks.length,
-      set_name: storagePayload.set_name,
-      model: storagePayload.model,
-      vdb_type: storagePayload.vdb_type,
-      user_id: storagePayload.user_id,
-      firstChunkPreview: storagePayload.chunks[0]?.content?.substring(0, 100),
     });
 
-    // Proxy to PuppyStorage
+    // Proxy to PuppyStorage with direct pass-through
     const response = await fetch(storageUrl, {
       method: 'POST',
       headers: {
         ...headers,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(storagePayload),
+      body: JSON.stringify(body),
     });
-
-    console.log(
-      '[Vector Embed Proxy] 📥 PuppyStorage response status:',
-      response.status
-    );
 
     const data: EmbedResponse = await response.json();
 

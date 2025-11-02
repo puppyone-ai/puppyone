@@ -38,6 +38,7 @@
 ```
 
 **关键特征**：
+
 - **异步推送**：Engine 通过 SSE 流式推送事件
 - **轮询补充**：External storage 结果通过 `ManifestPoller` 轮询 PuppyStorage
 - **延迟持久化**：前端 2 秒防抖后才写入存储
@@ -46,6 +47,7 @@
 ### 2. Template Instantiation → Flow 状态更新（当前同步，未来可能异步）
 
 **当前实现（同步）**：
+
 ```typescript
 // /api/workspace/instantiate/route.ts
 POST /api/workspace/instantiate
@@ -62,6 +64,7 @@ CloudTemplateLoader.load()
 ```
 
 **未来可能的实现（异步）**：
+
 ```typescript
 POST /api/workspace/instantiate
   ↓
@@ -160,6 +163,7 @@ await fsPromises.writeFile(
 ```
 
 如果两个进程同时调用：
+
 - Process A: 写入 workspace state v1 (包含 instantiation 结果)
 - Process B: 写入 workspace state v2 (包含 workflow 结果)
 - 最后写入的 wins，另一个的更改丢失
@@ -169,6 +173,7 @@ await fsPromises.writeFile(
 ### 1. 缺乏状态所有权 (State Ownership)
 
 目前没有明确定义：
+
 - 谁负责更新 `indexingList.status`？
   - Template instantiation (auto-embedding)
   - Workflow execution (manual embedding)
@@ -189,6 +194,7 @@ await fsPromises.writeFile(
 ### 3. 缺乏事件优先级
 
 当多个来源的状态更新冲突时，没有明确的优先级：
+
 - SSE from Engine > Frontend local state?
 - Polling result > SSE?
 - Instantiation result > Workflow result?
@@ -198,11 +204,13 @@ await fsPromises.writeFile(
 ### 方案 1: 同步 Instantiation（临时方案，当前已采用）
 
 **优点**：
+
 - 简单，无并发问题
 - 用户立即看到完整结果
 - 与当前架构一致
 
 **缺点**：
+
 - 用户需要等待（如果 auto-embedding 慢）
 - API timeout 风险（如果超过 30 秒）
 - 无法扩展到大型 template
@@ -212,6 +220,7 @@ await fsPromises.writeFile(
 ### 方案 2: Optimistic Locking + Versioning
 
 **设计**：
+
 ```typescript
 interface Block {
   id: string;
@@ -237,16 +246,19 @@ function updateBlock(blockId: string, expectedVersion: number, newData: any) {
 ```
 
 **优点**：
+
 - 检测冲突，避免 lost update
 - 轻量级，易于实现
 
 **缺点**：
+
 - 需要冲突解决策略（重试？报错？）
 - 前端需要处理 409 Conflict
 
 ### 方案 3: Event Sourcing + CQRS
 
 **设计**：
+
 ```typescript
 // 不直接修改 block，而是发布事件
 interface BlockEvent {
@@ -273,12 +285,14 @@ function rebuildBlockState(blockId: string): Block {
 ```
 
 **优点**：
+
 - 完整的审计日志
 - 时间旅行（可以重放到任意时间点）
 - 天然支持并发（事件有序列号）
 - 可以有多个视图（Read Model）
 
 **缺点**：
+
 - 架构复杂度高
 - 需要重写大量代码
 - 性能开销（需要缓存 Read Model）
@@ -286,6 +300,7 @@ function rebuildBlockState(blockId: string): Block {
 ### 方案 4: State Channel + Priority Rules
 
 **设计**：
+
 ```typescript
 // 定义状态更新的优先级
 const STATE_UPDATE_PRIORITY = {
@@ -321,11 +336,13 @@ function mergeStateUpdate(current: Block, update: StateUpdate): Block {
 ```
 
 **优点**：
+
 - 明确的冲突解决策略
 - 保留用户操作的优先级
 - 增量实现，可以逐步迁移
 
 **缺点**：
+
 - 需要在每个字段上记录元数据（overhead）
 - 优先级规则可能不适用所有场景
 
@@ -349,11 +366,13 @@ block.set('content', 'new content'); // Client B
 ```
 
 **优点**：
+
 - 自动冲突解决
 - 支持离线编辑
 - 成熟的库（Yjs, Automerge）
 
 **缺点**：
+
 - 学习曲线陡峭
 - 需要完全重构数据层
 - 某些冲突解决可能不符合业务逻辑
@@ -363,17 +382,20 @@ block.set('content', 'new content'); // Client B
 ### 短期（Phase 3.x）：保持同步 Instantiation ✅
 
 **理由**：
+
 - 当前 MVP 阶段，template 较小，同步可接受
 - 避免引入复杂的并发控制
 - 用户体验简单（立即看到结果）
 
 **实施**：
+
 - ✅ 已完成：Phase 3.8 同步 auto-embedding
 - ✅ 已完成：Phase 3.9.1 轻量级 index_name sync
 
 ### 中期（Phase 4.x）：Optimistic Locking + State Channel
 
 **理由**：
+
 - 平衡复杂度和可靠性
 - 增量实现，可以逐步迁移
 - 适合中小型应用
@@ -381,6 +403,7 @@ block.set('content', 'new content'); // Client B
 **实施步骤**：
 
 1. **添加版本控制**（Phase 4.1）
+
    ```typescript
    interface Block {
      id: string;
@@ -395,6 +418,7 @@ block.set('content', 'new content'); // Client B
    ```
 
 2. **实现 compare-and-swap 更新**（Phase 4.2）
+
    ```typescript
    // PuppyDB or UserSystem API
    PUT /blocks/{block_id}?expected_version=5
@@ -404,6 +428,7 @@ block.set('content', 'new content'); // Client B
    ```
 
 3. **前端处理冲突**（Phase 4.3）
+
    ```typescript
    try {
      await updateBlock(blockId, expectedVersion, newData);
@@ -425,11 +450,13 @@ block.set('content', 'new content'); // Client B
 ### 长期（Phase 5.x+）：考虑 Event Sourcing
 
 **理由**：
+
 - 如果系统规模扩大，需要更强的审计和调试能力
 - 支持复杂的协作场景
 - 为 multi-user real-time collaboration 做准备
 
 **前置条件**：
+
 - 团队有足够的 Event Sourcing 经验
 - 系统架构稳定，值得投入重构
 - 有明确的多用户协作需求
@@ -510,30 +537,29 @@ if (hasConflict(currentState, savedState)) {
 **答案：是的，存在明显的状态一致性风险。**
 
 **主要风险**：
+
 1. ❌ Race Condition on Block Data
 2. ❌ Frontend State Oscillation
 3. ❌ Lost Update Problem
 4. ❌ Workspace History Corruption
 
 **根本原因**：
+
 - 缺乏状态所有权定义
 - 缺乏并发控制机制
 - 缺乏事件优先级规则
 
 **推荐路径**：
+
 - ✅ **短期**：保持同步 Instantiation（当前方案）
 - 🔄 **中期**：引入 Optimistic Locking + Priority Rules
 - 🔮 **长期**：考虑 Event Sourcing（如果有明确需求）
 
 **立即行动**：
+
 - 添加状态更新日志
 - 添加最后更新者标记
 - 前端合并状态时检查 timestamp
 - 添加冲突检测告警
 
 这样既保持了当前的简单架构，又为未来的异步化做好了准备。
-
-
-
-
-

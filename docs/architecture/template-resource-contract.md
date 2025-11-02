@@ -324,6 +324,41 @@ interface ResourceSource {
 // - 'structured': JSON or other parsable data (.json, arrays/objects)
 // - 'binary': Binary files like PDF, images (.pdf, .png, etc.)
 
+// IMPORTANT: vector_collection resources MUST be 'structured' format
+// with the Batch structure (engineering standard for bulk data processing):
+
+/**
+ * Batch - Engineering standard for bulk data processing
+ * 
+ * A Batch represents a collection of homogeneous data items with associated
+ * processing configuration. Used for vector collections, graph data, and other
+ * scenarios requiring batch processing.
+ */
+interface Batch<T = any, C = any> {
+  content: T[];        // Array of data items (REQUIRED, must be array)
+  indexing_config: C;  // Configuration for processing (REQUIRED)
+}
+
+// Type alias for vector collection resources
+type VectorCollectionResourceFile = Batch<any, VectorIndexingConfig>;
+
+// Example: resources/faq-vector-kb.json (Batch format)
+// {
+//   "content": [
+//     {"question": "What is X?", "answer": "X is..."},
+//     {"question": "How to Y?", "answer": "Y can be..."}
+//   ],
+//   "indexing_config": {
+//     "key_path": [{"id": "...", "type": "key", "value": "question"}],
+//     "value_path": []
+//   }
+// }
+//
+// Why "Batch"?
+// - Semantic clarity: Represents bulk data with uniform processing rules
+// - Extensibility: Reusable pattern for graph data, LLM fine-tuning datasets, etc.
+// - Type safety: Enforces {content: array, config: object} structure
+
 interface InstantiationTarget {
   pattern: string;               // "${userId}/${blockId}/${versionId}"
   requires_user_scope: boolean;
@@ -608,6 +643,12 @@ This ensures:
 - Clear semantic distinction between vector entries, storage parts, and workflow chunks
 - 100% backward compatible with existing data
 - Improved code maintainability and clarity
+
+**Phase 3.10 Completion (2025-11-02)**: ✅ Extended to Vector API
+- Updated `PuppyStorage/server/routes/vector_routes.py`: `ChunkModel` → `EntryModel`, `chunks` → `entries`
+- Simplified `PuppyFlow/app/api/storage/vector/embed/route.ts`: Removed format transformation (direct pass-through)
+- Full backward compatibility: accepts both `entries` (new) and `chunks` (deprecated)
+- Result: Complete semantic consistency across entire stack (Vector Indexing, Storage, Workflow, and Vector API)
 
 ### Phase 1.9: Auto-Rebuild Vector Indexes (6-7h) ✅ COMPLETED
 

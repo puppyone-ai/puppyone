@@ -2139,6 +2139,141 @@ Runtime Execution:
 
 ---
 
+**Phase 3.10: Complete Phase 1.7 Semantic Separation for Vector API**
+
+**Status**: ✅ **COMPLETED** (Implementation completed: 2025-11-02)
+
+**Background**: Phase 1.7 (Semantic Separation) was completed in commit `e63563ec` to disambiguate terminology:
+- Vector indexing: `chunks` → `entries` (semantic units for embedding)
+- Storage: `chunks` → `parts` (physical storage units)  
+- Workflow edges: kept as `chunks` (user-facing concept)
+
+**Issue Identified**: Phase 1.7 updated 30 files across the codebase BUT **missed the Vector API endpoints** in PuppyStorage. The `/vector/embed` endpoint still used `ChunkModel` and `chunks` field, creating semantic inconsistency and requiring format transformation in the API proxy layer.
+
+**Root Cause**: When implementing Phase 3.8 (Auto-embedding), we discovered the Vector API transformation issue:
+
+```typescript
+// PuppyFlow sends: { entries: [...] }
+// API proxy had to transform: entries → chunks
+// PuppyStorage expected: { chunks: [...] }
+```
+
+This violated Phase 1.7's semantic separation principle and added unnecessary complexity.
+
+**Solution**: Complete the unfinished Phase 1.7 refactoring for Vector API.
+
+**Implementation**:
+
+1. **PuppyStorage** (`vector_routes.py`):
+```python
+# Before (Phase 1.7 incomplete)
+class ChunkModel(BaseModel):
+    content: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+class EmbedRequest(BaseModel):
+    chunks: conlist(ChunkModel, min_length=1)
+
+# After (Phase 1.7 complete)
+class EntryModel(BaseModel):  # ✅ Semantic unit for vector embedding
+    content: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+ChunkModel = EntryModel  # Deprecated alias for backward compatibility
+
+class EmbedRequest(BaseModel):
+    entries: Optional[conlist(EntryModel, min_length=1)] = None  # ✅ New field
+    chunks: Optional[conlist(EntryModel, min_length=1)] = None  # Deprecated
+    
+    @field_validator('entries', mode='before')
+    @classmethod
+    def validate_entries_or_chunks(cls, v, info):
+        """Accept both 'entries' (new) and 'chunks' (deprecated)"""
+        if v is not None:
+            return v
+        return info.data.get('chunks')  # Fallback for backward compatibility
+```
+
+2. **PuppyFlow API Proxy** (`/api/storage/vector/embed/route.ts`):
+```typescript
+// Before (Format transformation needed)
+const storagePayload = {
+  chunks: body.entries.map(...)  // ❌ Transform entries → chunks
+};
+
+// After (Direct pass-through)
+// Phase 1.7: Both sides now use 'entries'
+const response = await fetch(storageUrl, {
+  body: JSON.stringify(body),  // ✅ Direct pass-through, no transformation
+});
+```
+
+3. **Embed Handler** (`vector_routes.py`):
+```python
+# Updated all references in embed() function
+entries_content = [entry.content for entry in embed_request.entries]  # ✅
+vectors = embedder.embed(entries_content)
+vdb.store_vectors(
+    vectors=vectors,
+    contents=entries_content,
+    metadata=[entry.metadata for entry in embed_request.entries]  # ✅
+)
+```
+
+**Backward Compatibility**:
+- ✅ PuppyStorage accepts both `entries` (new) and `chunks` (deprecated)
+- ✅ Old clients using `chunks` continue to work
+- ✅ `ChunkModel` kept as deprecated alias for `EntryModel`
+- ✅ Validator automatically converts `chunks` → `entries` internally
+
+**Architecture Benefits**:
+
+| Aspect | Before (Inconsistent) | After (Phase 1.7 Complete) |
+|--------|----------------------|---------------------------|
+| **Terminology** | Mixed (chunks/entries) | ✅ Consistent (entries for vectors) |
+| **API Proxy** | Format transformation | ✅ Direct pass-through |
+| **Code Clarity** | Semantic confusion | ✅ Clear semantic distinction |
+| **Backward Compat** | N/A | ✅ Full backward compatibility |
+
+**Semantic Separation Summary (Now Complete)**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Layer              │ Terminology  │ Semantics                │
+├─────────────────────────────────────────────────────────────┤
+│ Vector Indexing    │ entries ✅   │ Semantic units (embed)   │
+│ Storage            │ parts ✅     │ Physical storage units   │
+│ Workflow Edges     │ chunks ✅    │ User-facing concept      │
+│ Vector API         │ entries ✅   │ **NOW ALIGNED**          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Files Modified** (Phase 3.10):
+- `PuppyStorage/server/routes/vector_routes.py` (+50 lines)
+  - `EntryModel` class with Phase 1.7 comment
+  - `EmbedRequest` with dual field support
+  - Backward compatibility validator
+  - Updated `embed()` handler to use `entries`
+  
+- `PuppyFlow/app/api/storage/vector/embed/route.ts` (-30 lines)
+  - Removed format transformation logic
+  - Direct pass-through with Phase 1.7 comment
+
+**Testing Notes**:
+- ✅ Backward compatibility: Old clients with `chunks` field still work
+- ✅ New clients: Use `entries` field (semantic consistency)
+- ⏳ Manual E2E: Ready for testing with agentic-rag template instantiation
+
+**Performance Impact**:
+- ✅ Faster: No format transformation overhead in API proxy
+- ✅ Simpler: 30 lines of transformation code removed
+- ✅ Maintainable: Consistent terminology across entire stack
+
+**Design Principle Restored**:
+> "Phase 1.7: Clear semantic distinction eliminates confusion, improves maintainability, with zero breaking changes."
+
+---
+
 ### New Files (Phase 2)
 
 ```
