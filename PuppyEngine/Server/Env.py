@@ -417,15 +417,22 @@ class Env:
             
             for ds in data_sources:
                 ds_block_id = ds.get("id")
-                if ds_block_id and ds_block_id not in block_configs:  # Avoid duplicates
+                if ds_block_id:
                     block = self.blocks.get(ds_block_id)
                     if block:
                         # Extract indexingList for runtime resolution
                         indexing_list = block.data.get("indexingList", [])
-                        block_configs[ds_block_id] = {
-                            "label": block.label,
-                            "indexingList": indexing_list,  # For runtime resolution
-                        }
+                        
+                        # If block already exists (as input block), update it with indexingList
+                        # Otherwise, create new entry
+                        if ds_block_id in block_configs:
+                            block_configs[ds_block_id]["indexingList"] = indexing_list
+                        else:
+                            block_configs[ds_block_id] = {
+                                "label": block.label,
+                                "indexingList": indexing_list,  # For runtime resolution
+                            }
+                        
                         log_debug(
                             f"Extracted indexingList for data_source block {ds_block_id}: "
                             f"{len(indexing_list)} indexed sets"

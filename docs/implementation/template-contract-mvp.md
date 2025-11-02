@@ -2745,3 +2745,131 @@ If critical issues arise:
 - ✅ Manual testing guide created
 - ✅ Code comments explain metadata management strategy
 - ✅ STORAGE_SPEC.md updated with consistency requirements
+
+---
+
+## Post-Implementation: Vector Search Deduplication & Multi-Source Optimization (2025-11-02)
+
+**Issue Discovered**: After template instantiation and auto-embedding, vector search was returning duplicate results when querying multiple data sources, and the algorithm for merging results was suboptimal.
+
+### Problem Analysis
+
+**User Feedback**:
+> "3 个最佳结果如果有重叠呢？（虽然索引集不同，但是原数据应该归属同一组batch？"
+
+**Issues Identified**:
+
+1. **No Deduplication**: Multiple data sources could return the same content with different scores
+2. **Insufficient Candidates**: Each source only requested `top_k` results, limiting merge quality
+3. **Missing Main Logic**: Single data source case had no return statement (accidental deletion)
+
+### Fix Implemented
+
+**Code Changes** (`PuppyEngine/ModularEdges/SearchEdge/vector_search.py`):
+
+1. **Restored Single Data Source Logic**:
+```python
+# Single data source: direct pass-through
+if len(data_sources) == 1:
+    collection_configs = data_sources[0].get("index_item", {}).get("collection_configs", {})
+    search_results = StorageClient.execute(...)
+    search_results = [res.get("metadata", {}).get("retrieval_content", "") for res in search_results]
+    return search_results
+```
+
+2. **Optimized Multi-Source Strategy**:
+```python
+# Request 2x candidates from each source to ensure quality after merging
+per_source_top_k = (self.top_k * 2) if self.top_k else None
+
+for data_source in data_sources:
+    results = StorageClient.execute(
+        top_k=per_source_top_k,  # ← 2x candidates
+        ...
+    )
+    search_results.extend(results)
+```
+
+3. **Implemented Deduplication**:
+```python
+# Deduplicate by metadata.id (keep highest score)
+seen_ids = {}
+deduplicated_results = []
+for result in sorted(search_results, key=lambda x: x["score"], reverse=True):
+    # Use metadata.id as dedup key if available, otherwise use retrieval_content
+    result_id = result.get("metadata", {}).get("id")
+    dedup_key = result_id if result_id is not None else result.get("metadata", {}).get("retrieval_content", "")
+    
+    if dedup_key not in seen_ids:
+        seen_ids[dedup_key] = True
+        deduplicated_results.append(result)
+
+# Apply final top_k and threshold after deduplication
+if self.top_k:
+    deduplicated_results = deduplicated_results[:self.top_k]
+```
+
+### Architecture Benefits
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| **Single Source** | ❌ No return (bug) | ✅ Direct pass-through |
+| **Multi-Source Candidates** | top_k per source | ✅ top_k × 2 per source |
+| **Deduplication** | ❌ None | ✅ By metadata.id or content |
+| **Result Quality** | ⚠️ Possible duplicates | ✅ Unique, highest scored |
+
+### Algorithm Flow
+
+```
+Multi-Source Vector Search (Optimized):
+  1. Request Candidates:
+     - Each source: top_k × 2 results
+     - Total pool: N sources × top_k × 2
+  
+  2. Merge & Sort:
+     - Combine all results
+     - Sort by score (descending)
+  
+  3. Deduplicate:
+     - Priority: metadata.id (if available)
+     - Fallback: retrieval_content
+     - Keep highest score for duplicates
+  
+  4. Final Selection:
+     - Apply top_k limit
+     - Apply threshold filter
+  
+  Result: Top K unique results with highest relevance
+```
+
+### Impact
+
+**Before**: 
+- Query 3 sources with top_k=3 → 9 results (possible duplicates)
+- If 2 sources index same batch → duplicate entries
+
+**After**:
+- Query 3 sources with top_k=3 → request 6 each → 18 candidates
+- Deduplicate → ~15 unique results
+- Select top 3 → best quality, no duplicates ✅
+
+### Files Modified
+
+- `PuppyEngine/ModularEdges/SearchEdge/vector_search.py` (+45 lines)
+  - Restored single data source logic
+  - Implemented 2x candidate strategy
+  - Added deduplication logic
+
+### Testing Status
+
+- ✅ Linter: No errors
+- ✅ Manual E2E: **WORKS!** (user confirmed: "work啦！！！！！！！")
+- ✅ Template: `agentic-rag` with vector search functioning correctly
+
+### Design Principle
+
+> "When merging results from multiple data sources, request more candidates than needed to ensure quality after deduplication. Prioritize unique results by semantic ID, then by content, keeping the highest relevance score."
+
+---
+
+**All Phases Complete**: Template instantiation with auto-embedding and vector search now fully functional end-to-end! 🎉

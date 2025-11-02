@@ -145,9 +145,11 @@ function buildStructuredNodeJson(
       storage_class: 'external',
       data: {
         external_metadata: nodeData.external_metadata,
+        // Phase 3.9: Include indexingList for runtime resolution
+        indexingList: nodeData.indexingList || [],
       },
       looped: !!nodeData.looped,
-      collection_configs: collectionConfigs,
+      collection_configs: collectionConfigs, // Backward compatibility
     };
   }
 
@@ -161,9 +163,11 @@ function buildStructuredNodeJson(
         parsedContent !== ''
           ? parsedContent
           : null, // 使用 null 而不是空字符串，确保后端不会将其标记为已处理
+      // Phase 3.9: Include indexingList for runtime resolution
+      indexingList: nodeData.indexingList || [],
     },
     looped: !!nodeData.looped,
-    collection_configs: collectionConfigs,
+    collection_configs: collectionConfigs, // Backward compatibility
   };
 }
 

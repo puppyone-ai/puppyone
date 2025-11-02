@@ -49,8 +49,11 @@ export async function POST(request: Request) {
     const response = await fetch(storageUrl, {
       method: 'POST',
       headers: {
-        ...headers,
-        'Content-Type': 'application/json',
+        authorization:
+          headers['authorization'] ||
+          headers['Authorization'] ||
+          'Bearer local-dev',
+        'content-type': 'application/json',
       },
       body: JSON.stringify(body),
     });

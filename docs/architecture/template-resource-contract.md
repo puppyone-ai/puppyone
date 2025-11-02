@@ -1163,7 +1163,11 @@ instantiateTemplate(templateId, userId, workspaceName)
 |       |            |                   | Edge stores only `index_name`, runtime resolves `collection_configs` from Block |
 |       |            |                   | Eliminated manual synchronization (`syncVectorCollectionConfigsToEdges`) |
 |       |            |                   | Single Source of Truth: Block is the only data source for collection_configs |
-| 0.2 | TBD | - | After MVP implementation |
+| 0.2.0 | 2025-11-02 | Architecture Team | Vector Search Deduplication & Multi-Source Optimization (Phase 3.12) |
+|       |            |                   | Implemented deduplication by metadata.id or retrieval_content |
+|       |            |                   | Optimized multi-source: request 2x candidates for better merge quality |
+|       |            |                   | Fixed single data source return (bug fix) |
+|       |            |                   | **MVP Complete**: Template instantiation with auto-embedding fully functional ✅ |
 | 1.0 | TBD | - | Production release |
 
 ---

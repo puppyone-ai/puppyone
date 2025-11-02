@@ -382,3 +382,10 @@ const newEntries = VectorIndexing.extractEntries(
 - 如果不一致，应该警告并重新生成
 
 这样既保留了 Batch 作为 SSOT，又提供了性能优化的可能性。
+
+
+
+
+
+
+

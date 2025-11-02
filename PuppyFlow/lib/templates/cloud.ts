@@ -401,20 +401,23 @@ export class CloudTemplateLoader implements TemplateLoader {
     const indexingConfigPath = resource.mounted_paths?.indexing_config;
     let indexingItem: any = null;
 
+    // Template should have indexingList pre-populated; this check ensures it exists
     if (indexingConfigPath && block.data.indexingList.length > 0) {
       indexingItem = block.data.indexingList[0];
 
-      // Ensure complete structure for vector indexing
-      indexingItem.entries = [];
-      indexingItem.status = 'notStarted'; // Correct enum: 'notStarted' | 'processing' | 'done' | 'error'
-      indexingItem.index_name = '';
-      indexingItem.collection_configs = {
-        set_name: '',
-        model: '',
-        vdb_type: 'pgvector',
-        user_id: userId,
-        collection_name: '',
-      };
+      // Ensure complete structure for vector indexing (use || to avoid overwriting existing values)
+      indexingItem.entries = indexingItem.entries || [];
+      indexingItem.status = indexingItem.status || 'notStarted';
+      indexingItem.index_name = indexingItem.index_name || '';
+      if (!indexingItem.collection_configs) {
+        indexingItem.collection_configs = {
+          set_name: '',
+          model: '',
+          vdb_type: 'pgvector',
+          user_id: userId,
+          collection_name: '',
+        };
+      }
 
       // Attempt auto-rebuild if enabled
       // parsedContent is a Batch for vector_collection resources
@@ -494,8 +497,78 @@ export class CloudTemplateLoader implements TemplateLoader {
 
     // Phase 3.9: Lightweight sync - Only sync index_name to edges (for UI display and runtime lookup)
     // collection_configs is NOT synced - it will be resolved at runtime from Block's indexingList
+
+    // Build data_source structure for edges connected to this vector collection block
+    this.ensureEdgeDataSource(workflow, block.id, indexingItem);
+
     if (indexingItem?.index_name) {
       this.syncIndexNameToEdges(workflow, block.id, indexingItem.index_name);
+      // Phase 3.11: Also sync to retrieval nodes' dataSource (template pre-fills this)
+      this.syncIndexNameToRetrievalNodes(
+        workflow,
+        block.id,
+        indexingItem.index_name
+      );
+    }
+  }
+
+  /**
+   * Ensure edge has data_source structure for vector collection references
+   *
+   * Template edges may not include data_source structure initially.
+   * This method builds the minimal structure required for validation and runtime.
+   *
+   * @param workflow - Workflow definition with edges
+   * @param blockId - Vector collection block ID
+   * @param indexingItem - Indexing configuration from block
+   */
+  private ensureEdgeDataSource(
+    workflow: WorkflowDefinition,
+    blockId: string,
+    indexingItem: any
+  ): void {
+    if (!workflow.edges) {
+      return;
+    }
+
+    console.log(
+      `[CloudTemplateLoader] Ensuring data_source structure for block ${blockId}`
+    );
+
+    for (const edge of workflow.edges) {
+      // Check if this edge has the vector collection as source
+      if (edge.source === blockId) {
+        if (!edge.data) {
+          edge.data = {};
+        }
+
+        // Initialize data_source array if not exists
+        if (!edge.data.dataSource && !edge.data.data_source) {
+          edge.data.data_source = [];
+        }
+
+        const dataSourceList = edge.data.data_source || edge.data.dataSource;
+
+        // Check if this block is already in data_source
+        const existingDataSource = dataSourceList.find(
+          (ds: any) => ds.id === blockId
+        );
+
+        if (!existingDataSource) {
+          // Add data_source entry for this vector collection block
+          dataSourceList.push({
+            id: blockId,
+            index_item: {
+              index_name: indexingItem?.index_name || '',
+              // collection_configs will be resolved at runtime
+            },
+          });
+
+          console.log(
+            `[CloudTemplateLoader] Added data_source entry for block ${blockId} to edge ${edge.id}`
+          );
+        }
+      }
     }
   }
 
@@ -520,10 +593,16 @@ export class CloudTemplateLoader implements TemplateLoader {
     indexName: string
   ): void {
     if (!workflow.edges) {
+      console.log(`[CloudTemplateLoader] No edges found in workflow`);
       return;
     }
 
+    console.log(
+      `[CloudTemplateLoader] Syncing index_name for block ${blockId}, edges count: ${workflow.edges.length}`
+    );
+
     // Find all edges that reference this block in dataSource/data_source
+    let syncedCount = 0;
     for (const edge of workflow.edges) {
       if (!edge.data) {
         continue;
@@ -535,15 +614,85 @@ export class CloudTemplateLoader implements TemplateLoader {
 
       if (dataSourceList && Array.isArray(dataSourceList)) {
         for (const dataSource of dataSourceList) {
+          console.log(
+            `[CloudTemplateLoader] Edge ${edge.id}: checking dataSource.id=${dataSource.id} vs blockId=${blockId}, has index_item=${!!dataSource.index_item}`
+          );
           if (dataSource.id === blockId && dataSource.index_item) {
             // Update only index_name (lightweight)
             dataSource.index_item.index_name = indexName;
+            syncedCount++;
             console.log(
-              `[CloudTemplateLoader] Synced index_name to edge ${edge.id} for block ${blockId}: ${indexName}`
+              `[CloudTemplateLoader] ✅ Synced index_name to edge ${edge.id} for block ${blockId}: ${indexName}`
             );
           }
         }
       }
+    }
+
+    if (syncedCount === 0) {
+      console.warn(
+        `[CloudTemplateLoader] ⚠️ No edges found referencing block ${blockId}`
+      );
+    } else {
+      console.log(
+        `[CloudTemplateLoader] Synced index_name to ${syncedCount} edge(s)`
+      );
+    }
+  }
+
+  /**
+   * Sync index_name to retrieval nodes that reference this vector collection
+   *
+   * Phase 3.11: Fix template instantiation for retrieval blocks
+   *
+   * Templates may pre-fill retrieval nodes' data.dataSource with empty index_name.
+   * UI's buildRetrievingNodeJson reads from node.data.dataSource (not edge), so we must update it.
+   *
+   * @param workflow - Workflow definition with blocks
+   * @param blockId - Vector collection block ID
+   * @param indexName - The index_name from the block's indexingList[0]
+   */
+  private syncIndexNameToRetrievalNodes(
+    workflow: WorkflowDefinition,
+    blockId: string,
+    indexName: string
+  ): void {
+    if (!workflow.blocks) {
+      return;
+    }
+
+    console.log(
+      `[CloudTemplateLoader] Syncing index_name to retrieval nodes for block ${blockId}`
+    );
+
+    let syncedCount = 0;
+    for (const block of workflow.blocks) {
+      // Only process retrieval-type blocks
+      if (block.type !== 'retrieving') {
+        continue;
+      }
+
+      const dataSource = block.data?.dataSource;
+      if (dataSource && Array.isArray(dataSource)) {
+        for (const ds of dataSource) {
+          if (ds.id === blockId) {
+            if (!ds.index_item) {
+              ds.index_item = {};
+            }
+            ds.index_item.index_name = indexName;
+            syncedCount++;
+            console.log(
+              `[CloudTemplateLoader] ✅ Synced index_name to retrieval node ${block.id}: ${indexName}`
+            );
+          }
+        }
+      }
+    }
+
+    if (syncedCount > 0) {
+      console.log(
+        `[CloudTemplateLoader] Synced index_name to ${syncedCount} retrieval node(s)`
+      );
     }
   }
 
@@ -568,8 +717,8 @@ export class CloudTemplateLoader implements TemplateLoader {
     collection_name: string;
     set_name: string;
   }> {
-    // Use localhost for server-side API calls (same process)
-    const apiUrl = 'http://localhost:3000/api/storage/vector/embed';
+    // Use PuppyStorage backend URL directly to avoid proxy issues
+    const apiUrl = `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/vector/embed`;
 
     // Build payload (same structure as frontend useIndexingUtils.ts)
     const payload = {

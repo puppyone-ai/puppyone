@@ -4,12 +4,14 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import re
+import json
+import logging
 from itertools import product
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Union, Tuple
 from Utils.puppy_exception import global_exception_handler
-import json
+from Utils.logger import log_debug
 
 
 @dataclass
@@ -390,6 +392,10 @@ class SearchConfigParser(EdgeConfigParser):
         self,
         variable_replace_field: str = "query"
     ) -> ParsedEdgeParams:
+        # Debug: Log raw edge configs at entry
+        log_debug(f"[SearchConfigParser.parse] Raw edge_configs: {self.edge_configs}")
+        log_debug(f"[SearchConfigParser.parse] data_source: {self.edge_configs.get('data_source', [])}")
+        
         # Handle multiple document sources
         doc_ids = self.edge_configs.get("doc_ids", [])
         if doc_ids:
@@ -429,12 +435,15 @@ class SearchConfigParser(EdgeConfigParser):
                     ds_block_config = self.block_configs.get(ds_id, {})
                     indexing_list = ds_block_config.get("indexingList", [])
                     
+                    log_debug(f"[SearchConfigParser] Runtime resolution for ds_id={ds_id}, index_name={requested_index_name}")
+                    
                     # Find matching indexed set by index_name
                     selected_index_item = None
                     if requested_index_name and indexing_list:
                         for item in indexing_list:
                             if item.get("index_name") == requested_index_name:
                                 selected_index_item = item
+                                log_debug(f"  ✅ Found matching index_item")
                                 break
                     
                     # Fallback: Use first done item if no match found
@@ -442,16 +451,20 @@ class SearchConfigParser(EdgeConfigParser):
                         for item in indexing_list:
                             if item.get("status") == "done":
                                 selected_index_item = item
+                                log_debug(f"  ⚠️ Using fallback: first done item")
                                 break
                     
                     # Extract collection_configs
                     collection_configs = selected_index_item.get("collection_configs", {}) if selected_index_item else {}
                     
                     # Build enriched data_source
+                    # CRITICAL: Preserve requested_index_name even if no match found!
+                    final_index_name = requested_index_name or (selected_index_item.get("index_name", "") if selected_index_item else "")
+                    
                     enriched_ds = {
                         **ds,
                         "index_item": {
-                            "index_name": requested_index_name or selected_index_item.get("index_name", "") if selected_index_item else "",
+                            "index_name": final_index_name,
                             "collection_configs": collection_configs,
                         }
                     }
