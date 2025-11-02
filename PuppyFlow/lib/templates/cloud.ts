@@ -560,42 +560,64 @@ export class CloudTemplateLoader implements TemplateLoader {
       vdb_type: 'pgvector',
       model: 'text-embedding-ada-002', // Default model (TODO: select from availableModels)
       set_name: `collection_${blockId}_${Date.now()}`,
+      user_id: userId, // Add user_id to payload
     };
 
-    console.log(
-      `[CloudTemplateLoader] Calling embedding API for ${entries.length} entries...`
-    );
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: this.getUserAuthHeader(),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+    console.log(`[CloudTemplateLoader] 📤 Calling embedding API:`, {
+      url: apiUrl,
+      entriesCount: entries.length,
+      set_name: payload.set_name,
+      user_id: payload.user_id,
+      auth: this.getUserAuthHeader(),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Embedding API failed: ${response.status} - ${errorText}`
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: this.getUserAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log(
+        `[CloudTemplateLoader] 📥 Embedding API response status: ${response.status}`
       );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          `[CloudTemplateLoader] ❌ Embedding API error response:`,
+          errorText
+        );
+        throw new Error(
+          `Embedding API failed: ${response.status} - ${errorText}`
+        );
+      }
+
+      const result = await response.json();
+      console.log(`[CloudTemplateLoader] 📥 Embedding API result:`, result);
+
+      if (!result.collection_name) {
+        throw new Error('Embedding API did not return collection_name');
+      }
+
+      console.log(
+        `[CloudTemplateLoader] ✅ Embedding completed: ${result.collection_name}`
+      );
+
+      return {
+        collection_name: result.collection_name,
+        set_name: result.set_name || payload.set_name, // Use returned set_name if available
+      };
+    } catch (error) {
+      console.error(
+        `[CloudTemplateLoader] ❌ callEmbeddingAPI exception:`,
+        error
+      );
+      throw error;
     }
-
-    const result = await response.json();
-
-    if (!result.collection_name) {
-      throw new Error('Embedding API did not return collection_name');
-    }
-
-    console.log(
-      `[CloudTemplateLoader] ✅ Embedding completed: ${result.collection_name}`
-    );
-
-    return {
-      collection_name: result.collection_name,
-      set_name: payload.set_name,
-    };
   }
 
   /**

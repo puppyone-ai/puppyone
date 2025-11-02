@@ -166,36 +166,22 @@ export class VectorAutoRebuildService {
       workspaceId
     );
 
-    // Step 6: Trigger embedding (non-blocking in Phase 1.9)
-    // Note: Actual embedding API will be implemented in Phase 2
-    try {
-      await this.triggerEmbedding(
-        entries,
-        collectionName,
-        compatibility.suggestedModel!
-      );
-
-      return {
-        success: true,
-        status: 'completed',
-        entries,
-        collectionName,
-        model: compatibility.suggestedModel,
-        warning:
-          compatibility.action === 'warn_and_rebuild' ||
-          compatibility.confidence === 'low'
-            ? compatibility.reason
-            : undefined,
-        compatibilityResult: compatibility,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        status: 'failed',
-        error: `Failed to trigger embedding: ${(error as Error).message}`,
-        entries, // Still return entries for debugging
-      };
-    }
+    // Step 6: Return entries for CloudTemplateLoader to handle embedding
+    // Phase 3.8: CloudTemplateLoader now handles the actual embedding API call
+    // This method just prepares the entries and returns them
+    return {
+      success: true,
+      status: 'prepared', // Changed from 'completed' to 'prepared' (entries ready, not embedded yet)
+      entries,
+      collectionName,
+      model: compatibility.suggestedModel,
+      warning:
+        compatibility.action === 'warn_and_rebuild' ||
+        compatibility.confidence === 'low'
+          ? compatibility.reason
+          : undefined,
+      compatibilityResult: compatibility,
+    };
   }
 
   /**
@@ -252,8 +238,13 @@ export class VectorAutoRebuildService {
   /**
    * Trigger embedding for vector entries
    *
-   * This is a placeholder for Phase 1.9. The actual implementation will be
-   * completed in Phase 2 when the CloudTemplateLoader and embedding API are integrated.
+   * DEPRECATED in Phase 3.8: This method is no longer used.
+   * Embedding is now handled by CloudTemplateLoader.callEmbeddingAPI() which:
+   * 1. Runs server-side with proper authentication
+   * 2. Uses absolute URLs (not relative paths)
+   * 3. Properly transforms data format for PuppyStorage
+   *
+   * This method is kept for reference but should not be called.
    *
    * @param entries - Vector entries to embed
    * @param collectionName - Collection name in vector DB
@@ -264,39 +255,22 @@ export class VectorAutoRebuildService {
     collectionName: string,
     model: NormalizedEmbeddingModel
   ): Promise<void> {
+    console.warn(
+      '[VectorAutoRebuildService] DEPRECATED: triggerEmbedding() should not be called. ' +
+        'Use CloudTemplateLoader.callEmbeddingAPI() instead.'
+    );
+
     console.log('[VectorAutoRebuildService] Triggering embedding:', {
       entriesCount: entries.length,
       collectionName,
       modelId: model.id,
     });
 
-    const response = await fetch('/api/storage/vector/embed', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        entries: entries.map(e => e.content),
-        collection_name: collectionName,
-        model_id: model.id,
-        model_provider: model.provider,
-        key_path: entries[0]?.key_path || [],
-        value_path: entries[0]?.value_path || [],
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(
-        `Embedding failed: ${error.message || response.statusText}`
-      );
-    }
-
-    const result = await response.json();
-    console.log('[VectorAutoRebuildService] Embedding completed:', {
-      collection: result.collection_name,
-      vectorsCount: result.vectors_count,
-    });
+    // DEPRECATED: This fetch call doesn't work server-side (relative path)
+    // Kept for reference only
+    throw new Error(
+      'triggerEmbedding() is deprecated. Use CloudTemplateLoader.callEmbeddingAPI() instead.'
+    );
   }
 
   /**

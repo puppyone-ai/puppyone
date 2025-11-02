@@ -22,9 +22,19 @@ interface EmbedResponse {
 export async function POST(request: Request) {
   try {
     const body: any = await request.json();
+    console.log(
+      '[Vector Embed Proxy] 📥 Received request from CloudTemplateLoader:',
+      {
+        hasEntries: !!body.entries,
+        entriesLength: body.entries?.length,
+        set_name: body.set_name,
+        user_id: body.user_id,
+      }
+    );
 
     // Build PuppyStorage API URL
     const storageUrl = `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/vector/embed`;
+    console.log('[Vector Embed Proxy] 🎯 Target PuppyStorage URL:', storageUrl);
 
     // Filter and inject auth headers
     const headers = filterRequestHeadersAndInjectAuth(
@@ -34,6 +44,10 @@ export async function POST(request: Request) {
         includeServiceKey: true,
         localFallback: true,
       }
+    );
+    console.log(
+      '[Vector Embed Proxy] 🔑 Auth headers prepared:',
+      Object.keys(headers)
     );
 
     // Transform PuppyFlow format to PuppyStorage format
@@ -60,10 +74,14 @@ export async function POST(request: Request) {
       user_id: body.user_id || 'public',
     };
 
-    console.log('[Vector Embed Proxy] Embedding request:', {
-      entriesCount: storagePayload.chunks.length,
+    console.log('[Vector Embed Proxy] 📤 Sending to PuppyStorage:', {
+      url: storageUrl,
+      chunksCount: storagePayload.chunks.length,
       set_name: storagePayload.set_name,
       model: storagePayload.model,
+      vdb_type: storagePayload.vdb_type,
+      user_id: storagePayload.user_id,
+      firstChunkPreview: storagePayload.chunks[0]?.content?.substring(0, 100),
     });
 
     // Proxy to PuppyStorage
@@ -75,6 +93,11 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify(storagePayload),
     });
+
+    console.log(
+      '[Vector Embed Proxy] 📥 PuppyStorage response status:',
+      response.status
+    );
 
     const data: EmbedResponse = await response.json();
 
