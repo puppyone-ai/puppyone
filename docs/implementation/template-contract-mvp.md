@@ -1172,7 +1172,7 @@ private async processFile(...): Promise<void> {
   // 2. Upload file to PuppyStorage (direct upload for small files)
   const fileKey = `${resourceKey}/${fileName}`;
   const uploadResponse = await fetch(`${STORAGE_URL}/upload/chunk/direct`, {
-    method: 'POST',
+  method: 'POST',
     headers: {
       Authorization: this.getUserAuthHeader(),  // ← Uses fixed auth
       'Content-Type': 'application/json',

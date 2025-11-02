@@ -184,6 +184,7 @@ function Workflow() {
     getZoom,
     getEdges,
     setViewport,
+    fitView,
   } = useReactFlow();
   const { zoomOnScroll, lockZoom, freeZoom, judgeNodeIsEdgeNode } =
     useManageReactFlowUtils();
@@ -308,6 +309,11 @@ function Workflow() {
       if (currentWorkspaceContent.viewport) {
         setTimeout(() => {
           setViewport(currentWorkspaceContent.viewport!);
+        }, 0);
+      } else if (sanitizedBlocks.length > 0) {
+        // If no viewport is saved (e.g., newly instantiated template), auto-fit to center
+        setTimeout(() => {
+          fitView(fitViewOptions);
         }, 0);
       }
     } else if (selectedFlowId && !currentWorkspaceContent) {

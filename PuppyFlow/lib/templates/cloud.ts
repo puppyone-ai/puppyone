@@ -394,12 +394,19 @@ export class CloudTemplateLoader implements TemplateLoader {
       };
 
       // Attempt auto-rebuild if enabled
-      if (this.config.enableAutoRebuild && Array.isArray(parsedContent)) {
+      // Phase 3.8 Fix: parsedContent is an object with {content: [], indexing_config: {}}
+      // We need to check parsedContent.content, not parsedContent itself
+      const contentArray = parsedContent?.content || parsedContent;
+      if (
+        this.config.enableAutoRebuild &&
+        Array.isArray(contentArray) &&
+        contentArray.length > 0
+      ) {
         try {
           const rebuildResult =
             await VectorAutoRebuildService.attemptAutoRebuild({
               resourceDescriptor: resource,
-              content: parsedContent,
+              content: contentArray, // Pass the content array, not the wrapper object
               availableModels,
               userId,
               workspaceId,

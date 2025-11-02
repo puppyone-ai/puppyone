@@ -136,7 +136,9 @@ function AddNewWorkspaceButton() {
           );
 
           // Update workspace with actual content
+          // Keep the workspace_name from the optimistic workspace (user-provided name)
           updateWorkspace(workspaceId, {
+            workspace_name: workspaceName, // Preserve the name from template instantiation
             content: switchResult.content,
             pullFromDatabase: true,
             pushToDatabase: false,
