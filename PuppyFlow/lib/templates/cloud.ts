@@ -333,14 +333,27 @@ export class CloudTemplateLoader implements TemplateLoader {
     workflow: WorkflowDefinition,
     availableModels: Model[]
   ): Promise<void> {
-    // Upload content (always for vector collections per architecture)
+    // Validate Batch structure (required for all vector_collection resources)
+    if (!isBatch(parsedContent)) {
+      throw new Error(
+        `vector_collection resource ${resource.id} must be a valid Batch: ` +
+          `{content: array, indexing_config: object}. ` +
+          `Got: ${JSON.stringify(parsedContent).substring(0, 200)}`
+      );
+    }
+
+    const batch = parsedContent as Batch;
     const versionId = uuidv4();
     const targetKey = `${userId}/${block.id}/${versionId}`;
 
     if (isExternal) {
+      // External Storage: Upload ONLY content (not indexing_config)
+      // Principle: Storage contains data, not metadata
+      // indexing_config is stored in indexingList (Single Source of Truth)
+      const contentOnly = JSON.stringify(batch.content);
       const resourceKey = await this.uploadWithPartitioning(
-        resourceContent,
-        resource.source.format,
+        contentOnly,
+        'structured', // Always structured format for content array
         targetKey,
         userId
       );
@@ -352,22 +365,13 @@ export class CloudTemplateLoader implements TemplateLoader {
       block.data.external_metadata.resource_key = resourceKey;
       block.data.storage_class = 'external';
       block.data.isExternalStorage = true;
+
+      console.log(
+        `[CloudTemplateLoader] 📤 Uploaded vector collection content (${batch.content.length} items) to external storage: ${resourceKey}`
+      );
     } else {
-      // Inline storage
+      // Inline storage: Inject content into workflow JSON
       if (resource.mounted_paths?.content) {
-        // For vector_collection, parsedContent must be a valid Batch
-        // Batch = {content: T[], indexing_config: C}
-        if (!isBatch(parsedContent)) {
-          throw new Error(
-            `vector_collection resource ${resource.id} must be a valid Batch: ` +
-              `{content: array, indexing_config: object}. ` +
-              `Got: ${JSON.stringify(parsedContent).substring(0, 200)}`
-          );
-        }
-
-        // Type assertion: parsedContent is now Batch
-        const batch = parsedContent as Batch;
-
         this.updateWorkflowReference(
           workflow,
           block.id,
@@ -382,6 +386,10 @@ export class CloudTemplateLoader implements TemplateLoader {
       if (block.data.external_metadata) {
         delete block.data.external_metadata;
       }
+
+      console.log(
+        `[CloudTemplateLoader] 💾 Stored vector collection content (${batch.content.length} items) inline`
+      );
     }
 
     // Initialize indexing list with pending status
@@ -416,7 +424,7 @@ export class CloudTemplateLoader implements TemplateLoader {
           const rebuildResult =
             await VectorAutoRebuildService.attemptAutoRebuild({
               resourceDescriptor: resource,
-              content: batch.content, // Pass the content array from the Batch
+              batch: batch, // Pass the complete Batch (content + indexing_config)
               availableModels,
               userId,
               workspaceId,

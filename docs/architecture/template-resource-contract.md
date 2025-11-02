@@ -645,6 +645,7 @@ This ensures:
 - Improved code maintainability and clarity
 
 **Phase 3.10 Completion (2025-11-02)**: ✅ Extended to Vector API
+
 - Updated `PuppyStorage/server/routes/vector_routes.py`: `ChunkModel` → `EntryModel`, `chunks` → `entries`
 - Simplified `PuppyFlow/app/api/storage/vector/embed/route.ts`: Removed format transformation (direct pass-through)
 - Full backward compatibility: accepts both `entries` (new) and `chunks` (deprecated)

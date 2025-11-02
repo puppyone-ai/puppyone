@@ -31,14 +31,15 @@ def test_embedder_remote_openai():
     headers = {"Authorization": "Bearer token"}
     
     # Store vectors using /vector/embed endpoint with correct format
-    print("📝 Storing vectors via /vector/embed endpoint...")
+    # Phase 1.7: Use 'entries' field (semantic units for vector indexing)
+    print("📝 Storing vectors via /vector/embed endpoint (Phase 1.7: entries)...")
     store_response = requests.post(
         f"{base_url}/vector/embed",
         json={
             "user_id": "test_user_openai_compat",
             "set_name": "test_openai_set",
             "model": "all-minilm",
-            "chunks": [
+            "entries": [
                 {
                     "content": "Artificial intelligence and deep learning systems",
                     "metadata": {"category": "AI", "id": "doc1"}
@@ -117,14 +118,15 @@ def test_embedder_local_ollama():
     headers = {"Authorization": "Bearer token"}
     
     # Store vectors via /vector/embed endpoint
-    print("📝 Storing vectors via /vector/embed endpoint...")
+    # Phase 1.7: Use 'entries' field (semantic units for vector indexing)
+    print("📝 Storing vectors via /vector/embed endpoint (Phase 1.7: entries)...")
     store_response = requests.post(
         f"{base_url}/vector/embed",
         json={
             "user_id": "test_user_ollama",
             "set_name": "test_ollama_set",
             "model": "all-minilm",
-            "chunks": [
+            "entries": [
                 {
                     "content": "Artificial intelligence and machine learning",
                     "metadata": {"topic": "AI", "id": "doc1"}

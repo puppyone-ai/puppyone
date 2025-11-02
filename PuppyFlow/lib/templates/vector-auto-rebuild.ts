@@ -12,7 +12,7 @@
  */
 
 import { Model } from '@/app/components/states/AppSettingsContext';
-import { ResourceDescriptor } from './types';
+import { ResourceDescriptor, Batch } from './types';
 import { VectorIndexing, VectorEntry } from '@/lib/indexing/vector-indexing';
 import {
   ModelCompatibilityService,
@@ -27,7 +27,7 @@ import { NormalizedEmbeddingModel } from './model-bridge';
  */
 export interface RebuildOptions {
   resourceDescriptor: ResourceDescriptor;
-  content: any[]; // Raw content from which to extract entries
+  batch: Batch; // Batch data (content + indexing_config)
   availableModels: Model[]; // User's available models from AppSettings
   userId: string;
   workspaceId: string;
@@ -41,7 +41,7 @@ export interface RebuildOptions {
  */
 export interface RebuildResult {
   success: boolean;
-  status: 'completed' | 'pending' | 'failed' | 'skipped';
+  status: 'completed' | 'prepared' | 'pending' | 'failed' | 'skipped';
   entries?: VectorEntry[];
   collectionName?: string;
   model?: NormalizedEmbeddingModel;
@@ -73,7 +73,7 @@ export class VectorAutoRebuildService {
   ): Promise<RebuildResult> {
     const {
       resourceDescriptor,
-      content,
+      batch,
       availableModels,
       userId,
       workspaceId,
@@ -126,22 +126,22 @@ export class VectorAutoRebuildService {
         };
     }
 
-    // Step 4: Extract entries from content
+    // Step 4: Extract entries from Batch
     let entries: VectorEntry[];
     try {
-      // Get indexing config from resource descriptor
-      const indexingConfig = this.extractIndexingConfig(resourceDescriptor);
+      // Extract indexing config from Batch
+      const indexingConfig = batch.indexing_config;
 
       if (!indexingConfig) {
         return {
           success: false,
           status: 'failed',
-          error: 'No indexing configuration found in resource descriptor',
+          error: 'Batch missing indexing_config',
         };
       }
 
-      // Extract entries
-      entries = VectorIndexing.extractEntries(content, indexingConfig);
+      // Extract entries from Batch.content using Batch.indexing_config
+      entries = VectorIndexing.extractEntries(batch.content, indexingConfig);
 
       if (entries.length === 0) {
         return {
@@ -187,26 +187,21 @@ export class VectorAutoRebuildService {
   /**
    * Extract indexing configuration from resource descriptor
    *
+   * DEPRECATED: This method is no longer used as of Batch type introduction.
+   * Indexing config is now extracted directly from Batch.indexing_config.
+   *
    * @param resource - Resource descriptor
    * @returns Indexing config or null
+   * @deprecated Use Batch.indexing_config instead
    */
   private static extractIndexingConfig(
     resource: ResourceDescriptor
   ): any | null {
-    // For vector_collection resources, the indexing config should be in mounted_paths
-    if (resource.mounted_paths?.indexing_config) {
-      // The indexing_config path points to the indexing configuration
-      // In the actual implementation, this would be extracted from the workflow JSON
-      // For now, we'll construct a basic config from the resource descriptor
+    console.warn(
+      '[VectorAutoRebuildService] extractIndexingConfig is deprecated. Use Batch.indexing_config instead.'
+    );
 
-      return {
-        type: 'vector',
-        key_path: [], // Will be extracted from actual content
-        value_path: [],
-      };
-    }
-
-    // Fallback: Construct config from chunks and content paths
+    // Fallback for backward compatibility (though should not be called)
     if (resource.mounted_paths?.chunks || resource.mounted_paths?.content) {
       return {
         type: 'vector',
@@ -284,8 +279,8 @@ export class VectorAutoRebuildService {
       return 'Missing resourceDescriptor';
     }
 
-    if (!options.content) {
-      return 'Missing content';
+    if (!options.batch) {
+      return 'Missing batch';
     }
 
     if (!options.availableModels || options.availableModels.length === 0) {
@@ -355,16 +350,20 @@ export class VectorAutoRebuildService {
 /**
  * Batch auto-rebuild for multiple vector resources
  *
+ * DEPRECATED: This function needs to be updated to use Batch type.
+ * Use CloudTemplateLoader.processVectorCollection() directly instead.
+ *
  * @param resources - Array of resource descriptors
- * @param contentMap - Map of resource ID to content
+ * @param batchMap - Map of resource ID to Batch data
  * @param availableModels - User's available models
  * @param userId - User ID
  * @param workspaceId - Workspace ID
  * @returns Map of resource ID to rebuild result
+ * @deprecated Use CloudTemplateLoader instead
  */
 export async function batchAutoRebuild(
   resources: ResourceDescriptor[],
-  contentMap: Map<string, any[]>,
+  batchMap: Map<string, Batch>,
   availableModels: Model[],
   userId: string,
   workspaceId: string
@@ -373,12 +372,12 @@ export async function batchAutoRebuild(
 
   for (const resource of resources) {
     if (VectorAutoRebuildService.shouldAttemptAutoRebuild(resource)) {
-      const content = contentMap.get(resource.id);
+      const batch = batchMap.get(resource.id);
 
-      if (content) {
+      if (batch) {
         const result = await VectorAutoRebuildService.attemptAutoRebuild({
           resourceDescriptor: resource,
-          content,
+          batch,
           availableModels,
           userId,
           workspaceId,

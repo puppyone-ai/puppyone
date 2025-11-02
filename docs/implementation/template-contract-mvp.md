@@ -2063,6 +2063,7 @@ Runtime Execution:
 **Status**: ✅ **COMPLETED** (Implementation completed: 2025-10-31)
 
 **Issue Identified**: After Phase 3.9 implementation, three problems emerged:
+
 1. ❌ Edge's `index_item.index_name` was not updated after auto-embedding
 2. ❌ UI displayed block ID (`"WzK6iT"`) instead of meaningful name
 3. ❌ Runtime resolution could only use fallback (not precise lookup)
@@ -2070,6 +2071,7 @@ Runtime Execution:
 **Root Cause**: Complete removal of sync logic was too aggressive.
 
 **Why `index_name` Still Needs Sync**:
+
 1. **UI Display**: Frontend shows `dataSource[0].label` and needs updated `index_name` for tooltip/details
 2. **Runtime Lookup**: Precise matching by `index_name` (not just fallback to first `done` item)
 3. **User Experience**: Template should display friendly labels, not block IDs
@@ -2103,12 +2105,14 @@ private syncIndexNameToEdges(
 | **Phase 3.9.1 (Final)** | **Only `index_name`** | **~10 bytes** | ✅ SSOT maintained, ✅ Precise lookup, ✅ Good UI | ✅ Minimal sync overhead |
 
 **Template Fix**: Updated `dataSource[0].label`:
+
 ```json
 // Before: "label": "WzK6iT"  (block ID - not user-friendly)
 // After:  "label": "Knowledge Base Vector Index"  (descriptive)
 ```
 
 **Benefits**:
+
 1. ✅ **Single Source of Truth Maintained**: `collection_configs` still resolved at runtime from Block
 2. ✅ **Precise Runtime Lookup**: `index_name` enables exact matching (not just fallback)
 3. ✅ **Better UI**: Friendly label + updated `index_name` for display
@@ -2116,6 +2120,7 @@ private syncIndexNameToEdges(
 5. ✅ **Custom Indexed Sets**: Precise lookup supports user-selected specific sets
 
 **Files Modified** (Phase 3.9.1):
+
 - `PuppyFlow/lib/templates/cloud.ts` (added `syncIndexNameToEdges()`)
 - `PuppyFlow/templates/agentic-rag/package.json` (updated label to be user-friendly)
 
@@ -2144,6 +2149,7 @@ Runtime Execution:
 **Status**: ✅ **COMPLETED** (Implementation completed: 2025-11-02)
 
 **Background**: Phase 1.7 (Semantic Separation) was completed in commit `e63563ec` to disambiguate terminology:
+
 - Vector indexing: `chunks` → `entries` (semantic units for embedding)
 - Storage: `chunks` → `parts` (physical storage units)  
 - Workflow edges: kept as `chunks` (user-facing concept)
@@ -2165,6 +2171,7 @@ This violated Phase 1.7's semantic separation principle and added unnecessary co
 **Implementation**:
 
 1. **PuppyStorage** (`vector_routes.py`):
+
 ```python
 # Before (Phase 1.7 incomplete)
 class ChunkModel(BaseModel):
@@ -2195,6 +2202,7 @@ class EmbedRequest(BaseModel):
 ```
 
 2. **PuppyFlow API Proxy** (`/api/storage/vector/embed/route.ts`):
+
 ```typescript
 // Before (Format transformation needed)
 const storagePayload = {
@@ -2209,6 +2217,7 @@ const response = await fetch(storageUrl, {
 ```
 
 3. **Embed Handler** (`vector_routes.py`):
+
 ```python
 # Updated all references in embed() function
 entries_content = [entry.content for entry in embed_request.entries]  # ✅
@@ -2221,6 +2230,7 @@ vdb.store_vectors(
 ```
 
 **Backward Compatibility**:
+
 - ✅ PuppyStorage accepts both `entries` (new) and `chunks` (deprecated)
 - ✅ Old clients using `chunks` continue to work
 - ✅ `ChunkModel` kept as deprecated alias for `EntryModel`
@@ -2249,6 +2259,7 @@ vdb.store_vectors(
 ```
 
 **Files Modified** (Phase 3.10):
+
 - `PuppyStorage/server/routes/vector_routes.py` (+50 lines)
   - `EntryModel` class with Phase 1.7 comment
   - `EmbedRequest` with dual field support
@@ -2260,17 +2271,156 @@ vdb.store_vectors(
   - Direct pass-through with Phase 1.7 comment
 
 **Testing Notes**:
+
 - ✅ Backward compatibility: Old clients with `chunks` field still work
 - ✅ New clients: Use `entries` field (semantic consistency)
 - ⏳ Manual E2E: Ready for testing with agentic-rag template instantiation
 
 **Performance Impact**:
+
 - ✅ Faster: No format transformation overhead in API proxy
 - ✅ Simpler: 30 lines of transformation code removed
 - ✅ Maintainable: Consistent terminology across entire stack
 
 **Design Principle Restored**:
 > "Phase 1.7: Clear semantic distinction eliminates confusion, improves maintainability, with zero breaking changes."
+
+---
+
+**Phase 3.11: External Storage Batch Separation**
+
+**Status**: ✅ **COMPLETED** (Implementation completed: 2025-11-02)
+
+**Background**: Phase 3.0 introduced the Batch engineering standard for vector_collection resources. However, the External Storage implementation had an architectural inconsistency with Inline Storage.
+
+**Issue Identified**: External Storage was uploading the entire Batch JSON (including `indexing_config`), while Inline Storage only stored `content`. This created:
+
+- ❌ Data redundancy (`indexing_config` stored twice: in storage + `indexingList`)
+- ❌ Architectural inconsistency between storage modes
+- ❌ Violation of Single Source of Truth (SSOT) principle
+- ❌ Potential data synchronization issues
+
+**Root Cause**: In `processVectorCollection()`, the two storage branches handled Batch differently:
+
+```typescript
+// Before: Inconsistent handling
+if (isExternal) {
+  // ❌ Upload entire Batch {content, indexing_config}
+  await uploadWithPartitioning(resourceContent, ...);  // Full JSON
+} else {
+  // ✅ Only store content
+  this.updateWorkflowReference(workflow, block.id, path, batch.content);
+}
+```
+
+**Solution**: Enforce Single Source of Truth - Storage contains data (`content`), not metadata (`indexing_config`)
+
+**Implementation**:
+
+1. **Unified Batch Validation** (`cloud.ts:336-343`):
+
+```typescript
+// Now both branches validate Batch structure consistently
+if (!isBatch(parsedContent)) {
+  throw new Error(
+    `vector_collection resource ${resource.id} must be a valid Batch: ` +
+    `{content: array, indexing_config: object}.`
+  );
+}
+```
+
+2. **External Storage Fix** (`cloud.ts:349-371`):
+
+```typescript
+if (isExternal) {
+  // ✅ Upload ONLY content (not indexing_config)
+  const contentOnly = JSON.stringify(batch.content);
+  const resourceKey = await this.uploadWithPartitioning(
+    contentOnly,
+    'structured',  // Always structured format for content array
+    targetKey,
+    userId
+  );
+  
+  console.log(
+    `[CloudTemplateLoader] 📤 Uploaded vector collection content ` +
+    `(${batch.content.length} items) to external storage: ${resourceKey}`
+  );
+}
+```
+
+3. **Inline Storage Enhanced** (`cloud.ts:372-393`):
+
+```typescript
+else {
+  // Inject content into workflow JSON
+  if (resource.mounted_paths?.content) {
+    this.updateWorkflowReference(
+      workflow,
+      block.id,
+      resource.mounted_paths.content,
+      batch.content
+    );
+  }
+  
+  console.log(
+    `[CloudTemplateLoader] 💾 Stored vector collection content ` +
+    `(${batch.content.length} items) inline`
+  );
+}
+```
+
+**Architecture Benefits**:
+
+| Aspect | Before (Inconsistent) | After (Phase 3.11) |
+|--------|----------------------|-------------------|
+| **Data Redundancy** | ❌ indexing_config × 2 | ✅ indexing_config × 1 |
+| **Storage Space** | ⚠️ Larger (full Batch) | ✅ Smaller (content only) |
+| **Architecture** | ❌ External ≠ Inline | ✅ External = Inline |
+| **SSOT Principle** | ❌ Violated | ✅ Enforced |
+| **Sync Risk** | ⚠️ Potential | ✅ Eliminated |
+
+**Template Verification**: `agentic-rag`
+
+- ✅ `faq-vector-kb.json` is valid Batch format (7 items)
+- ✅ Resource descriptor correct in `package.json`
+- ✅ Block `WzK6iT` definition correct
+- ✅ See `docs/fixes/batch-validation-report.md`
+
+**Files Modified** (Phase 3.11):
+
+- `PuppyFlow/lib/templates/cloud.ts` (~60 lines refactored)
+  - Moved Batch validation to top (before storage branch)
+  - External Storage: Only upload `content`
+  - Enhanced logging with emoji prefixes
+  - Consistent error messages
+
+**Related Documentation**:
+
+- `docs/architecture/batch-entries-boundary.md` - Batch vs Entries 架构边界
+- `docs/architecture/batch-lifecycle-analysis.md` - Batch 完整生命周期分析
+- `docs/fixes/batch-external-storage-fix.md` - External Storage 修复方案详情
+- `docs/fixes/batch-validation-report.md` - agentic-rag 模板验证报告
+
+**Design Principle**:
+> "Storage contains data, not metadata. `indexing_config` lives in `indexingList` (SSOT), never in external storage."
+
+**Data Flow (Now Consistent)**:
+
+```
+Template Package (Batch format)
+  ├─ {content: [...], indexing_config: {...}}
+  ↓
+CloudTemplateLoader.processVectorCollection()
+  ├─ Validate: isBatch() ✅
+  ├─ External Storage? → Upload content only
+  │   PuppyStorage: [item1, item2, ...] (pure data)
+  ├─ Inline Storage? → Inject content only
+  │   workflow.blocks[x].data.content = [item1, item2, ...]
+  └─ Both: indexing_config → indexingList[0] (SSOT)
+      block.data.indexingList[0].key_path = batch.indexing_config.key_path
+      block.data.indexingList[0].value_path = batch.indexing_config.value_path
+```
 
 ---
 
