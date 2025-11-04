@@ -50,6 +50,13 @@ export const SERVER_ENV = {
     'true',
   // Backend bases for internal proxies (server-only when provided)
   // Prefer server-only envs; fall back to public envs for local/dev convenience
+  //
+  // ⚠️ WARNING: Localhost fallbacks are for LOCAL DEVELOPMENT ONLY
+  // Production/Cloud deployments MUST set these environment variables:
+  // - PUPPYENGINE_URL
+  // - PUPPYSTORAGE_URL
+  // - API_SERVER_URL
+  // - PUPPYFLOW_URL
   PUPPY_ENGINE_BACKEND: (() => {
     const server = process.env.PUPPYENGINE_URL || 'http://localhost:8001';
     return normalizeUrlBase(server as string);

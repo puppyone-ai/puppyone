@@ -5,6 +5,17 @@
  * workflow templates from Git-managed template files.
  *
  * Phase 2: Template Loader Implementation
+ *
+ * ## Storage Service URLs
+ *
+ * This loader uses SERVER_ENV.PUPPY_STORAGE_BACKEND for all storage operations:
+ * - File uploads: `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/files/upload/part/direct`
+ * - Vector embedding: `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/vector/embed`
+ *
+ * The storage URL is NOT configurable via TemplateLoaderConfig to ensure
+ * consistency with other parts of the system (engine, workspace, etc).
+ *
+ * Configuration: Set PUPPYSTORAGE_URL environment variable (see serverEnv.ts)
  */
 
 import { promises as fs } from 'fs';

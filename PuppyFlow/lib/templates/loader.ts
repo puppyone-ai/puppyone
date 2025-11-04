@@ -63,12 +63,6 @@ export interface TemplateLoaderConfig {
   templateRepoUrl: string;
 
   /**
-   * Storage service URL for resource copying
-   * Default: PuppyStorage endpoint
-   */
-  storageServiceUrl: string;
-
-  /**
    * Whether to enable auto-rebuild for vector indexes
    * Default: true (Phase 1.9)
    */
@@ -98,12 +92,14 @@ export interface TemplateLoaderConfig {
 
 /**
  * Default configuration
+ *
+ * Note: Storage service URL is managed by SERVER_ENV.PUPPY_STORAGE_BACKEND
+ * and used directly in CloudTemplateLoader (not via this config).
  */
 export const DEFAULT_LOADER_CONFIG: TemplateLoaderConfig = {
   templateRepoUrl:
     process.env.TEMPLATE_REPO_URL ||
     'https://raw.githubusercontent.com/PuppyAgent/PuppyAgent-Jack/main/PuppyFlow/templates',
-  storageServiceUrl: process.env.PUPPYSTORAGE_URL || 'http://localhost:9002',
   enableAutoRebuild: true,
   enableAutoEmbed: true, // Phase 3.8: Auto-embedding enabled by default
   loadTimeout: 30000,

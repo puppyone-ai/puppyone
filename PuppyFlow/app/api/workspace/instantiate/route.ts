@@ -124,31 +124,12 @@ export async function POST(request: Request) {
 
       const store = getWorkspaceStore();
 
-      // Try to save history (will auto-create workspace if needed)
+      // Always create/update workspace first to ensure correct name is saved
+      // This prevents race condition where auto-save creates workspace with default name
       try {
-        await store.addHistory(
-          workspaceId,
-          { history: content, timestamp },
-          authHeader ? { authHeader } : undefined
-        );
         console.log(
-          `[API:/api/workspace/instantiate] ✅ Saved workflow on first attempt`
+          `[API:/api/workspace/instantiate] Creating workspace with name: ${workspaceName}`
         );
-      } catch (e: any) {
-        // If workspace doesn't exist, create it and retry
-        const message = (e?.message || '').toString();
-        const isNotFound =
-          message.includes('404') || /not\s*exist/i.test(message);
-
-        if (!isNotFound) {
-          throw e; // Rethrow if it's not a "not found" error
-        }
-
-        console.log(
-          `[API:/api/workspace/instantiate] Workspace not found, creating and retrying...`
-        );
-
-        // Create workspace
         await store.createWorkspace(
           userId,
           {
@@ -157,18 +138,61 @@ export async function POST(request: Request) {
           },
           authHeader ? { authHeader } : undefined
         );
-
-        // Retry saving history
-        await store.addHistory(
-          workspaceId,
-          { history: content, timestamp },
-          authHeader ? { authHeader } : undefined
-        );
-
         console.log(
-          `[API:/api/workspace/instantiate] ✅ Saved workflow after creating workspace`
+          `[API:/api/workspace/instantiate] ✅ Workspace created successfully`
         );
+      } catch (createError: any) {
+        // If workspace already exists (from auto-save), update its name
+        const message = (createError?.message || '').toString();
+        console.log(
+          `[API:/api/workspace/instantiate] 🔍 Create workspace failed:`,
+          {
+            message,
+            error: createError,
+            checkingForExists: message.includes('already exists'),
+            checkingFor400: message.includes('400'),
+          }
+        );
+
+        if (message.includes('already exists') || message.includes('400')) {
+          console.log(
+            `[API:/api/workspace/instantiate] Workspace exists, updating name...`
+          );
+          try {
+            await store.renameWorkspace(
+              workspaceId,
+              workspaceName,
+              authHeader ? { authHeader } : undefined
+            );
+            console.log(
+              `[API:/api/workspace/instantiate] ✅ Workspace name updated to: ${workspaceName}`
+            );
+          } catch (renameError) {
+            console.error(
+              `[API:/api/workspace/instantiate] ❌ Failed to rename workspace:`,
+              renameError
+            );
+            // Continue anyway - at least the content will be saved
+          }
+        } else {
+          // Other error, log but continue to try saving history
+          console.warn(
+            `[API:/api/workspace/instantiate] ⚠️ Workspace creation failed (non-duplicate error):`,
+            createError
+          );
+        }
       }
+
+      // Now save the history
+      await store.addHistory(
+        workspaceId,
+        { history: content, timestamp },
+        authHeader ? { authHeader } : undefined
+      );
+
+      console.log(
+        `[API:/api/workspace/instantiate] ✅ Workflow saved successfully`
+      );
     } catch (error) {
       console.error(
         `[API:/api/workspace/instantiate] ❌ Failed to save workflow:`,
