@@ -89,14 +89,17 @@ vi.mock('../../../app/components/hooks/useWorkspaceManagement', () => ({
   useWorkspaceManagement: mocks.useWorkspaceManagement,
 }));
 
-vi.mock('../../../app/components/workflow/utils/dynamicStorageStrategy', () => ({
-  handleDynamicStorageSwitch: mocks.handleDynamicStorageSwitch,
-  getStorageInfo: vi.fn(() => ({
-    storageClass: 'internal',
-    resourceKey: null,
-  })),
-  CONTENT_LENGTH_THRESHOLD: 50000,
-}));
+vi.mock(
+  '../../../app/components/workflow/utils/dynamicStorageStrategy',
+  () => ({
+    handleDynamicStorageSwitch: mocks.handleDynamicStorageSwitch,
+    getStorageInfo: vi.fn(() => ({
+      storageClass: 'internal',
+      resourceKey: null,
+    })),
+    CONTENT_LENGTH_THRESHOLD: 50000,
+  })
+);
 
 vi.mock('../../../app/components/workflow/utils/externalStorage', () => ({
   forceSyncDirtyNodes: vi.fn(),
@@ -114,11 +117,14 @@ vi.mock('../../../app/components/tableComponent/TextEditor', () => ({
   ),
 }));
 
-vi.mock('../../../app/components/workflow/blockNode/TextNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: ({ nodeid }: any) => (
-    <button data-testid='settings-button'>Settings</button>
-  ),
-}));
+vi.mock(
+  '../../../app/components/workflow/blockNode/TextNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: ({ nodeid }: any) => (
+      <button data-testid='settings-button'>Settings</button>
+    ),
+  })
+);
 
 vi.mock('../../../app/components/loadingIcon/SkeletonLoadingIcon', () => ({
   default: () => <div data-testid='skeleton-loading'>Loading...</div>,
@@ -159,7 +165,7 @@ describe('Text Block Node - 内容编辑与保存', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     currentNodes = [createMockNode()];
-    
+
     mockSetNodes = vi.fn(callback => {
       if (typeof callback === 'function') {
         currentNodes = callback(currentNodes);
@@ -167,8 +173,8 @@ describe('Text Block Node - 内容编辑与保存', () => {
       }
       return currentNodes;
     });
-    
-    mockGetNode = vi.fn((nodeId) => {
+
+    mockGetNode = vi.fn(nodeId => {
       return currentNodes.find(n => n.id === nodeId) || currentNodes[0];
     });
 
@@ -235,7 +241,7 @@ describe('Text Block Node - 内容编辑与保存', () => {
       );
 
       const editor = screen.getByTestId('text-editor');
-      
+
       await act(async () => {
         fireEvent.change(editor, { target: { value: 'Hello World' } });
       });
@@ -262,7 +268,7 @@ describe('Text Block Node - 内容编辑与保存', () => {
       );
 
       const editor = screen.getByTestId('text-editor');
-      
+
       await act(async () => {
         fireEvent.change(editor, { target: { value: 'Test content' } });
       });
@@ -311,11 +317,13 @@ describe('Text Block Node - 内容编辑与保存', () => {
 
   describe('TC-TEXT-008: Internal 存储编辑后自动保存 (P0)', () => {
     it('编辑后 2 秒应触发保存', async () => {
-      currentNodes = [createMockNode({ 
-        content: 'Test content',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: 'Test content',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <TextBlockNode
@@ -342,11 +350,13 @@ describe('Text Block Node - 内容编辑与保存', () => {
     });
 
     it('保存时应设置 savingStatus 为 "saving"', async () => {
-      currentNodes = [createMockNode({ 
-        content: 'Test content',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: 'Test content',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <TextBlockNode
@@ -383,11 +393,13 @@ describe('Text Block Node - 内容编辑与保存', () => {
       const error = new Error('Save failed');
       mocks.handleDynamicStorageSwitch.mockRejectedValue(error);
 
-      currentNodes = [createMockNode({ 
-        content: 'Test',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: 'Test',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <TextBlockNode
@@ -422,11 +434,13 @@ describe('Text Block Node - 内容编辑与保存', () => {
       const error = new Error('Network error');
       mocks.handleDynamicStorageSwitch.mockRejectedValue(error);
 
-      currentNodes = [createMockNode({ 
-        content: 'Test',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: 'Test',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <TextBlockNode
@@ -534,11 +548,13 @@ describe('Text Block Node - 内容编辑与保存', () => {
     it('连续编辑应只触发一次保存', async () => {
       // 模拟连续编辑场景：渲染3次，每次间隔500ms，验证只触发一次保存
       // 第一次编辑
-      currentNodes = [createMockNode({ 
-        content: 'A',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: 'A',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       const { rerender, unmount } = render(
         <TextBlockNode
@@ -560,11 +576,13 @@ describe('Text Block Node - 内容编辑与保存', () => {
       });
 
       unmount();
-      currentNodes = [createMockNode({ 
-        content: 'AB',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: 'AB',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <TextBlockNode
@@ -598,7 +616,7 @@ describe('Text Block Node - 内容编辑与保存', () => {
 
   describe('TC-TEXT-012: 节点 isLoading 时不触发保存 (P1)', () => {
     it('isLoading=true 时不应触发保存', async () => {
-      const mockNode = createMockNode({ 
+      const mockNode = createMockNode({
         content: 'Test',
         isLoading: true,
         storage_class: 'internal',
@@ -630,7 +648,7 @@ describe('Text Block Node - 内容编辑与保存', () => {
 
   describe('TC-TEXT-014: 加载完成后显示内容 (P1)', () => {
     it('isLoading=false 时应显示编辑器', () => {
-      const mockNode = createMockNode({ 
+      const mockNode = createMockNode({
         content: 'Test content',
         isLoading: false,
       });
@@ -655,7 +673,7 @@ describe('Text Block Node - 内容编辑与保存', () => {
     });
 
     it('isLoading=true 时应显示加载图标', () => {
-      const mockNode = createMockNode({ 
+      const mockNode = createMockNode({
         content: 'Test content',
         isLoading: true,
       });
@@ -680,4 +698,3 @@ describe('Text Block Node - 内容编辑与保存', () => {
     });
   });
 });
-

@@ -99,7 +99,7 @@ vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
     valueKey,
   }: any) => {
     mocks.PuppyDropdown({ selectedValue, onSelect, options });
-    
+
     const getValue = (opt: any) => {
       if (valueKey && typeof opt === 'object') {
         return opt[valueKey];
@@ -144,11 +144,12 @@ vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
           }}
         >
           <option value=''>Select</option>
-          {options && options.map((opt: any, idx: number) => (
-            <option key={idx} value={getValue(opt)}>
-              {renderOption ? 'rendered' : getLabel(opt)}
-            </option>
-          ))}
+          {options &&
+            options.map((opt: any, idx: number) => (
+              <option key={idx} value={getValue(opt)}>
+                {renderOption ? 'rendered' : getLabel(opt)}
+              </option>
+            ))}
         </select>
       </div>
     );

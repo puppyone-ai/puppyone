@@ -33,7 +33,13 @@
 
 // @ts-nocheck
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Retrieving from '../../../app/components/workflow/edgesNode/edgeNodesNew/Retrieving';
 import type { Node } from '@xyflow/react';
@@ -1154,7 +1160,9 @@ describe('Retrieving Edge Node - 参数配置', () => {
       });
 
       // 使用 data-testid 点击高级设置切换按钮
-      const advancedSettingsToggle = screen.getByTestId('advanced-settings-toggle');
+      const advancedSettingsToggle = screen.getByTestId(
+        'advanced-settings-toggle'
+      );
       fireEvent.click(advancedSettingsToggle);
 
       await waitFor(() => {

@@ -19,7 +19,13 @@
 
 // @ts-nocheck
 import React from 'react';
-import { render, waitFor, act, screen, fireEvent } from '@testing-library/react';
+import {
+  render,
+  waitFor,
+  act,
+  screen,
+  fireEvent,
+} from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import TextBlockNode from '../../../app/components/workflow/blockNode/TextBlockNode';
 import type { Node } from '@xyflow/react';
@@ -61,11 +67,14 @@ vi.mock('../../../app/components/hooks/useWorkspaceManagement', () => ({
   useWorkspaceManagement: mocks.useWorkspaceManagement,
 }));
 
-vi.mock('../../../app/components/workflow/utils/dynamicStorageStrategy', () => ({
-  handleDynamicStorageSwitch: mocks.handleDynamicStorageSwitch,
-  getStorageInfo: mocks.getStorageInfo,
-  CONTENT_LENGTH_THRESHOLD: 50000,
-}));
+vi.mock(
+  '../../../app/components/workflow/utils/dynamicStorageStrategy',
+  () => ({
+    handleDynamicStorageSwitch: mocks.handleDynamicStorageSwitch,
+    getStorageInfo: mocks.getStorageInfo,
+    CONTENT_LENGTH_THRESHOLD: 50000,
+  })
+);
 
 vi.mock('../../../app/components/workflow/utils/externalStorage', () => ({
   forceSyncDirtyNodes: vi.fn(),
@@ -82,9 +91,12 @@ vi.mock('../../../app/components/tableComponent/TextEditor', () => ({
   ),
 }));
 
-vi.mock('../../../app/components/workflow/blockNode/TextNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: () => <button data-testid='settings-button'>Settings</button>,
-}));
+vi.mock(
+  '../../../app/components/workflow/blockNode/TextNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: () => <button data-testid='settings-button'>Settings</button>,
+  })
+);
 
 vi.mock('../../../app/components/loadingIcon/SkeletonLoadingIcon', () => ({
   default: () => <div data-testid='skeleton-loading'>Loading...</div>,
@@ -125,7 +137,7 @@ describe('Text Block Node - 动态存储策略', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     currentNodes = [createMockNode()];
-    
+
     mockSetNodes = vi.fn(callback => {
       if (typeof callback === 'function') {
         currentNodes = callback(currentNodes);
@@ -133,8 +145,8 @@ describe('Text Block Node - 动态存储策略', () => {
       }
       return currentNodes;
     });
-    
-    mockGetNode = vi.fn((nodeId) => {
+
+    mockGetNode = vi.fn(nodeId => {
       return currentNodes.find(n => n.id === nodeId) || currentNodes[0];
     });
 
@@ -188,11 +200,13 @@ describe('Text Block Node - 动态存储策略', () => {
   describe('TC-TEXT-015: 内容超阈值切换到外部存储 (P0)', () => {
     it('内容超过 50KB 应调用存储切换', async () => {
       const longContent = 'A'.repeat(51000);
-      currentNodes = [createMockNode({
-        content: longContent,
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: longContent,
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <TextBlockNode
@@ -223,11 +237,13 @@ describe('Text Block Node - 动态存储策略', () => {
 
     it('应生成 resource_key', async () => {
       const longContent = 'A'.repeat(51000);
-      currentNodes = [createMockNode({
-        content: longContent,
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: longContent,
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       mocks.getStorageInfo.mockReturnValue({
         storageClass: 'external',
@@ -260,12 +276,14 @@ describe('Text Block Node - 动态存储策略', () => {
   describe('TC-TEXT-016: 内容缩减切换回内部存储 (P0)', () => {
     it('内容小于 50KB 应切换回 internal', async () => {
       const shortContent = 'Short text';
-      currentNodes = [createMockNode({
-        content: shortContent,
-        storage_class: 'external',
-        dirty: true,
-        resource_key: 'old-key',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: shortContent,
+          storage_class: 'external',
+          dirty: true,
+          resource_key: 'old-key',
+        } as any),
+      ];
 
       mocks.getStorageInfo.mockReturnValue({
         storageClass: 'internal',
@@ -298,11 +316,13 @@ describe('Text Block Node - 动态存储策略', () => {
   describe('TC-TEXT-018: 存储切换时的数据一致性 (P0)', () => {
     it('切换前后内容应该完全一致', async () => {
       const testContent = 'Test content with special chars: 你好 🎉 \n\t';
-      currentNodes = [createMockNode({
-        content: testContent,
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: testContent,
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <TextBlockNode
@@ -329,11 +349,13 @@ describe('Text Block Node - 动态存储策略', () => {
 
     it('应该处理特殊字符而不丢失', async () => {
       const specialContent = '{"key": "value"}\n\t<html>test</html>';
-      currentNodes = [createMockNode({
-        content: specialContent,
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: specialContent,
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <TextBlockNode
@@ -365,10 +387,12 @@ describe('Text Block Node - 动态存储策略', () => {
 
   describe('TC-TEXT-022: External 存储的 dirty 标记 (P1)', () => {
     it('external 存储编辑后应设置 dirty=true', async () => {
-      currentNodes = [createMockNode({
-        content: 'Test',
-        storage_class: 'external',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: 'Test',
+          storage_class: 'external',
+        } as any),
+      ];
 
       render(
         <TextBlockNode
@@ -385,7 +409,7 @@ describe('Text Block Node - 动态存储策略', () => {
       );
 
       const editor = screen.getByTestId('text-editor');
-      
+
       await act(async () => {
         fireEvent.change(editor, { target: { value: 'New content' } });
       });
@@ -393,7 +417,9 @@ describe('Text Block Node - 动态存储策略', () => {
       expect(mockSetNodes).toHaveBeenCalled();
       const setNodesCall = mockSetNodes.mock.calls[0][0];
       const updatedNodes = setNodesCall(currentNodes);
-      const updatedNode = updatedNodes.find((n: any) => n.id === currentNodes[0].id);
+      const updatedNode = updatedNodes.find(
+        (n: any) => n.id === currentNodes[0].id
+      );
 
       expect(updatedNode.data.dirty).toBe(true);
     });
@@ -430,10 +456,12 @@ describe('Text Block Node - 动态存储策略', () => {
 
   describe('TC-TEXT-023: Internal 存储不使用 dirty (P1)', () => {
     it('internal 存储编辑后应设置 dirty=false', async () => {
-      currentNodes = [createMockNode({
-        content: 'Test',
-        storage_class: 'internal',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: 'Test',
+          storage_class: 'internal',
+        } as any),
+      ];
 
       render(
         <TextBlockNode
@@ -450,7 +478,7 @@ describe('Text Block Node - 动态存储策略', () => {
       );
 
       const editor = screen.getByTestId('text-editor');
-      
+
       await act(async () => {
         fireEvent.change(editor, { target: { value: 'New content' } });
       });
@@ -458,7 +486,9 @@ describe('Text Block Node - 动态存储策略', () => {
       expect(mockSetNodes).toHaveBeenCalled();
       const setNodesCall = mockSetNodes.mock.calls[0][0];
       const updatedNodes = setNodesCall(currentNodes);
-      const updatedNode = updatedNodes.find((n: any) => n.id === currentNodes[0].id);
+      const updatedNode = updatedNodes.find(
+        (n: any) => n.id === currentNodes[0].id
+      );
 
       expect(updatedNode.data.dirty).toBe(false);
     });
@@ -493,4 +523,3 @@ describe('Text Block Node - 动态存储策略', () => {
     });
   });
 });
-

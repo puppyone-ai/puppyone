@@ -538,7 +538,7 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
 
       if (plusButton) {
         fireEvent.click(plusButton);
-        
+
         await waitFor(() => {
           const input = screen.queryByPlaceholderText('Type...');
           expect(input).toBeInTheDocument();
@@ -554,13 +554,15 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
         () => {
           const calls = mockSetNodes.mock.calls;
           expect(calls.length).toBeGreaterThan(0);
-          
+
           // 验证最新的调用包含更新的 list_separator
           const lastCall = calls[calls.length - 1];
           if (typeof lastCall[0] === 'function') {
             const updatedNodes = lastCall[0]([node]);
             const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
-            expect(updatedNode?.data?.extra_configs?.list_separator).toBeDefined();
+            expect(
+              updatedNode?.data?.extra_configs?.list_separator
+            ).toBeDefined();
           }
         },
         { timeout: 3000 }

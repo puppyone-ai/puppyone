@@ -130,11 +130,9 @@ vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
             // 判断是否应该传递整个对象：
             // 如果 options 的第一个元素是对象且有 valueKey，传递整个对象（如 Model）
             // 否则传递字符串（如 Query/Document label）
-            const shouldPassObject = 
-              valueKey && 
-              options.length > 0 && 
-              typeof options[0] === 'object';
-            
+            const shouldPassObject =
+              valueKey && options.length > 0 && typeof options[0] === 'object';
+
             if (selected) {
               onSelect(shouldPassObject ? selected : getLabel(selected));
             } else {
@@ -543,7 +541,9 @@ describe('Generate Edge Node - 参数配置', () => {
           const setNodesCall =
             mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.promptTemplate).toBe('data_cleaning');
         },
         { timeout: 3000 }
@@ -654,7 +654,9 @@ describe('Generate Edge Node - 参数配置', () => {
           const setNodesCall =
             mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.model).toBe('gpt-3.5');
         },
         { timeout: 3000 }
@@ -1017,7 +1019,9 @@ describe('Generate Edge Node - 参数配置', () => {
           const setNodesCall =
             mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.structured_output).toBe(true);
         },
         { timeout: 3000 }
@@ -1165,7 +1169,9 @@ describe('Generate Edge Node - 参数配置', () => {
           const setNodesCall =
             mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.base_url).toBe('https://custom-api.com/v1');
         },
         { timeout: 3000 }

@@ -82,14 +82,17 @@ vi.mock('../../../app/components/hooks/useWorkspaceManagement', () => ({
   useWorkspaceManagement: mocks.useWorkspaceManagement,
 }));
 
-vi.mock('../../../app/components/workflow/utils/dynamicStorageStrategy', () => ({
-  handleDynamicStorageSwitch: vi.fn(),
-  getStorageInfo: vi.fn(() => ({
-    storageClass: 'internal',
-    resourceKey: null,
-  })),
-  CONTENT_LENGTH_THRESHOLD: 50000,
-}));
+vi.mock(
+  '../../../app/components/workflow/utils/dynamicStorageStrategy',
+  () => ({
+    handleDynamicStorageSwitch: vi.fn(),
+    getStorageInfo: vi.fn(() => ({
+      storageClass: 'internal',
+      resourceKey: null,
+    })),
+    CONTENT_LENGTH_THRESHOLD: 50000,
+  })
+);
 
 vi.mock('../../../app/components/workflow/utils/externalStorage', () => ({
   forceSyncDirtyNodes: vi.fn(),
@@ -106,9 +109,12 @@ vi.mock('../../../app/components/tableComponent/TextEditor', () => ({
   ),
 }));
 
-vi.mock('../../../app/components/workflow/blockNode/TextNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: () => <button data-testid='settings-button'>Settings</button>,
-}));
+vi.mock(
+  '../../../app/components/workflow/blockNode/TextNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: () => <button data-testid='settings-button'>Settings</button>,
+  })
+);
 
 vi.mock('../../../app/components/loadingIcon/SkeletonLoadingIcon', () => ({
   default: () => <div data-testid='skeleton-loading'>Loading...</div>,
@@ -116,10 +122,7 @@ vi.mock('../../../app/components/loadingIcon/SkeletonLoadingIcon', () => ({
 
 vi.mock('../../../app/components/workflow/handles/WhiteBallHandle', () => ({
   default: ({ id, type, position }: any) => (
-    <div
-      data-testid={`white-ball-${type}-${position}`}
-      data-id={id}
-    />
+    <div data-testid={`white-ball-${type}-${position}`} data-id={id} />
   ),
 }));
 
@@ -216,7 +219,9 @@ describe('Text Block Node - 节点连接', () => {
 
       expect(screen.getByTestId('white-ball-source-top')).toBeInTheDocument();
       expect(screen.getByTestId('white-ball-source-right')).toBeInTheDocument();
-      expect(screen.getByTestId('white-ball-source-bottom')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('white-ball-source-bottom')
+      ).toBeInTheDocument();
       expect(screen.getByTestId('white-ball-source-left')).toBeInTheDocument();
     });
 
@@ -376,7 +381,9 @@ describe('Text Block Node - 节点连接', () => {
 
       const positions = ['top', 'right', 'bottom', 'left'];
       positions.forEach(pos => {
-        expect(screen.getByTestId(`white-ball-source-${pos}`)).toBeInTheDocument();
+        expect(
+          screen.getByTestId(`white-ball-source-${pos}`)
+        ).toBeInTheDocument();
       });
     });
   });
@@ -475,4 +482,3 @@ describe('Text Block Node - 节点连接', () => {
     });
   });
 });
-

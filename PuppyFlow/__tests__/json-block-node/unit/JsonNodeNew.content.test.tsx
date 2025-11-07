@@ -291,7 +291,7 @@ describe('JsonBlockNode - 内容编辑与保存', () => {
 
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    
+
     currentNodes = [createMockNode()];
 
     mockSetNodes = vi.fn(updater => {
@@ -302,7 +302,7 @@ describe('JsonBlockNode - 内容编辑与保存', () => {
       return currentNodes;
     });
 
-    mockGetNode = vi.fn((nodeId) => {
+    mockGetNode = vi.fn(nodeId => {
       return currentNodes.find(n => n.id === nodeId) || currentNodes[0];
     });
     mockGetNodes = vi.fn(() => currentNodes);
@@ -346,8 +346,10 @@ describe('JsonBlockNode - 内容编辑与保存', () => {
 
     // Reset and configure handleDynamicStorageSwitch mock
     mocks.handleDynamicStorageSwitch.mockReset();
-    mocks.handleDynamicStorageSwitch.mockImplementation(mockHandleDynamicStorageSwitch);
-    
+    mocks.handleDynamicStorageSwitch.mockImplementation(
+      mockHandleDynamicStorageSwitch
+    );
+
     mocks.getStorageInfo.mockReturnValue({
       storageClass: 'internal',
       resourceKey: null,
@@ -739,11 +741,13 @@ describe('JsonBlockNode - 内容编辑与保存', () => {
   // ✅ 自动保存机制测试（已修复）
   describe('自动保存机制', () => {
     it('TC-JSON-008: 应该在编辑2秒后触发保存 (internal模式) (P0)', async () => {
-      currentNodes = [createMockNode({ 
-        content: '{"test": "content"}',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: '{"test": "content"}',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <JsonBlockNode
@@ -770,11 +774,13 @@ describe('JsonBlockNode - 内容编辑与保存', () => {
     });
 
     it('TC-JSON-008-EXT: 应该在 dirty=true 时触发保存 (external模式) (P0)', async () => {
-      currentNodes = [createMockNode({ 
-        content: '{"test": "content"}',
-        storage_class: 'external',
-        dirty: true,
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: '{"test": "content"}',
+          storage_class: 'external',
+          dirty: true,
+        } as any),
+      ];
 
       render(
         <JsonBlockNode
@@ -802,11 +808,13 @@ describe('JsonBlockNode - 内容编辑与保存', () => {
 
     it('TC-JSON-009: 持续输入时不应触发多次保存 (P1)', async () => {
       // 模拟连续编辑场景：渲染2次，每次间隔500ms，验证只触发一次保存
-      currentNodes = [createMockNode({ 
-        content: '{"a": 1}',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: '{"a": 1}',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       const { unmount } = render(
         <JsonBlockNode
@@ -828,11 +836,13 @@ describe('JsonBlockNode - 内容编辑与保存', () => {
       });
 
       unmount();
-      currentNodes = [createMockNode({ 
-        content: '{"a": 1, "b": 2}',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: '{"a": 1, "b": 2}',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <JsonBlockNode
@@ -859,11 +869,13 @@ describe('JsonBlockNode - 内容编辑与保存', () => {
     });
 
     it('TC-JSON-010: 保存中再次编辑应重新计时 (P1)', async () => {
-      currentNodes = [createMockNode({ 
-        content: '{"test": 1}',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: '{"test": 1}',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <JsonBlockNode
@@ -899,11 +911,13 @@ describe('JsonBlockNode - 内容编辑与保存', () => {
       const error = new Error('Save failed');
       mockHandleDynamicStorageSwitch.mockRejectedValue(error);
 
-      currentNodes = [createMockNode({ 
-        content: '{"test": "content"}',
-        storage_class: 'internal',
-        savingStatus: 'editing',
-      } as any)];
+      currentNodes = [
+        createMockNode({
+          content: '{"test": "content"}',
+          storage_class: 'internal',
+          savingStatus: 'editing',
+        } as any),
+      ];
 
       render(
         <JsonBlockNode

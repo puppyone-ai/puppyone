@@ -78,7 +78,9 @@ export const PuppyDropdown = ({
         }}
         data-testid={testId ? `${testId}-button` : undefined}
       >
-        <span data-testid={testId ? `${testId}-selected-value` : undefined}>{mapValueTodisplay(selectedValue || 'Select a value')}</span>{' '}
+        <span data-testid={testId ? `${testId}-selected-value` : undefined}>
+          {mapValueTodisplay(selectedValue || 'Select a value')}
+        </span>{' '}
         {/* Display selected label or placeholder */}
         {showDropdownIcon && (
           <svg
@@ -98,7 +100,10 @@ export const PuppyDropdown = ({
         )}
       </div>
       {isOpen ? (
-        <ul style={dropdownListStyle} data-testid={testId ? `${testId}-list` : undefined}>
+        <ul
+          style={dropdownListStyle}
+          data-testid={testId ? `${testId}-list` : undefined}
+        >
           {options.map((option: any, index: number) => (
             <li
               key={index}
