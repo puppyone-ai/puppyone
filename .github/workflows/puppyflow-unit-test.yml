@@ -1,0 +1,232 @@
+name: PuppyFlow Unit Tests
+
+# 当 PuppyFlow 目录有变更时触发
+on:
+  pull_request:
+    paths:
+      - 'PuppyFlow/**'
+      - '.github/workflows/puppyflow-unit-test.yml'
+  push:
+    branches:
+      - 'main'
+      - 'qubits'
+      - 'convergency'
+    paths:
+      - 'PuppyFlow/**'
+  workflow_dispatch: {}
+
+# 并发控制：同一PR的新推送会取消旧的运行
+concurrency:
+  group: puppyflow-test-${{ github.event_name }}-${{ github.event.pull_request.number || github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  unit-test:
+    name: 'PuppyFlow 单元测试'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # 设置默认工作目录
+    defaults:
+      run:
+        working-directory: ./PuppyFlow
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: PuppyFlow/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Unit Tests with Coverage
+        id: test
+        continue-on-error: true
+        run: |
+          echo "=== 运行单元测试 ==="
+          npx vitest run __tests__/ --reporter=verbose --reporter=json --outputFile=test-results.json
+        
+      - name: Parse Test Results
+        id: parse
+        if: always()
+        run: |
+          echo "=== 解析测试结果 ==="
+          
+          # 检查测试结果文件是否存在
+          if [ ! -f test-results.json ]; then
+            echo "❌ 测试结果文件不存在"
+            echo "test_passed=0" >> $GITHUB_OUTPUT
+            echo "test_failed=999" >> $GITHUB_OUTPUT
+            echo "test_total=999" >> $GITHUB_OUTPUT
+            echo "pass_rate=0" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # 使用 Node.js 解析 JSON 结果
+          node << 'EOF'
+          const fs = require('fs');
+          try {
+            const results = JSON.parse(fs.readFileSync('test-results.json', 'utf8'));
+            
+            // 计算测试统计
+            let passed = 0;
+            let failed = 0;
+            let total = 0;
+            
+            // 遍历所有测试文件
+            if (results.testResults) {
+              results.testResults.forEach(file => {
+                if (file.assertionResults) {
+                  file.assertionResults.forEach(test => {
+                    total++;
+                    if (test.status === 'passed') {
+                      passed++;
+                    } else {
+                      failed++;
+                    }
+                  });
+                }
+              });
+            }
+            
+            // 如果没有找到测试结果，尝试从 numTests 字段获取
+            if (total === 0 && results.numTotalTests) {
+              total = results.numTotalTests;
+              passed = results.numPassedTests || 0;
+              failed = results.numFailedTests || 0;
+            }
+            
+            const passRate = total > 0 ? ((passed / total) * 100).toFixed(2) : 0;
+            
+            console.log(`通过: ${passed}`);
+            console.log(`失败: ${failed}`);
+            console.log(`总数: ${total}`);
+            console.log(`通过率: ${passRate}%`);
+            
+            // 输出到 GitHub Actions
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 
+              `test_passed=${passed}\n` +
+              `test_failed=${failed}\n` +
+              `test_total=${total}\n` +
+              `pass_rate=${passRate}\n`
+            );
+            
+          } catch (error) {
+            console.error('解析测试结果失败:', error);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 
+              `test_passed=0\n` +
+              `test_failed=999\n` +
+              `test_total=999\n` +
+              `pass_rate=0\n`
+            );
+            process.exit(1);
+          }
+          EOF
+
+      - name: Check Pass Rate Threshold
+        if: always()
+        env:
+          PASS_RATE: ${{ steps.parse.outputs.pass_rate }}
+          THRESHOLD: '50'  # 设置通过率阈值为 50%
+        run: |
+          echo "=== 检查通过率阈值 ==="
+          echo "当前通过率: ${PASS_RATE}%"
+          echo "最低阈值: ${THRESHOLD}%"
+          
+          # 使用 awk 进行浮点数比较
+          if awk "BEGIN {exit !($PASS_RATE >= $THRESHOLD)}"; then
+            echo "✅ 通过率达标！"
+            exit 0
+          else
+            echo "❌ 通过率未达标！当前 ${PASS_RATE}% < 要求 ${THRESHOLD}%"
+            exit 1
+          fi
+
+      - name: Comment Test Results on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passRate = parseFloat('${{ steps.parse.outputs.pass_rate }}');
+            const threshold = 80;
+            const passed = '${{ steps.parse.outputs.test_passed }}';
+            const failed = '${{ steps.parse.outputs.test_failed }}';
+            const total = '${{ steps.parse.outputs.test_total }}';
+            
+            const statusIcon = passRate >= threshold ? '✅' : '❌';
+            const statusText = passRate >= threshold ? '通过' : '未达标';
+            
+            const body = `## PuppyFlow 单元测试结果
+            
+            ${statusIcon} **状态**: ${statusText}
+            
+            ### 测试统计
+            - **通过**: ${passed} / ${total}
+            - **失败**: ${failed} / ${total}
+            - **通过率**: ${passRate}%
+            - **阈值要求**: ${threshold}%
+            
+            ${passRate >= threshold 
+              ? '🎉 所有测试通过率达标，可以合并！' 
+              : `⚠️ 通过率低于阈值 ${threshold}%，请修复失败的测试后再合并。`
+            }
+            
+            ---
+            *测试运行时间*: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`;
+            
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            } catch (error) {
+              console.log('无法发布评论:', error);
+            }
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: puppyflow-test-results
+          path: PuppyFlow/test-results.json
+          retention-days: 30
+
+      - name: Upload Test Logs on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: puppyflow-test-logs
+          path: |
+            PuppyFlow/**/*.log
+            PuppyFlow/.vitest/
+          retention-days: 7
+
+      - name: Final Status Check
+        if: always()
+        env:
+          PASS_RATE: ${{ steps.parse.outputs.pass_rate }}
+          THRESHOLD: '80'
+        run: |
+          echo "=== 最终状态检查 ==="
+          if awk "BEGIN {exit !($PASS_RATE >= $THRESHOLD)}"; then
+            echo "✅ CI 检查通过"
+            exit 0
+          else
+            echo "❌ CI 检查失败 - 通过率 ${PASS_RATE}% < 阈值 ${THRESHOLD}%"
+            echo "请修复失败的测试用例后重新提交"
+            exit 1
+          fi
+

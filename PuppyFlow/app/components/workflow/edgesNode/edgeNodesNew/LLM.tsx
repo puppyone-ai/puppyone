@@ -977,6 +977,7 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
                       onBlur={onBlur}
                       mapValueTodisplay={mapModelToDisplay}
                       renderOption={renderModelOption}
+                      data-testid='model-select'
                     />
                   </div>
                   {/* 显示当前选择的模型详细信息 */}
@@ -1016,6 +1017,7 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
                       listWidth='100%'
                       containerClassnames='w-full'
                       onFocus={onFocus}
+                      data-testid='output-type'
                     />
                   </div>
                 </li>
