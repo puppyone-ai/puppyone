@@ -24,9 +24,9 @@
 import React from 'react';
 import { render, waitFor, act, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import JsonBlockNode from '@/components/workflow/blockNode/JsonNodeNew';
+import JsonBlockNode from '../../../app/components/workflow/blockNode/JsonNodeNew';
 import type { Node } from '@xyflow/react';
-import type { JsonNodeData } from '@/components/workflow/blockNode/JsonNodeNew';
+import type { JsonNodeData } from '../../../app/components/workflow/blockNode/JsonNodeNew';
 
 // Mock 配置
 const mocks = vi.hoisted(() => ({
@@ -73,20 +73,49 @@ vi.mock('@xyflow/react', () => ({
   ),
 }));
 
-vi.mock('@/components/states/NodesPerFlowContext', () => ({
+vi.mock('@/app/components/states/NodesPerFlowContext', () => ({
   useNodesPerFlowContext: mocks.useNodesPerFlowContext,
 }));
-vi.mock('@/components/hooks/useGetSourceTarget', () => ({
+vi.mock('@/app/components/hooks/useGetSourceTarget', () => ({
   default: mocks.useGetSourceTarget,
 }));
-vi.mock('@/components/hooks/useWorkspaceManagement', () => ({
+vi.mock('@/app/components/hooks/useWorkspaceManagement', () => ({
   useWorkspaceManagement: mocks.useWorkspaceManagement,
 }));
-vi.mock('@/components/states/UserWorkspacesContext', () => ({
+vi.mock('@/app/components/states/UserWorkspacesContext', () => ({
   useWorkspaces: mocks.useWorkspaces,
 }));
-vi.mock('@/components/states/AppSettingsContext', () => ({
-  useAppSettings: vi.fn(() => ({})),
+vi.mock('@/app/components/states/AppSettingsContext', () => ({
+  useAppSettings: vi.fn(() => ({
+    cloudModels: [],
+    localModels: [],
+    availableModels: [],
+    isLocalDeployment: false,
+    isLoadingLocalModels: false,
+    ollamaConnected: false,
+    toggleModelAvailability: vi.fn(),
+    addLocalModel: vi.fn(),
+    removeLocalModel: vi.fn(),
+    refreshLocalModels: vi.fn(),
+    userSubscriptionStatus: null,
+    isLoadingSubscriptionStatus: false,
+    fetchUserSubscriptionStatus: vi.fn(),
+    warns: [],
+    addWarn: vi.fn(),
+    removeWarn: vi.fn(),
+    clearWarns: vi.fn(),
+    toggleWarnExpand: vi.fn(),
+    usageData: null,
+    planLimits: {
+      workspaces: 1,
+      deployedServices: 1,
+      llm_calls: 50,
+      runs: 100,
+      fileStorage: '5M',
+    },
+    isLoadingUsage: false,
+    fetchUsageData: vi.fn(),
+  })),
 }));
 vi.mock('next/dynamic', () => ({ default: (fn: any) => fn() }));
 
@@ -98,14 +127,14 @@ const { mockHandleDynamicStorageSwitch, mockGetStorageInfo, MOCK_THRESHOLD } =
     MOCK_THRESHOLD: 50000,
   }));
 
-vi.mock('@/components/workflow/utils/dynamicStorageStrategy', () => ({
+vi.mock('@/app/components/workflow/utils/dynamicStorageStrategy', () => ({
   handleDynamicStorageSwitch: mockHandleDynamicStorageSwitch,
   getStorageInfo: mockGetStorageInfo,
   CONTENT_LENGTH_THRESHOLD: MOCK_THRESHOLD,
 }));
 
 vi.mock(
-  '@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm',
+  '@/app/components/tableComponent/RichJSONFormTableStyle/RichJSONForm',
   () => ({
     default: ({
       value,
@@ -128,7 +157,7 @@ vi.mock(
   })
 );
 
-vi.mock('@/components/tableComponent/JSONForm', () => ({
+vi.mock('@/app/components/tableComponent/JSONForm', () => ({
   default: ({
     value,
     onChange,
@@ -149,33 +178,33 @@ vi.mock('@/components/tableComponent/JSONForm', () => ({
   ),
 }));
 
-vi.mock('@/components/loadingIcon/SkeletonLoadingIcon', () => ({
+vi.mock('@/app/components/loadingIcon/SkeletonLoadingIcon', () => ({
   default: () => <div data-testid='skeleton-loading'>Loading...</div>,
 }));
 
 vi.mock(
-  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeSettingsButton',
+  '@/app/components/workflow/blockNode/JsonNodeTopSettingBar/NodeSettingsButton',
   () => ({
     default: () => <button data-testid='settings-button'>Settings</button>,
   })
 );
 
 vi.mock(
-  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeIndexingButton',
+  '@/app/components/workflow/blockNode/JsonNodeTopSettingBar/NodeIndexingButton',
   () => ({
     default: () => <button data-testid='indexing-button'>Indexing</button>,
   })
 );
 
 vi.mock(
-  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeLoopButton',
+  '@/app/components/workflow/blockNode/JsonNodeTopSettingBar/NodeLoopButton',
   () => ({
     default: () => <button data-testid='loop-button'>Loop</button>,
   })
 );
 
 vi.mock(
-  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeViewToggleButton',
+  '@/app/components/workflow/blockNode/JsonNodeTopSettingBar/NodeViewToggleButton',
   () => ({
     default: ({ useRichEditor, onToggle }: any) => (
       <button data-testid='view-toggle-button' onClick={onToggle}>
@@ -185,11 +214,11 @@ vi.mock(
   })
 );
 
-vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
+vi.mock('@/app/components/workflow/handles/WhiteBallHandle', () => ({
   default: () => <div data-testid='white-handle' />,
 }));
 
-vi.mock('@/components/workflow/blockNode/hooks/useIndexingUtils', () => ({
+vi.mock('@/app/components/workflow/blockNode/hooks/useIndexingUtils', () => ({
   default: vi.fn(() => ({
     handleAddIndex: vi.fn(),
     handleRemoveIndex: vi.fn(),
@@ -242,6 +271,7 @@ describe('JsonBlockNode - 动态存储策略', () => {
       getNode: mockGetNode,
       setNodes: mockSetNodes,
       getNodes: mockGetNodes,
+      getEdges: vi.fn(() => []),
     });
 
     mocks.useNodesPerFlowContext.mockReturnValue({

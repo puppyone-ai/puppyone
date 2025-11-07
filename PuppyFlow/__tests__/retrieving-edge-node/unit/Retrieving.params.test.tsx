@@ -33,11 +33,11 @@
 
 // @ts-nocheck
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import Retrieving from '@/components/workflow/edgesNode/edgeNodesNew/Retrieving';
+import Retrieving from '../../../app/components/workflow/edgesNode/edgeNodesNew/Retrieving';
 import type { Node } from '@xyflow/react';
-import type { RetrievingConfigNodeData } from '@/components/workflow/edgesNode/edgeNodesNew/Retrieving';
+import type { RetrievingConfigNodeData } from '../../../app/components/workflow/edgesNode/edgeNodesNew/Retrieving';
 
 // Mock 配置
 const mocks = vi.hoisted(() => ({
@@ -55,24 +55,24 @@ vi.mock('@xyflow/react', () => ({
   MarkerType: { ArrowClosed: 'arrowclosed', Arrow: 'arrow' },
 }));
 
-vi.mock('@/components/states/NodesPerFlowContext', () => ({
+vi.mock('@/app/components/states/NodesPerFlowContext', () => ({
   useNodesPerFlowContext: mocks.useNodesPerFlowContext,
 }));
 
-vi.mock('@/components/hooks/useGetSourceTarget', () => ({
+vi.mock('@/app/components/hooks/useGetSourceTarget', () => ({
   default: mocks.useGetSourceTarget,
 }));
 
-vi.mock('@/components/hooks/useJsonConstructUtils', () => ({
+vi.mock('@/app/components/hooks/useJsonConstructUtils', () => ({
   default: mocks.useJsonConstructUtils,
 }));
 
-vi.mock('@/components/states/AppSettingsContext', () => ({
+vi.mock('@/app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
 vi.mock(
-  '@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  '@/app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
   () => ({
     default: () => (
       <div data-testid='input-output-display'>InputOutputDisplay</div>
@@ -80,37 +80,7 @@ vi.mock(
   })
 );
 
-vi.mock('@/components/misc/PuppyDropDown', () => ({
-  PuppyDropdown: ({
-    selectedValue,
-    onSelect,
-    options,
-    renderOption,
-    mapValueTodisplay,
-  }: any) => (
-    <div data-testid='puppy-dropdown'>
-      {mapValueTodisplay
-        ? mapValueTodisplay(selectedValue)
-        : selectedValue?.label || 'Select'}
-      <select
-        data-testid='dropdown-select'
-        onChange={e => {
-          const selected = options.find(
-            (opt: any) =>
-              (typeof opt === 'string' ? opt : opt.id) === e.target.value
-          );
-          onSelect(selected);
-        }}
-      >
-        {options.map((opt: any, idx: number) => (
-          <option key={idx} value={typeof opt === 'string' ? opt : opt.id}>
-            {typeof opt === 'string' ? opt : opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  ),
-}));
+// Don't mock PuppyDropDown - use the real component with data-testid support
 
 vi.mock('react-dom', async () => {
   const actual = await vi.importActual('react-dom');
@@ -181,6 +151,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
       setNodes: mockSetNodes,
       setEdges: mockSetEdges,
       getNodes: vi.fn(() => [createMockNode()]),
+      getEdges: vi.fn(() => []),
     });
 
     mocks.useNodesPerFlowContext.mockReturnValue({
@@ -203,7 +174,36 @@ describe('Retrieving Edge Node - 参数配置', () => {
       resetLoadingUI: vi.fn(),
     });
 
-    mocks.useAppSettings.mockReturnValue({});
+    mocks.useAppSettings.mockReturnValue({
+      cloudModels: [],
+      localModels: [],
+      availableModels: [],
+      isLocalDeployment: false,
+      isLoadingLocalModels: false,
+      ollamaConnected: false,
+      toggleModelAvailability: vi.fn(),
+      addLocalModel: vi.fn(),
+      removeLocalModel: vi.fn(),
+      refreshLocalModels: vi.fn(),
+      userSubscriptionStatus: null,
+      isLoadingSubscriptionStatus: false,
+      fetchUserSubscriptionStatus: vi.fn(),
+      warns: [],
+      addWarn: vi.fn(),
+      removeWarn: vi.fn(),
+      clearWarns: vi.fn(),
+      toggleWarnExpand: vi.fn(),
+      usageData: null,
+      planLimits: {
+        workspaces: 1,
+        deployedServices: 1,
+        llm_calls: 50,
+        runs: 100,
+        fileStorage: '5M',
+      },
+      isLoadingUsage: false,
+      fetchUsageData: vi.fn(),
+    });
   });
 
   afterEach(() => {
@@ -232,6 +232,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
         setNodes: mockSetNodes,
         setEdges: mockSetEdges,
         getNodes: vi.fn(() => [mockNode, textNode]),
+        getEdges: vi.fn(() => []),
       });
 
       mocks.useGetSourceTarget.mockReturnValue({
@@ -257,21 +258,41 @@ describe('Retrieving Edge Node - 参数配置', () => {
       const button = screen.getByRole('button', { name: /Retrieve/i });
       fireEvent.click(button);
 
+      // 等待菜单和 query dropdown 按钮渲染
       await waitFor(() => {
         expect(screen.getByText('Query')).toBeInTheDocument();
+        expect(screen.getByTestId('query-select-button')).toBeInTheDocument();
       });
 
-      // 查找并更改 query dropdown
-      const dropdownSelects = screen.getAllByTestId('dropdown-select');
-      const querySelect = dropdownSelects[0]; // 第一个是 query dropdown
-
-      fireEvent.change(querySelect, {
-        target: { value: 'text-1' },
+      // 打开 query dropdown 并等待选项出现
+      const queryButton = screen.getByTestId('query-select-button');
+      await act(async () => {
+        fireEvent.click(queryButton);
       });
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
+      // 等待下拉列表渲染并点击选项
+      await waitFor(
+        async () => {
+          const queryList = screen.queryByTestId('query-select-list');
+          expect(queryList).toBeInTheDocument();
+        },
+        { timeout: 2000 }
+      );
+
+      const queryOption = await waitFor(() =>
+        screen.getByTestId('query-select-option-0')
+      );
+      await act(async () => {
+        fireEvent.click(queryOption);
       });
+
+      // 等待 setNodes 被调用（包含 requestAnimationFrame 的延迟）
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 2000 }
+      );
 
       // 验证 query_id 更新
       const setNodesCall =
@@ -330,6 +351,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
         setNodes: mockSetNodes,
         setEdges: mockSetEdges,
         getNodes: vi.fn(() => [mockNode, structuredNode]),
+        getEdges: vi.fn(() => []),
       });
 
       mocks.useGetSourceTarget.mockReturnValue({
@@ -463,31 +485,26 @@ describe('Retrieving Edge Node - 参数配置', () => {
         expect(screen.getByText('Top K')).toBeInTheDocument();
       });
 
-      // 查找 Top K 输入框
-      const inputs = screen.getAllByRole('spinbutton');
-      const topKInput = inputs.find((input: any) =>
-        input.parentElement?.previousElementSibling?.textContent?.includes(
-          'Top K'
-        )
-      );
+      // 使用 data-testid 查找 Top K 输入框
+      const topKInput = screen.getByTestId('top-k-input');
 
-      expect(topKInput).toBeDefined();
-
-      if (topKInput) {
+      await act(async () => {
         fireEvent.change(topKInput, { target: { value: '10' } });
+        // 等待 requestAnimationFrame
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      });
 
-        await waitFor(() => {
-          expect(mockSetNodes).toHaveBeenCalled();
-        });
+      await waitFor(() => {
+        expect(mockSetNodes).toHaveBeenCalled();
+      });
 
-        // 验证 top_k 更新
-        const setNodesCall =
-          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
-        const updatedNodes = setNodesCall([mockNode]);
-        const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+      // 验证 top_k 更新
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const updatedNodes = setNodesCall([mockNode]);
+      const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
-        expect(updatedNode.data.top_k).toBe(10);
-      }
+      expect(updatedNode.data.top_k).toBe(10);
     });
 
     it('top_k 应为数字类型', () => {
@@ -540,31 +557,26 @@ describe('Retrieving Edge Node - 参数配置', () => {
         expect(screen.getByText('Threshold')).toBeInTheDocument();
       });
 
-      // 查找 Threshold 输入框
-      const inputs = screen.getAllByRole('spinbutton');
-      const thresholdInput = inputs.find((input: any) =>
-        input.parentElement?.previousElementSibling?.textContent?.includes(
-          'Threshold'
-        )
-      );
+      // 使用 data-testid 查找 Threshold 输入框
+      const thresholdInput = screen.getByTestId('threshold-input');
 
-      expect(thresholdInput).toBeDefined();
-
-      if (thresholdInput) {
+      await act(async () => {
         fireEvent.change(thresholdInput, { target: { value: '0.8' } });
+        // 等待 requestAnimationFrame
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      });
 
-        await waitFor(() => {
-          expect(mockSetNodes).toHaveBeenCalled();
-        });
+      await waitFor(() => {
+        expect(mockSetNodes).toHaveBeenCalled();
+      });
 
-        // 验证 threshold 更新
-        const setNodesCall =
-          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
-        const updatedNodes = setNodesCall([mockNode]);
-        const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+      // 验证 threshold 更新
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const updatedNodes = setNodesCall([mockNode]);
+      const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
-        expect(updatedNode.data.extra_configs.threshold).toBe(0.8);
-      }
+      expect(updatedNode.data.extra_configs.threshold).toBe(0.8);
     });
 
     it('threshold 应在 extra_configs 对象中', () => {
@@ -618,6 +630,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
         setNodes: mockSetNodes,
         setEdges: mockSetEdges,
         getNodes: vi.fn(() => [mockNode, structuredNode1, structuredNode2]),
+        getEdges: vi.fn(() => []),
       });
 
       mocks.useGetSourceTarget.mockReturnValue({
@@ -822,16 +835,14 @@ describe('Retrieving Edge Node - 参数配置', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        const inputs = screen.getAllByRole('spinbutton');
-        const topKInput = inputs.find((input: any) =>
-          input.parentElement?.previousElementSibling?.textContent?.includes(
-            'Top K'
-          )
-        );
+        expect(screen.getByText('Top K')).toBeInTheDocument();
+      });
 
-        if (topKInput) {
-          fireEvent.change(topKInput, { target: { value: '1' } });
-        }
+      const topKInput = screen.getByTestId('top-k-input');
+
+      await act(async () => {
+        fireEvent.change(topKInput, { target: { value: '1' } });
+        await new Promise(resolve => requestAnimationFrame(resolve));
       });
 
       await waitFor(() => {
@@ -870,16 +881,14 @@ describe('Retrieving Edge Node - 参数配置', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        const inputs = screen.getAllByRole('spinbutton');
-        const topKInput = inputs.find((input: any) =>
-          input.parentElement?.previousElementSibling?.textContent?.includes(
-            'Top K'
-          )
-        );
+        expect(screen.getByText('Top K')).toBeInTheDocument();
+      });
 
-        if (topKInput) {
-          fireEvent.change(topKInput, { target: { value: '100' } });
-        }
+      const topKInput = screen.getByTestId('top-k-input');
+
+      await act(async () => {
+        fireEvent.change(topKInput, { target: { value: '100' } });
+        await new Promise(resolve => requestAnimationFrame(resolve));
       });
 
       await waitFor(() => {
@@ -1082,6 +1091,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
         setNodes: mockSetNodes,
         setEdges: mockSetEdges,
         getNodes: vi.fn(() => [mockNode, structuredNode]),
+        getEdges: vi.fn(() => []),
       });
 
       mocks.useGetSourceTarget.mockReturnValue({
@@ -1143,19 +1153,13 @@ describe('Retrieving Edge Node - 参数配置', () => {
         expect(screen.getByText('Advanced Settings')).toBeInTheDocument();
       });
 
-      // 点击高级设置切换按钮
-      const toggleButtons = screen.getAllByRole('button');
-      const advancedSettingsToggle = toggleButtons.find(btn =>
-        btn.parentElement?.textContent?.includes('Advanced Settings')
-      );
+      // 使用 data-testid 点击高级设置切换按钮
+      const advancedSettingsToggle = screen.getByTestId('advanced-settings-toggle');
+      fireEvent.click(advancedSettingsToggle);
 
-      if (advancedSettingsToggle) {
-        fireEvent.click(advancedSettingsToggle);
-
-        await waitFor(() => {
-          expect(screen.getByText('Model')).toBeInTheDocument();
-        });
-      }
+      await waitFor(() => {
+        expect(screen.getByText('Model')).toBeInTheDocument();
+      });
     });
 
     it('Model 参数应支持三个 Perplexity 模型选项', async () => {
@@ -1238,17 +1242,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        const inputs = screen.getAllByRole('spinbutton');
-        const topKInput = inputs.find((input: any) =>
-          input.parentElement?.previousElementSibling?.textContent?.includes(
-            'Top K'
-          )
-        );
-
-        if (topKInput) {
-          fireEvent.change(topKInput, { target: { value: '' } });
-        }
+        expect(screen.getByTestId('top-k-input')).toBeInTheDocument();
       });
+
+      // 使用 data-testid 查找 Top K 输入框并清空
+      const topKInput = screen.getByTestId('top-k-input');
+      fireEvent.change(topKInput, { target: { value: '' } });
 
       await waitFor(() => {
         if (mockSetNodes.mock.calls.length > 0) {
@@ -1286,17 +1285,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        const inputs = screen.getAllByRole('spinbutton');
-        const topKInput = inputs.find((input: any) =>
-          input.parentElement?.previousElementSibling?.textContent?.includes(
-            'Top K'
-          )
-        );
-
-        if (topKInput) {
-          fireEvent.change(topKInput, { target: { value: 'abc' } });
-        }
+        expect(screen.getByTestId('top-k-input')).toBeInTheDocument();
       });
+
+      // 使用 data-testid 查找 Top K 输入框并输入非数字字符
+      const topKInput = screen.getByTestId('top-k-input');
+      fireEvent.change(topKInput, { target: { value: 'abc' } });
 
       await waitFor(() => {
         if (mockSetNodes.mock.calls.length > 0) {
@@ -1542,19 +1536,13 @@ describe('Retrieving Edge Node - 参数配置', () => {
       // Model 选项应该初始不可见
       expect(screen.queryByText('Model')).not.toBeInTheDocument();
 
-      // 点击切换按钮
-      const toggleButtons = screen.getAllByRole('button');
-      const advancedToggle = toggleButtons.find(btn =>
-        btn.parentElement?.textContent?.includes('Advanced Settings')
-      );
+      // 使用 data-testid 找到高级设置切换按钮
+      const advancedToggle = screen.getByTestId('advanced-settings-toggle');
+      fireEvent.click(advancedToggle);
 
-      if (advancedToggle) {
-        fireEvent.click(advancedToggle);
-
-        await waitFor(() => {
-          expect(screen.getByText('Model')).toBeInTheDocument();
-        });
-      }
+      await waitFor(() => {
+        expect(screen.getByText('Model')).toBeInTheDocument();
+      });
     });
 
     it('再次点击应收起高级设置', async () => {
@@ -1579,34 +1567,23 @@ describe('Retrieving Edge Node - 参数配置', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        const toggleButtons = screen.getAllByRole('button');
-        const advancedToggle = toggleButtons.find(btn =>
-          btn.parentElement?.textContent?.includes('Advanced Settings')
-        );
-
-        if (advancedToggle) {
-          // 展开
-          fireEvent.click(advancedToggle);
-        }
+        expect(screen.getByText('Advanced Settings')).toBeInTheDocument();
       });
+
+      // 使用 data-testid 找到高级设置切换按钮并展开
+      const advancedToggle = screen.getByTestId('advanced-settings-toggle');
+      fireEvent.click(advancedToggle);
 
       await waitFor(() => {
         expect(screen.getByText('Model')).toBeInTheDocument();
       });
 
       // 再次点击收起
-      const toggleButtons = screen.getAllByRole('button');
-      const advancedToggle = toggleButtons.find(btn =>
-        btn.parentElement?.textContent?.includes('Advanced Settings')
-      );
+      fireEvent.click(advancedToggle);
 
-      if (advancedToggle) {
-        fireEvent.click(advancedToggle);
-
-        await waitFor(() => {
-          expect(screen.queryByText('Model')).not.toBeInTheDocument();
-        });
-      }
+      await waitFor(() => {
+        expect(screen.queryByText('Model')).not.toBeInTheDocument();
+      });
     });
   });
 });

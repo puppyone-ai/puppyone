@@ -109,6 +109,7 @@ vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
     mocks.PuppyDropdown(props);
     return (
       <div data-testid='puppy-dropdown'>
+        <div data-testid='dropdown-selected-value'>{props.selectedValue}</div>
         <button
           data-testid='dropdown-trigger'
           onClick={() => {
@@ -528,12 +529,39 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
         expect(screen.getByText('Delimiters')).toBeInTheDocument();
       });
 
+      // 通过添加分隔符来触发状态变化，从而触发 setNodes
+      const addButtons = screen.getAllByRole('button');
+      const plusButton = addButtons.find(btn => {
+        const svg = btn.querySelector('svg');
+        return svg && svg.querySelector('path[d*="M12 5v14M5 12h14"]');
+      });
+
+      if (plusButton) {
+        fireEvent.click(plusButton);
+        
+        await waitFor(() => {
+          const input = screen.queryByPlaceholderText('Type...');
+          expect(input).toBeInTheDocument();
+        });
+
+        const input = screen.getByPlaceholderText('Type...');
+        fireEvent.change(input, { target: { value: '|' } });
+        fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+      }
+
       // 验证 deliminator 状态会被保存（通过 setNodes）
       await waitFor(
         () => {
-          // list_separator 在初始化时就会被设置
           const calls = mockSetNodes.mock.calls;
           expect(calls.length).toBeGreaterThan(0);
+          
+          // 验证最新的调用包含更新的 list_separator
+          const lastCall = calls[calls.length - 1];
+          if (typeof lastCall[0] === 'function') {
+            const updatedNodes = lastCall[0]([node]);
+            const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
+            expect(updatedNode?.data?.extra_configs?.list_separator).toBeDefined();
+          }
         },
         { timeout: 3000 }
       );
@@ -593,7 +621,6 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
 
       // 点击 "+" 按钮
-      const addButton = screen.getByRole('button', { name: '' });
       const addButtons = screen.getAllByRole('button');
       const plusButton = addButtons.find(btn => {
         const svg = btn.querySelector('svg');
@@ -786,13 +813,16 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
 
       // 验证特殊字符的显示
       // Enter 应该显示为 "Enter" 文本和 SVG 图标
-      expect(screen.getByText('Enter')).toBeInTheDocument();
+      const enterElements = screen.getAllByText('Enter');
+      expect(enterElements.length).toBeGreaterThan(0);
 
       // Tab 应该显示为 "Tab"
-      expect(screen.getByText('Tab')).toBeInTheDocument();
+      const tabElements = screen.getAllByText('Tab');
+      expect(tabElements.length).toBeGreaterThan(0);
 
       // Space 应该显示为 "Space"
-      expect(screen.getByText('Space')).toBeInTheDocument();
+      const spaceElements = screen.getAllByText('Space');
+      expect(spaceElements.length).toBeGreaterThan(0);
     });
   });
 
@@ -860,8 +890,11 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       fireEvent.click(screen.getByText('Convert'));
 
       await waitFor(() => {
-        // 验证 Mode 显示正确的值
-        expect(screen.getByText('wrap into dict')).toBeInTheDocument();
+        // 验证 Mode 显示正确的值（通过 dropdown 的 selected value）
+        const dropdown = screen.getByTestId('puppy-dropdown');
+        expect(dropdown).toBeInTheDocument();
+        const selectedValue = screen.getByTestId('dropdown-selected-value');
+        expect(selectedValue).toHaveTextContent('wrap into dict');
       });
 
       // 验证 Key 输入框显示加载的值

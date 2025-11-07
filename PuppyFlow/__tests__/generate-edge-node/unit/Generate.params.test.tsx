@@ -127,7 +127,19 @@ vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
             const selected = options.find(
               (opt: any) => getValue(opt) === e.target.value
             );
-            onSelect(selected);
+            // 判断是否应该传递整个对象：
+            // 如果 options 的第一个元素是对象且有 valueKey，传递整个对象（如 Model）
+            // 否则传递字符串（如 Query/Document label）
+            const shouldPassObject = 
+              valueKey && 
+              options.length > 0 && 
+              typeof options[0] === 'object';
+            
+            if (selected) {
+              onSelect(shouldPassObject ? selected : getLabel(selected));
+            } else {
+              onSelect(e.target.value);
+            }
           }}
         >
           <option value=''>Select</option>
@@ -242,6 +254,7 @@ describe('Generate Edge Node - 参数配置', () => {
       setNodes: mockSetNodes,
       setEdges: mockSetEdges,
       getNodes: vi.fn(() => [createMockNode()]),
+      getEdges: vi.fn(() => []),
     });
 
     mocks.useNodesPerFlowContext.mockReturnValue({
@@ -298,6 +311,7 @@ describe('Generate Edge Node - 参数配置', () => {
         setNodes: mockSetNodes,
         setEdges: mockSetEdges,
         getNodes: vi.fn(() => [mockNode, textNode]),
+        getEdges: vi.fn(() => []),
       });
 
       mocks.useGetSourceTarget.mockReturnValue({
@@ -331,8 +345,9 @@ describe('Generate Edge Node - 参数配置', () => {
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const querySelect = dropdownSelects[0]; // 第一个是 Queries dropdown
 
+      // Generate组件的options是label数组，所以value应该是label而不是id
       fireEvent.change(querySelect, {
-        target: { value: 'text-1' },
+        target: { value: 'Test Query' },
       });
 
       await waitFor(
@@ -399,6 +414,7 @@ describe('Generate Edge Node - 参数配置', () => {
         setNodes: mockSetNodes,
         setEdges: mockSetEdges,
         getNodes: vi.fn(() => [mockNode, docNode]),
+        getEdges: vi.fn(() => []),
       });
 
       mocks.useGetSourceTarget.mockReturnValue({
@@ -432,8 +448,9 @@ describe('Generate Edge Node - 参数配置', () => {
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const docSelect = dropdownSelects[1]; // 第二个是 Documents dropdown
 
+      // Generate组件的options是label数组，所以value应该是label而不是id
       fireEvent.change(docSelect, {
-        target: { value: 'doc-1' },
+        target: { value: 'Test Document' },
       });
 
       await waitFor(
@@ -517,20 +534,20 @@ describe('Generate Edge Node - 参数配置', () => {
         target: { value: 'data_cleaning' },
       });
 
+      // 等待 requestAnimationFrame 完成
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
       await waitFor(
         () => {
           expect(mockSetNodes).toHaveBeenCalled();
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const updatedNodes = setNodesCall([mockNode]);
+          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          expect(updatedNode.data.promptTemplate).toBe('data_cleaning');
         },
         { timeout: 3000 }
       );
-
-      // 验证 promptTemplate 更新
-      const setNodesCall =
-        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
-      const updatedNodes = setNodesCall([mockNode]);
-      const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
-
-      expect(updatedNode.data.promptTemplate).toBe('data_cleaning');
     });
 
     it('应支持所有 18 种预设模板类型', async () => {
@@ -628,20 +645,20 @@ describe('Generate Edge Node - 参数配置', () => {
         target: { value: 'gpt-3.5' },
       });
 
+      // 等待 requestAnimationFrame 完成
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
       await waitFor(
         () => {
           expect(mockSetNodes).toHaveBeenCalled();
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const updatedNodes = setNodesCall([mockNode]);
+          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          expect(updatedNode.data.model).toBe('gpt-3.5');
         },
         { timeout: 3000 }
       );
-
-      // 验证 model 更新
-      const setNodesCall =
-        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
-      const updatedNodes = setNodesCall([mockNode]);
-      const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
-
-      expect(updatedNode.data.model).toBe('gpt-3.5');
     });
 
     it('应只显示 type=llm 且 active=true 的模型', async () => {
@@ -737,8 +754,9 @@ describe('Generate Edge Node - 参数配置', () => {
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const querySelect = dropdownSelects[0];
 
+      // Generate组件的options是label数组，所以value应该是label而不是id
       fireEvent.change(querySelect, {
-        target: { value: 'text-2' },
+        target: { value: 'Second Query' },
       });
 
       await waitFor(() => {
@@ -800,8 +818,9 @@ describe('Generate Edge Node - 参数配置', () => {
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const docSelect = dropdownSelects[1];
 
+      // Generate组件的options是label数组，所以value应该是label而不是id
       fireEvent.change(docSelect, {
-        target: { value: 'doc-2' },
+        target: { value: 'Second Document' },
       });
 
       await waitFor(() => {
@@ -989,20 +1008,20 @@ describe('Generate Edge Node - 参数配置', () => {
       expect(structuredOutputToggle).toBeDefined();
       fireEvent.click(structuredOutputToggle!);
 
+      // 等待 requestAnimationFrame 完成
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
       await waitFor(
         () => {
           expect(mockSetNodes).toHaveBeenCalled();
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const updatedNodes = setNodesCall([mockNode]);
+          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          expect(updatedNode.data.structured_output).toBe(true);
         },
         { timeout: 3000 }
       );
-
-      // 验证 structured_output 更新
-      const setNodesCall =
-        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
-      const updatedNodes = setNodesCall([mockNode]);
-      const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
-
-      expect(updatedNode.data.structured_output).toBe(true);
     });
   });
 
@@ -1137,20 +1156,20 @@ describe('Generate Edge Node - 参数配置', () => {
         target: { value: 'https://custom-api.com/v1' },
       });
 
+      // 等待 requestAnimationFrame 完成
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
       await waitFor(
         () => {
           expect(mockSetNodes).toHaveBeenCalled();
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const updatedNodes = setNodesCall([mockNode]);
+          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          expect(updatedNode.data.base_url).toBe('https://custom-api.com/v1');
         },
         { timeout: 3000 }
       );
-
-      // 验证 base_url 更新
-      const setNodesCall =
-        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
-      const updatedNodes = setNodesCall([mockNode]);
-      const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
-
-      expect(updatedNode.data.base_url).toBe('https://custom-api.com/v1');
     });
   });
 

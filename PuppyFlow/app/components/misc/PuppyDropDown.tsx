@@ -13,6 +13,7 @@ export const PuppyDropdown = ({
   mapValueTodisplay = (v: string) => v,
   showDropdownIcon = true,
   renderOption,
+  'data-testid': testId,
 }: any) => {
   const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
 
@@ -64,6 +65,7 @@ export const PuppyDropdown = ({
       onClick={() => {
         setIsOpen(prev => !prev);
       }}
+      data-testid={testId ? `${testId}-container` : undefined}
     >
       <div
         className={`flex-grow overflow-hidden text-[12px] text-nowrap font-normal ${optionBadge && selectedValue ? 'text-[#000] ' : 'text-white'} leading-normal flex items-center justify-between h-[16px] rounded-[6px] border-[#6D7177] ${optionBadge && selectedValue ? 'border-[3px]' : 'border-[0px]'} ${optionBadge && selectedValue ? 'bg-[#6D7177]' : ''}`}
@@ -74,8 +76,9 @@ export const PuppyDropdown = ({
           width: 'fit-content',
           minWidth: 'min-content',
         }}
+        data-testid={testId ? `${testId}-button` : undefined}
       >
-        <span>{mapValueTodisplay(selectedValue || 'Select a value')}</span>{' '}
+        <span data-testid={testId ? `${testId}-selected-value` : undefined}>{mapValueTodisplay(selectedValue || 'Select a value')}</span>{' '}
         {/* Display selected label or placeholder */}
         {showDropdownIcon && (
           <svg
@@ -95,7 +98,7 @@ export const PuppyDropdown = ({
         )}
       </div>
       {isOpen ? (
-        <ul style={dropdownListStyle}>
+        <ul style={dropdownListStyle} data-testid={testId ? `${testId}-list` : undefined}>
           {options.map((option: any, index: number) => (
             <li
               key={index}
@@ -110,6 +113,7 @@ export const PuppyDropdown = ({
               onMouseLeave={e =>
                 (e.currentTarget.style.backgroundColor = 'transparent')
               } // Reset hover color
+              data-testid={testId ? `${testId}-option-${index}` : undefined}
             >
               {renderOption ? renderOption(option) : mapValueTodisplay(option)}
             </li>

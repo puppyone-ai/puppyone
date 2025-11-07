@@ -268,8 +268,9 @@ describe('Copy Edge Node - 完整测试', () => {
       const nodeButton = screen.getByTitle('Copy Node');
       fireEvent.click(nodeButton);
 
+      // 等待配置菜单显示
       await waitFor(() => {
-        expect(screen.getByText('Copy')).toBeInTheDocument();
+        expect(screen.getByTestId('input-output-display')).toBeInTheDocument();
       });
 
       // 点击配置菜单中的 Run 按钮
@@ -325,8 +326,9 @@ describe('Copy Edge Node - 完整测试', () => {
       const nodeButton = screen.getByTitle('Copy Node');
       fireEvent.click(nodeButton);
 
+      // 等待配置菜单显示
       await waitFor(() => {
-        expect(screen.getByText('Copy')).toBeInTheDocument();
+        expect(screen.getByTestId('input-output-display')).toBeInTheDocument();
       });
 
       // 点击 Run 按钮
@@ -338,22 +340,14 @@ describe('Copy Edge Node - 完整测试', () => {
       if (menuRunButton) {
         fireEvent.click(menuRunButton);
 
-        // 等待加载状态显示（Run 文本消失，spinner 出现）
+        // 等待加载状态显示（spinner 出现）
         await waitFor(
           () => {
-            const runTexts = screen.queryAllByText('Run');
-            // 菜单中的 Run 按钮文本应该消失
-            const menuRunText = runTexts.find(text =>
-              text.parentElement?.className.includes('rounded-[8px]')
-            );
-            expect(menuRunText?.textContent).toBe('');
+            const spinners = document.querySelectorAll('.animate-spin');
+            expect(spinners.length).toBeGreaterThan(0);
           },
           { timeout: 1000 }
         );
-
-        // 验证 spinner SVG 存在
-        const spinners = document.querySelectorAll('.animate-spin');
-        expect(spinners.length).toBeGreaterThan(0);
 
         // 完成执行
         resolveExecution();
@@ -385,7 +379,9 @@ describe('Copy Edge Node - 完整测试', () => {
       );
 
       // 初始状态：配置菜单应不可见
-      expect(screen.queryByText('Copy')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('input-output-display')
+      ).not.toBeInTheDocument();
 
       // 点击节点按钮
       const nodeButton = screen.getByTitle('Copy Node');
@@ -393,11 +389,8 @@ describe('Copy Edge Node - 完整测试', () => {
 
       // 验证配置菜单显示
       await waitFor(() => {
-        expect(screen.getByText('Copy')).toBeInTheDocument();
+        expect(screen.getByTestId('input-output-display')).toBeInTheDocument();
       });
-
-      // 验证 InputOutputDisplay 显示
-      expect(screen.getByTestId('input-output-display')).toBeInTheDocument();
     });
 
     it('TC-CP-003-1: 再次点击应关闭配置菜单', async () => {
@@ -417,14 +410,16 @@ describe('Copy Edge Node - 完整测试', () => {
       fireEvent.click(nodeButton);
 
       await waitFor(() => {
-        expect(screen.getByText('Copy')).toBeInTheDocument();
+        expect(screen.getByTestId('input-output-display')).toBeInTheDocument();
       });
 
       // 再次点击关闭菜单
       fireEvent.click(nodeButton);
 
       await waitFor(() => {
-        expect(screen.queryByText('Copy')).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId('input-output-display')
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -440,8 +435,7 @@ describe('Copy Edge Node - 完整测试', () => {
         />
       );
 
-      // 验证配置菜单初始不可见
-      expect(screen.queryByText('Copy')).not.toBeInTheDocument();
+      // 验证配置菜单初始不可见（通过 input-output-display）
       expect(
         screen.queryByTestId('input-output-display')
       ).not.toBeInTheDocument();

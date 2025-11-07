@@ -23,9 +23,9 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import LLM from '@/components/workflow/edgesNode/edgeNodesNew/LLM';
+import LLM from '../../../app/components/workflow/edgesNode/edgeNodesNew/LLM';
 import type { Node } from '@xyflow/react';
-import type { LLMConfigNodeData } from '@/components/workflow/edgesNode/edgeNodesNew/LLM';
+import type { LLMConfigNodeData } from '../../../app/components/workflow/edgesNode/edgeNodesNew/LLM';
 
 // Mock 配置
 const mocks = vi.hoisted(() => ({
@@ -43,24 +43,24 @@ vi.mock('@xyflow/react', () => ({
   MarkerType: { ArrowClosed: 'arrowclosed', Arrow: 'arrow' },
 }));
 
-vi.mock('@/components/states/NodesPerFlowContext', () => ({
+vi.mock('@/app/components/states/NodesPerFlowContext', () => ({
   useNodesPerFlowContext: mocks.useNodesPerFlowContext,
 }));
 
-vi.mock('@/components/hooks/useGetSourceTarget', () => ({
+vi.mock('@/app/components/hooks/useGetSourceTarget', () => ({
   default: mocks.useGetSourceTarget,
 }));
 
-vi.mock('@/components/hooks/useJsonConstructUtils', () => ({
+vi.mock('@/app/components/hooks/useJsonConstructUtils', () => ({
   default: mocks.useJsonConstructUtils,
 }));
 
-vi.mock('@/components/states/AppSettingsContext', () => ({
+vi.mock('@/app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
 vi.mock(
-  '@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  '@/app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
   () => ({
     default: () => (
       <div data-testid='input-output-display'>InputOutputDisplay</div>
@@ -68,13 +68,9 @@ vi.mock(
   })
 );
 
-vi.mock('@/components/misc/PuppyDropDown', () => ({
-  PuppyDropdown: ({ selectedValue }: any) => (
-    <div data-testid='puppy-dropdown'>{selectedValue?.name || 'Select'}</div>
-  ),
-}));
+// Don't mock PuppyDropDown - use the real component with data-testid support
 
-vi.mock('@/components/workflow/components/promptEditor', () => ({
+vi.mock('@/app/components/workflow/components/promptEditor', () => ({
   default: ({ messages, onChange }: any) => (
     <div data-testid='prompt-editor'>
       <textarea
@@ -135,6 +131,7 @@ describe('LLM Edge Node - Messages 配置', () => {
       setNodes: mockSetNodes,
       setEdges: vi.fn(),
       getNodes: vi.fn(() => [createMockNode()]),
+      getEdges: vi.fn(() => []),
     });
 
     mocks.useNodesPerFlowContext.mockReturnValue({
@@ -158,6 +155,8 @@ describe('LLM Edge Node - Messages 配置', () => {
     });
 
     mocks.useAppSettings.mockReturnValue({
+      cloudModels: [],
+      localModels: [],
       availableModels: [
         {
           id: 'gpt-4',
@@ -168,6 +167,31 @@ describe('LLM Edge Node - Messages 配置', () => {
           type: 'llm',
         },
       ],
+      isLocalDeployment: false,
+      isLoadingLocalModels: false,
+      ollamaConnected: false,
+      toggleModelAvailability: vi.fn(),
+      addLocalModel: vi.fn(),
+      removeLocalModel: vi.fn(),
+      refreshLocalModels: vi.fn(),
+      userSubscriptionStatus: null,
+      isLoadingSubscriptionStatus: false,
+      fetchUserSubscriptionStatus: vi.fn(),
+      warns: [],
+      addWarn: vi.fn(),
+      removeWarn: vi.fn(),
+      clearWarns: vi.fn(),
+      toggleWarnExpand: vi.fn(),
+      usageData: null,
+      planLimits: {
+        workspaces: 1,
+        deployedServices: 1,
+        llm_calls: 50,
+        runs: 100,
+        fileStorage: '5M',
+      },
+      isLoadingUsage: false,
+      fetchUsageData: vi.fn(),
     });
   });
 
@@ -203,7 +227,12 @@ describe('LLM Edge Node - Messages 配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      // 修改消息
+      // 等待菜单和编辑器渲染完成
+      await waitFor(() => {
+        expect(screen.getByTestId('prompt-editor')).toBeInTheDocument();
+      });
+
+      // 然后获取 textarea
       const textarea = screen.getByTestId('prompt-textarea');
       const newMessages = [
         { role: 'system', content: 'You are a helpful assistant' },
@@ -324,7 +353,7 @@ describe('LLM Edge Node - Messages 配置', () => {
   });
 
   describe('TC-LLM-011: 消息持久化 (P0)', () => {
-    it('已保存的消息应正确恢复', () => {
+    it('已保存的消息应正确恢复', async () => {
       const savedMessages = [
         { role: 'system', content: 'Custom system prompt' },
         { role: 'user', content: 'Custom user prompt' },
@@ -351,13 +380,15 @@ describe('LLM Edge Node - Messages 配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const textarea = screen.getByTestId('prompt-textarea');
+      const textarea = await waitFor(() =>
+        screen.getByTestId('prompt-textarea')
+      );
       const displayedMessages = JSON.parse(textarea.value);
 
       expect(displayedMessages).toEqual(savedMessages);
     });
 
-    it('消息顺序应保持一致', () => {
+    it('消息顺序应保持一致', async () => {
       const messages = [
         { role: 'system', content: 'First' },
         { role: 'user', content: 'Second' },
@@ -409,7 +440,9 @@ describe('LLM Edge Node - Messages 配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const textarea = screen.getByTestId('prompt-textarea');
+      const textarea = await waitFor(() =>
+        screen.getByTestId('prompt-textarea')
+      );
       const multiMessages = [
         { role: 'system', content: 'System 1' },
         { role: 'system', content: 'System 2' },
@@ -462,7 +495,9 @@ describe('LLM Edge Node - Messages 配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const textarea = screen.getByTestId('prompt-textarea');
+      const textarea = await waitFor(() =>
+        screen.getByTestId('prompt-textarea')
+      );
       // 删除中间的 user 消息
       const updatedMessages = [
         { role: 'system', content: 'System' },
@@ -513,7 +548,9 @@ describe('LLM Edge Node - Messages 配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const textarea = screen.getByTestId('prompt-textarea');
+      const textarea = await waitFor(() =>
+        screen.getByTestId('prompt-textarea')
+      );
       // 调整顺序
       const reorderedMessages = [
         { role: 'user', content: 'C' },
@@ -560,7 +597,9 @@ describe('LLM Edge Node - Messages 配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const textarea = screen.getByTestId('prompt-textarea');
+      const textarea = await waitFor(() =>
+        screen.getByTestId('prompt-textarea')
+      );
       const messagesWithVariable = [
         { role: 'system', content: 'You are an AI' },
         { role: 'user', content: 'Answer: {{inputText}}' },
@@ -605,7 +644,9 @@ describe('LLM Edge Node - Messages 配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const textarea = screen.getByTestId('prompt-textarea');
+      const textarea = await waitFor(() =>
+        screen.getByTestId('prompt-textarea')
+      );
       const message = [{ role: 'user', content: '{{var1}} and {{var2}}' }];
 
       fireEvent.change(textarea, {
@@ -648,7 +689,9 @@ describe('LLM Edge Node - Messages 配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const textarea = screen.getByTestId('prompt-textarea');
+      const textarea = await waitFor(() =>
+        screen.getByTestId('prompt-textarea')
+      );
       const complexMessage = [
         {
           role: 'user',

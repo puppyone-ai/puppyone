@@ -90,7 +90,69 @@ vi.mock(
 );
 
 vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
-  PuppyDropdown: mocks.PuppyDropdown,
+  PuppyDropdown: ({
+    selectedValue,
+    onSelect,
+    options,
+    renderOption,
+    mapValueTodisplay,
+    valueKey,
+  }: any) => {
+    mocks.PuppyDropdown({ selectedValue, onSelect, options });
+    
+    const getValue = (opt: any) => {
+      if (valueKey && typeof opt === 'object') {
+        return opt[valueKey];
+      }
+      return typeof opt === 'string' ? opt : opt.id;
+    };
+
+    const getLabel = (opt: any) => {
+      if (typeof opt === 'string') return opt;
+      if (opt.label) return opt.label;
+      if (opt.name) return opt.name;
+      return opt.id;
+    };
+
+    return (
+      <div data-testid='puppy-dropdown'>
+        <span data-testid='dropdown-display'>
+          {mapValueTodisplay
+            ? mapValueTodisplay(selectedValue)
+            : typeof selectedValue === 'object' && selectedValue?.label
+              ? selectedValue.label
+              : selectedValue || 'Select'}
+        </span>
+        <select
+          data-testid='dropdown-select'
+          value={
+            typeof selectedValue === 'object'
+              ? valueKey
+                ? selectedValue?.[valueKey]
+                : selectedValue?.id
+              : selectedValue
+          }
+          onChange={e => {
+            const selected = options.find(
+              (opt: any) => getValue(opt) === e.target.value
+            );
+            if (selected) {
+              onSelect(selected);
+            } else {
+              onSelect(e.target.value);
+            }
+          }}
+        >
+          <option value=''>Select</option>
+          {options && options.map((opt: any, idx: number) => (
+            <option key={idx} value={getValue(opt)}>
+              {renderOption ? 'rendered' : getLabel(opt)}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  },
 }));
 
 vi.mock('../../../app/utils/colors', () => ({
@@ -583,6 +645,18 @@ describe('IfElse Edge Node - 参数配置', () => {
       const case2 = createDefaultCase();
       const node = createMockNode({ cases: [case1, case2] });
 
+      // 更新mockGetNode以返回正确的node数据
+      mockGetNode.mockImplementation(id => {
+        if (id === 'test-ifelse-1') return node;
+        if (id === 'source-node-1')
+          return createMockTextNode('source-node-1', 'source1');
+        if (id === 'source-node-2')
+          return createMockTextNode('source-node-2', 'source2');
+        if (id === 'target-node-1')
+          return createMockTextNode('target-node-1', 'target1');
+        return null;
+      });
+
       render(
         <IfElse {...node} id={node.id} data={node.data} isConnectable={true} />
       );
@@ -838,6 +912,18 @@ describe('IfElse Edge Node - 参数配置', () => {
       };
       const node = createMockNode({ cases: [caseWithTwoConditions] });
 
+      // 更新mockGetNode以返回正确的node数据
+      mockGetNode.mockImplementation(id => {
+        if (id === 'test-ifelse-1') return node;
+        if (id === 'source-node-1')
+          return createMockTextNode('source-node-1', 'source1');
+        if (id === 'source-node-2')
+          return createMockTextNode('source-node-2', 'source2');
+        if (id === 'target-node-1')
+          return createMockTextNode('target-node-1', 'target1');
+        return null;
+      });
+
       render(
         <IfElse {...node} id={node.id} data={node.data} isConnectable={true} />
       );
@@ -845,20 +931,37 @@ describe('IfElse Edge Node - 参数配置', () => {
       const nodeButton = screen.getByRole('button', { name: /IF\/ELSE/i });
       fireEvent.click(nodeButton);
 
-      // 增加超时时间并使用更灵活的查询方式
+      // 等待菜单完全打开
+      await waitFor(() => {
+        expect(screen.getByText('If/Else')).toBeInTheDocument();
+        expect(screen.getByText('Condition')).toBeInTheDocument();
+      });
+
+      // 查找 AND/OR 按钮 - 使用更灵活的方式
+      // AND/OR 按钮只在有多个条件时显示，且应该在第一个条件和第二个条件之间
       const andOrButton = await waitFor(
         () => {
-          // 尝试查找 AND 或 OR 按钮
-          const andButton = screen.queryByText('AND');
-          const orButton = screen.queryByText('OR');
-          const button = andButton || orButton;
-          if (!button) throw new Error('AND/OR button not found');
-          return button;
+          // 查找所有包含 AND 或 OR 文本的小按钮
+          const allButtons = screen.getAllByRole('button');
+          const andOrButtons = allButtons.filter(btn => {
+            const text = btn.textContent;
+            return (
+              (text === 'AND' || text === 'OR') &&
+              btn.className.includes('px-2') &&
+              btn.className.includes('py-1')
+            );
+          });
+
+          if (andOrButtons.length === 0)
+            throw new Error('AND/OR button not found');
+          return andOrButtons[0];
         },
         { timeout: 5000 }
       );
 
       const initialOperation = andOrButton.textContent;
+      expect(['AND', 'OR']).toContain(initialOperation);
+
       fireEvent.click(andOrButton);
 
       await waitFor(
@@ -869,7 +972,7 @@ describe('IfElse Edge Node - 参数配置', () => {
             typeof lastCall === 'function' ? lastCall([node]) : lastCall;
           const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
 
-          // 验证 operation 从 AND 切换到 OR
+          // 验证 operation 从 AND 切换到 OR（或从 OR 切换到 AND）
           const operation = updatedNode.data.cases[0].conditions[0].operation;
           expect(operation).toBe(initialOperation === 'AND' ? 'OR' : 'AND');
         },

@@ -20,9 +20,9 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import LLM from '@/components/workflow/edgesNode/edgeNodesNew/LLM';
+import LLM from '../../../app/components/workflow/edgesNode/edgeNodesNew/LLM';
 import type { Node } from '@xyflow/react';
-import type { LLMConfigNodeData } from '@/components/workflow/edgesNode/edgeNodesNew/LLM';
+import type { LLMConfigNodeData } from '../../../app/components/workflow/edgesNode/edgeNodesNew/LLM';
 
 // Mock 配置
 const mocks = vi.hoisted(() => ({
@@ -40,24 +40,24 @@ vi.mock('@xyflow/react', () => ({
   MarkerType: { ArrowClosed: 'arrowclosed', Arrow: 'arrow' },
 }));
 
-vi.mock('@/components/states/NodesPerFlowContext', () => ({
+vi.mock('@/app/components/states/NodesPerFlowContext', () => ({
   useNodesPerFlowContext: mocks.useNodesPerFlowContext,
 }));
 
-vi.mock('@/components/hooks/useGetSourceTarget', () => ({
+vi.mock('@/app/components/hooks/useGetSourceTarget', () => ({
   default: mocks.useGetSourceTarget,
 }));
 
-vi.mock('@/components/hooks/useJsonConstructUtils', () => ({
+vi.mock('@/app/components/hooks/useJsonConstructUtils', () => ({
   default: mocks.useJsonConstructUtils,
 }));
 
-vi.mock('@/components/states/AppSettingsContext', () => ({
+vi.mock('@/app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
 vi.mock(
-  '@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  '@/app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
   () => ({
     default: () => (
       <div data-testid='input-output-display'>InputOutputDisplay</div>
@@ -65,29 +65,9 @@ vi.mock(
   })
 );
 
-vi.mock('@/components/misc/PuppyDropDown', () => ({
-  PuppyDropdown: ({ options, selectedValue, onSelect }: any) => (
-    <div data-testid='puppy-dropdown'>
-      <div data-testid='selected-output-type'>
-        {typeof selectedValue === 'string' ? selectedValue : ''}
-      </div>
-      <select
-        data-testid='output-type-select'
-        value={selectedValue}
-        onChange={e => onSelect(e.target.value)}
-      >
-        {Array.isArray(options) &&
-          options.map((opt: string) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
-      </select>
-    </div>
-  ),
-}));
+// Don't mock PuppyDropDown - use the real component with data-testid support
 
-vi.mock('@/components/workflow/components/promptEditor', () => ({
+vi.mock('@/app/components/workflow/components/promptEditor', () => ({
   default: () => <div data-testid='prompt-editor'>PromptEditor</div>,
 }));
 
@@ -134,6 +114,7 @@ describe('LLM Edge Node - 输出类型配置', () => {
       setNodes: mockSetNodes,
       setEdges: vi.fn(),
       getNodes: vi.fn(() => [createMockNode()]),
+      getEdges: vi.fn(() => []),
     });
 
     mocks.useNodesPerFlowContext.mockReturnValue({
@@ -157,6 +138,8 @@ describe('LLM Edge Node - 输出类型配置', () => {
     });
 
     mocks.useAppSettings.mockReturnValue({
+      cloudModels: [],
+      localModels: [],
       availableModels: [
         {
           id: 'gpt-4',
@@ -167,6 +150,31 @@ describe('LLM Edge Node - 输出类型配置', () => {
           type: 'llm',
         },
       ],
+      isLocalDeployment: false,
+      isLoadingLocalModels: false,
+      ollamaConnected: false,
+      toggleModelAvailability: vi.fn(),
+      addLocalModel: vi.fn(),
+      removeLocalModel: vi.fn(),
+      refreshLocalModels: vi.fn(),
+      userSubscriptionStatus: null,
+      isLoadingSubscriptionStatus: false,
+      fetchUserSubscriptionStatus: vi.fn(),
+      warns: [],
+      addWarn: vi.fn(),
+      removeWarn: vi.fn(),
+      clearWarns: vi.fn(),
+      toggleWarnExpand: vi.fn(),
+      usageData: null,
+      planLimits: {
+        workspaces: 1,
+        deployedServices: 1,
+        llm_calls: 50,
+        runs: 100,
+        fileStorage: '5M',
+      },
+      isLoadingUsage: false,
+      fetchUsageData: vi.fn(),
     });
   });
 
@@ -196,15 +204,15 @@ describe('LLM Edge Node - 输出类型配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      // 查找输出类型下拉框
-      const selects = screen.getAllByTestId('output-type-select');
-      const outputSelect = selects.find(select =>
-        Array.from(select.options).some(
-          (opt: any) => opt.value === 'text' || opt.value === 'structured text'
-        )
-      );
+      // 点击输出类型下拉按钮打开菜单
+      const outputTypeButton = screen.getByTestId('output-type-button');
+      fireEvent.click(outputTypeButton);
 
-      fireEvent.change(outputSelect!, { target: { value: 'text' } });
+      // 等待下拉菜单出现并点击 'text' 选项
+      await waitFor(() => {
+        const textOption = screen.getByTestId('output-type-option-0');
+        fireEvent.click(textOption);
+      });
 
       await waitFor(() => {
         const setNodesCall =
@@ -239,14 +247,15 @@ describe('LLM Edge Node - 输出类型配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const selects = screen.getAllByTestId('output-type-select');
-      const outputSelect = selects.find(select =>
-        Array.from(select.options).some(
-          (opt: any) => opt.value === 'text' || opt.value === 'structured text'
-        )
-      );
+      // 点击输出类型下拉按钮打开菜单
+      const outputTypeButton = screen.getByTestId('output-type-button');
+      fireEvent.click(outputTypeButton);
 
-      fireEvent.change(outputSelect!, { target: { value: 'structured text' } });
+      // 等待下拉菜单出现并点击 'structured text' 选项
+      await waitFor(() => {
+        const structuredOption = screen.getByTestId('output-type-option-1');
+        fireEvent.click(structuredOption);
+      });
 
       await waitFor(() => {
         const setNodesCall =
@@ -303,12 +312,8 @@ describe('LLM Edge Node - 输出类型配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const selectedTypes = screen.getAllByTestId('selected-output-type');
-      const outputType = selectedTypes.find(
-        el => el.textContent === 'text' || el.textContent === 'structured text'
-      );
-
-      expect(outputType?.textContent).toBe('text');
+      const selectedValue = screen.getByTestId('output-type-selected-value');
+      expect(selectedValue.textContent).toBe('text');
     });
 
     it('已保存的输出类型应正确恢复 - structured text', () => {
@@ -332,12 +337,8 @@ describe('LLM Edge Node - 输出类型配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const selectedTypes = screen.getAllByTestId('selected-output-type');
-      const outputType = selectedTypes.find(
-        el => el.textContent === 'text' || el.textContent === 'structured text'
-      );
-
-      expect(outputType?.textContent).toBe('structured text');
+      const selectedValue = screen.getByTestId('output-type-selected-value');
+      expect(selectedValue.textContent).toBe('structured text');
     });
   });
 
@@ -363,14 +364,15 @@ describe('LLM Edge Node - 输出类型配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const selects = screen.getAllByTestId('output-type-select');
-      const outputSelect = selects.find(select =>
-        Array.from(select.options).some(
-          (opt: any) => opt.value === 'text' || opt.value === 'structured text'
-        )
-      );
+      // 点击输出类型下拉按钮打开菜单
+      const outputTypeButton = screen.getByTestId('output-type-button');
+      fireEvent.click(outputTypeButton);
 
-      fireEvent.change(outputSelect!, { target: { value: 'structured text' } });
+      // 等待下拉菜单出现并点击 'structured text' 选项
+      await waitFor(() => {
+        const structuredOption = screen.getByTestId('output-type-option-1');
+        fireEvent.click(structuredOption);
+      });
 
       await waitFor(() => {
         const setNodesCall =
@@ -403,14 +405,15 @@ describe('LLM Edge Node - 输出类型配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       fireEvent.click(button);
 
-      const selects = screen.getAllByTestId('output-type-select');
-      const outputSelect = selects.find(select =>
-        Array.from(select.options).some(
-          (opt: any) => opt.value === 'text' || opt.value === 'structured text'
-        )
-      );
+      // 点击输出类型下拉按钮打开菜单
+      const outputTypeButton = screen.getByTestId('output-type-button');
+      fireEvent.click(outputTypeButton);
 
-      fireEvent.change(outputSelect!, { target: { value: 'text' } });
+      // 等待下拉菜单出现并点击 'text' 选项
+      await waitFor(() => {
+        const textOption = screen.getByTestId('output-type-option-0');
+        fireEvent.click(textOption);
+      });
 
       await waitFor(() => {
         const setNodesCall =

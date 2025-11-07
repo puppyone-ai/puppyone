@@ -813,6 +813,7 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
                       renderOption={(option: { id: string; label: string }) => (
                         <div className='text-[#3B9BFF] text-[12px] font-medium'>{`{{${option.label}}}`}</div>
                       )}
+                      data-testid='query-select'
                     />
                   </div>
                 </li>
@@ -939,6 +940,7 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
                     autoComplete='off'
                     onMouseDownCapture={onFocus}
                     onBlur={onBlur}
+                    data-testid='top-k-input'
                   />
                 </li>
 
@@ -965,6 +967,7 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
                     autoComplete='off'
                     onMouseDownCapture={onFocus}
                     onBlur={onBlur}
+                    data-testid='threshold-input'
                   />
                 </li>
 
@@ -980,6 +983,7 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
                         ? 'bg-[#39BC66] border-[#39BC66]'
                         : 'bg-[#252525] border-[#6D7177]/30'
                     }`}
+                    data-testid='advanced-settings-toggle'
                   >
                     <div
                       className={`w-[16px] h-[16px] bg-white rounded-full transition-transform ${

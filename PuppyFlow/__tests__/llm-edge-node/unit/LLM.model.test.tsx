@@ -19,11 +19,11 @@
 
 // @ts-nocheck
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import LLM from '@/components/workflow/edgesNode/edgeNodesNew/LLM';
+import LLM from '../../../app/components/workflow/edgesNode/edgeNodesNew/LLM';
 import type { Node } from '@xyflow/react';
-import type { LLMConfigNodeData } from '@/components/workflow/edgesNode/edgeNodesNew/LLM';
+import type { LLMConfigNodeData } from '../../../app/components/workflow/edgesNode/edgeNodesNew/LLM';
 
 // Mock 配置
 const mocks = vi.hoisted(() => ({
@@ -50,24 +50,24 @@ vi.mock('@xyflow/react', () => ({
   MarkerType: { ArrowClosed: 'arrowclosed', Arrow: 'arrow' },
 }));
 
-vi.mock('@/components/states/NodesPerFlowContext', () => ({
+vi.mock('@/app/components/states/NodesPerFlowContext', () => ({
   useNodesPerFlowContext: mocks.useNodesPerFlowContext,
 }));
 
-vi.mock('@/components/hooks/useGetSourceTarget', () => ({
+vi.mock('@/app/components/hooks/useGetSourceTarget', () => ({
   default: mocks.useGetSourceTarget,
 }));
 
-vi.mock('@/components/hooks/useJsonConstructUtils', () => ({
+vi.mock('@/app/components/hooks/useJsonConstructUtils', () => ({
   default: mocks.useJsonConstructUtils,
 }));
 
-vi.mock('@/components/states/AppSettingsContext', () => ({
+vi.mock('@/app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
 vi.mock(
-  '@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  '@/app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
   () => ({
     default: () => (
       <div data-testid='input-output-display'>InputOutputDisplay</div>
@@ -75,34 +75,9 @@ vi.mock(
   })
 );
 
-vi.mock('@/components/misc/PuppyDropDown', () => ({
-  PuppyDropdown: ({ options, selectedValue, onSelect, renderOption }: any) => (
-    <div data-testid='puppy-dropdown'>
-      <div data-testid='selected-value'>
-        {selectedValue ? JSON.stringify(selectedValue) : 'null'}
-      </div>
-      <select
-        data-testid='dropdown-select'
-        value={selectedValue?.id || ''}
-        onChange={e => {
-          const selected = options.find(
-            (opt: any) => opt.id === e.target.value
-          );
-          if (selected) onSelect(selected);
-        }}
-      >
-        {Array.isArray(options) &&
-          options.map((opt: any) => (
-            <option key={opt.id || opt} value={opt.id || opt}>
-              {opt.name || opt}
-            </option>
-          ))}
-      </select>
-    </div>
-  ),
-}));
+// Don't mock PuppyDropDown - use the real component with data-testid support
 
-vi.mock('@/components/workflow/components/promptEditor', () => ({
+vi.mock('@/app/components/workflow/components/promptEditor', () => ({
   default: ({ messages, onChange }: any) => (
     <div data-testid='prompt-editor'>
       <textarea
@@ -181,6 +156,7 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       setNodes: mockSetNodes,
       setEdges: mockSetEdges,
       getNodes: vi.fn(() => [createMockNode()]),
+      getEdges: vi.fn(() => []),
     });
 
     mocks.useNodesPerFlowContext.mockReturnValue({
@@ -204,7 +180,34 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
     });
 
     mocks.useAppSettings.mockReturnValue({
+      cloudModels: [],
+      localModels: [],
       availableModels: mockModels,
+      isLocalDeployment: false,
+      isLoadingLocalModels: false,
+      ollamaConnected: false,
+      toggleModelAvailability: vi.fn(),
+      addLocalModel: vi.fn(),
+      removeLocalModel: vi.fn(),
+      refreshLocalModels: vi.fn(),
+      userSubscriptionStatus: null,
+      isLoadingSubscriptionStatus: false,
+      fetchUserSubscriptionStatus: vi.fn(),
+      warns: [],
+      addWarn: vi.fn(),
+      removeWarn: vi.fn(),
+      clearWarns: vi.fn(),
+      toggleWarnExpand: vi.fn(),
+      usageData: null,
+      planLimits: {
+        workspaces: 1,
+        deployedServices: 1,
+        llm_calls: 50,
+        runs: 100,
+        fileStorage: '5M',
+      },
+      isLoadingUsage: false,
+      fetchUsageData: vi.fn(),
     });
   });
 
@@ -235,30 +238,30 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       button.click();
 
+      // 等待菜单渲染完成，然后打开模型选择下拉菜单
       await waitFor(() => {
-        expect(screen.getByTestId('puppy-dropdown')).toBeInTheDocument();
+        const modelSelectButton = screen.getByTestId('model-select-button');
+        fireEvent.click(modelSelectButton);
       });
 
-      // 选择模型
-      const dropdown = screen.getByTestId('dropdown-select');
-      dropdown.value = 'claude-3';
-      dropdown.dispatchEvent(new Event('change', { bubbles: true }));
-
+      // 选择 Claude 3（第2个模型，index 1）
       await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
+        const claudeOption = screen.getByTestId('model-select-option-1');
+        fireEvent.click(claudeOption);
       });
 
-      // 验证 setNodes 被调用且包含正确的模型信息
-      const setNodesCall =
-        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
-      const updatedNodes = setNodesCall([mockNode]);
-      const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+      await waitFor(() => {
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const updatedNodes = setNodesCall([mockNode]);
+        const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
-      expect(updatedNode.data.modelAndProvider).toBeDefined();
-      expect(updatedNode.data.modelAndProvider.id).toBe('claude-3');
-      expect(updatedNode.data.modelAndProvider.name).toBe('Claude 3');
-      expect(updatedNode.data.modelAndProvider.provider).toBe('Anthropic');
-      expect(updatedNode.data.modelAndProvider.isLocal).toBe(false);
+        expect(updatedNode.data.modelAndProvider).toBeDefined();
+        expect(updatedNode.data.modelAndProvider.id).toBe('claude-3');
+        expect(updatedNode.data.modelAndProvider.name).toBe('Claude 3');
+        expect(updatedNode.data.modelAndProvider.provider).toBe('Anthropic');
+        expect(updatedNode.data.modelAndProvider.isLocal).toBe(false);
+      });
     });
 
     it('modelAndProvider 应包含完整字段', async () => {
@@ -295,7 +298,7 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
   });
 
   describe('TC-LLM-002: 默认模型初始化 (P0)', () => {
-    it('新节点应自动选择第一个可用的 LLM 模型', () => {
+    it('新节点应自动选择第一个可用的 LLM 模型', async () => {
       const mockNode = createMockNode();
       mockGetNode.mockReturnValue(mockNode);
 
@@ -317,12 +320,14 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       button.click();
 
-      // 验证有默认选择的模型
-      const selectedValue = screen.getByTestId('selected-value');
-      expect(selectedValue.textContent).toContain('gpt-4'); // 第一个模型
+      // 等待菜单渲染完成，验证有默认选择的模型
+      await waitFor(() => {
+        const selectedValue = screen.getByTestId('model-select-selected-value');
+        expect(selectedValue.textContent).toContain('GPT-4'); // 第一个模型的名称
+      });
     });
 
-    it('modelAndProvider 不应为空', () => {
+    it('modelAndProvider 不应为空', async () => {
       const mockNode = createMockNode();
       mockGetNode.mockReturnValue(mockNode);
 
@@ -344,14 +349,16 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       button.click();
 
-      const selectedValue = screen.getByTestId('selected-value');
-      expect(selectedValue.textContent).not.toBe('null');
-      expect(selectedValue.textContent).not.toBe('undefined');
+      await waitFor(() => {
+        const selectedValue = screen.getByTestId('model-select-selected-value');
+        expect(selectedValue.textContent).not.toBe('Select a model');
+        expect(selectedValue.textContent).not.toBe('');
+      });
     });
   });
 
   describe('TC-LLM-003: 模型持久化 (P0)', () => {
-    it('已保存的模型应正确恢复', () => {
+    it('已保存的模型应正确恢复', async () => {
       const savedModel = {
         id: 'claude-3',
         name: 'Claude 3',
@@ -382,11 +389,12 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       button.click();
 
-      const selectedValue = screen.getByTestId('selected-value');
-      const selectedData = JSON.parse(selectedValue.textContent || '{}');
-
-      expect(selectedData.id).toBe('claude-3');
-      expect(selectedData.provider).toBe('Anthropic');
+      await waitFor(() => {
+        const selectedValue = screen.getByTestId('model-select-selected-value');
+        // 真实组件通过 mapModelToDisplay 显示 "模型名 (提供者)"
+        expect(selectedValue.textContent).toContain('Claude 3');
+        expect(selectedValue.textContent).toContain('Anthropic');
+      });
     });
   });
 
@@ -419,24 +427,29 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       button.click();
 
-      // 切换到另一个模型
-      const dropdown = screen.getByTestId('dropdown-select');
-      dropdown.value = 'llama-2';
-      dropdown.dispatchEvent(new Event('change', { bubbles: true }));
-
+      // 等待菜单渲染完成，打开模型选择下拉菜单
       await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
+        const modelSelectButton = screen.getByTestId('model-select-button');
+        fireEvent.click(modelSelectButton);
       });
 
-      const setNodesCall =
-        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
-      const updatedNodes = setNodesCall([mockNode]);
-      const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+      // 切换到 Llama 2（第3个模型，index 2）
+      await waitFor(() => {
+        const llamaOption = screen.getByTestId('model-select-option-2');
+        fireEvent.click(llamaOption);
+      });
 
-      // 验证模型已更新为新模型
-      expect(updatedNode.data.modelAndProvider.id).toBe('llama-2');
-      expect(updatedNode.data.modelAndProvider.name).toBe('Llama 2');
-      expect(updatedNode.data.modelAndProvider.provider).toBe('Meta');
+      await waitFor(() => {
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const updatedNodes = setNodesCall([mockNode]);
+        const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+
+        // 验证模型已更新为新模型
+        expect(updatedNode.data.modelAndProvider.id).toBe('llama-2');
+        expect(updatedNode.data.modelAndProvider.name).toBe('Llama 2');
+        expect(updatedNode.data.modelAndProvider.provider).toBe('Meta');
+      });
     });
 
     it('旧模型信息应被完全覆盖', async () => {
@@ -467,9 +480,17 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       button.click();
 
-      const dropdown = screen.getByTestId('dropdown-select');
-      dropdown.value = 'claude-3';
-      dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+      // 等待菜单渲染完成，打开模型选择下拉菜单
+      await waitFor(() => {
+        const modelSelectButton = screen.getByTestId('model-select-button');
+        fireEvent.click(modelSelectButton);
+      });
+
+      // 切换到 Claude 3（第2个模型，index 1）
+      await waitFor(() => {
+        const claudeOption = screen.getByTestId('model-select-option-1');
+        fireEvent.click(claudeOption);
+      });
 
       await waitFor(() => {
         const setNodesCall =
@@ -566,9 +587,17 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       const button = screen.getByRole('button', { name: /LLM/i });
       button.click();
 
-      const dropdown = screen.getByTestId('dropdown-select');
-      dropdown.value = 'claude-3';
-      dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+      // 等待菜单渲染完成，打开模型选择下拉菜单
+      await waitFor(() => {
+        const modelSelectButton = screen.getByTestId('model-select-button');
+        fireEvent.click(modelSelectButton);
+      });
+
+      // 切换到 Claude 3（第2个模型，index 1）
+      await waitFor(() => {
+        const claudeOption = screen.getByTestId('model-select-option-1');
+        fireEvent.click(claudeOption);
+      });
 
       await waitFor(() => {
         const setNodesCall =

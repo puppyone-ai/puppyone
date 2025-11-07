@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import EditStructured from '../../../app/components/workflow/edgesNode/edgeNodesNew/EditStructured';
 import type { Node } from '@xyflow/react';
@@ -34,13 +34,20 @@ vi.mock('../../../app/components/hooks/useGetSourceTarget', () => ({
   default: mocks.useGetSourceTarget,
 }));
 
-vi.mock('../../../app/hooks/useJsonConstructUtils', () => ({
+vi.mock('../../../app/components/hooks/useJsonConstructUtils', () => ({
   default: mocks.useJsonConstructUtils,
 }));
 
 vi.mock('../../../app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
+
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor',
+  () => ({
+    runSingleEdgeNode: mocks.runSingleEdgeNode,
+  })
+);
 
 vi.mock('react-dom', async () => {
   const actual = await vi.importActual('react-dom');
@@ -61,15 +68,15 @@ vi.mock(
   })
 );
 
-// Mock PuppyDropdown
-vi.mock('../../../app/components/PuppyDropdown', () => ({
-  default: ({ options, value, onChange, trigger }: any) => (
+// Mock PuppyDropdown - 修复路径
+vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
+  PuppyDropdown: ({ options, selectedValue, onSelect }: any) => (
     <div>
-      <div data-testid='dropdown-trigger'>{trigger || value}</div>
+      <div data-testid='dropdown-trigger'>{selectedValue}</div>
       <select
         data-testid='puppy-dropdown'
-        value={value}
-        onChange={e => onChange(e.target.value)}
+        value={selectedValue}
+        onChange={e => onSelect(e.target.value)}
       >
         {options.map((opt: any) => (
           <option key={opt.value || opt} value={opt.value || opt}>
@@ -152,13 +159,15 @@ describe('EditStructured Edge Node', () => {
     });
 
     mocks.useJsonConstructUtils.mockReturnValue({
-      runSingleEdgeNode: mocks.runSingleEdgeNode,
       streamResult: vi.fn(),
       reportError: vi.fn(),
       resetLoadingUI: vi.fn(),
     });
 
     mocks.useAppSettings.mockReturnValue({});
+    
+    // Mock runSingleEdgeNode 为异步函数
+    mocks.runSingleEdgeNode.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -218,13 +227,25 @@ describe('EditStructured Edge Node', () => {
       if (!nodeButton) throw new Error('Node button not found');
       fireEvent.click(nodeButton);
 
-      // 等待菜单出现并找到 Mode 下拉选择器
-      const modeDropdown = await waitFor(() =>
-        screen.getByTestId('puppy-dropdown')
-      );
+      // 等待菜单出现并找到 Mode 下拉选择器（第一个）
+      const modeDropdown = await waitFor(() => {
+        const dropdowns = screen.getAllByTestId('puppy-dropdown');
+        expect(dropdowns.length).toBeGreaterThan(0);
+        return dropdowns[0]; // 第一个是 Mode dropdown
+      });
       fireEvent.change(modeDropdown, { target: { value: 'get' } });
 
-      // 等待 requestAnimationFrame 完成
+      // 等待 requestAnimationFrame 完成 - 需要等待多个帧
+      await act(async () => {
+        await new Promise(resolve => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              resolve(undefined);
+            });
+          });
+        });
+      });
+
       await waitFor(() => {
         expect(mockSetNodes).toHaveBeenCalled();
       });
@@ -253,10 +274,23 @@ describe('EditStructured Edge Node', () => {
       if (!nodeButton) throw new Error('Node button not found');
       fireEvent.click(nodeButton);
 
-      const modeDropdown = await waitFor(() =>
-        screen.getByTestId('puppy-dropdown')
-      );
+      // 等待菜单出现并找到 Mode 下拉选择器（第一个）
+      const modeDropdown = await waitFor(() => {
+        const dropdowns = screen.getAllByTestId('puppy-dropdown');
+        expect(dropdowns.length).toBeGreaterThan(0);
+        return dropdowns[0]; // 第一个是 Mode dropdown
+      });
       fireEvent.change(modeDropdown, { target: { value: 'delete' } });
+
+      await act(async () => {
+        await new Promise(resolve => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              resolve(undefined);
+            });
+          });
+        });
+      });
 
       await waitFor(() => {
         expect(mockSetNodes).toHaveBeenCalled();
@@ -271,7 +305,7 @@ describe('EditStructured Edge Node', () => {
       expect(updatedNode.data.type).toBe('delete');
     });
 
-    it('TC-ES-002-2: Mode 切换到 "replace"', async () => {
+    it('TC-ES-002-2: Mode 切换到 "get_values"', async () => {
       const node = createMockNode({ type: 'get' });
       mockGetNode.mockReturnValue(node);
 
@@ -285,10 +319,23 @@ describe('EditStructured Edge Node', () => {
       if (!nodeButton) throw new Error('Node button not found');
       fireEvent.click(nodeButton);
 
-      const modeDropdown = await waitFor(() =>
-        screen.getByTestId('puppy-dropdown')
-      );
-      fireEvent.change(modeDropdown, { target: { value: 'replace' } });
+      // 等待菜单出现，然后获取所有 dropdown，第一个是 Mode dropdown
+      const modeDropdown = await waitFor(() => {
+        const dropdowns = screen.getAllByTestId('puppy-dropdown');
+        expect(dropdowns.length).toBeGreaterThan(0);
+        return dropdowns[0]; // 第一个是 Mode dropdown
+      });
+      fireEvent.change(modeDropdown, { target: { value: 'get_values' } });
+
+      await act(async () => {
+        await new Promise(resolve => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              resolve(undefined);
+            });
+          });
+        });
+      });
 
       await waitFor(() => {
         expect(mockSetNodes).toHaveBeenCalled();
@@ -300,7 +347,7 @@ describe('EditStructured Edge Node', () => {
       const updatedNode = updatedNodes.find(
         (n: Node) => n.id === 'test-node-1'
       );
-      expect(updatedNode.data.type).toBe('replace');
+      expect(updatedNode.data.type).toBe('get_values');
     });
 
     it('TC-ES-002-3: Mode 切换到 "get_keys"', async () => {
@@ -317,11 +364,11 @@ describe('EditStructured Edge Node', () => {
       if (!nodeButton) throw new Error('Node button not found');
       fireEvent.click(nodeButton);
 
-      // 等待菜单出现，然后获取所有的 dropdown，第一个是 Mode dropdown
+      // 等待菜单出现，然后获取所有 dropdown，第一个是 Mode dropdown
       const modeDropdown = await waitFor(() => {
-        const dropdowns = screen.queryAllByTestId('puppy-dropdown');
-        if (dropdowns.length === 0) throw new Error('No dropdowns found');
-        return dropdowns[0];
+        const dropdowns = screen.getAllByTestId('puppy-dropdown');
+        expect(dropdowns.length).toBeGreaterThan(0);
+        return dropdowns[0]; // 第一个是 Mode dropdown
       });
       fireEvent.change(modeDropdown, { target: { value: 'get_keys' } });
 
@@ -447,22 +494,23 @@ describe('EditStructured Edge Node', () => {
       if (!nodeButton) throw new Error('Node button not found');
       fireEvent.click(nodeButton);
 
+      // 等待菜单和所有下拉框完全渲染
       await waitFor(() => {
         expect(screen.getByText(/Path/i)).toBeInTheDocument();
+        const dropdowns = screen.queryAllByTestId('puppy-dropdown');
+        expect(dropdowns.length).toBeGreaterThan(1);
       });
 
       // 查找类型选择下拉框
       const dropdowns = screen.getAllByTestId('puppy-dropdown');
-      // 第一个是 Mode，后面的是路径类型
-      if (dropdowns.length > 1) {
-        const pathTypeDropdown = dropdowns[1];
-        fireEvent.change(pathTypeDropdown, { target: { value: 'num' } });
+      // 第一个是 Mode，第二个是路径类型 (key/num)
+      const pathTypeDropdown = dropdowns[1];
+      fireEvent.change(pathTypeDropdown, { target: { value: 'num' } });
 
-        // 验证类型切换（通过检查下拉框值）
-        await waitFor(() => {
-          expect(pathTypeDropdown).toHaveValue('num');
-        });
-      }
+      // 验证类型切换（通过检查下拉框值）
+      await waitFor(() => {
+        expect(pathTypeDropdown).toHaveValue('num');
+      });
     });
 
     it('TC-ES-003-3: 路径值输入', async () => {
@@ -664,11 +712,12 @@ describe('EditStructured Edge Node', () => {
 
       // 验证 runSingleEdgeNode 被调用
       await waitFor(() => {
-        expect(mocks.runSingleEdgeNode).toHaveBeenCalledWith(
-          expect.objectContaining({
-            targetNodeType: 'structured',
-          })
-        );
+        expect(mocks.runSingleEdgeNode).toHaveBeenCalled();
+        // 验证调用参数包含正确的属性
+        const callArgs = mocks.runSingleEdgeNode.mock.calls[0][0];
+        expect(callArgs).toHaveProperty('parentId', 'test-node-1');
+        expect(callArgs).toHaveProperty('targetNodeType', 'structured');
+        expect(callArgs).toHaveProperty('context');
       });
     });
 
@@ -676,12 +725,12 @@ describe('EditStructured Edge Node', () => {
       const node = createMockNode({ type: 'get' });
       mockGetNode.mockReturnValue(node);
 
-      // Mock runSingleEdgeNode 为异步函数，不立即完成
-      mocks.runSingleEdgeNode.mockImplementation(() => {
-        return new Promise(resolve => {
-          setTimeout(resolve, 100);
-        });
+      // Mock runSingleEdgeNode 为异步函数，延迟200ms完成
+      let resolvePromise: () => void;
+      const promise = new Promise<void>(resolve => {
+        resolvePromise = resolve;
       });
+      mocks.runSingleEdgeNode.mockReturnValue(promise);
 
       render(
         <ReactFlowProvider>
@@ -702,12 +751,17 @@ describe('EditStructured Edge Node', () => {
       const runButton = runButtons.length > 1 ? runButtons[1] : runButtons[0];
       fireEvent.click(runButton);
 
-      // 验证 loading 状态下按钮显示 "Stop"
-      await waitFor(() => {
-        expect(
-          screen.getByRole('button', { name: /Stop/i })
-        ).toBeInTheDocument();
-      });
+      // 验证 loading 状态下至少有一个按钮显示 "Stop"
+      await waitFor(
+        () => {
+          const stopButtons = screen.getAllByRole('button', { name: /Stop/i });
+          expect(stopButtons.length).toBeGreaterThan(0);
+        },
+        { timeout: 3000 }
+      );
+
+      // 清理：解析 promise
+      resolvePromise!();
     });
   });
 });

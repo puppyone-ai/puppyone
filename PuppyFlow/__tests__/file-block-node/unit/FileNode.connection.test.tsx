@@ -24,9 +24,9 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import FileNode from '@/components/workflow/blockNode/FileNode';
+import FileNode from '../../../app/components/workflow/blockNode/FileNode';
 import type { Node } from '@xyflow/react';
-import type { FileNodeData } from '@/components/workflow/blockNode/FileNode';
+import type { FileNodeData } from '../../../app/components/workflow/blockNode/FileNode';
 
 // Mock 配置
 const mocks = vi.hoisted(() => ({
@@ -74,26 +74,46 @@ vi.mock('@xyflow/react', () => ({
   ),
 }));
 
-vi.mock('@/components/states/NodesPerFlowContext', () => ({
+vi.mock('@/app/components/states/NodesPerFlowContext', () => ({
   useNodesPerFlowContext: mocks.useNodesPerFlowContext,
 }));
 
-vi.mock('@/components/hooks/useGetSourceTarget', () => ({
+vi.mock('@/app/components/hooks/useGetSourceTarget', () => ({
   default: mocks.useGetSourceTarget,
 }));
 
-vi.mock('@/components/workflow/blockNode/hooks/useFileUpload', () => ({
+vi.mock('@/app/components/workflow/blockNode/hooks/useFileUpload', () => ({
   useFileUpload: mocks.useFileUpload,
 }));
 
-vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
+vi.mock('@/app/components/states/UserWorkspacesContext', () => ({
+  useWorkspaces: vi.fn(() => ({
+    userId: 'test-user-id',
+    workspaces: [],
+    currentWorkspace: null,
+  })),
+}));
+
+vi.mock('@/app/components/hooks/useWorkspaceManagement', () => ({
+  useWorkspaceManagement: vi.fn(() => ({
+    fetchUserId: vi.fn(),
+  })),
+}));
+
+vi.mock('@/app/components/states/AppSettingsContext', () => ({
+  useAppSettings: vi.fn(() => ({
+    addWarn: vi.fn(),
+  })),
+}));
+
+vi.mock('@/app/components/workflow/handles/WhiteBallHandle', () => ({
   default: ({ id, type, position }: any) => (
     <div data-testid={`white-handle-${type}-${position}`} data-handle-id={id} />
   ),
 }));
 
 vi.mock(
-  '@/components/workflow/blockNode/FileNodeTopSettingBar/NodeSettingsButton',
+  '@/app/components/workflow/blockNode/FileNodeTopSettingBar/NodeSettingsButton',
   () => ({
     default: () => <button data-testid='settings-button'>Settings</button>,
   })
