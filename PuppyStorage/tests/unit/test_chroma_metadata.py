@@ -211,6 +211,9 @@ def test_chroma_store_vectors_with_nested_metadata():
     """Integration test: store_vectors with nested metadata"""
     from vector.vdb.chroma import ChromaVectorDatabase
     
+    # Reset singleton to ensure clean state
+    ChromaVectorDatabase._client = None
+    
     # Mock the ChromaDB client
     with patch('vector.vdb.chroma.chromadb.PersistentClient') as MockClient:
         mock_client = Mock()
