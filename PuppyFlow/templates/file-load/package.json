@@ -1,0 +1,383 @@
+{
+    "metadata": {
+        "id": "file-load",
+        "version": "1.0.0",
+        "name": "File Load Demo",
+        "description": "Load, parse, and process PDF files with AI.",
+        "author": "PuppyAgent Team",
+        "created_at": "2025-01-23T00:00:00Z",
+        "tags": [
+            "file-processing",
+            "pdf",
+            "parsing",
+            "demo"
+        ],
+        "requirements": {
+            "embedding_models": null
+        }
+    },
+    "workflow": {
+        "blocks": [
+            {
+                "id": "ZcR28v",
+                "position": {
+                    "x": -432,
+                    "y": 544
+                },
+                "data": {
+                    "content": [
+                        {
+                            "fileName": "sample-local-pdf.pdf",
+                            "task_id": "110789d4-265d-4d70-97da-89c7a93bd580/ZcR28v/20250922-054017934611-bbd21ace/sample-local-pdf.pdf",
+                            "fileType": "pdf",
+                            "size": 49672,
+                            "etag": "55f924af410dd775524d069ffe80dbdc"
+                        }
+                    ],
+                    "label": "File",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "storage_class": "external",
+                    "external_metadata": {
+                        "resource_key": "110789d4-265d-4d70-97da-89c7a93bd580/ZcR28v/20250922-054017934611-bbd21ace",
+                        "content_type": "files",
+                        "version_id": "20250922-054017934611-bbd21ace"
+                    },
+                    "groupIds": [
+                        "ZYfRRO"
+                    ]
+                },
+                "type": "file",
+                "width": 272,
+                "height": 240,
+                "style": {
+                    "zIndex": 100
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "IAW649",
+                "type": "load",
+                "position": {
+                    "x": -48,
+                    "y": 640
+                },
+                "data": {
+                    "sourceNodeId": "ZcR28v",
+                    "sourceNodeType": "file",
+                    "subMenuType": "load",
+                    "resultNode": "yuoc2y"
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 100
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "yuoc2y",
+                "position": {
+                    "x": 144,
+                    "y": 416
+                },
+                "data": {
+                    "content": "[\n  \"# **Sample PDF **\\n## Created for testing PDFObject\\n### This PDF is three pages long. Three long pages. Or three short pages if you\u2019re optimistic. Is it the same as saying \u201cthree long minutes\u201d, knowing that all minutes are the same duration, and one cannot possibly be longer than the other? If these pages are all the same size, can one possibly be longer than the other?\\n\\nI digress. Here\u2019s some Latin. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer nec\\nodio. Praesent libero. Sed cursus ante dapibus diam. Sed nisi. Nulla quis sem at nibh elementum\\nimperdiet. Duis sagittis ipsum. Praesent mauris. Fusce nec tellus sed augue semper porta. Mauris\\nmassa. Vestibulum lacinia arcu eget nulla. Class aptent taciti sociosqu ad litora torquent per\\nconubia nostra, per inceptos himenaeos. Curabitur sodales ligula in libero.\\n\\nSed dignissim lacinia nunc. Curabitur tortor. Pellentesque nibh. Aenean quam. In scelerisque sem\\nat dolor. Maecenas mattis. Sed convallis tristique sem. Proin ut ligula vel nunc egestas porttitor.\\nMorbi lectus risus, iaculis vel, suscipit quis, luctus non, massa. Fusce ac turpis quis ligula lacinia\\naliquet. Mauris ipsum. Nulla metus metus, ullamcorper vel, tincidunt sed, euismod in, nibh.\\n\\nQuisque volutpat condimentum velit. Class aptent taciti sociosqu ad litora torquent per conubia\\nnostra, per inceptos himenaeos. Nam nec ante. Sed lacinia, urna non tincidunt mattis, tortor neque\\nadipiscing diam, a cursus ipsum ante quis turpis. Nulla facilisi. Ut fringilla. Suspendisse potenti.\\nNunc feugiat mi a tellus consequat imperdiet. Vestibulum sapien. Proin quam. Etiam ultrices.\\n\\nSuspendisse in justo eu magna luctus suscipit. Sed lectus. Integer euismod lacus luctus magna.\\nQuisque cursus, metus vitae pharetra auctor, sem massa mattis sem, at interdum magna augue\\neget diam. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae;\\nMorbi lacinia molestie dui. Praesent blandit dolor. Sed non quam. In vel mi sit amet augue congue\\nelementum. Morbi in ipsum sit amet pede facilisis laoreet. Donec lacus nunc, viverra nec, blandit\\nvel, egestas et, augue. Vestibulum tincidunt malesuada tellus. Ut ultrices ultrices enim. Curabitur\\nsit amet mauris.\\n\\nMorbi in dui quis est pulvinar ullamcorper. Nulla facilisi. Integer lacinia sollicitudin massa. Cras\\nmetus. Sed aliquet risus a tortor. Integer id quam. Morbi mi. Quisque nisl felis, venenatis tristique,\\ndignissim in, ultrices sit amet, augue. Proin sodales libero eget ante. Nulla quam. Aenean laoreet.\\nVestibulum nisi lectus, commodo ac, facilisis ac, ultricies eu, pede. Ut orci risus, accumsan\\nporttitor, cursus quis, aliquet eget, justo. Sed pretium blandit orci.\\n\\nUt eu diam at pede suscipit sodales. Aenean lectus elit, fermentum non, convallis id, sagittis at,\\nneque. Nullam mauris orci, aliquet et, iaculis et, viverra vitae, ligula. Nulla ut felis in purus\\naliquam imperdiet. Maecenas aliquet mollis lectus. Vivamus consectetuer risus et tortor. Lorem\\n\\n1\\n\\nipsum dolor sit amet, consectetur adipiscing elit. Integer nec odio. Praesent libero. Sed cursus ante\\ndapibus diam. Sed nisi. Nulla quis sem at nibh elementum imperdiet. Duis sagittis ipsum.\\nPraesent mauris.\\n\\nFusce nec tellus sed augue semper porta. Mauris massa. Vestibulum lacinia arcu eget nulla. Class\\naptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Curabitur\\nsodales ligula in libero. Sed dignissim lacinia nunc. Curabitur tortor. Pellentesque nibh. Aenean\\nquam. In scelerisque sem at dolor. Maecenas mattis. Sed convallis tristique sem.\\n\\nProin ut ligula vel nunc egestas porttitor. Morbi lectus risus, iaculis vel, suscipit quis, luctus non,\\nmassa. Fusce ac turpis quis ligula lacinia aliquet. Mauris ipsum. Nulla metus metus, ullamcorper\\nvel, tincidunt sed, euismod in, nibh. Quisque volutpat condimentum velit. Class aptent taciti\\nsociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Nam nec ante. Sed lacinia,\\nurna non tincidunt mattis, tortor neque adipiscing diam, a cursus ipsum ante quis turpis. Nulla\\nfacilisi. Ut fringilla. Suspendisse potenti.\\n\\nNunc feugiat mi a tellus consequat imperdiet. Vestibulum sapien. Proin quam. Etiam ultrices.\\nSuspendisse in justo eu magna luctus suscipit. Sed lectus. Integer euismod lacus luctus magna.\\nQuisque cursus, metus vitae pharetra auctor, sem massa mattis sem, at interdum magna augue\\neget diam. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae;\\nMorbi lacinia molestie dui. Praesent blandit dolor. Sed non quam. In vel mi sit amet augue congue\\nelementum. Morbi in ipsum sit amet pede facilisis laoreet.\\n\\nDonec lacus nunc, viverra nec, blandit vel, egestas et, augue. Vestibulum tincidunt malesuada\\ntellus. Ut ultrices ultrices enim. Curabitur sit amet mauris. Morbi in dui quis est pulvinar\\nullamcorper. Nulla facilisi. Integer lacinia sollicitudin massa. Cras metus. Sed aliquet risus a\\ntortor. Integer id quam. Morbi mi.\\n\\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Integer nec odio. Praesent libero. Sed\\ncursus ante dapibus diam. Sed nisi. Nulla quis sem at nibh elementum imperdiet. Duis sagittis\\nipsum. Praesent mauris. Fusce nec tellus sed augue semper porta. Mauris massa. Vestibulum\\nlacinia arcu eget nulla. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per\\ninceptos himenaeos. Curabitur sodales ligula in libero.\\n\\nSed dignissim lacinia nunc. Curabitur tortor. Pellentesque nibh. Aenean quam. In scelerisque sem\\nat dolor. Maecenas mattis. Sed convallis tristique sem. Proin ut ligula vel nunc egestas porttitor.\\nMorbi lectus risus, iaculis vel, suscipit quis, luctus non, massa. Fusce ac turpis quis ligula lacinia\\naliquet. Mauris ipsum. Nulla metus metus, ullamcorper vel, tincidunt sed, euismod in, nibh.\\n\\nQuisque volutpat condimentum velit. Class aptent taciti sociosqu ad litora torquent per conubia\\nnostra, per inceptos himenaeos. Nam nec ante. Sed lacinia, urna non tincidunt mattis, tortor neque\\nadipiscing diam, a cursus ipsum ante quis turpis. Nulla facilisi. Ut fringilla. Suspendisse potenti.\\nNunc feugiat mi a tellus consequat imperdiet. Vestibulum sapien. Proin quam. Etiam ultrices.\\n\\nSuspendisse in justo eu magna luctus suscipit. Sed lectus. Integer euismod lacus luctus magna.\\nQuisque cursus, metus vitae pharetra auctor, sem massa mattis sem, at interdum magna augue\\neget diam. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae;\\nMorbi lacinia molestie dui. Praesent blandit dolor. Sed non quam. In vel mi sit amet augue congue\\n\\n2\\n\\nelementum. Morbi in ipsum sit amet pede facilisis laoreet. Donec lacus nunc, viverra nec, blandit\\nvel, egestas et, augue. Vestibulum tincidunt malesuada tellus. Ut ultrices ultrices enim. Curabitur\\nsit amet mauris.\\n\\nMorbi in dui quis est pulvinar ullamcorper. Nulla facilisi. Integer lacinia sollicitudin massa. Cras\\nmetus. Sed aliquet risus a tortor. Integer id quam. Morbi mi. Quisque nisl felis, venenatis tristique,\\ndignissim in, ultrices sit amet, augue. Proin sodales libero eget ante. Nulla quam. Aenean laoreet.\\nVestibulum nisi lectus, commodo ac, facilisis ac, ultricies eu, pede. Ut orci risus, accumsan\\nporttitor, cursus quis, aliquet eget, justo. Sed pretium blandit orci.\\n\\nUt eu diam at pede suscipit sodales. Aenean lectus elit, fermentum non, convallis id, sagittis at,\\nneque. Nullam mauris orci, aliquet et, iaculis et, viverra vitae, ligula. Nulla ut felis in purus\\naliquam imperdiet. Maecenas aliquet mollis lectus. Vivamus consectetuer risus et tortor. Lorem\\nipsum dolor sit amet, consectetur adipiscing elit. Integer nec odio. Praesent libero. Sed cursus ante\\ndapibus diam. Sed nisi. Nulla quis sem at nibh elementum imperdiet. Duis sagittis ipsum.\\nPraesent mauris.\\n\\nFusce nec tellus sed augue semper porta. Mauris massa. Vestibulum lacinia arcu eget nulla. Class\\naptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Curabitur\\nsodales ligula in libero. Sed dignissim lacinia nunc. Curabitur tortor. Pellentesque nibh. Aenean\\nquam. In scelerisque sem at dolor. Maecenas mattis. Sed convallis tristique sem.\\n\\nProin ut ligula vel nunc egestas porttitor. Morbi lectus risus, iaculis vel, suscipit quis, luctus non,\\nmassa. Fusce ac turpis quis ligula lacinia aliquet. Mauris ipsum. Nulla metus metus, ullamcorper\\nvel, tincidunt sed, euismod in, nibh. Quisque volutpat condimentum velit. Class aptent taciti\\nsociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Nam nec ante. Sed lacinia,\\nurna non tincidunt mattis, tortor neque adipiscing diam, a cursus ipsum ante quis turpis. Nulla\\nfacilisi. Ut fringilla. Suspendisse potenti.\\n\\nNunc feugiat mi a tellus consequat imperdiet. Vestibulum sapien. Proin quam. Etiam ultrices.\\nSuspendisse in justo eu magna luctus suscipit. Sed lectus. Integer euismod lacus luctus magna.\\nQuisque cursus, metus vitae pharetra auctor, sem massa mattis sem, at interdum magna augue\\neget diam. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae;\\nMorbi lacinia molestie dui. Praesent blandit dolor. Sed non quam. In vel mi sit amet augue congue\\nelementum. Morbi in ipsum sit amet pede facilisis laoreet.\\n\\n3\\n\\n\"\n]",
+                    "label": "yuoc2y",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "storage_class": "external",
+                    "external_metadata": {
+                        "resource_key": "110789d4-265d-4d70-97da-89c7a93bd580/yuoc2y/20250922-054023663714-09e9633c",
+                        "content_type": "structured",
+                        "chunked": true,
+                        "uploaded_at": "2025-09-22T05:40:27.236970",
+                        "version_id": "20250922-054023663714-09e9633c",
+                        "totalChunks": 1,
+                        "loadedChunks": 1,
+                        "totalRecords": 1,
+                        "parsedRecords": 1,
+                        "parseErrors": 0
+                    },
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": true,
+                    "semantic_type": "structured",
+                    "groupIds": [
+                        "ZYfRRO"
+                    ]
+                },
+                "width": 448,
+                "height": 496,
+                "type": "structured",
+                "style": {
+                    "zIndex": 1071
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "wKUyTJ",
+                "type": "llmnew",
+                "position": {
+                    "x": 832,
+                    "y": 640
+                },
+                "data": {
+                    "sourceNodeId": "yuoc2y",
+                    "sourceNodeType": "structured",
+                    "subMenuType": "llm",
+                    "content": [
+                        {
+                            "role": "system",
+                            "content": "You are an AI"
+                        },
+                        {
+                            "role": "user",
+                            "content": "format this {{yuoc2y}} based on this: {{w2ngAT}}"
+                        }
+                    ],
+                    "modelAndProvider": {
+                        "id": "openai/gpt-5",
+                        "name": "GPT-5",
+                        "provider": "OpenAI",
+                        "isLocal": false
+                    },
+                    "base_url": "",
+                    "structured_output": true,
+                    "max_tokens": 128000,
+                    "resultNode": "5YLEX0"
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1056
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "w2ngAT",
+                "position": {
+                    "x": 144,
+                    "y": 976
+                },
+                "data": {
+                    "content": "[\n  \"File name\",\n  {\n    \"summary\": \"\",\n    \"content\": \"\"\n  }\n]",
+                    "label": "w2ngAT",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": false,
+                    "dirty": false,
+                    "savingStatus": "saved",
+                    "groupIds": [
+                        "ZYfRRO"
+                    ]
+                },
+                "type": "structured",
+                "width": 448,
+                "height": 208,
+                "style": {
+                    "zIndex": 1074
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "ZYfRRO",
+                "position": {
+                    "x": -528,
+                    "y": 288
+                },
+                "data": {
+                    "content": "",
+                    "label": "ZYfRRO",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "backgroundColor": "rgba(108, 72, 60, 0.2)"
+                },
+                "type": "group",
+                "width": 2368,
+                "height": 1008,
+                "style": {
+                    "zIndex": -1
+                },
+                "selected": false,
+                "resizing": false
+            },
+            {
+                "id": "PBoxu0",
+                "position": {
+                    "x": 1024,
+                    "y": 432
+                },
+                "data": {
+                    "content": "{\n  \"File name\": \"Sample PDF\",\n  \"summary\": \"A three-page sample PDF created for testing PDFObject. It begins with a brief reflection on the phrase 'three long pages' and then consists largely of placeholder Latin (Lorem ipsum) text spanning pages 1\u20133. The document includes headings and repeated paragraphs used for layout and rendering tests.\",\n  \"content\": \"# **Sample PDF **\\n## Created for testing PDFObject\\n### This PDF is three pages long. Three long pages. Or three short pages if you\u2019re optimistic. Is it the same as saying \u201cthree long minutes\u201d, knowing that all minutes are the same duration, and one cannot possibly be longer than the other? If these pages are all the same size, can one possibly be longer than the other?\\n\\nI digress. Here\u2019s some Latin. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer nec\\nodio. Praesent libero. Sed cursus ante dapibus diam. Sed nisi. Nulla quis sem at nibh elementum\\nimperdiet. Duis sagittis ipsum. Praesent mauris. Fusce nec tellus sed augue semper porta. Mauris\\nmassa. Vestibulum lacinia arcu eget nulla. Class aptent taciti sociosqu ad litora torquent per\\nconubia nostra, per inceptos himenaeos. Curabitur sodales ligula in libero.\\n\\nSed dignissim lacinia nunc. Curabitur tortor. Pellentesque nibh. Aenean quam. In scelerisque sem\\nat dolor. Maecenas mattis. Sed convallis tristique sem. Proin ut ligula vel nunc egestas porttitor.\\nMorbi lectus risus, iaculis vel, suscipit quis, luctus non, massa. Fusce ac turpis quis ligula lacinia\\naliquet. Mauris ipsum. Nulla metus metus, ullamcorper vel, tincidunt sed, euismod in, nibh.\\n\\nQuisque volutpat condimentum velit. Class aptent taciti sociosqu ad litora torquent per conubia\\nnostra, per inceptos himenaeos. Nam nec ante. Sed lacinia, urna non tincidunt mattis, tortor neque\\nadipiscing diam, a cursus ipsum ante quis turpis. Nulla facilisi. Ut fringilla. Suspendisse potenti.\\nNunc feugiat mi a tellus consequat imperdiet. Vestibulum sapien. Proin quam. Etiam ultrices.\\n\\nSuspendisse in justo eu magna luctus suscipit. Sed lectus. Integer euismod lacus luctus magna.\\nQuisque cursus, metus vitae pharetra auctor, sem massa mattis sem, at interdum magna augue\\neget diam. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae;\\nMorbi lacinia molestie dui. Praesent blandit dolor. Sed non quam. In vel mi sit amet augue congue\\nelementum. Morbi in ipsum sit amet pede facilisis laoreet. Donec lacus nunc, viverra nec, blandit\\nvel, egestas et, augue. Vestibulum tincidunt malesuada tellus. Ut ultrices ultrices enim. Curabitur\\nsit amet mauris.\\n\\nMorbi in dui quis est pulvinar ullamcorper. Nulla facilisi. Integer lacinia sollicitudin massa. Cras\\nmetus. Sed aliquet risus a tortor. Integer id quam. Morbi mi. Quisque nisl felis, venenatis tristique,\\ndignissim in, ultrices sit amet, augue. Proin sodales libero eget ante. Nulla quam. Aenean laoreet.\\nVestibulum nisi lectus, commodo ac, facilisis ac, ultricies eu, pede. Ut orci risus, accumsan\\nporttitor, cursus quis, aliquet eget, justo. Sed pretium blandit orci.\\n\\nUt eu diam at pede suscipit sodales. Aenean lectus elit, fermentum non, convallis id, sagittis at,\\nneque. Nullam mauris orci, aliquet et, iaculis et, viverra vitae, ligula. Nulla ut felis in purus\\naliquam imperdiet. Maecenas aliquet mollis lectus. Vivamus consectetuer risus et tortor. Lorem\\n\\n1\\n\\nipsum dolor sit amet, consectetur adipiscing elit. Integer nec odio. Praesent libero. Sed cursus ante\\ndapibus diam. Sed nisi. Nulla quis sem at nibh elementum imperdiet. Duis sagittis ipsum.\\nPraesent mauris.\\n\\nFusce nec tellus sed augue semper porta. Mauris massa. Vestibulum lacinia arcu eget nulla. Class\\naptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Curabitur\\nsodales ligula in libero. Sed dignissim lacinia nunc. Curabitur tortor. Pellentesque nibh. Aenean\\nquam. In scelerisque sem at dolor. Maecenas mattis. Sed convallis tristique sem.\\n\\nProin ut ligula vel nunc egestas porttitor. Morbi lectus risus, iaculis vel, suscipit quis, luctus non,\\nmassa. Fusce ac turpis quis ligula lacinia aliquet. Mauris ipsum. Nulla metus metus, ullamcorper\\nvel, tincidunt sed, euismod in, nibh. Quisque volutpat condimentum velit. Class aptent taciti\\nsociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Nam nec ante. Sed lacinia,\\nurna non tincidunt mattis, tortor neque adipiscing diam, a cursus ipsum ante quis turpis. Nulla\\nfacilisi. Ut fringilla. Suspendisse potenti.\\n\\nNunc feugiat mi a tellus consequat imperdiet. Vestibulum sapien. Proin quam. Etiam ultrices.\\nSuspendisse in justo eu magna luctus suscipit. Sed lectus. Integer euismod lacus luctus magna.\\nQuisque cursus, metus vitae pharetra auctor, sem massa mattis sem, at interdum magna augue\\neget diam. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae;\\nMorbi lacinia molestie dui. Praesent blandit dolor. Sed non quam. In vel mi sit amet augue congue\\nelementum. Morbi in ipsum sit amet pede facilisis laoreet.\\n\\nDonec lacus nunc, viverra nec, blandit vel, egestas et, augue. Vestibulum tincidunt malesuada\\ntellus. Ut ultrices ultrices enim. Curabitur sit amet mauris. Morbi in dui quis est pulvinar\\nullamcorper. Nulla facilisi. Integer lacinia sollicitudin massa. Cras metus. Sed aliquet risus a\\ntortor. Integer id quam. Morbi mi.\\n\\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Integer nec odio. Praesent libero. Sed\\ncursus ante dapibus diam. Sed nisi. Nulla quis sem at nibh elementum imperdiet. Duis sagittis\\nipsum. Praesent mauris. Fusce nec tellus sed augue semper porta. Mauris massa. Vestibulum\\nlacinia arcu eget nulla. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per\\ninceptos himenaeos. Curabitur sodales ligula in libero.\\n\\nSed dignissim lacinia nunc. Curabitur tortor. Pellentesque nibh. Aenean quam. In scelerisque sem\\nat dolor. Maecenas mattis. Sed convallis tristique sem. Proin ut ligula vel nunc egestas porttitor.\\nMorbi lectus risus, iaculis vel, suscipit quis, luctus non, massa. Fusce ac turpis quis ligula lacinia\\naliquet. Mauris ipsum. Nulla metus metus, ullamcorper vel, tincidunt sed, euismod in, nibh.\\n\\nQuisque volutpat condimentum velit. Class aptent taciti sociosqu ad litora torquent per conubia\\nnostra, per inceptos himenaeos. Nam nec ante. Sed lacinia, urna non tincidunt mattis, tortor neque\\nadipiscing diam, a cursus ipsum ante quis turpis. Nulla facilisi. Ut fringilla. Suspendisse potenti.\\nNunc feugiat mi a tellus consequat imperdiet. Vestibulum sapien. Proin quam. Etiam ultrices.\\n\\nSuspendisse in justo eu magna luctus suscipit. Sed lectus. Integer euismod lacus luctus magna.\\nQuisque cursus, metus vitae pharetra auctor, sem massa mattis sem, at interdum magna augue\\neget diam. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae;\\nMorbi lacinia molestie dui. Praesent blandit dolor. Sed non quam. In vel mi sit amet augue congue\\n\\n2\\n\\nelementum. Morbi in ipsum sit amet pede facilisis laoreet. Donec lacus nunc, viverra nec, blandit\\nvel, egestas et, augue. Vestibulum tincidunt malesuada tellus. Ut ultrices ultrices enim. Curabitur\\nsit amet mauris.\\n\\nMorbi in dui quis est pulvinar ullamcorper. Nulla facilisi. Integer lacinia sollicitudin massa. Cras\\nmetus. Sed aliquet risus a tortor. Integer id quam. Morbi mi. Quisque nisl felis, venenatis tristique,\\ndignissim in, ultrices sit amet, augue. Proin sodales libero eget ante. Nulla quam. Aenean laoreet.\\nVestibulum nisi lectus, commodo ac, facilisis ac, ultricies eu, pede. Ut orci risus, accumsan\\nporttitor, cursus quis, aliquet eget, justo. Sed pretium blandit orci.\\n\\nUt eu diam at pede suscipit sodales. Aenean lectus elit, fermentum non, convallis id, sagittis at,\\nneque. Nullam mauris orci, aliquet et, iaculis et, viverra vitae, ligula. Nulla ut felis in purus\\naliquam imperdiet. Maecenas aliquet mollis lectus. Vivamus consectetuer risus et tortor. Lorem\\nipsum dolor sit amet, consectetur adipiscing elit. Integer nec odio. Praesent libero. Sed cursus ante\\ndapibus diam. Sed nisi. Nulla quis sem at nibh elementum imperdiet. Duis sagittis ipsum.\\nPraesent mauris.\\n\\nFusce nec tellus sed augue semper porta. Mauris massa. Vestibulum lacinia arcu eget nulla. Class\\naptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Curabitur\\nsodales ligula in libero. Sed dignissim lacinia nunc. Curabitur tortor. Pellentesque nibh. Aenean\\nquam. In scelerisque sem at dolor. Maecenas mattis. Sed convallis tristique sem.\\n\\nProin ut ligula vel nunc egestas porttitor. Morbi lectus risus, iaculis vel, suscipit quis, luctus non,\\nmassa. Fusce ac turpis quis ligula lacinia aliquet. Mauris ipsum. Nulla metus metus, ullamcorper\\nvel, tincidunt sed, euismod in, nibh. Quisque volutpat condimentum velit. Class aptent taciti\\nsociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Nam nec ante. Sed lacinia,\\nurna non tincidunt mattis, tortor neque adipiscing diam, a cursus ipsum ante quis turpis. Nulla\\nfacilisi. Ut fringilla. Suspendisse potenti.\\n\\nNunc feugiat mi a tellus consequat imperdiet. Vestibulum sapien. Proin quam. Etiam ultrices.\\nSuspendisse in justo eu magna luctus suscipit. Sed lectus. Integer euismod lacus luctus magna.\\nQuisque cursus, metus vitae pharetra auctor, sem massa mattis sem, at interdum magna augue\\neget diam. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae;\\nMorbi lacinia molestie dui. Praesent blandit dolor. Sed non quam. In vel mi sit amet augue congue\\nelementum. Morbi in ipsum sit amet pede facilisis laoreet.\\n\\n3\\n\\n\"\n}",
+                    "label": "PBoxu0",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": true,
+                    "editable": false,
+                    "dirty": false,
+                    "savingStatus": "saved",
+                    "groupIds": [
+                        "ZYfRRO"
+                    ],
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": true,
+                    "semantic_type": "structured",
+                    "storage_class": "external",
+                    "external_metadata": {
+                        "resource_key": "110789d4-265d-4d70-97da-89c7a93bd580/PBoxu0/20250922-064551977657-df892608",
+                        "version_id": "20250922-064551977657-df892608",
+                        "content_type": "structured"
+                    }
+                },
+                "type": "structured",
+                "width": 656,
+                "height": 464,
+                "style": {
+                    "zIndex": 1080
+                },
+                "selected": false,
+                "resizing": false,
+                "dragging": false
+            }
+        ],
+        "edges": [
+            {
+                "id": "sQ064X",
+                "source": "ZcR28v",
+                "target": "IAW649",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "id": "connection-1758519621595",
+                "source": "IAW649",
+                "target": "yuoc2y",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                }
+            },
+            {
+                "id": "Vz5_qV",
+                "source": "yuoc2y",
+                "target": "wKUyTJ",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "source": "w2ngAT",
+                "sourceHandle": "w2ngAT-a",
+                "target": "wKUyTJ",
+                "targetHandle": "wKUyTJ-d",
+                "id": "connection-1758519721780",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "source": "wKUyTJ",
+                "sourceHandle": "wKUyTJ-b",
+                "target": "PBoxu0",
+                "targetHandle": "PBoxu0-d",
+                "id": "connection-1758522931661",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                }
+            }
+        ],
+        "viewport": {
+            "x": 734.1500860693079,
+            "y": 192.22445477973974,
+            "zoom": 0.8501128769449636
+        },
+        "version": "0.1"
+    },
+    "resources": {
+        "format": "separate",
+        "resources": [
+            {
+                "id": "sample-pdf",
+                "type": "file",
+                "block_id": "ZcR28v",
+                "mounted_path": "data.file_reference",
+                "source": {
+                    "path": "resources/sample-local-pdf.pdf",
+                    "format": "binary",
+                    "mime_type": "application/pdf"
+                },
+                "target": {
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "parsed-pdf-content",
+                "type": "external_storage",
+                "block_id": "yuoc2y",
+                "mounted_path": "data.content",
+                "source": {
+                    "path": "resources/parsed-pdf-content.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "formatted-output",
+                "type": "external_storage",
+                "block_id": "PBoxu0",
+                "mounted_path": "data.content",
+                "source": {
+                    "path": "resources/formatted-output.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            }
+        ]
+    }
+}

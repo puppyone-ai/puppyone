@@ -112,8 +112,24 @@ class Env:
                 if not batch_edges:
                     # No edges ready, check if we're stuck
                     if self._is_stuck():
+                        # Log detailed debugging information
+                        block_states_summary = {
+                            bid: {
+                                "state": state,
+                                "has_content": self.blocks[bid].get_content() is not None,
+                                "storage_class": getattr(self.blocks[bid], 'storage_class', 'unknown'),
+                                "is_resolved": getattr(self.blocks[bid], 'is_resolved', False)
+                            }
+                            for bid, state in self.planner.block_states.items()
+                        }
+                        log_info(f"[DEBUG] Block states: {block_states_summary}")
+                        log_info(f"[DEBUG] Edge states: {self.planner.edge_states}")
+                        log_info(f"[DEBUG] Edge to inputs mapping: {self.planner.edge_to_inputs_mapping}")
+                        
                         raise PuppyException(
-                            "Workflow execution stuck - no executable edges found"
+                            6100,
+                            "Workflow execution stuck",
+                            "No executable edges found - workflow may have circular dependencies or missing inputs"
                         )
 
                     # Wait a bit before checking again
@@ -364,12 +380,19 @@ class Env:
         return results
 
     def _prepare_block_configs(self, edge_id: str) -> Dict[str, Any]:
-        """Prepare block configurations for edge execution"""
+        """
+        Prepare block configurations for edge execution
+        
+        Phase 3.9: Runtime Resolution Support
+        - Extracts input blocks (query blocks)
+        - Extracts data_source blocks (vector collection blocks) for search edges
+        - Includes indexingList for runtime resolution of collection_configs
+        """
         # Get input blocks for this edge
         input_block_ids = self.planner.edge_to_inputs_mapping.get(edge_id, set())
         block_configs = {}
 
-        # Despite the type annotation, EdgeConfigParser actually expects a dict
+        # Extract input blocks
         for block_id in input_block_ids:
             block = self.blocks.get(block_id)
             if block:
@@ -386,6 +409,34 @@ class Env:
                     "looped": loop_flag,  # control-flow flag consumed by parsers
                     "collection_configs": {},  # Not used in new architecture
                 }
+
+        # Phase 3.9: Extract data_source blocks for vector search edges
+        edge_config = self.edges.get(edge_id, {}).get("data", {})
+        if edge_config.get("search_type") == "vector":
+            data_sources = edge_config.get("data_source", []) or edge_config.get("dataSource", [])
+            
+            for ds in data_sources:
+                ds_block_id = ds.get("id")
+                if ds_block_id:
+                    block = self.blocks.get(ds_block_id)
+                    if block:
+                        # Extract indexingList for runtime resolution
+                        indexing_list = block.data.get("indexingList", [])
+                        
+                        # If block already exists (as input block), update it with indexingList
+                        # Otherwise, create new entry
+                        if ds_block_id in block_configs:
+                            block_configs[ds_block_id]["indexingList"] = indexing_list
+                        else:
+                            block_configs[ds_block_id] = {
+                                "label": block.label,
+                                "indexingList": indexing_list,  # For runtime resolution
+                            }
+                        
+                        log_debug(
+                            f"Extracted indexingList for data_source block {ds_block_id}: "
+                            f"{len(indexing_list)} indexed sets"
+                        )
 
         return block_configs
 

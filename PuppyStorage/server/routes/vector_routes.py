@@ -102,16 +102,43 @@ def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
     set_hash = hash_and_truncate(set_name)
     return f"{user_id}{model_hash}{set_hash}"
 
-class ChunkModel(BaseModel):
+# Phase 1.7: Semantic Separation
+# EntryModel represents a semantic unit for vector embedding
+# (not to be confused with storage "parts" which are physical chunks)
+class EntryModel(BaseModel):
     content: str
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
+# Deprecated alias for backward compatibility
+ChunkModel = EntryModel
+
 class EmbedRequest(BaseModel):
-    chunks: conlist(ChunkModel, min_length=1)  # 确保至少有一个chunk
+    # Phase 1.7: Use 'entries' for semantic units (vector indexing)
+    entries: Optional[conlist(EntryModel, min_length=1)] = None
+    
+    # Deprecated: Kept for backward compatibility (will be removed in future versions)
+    chunks: Optional[conlist(EntryModel, min_length=1)] = None
+    
     set_name: str
     model: str = "text-embedding-ada-002"
     user_id: str = "public"
     vdb_type: str = Field(default="chroma" if is_local_storage else "pgvector")
+    
+    @field_validator('entries', mode='before')
+    @classmethod
+    def validate_entries_or_chunks(cls, v, info):
+        """
+        Phase 1.7: Accept both 'entries' (new) and 'chunks' (deprecated) for backward compatibility.
+        'entries' takes precedence if both are provided.
+        """
+        if v is not None:
+            return v
+        # Fallback to 'chunks' if 'entries' is not provided
+        chunks_value = info.data.get('chunks')
+        if chunks_value is not None:
+            return chunks_value
+        # Neither provided - will be caught by min_length validation
+        return None
     
     @field_validator('vdb_type')
     @classmethod
@@ -120,6 +147,14 @@ class EmbedRequest(BaseModel):
         current_storage_info = get_storage_info()
         if current_storage_info.get("type") == "local":
             return "chroma"
+        return v
+    
+    @field_validator('entries')
+    @classmethod
+    def validate_entries_not_empty(cls, v):
+        """Ensure at least one entry is provided"""
+        if v is None or len(v) == 0:
+            raise ValueError('At least one entry must be provided (use "entries" or "chunks" field)')
         return v
 
 class DeleteRequest(BaseModel):
@@ -175,11 +210,12 @@ async def embed(embed_request: EmbedRequest, user_id: str = None):
             embed_request.set_name
         )
         
+        # Phase 1.7: Use 'entries' (semantic units for vector indexing)
         # 1. Embedding process
-        chunks_content = [chunk.content for chunk in embed_request.chunks]
+        entries_content = [entry.content for entry in embed_request.entries]
         TextEmbedder, _ = _get_embedder_modules()
         embedder = TextEmbedder.create(embed_request.model)
-        vectors = embedder.embed(chunks_content)
+        vectors = embedder.embed(entries_content)
             
         # 2. Storage processing - handed to database layer
         vdb = VectorDatabaseFactory.get_database(db_type=embed_request.vdb_type)
@@ -188,8 +224,8 @@ async def embed(embed_request: EmbedRequest, user_id: str = None):
         # 传递collection_name参数
         vdb.store_vectors(
             vectors=vectors,
-            contents=chunks_content,
-            metadata=[c.metadata for c in embed_request.chunks],
+            contents=entries_content,
+            metadata=[entry.metadata for entry in embed_request.entries],
             collection_name=collection_name
         )
         

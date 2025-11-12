@@ -66,6 +66,15 @@ class DeleteFileResponse(BaseModel):
     success: bool = Field(..., description="操作是否成功")
     message: str = Field(default="文件删除成功")
 
+class CopyResourceRequest(BaseModel):
+    source_key: str = Field(..., description="源资源键")
+    target_key: str = Field(..., description="目标资源键")
+
+class CopyResourceResponse(BaseModel):
+    success: bool = Field(..., description="是否成功")
+    target_key: str = Field(..., description="目标资源键")
+    message: str = Field(default="资源复制成功")
+
 # === Helper Functions ===
 
 def validate_key_format(key: str) -> bool:
@@ -74,11 +83,16 @@ def validate_key_format(key: str) -> bool:
     return len(parts) >= 4 and all(part.strip() for part in parts)
 
 def extract_user_id_from_key(key: str) -> str:
-    """从resource_key中提取user_id"""
+    """从resource_key中提取user_id
+    
+    支持两种格式：
+    - userId/blockId/versionId (用于resource copy)
+    - userId/blockId/versionId/filename (用于file operations)
+    """
     parts = key.split('/')
-    if len(parts) >= 4:
+    if len(parts) >= 3:
         return parts[0]
-    raise ValueError("Invalid key format")
+    raise ValueError("Invalid key format: expected at least 3 parts (userId/blockId/versionId)")
 
 # === API Endpoints ===
 
@@ -348,4 +362,89 @@ async def delete_file(
         raise
     except Exception as e:
         log_error(f"删除文件失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Template user whitelist (allow copying from these users)
+TEMPLATE_USER_IDS = [
+    "template-official",
+    "8f3dbdc0-e742-4c6e-b041-a52fb32a2181",  # RAG template
+    "110789d4-265d-4d70-97da-89c7a93bd580",  # SEO, Getting Started, File Load
+]
+
+
+@management_router.post("/copy_resource", response_model=CopyResourceResponse)
+async def copy_resource(
+    request_data: CopyResourceRequest,
+    storage: StorageAdapter = Depends(get_storage_adapter),
+    authorization: str = Header(None, alias="Authorization"),
+    auth_provider = Depends(get_auth_provider)
+):
+    """
+    复制资源（支持模板实例化场景）
+    
+    安全策略：
+    - target_key 必须属于当前用户（验证写入权限）
+    - source_key 必须是模板用户或当前用户（白名单机制）
+    
+    需要提供 Authorization: Bearer <jwt_token> header
+    """
+    try:
+        # 1. 验证target_key属于当前用户
+        current_user = await verify_user_and_resource_access(
+            resource_key=request_data.target_key,
+            authorization=authorization,
+            auth_provider=auth_provider
+        )
+        
+        # 2. 提取并验证source_key的用户ID
+        try:
+            source_user_id = extract_user_id_from_key(request_data.source_key)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无效的source_key格式: {str(e)}"
+            )
+        
+        # 3. 白名单验证：只允许从模板用户或自己复制
+        is_from_template = source_user_id in TEMPLATE_USER_IDS
+        is_from_self = source_user_id == current_user.user_id
+        
+        if not (is_from_template or is_from_self):
+            log_error(f"未授权的复制请求: user={current_user.user_id}, source_user={source_user_id}")
+            raise HTTPException(
+                status_code=403,
+                detail=f"不允许从用户 {source_user_id} 复制资源"
+            )
+        
+        # 4. 记录审计日志
+        log_info(
+            f"[RESOURCE_COPY] user={current_user.user_id}, "
+            f"source={request_data.source_key}, "
+            f"target={request_data.target_key}, "
+            f"from_template={is_from_template}"
+        )
+        
+        # 5. 执行复制
+        success = storage.copy_resource(
+            source_key=request_data.source_key,
+            target_key=request_data.target_key
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="资源复制失败，请检查源资源是否存在"
+            )
+        
+        return CopyResourceResponse(
+            success=True,
+            target_key=request_data.target_key,
+            message="资源复制成功"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(f"复制资源异常: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -15,7 +15,7 @@ const BlankWorkspace = () => {
     updateWorkspace,
     workspaceManagement,
   } = useWorkspaces();
-  const { planLimits } = useAppSettings();
+  const { planLimits, availableModels } = useAppSettings();
   const { switchToWorkspace } = useDisplaySwitch();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -65,24 +65,133 @@ const BlankWorkspace = () => {
     version: '0.0.1',
   });
 
+  const createWorkspaceFromTemplate = async (
+    templateId: string,
+    workspaceName: string
+  ) => {
+    if (isWorkspaceLimitReached) return;
+
+    try {
+      // Call new instantiation API (server will generate workspace ID)
+      const response = await fetch('/api/workspace/instantiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          templateId,
+          workspaceName,
+          availableModels,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to instantiate template');
+      }
+
+      const result = await response.json();
+
+      if (result?.success && result?.workspace_id) {
+        const workspaceId = result.workspace_id;
+
+        console.log(
+          `[BlankWorkspace] ✅ API returned success. Workspace ID: ${workspaceId}`,
+          { result }
+        );
+
+        // Create optimistic workspace with server-generated ID
+        const optimistic = createEmptyWorkspace(workspaceId, workspaceName);
+        console.log(
+          `[BlankWorkspace] 📦 Created optimistic workspace:`,
+          optimistic
+        );
+
+        addWorkspace(optimistic);
+
+        console.log(
+          `[BlankWorkspace] 🔄 Fetching workspace content from database...`
+        );
+
+        // Fetch workspace content from database
+        const switchResult = await workspaceManagement.switchToWorkspace(
+          workspaceId,
+          optimistic
+        );
+
+        if (switchResult.success && switchResult.content) {
+          console.log(
+            `[BlankWorkspace] ✅ Fetched content with ${switchResult.content.blocks?.length || 0} blocks`
+          );
+
+          // Update workspace with actual content
+          // Keep the workspace_name from the optimistic workspace (user-provided name)
+          updateWorkspace(workspaceId, {
+            workspace_name: workspaceName, // Preserve the name from template instantiation
+            content: switchResult.content,
+            pullFromDatabase: true,
+            pushToDatabase: false,
+          });
+        } else {
+          console.error(
+            `[BlankWorkspace] ❌ Failed to fetch content:`,
+            switchResult.error
+          );
+        }
+
+        // Switch UI to show the new workspace
+        setShowingItem({
+          type: 'workspace',
+          id: workspaceId,
+          name: workspaceName,
+        });
+        switchToWorkspace();
+
+        console.log(
+          `[BlankWorkspace] ✅ Successfully instantiated template ${templateId} as workspace ${workspaceId}`
+        );
+      } else {
+        console.error(
+          `[BlankWorkspace] ❌ API response missing success or workspace_id:`,
+          result
+        );
+      }
+    } catch (error) {
+      console.error('[BlankWorkspace] Failed to instantiate template:', error);
+      // TODO: Show error message to user
+    }
+  };
+
   const templates = [
     {
-      key: 'personal-rss',
-      title: (workspaceTemplates as any).personal_rss.title,
-      description: (workspaceTemplates as any).personal_rss.description,
-      getContent: () => (workspaceTemplates as any).personal_rss.content,
+      key: 'getting-started',
+      templateId: 'getting-started',
+      title: 'Getting Started',
+      description: 'A guided workspace to learn the basics in minutes',
+      getContent: () => (workspaceTemplates as any).onboarding_guide?.content,
     },
     {
       key: 'agentic-rag',
-      title: (workspaceTemplates as any).agentic_rag.title,
-      description: (workspaceTemplates as any).agentic_rag.description,
-      getContent: () => (workspaceTemplates as any).agentic_rag.content,
+      templateId: 'agentic-rag',
+      title: 'Agentic RAG',
+      description:
+        'Plan + retrieve + cite sources. Works best with a retriever',
+      getContent: () => (workspaceTemplates as any).agentic_rag?.content,
     },
     {
-      key: 'article-writer',
-      title: (workspaceTemplates as any).article_writer.title,
-      description: (workspaceTemplates as any).article_writer.description,
-      getContent: () => (workspaceTemplates as any).article_writer.content,
+      key: 'file-load',
+      templateId: 'file-load',
+      title: 'File Content Extraction',
+      description:
+        'Extract file contents and ingest them into your knowledge base',
+      getContent: () =>
+        (workspaceTemplates as any).file_content_extraction?.content,
+    },
+    {
+      key: 'seo-blog',
+      templateId: 'seo-blog',
+      title: 'SEO Blog Generator',
+      description: 'Generate and optimize SEO content with automated workflows',
+      getContent: () => (workspaceTemplates as any).seo?.content,
     },
   ];
 
@@ -153,6 +262,7 @@ const BlankWorkspace = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreateWorkspace={createNewWorkspace}
+        onCreateWorkspaceFromTemplate={createWorkspaceFromTemplate}
         workspaceTemplates={workspaceTemplates}
       />
     </div>

@@ -4,12 +4,14 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import re
+import json
+import logging
 from itertools import product
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Union, Tuple
 from Utils.puppy_exception import global_exception_handler
-import json
+from Utils.logger import log_debug
 
 
 @dataclass
@@ -390,6 +392,10 @@ class SearchConfigParser(EdgeConfigParser):
         self,
         variable_replace_field: str = "query"
     ) -> ParsedEdgeParams:
+        # Debug: Log raw edge configs at entry
+        log_debug(f"[SearchConfigParser.parse] Raw edge_configs: {self.edge_configs}")
+        log_debug(f"[SearchConfigParser.parse] data_source: {self.edge_configs.get('data_source', [])}")
+        
         # Handle multiple document sources
         doc_ids = self.edge_configs.get("doc_ids", [])
         if doc_ids:
@@ -406,6 +412,66 @@ class SearchConfigParser(EdgeConfigParser):
         search_type = self.edge_configs.get("search_type", "")
         original_extra_configs = self.edge_configs.get("extra_configs", {})
         data_sources = self.edge_configs.get("data_source", [])
+
+        # Phase 3.9: Runtime Resolution - Resolve collection_configs from blocks
+        if search_type == "vector" and data_sources:
+            enriched_data_sources = []
+            for ds in data_sources:
+                ds_id = ds.get("id")
+                index_item = ds.get("index_item", {})
+                
+                # Check if collection_configs already exists (backward compatibility)
+                existing_collection_configs = index_item.get("collection_configs")
+                
+                if existing_collection_configs and existing_collection_configs.get("collection_name"):
+                    # Old format: collection_configs already provided, use as-is
+                    enriched_ds = ds.copy()
+                    enriched_data_sources.append(enriched_ds)
+                else:
+                    # New format: Resolve from block_configs using index_name
+                    requested_index_name = index_item.get("index_name")
+                    
+                    # Get indexingList from block_configs
+                    ds_block_config = self.block_configs.get(ds_id, {})
+                    indexing_list = ds_block_config.get("indexingList", [])
+                    
+                    log_debug(f"[SearchConfigParser] Runtime resolution for ds_id={ds_id}, index_name={requested_index_name}")
+                    
+                    # Find matching indexed set by index_name
+                    selected_index_item = None
+                    if requested_index_name and indexing_list:
+                        for item in indexing_list:
+                            if item.get("index_name") == requested_index_name:
+                                selected_index_item = item
+                                log_debug(f"  ✅ Found matching index_item")
+                                break
+                    
+                    # Fallback: Use first done item if no match found
+                    if not selected_index_item and indexing_list:
+                        for item in indexing_list:
+                            if item.get("status") == "done":
+                                selected_index_item = item
+                                log_debug(f"  ⚠️ Using fallback: first done item")
+                                break
+                    
+                    # Extract collection_configs
+                    collection_configs = selected_index_item.get("collection_configs", {}) if selected_index_item else {}
+                    
+                    # Build enriched data_source
+                    # CRITICAL: Preserve requested_index_name even if no match found!
+                    final_index_name = requested_index_name or (selected_index_item.get("index_name", "") if selected_index_item else "")
+                    
+                    enriched_ds = {
+                        **ds,
+                        "index_item": {
+                            "index_name": final_index_name,
+                            "collection_configs": collection_configs,
+                        }
+                    }
+                    enriched_data_sources.append(enriched_ds)
+            
+            # Use enriched data_sources
+            data_sources = enriched_data_sources
 
         if search_type == "vector":
             self.block_configs = {query_id: self.block_configs[query_id]}

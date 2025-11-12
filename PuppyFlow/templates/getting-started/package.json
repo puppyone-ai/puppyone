@@ -1,0 +1,722 @@
+{
+    "metadata": {
+        "id": "getting-started",
+        "version": "1.0.0",
+        "name": "Getting Started",
+        "description": "A comprehensive introduction to PuppyFlow with 6 tutorial sections.",
+        "author": "PuppyAgent Team",
+        "created_at": "2025-01-23T00:00:00Z",
+        "tags": [
+            "onboarding",
+            "tutorial",
+            "guide",
+            "beginner",
+            "comprehensive"
+        ],
+        "requirements": {
+            "embedding_models": null
+        }
+    },
+    "workflow": {
+        "blocks": [
+            {
+                "id": "owMbbR",
+                "position": {
+                    "x": -656,
+                    "y": 0
+                },
+                "data": {
+                    "content": "This is a text Block .\nIt's used to contain unstructured, free-form content.",
+                    "label": "1. Text Block",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "dirty": false,
+                    "savingStatus": "saved"
+                },
+                "type": "text",
+                "width": 240,
+                "height": 208,
+                "style": {
+                    "zIndex": 1028
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "_Usegk",
+                "position": {
+                    "x": -304,
+                    "y": 0
+                },
+                "data": {
+                    "content": "{\n  \"name\": \"structured block\",\n  \"description\": [\n    \"JSON-like structure\",\n    \"Used for  contain structured content\"\n  ]\n}",
+                    "label": "2. Structured Text Block",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "dirty": false,
+                    "savingStatus": "saved"
+                },
+                "type": "structured",
+                "width": 464,
+                "height": 208,
+                "selected": false,
+                "dragging": false,
+                "style": {
+                    "zIndex": 1027
+                },
+                "resizing": false
+            },
+            {
+                "id": "JgXxAH",
+                "position": {
+                    "x": 288,
+                    "y": 0
+                },
+                "data": {
+                    "content": [],
+                    "label": "3. File Block",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false
+                },
+                "type": "file",
+                "width": 240,
+                "height": 208,
+                "style": {
+                    "zIndex": 1025
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "baRTPT",
+                "position": {
+                    "x": -592,
+                    "y": 480
+                },
+                "data": {
+                    "content": "introduce yourself within 10 words",
+                    "label": "baRTPT",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": false,
+                    "dirty": false,
+                    "savingStatus": "saved",
+                    "groupIds": [
+                        "Fh6Td9"
+                    ],
+                    "isWaitingForFlow": false
+                },
+                "type": "text",
+                "width": 240,
+                "height": 176,
+                "style": {
+                    "zIndex": 1015
+                },
+                "resizing": false,
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "svrKAe",
+                "type": "llmnew",
+                "position": {
+                    "x": -256,
+                    "y": 544
+                },
+                "data": {
+                    "sourceNodeId": "baRTPT",
+                    "sourceNodeType": "text",
+                    "subMenuType": "llm",
+                    "content": [
+                        {
+                            "role": "system",
+                            "content": "You are an AI"
+                        },
+                        {
+                            "role": "user",
+                            "content": "Answer the question: {{baRTPT}}"
+                        }
+                    ],
+                    "modelAndProvider": {
+                        "id": "openai/gpt-5",
+                        "name": "GPT-5",
+                        "provider": "OpenAI",
+                        "isLocal": false
+                    },
+                    "base_url": "",
+                    "structured_output": false,
+                    "max_tokens": 4096,
+                    "resultNode": "sbhdk9"
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 100
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "sbhdk9",
+                "position": {
+                    "x": -80,
+                    "y": 480
+                },
+                "data": {
+                    "content": "I'm an AI assistant here to help with your questions.",
+                    "label": "sbhdk9",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": true,
+                    "editable": false,
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": false,
+                    "semantic_type": "text",
+                    "groupIds": [
+                        "Fh6Td9"
+                    ]
+                },
+                "width": 240,
+                "height": 176,
+                "type": "text",
+                "style": {
+                    "zIndex": 1020
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "Fh6Td9",
+                "position": {
+                    "x": -656,
+                    "y": 416
+                },
+                "data": {
+                    "content": "",
+                    "label": "4. LLM",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "backgroundColor": "rgba(64, 101, 131, 0.2)"
+                },
+                "type": "group",
+                "width": 896,
+                "height": 304,
+                "style": {
+                    "zIndex": -1
+                },
+                "selected": false,
+                "resizing": false,
+                "dragging": false
+            },
+            {
+                "id": "rrcjM6",
+                "position": {
+                    "x": 384,
+                    "y": 352
+                },
+                "data": {
+                    "content": "",
+                    "label": "5. Structure content",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "backgroundColor": "rgba(143, 63, 61, 0.2)"
+                },
+                "type": "group",
+                "width": 1088,
+                "height": 432,
+                "selected": false,
+                "style": {
+                    "zIndex": -1
+                },
+                "resizing": false,
+                "dragging": false
+            },
+            {
+                "id": "ct6Jvs",
+                "position": {
+                    "x": 448,
+                    "y": 416
+                },
+                "data": {
+                    "content": "PuppyAgent Doc Pricing Article Get Started\nAutomate knowledge bases\nwith an agentic RAG\nConnect to database, process information, and deliver results,\nall powered by AI agents and RAG\nGet Started\nUser logo 1\nUser logo 2\nUser logo 3\nUser logo 4\nUser logo 5\nUser logo 1\nUser logo 2\nUser logo 3\nUser logo 4\nUser logo 5\nTrusted by users worldwide\n\nconnect_datasource\nConnect to\ndatasource\n\nprocess_information\nProcess information\nwith AI\n\ndistribute_result\nDeliver\nresults\n\nGive it a go!\nTry out our demo workflow below: A Basic RAG\nClick anywhere to start !\nActivate\n\nSelf-Evolving\nRAG Engine\nUpload data, score the result,\nimprove retrieving pipeline better and better\nprocess_information\nBuild Your Own\nRetrieving Pipeline\non-going,\nfast, easy, and integrate it into your enterprise\nprocess_information\nKey Features\nDiscover what makes PuppyAgent the ideal solution for your knowledge base needs\nRapid Prototyping\nCreate your\nRAG systems in just minutes\nwith intuitive interface\n\nRapid Prototyping\nFlexible Deployment\nDeploy RAG system into\nchatbots, APIs, or website bubbles\n\nFlexible Deployment\nEnterprise-wide Applications\nUse for customer support, SEO, training,\nand other knowledge use cases\n\nEnterprise-wide Applications\nGlobal LLMs\nAll major language models, including\nGPT-4, Claude, Deepseek, and more\n\nGlobal LLMs\nMultiple file types\nIngest, process and extract value from\nany document type in knowledge base\n\nMultiple file types\nAdvanced RAG\nAccess cutting-edge RAG techniques\nwithout complex setup\n\nAdvanced RAG\nAsk Puppy Questions\nWhat is PuppyAgent?\nIs PuppyAgent free to use?\nWhat can PuppyAgent do?\nWhat is the mission of PuppyAgent?\nHow can I contact the PuppyAgent team?\nAutomate Different ?\nGet Started\nTalk with founders\nPuppyAgent\nX\nLinkedIn\nDiscord\nEmail\nEnglish\nResources\n\nAbout us\n\nJoin us\n\nBlog\n\nFAQ\n\nPrivacy\n\nSecurity\n\nTerms\n\nBacklink Exchange\n\nFriends\n\nOpenAI\n\nAnthropic\n\nIdeaHunt\n\nLlamaGen\n\nResearchFlow\n\nLibrAI\n\nRingLink\n\nMiraclePlus\n\n\u00a9 2024 PuppyAgent Tech Pte Ltd All Rights Reserved.\n\n\n",
+                    "label": "ct6Jvs",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": false,
+                    "groupIds": [
+                        "rrcjM6"
+                    ],
+                    "dirty": false,
+                    "savingStatus": "saved",
+                    "storage_class": "external",
+                    "isExternalStorage": true,
+                    "external_metadata": {
+                        "resource_key": "110789d4-265d-4d70-97da-89c7a93bd580/ct6Jvs/20250920-202408522785-399a021e",
+                        "version_id": "20250920-202408522785-399a021e",
+                        "content_type": "text"
+                    }
+                },
+                "type": "text",
+                "width": 336,
+                "height": 304,
+                "style": {
+                    "zIndex": 1021
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "N-RtZF",
+                "type": "chunkingByLength",
+                "position": {
+                    "x": 848,
+                    "y": 544
+                },
+                "data": {
+                    "sourceNodeId": "ct6Jvs",
+                    "sourceNodeType": "text",
+                    "subMenuType": "by-length",
+                    "resultNode": "TvqXsE",
+                    "sub_chunking_mode": "size",
+                    "extra_configs": {
+                        "chunk_size": 50,
+                        "overlap": 10,
+                        "handle_half_word": false
+                    }
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 100
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "TvqXsE",
+                "position": {
+                    "x": 1008,
+                    "y": 416
+                },
+                "data": {
+                    "content": "[\n  \"PuppyAgent Doc Pricing Article Get Started\\nAutomat\",\n  \"ed\\nAutomate knowledge bases\\nwith an agentic RAG\\nConnect to d\",\n  \"nnect to database, process information, and deliver results,\",\n  \"r results,\\nall powered by AI agents and RAG\\nGet Started\\nUser\",\n  \"arted\\nUser logo 1\\nUser logo 2\\nUser logo 3\\nUser logo 4\\nUser l\",\n  \"o 4\\nUser logo 5\\nUser logo 1\\nUser logo 2\\nUser logo 3\\nUser log\",\n  \"3\\nUser logo 4\\nUser logo 5\\nTrusted by users worldwide\\n\\nconnec\",\n  \"de\\n\\nconnect_datasource\\nConnect to\\ndatasource\\n\\nprocess_inform\",\n  \"ess_information\\nProcess information\\nwith AI\\n\\ndistribute_resu\",\n  \"ibute_result\\nDeliver\\nresults\\n\\nGive it a go!\\nTry out our demo\",\n  \"t our demo workflow below: A Basic RAG\\nClick anywhere to sta\",\n  \"ere to start !\\nActivate\\n\\nSelf-Evolving\\nRAG Engine\\nUpload dat\",\n  \"Upload data, score the result,\\nimprove retrieving pipeline b\",\n  \"pipeline better and better\\nprocess_information\\nBuild Your Ow\",\n  \"ld Your Own\\nRetrieving Pipeline\\non-going,\\nfast, easy, and in\",\n  \"sy, and integrate it into your enterprise\\nprocess_informatio\",\n  \"information\\nKey Features\\nDiscover what makes PuppyAgent the\",\n  \"Agent the ideal solution for your knowledge base needs\\nRapid\",\n  \"eeds\\nRapid Prototyping\\nCreate your\\nRAG systems in just minut\",\n  \"just minutes\\nwith intuitive interface\\n\\nRapid Prototyping\\nFle\",\n  \"typing\\nFlexible Deployment\\nDeploy RAG system into\\nchatbots,\",\n  \"chatbots, APIs, or website bubbles\\n\\nFlexible Deployment\\nEnte\",\n  \"yment\\nEnterprise-wide Applications\\nUse for customer support,\",\n  \"r support, SEO, training,\\nand other knowledge use cases\\n\\nEnt\",\n  \"cases\\n\\nEnterprise-wide Applications\\nGlobal LLMs\\nAll major la\",\n  \"l major language models, including\\nGPT-4, Claude, Deepseek,\",\n  \"Deepseek, and more\\n\\nGlobal LLMs\\nMultiple file types\\nIngest,\",\n  \"s\\nIngest, process and extract value from\\nany document type i\",\n  \"ent type in knowledge base\\n\\nMultiple file types\\nAdvanced RAG\",\n  \"vanced RAG\\nAccess cutting-edge RAG techniques\\nwithout comple\",\n  \"out complex setup\\n\\nAdvanced RAG\\nAsk Puppy Questions\\nWhat is\",\n  \"s\\nWhat is PuppyAgent?\\nIs PuppyAgent free to use?\\nWhat can Pu\",\n  \"hat can PuppyAgent do?\\nWhat is the mission of PuppyAgent?\\nHo\",\n  \"yAgent?\\nHow can I contact the PuppyAgent team?\\nAutomate Diff\",\n  \"omate Different ?\\nGet Started\\nTalk with founders\\nPuppyAgent\",\n  \"uppyAgent\\nX\\nLinkedIn\\nDiscord\\nEmail\\nEnglish\\nResources\\n\\nAbout\",\n  \"es\\n\\nAbout us\\n\\nJoin us\\n\\nBlog\\n\\nFAQ\\n\\nPrivacy\\n\\nSecurity\\n\\nTerms\",\n  \"y\\n\\nTerms\\n\\nBacklink Exchange\\n\\nFriends\\n\\nOpenAI\\n\\nAnthropic\\n\\nIde\",\n  \"ropic\\n\\nIdeaHunt\\n\\nLlamaGen\\n\\nResearchFlow\\n\\nLibrAI\\n\\nRingLink\\n\\nM\",\n  \"ingLink\\n\\nMiraclePlus\\n\\n\u00a9 2024 PuppyAgent Tech Pte Ltd All Rig\",\n  \"td All Rights Reserved.\"\n]",
+                    "label": "TvqXsE",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": true,
+                    "editable": false,
+                    "storage_class": "external",
+                    "external_metadata": {
+                        "resource_key": "110789d4-265d-4d70-97da-89c7a93bd580/TvqXsE/20250920-202625295490-73d153d9",
+                        "content_type": "structured",
+                        "chunked": true,
+                        "uploaded_at": "2025-09-20T20:26:28.651070",
+                        "version_id": "20250920-202625295490-73d153d9",
+                        "totalChunks": 3,
+                        "loadedChunks": 3,
+                        "totalRecords": 41,
+                        "parsedRecords": 41,
+                        "parseErrors": 0
+                    },
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": true,
+                    "semantic_type": "structured",
+                    "groupIds": [
+                        "rrcjM6"
+                    ]
+                },
+                "width": 384,
+                "height": 304,
+                "type": "structured",
+                "style": {
+                    "zIndex": 1022
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "Uu7tiT",
+                "position": {
+                    "x": -656,
+                    "y": 912
+                },
+                "data": {
+                    "content": "",
+                    "label": "6. Retrieve and Generation",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "backgroundColor": "rgba(68, 106, 91, 0.2)"
+                },
+                "type": "group",
+                "width": 2128,
+                "height": 544,
+                "selected": false,
+                "resizing": false,
+                "style": {
+                    "zIndex": -1
+                },
+                "dragging": false
+            },
+            {
+                "id": "ozMSqS",
+                "position": {
+                    "x": -336,
+                    "y": 1584
+                },
+                "data": {
+                    "content": "[\n  {\n    \"question\": \"Where are you?\",\n    \"answer\": \"PuppyAgent is base in Singapore.\"\n  },\n  {\n    \"question\": \"What is PuppyAgent?\",\n    \"answer\": \"PuppyAgent is an automated AI knowledge builder that creates agentic RAG base, empowering businesses to automate workflows using their proprietary expertise. \"\n  },\n  {\n    \"question\": \"Is PuppyAgent free to use?\",\n    \"answer\": \"PuppyAgent provides a free plan for individual users. For teams or enterprises requiring enhanced functionality, we offer Professional plans tailored to meet more advanced needs it's 28$ per user per month.\"\n  },\n  {\n    \"question\": \"What can PuppyAgent do?\",\n    \"answer\": \"PuppyAgent enables you to construct Retrieval-Augmented Generation (RAG) systems for your enterprise knowledge base. It can be applied to various use cases, including supports chatbots community chatbots, AI-powered search engine optimization strategies, spreadsheet automation, and various other applications.\"\n  },\n  {\n    \"question\": \"What is the mission of PuppyAgent?\",\n    \"answer\": \"PuppyAgent's mission is to reshape the world with AI agents. We are initiating this vision by focusing on knowledge base and Retrieval-Augmented Generation (RAG) technologies.\"\n  },\n  {\n    \"question\": \"What is your support link?\",\n    \"answer\": \"support link is puppyteam@puppyagent.com\"\n  },\n  {\n    \"question\": \"What is your price?\",\n    \"answer\": \"$25 for pro users, including more usages and storage\"\n  }\n]",
+                    "label": "ozMSqS",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": false,
+                    "groupIds": [],
+                    "dirty": false,
+                    "savingStatus": "error",
+                    "saveError": "Init manifest failed: 401 {\"detail\":\"Authorization header is missing\"}"
+                },
+                "type": "structured",
+                "width": 624,
+                "height": 336,
+                "style": {
+                    "zIndex": 100
+                },
+                "resizing": false,
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "qub7VA",
+                "position": {
+                    "x": -544,
+                    "y": 1024
+                },
+                "data": {
+                    "content": "What is PuppyAgent?",
+                    "label": "qub7VA",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": false,
+                    "groupIds": [
+                        "Uu7tiT"
+                    ],
+                    "dirty": false,
+                    "savingStatus": "saved"
+                },
+                "type": "text",
+                "width": 240,
+                "height": 176,
+                "style": {
+                    "zIndex": 100
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "WItB0S",
+                "type": "retrieving",
+                "position": {
+                    "x": -64,
+                    "y": 1232
+                },
+                "data": {
+                    "sourceNodeId": "qub7VA",
+                    "sourceNodeType": "text",
+                    "subMenuType": "retrieve",
+                    "query_id": {
+                        "id": "",
+                        "label": ""
+                    },
+                    "top_k": 5,
+                    "extra_configs": {
+                        "threshold": 0.7
+                    }
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 100
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "KFD5qi",
+                "position": {
+                    "x": 128,
+                    "y": 1152
+                },
+                "data": {
+                    "content": "[\n  {\n    \"question\": \"What is PuppyAgent?\",\n    \"answer\": \"PuppyAgent is an automated AI knowledge builder that creates agentic RAG base, empowering businesses to automate workflows using their proprietary expertise. \"\n  }\n]",
+                    "label": "KFD5qi",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "groupIds": [
+                        "Uu7tiT"
+                    ],
+                    "dirty": false,
+                    "savingStatus": "saved"
+                },
+                "type": "structured",
+                "width": 512,
+                "height": 208,
+                "style": {
+                    "zIndex": 100
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "G_t2CN",
+                "type": "llmnew",
+                "position": {
+                    "x": 864,
+                    "y": 1088
+                },
+                "data": {
+                    "sourceNodeId": "KFD5qi",
+                    "sourceNodeType": "structured",
+                    "subMenuType": "llm",
+                    "content": [
+                        {
+                            "role": "system",
+                            "content": "You are an AI"
+                        },
+                        {
+                            "role": "user",
+                            "content": "Answer the question: {{qub7VA}} by  {{KFD5qi}} "
+                        }
+                    ],
+                    "modelAndProvider": {
+                        "id": "openai/gpt-5",
+                        "name": "GPT-5",
+                        "provider": "OpenAI",
+                        "isLocal": false
+                    },
+                    "base_url": "",
+                    "structured_output": false,
+                    "max_tokens": 4096
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1010
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "6i3DoM",
+                "position": {
+                    "x": 1056,
+                    "y": 1024
+                },
+                "data": {
+                    "content": "PuppyAgent is an automated AI knowledge builder that creates agentic RAG base, empowering businesses to automate workflows using their proprietary expertise.",
+                    "label": "6i3DoM",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": true,
+                    "editable": false,
+                    "groupIds": [
+                        "Uu7tiT"
+                    ],
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": false,
+                    "semantic_type": "text"
+                },
+                "type": "text",
+                "width": 288,
+                "height": 176,
+                "style": {
+                    "zIndex": 1009
+                },
+                "resizing": false,
+                "selected": false,
+                "dragging": false
+            }
+        ],
+        "edges": [
+            {
+                "id": "x_qRQV",
+                "source": "baRTPT",
+                "target": "svrKAe",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "id": "connection-1758399650834",
+                "source": "svrKAe",
+                "target": "sbhdk9",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                },
+                "selected": false
+            },
+            {
+                "id": "RtedaG",
+                "source": "ct6Jvs",
+                "target": "N-RtZF",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "id": "connection-1758399860705",
+                "source": "N-RtZF",
+                "target": "TvqXsE",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                },
+                "selected": false
+            },
+            {
+                "id": "m4KVsF",
+                "source": "qub7VA",
+                "target": "WItB0S",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "source": "ozMSqS",
+                "sourceHandle": "ozMSqS-a",
+                "target": "WItB0S",
+                "targetHandle": "WItB0S-d",
+                "id": "connection-1758400962517",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "source": "WItB0S",
+                "sourceHandle": "WItB0S-b",
+                "target": "KFD5qi",
+                "targetHandle": "KFD5qi-d",
+                "id": "connection-1758401019536",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                },
+                "selected": false
+            },
+            {
+                "id": "RPs1U0",
+                "source": "KFD5qi",
+                "target": "G_t2CN",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "source": "qub7VA",
+                "sourceHandle": "qub7VA-b",
+                "target": "G_t2CN",
+                "targetHandle": "G_t2CN-d",
+                "id": "connection-1758401186708",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "source": "G_t2CN",
+                "sourceHandle": "G_t2CN-b",
+                "target": "6i3DoM",
+                "targetHandle": "6i3DoM-d",
+                "id": "connection-1758401194491",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                }
+            }
+        ],
+        "viewport": {
+            "x": 731.5596669949596,
+            "y": 167.54723629165468,
+            "zoom": 0.7834914857026907
+        },
+        "version": "0.1"
+    },
+    "resources": {
+        "format": "inline",
+        "resources": []
+    }
+}

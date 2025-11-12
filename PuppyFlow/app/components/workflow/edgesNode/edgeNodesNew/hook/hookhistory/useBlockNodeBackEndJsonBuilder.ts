@@ -115,9 +115,11 @@ export function useBlockNodeBackEndJsonBuilder() {
       type: 'structured',
       data: {
         content: parsedContent,
+        // Phase 3.9: Include indexingList for runtime resolution
+        indexingList: nodeData.indexingList || [],
       },
       looped: !!nodeData.looped, // 转换为布尔值
-      collection_configs: collectionConfigs,
+      collection_configs: collectionConfigs, // Backward compatibility
     };
   };
 

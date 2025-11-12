@@ -161,6 +161,21 @@ class DirectChunkUploadResponse(BaseModel):
     size: int = Field(..., description="文件大小（字节）")
     uploaded_at: int = Field(..., description="上传时间戳")
 
+# === New Part API Models (mirrors of Chunk APIs for semantic separation) ===
+
+class DirectPartUploadRequest(BaseModel):
+    block_id: str = Field(..., description="业务数据块ID")
+    file_name: str = Field(..., description="原始文件名")
+    content_type: str = Field(default="application/octet-stream", description="内容类型")
+
+class DirectPartUploadResponse(BaseModel):
+    success: bool = Field(..., description="上传是否成功")
+    key: str = Field(..., description="文件存储键")
+    version_id: str = Field(..., description="生成的版本ID")
+    etag: str = Field(..., description="文件ETag")
+    size: int = Field(..., description="文件大小（字节）")
+    uploaded_at: int = Field(..., description="上传时间戳")
+
 # === Helper Functions ===
 
 def generate_request_id() -> str:
@@ -796,6 +811,103 @@ async def upload_chunk_direct(
         raise
     except Exception as e:
         log_error(f"[{request_id}] 直接chunk上传失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@upload_router.post("/part/direct", response_model=DirectPartUploadResponse)
+async def upload_part_direct(
+    block_id: str,
+    file_name: str,
+    request: Request,
+    storage: StorageAdapter = Depends(get_storage_adapter),
+    content_type: str = "application/octet-stream",
+    version_id: Optional[str] = None,
+    current_user: User = Depends(verify_init_auth)
+):
+    """
+    直接上传part到最终存储位置 (Mirror of upload_chunk_direct for semantic separation)
+    
+    This is the new "part" API that mirrors the "chunk" API.
+    Both APIs are functionally identical - this separation is for semantic clarity:
+    - "chunk" refers to workflow data units
+    - "part" refers to storage partition units
+    
+    需要提供 Authorization: Bearer <jwt_token> header
+    """
+    request_id = generate_request_id()
+    
+    try:
+        # 1. 使用提供的版本ID或生成新的
+        if version_id is None:
+            version_id = generate_version_id()
+        
+        # 2. 清理文件名，确保安全
+        safe_file_name = sanitize_file_name(file_name)
+        
+        # 3. 在服务器端组装完整的key
+        key = f"{current_user.user_id}/{block_id}/{version_id}/{safe_file_name}"
+        
+        log_info(f"[{request_id}] 开始直接part上传: user={current_user.user_id}, block_id={block_id}, "
+                f"version_id={version_id}, file_name={file_name} -> {safe_file_name}, "
+                f"generated_key={key}")
+        
+        # 4. 读取请求体的part数据
+        part_data = await request.body()
+        if not part_data:
+            raise HTTPException(status_code=400, detail="No part data provided")
+        
+        log_info(f"[{request_id}] 开始保存part: size={len(part_data)}")
+        
+        # 5. 检查存储适配器是否支持直接保存
+        if hasattr(storage, 'save_chunk_direct'):  # Note: using same storage method
+            # 使用专门的直接保存方法
+            result = storage.save_chunk_direct(
+                key=key,
+                chunk_data=part_data,
+                content_type=content_type
+            )
+        else:
+            # 回退到普通的文件保存方法
+            success = storage.save_file(
+                key=key,
+                file_data=part_data,
+                content_type=content_type
+            )
+            
+            # 获取实际的 ETag
+            if success:
+                try:
+                    _, _, actual_etag = storage.get_file_with_metadata(key)
+                except:
+                    # 如果获取失败，使用生成的 ETag
+                    actual_etag = uuid.uuid4().hex
+            else:
+                actual_etag = uuid.uuid4().hex
+                
+            result = {
+                "success": success,
+                "key": key,
+                "etag": actual_etag,
+                "size": len(part_data),
+                "uploaded_at": int(time.time())
+            }
+        
+        response = DirectPartUploadResponse(
+            success=result["success"],
+            key=key,
+            version_id=version_id,
+            etag=result["etag"],
+            size=result["size"],
+            uploaded_at=result["uploaded_at"]
+        )
+        
+        log_info(f"[{request_id}] 直接part上传成功: key={key}, size={len(part_data)}")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(f"[{request_id}] 直接part上传失败: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

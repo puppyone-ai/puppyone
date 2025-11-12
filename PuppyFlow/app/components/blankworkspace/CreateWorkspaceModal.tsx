@@ -11,6 +11,7 @@ interface CreateWorkspaceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreateWorkspace: (template?: any, name?: string) => void;
+  onCreateWorkspaceFromTemplate?: (templateId: string, name: string) => void;
   workspaceTemplates: any;
 }
 
@@ -18,6 +19,7 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
   isOpen,
   onClose,
   onCreateWorkspace,
+  onCreateWorkspaceFromTemplate,
   workspaceTemplates,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -72,18 +74,30 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
     };
   }, [isOpen, onClose]);
 
-  const handleCreateOption = (type: string, template?: any, name?: string) => {
-    switch (type) {
-      case 'empty':
-        onCreateWorkspace(emptyPageTemplate as any, 'Untitled Context Base');
-        break;
-      case 'template':
-        onCreateWorkspace(template, name);
-        break;
-      default:
-        onCreateWorkspace();
-    }
+  const handleCreateOption = (
+    type: string,
+    template?: any,
+    name?: string,
+    templateId?: string
+  ) => {
     handleClose();
+
+    if (templateId && onCreateWorkspaceFromTemplate) {
+      // Use new template instantiation API
+      onCreateWorkspaceFromTemplate(templateId, name || 'Untitled Workspace');
+    } else {
+      // Use old flow for backward compatibility
+      switch (type) {
+        case 'empty':
+          onCreateWorkspace(emptyPageTemplate as any, 'Untitled Context Base');
+          break;
+        case 'template':
+          onCreateWorkspace(template, name);
+          break;
+        default:
+          onCreateWorkspace();
+      }
+    }
   };
 
   const mainOption = {
@@ -95,6 +109,7 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
   const suggestedTemplates = [
     {
       id: 'getting-started',
+      templateId: 'getting-started',
       title: workspaceTemplates?.onboarding_guide?.title || 'Getting Started',
       description:
         workspaceTemplates?.onboarding_guide?.description ||
@@ -104,6 +119,7 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
     },
     {
       id: 'rag-chatbot',
+      templateId: 'agentic-rag',
       title: workspaceTemplates?.rag_chatbot?.title || 'for RAG Chatbot',
       description:
         workspaceTemplates?.rag_chatbot?.description ||
@@ -113,6 +129,7 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
     },
     {
       id: 'file content extraction',
+      templateId: 'file-load',
       title:
         workspaceTemplates?.file_content_extraction?.title ||
         'for File Extraction and Ingestion',
@@ -124,6 +141,7 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
     },
     {
       id: 'seo',
+      templateId: 'seo-blog',
       title: workspaceTemplates?.seo?.title || 'for SEO Blog Generator',
       description:
         workspaceTemplates?.seo?.description ||
@@ -193,7 +211,8 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                       handleCreateOption(
                         'template',
                         template.content,
-                        template.name
+                        template.name,
+                        template.templateId
                       )
                     }
                     disabled={!canInteract}
