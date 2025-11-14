@@ -9,6 +9,16 @@ import type { ProjectTableJSON } from '../../../lib/projectData';
 import { fetchProjectTableData, fetchProjectTablesData } from '../../../lib/projectData';
 import { mockProjects } from '../../../lib/mock';
 import { McpBar } from '../../../components/McpBar';
+import dynamic from 'next/dynamic';
+
+const JsonEditorWithNoSSR = dynamic(() => import('../../../components/JsonEditorComponent'), {
+  ssr: false,
+  loading: () => (
+    <div style={{ padding: '20px', color: '#94a3b8', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      Loading Editor...
+    </div>
+  ),
+});
 
 export default function ProjectDetailPage() {
   const { session, isAuthReady } = useAuth();
@@ -237,25 +247,11 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
 
-                <div style={{ flex: 1, padding: '18px 24px', overflowY: 'auto' }}>
+                <div style={{ flex: 1, padding: '18px 24px', overflowY: 'hidden', display: 'flex' }}>
                   {tableData ? (
-                    <pre
-                      style={{
-                        margin: 0,
-                        padding: '18px 20px',
-                        background: 'rgba(15,23,42,0.75)',
-                        borderRadius: 10,
-                        border: '1px solid rgba(30,41,59,0.85)',
-                        fontSize: 12,
-                        lineHeight: 1.6,
-                        color: '#f9fafb',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        fontFamily: '\'JetBrains Mono\', SFMono-Regular, Menlo, monospace',
-                      }}
-                    >
-                      {JSON.stringify(tableData, null, 2)}
-                    </pre>
+                    <div style={{ flex: 1, borderRadius: 10, overflow: 'hidden' }}>
+                      <JsonEditorWithNoSSR json={tableData} />
+                    </div>
                   ) : (
                     <div
                       style={{
@@ -340,22 +336,27 @@ export default function ProjectDetailPage() {
                           <div style={{ fontSize: 11, color: '#94a3b8' }}>{t.rows} rows</div>
                         )}
                       </div>
-                      <pre
+                      <div
                         style={{
-                          margin: 0,
-                          padding: '14px 16px',
-                          background: 'rgba(15,23,42,0.75)',
-                          borderRadius: 0,
-                          fontSize: 12,
-                          lineHeight: 1.6,
-                          color: '#f9fafb',
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          fontFamily: '\'JetBrains Mono\', SFMono-Regular, Menlo, monospace',
+                          flex: 1,
+                          overflow: 'hidden', // The editor has its own scroll
                         }}
                       >
-                           {data ? JSON.stringify(data, null, 2) : 'No data'}
-                      </pre>
+                        {data ? (
+                          <JsonEditorWithNoSSR json={data} />
+                        ) : (
+                          <div
+                            style={{
+                              padding: '14px 16px',
+                              fontFamily: "'JetBrains Mono', SFMono-Regular, Menlo, monospace",
+                              fontSize: 12,
+                              color: '#94a3b8',
+                            }}
+                          >
+                            No data
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
