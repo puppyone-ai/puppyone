@@ -707,13 +707,24 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
           !labelContainerRef.current?.contains(e.target as HTMLElement) &&
           !(e.target as HTMLElement).classList.contains('renameButton')
         ) {
+          // 先保存 label 修改，再设置为不可编辑
+          if (nodeState.isLocalEdit) {
+            editNodeLabel(id, nodeState.nodeLabel);
+            setNodeState(prev => ({ ...prev, isLocalEdit: false }));
+          }
           setNodeUneditable(id);
         }
       };
       document.addEventListener('mousedown', handleClickOutside);
       return () =>
         document.removeEventListener('mousedown', handleClickOutside);
-    }, [id, setNodeUneditable]);
+    }, [
+      id,
+      setNodeUneditable,
+      nodeState.isLocalEdit,
+      nodeState.nodeLabel,
+      editNodeLabel,
+    ]);
 
     // 自动聚焦
     useEffect(() => {
