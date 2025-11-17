@@ -113,18 +113,19 @@ const MENU_CONFIG: {
           },
         ],
       },
-      {
-        key: 'deepresearch',
-        label: 'Deep Research',
-        items: [
-          {
-            key: 'deepresearch',
-            label: 'Deep Research',
-            description: 'Plan & research',
-            onPickEdgeType: 'deepresearch',
-          },
-        ],
-      },
+      // Temporarily hidden - Deep Research section
+      // {
+      //   key: 'deepresearch',
+      //   label: 'Deep Research',
+      //   items: [
+      //     {
+      //       key: 'deepresearch',
+      //       label: 'Deep Research',
+      //       description: 'Plan & research',
+      //       onPickEdgeType: 'deepresearch',
+      //     },
+      //   ],
+      // },
       {
         key: 'search',
         label: 'Searching',
