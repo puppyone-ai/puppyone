@@ -77,7 +77,8 @@ async def get_mcp_status(
         response_data = McpStatusResponse(
             status=status_info.get("status", 0),
             port=status_info.get("port"),
-            docker_info=status_info.get("docker_info")
+            docker_info=status_info.get("docker_info"),
+            tools_definition=status_info.get("tools_definition")
         )
         
         return ApiResponse.success(

@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 from app.models.user import User
 from app.models.mcp import McpInstance
 from app.models.user_context import UserContext
+from app.schemas.mcp import McpToolsDefinition
 
 # 抽象用户仓库接口
 class UserRepositoryBase(ABC):
@@ -41,15 +42,15 @@ class McpInstanceRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def create(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any]) -> McpInstance:
+    def create(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None) -> McpInstance:
         pass
 
     @abstractmethod
-    def update_by_id(self, mcp_instance_id: str, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any]) -> Optional[McpInstance]:
+    def update_by_id(self, mcp_instance_id: str, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None) -> Optional[McpInstance]:
         pass
 
     @abstractmethod
-    def update_by_api_key(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any]) -> Optional[McpInstance]:
+    def update_by_api_key(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None) -> Optional[McpInstance]:
         pass
 
     @abstractmethod

@@ -76,7 +76,7 @@ class McpService:
         user_id: int,
         project_id: int,
         context_id: int,
-        tools_definition: list = None
+        tools_definition: Optional[Dict[str, Any]] = None
     ) -> McpInstance:
         """
         创建 MCP 实例
@@ -92,7 +92,7 @@ class McpService:
             user_id: 用户ID
             project_id: 项目ID
             context_id: 上下文ID
-            tools_definition: 工具定义列表（可选，暂时未使用）
+            tools_definition: 工具定义字典（可选），key只能是get/create/update/delete
             
         Returns:
             McpInstance 对象
@@ -133,7 +133,8 @@ class McpService:
                 context_id=str(context_id),
                 status=1,  # 1 表示开启
                 port=port,
-                docker_info=docker_info
+                docker_info=docker_info,
+                tools_definition=tools_definition
             )
             
             log_info(f"MCP instance created and verified: {mcp_instance.mcp_instance_id}, api_key={api_key}, port={port}, pid={docker_info.get('pid')}")
@@ -172,7 +173,7 @@ class McpService:
         self,
         api_key: str,
         status: Optional[int] = None,
-        tools_definition: Optional[list] = None
+        tools_definition: Optional[Dict[str, Any]] = None
     ) -> Optional[McpInstance]:
         """
         更新 MCP 实例
@@ -180,7 +181,7 @@ class McpService:
         Args:
             api_key: API key
             status: 状态，0表示关闭，1表示开启
-            tools_definition: 工具定义列表（可选，暂时未使用）
+            tools_definition: 工具定义字典（可选），key只能是get/create/update/delete
             
         Returns:
             更新后的 McpInstance 对象，如果不存在则返回 None
@@ -188,6 +189,65 @@ class McpService:
         instance = self.instance_repo.get_by_api_key(api_key)
         if not instance:
             return None
+        
+        # 如果只更新 tools_definition，需要重启实例以应用新的工具定义
+        if status is None and tools_definition is not None:
+            old_status = instance.status
+            old_port = instance.port
+            
+            # 如果实例当前是开启状态，需要重启以应用新的工具定义
+            if old_status == 1:
+                log_info(f"Restarting MCP instance {api_key} to apply new tools_definition")
+                
+                # 先停止实例
+                await manager_update_instance_status(
+                    api_key=api_key,
+                    status=0,
+                    port=old_port
+                )
+                
+                # 再启动实例（使用新的 tools_definition）
+                instance_info = await manager_update_instance_status(
+                    api_key=api_key,
+                    status=1,
+                    user_id=instance.user_id,
+                    project_id=instance.project_id,
+                    context_id=instance.context_id,
+                    port=old_port  # 尝试使用原有端口
+                )
+                
+                # 更新端口和进程信息
+                new_port = instance_info.get("port", old_port)
+                new_docker_info = instance_info.get("docker_info", instance.docker_info)
+                
+                # 更新 repository 中的状态和进程信息，以及新的 tools_definition
+                updated_instance = self.instance_repo.update_by_api_key(
+                    api_key=api_key,
+                    user_id=instance.user_id,
+                    project_id=instance.project_id,
+                    context_id=instance.context_id,
+                    status=1,  # 保持开启状态
+                    port=new_port,
+                    docker_info=new_docker_info,
+                    tools_definition=tools_definition
+                )
+                
+                log_info(f"MCP instance {api_key} restarted successfully with new tools_definition on port {new_port}")
+                return updated_instance
+            else:
+                # 如果实例当前是关闭状态，只需要更新 repository
+                updated_instance = self.instance_repo.update_by_api_key(
+                    api_key=api_key,
+                    user_id=instance.user_id,
+                    project_id=instance.project_id,
+                    context_id=instance.context_id,
+                    status=instance.status,
+                    port=instance.port,
+                    docker_info=instance.docker_info,
+                    tools_definition=tools_definition
+                )
+                log_info(f"MCP instance {api_key} tools_definition updated (instance is stopped, will apply on next start)")
+                return updated_instance
         
         # 更新状态
         if status is not None:
@@ -220,7 +280,8 @@ class McpService:
                     context_id=instance.context_id,
                     status=status,
                     port=new_port,
-                    docker_info=new_docker_info
+                    docker_info=new_docker_info,
+                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition
                 )
                 
                 log_info(f"MCP instance {api_key} restarted successfully on port {new_port}")
@@ -245,7 +306,8 @@ class McpService:
                     context_id=instance.context_id,
                     status=status,
                     port=old_port,
-                    docker_info=instance.docker_info  # 保留原有进程信息
+                    docker_info=instance.docker_info,  # 保留原有进程信息
+                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition
                 )
                 
                 log_info(f"MCP instance {api_key} stopped successfully")
@@ -261,7 +323,8 @@ class McpService:
                     context_id=instance.context_id,
                     status=status,
                     port=instance.port,
-                    docker_info=instance.docker_info
+                    docker_info=instance.docker_info,
+                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition
                 )
                 return updated_instance
         
@@ -331,13 +394,15 @@ class McpService:
                 context_id=instance.context_id,
                 status=0,  # 更新为关闭状态
                 port=instance.port,
-                docker_info=instance.docker_info
+                docker_info=instance.docker_info,
+                tools_definition=instance.tools_definition
             )
             instance.status = 0
         
         return {
             "status": instance.status,
             "port": instance.port,
+            "tools_definition": instance.tools_definition,
             "docker_info": instance.docker_info,
             "manager_status": manager_status,
             "synced": True
@@ -397,7 +462,8 @@ class McpService:
                             context_id=instance.context_id,
                             status=1,  # 保持开启状态
                             port=new_port,
-                            docker_info=new_docker_info
+                            docker_info=new_docker_info,
+                            tools_definition=instance.tools_definition
                         )
                         
                         log_info(f"Instance {instance.api_key} restarted successfully on port {new_port}")
@@ -412,7 +478,8 @@ class McpService:
                             context_id=instance.context_id,
                             status=0,
                             port=instance.port,
-                            docker_info=instance.docker_info
+                            docker_info=instance.docker_info,
+                            tools_definition=instance.tools_definition
                         )
                         stopped_count += 1
                 elif is_running and instance.status == 0:
@@ -424,7 +491,8 @@ class McpService:
                         context_id=instance.context_id,
                         status=1,
                         port=instance.port,
-                        docker_info=instance.docker_info
+                        docker_info=instance.docker_info,
+                        tools_definition=instance.tools_definition
                     )
                     synced_count += 1
                 else:
