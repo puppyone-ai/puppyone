@@ -8,13 +8,14 @@ from app.schemas.mcp import McpCreate, McpStatusResponse, McpUpdate
 from app.service.mcp_service import McpService
 from app.core.dependencies import get_mcp_instance_service
 from app.utils.logger import log_error
+from typing import Dict, Any
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
 ERROR_CODE = 1002
 
 
-@router.post("/", response_model=ApiResponse[str])
+@router.post("/", response_model=ApiResponse[Dict[str, Any]])
 async def generate_mcp_instance(
     mcp_create: McpCreate,
     mcp_instance_service: McpService = Depends(get_mcp_instance_service)
@@ -39,7 +40,10 @@ async def generate_mcp_instance(
         
         # 返回 API key (JWT token)
         return ApiResponse.success(
-            data=instance.api_key,
+            data={
+                "api_key": instance.api_key,
+                "url": f"http://localhost:{instance.port}/mcp"
+            },
             message="MCP 实例创建成功"
         )
     except Exception as e:

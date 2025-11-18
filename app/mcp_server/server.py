@@ -4,31 +4,41 @@ ContextBase MCP Server - FastMCP 2.13版本实现
 
 import sys
 import argparse
+import asyncio
 
 from fastmcp import FastMCP, Context
 from app.utils.logger import log_info, log_error
-# from app.mcp_server.middleware.auth_middleware import JwtTokenAuthMiddleware
-# from app.mcp_server.middleware.http_auth_middleware import HttpJwtTokenAuthMiddleware
+from app.models.user_context import UserContext
+from app.models.mcp import McpInstance
+from app.mcp_server.middleware.http_auth_middleware import HttpJwtTokenAuthMiddleware
 from app.core.dependencies import get_mcp_instance_service, get_user_context_service
-# from starlette.middleware import Middleware as StarletteMiddleware
-from typing import List, Dict, Any
-
+from starlette.middleware import Middleware as StarletteMiddleware
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
+from datetime import datetime
+import uvicorn
 # 工具
 from app.mcp_server.tools.context_tool import ContextTool, tool_types
 from app.mcp_server.tools.llm_tool import LLMTool
 from app.mcp_server.tools.vector_tool import VectorRetriveTool
 
-# 创建MCP服务器
-mcp = FastMCP(
-    name="ContextBase MCP Server",
-    version="1.0.0",
-)
+class CreateElementRequest(BaseModel):
+    key: str
+    content: Any
 
-# 注册 MCP 层面的中间件
-# 注意：中间件的执行顺序很重要
-# 1. 认证中间件：验证身份并注入业务参数（user_id, project_id, context_id）
-# 2. 动态工具描述中间件：根据 context 信息动态更新工具描述
-# mcp.add_middleware(JwtTokenAuthMiddleware())
+# 全局 context 信息（在启动时初始化）
+_context_info: Dict[str, Any] = {
+    "user_id": None,
+    "project_id": None,
+    "context_id": None,
+
+    "context_name": None,
+    "context_description": None,
+    "context_metadata": None,
+    "project_name": None,
+    "project_description": None,
+    "project_metadata": None,
+}
 
 # 全局工具实例
 _tools_instances = {}
@@ -44,456 +54,489 @@ def _get_tools():
         }
     return _tools_instances
 
-# ==================== Context数据管理工具 ====================
-
-def _get_context_info(ctx: Context) -> Dict[str, Any]:
+def _init_context_info(api_key: str) -> None:
     """
-    获取context信息
+    根据 api_key 初始化 context 信息
+    
+    Args:
+        api_key: API key
+    """
+    global _context_info
+    try:
+        # 1. 通过 api_key 获取 MCP 实例
+        mcp_service = get_mcp_instance_service()
+        # 注意：这里需要使用同步方式，或者使用 asyncio.run
+        # 但由于这是在启动时调用的，我们需要使用 asyncio.run
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        instance: Optional[McpInstance] = loop.run_until_complete(mcp_service.get_mcp_instance_by_api_key(api_key))
+        loop.close()
+        
+        if not instance:
+            log_error(f"MCP instance not found for api_key: {api_key[:20]}...")
+            raise ValueError(f"MCP instance not found for api_key: {api_key[:20]}...")
+        
+        # 2. 提取业务参数
+        user_id = int(instance.user_id)
+        project_id = instance.project_id
+        context_id = int(instance.context_id)
+        
+        # 3. 根据 context_id 获取 context 对象
+        user_context_service = get_user_context_service()
+        context: Optional[UserContext] = user_context_service.get_by_id(context_id)
+        
+        if not context:
+            log_error(f"Context not found for context_id: {context_id}")
+            raise ValueError(f"Context not found for context_id: {context_id}")
+        
+        # 4. 获取项目信息（暂时使用 project_id 作为 project_name）
+        # TODO: 如果有 project service，可以从 project_id 获取项目详细信息
+        project_name = "测试项目"
+        project_description = "测试项目描述"
+        project_metadata = {
+            "project_id": project_id,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+        }
+        
+        # 5. 更新全局 context 信息
+        _context_info = {
+            "user_id": user_id,
+            "project_id": project_id,
+            "context_id": context_id,
+            "context": context,
+            "project_name": project_name,
+            "project_description": project_description,
+            "project_metadata": project_metadata,
+            "context_name": context.context_name,
+            "context_description": context.context_description,
+            "context_metadata": context.metadata,
+        }
+        
+        log_info(f"Context info initialized: user_id={user_id}, project_id={project_id}, context_id={context_id}")
+        
+    except Exception as e:
+        log_error(f"Error initializing context info: {e}")
+        raise
+
+# ==================== 工具工厂函数 ====================
+
+def _get_dynamic_tool_description(tool_type: tool_types) -> str:
+    """
+    生成动态工具描述
+    
+    Args:
+        tool_type: 工具类型（create/update/delete/get）
     
     Returns:
-        context_info: context信息字典
+        工具描述字符串
     """
-    # 从 Context state 中获取业务参数
-    user_id = ctx.get_state("user_id")
-    project_id = ctx.get_state("project_id")
-    context_id = ctx.get_state("context_id")
+    global _context_info
+    context_tool = _get_tools()["context_tool"]
     
-    # 获取context信息
-    user_context_service = get_user_context_service()
-    context = user_context_service.get_by_id(context_id) if context_id else None
+    # 获取 context 信息
+    context = _context_info.get("context")
+    if not context:
+        # 如果 context 未初始化，返回默认描述
+        return f"知识库管理工具 - {tool_type}"
     
-    return {
-        "user_id": user_id,
-        "project_id": project_id,
-        "context_id": context_id,
-        "context": context
-    }
+    # 生成动态描述
+    return context_tool.generate_tool_description(
+        project_name=_context_info.get("project_name", "未知项目"),
+        context_name=context.context_name,
+        tool_type=tool_type,
+        project_description=_context_info.get("project_description"),
+        project_metadata=_context_info.get("project_metadata"),
+        context_description=context.context_description,
+        context_metadata=context.metadata
+    )
 
-# 初始化工具实例以便生成描述
-_get_tools()
+def _create_get_context_tool(mcp_instance: FastMCP):
+    """创建 get_context 工具"""
+    # 先获取动态描述
+    dynamic_description = _get_dynamic_tool_description("get")
+    
+    # 尝试在装饰器中传递 description，如果不支持则使用 docstring
+    @mcp_instance.tool(name="get_context", description=dynamic_description)
+    async def get_context(ctx: Context) -> dict:
+        try:
+            global _context_info
+            context = _context_info.get("context")
+            
+            if not context:
+                return {
+                    "error": "知识库不存在",
+                    "context_id": _context_info.get("context_id")
+                }
+            
+            # 返回完整的context_data（JSON对象）
+            return {
+                "message": "获取知识库内容成功",
+                "data": context.context_data if context.context_data else {}
+            }
+        except Exception as e:
+            log_error(f"Error getting context: {e}")
+            return {
+                "error": f"获取知识库内容失败: {str(e)}"
+            }
+    
+    # 同时设置 docstring 作为备用（如果装饰器不支持 description 参数）
+    get_context.__doc__ = dynamic_description
+    return get_context
 
-@mcp.tool(
-    name="get_context",
-)
-async def get_context(ctx: Context) -> dict:
-    """
-    获取整个知识库的完整内容（整个JSON对象）。
+def _create_create_element_tool(mcp_instance: FastMCP):
+    """创建 create_element 工具"""
+    # 先获取动态描述
+    dynamic_description = _get_dynamic_tool_description("create")
     
-    此工具会自动从 Context state 中获取业务参数（user_id, project_id, context_id 等）
-    这些参数是通过 JWT token 认证中间件自动注入的，对模型不可见。
-    
-    返回值：
-    - 返回完整的JSON对象，包含知识库中所有的键值对（key-value pairs）
-    - 如果知识库为空，将返回空的JSON对象 {}
-    """
-    try:
-        context_info = _get_context_info(ctx)
-        context = context_info.get("context")
-        
-        if not context:
+    @mcp_instance.tool(name="create_element", description=dynamic_description)
+    async def create_element(elements: List[CreateElementRequest], ctx: Context) -> dict:
+        try:
+            global _context_info
+            context_id = _context_info.get("context_id")
+            context = _context_info.get("context")
+            
+            if not context:
+                return {
+                    "error": "知识库不存在",
+                    "context_id": context_id
+                }
+            
+            # 获取当前context_data
+            context_data = context.context_data.copy() if context.context_data else {}
+            
+            # 验证并创建元素
+            created_keys = []
+            failed_keys = []
+            
+            for element in elements:
+                if not isinstance(element, dict):
+                    failed_keys.append({"element": element, "reason": "元素必须是字典类型"})
+                    continue
+                
+                key = element.key
+                content = element.content
+                
+                if not isinstance(key, str):
+                    failed_keys.append({"key": key, "reason": "key必须是字符串类型"})
+                    continue
+                
+                if key in context_data:
+                    failed_keys.append({"key": key, "reason": "key已存在"})
+                    continue
+                
+                # 创建新的键值对
+                context_data[key] = content
+                created_keys.append(key)
+            
+            if not created_keys:
+                return {
+                    "error": "没有成功创建任何元素",
+                    "failed": failed_keys
+                }
+            
+            # 更新context_data
+            user_context_service = get_user_context_service()
+            updated_context = user_context_service.update(
+                context_id=context_id,
+                context_name=context.context_name,
+                context_description=context.context_description,
+                context_data=context_data,
+                metadata=context.metadata
+            )
+            
+            if not updated_context:
+                return {
+                    "error": "更新知识库失败"
+                }
+            
             return {
-                "error": "知识库不存在",
-                "context_id": context_info.get("context_id")
+                "message": "元素创建成功",
+                "created_keys": created_keys,
+                "failed": failed_keys if failed_keys else None,
+                "total_created": len(created_keys),
+                "total_failed": len(failed_keys)
             }
-        
-        # 返回完整的context_data（JSON对象）
-        return {
-            "message": "获取知识库内容成功",
-            "data": context.context_data if context.context_data else {}
-        }
-    except Exception as e:
-        log_error(f"Error getting context: {e}")
-        return {
-            "error": f"获取知识库内容失败: {str(e)}"
-        }
+        except Exception as e:
+            log_error(f"Error creating elements: {e}")
+            return {
+                "error": f"创建元素失败: {str(e)}"
+            }
+    
+    # 同时设置 docstring 作为备用
+    create_element.__doc__ = dynamic_description
+    return create_element
 
-@mcp.tool(
-    name="create_element",
-)
-async def create_element(elements: List[Dict[str, Any]], ctx: Context) -> dict:
-    """
-    在知识库中批量创建新的键值对（key-value pairs）。
+def _create_update_element_tool(mcp_instance: FastMCP):
+    """创建 update_element 工具"""
+    # 先获取动态描述
+    dynamic_description = _get_dynamic_tool_description("update")
     
-    参数说明：
-    - elements (List[Dict]): 要创建的元素数组，每个元素是一个字典，包含：
-      - key (str): 字符串类型，新数据项的键名。必须是唯一的，如果已存在则创建失败
-      - content (dict): 字典类型，新数据项的值内容，可以是任意JSON对象结构
+    @mcp_instance.tool(name="update_element", description=dynamic_description)
+    async def update_element(updates: List[CreateElementRequest], ctx: Context) -> dict:
+        try:
+            global _context_info
+            context_id = _context_info.get("context_id")
+            context = _context_info.get("context")
+            
+            if not context:
+                return {
+                    "error": "知识库不存在",
+                    "context_id": context_id
+                }
+            
+            # 获取当前context_data
+            context_data = context.context_data.copy() if context.context_data else {}
+            
+            # 验证并更新元素
+            updated_keys = []
+            failed_keys = []
+            
+            for update_item in updates:
+                if not isinstance(update_item, dict):
+                    failed_keys.append({"update": update_item, "reason": "更新项必须是字典类型"})
+                    continue
+                
+                key = update_item.key
+                value = update_item.content
+                
+                if not isinstance(key, str):
+                    failed_keys.append({"key": key, "reason": "key必须是字符串类型"})
+                    continue
+                
+                if key not in context_data:
+                    failed_keys.append({"key": key, "reason": "key不存在于知识库中"})
+                    continue
+                
+                # 更新键值对（完全替换）
+                context_data[key] = value
+                updated_keys.append(key)
+            
+            if not updated_keys:
+                return {
+                    "error": "没有成功更新任何元素",
+                    "failed": failed_keys
+                }
+            
+            # 更新context_data
+            user_context_service = get_user_context_service()
+            updated_context = user_context_service.update(
+                context_id=context_id,
+                context_name=context.context_name,
+                context_description=context.context_description,
+                context_data=context_data,
+                metadata=context.metadata
+            )
+            
+            if not updated_context:
+                return {
+                    "error": "更新知识库失败"
+                }
+            
+            return {
+                "message": "元素更新成功",
+                "updated_keys": updated_keys,
+                "failed": failed_keys if failed_keys else None,
+                "total_updated": len(updated_keys),
+                "total_failed": len(failed_keys)
+            }
+        except Exception as e:
+            log_error(f"Error updating elements: {e}")
+            return {
+                "error": f"更新元素失败: {str(e)}"
+            }
     
-    注意事项：
-    - 必须先使用 get_context 工具获取当前知识库内容，了解现有数据结构
-    - key必须是字符串类型，且在当前知识库中唯一
-    - 如果key已存在，创建操作将失败
-    - 支持批量创建，可以一次创建多个键值对
-    """
-    try:
-        context_info = _get_context_info(ctx)
-        context_id = context_info.get("context_id")
-        context = context_info.get("context")
-        
-        if not context:
-            return {
-                "error": "知识库不存在",
-                "context_id": context_id
-            }
-        
-        # 获取当前context_data
-        context_data = context.context_data.copy() if context.context_data else {}
-        
-        # 验证并创建元素
-        created_keys = []
-        failed_keys = []
-        
-        for element in elements:
-            if not isinstance(element, dict):
-                failed_keys.append({"element": element, "reason": "元素必须是字典类型"})
-                continue
-            
-            key = element.get("key")
-            content = element.get("content")
-            
-            if not isinstance(key, str):
-                failed_keys.append({"key": key, "reason": "key必须是字符串类型"})
-                continue
-            
-            if key in context_data:
-                failed_keys.append({"key": key, "reason": "key已存在"})
-                continue
-            
-            if not isinstance(content, dict):
-                failed_keys.append({"key": key, "reason": "content必须是字典类型"})
-                continue
-            
-            # 创建新的键值对
-            context_data[key] = content
-            created_keys.append(key)
-        
-        if not created_keys:
-            return {
-                "error": "没有成功创建任何元素",
-                "failed": failed_keys
-            }
-        
-        # 更新context_data
-        user_context_service = get_user_context_service()
-        updated_context = user_context_service.update(
-            context_id=context_id,
-            context_name=context.context_name,
-            context_description=context.context_description,
-            context_data=context_data,
-            metadata=context.metadata
-        )
-        
-        if not updated_context:
-            return {
-                "error": "更新知识库失败"
-            }
-        
-        return {
-            "message": "元素创建成功",
-            "created_keys": created_keys,
-            "failed": failed_keys if failed_keys else None,
-            "total_created": len(created_keys),
-            "total_failed": len(failed_keys)
-        }
-    except Exception as e:
-        log_error(f"Error creating elements: {e}")
-        return {
-            "error": f"创建元素失败: {str(e)}"
-        }
+    # 同时设置 docstring 作为备用
+    update_element.__doc__ = dynamic_description
+    return update_element
 
-@mcp.tool(
-    name="update_element",
-)
-async def update_element(updates: List[Dict[str, Any]], ctx: Context) -> dict:
-    """
-    批量更新知识库中已存在的键值对。
+def _create_delete_element_tool(mcp_instance: FastMCP):
+    """创建 delete_element 工具"""
+    # 先获取动态描述
+    dynamic_description = _get_dynamic_tool_description("delete")
     
-    参数说明：
-    - updates (List[Dict]): 要更新的元素数组，每个元素是一个字典，包含：
-      - key (str): 字符串类型，要更新的数据项的键名。必须已存在于知识库中
-      - value (Any): 任意JSON类型，新的值内容，将完全替换原有的value
+    @mcp_instance.tool(name="delete_element", description=dynamic_description)
+    async def delete_element(keys: List[str], ctx: Context) -> dict:
+        try:
+            global _context_info
+            context_id = _context_info.get("context_id")
+            context = _context_info.get("context")
+            
+            if not context:
+                return {
+                    "error": "知识库不存在",
+                    "context_id": context_id
+                }
+            
+            # 获取当前context_data
+            context_data = context.context_data.copy() if context.context_data else {}
+            
+            # 验证并删除元素
+            deleted_keys = []
+            not_found_keys = []
+            
+            for key in keys:
+                if not isinstance(key, str):
+                    not_found_keys.append({"key": key, "reason": "key必须是字符串类型"})
+                    continue
+                
+                if key not in context_data:
+                    not_found_keys.append({"key": key, "reason": "key不存在于知识库中"})
+                    continue
+                
+                # 删除键值对
+                del context_data[key]
+                deleted_keys.append(key)
+            
+            if not deleted_keys:
+                return {
+                    "error": "没有成功删除任何元素",
+                    "not_found": not_found_keys
+                }
+            
+            # 更新context_data
+            user_context_service = get_user_context_service()
+            updated_context = user_context_service.update(
+                context_id=context_id,
+                context_name=context.context_name,
+                context_description=context.context_description,
+                context_data=context_data,
+                metadata=context.metadata
+            )
+            
+            if not updated_context:
+                return {
+                    "error": "更新知识库失败"
+                }
+            
+            return {
+                "message": "元素删除成功",
+                "deleted_keys": deleted_keys,
+                "not_found": not_found_keys if not_found_keys else None,
+                "total_deleted": len(deleted_keys),
+                "total_not_found": len(not_found_keys)
+            }
+        except Exception as e:
+            log_error(f"Error deleting elements: {e}")
+            return {
+                "error": f"删除元素失败: {str(e)}"
+            }
     
-    注意事项：
-    - 必须先使用 get_context 工具获取当前知识库内容，确认要更新的key是否存在
-    - key必须已存在于知识库中，如果不存在则更新失败
-    - value将完全替换原有的值，不是部分更新
-    - 支持批量更新，可以一次更新多个键值对
-    """
-    try:
-        context_info = _get_context_info(ctx)
-        context_id = context_info.get("context_id")
-        context = context_info.get("context")
-        
-        if not context:
-            return {
-                "error": "知识库不存在",
-                "context_id": context_id
-            }
-        
-        # 获取当前context_data
-        context_data = context.context_data.copy() if context.context_data else {}
-        
-        # 验证并更新元素
-        updated_keys = []
-        failed_keys = []
-        
-        for update_item in updates:
-            if not isinstance(update_item, dict):
-                failed_keys.append({"update": update_item, "reason": "更新项必须是字典类型"})
-                continue
-            
-            key = update_item.get("key")
-            value = update_item.get("value")
-            
-            if not isinstance(key, str):
-                failed_keys.append({"key": key, "reason": "key必须是字符串类型"})
-                continue
-            
-            if key not in context_data:
-                failed_keys.append({"key": key, "reason": "key不存在于知识库中"})
-                continue
-            
-            # 更新键值对（完全替换）
-            context_data[key] = value
-            updated_keys.append(key)
-        
-        if not updated_keys:
-            return {
-                "error": "没有成功更新任何元素",
-                "failed": failed_keys
-            }
-        
-        # 更新context_data
-        user_context_service = get_user_context_service()
-        updated_context = user_context_service.update(
-            context_id=context_id,
-            context_name=context.context_name,
-            context_description=context.context_description,
-            context_data=context_data,
-            metadata=context.metadata
-        )
-        
-        if not updated_context:
-            return {
-                "error": "更新知识库失败"
-            }
-        
-        return {
-            "message": "元素更新成功",
-            "updated_keys": updated_keys,
-            "failed": failed_keys if failed_keys else None,
-            "total_updated": len(updated_keys),
-            "total_failed": len(failed_keys)
-        }
-    except Exception as e:
-        log_error(f"Error updating elements: {e}")
-        return {
-            "error": f"更新元素失败: {str(e)}"
-        }
+    # 同时设置 docstring 作为备用
+    delete_element.__doc__ = dynamic_description
+    return delete_element
 
-@mcp.tool(
-    name="delete_element",
-)
-async def delete_element(keys: List[str], ctx: Context) -> dict:
-    """
-    从知识库中批量删除指定的键值对。
-    
-    参数说明：
-    - keys (List[str]): 字符串数组，包含要删除的所有key（键名）
-    
-    注意事项：
-    - 必须先使用 get_context 工具获取当前知识库内容，确认要删除的key是否存在
-    - keys数组中的每个key必须是字符串类型
-    - 如果某个key不存在，该key的删除操作将被忽略，其他key的删除操作仍会执行
-    - 支持批量删除，可以一次删除多个键值对
-    - 删除操作是不可逆的，请谨慎使用
-    """
-    try:
-        context_info = _get_context_info(ctx)
-        context_id = context_info.get("context_id")
-        context = context_info.get("context")
+def _create_vector_retrieve_tool(mcp_instance: FastMCP):
+    """创建 vector_retrieve 工具"""
+    @mcp_instance.tool()
+    async def vector_retrieve(query: str, ctx: Context, top_k: int = 5) -> dict:
+        """
+        向量检索
         
-        if not context:
-            return {
-                "error": "知识库不存在",
-                "context_id": context_id
-            }
+        Args:
+            query: 查询文本（模型可见的参数）
+            top_k: 返回结果数量（模型可见的参数）
+        """
+        global _context_info
+        user_id = _context_info.get("user_id")
+        project_id = _context_info.get("project_id")
+        context_id = _context_info.get("context_id")
         
-        # 获取当前context_data
-        context_data = context.context_data.copy() if context.context_data else {}
-        
-        # 验证并删除元素
-        deleted_keys = []
-        not_found_keys = []
-        
-        for key in keys:
-            if not isinstance(key, str):
-                not_found_keys.append({"key": key, "reason": "key必须是字符串类型"})
-                continue
-            
-            if key not in context_data:
-                not_found_keys.append({"key": key, "reason": "key不存在于知识库中"})
-                continue
-            
-            # 删除键值对
-            del context_data[key]
-            deleted_keys.append(key)
-        
-        if not deleted_keys:
-            return {
-                "error": "没有成功删除任何元素",
-                "not_found": not_found_keys
-            }
-        
-        # 更新context_data
-        user_context_service = get_user_context_service()
-        updated_context = user_context_service.update(
-            context_id=context_id,
-            context_name=context.context_name,
-            context_description=context.context_description,
-            context_data=context_data,
-            metadata=context.metadata
-        )
-        
-        if not updated_context:
-            return {
-                "error": "更新知识库失败"
-            }
+        # TODO: 实际的向量检索逻辑
+        # 使用 user_id, project_id, context_id 来确定检索范围
         
         return {
-            "message": "元素删除成功",
-            "deleted_keys": deleted_keys,
-            "not_found": not_found_keys if not_found_keys else None,
-            "total_deleted": len(deleted_keys),
-            "total_not_found": len(not_found_keys)
+            "message": "向量检索完成",
+            "query": query,
+            "top_k": top_k,
+            "user_id": user_id,
+            "project_id": project_id,
+            "context_id": context_id,
+            "results": [],  # TODO: 实际的检索结果
         }
-    except Exception as e:
-        log_error(f"Error deleting elements: {e}")
-        return {
-            "error": f"删除元素失败: {str(e)}"
-        }
+    
+    return vector_retrieve
 
-# ==================== Context数据检索工具 ====================
-
-@mcp.tool()
-async def vector_retrieve(query: str, ctx: Context, top_k: int = 5) -> dict:
+def _register_all_tools(mcp_instance: FastMCP):
     """
-    向量检索
+    注册所有工具到 MCP 实例
     
     Args:
-        query: 查询文本（模型可见的参数）
-        top_k: 返回结果数量（模型可见的参数）
+        mcp_instance: FastMCP 实例
     """
-    # 获取业务参数
-    user_id = ctx.get_state("user_id")
-    project_id = ctx.get_state("project_id")
-    context_id = ctx.get_state("context_id")
+    # 注册上下文管理工具
+    _create_get_context_tool(mcp_instance)
+    _create_create_element_tool(mcp_instance)
+    _create_update_element_tool(mcp_instance)
+    _create_delete_element_tool(mcp_instance)
     
-    # TODO: 实际的向量检索逻辑
-    # 使用 user_id, project_id, context_id 来确定检索范围
+    # 注册向量检索工具
+    _create_vector_retrieve_tool(mcp_instance)
     
-    return {
-        "message": "向量检索完成",
-        "query": query,
-        "top_k": top_k,
-        "user_id": user_id,
-        "project_id": project_id,
-        "context_id": context_id,
-        "results": [],  # TODO: 实际的检索结果
-    }
-
-@mcp.tool()
-async def llm_retrieve(query: str, ctx: Context) -> dict:
-    """
-    LLM 检索
-    
-    Args:
-        query: 查询文本（模型可见的参数）
-    """
-    # 获取业务参数
-    user_id = ctx.get_state("user_id")
-    project_id = ctx.get_state("project_id")
-    
-    # TODO: 实际的 LLM 检索逻辑
-    
-    return {
-        "message": "LLM 检索完成",
-        "query": query,
-        "user_id": user_id,
-        "project_id": project_id,
-        "result": "",  # TODO: 实际的检索结果
-    }
-
-# ==================== HTTP App 创建 ====================
-
-# def get_mcp_http_app(path: str = "/"):
-#     """
-#     创建 MCP 服务器的 HTTP ASGI 应用，用于挂载到 FastAPI
-    
-#     Args:
-#         path: MCP 服务器的内部路径，默认为 "/"（相对于挂载点）
-#               当挂载到 "/mcp" 时，实际访问路径为 "/mcp/"
-        
-#     Returns:
-#         ASGI 应用实例，可以挂载到 FastAPI
-#     """
-#     # 初始化工具实例
-#     _get_tools()
-    
-#     # 创建 HTTP ASGI 应用，添加 Starlette 中间件
-#     # HTTP 层面的认证中间件会在 Starlette 层面运行，可以访问完整的 HTTP 请求和响应
-#     # 注意：path 参数是 MCP 应用内部的路径，不是挂载路径
-#     # 当挂载到 "/mcp" 时，使用 "/" 作为内部路径，这样实际访问路径为 "/mcp/"
-#     # StarletteMiddleware 支持通过关键字参数传递额外的依赖给中间件类
-#     mcp_app = mcp.http_app(
-#         path=path,
-#         middleware=[
-#             StarletteMiddleware(
-#                 HttpJwtTokenAuthMiddleware,
-#                 mcp_token_service=get_mcp_token_service()
-#             )
-#         ]
-#     )
-    
-#     log_info(f"MCP HTTP app created with internal path: {path}")
-    
-#     return mcp_app
-
+    log_info("All tools registered successfully")
 
 # ==================== 启动入口 ====================
 def run_mcp_server(
     transport: str = "http",
     host: str = "0.0.0.0",
     port: int = 9090,
+    api_key: Optional[str] = None,
 ):
     """
-    独立启动MCP服务器（用于独立运行模式）
+    独立启动MCP服务器
 
     Args:
         transport: 传输协议，支持"http"和"stdio"
         host: 主机地址
         port: 端口号
+        api_key: API key，用于获取 context 信息
     """
+    # 1. 初始化 context 信息（必须在创建 MCP 实例之前）
+    if not api_key:
+        log_error("api_key is required")
+        raise ValueError("api_key is required")
+    
+    log_info(f"Initializing context info with api_key: {api_key[:20]}...")
+    _init_context_info(api_key)
+    
+    context = _context_info.get("context")
+    if not context:
+        log_error("Failed to initialize context")
+        raise ValueError("Failed to initialize context")
+    
+    log_info(f"Context initialized: {context.context_name}")
 
-    # 初始化工具实例
+    # 2. 初始化工具实例
     _get_tools()
 
-    # 打印启动信息
+    # 3. 创建 MCP 实例（在 context 初始化之后）
+    mcp = FastMCP(
+        name="ContextBase MCP Server",
+        version="1.0.0",
+    )
+    
+    # 4. 注册所有工具（此时 context 信息已准备好，可以生成动态描述）
+    _register_all_tools(mcp)
+    
+    log_info("Tool descriptions generated with dynamic context information")
+
     log_info(f"ContextBase MCP Server - FastMCP 2.13")
     log_info(f"传输模式: {transport.upper()}")
     if transport == 'stdio':
-        log_info("  协议: MCP over stdio (标准输入输出)")
-        log_info("  说明: 通过标准输入输出与 MCP 客户端通信")
+        log_error("暂时不支持stdio方式启动")
+        exit(1)
     elif transport == 'http':
-        log_info(f"  监听地址: http://{host}:{port}")
         log_info(f"  HTTP端点: http://{host}:{port}/mcp")
-        log_info("  协议: MCP over HTTP (生产环境)")
-    
-    # 启动服务器
-    if transport == 'stdio':
-        mcp.run(transport=transport)
-    elif transport == 'http':
-        mcp.run(transport=transport, host=host, port=port, path="/mcp")
+        mcp_app = mcp.http_app(
+            path="/mcp",
+            middleware=[
+                StarletteMiddleware(
+                    HttpJwtTokenAuthMiddleware,
+                    mcp_service=get_mcp_instance_service()
+                )
+            ]
+        )
+        uvicorn.run(mcp_app, host=host, port=port, log_level="info")
     else:
         raise ValueError(f"Unsupported transport: {transport}")
     
@@ -504,10 +547,12 @@ if __name__ == "__main__":
     parser.add_argument('--host', type=str, default="0.0.0.0", help='监听主机，默认0.0.0.0')
     parser.add_argument('--port', type=int, default=9090, help='监听端口，默认9090')
     parser.add_argument('--transport', type=str, default="http", choices=["http", "stdio"], help="传输协议（http 或 stdio），默认http")
+    parser.add_argument('--api_key', type=str, required=True, help='API key，用于获取 context 信息')
     args = parser.parse_args()
 
     run_mcp_server(
         transport=args.transport,
         host=args.host,
         port=args.port,
+        api_key=args.api_key,
     )

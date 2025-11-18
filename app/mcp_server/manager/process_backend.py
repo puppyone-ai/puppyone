@@ -67,9 +67,10 @@ class ProcessBackend(MCPInstanceBackend):
                     "python", "-m", module_path,
                     "--host", "0.0.0.0",
                     "--port", str(port),
-                    "--transport", "http"
+                    "--transport", "http",
+                    "--api_key", api_key
                 ]
-                command_str = f"uv run python -m {module_path} --host 0.0.0.0 --port {port} --transport http"
+                command_str = f"uv run python -m {module_path} --host 0.0.0.0 --port {port} --transport http --api_key {api_key}"
             else:
                 # 使用系统 Python 解释器，以模块方式运行
                 module_path = str(self.server_script).replace(str(self.backend_root) + "/", "").replace("/", ".").replace(".py", "")
@@ -78,9 +79,10 @@ class ProcessBackend(MCPInstanceBackend):
                     "-m", module_path,
                     "--host", "0.0.0.0",
                     "--port", str(port),
-                    "--transport", "http"
+                    "--transport", "http",
+                    "--api_key", api_key
                 ]
-                command_str = f"{sys.executable} -m {module_path} --host 0.0.0.0 --port {port} --transport http"
+                command_str = f"{sys.executable} -m {module_path} --host 0.0.0.0 --port {port} --transport http --api_key {api_key}"
             
             log_info(f"Starting MCP server with command: {command_str}")
             log_info(f"Working directory: {self.backend_root}")
@@ -99,8 +101,6 @@ class ProcessBackend(MCPInstanceBackend):
             
             try:
                 # 启动 MCP server 进程
-                # 注意：api_key 不需要通过环境变量或参数传递
-                # 因为认证是通过 HTTP 请求的查询参数完成的（由 HttpJwtTokenAuthMiddleware 处理）
                 # 每个实例通过唯一的端口号区分，避免了多实例冲突
                 proc = subprocess.Popen(
                     cmd,

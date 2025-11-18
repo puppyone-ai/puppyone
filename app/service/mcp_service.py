@@ -348,11 +348,13 @@ class McpService:
         同步所有 MCP 实例的状态
         
         检查 repository 中所有实例的进程状态，更新不一致的状态
+        如果发现进程不存在但 repository 中 status=1，会尝试启动新的进程
         
         Returns:
             同步结果统计
         """
         from app.repositories.mcp_repo import McpInstanceRepositoryJSON
+        from app.mcp_server.manager.manager import update_instance_status as manager_update_instance_status
         
         # 获取所有实例（这里需要添加 get_all 方法到 repository）
         # 暂时通过读取文件获取所有实例
@@ -360,6 +362,7 @@ class McpService:
         instances = repo._read_data()
         
         synced_count = 0
+        restarted_count = 0
         stopped_count = 0
         error_count = 0
         
@@ -369,19 +372,49 @@ class McpService:
                 manager_status = await manager_get_instance_status(instance.api_key)
                 is_running = manager_status.get("running", False)
                 
-                # 如果进程不在运行但 repository 中状态是开启，更新状态
+                # 如果进程不在运行但 repository 中状态是开启，尝试启动进程
                 if not is_running and instance.status == 1:
-                    log_info(f"Syncing instance {instance.api_key}: process not running, updating status to inactive")
-                    repo.update_by_api_key(
-                        api_key=instance.api_key,
-                        user_id=instance.user_id,
-                        project_id=instance.project_id,
-                        context_id=instance.context_id,
-                        status=0,
-                        port=instance.port,
-                        docker_info=instance.docker_info
-                    )
-                    stopped_count += 1
+                    log_info(f"Syncing instance {instance.api_key}: process not running but status is active, attempting to restart")
+                    try:
+                        # 调用 manager 启动实例
+                        instance_info = await manager_update_instance_status(
+                            api_key=instance.api_key,
+                            status=1,
+                            user_id=instance.user_id,
+                            project_id=instance.project_id,
+                            context_id=instance.context_id,
+                            port=instance.port  # 尝试使用原有端口，如果不可用则分配新端口
+                        )
+                        
+                        # 更新 repository 中的端口和进程信息 
+                        new_port = instance_info.get("port", instance.port)
+                        new_docker_info = instance_info.get("docker_info", instance.docker_info)
+                        
+                        repo.update_by_api_key(
+                            api_key=instance.api_key,
+                            user_id=instance.user_id,
+                            project_id=instance.project_id,
+                            context_id=instance.context_id,
+                            status=1,  # 保持开启状态
+                            port=new_port,
+                            docker_info=new_docker_info
+                        )
+                        
+                        log_info(f"Instance {instance.api_key} restarted successfully on port {new_port}")
+                        restarted_count += 1
+                    except Exception as restart_error:
+                        log_error(f"Failed to restart instance {instance.api_key}: {restart_error}")
+                        # 启动失败，更新状态为关闭
+                        repo.update_by_api_key(
+                            api_key=instance.api_key,
+                            user_id=instance.user_id,
+                            project_id=instance.project_id,
+                            context_id=instance.context_id,
+                            status=0,
+                            port=instance.port,
+                            docker_info=instance.docker_info
+                        )
+                        stopped_count += 1
                 elif is_running and instance.status == 0:
                     log_info(f"Syncing instance {instance.api_key}: process is running but status is inactive, updating status to active")
                     repo.update_by_api_key(
@@ -403,6 +436,7 @@ class McpService:
         result = {
             "total": len(instances),
             "synced": synced_count,
+            "restarted": restarted_count,
             "stopped": stopped_count,
             "errors": error_count
         }
@@ -414,11 +448,12 @@ class McpService:
         """
         应用启动时恢复实例状态
         
-        检查 repository 中所有标记为"开启"的实例，如果进程不存在，更新状态为"关闭"
+        检查 repository 中所有标记为"开启"的实例，如果进程不存在，会尝试启动新的进程
+        如果启动失败，则更新状态为"关闭"
         这个方法应该在应用启动时调用
         
         Returns:
-            恢复结果统计
+            恢复结果统计（包含 synced, restarted, stopped, errors 等字段）
         """
         log_info("Starting instance recovery on application startup...")
         return await self.sync_all_instances_status()

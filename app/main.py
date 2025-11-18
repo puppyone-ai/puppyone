@@ -112,4 +112,4 @@ async def health_check():
     """健康检查接口"""
     return {"status": "healthy", "service": "ContextBase API"}
 
-# 启动命令: uv run uvicorn app.main:app --host 0.0.0.0 --port 9090 --reload --log-level info？
+# 启动命令: uv run uvicorn app.main:app --host 0.0.0.0 --port 9090 --reload --log-level info
