@@ -1,9 +1,9 @@
 from app.core.config import settings
 from app.repositories.user_repo import UserRepositoryJSON
-from app.repositories.mcp_token_repo import McpTokenRepositoryJSON
+from app.repositories.mcp_repo import McpInstanceRepositoryJSON
 from app.repositories.user_context_repo import UserContextRepositoryJSON
 from app.service.user_service import UserService
-from app.service.mcp_token_service import McpTokenService
+from app.service.mcp_service import McpService
 from app.service.user_context_service import UserContextService
 
 def get_user_service() -> UserService:
@@ -15,12 +15,12 @@ def get_user_service() -> UserService:
     else:
         raise ValueError(f"Unsupported storage type: {settings.STORAGE_TYPE}")
 
-def get_mcp_token_service() -> McpTokenService:
+def get_mcp_instance_service() -> McpService:
     """
-    mcp_token_service的依赖注入工厂。支持通过配置项来决定存储策略
+    mcp_instance_service的依赖注入工厂。支持通过配置项来决定存储策略
     """
     if settings.STORAGE_TYPE == "json":
-        return McpTokenService(McpTokenRepositoryJSON())
+        return McpService(McpInstanceRepositoryJSON())
     else:
         raise ValueError(f"Unsupported storage type: {settings.STORAGE_TYPE}")
     

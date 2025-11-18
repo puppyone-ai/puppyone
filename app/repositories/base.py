@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from app.models.user import User
-from app.models.mcp_token import McpToken, TokenStatus
+from app.models.mcp import McpInstance
 from app.models.user_context import UserContext
 
 # 抽象用户仓库接口
@@ -30,30 +30,34 @@ class UserRepositoryBase(ABC):
 
 
 # 抽象 MCP Token 仓库接口
-class McpTokenRepositoryBase(ABC):
+class McpInstanceRepositoryBase(ABC):
 
     @abstractmethod
-    def get_all(self) -> List[McpToken]:
+    def get_by_id(self, mcp_instance_id: str) -> Optional[McpInstance]:
         pass
 
     @abstractmethod
-    def get_by_token(self, token: str) -> Optional[McpToken]:
+    def get_by_api_key(self, api_key: str) -> Optional[McpInstance]:
         pass
 
     @abstractmethod
-    def get_by_user_project_context(self, user_id: int, project_id: int, ctx_id: int) -> List[McpToken]:
+    def create(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any]) -> McpInstance:
         pass
 
     @abstractmethod
-    def create(self, user_id: int, project_id: int, ctx_id: int, token: str, token_status: TokenStatus = "active") -> McpToken:
+    def update_by_id(self, mcp_instance_id: str, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any]) -> Optional[McpInstance]:
         pass
 
     @abstractmethod
-    def update_status(self, token: str, token_status: TokenStatus) -> Optional[McpToken]:
+    def update_by_api_key(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any]) -> Optional[McpInstance]:
         pass
 
     @abstractmethod
-    def delete(self, token: str) -> bool:
+    def delete_by_id(self, mcp_instance_id: str) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_by_api_key(self, api_key: str) -> bool:
         pass
 
 # 抽象用户知识库仓库接口与用户是一对多的关系

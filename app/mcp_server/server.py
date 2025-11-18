@@ -2,12 +2,15 @@
 ContextBase MCP Server - FastMCP 2.13版本实现
 """
 
+import sys
+import argparse
+
 from fastmcp import FastMCP, Context
 from app.utils.logger import log_info, log_error
-from app.mcp_server.middleware.auth_middleware import JwtTokenAuthMiddleware
-from app.mcp_server.middleware.http_auth_middleware import HttpJwtTokenAuthMiddleware
-from app.core.dependencies import get_mcp_token_service, get_user_context_service
-from starlette.middleware import Middleware as StarletteMiddleware
+# from app.mcp_server.middleware.auth_middleware import JwtTokenAuthMiddleware
+# from app.mcp_server.middleware.http_auth_middleware import HttpJwtTokenAuthMiddleware
+from app.core.dependencies import get_mcp_instance_service, get_user_context_service
+# from starlette.middleware import Middleware as StarletteMiddleware
 from typing import List, Dict, Any
 
 # 工具
@@ -21,10 +24,11 @@ mcp = FastMCP(
     version="1.0.0",
 )
 
-# 注册 MCP 层面的认证中间件（简化版）
-# 注意：中间件的执行顺序很重要，认证中间件应该在其他中间件之前
-# HTTP 层面的验证由 HttpJwtTokenAuthMiddleware 处理。此中间件只负责传递业务参数，不再进行重复验证
-mcp.add_middleware(JwtTokenAuthMiddleware())
+# 注册 MCP 层面的中间件
+# 注意：中间件的执行顺序很重要
+# 1. 认证中间件：验证身份并注入业务参数（user_id, project_id, context_id）
+# 2. 动态工具描述中间件：根据 context 信息动态更新工具描述
+# mcp.add_middleware(JwtTokenAuthMiddleware())
 
 # 全局工具实例
 _tools_instances = {}
@@ -32,7 +36,7 @@ _tools_instances = {}
 def _get_tools():
     """ 获取或创建工具单例 """
     global _tools_instances
-    if _tools_instances is None:
+    if not _tools_instances:
         _tools_instances = {
             "context_tool": ContextTool(),
             "llm_tool": LLMTool(),
@@ -65,9 +69,11 @@ def _get_context_info(ctx: Context) -> Dict[str, Any]:
         "context": context
     }
 
+# 初始化工具实例以便生成描述
+_get_tools()
+
 @mcp.tool(
     name="get_context",
-    description="获取整个知识库的完整内容（整个JSON对象）。知识库本质上是一个JSON对象，以键值对（key-value）的形式存储数据。此工具不需要任何参数，直接调用即可获取整个知识库的所有数据。这是所有操作的第一步，必须先调用此工具获取context内容。",
 )
 async def get_context(ctx: Context) -> dict:
     """
@@ -101,7 +107,9 @@ async def get_context(ctx: Context) -> dict:
             "error": f"获取知识库内容失败: {str(e)}"
         }
 
-@mcp.tool()
+@mcp.tool(
+    name="create_element",
+)
 async def create_element(elements: List[Dict[str, Any]], ctx: Context) -> dict:
     """
     在知识库中批量创建新的键值对（key-value pairs）。
@@ -193,7 +201,9 @@ async def create_element(elements: List[Dict[str, Any]], ctx: Context) -> dict:
             "error": f"创建元素失败: {str(e)}"
         }
 
-@mcp.tool()
+@mcp.tool(
+    name="update_element",
+)
 async def update_element(updates: List[Dict[str, Any]], ctx: Context) -> dict:
     """
     批量更新知识库中已存在的键值对。
@@ -281,7 +291,9 @@ async def update_element(updates: List[Dict[str, Any]], ctx: Context) -> dict:
             "error": f"更新元素失败: {str(e)}"
         }
 
-@mcp.tool()
+@mcp.tool(
+    name="delete_element",
+)
 async def delete_element(keys: List[str], ctx: Context) -> dict:
     """
     从知识库中批量删除指定的键值对。
@@ -414,38 +426,38 @@ async def llm_retrieve(query: str, ctx: Context) -> dict:
 
 # ==================== HTTP App 创建 ====================
 
-def get_mcp_http_app(path: str = "/"):
-    """
-    创建 MCP 服务器的 HTTP ASGI 应用，用于挂载到 FastAPI
+# def get_mcp_http_app(path: str = "/"):
+#     """
+#     创建 MCP 服务器的 HTTP ASGI 应用，用于挂载到 FastAPI
     
-    Args:
-        path: MCP 服务器的内部路径，默认为 "/"（相对于挂载点）
-              当挂载到 "/mcp" 时，实际访问路径为 "/mcp/"
+#     Args:
+#         path: MCP 服务器的内部路径，默认为 "/"（相对于挂载点）
+#               当挂载到 "/mcp" 时，实际访问路径为 "/mcp/"
         
-    Returns:
-        ASGI 应用实例，可以挂载到 FastAPI
-    """
-    # 初始化工具实例
-    _get_tools()
+#     Returns:
+#         ASGI 应用实例，可以挂载到 FastAPI
+#     """
+#     # 初始化工具实例
+#     _get_tools()
     
-    # 创建 HTTP ASGI 应用，添加 Starlette 中间件
-    # HTTP 层面的认证中间件会在 Starlette 层面运行，可以访问完整的 HTTP 请求和响应
-    # 注意：path 参数是 MCP 应用内部的路径，不是挂载路径
-    # 当挂载到 "/mcp" 时，使用 "/" 作为内部路径，这样实际访问路径为 "/mcp/"
-    # StarletteMiddleware 支持通过关键字参数传递额外的依赖给中间件类
-    mcp_app = mcp.http_app(
-        path=path,
-        middleware=[
-            StarletteMiddleware(
-                HttpJwtTokenAuthMiddleware,
-                mcp_token_service=get_mcp_token_service()
-            )
-        ]
-    )
+#     # 创建 HTTP ASGI 应用，添加 Starlette 中间件
+#     # HTTP 层面的认证中间件会在 Starlette 层面运行，可以访问完整的 HTTP 请求和响应
+#     # 注意：path 参数是 MCP 应用内部的路径，不是挂载路径
+#     # 当挂载到 "/mcp" 时，使用 "/" 作为内部路径，这样实际访问路径为 "/mcp/"
+#     # StarletteMiddleware 支持通过关键字参数传递额外的依赖给中间件类
+#     mcp_app = mcp.http_app(
+#         path=path,
+#         middleware=[
+#             StarletteMiddleware(
+#                 HttpJwtTokenAuthMiddleware,
+#                 mcp_token_service=get_mcp_token_service()
+#             )
+#         ]
+#     )
     
-    log_info(f"MCP HTTP app created with internal path: {path}")
+#     log_info(f"MCP HTTP app created with internal path: {path}")
     
-    return mcp_app
+#     return mcp_app
 
 
 # ==================== 启动入口 ====================
@@ -487,4 +499,15 @@ def run_mcp_server(
     
 
 if __name__ == "__main__":
-    run_mcp_server(transport="http", host="0.0.0.0", port=9090)
+    # 支持通过命令行参数传递host和port
+    parser = argparse.ArgumentParser(description="启动ContextBase MCP Server")
+    parser.add_argument('--host', type=str, default="0.0.0.0", help='监听主机，默认0.0.0.0')
+    parser.add_argument('--port', type=int, default=9090, help='监听端口，默认9090')
+    parser.add_argument('--transport', type=str, default="http", choices=["http", "stdio"], help="传输协议（http 或 stdio），默认http")
+    args = parser.parse_args()
+
+    run_mcp_server(
+        transport=args.transport,
+        host=args.host,
+        port=args.port,
+    )
