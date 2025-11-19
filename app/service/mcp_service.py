@@ -105,72 +105,44 @@ class McpService:
             jwt_token = self.generate_mcp_token(user_id, project_id, context_id)
             api_key = jwt_token  # JWT token 作为 API key
             
-            # 2. 先分配端口（但不启动进程）
-            from app.mcp_server.manager.manager import allocate_port
-            port = allocate_port()
+            # 2. 调用 manager 创建 MCP server 实例
+            # 注意：如果进程启动失败，manager 会抛出异常，此时不会存储数据
+            instance_info = await manager_create_instance(
+                api_key=api_key,
+                user_id=user_id,
+                project_id=project_id,
+                context_id=context_id
+            )
             
-            # 3. 先保存实例到 repository（状态为 0，表示未启动）
-            # 这样 MCP server 启动时就能找到实例了
+            port = instance_info["port"]
+            docker_info = instance_info["docker_info"]
+            
+            # 3. 再次验证进程状态（双重检查）
+            status_info = await manager_get_instance_status(api_key)
+            if not status_info.get("running", False):
+                # 进程没有运行，清理已分配的端口
+                from app.mcp_server.manager.manager import release_port
+                release_port(port)
+                raise RuntimeError(f"MCP server process failed to start or exited immediately. Status: {status_info}")
+            
+            # 4. 进程确认运行后，存储到 repository
             mcp_instance = self.instance_repo.create(
                 api_key=api_key,
-                user_id=str(user_id),
-                project_id=str(project_id),
-                context_id=str(context_id),
-                status=0,  # 先设为 0，启动成功后再更新为 1
+                user_id=user_id,
+                project_id=project_id,
+                context_id=context_id,
+                status=1,  # 1 表示开启
                 port=port,
-                docker_info={},  # 先为空，启动成功后再更新
+                docker_info=docker_info,
                 tools_definition=tools_definition
             )
             
-            log_info(f"MCP instance saved to repository: {mcp_instance.mcp_instance_id}, api_key={api_key}, port={port}")
+            log_info(f"MCP instance created and verified: {mcp_instance.mcp_instance_id}, api_key={api_key}, port={port}, pid={docker_info.get('pid')}")
             
-            # 4. 调用 manager 创建 MCP server 实例
-            # 注意：如果进程启动失败，需要清理已保存的实例
-            try:
-                instance_info = await manager_create_instance(
-                    api_key=api_key,
-                    user_id=str(user_id),
-                    project_id=str(project_id),
-                    context_id=str(context_id),
-                    port=port  # 传入已分配的端口
-                )
-                
-                docker_info = instance_info["docker_info"]
-                
-                # 5. 再次验证进程状态（双重检查）
-                status_info = await manager_get_instance_status(api_key)
-                if not status_info.get("running", False):
-                    # 进程没有运行，清理已分配的端口和已保存的实例
-                    from app.mcp_server.manager.manager import release_port
-                    release_port(port)
-                    self.instance_repo.delete_by_api_key(api_key)
-                    raise RuntimeError(f"MCP server process failed to start or exited immediately. Status: {status_info}")
-                
-                # 6. 进程确认运行后，更新 repository 中的状态和进程信息
-                updated_instance = self.instance_repo.update_by_api_key(
-                    api_key=api_key,
-                    user_id=str(user_id),
-                    project_id=str(project_id),
-                    context_id=str(context_id),
-                    status=1,  # 更新为开启状态
-                    port=port,
-                    docker_info=docker_info,
-                    tools_definition=tools_definition
-                )
-                
-                log_info(f"MCP instance created and verified: {updated_instance.mcp_instance_id}, api_key={api_key}, port={port}, pid={docker_info.get('pid')}")
-                
-                return updated_instance
-            except Exception as e:
-                # 如果进程启动失败，清理已保存的实例
-                log_error(f"MCP server process failed to start, cleaning up instance: {e}")
-                self.instance_repo.delete_by_api_key(api_key)
-                from app.mcp_server.manager.manager import release_port
-                release_port(port)
-                raise
-            
+            return mcp_instance
         except Exception as e:
             log_error(f"Failed to create MCP instance: {e}")
+            # 如果进程启动失败，确保不存储数据（manager 层已经处理了端口释放）
             raise
 
     async def get_mcp_instance_by_api_key(self, api_key: str) -> Optional[McpInstance]:
