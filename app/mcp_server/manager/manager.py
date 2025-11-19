@@ -60,8 +60,7 @@ async def create_instance(
     api_key: str,
     user_id: str,
     project_id: str,
-    context_id: str,
-    port: Optional[int] = None
+    context_id: str
 ) -> Dict:
     """
     创建一个 MCP 实例
@@ -71,20 +70,13 @@ async def create_instance(
         user_id: 用户ID
         project_id: 项目ID
         context_id: 上下文ID
-        port: 可选端口号，如果不提供则自动分配
         
     Returns:
         包含实例信息的字典：port, docker_info
     """
     try:
-        # 分配端口（如果未提供）
-        if port is None:
-            port = allocate_port()
-        elif port not in _allocated_ports:
-            # 如果提供了端口但未在分配列表中，检查是否可用并添加到列表
-            if not _is_port_available(port):
-                raise RuntimeError(f"Port {port} is not available")
-            _allocated_ports.add(port)
+        # 分配端口
+        port = allocate_port()
         
         log_info(f"Creating MCP instance with api_key={api_key}, port={port}")
         
