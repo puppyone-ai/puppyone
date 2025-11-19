@@ -81,17 +81,33 @@ def _init_context_info(api_key: str) -> None:
             raise ValueError(f"MCP instance not found for api_key: {api_key[:20]}...")
         
         # 2. 提取业务参数
-        user_id = int(instance.user_id)
-        project_id = instance.project_id
-        context_id = int(instance.context_id)
+        user_id = str(instance.user_id)
+        project_id = str(instance.project_id)
+        context_id = str(instance.context_id)
         
         # 3. 根据 context_id 获取 context 对象
         user_context_service = get_user_context_service()
-        context: Optional[UserContext] = user_context_service.get_by_id(context_id)
+        # 注意：这里假设 context_id 是 int，如果 context_id 是 str，需要修改 get_by_id 的参数类型
+        # 暂时尝试转换为 int，如果失败则保持 str
+        try:
+            context_id_query = int(context_id)
+        except ValueError:
+            context_id_query = context_id
+            
+        context: Optional[UserContext] = user_context_service.get_by_id(context_id_query)
         
         if not context:
-            log_error(f"Context not found for context_id: {context_id}")
-            raise ValueError(f"Context not found for context_id: {context_id}")
+            # 如果找不到 Context，尝试创建一个虚拟的 Context 对象
+            # 这允许使用 project_id 作为 context_id 的情况
+            log_info(f"Context not found for context_id: {context_id}, creating virtual context")
+            context = UserContext(
+                context_id=0, # 虚拟 ID
+                user_id=int(user_id) if user_id.isdigit() else 0,
+                context_name=f"Project Context {project_id}",
+                context_description="Virtual context for project",
+                context_data={},
+                metadata={}
+            )
         
         # 4. 获取项目信息（暂时使用 project_id 作为 project_name）
         # TODO: 如果有 project service，可以从 project_id 获取项目详细信息

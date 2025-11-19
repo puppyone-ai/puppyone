@@ -42,6 +42,10 @@ class McpInstanceRepositoryBase(ABC):
         pass
 
     @abstractmethod
+    def get_by_user_id(self, user_id: str) -> List[McpInstance]:
+        pass
+
+    @abstractmethod
     def create(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None) -> McpInstance:
         pass
 

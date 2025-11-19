@@ -8,11 +8,34 @@ from app.schemas.mcp import McpCreate, McpStatusResponse, McpUpdate
 from app.service.mcp_service import McpService
 from app.core.dependencies import get_mcp_instance_service
 from app.utils.logger import log_error
-from typing import Dict, Any
+from typing import Dict, Any, List
+from app.models.mcp import McpInstance
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
 ERROR_CODE = 1002
+
+
+@router.get("/list", response_model=ApiResponse[List[McpInstance]])
+async def list_mcp_instances(
+    user_id: str,
+    mcp_instance_service: McpService = Depends(get_mcp_instance_service)
+):
+    """
+    获取用户的所有 MCP 实例
+    """
+    try:
+        instances = await mcp_instance_service.get_user_mcp_instances(user_id)
+        return ApiResponse.success(
+            data=instances,
+            message="获取 MCP 实例列表成功"
+        )
+    except Exception as e:
+        log_error(f"Failed to list MCP instances: {e}")
+        return ApiResponse.error(
+            code=ERROR_CODE,
+            message=f"获取 MCP 实例列表失败: {str(e)}"
+        )
 
 
 @router.post("/", response_model=ApiResponse[Dict[str, Any]])
