@@ -54,6 +54,9 @@ async def create_task(
         # Parse workflow data
         workflow_data = await request.json()
         
+        # Debug: Log basic workflow info
+        log_info(f"[v2] Received workflow with {len(workflow_data.get('blocks', {}))} blocks and {len(workflow_data.get('edges', {}))} edges")
+        
         # Validate workflow structure
         if not workflow_data or "blocks" not in workflow_data or "edges" not in workflow_data:
             raise PuppyException(

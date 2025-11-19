@@ -145,9 +145,11 @@ function buildStructuredNodeJson(
       storage_class: 'external',
       data: {
         external_metadata: nodeData.external_metadata,
+        // Phase 3.9: Include indexingList for runtime resolution
+        indexingList: nodeData.indexingList || [],
       },
       looped: !!nodeData.looped,
-      collection_configs: collectionConfigs,
+      collection_configs: collectionConfigs, // Backward compatibility
     };
   }
 
@@ -161,9 +163,11 @@ function buildStructuredNodeJson(
         parsedContent !== ''
           ? parsedContent
           : null, // 使用 null 而不是空字符串，确保后端不会将其标记为已处理
+      // Phase 3.9: Include indexingList for runtime resolution
+      indexingList: nodeData.indexingList || [],
     },
     looped: !!nodeData.looped,
-    collection_configs: collectionConfigs,
+    collection_configs: collectionConfigs, // Backward compatibility
   };
 }
 
@@ -179,7 +183,8 @@ function buildFileNodeJson(
 
   const label = nodeData.label || node.id;
 
-  // File block 最小实现：external 指针，携带 resource_key
+  // File blocks ALWAYS use external storage mode (FILE-BLOCK-CONTRACT.md)
+  // Standard contract: external_metadata with resource_key
   const externalMeta = nodeData?.external_metadata;
   const resourceKey: string | undefined = externalMeta?.resource_key;
   const contentType: string = externalMeta?.content_type || 'files';
@@ -203,13 +208,11 @@ function buildFileNodeJson(
     };
   }
 
-  // 回退：无 external 配置时，返回空内容（不建议）
+  // Fallback: empty file block (will be populated by user upload or prefetch)
   return {
     label,
     type: 'file',
-    data: {
-      content: null,
-    },
+    data: { content: null },
     looped: !!nodeData.looped,
     collection_configs: [],
   };

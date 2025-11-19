@@ -3,6 +3,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import chromadb
+import json
 from typing import List, Dict, Any
 from chromadb.config import Settings
 
@@ -13,6 +14,32 @@ from utils.config import config
 
 # 使用新的路径管理系统获取存储路径
 LOCAL_STORAGE_PATH = config.get_path("STORAGE_ROOT")
+
+def flatten_metadata_for_chroma(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Flatten nested metadata for ChromaDB compatibility.
+    
+    ChromaDB only accepts str, int, float, bool, or None values in metadata.
+    This function converts nested dicts/lists to JSON strings.
+    
+    Args:
+        metadata: Original metadata dict that may contain nested structures
+        
+    Returns:
+        Flattened metadata dict with only primitive types
+    """
+    flattened = {}
+    for key, value in metadata.items():
+        if value is None or isinstance(value, (str, int, float, bool)):
+            # Primitive types are passed through directly
+            flattened[key] = value
+        elif isinstance(value, (dict, list)):
+            # Nested structures are serialized to JSON strings
+            flattened[key] = json.dumps(value, ensure_ascii=False)
+        else:
+            # Other types (e.g., custom objects) are converted to strings
+            flattened[key] = str(value)
+    return flattened
 
 class ChromaVectorDatabase(VectorDatabase):
     """
@@ -80,6 +107,10 @@ class ChromaVectorDatabase(VectorDatabase):
                     meta["content"] = contents[i]
                 else:
                     metadata[i] = {"content": contents[i]}
+        
+        # Flatten metadata for ChromaDB compatibility
+        # ChromaDB only accepts primitive types (str, int, float, bool, None)
+        flattened_metadata = [flatten_metadata_for_chroma(meta) for meta in metadata]
             
         # 生成唯一ID
         if custom_ids and len(custom_ids) == len(vectors):
@@ -91,7 +122,7 @@ class ChromaVectorDatabase(VectorDatabase):
         collection.add(
             embeddings=vectors,
             documents=contents,
-            metadatas=metadata,
+            metadatas=flattened_metadata,
             ids=ids
         )
         

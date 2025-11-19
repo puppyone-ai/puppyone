@@ -11,15 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Header, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from utils.logger import log_info, log_error, log_debug
-from storage import get_storage
+from storage import get_storage_adapter
+from storage.base import StorageAdapter
 from storage.local import LocalStorageAdapter
 # 导入认证模块
 from server.auth import verify_user_and_resource_access, User, get_auth_provider
 
 download_router = APIRouter(prefix="/download", tags=["download"])
-
-# 获取存储适配器
-storage_adapter = get_storage()
 
 # === Request and Response Models ===
 
@@ -43,6 +41,13 @@ async def verify_download_auth(
     auth_provider = Depends(get_auth_provider)
 ) -> User:
     """验证下载的认证和权限"""
+    # Always require a valid Authorization header for download URL requests,
+    # even in local relaxed mode, to ensure contract tests get 401 when missing/invalid.
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Missing or invalid Authorization header. Expected format: 'Bearer <token>'"
+        )
     return await verify_user_and_resource_access(
         resource_key=key,
         authorization=authorization,
@@ -55,6 +60,7 @@ async def verify_download_auth(
 async def get_download_url(
     key: str = Query(..., description="文件的完整路径标识符"),
     expires_in: int = Query(3600, description="URL有效期（秒）", ge=60, le=86400),
+    storage: StorageAdapter = Depends(get_storage_adapter),
     current_user: User = Depends(verify_download_auth)
 ):
     """
@@ -77,14 +83,14 @@ async def get_download_url(
             )
         
         # 检查存储适配器是否支持生成下载URL
-        if not hasattr(storage_adapter, 'get_download_url'):
+        if not hasattr(storage, 'get_download_url'):
             raise HTTPException(
                 status_code=501, 
                 detail="当前存储后端不支持生成下载URL"
             )
         
         # 调用存储适配器生成下载URL
-        result = storage_adapter.get_download_url(key=key, expires_in=expires_in)
+        result = storage.get_download_url(key=key, expires_in=expires_in)
         
         log_info(f"为用户 {current_user.user_id} 生成下载URL成功: {key}")
         
@@ -108,7 +114,8 @@ async def get_download_url(
 @download_router.get("/stream/{key:path}")
 async def stream_local_file(
     key: str,
-    request: Request
+    request: Request,
+    storage: StorageAdapter = Depends(get_storage_adapter)
 ):
     """
     (仅限本地开发) 从本地文件系统流式传输文件
@@ -117,7 +124,7 @@ async def stream_local_file(
     此端点不需要额外认证，因为URL的获取已经通过了认证。
     """
     # 检查是否为本地存储适配器
-    if not isinstance(storage_adapter, LocalStorageAdapter):
+    if not isinstance(storage, LocalStorageAdapter):
         raise HTTPException(
             status_code=404, 
             detail="此端点仅适用于本地存储环境"
@@ -137,14 +144,14 @@ async def stream_local_file(
         range_header = request.headers.get('Range')
         
         # 检查存储适配器是否支持流式传输
-        if not hasattr(storage_adapter, 'stream_from_disk'):
+        if not hasattr(storage, 'stream_from_disk'):
             raise HTTPException(
                 status_code=501,
                 detail="当前存储适配器不支持流式传输"
             )
         
         # 调用适配器的流式传输方法
-        file_iterator, status_code, content_range, file_size = await storage_adapter.stream_from_disk(key, range_header)
+        file_iterator, status_code, content_range, file_size = await storage.stream_from_disk(key, range_header)
         
         # 推断文件的MIME类型
         content_type, _ = mimetypes.guess_type(key)

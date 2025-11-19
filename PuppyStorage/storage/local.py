@@ -71,6 +71,30 @@ class LocalStorageAdapter(StorageAdapter):
             log_error(f"删除本地文件失败: {str(e)}")
             return False
 
+    def copy_resource(self, source_key: str, target_key: str) -> bool:
+        """使用文件系统复制本地资源"""
+        try:
+            source_path = self._get_file_path(source_key)
+            target_path = self._get_file_path(target_key)
+            
+            # 检查源文件是否存在
+            if not os.path.exists(source_path):
+                log_error(f"Local copy failed: source not found: {source_path}")
+                return False
+            
+            # 确保目标目录存在
+            self._ensure_directory_exists(target_path)
+            
+            # 复制文件（保留元数据）
+            shutil.copy2(source_path, target_path)
+            
+            log_info(f"Local copy succeeded: {source_key} -> {target_key}")
+            return True
+            
+        except Exception as e:
+            log_error(f"Local copy failed: {source_key} -> {target_key}, error: {str(e)}")
+            return False
+
     def check_file_exists(self, key: str) -> bool:
         return os.path.exists(self._get_file_path(key))
     

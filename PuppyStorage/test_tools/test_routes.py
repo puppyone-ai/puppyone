@@ -656,12 +656,12 @@ def test_vector_routes():
     ]
     
     try:
-        # 1. 测试嵌入
-        print("\n测试向量嵌入...")
+        # 1. 测试嵌入 (Phase 1.7: 使用 'entries' 而非 'chunks')
+        print("\n测试向量嵌入 (Phase 1.7: entries)...")
         embed_response = client.post(
             "/vector/embed",
             json={
-                "chunks": [{"content": doc, "metadata": {"index": i}} for i, doc in enumerate(test_documents)],
+                "entries": [{"content": doc, "metadata": {"index": i}} for i, doc in enumerate(test_documents)],
                 "model": "text-embedding-ada-002",
                 "set_name": "fox_song",
                 "user_id": "test_user",
@@ -698,25 +698,44 @@ def test_vector_routes():
         search_results = search_response.json()
         print(f"✅ 向量搜索成功! 找到 {len(search_results)} 个结果")
         
-        # 3. 测试删除
-        print("\n测试向量集合删除...")
-        
-        delete_data = {
-            "vdb_type": "chroma",
-            "user_id": "test_user",
-            "model": "text-embedding-ada-002",
-            "set_name": "fox_song"
-        }
-        
-        delete_response = client.post(
-            "/vector/delete",
-            json=delete_data
+        # 3. 测试向后兼容性 (使用旧的 'chunks' 字段)
+        print("\n测试向后兼容性 (chunks 字段)...")
+        compat_response = client.post(
+            "/vector/embed",
+            json={
+                "chunks": [{"content": "Backward compatibility test", "metadata": {"test": "compat"}}],
+                "model": "text-embedding-ada-002",
+                "set_name": "fox_song_compat",
+                "user_id": "test_user",
+                "vdb_type": "chroma"
+            }
         )
         
-        if delete_response.status_code != 200:
-            print(f"❌ 向量集合删除失败: {delete_response.text}")
+        if compat_response.status_code != 200:
+            print(f"❌ 向后兼容性测试失败: {compat_response.text}")
             return False
+        print("✅ 向后兼容性测试成功 (chunks 字段仍然工作)!")
+        
+        # 4. 测试删除
+        print("\n测试向量集合删除...")
+        
+        for set_name in ["fox_song", "fox_song_compat"]:
+            delete_data = {
+                "vdb_type": "chroma",
+                "user_id": "test_user",
+                "model": "text-embedding-ada-002",
+                "set_name": set_name
+            }
             
+            delete_response = client.post(
+                "/vector/delete",
+                json=delete_data
+            )
+            
+            if delete_response.status_code != 200:
+                print(f"❌ 向量集合删除失败 ({set_name}): {delete_response.text}")
+                return False
+        
         print("✅ 向量集合删除成功!")
         return True
         

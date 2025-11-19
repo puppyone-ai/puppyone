@@ -25,7 +25,8 @@ class StreamingJSONHandler:
         """
         self.mode = mode
         self.buffer = StringIO()
-        self.chunk_size = int(os.getenv("STORAGE_CHUNK_SIZE", "1024"))  # Configurable chunk size
+        # Backward compatibility: try new STORAGE_PART_SIZE first, fallback to old STORAGE_CHUNK_SIZE
+        self.part_size = int(os.getenv("STORAGE_PART_SIZE") or os.getenv("STORAGE_CHUNK_SIZE") or "1024")  # Configurable chunk size
         
     def split_to_jsonl(self, data: Union[List[Dict], Iterator[Dict]]) -> Iterator[bytes]:
         """
@@ -38,7 +39,7 @@ class StreamingJSONHandler:
         Yields:
             包含完整JSON行的字节块
         """
-        current_chunk = StringIO()
+        current_part = StringIO()
         current_size = 0
         
         for item in data:
@@ -47,29 +48,29 @@ class StreamingJSONHandler:
             line_bytes = json_line.encode('utf-8')
             line_size = len(line_bytes)
             
-            # 如果单个对象就超过chunk大小，单独作为一个chunk
-            if line_size > self.chunk_size:
+            # 如果单个对象就超过part大小，单独作为一个part
+            if line_size > self.part_size:
                 if current_size > 0:
-                    # 先yield当前chunk
-                    yield current_chunk.getvalue().encode('utf-8')
-                    current_chunk = StringIO()
+                    # 先yield当前part
+                    yield current_part.getvalue().encode('utf-8')
+                    current_part = StringIO()
                     current_size = 0
                 # 单独yield这个大对象
                 yield line_bytes
             else:
-                # 检查是否需要开始新的chunk
-                if current_size + line_size > self.chunk_size and current_size > 0:
-                    yield current_chunk.getvalue().encode('utf-8')
-                    current_chunk = StringIO()
+                # 检查是否需要开始新的part
+                if current_size + line_size > self.part_size and current_size > 0:
+                    yield current_part.getvalue().encode('utf-8')
+                    current_part = StringIO()
                     current_size = 0
                 
-                # 添加到当前chunk
-                current_chunk.write(json_line)
+                # 添加到当前part
+                current_part.write(json_line)
                 current_size += line_size
         
-        # yield最后的chunk
+        # yield最后的part
         if current_size > 0:
-            yield current_chunk.getvalue().encode('utf-8')
+            yield current_part.getvalue().encode('utf-8')
     
     def split_array_streaming(self, data: List[Dict]) -> Iterator[bytes]:
         """
@@ -93,18 +94,18 @@ class StreamingJSONHandler:
                 # 中间元素
                 yield f',{json_str}'.encode('utf-8')
     
-    def parse_jsonl_chunk(self, chunk: bytes) -> List[Dict]:
+    def parse_jsonl_part(self, part: bytes) -> List[Dict]:
         """
-        解析JSONL格式的chunk
+        解析JSONL格式的part
         
         Args:
-            chunk: JSONL格式的字节数据
+            part: JSONL格式的字节数据
             
         Returns:
             解析出的JSON对象列表
         """
         objects = []
-        text = chunk.decode('utf-8')
+        text = part.decode('utf-8')
         
         for line in text.strip().split('\n'):
             if line.strip():
@@ -134,12 +135,12 @@ class StreamingJSONAggregator:
         self.is_first_chunk = True
         self.is_complete = False
     
-    def add_jsonl_chunk(self, chunk: bytes) -> List[Dict]:
+    def add_jsonl_part(self, part: bytes) -> List[Dict]:
         """
-        添加JSONL格式的chunk并返回新解析的对象
+        添加JSONL格式的part并返回新解析的对象
         """
         new_objects = []
-        text = chunk.decode('utf-8')
+        text = part.decode('utf-8')
         
         for line in text.strip().split('\n'):
             if line.strip():
@@ -152,12 +153,12 @@ class StreamingJSONAggregator:
         
         return new_objects
     
-    def add_array_chunk(self, chunk: bytes) -> Optional[List[Dict]]:
+    def add_array_part(self, part: bytes) -> Optional[List[Dict]]:
         """
-        添加数组格式的chunk
+        添加数组格式的part
         只有在接收到完整数组后才返回结果
         """
-        text = chunk.decode('utf-8')
+        text = part.decode('utf-8')
         self.array_buffer += text
         
         # 检查是否是完整的JSON数组

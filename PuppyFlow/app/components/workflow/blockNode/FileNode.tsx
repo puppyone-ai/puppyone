@@ -307,6 +307,11 @@ const FileNode = React.memo<FileNodeProps>(
           !labelContainerRef.current?.contains(e.target as HTMLElement) &&
           !(e.target as HTMLElement).classList.contains('renameButton')
         ) {
+          // 先保存 label 修改，再设置为不可编辑
+          if (nodeState.isLocalEdit) {
+            editNodeLabel(id, nodeState.nodeLabel);
+            setNodeState(prev => ({ ...prev, isLocalEdit: false }));
+          }
           setNodeUneditable(id);
         }
       };
@@ -315,7 +320,13 @@ const FileNode = React.memo<FileNodeProps>(
       return () => {
         document.removeEventListener('click', handleClickOutside);
       };
-    }, [id, setNodeUneditable]);
+    }, [
+      id,
+      setNodeUneditable,
+      nodeState.isLocalEdit,
+      nodeState.nodeLabel,
+      editNodeLabel,
+    ]);
 
     // 自动聚焦，同时需要让cursor focus 到input 的最后一位
     useEffect(() => {
