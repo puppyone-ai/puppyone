@@ -31,7 +31,7 @@ class UserRepositoryJSON(UserRepositoryBase):
     def get_all(self) -> List[User]:
         return self._read_data()
     
-    def get_by_id(self, user_id: int) -> Optional[User]:
+    def get_by_id(self, user_id: str) -> Optional[User]:
         users = self._read_data()
         for user in users:
             if user.user_id == user_id:
@@ -40,13 +40,15 @@ class UserRepositoryJSON(UserRepositoryBase):
     
     def create(self, username: str) -> User:
         users = self._read_data()
-        new_id = max([u.user_id for u in users], default=0) + 1
+        # 生成新的 ID，使用字符串格式
+        existing_ids = [int(u.user_id) for u in users if u.user_id.isdigit()]
+        new_id = str(max(existing_ids, default=0) + 1) if existing_ids else "1"
         new_user = User(user_id=new_id, username=username)
         users.append(new_user)
         self._write_data(users)
         return new_user
     
-    def update(self, user_id: int, username: str) -> User:
+    def update(self, user_id: str, username: str) -> User:
         users = self._read_data()
         for user in users:
             if user.user_id == user_id:
@@ -55,7 +57,7 @@ class UserRepositoryJSON(UserRepositoryBase):
                 return user
         return None
     
-    def delete(self, user_id: int) -> bool:
+    def delete(self, user_id: str) -> bool:
         users = self._read_data()
         new_users = [user for user in users if user.user_id != user_id]
         if len(new_users) == len(users):

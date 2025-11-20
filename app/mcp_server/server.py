@@ -13,7 +13,7 @@ from app.models.mcp import McpInstance
 from app.mcp_server.middleware.http_auth_middleware import HttpJwtTokenAuthMiddleware
 from app.core.dependencies import get_mcp_instance_service, get_user_context_service
 from starlette.middleware import Middleware as StarletteMiddleware
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from pydantic import BaseModel
 from datetime import datetime
 import uvicorn
@@ -81,9 +81,9 @@ def _init_context_info(api_key: str) -> None:
             raise ValueError(f"MCP instance not found for api_key: {api_key[:20]}...")
         
         # 2. 提取业务参数
-        user_id = int(instance.user_id)
+        user_id = instance.user_id
         project_id = instance.project_id
-        context_id = int(instance.context_id)
+        context_id = instance.context_id
         
         # 3. 根据 context_id 获取 context 对象
         user_context_service = get_user_context_service()
@@ -254,23 +254,32 @@ class ToolRegistry:
         
         return vector_retrieve
     
-    def register_all_tools(self, mcp_instance: FastMCP):
+    def register_all_tools(self, mcp_instance: FastMCP, register_tools: Optional[List[str]] = None):
         """
-        注册所有工具到 MCP 实例
+        注册工具到 MCP 实例
         
         Args:
             mcp_instance: FastMCP 实例
+            register_tools: 需要注册的工具列表（可选），如果为 None 或空列表，则注册所有工具
         """
-        # 注册上下文管理工具
-        self.create_get_context_tool(mcp_instance)
-        self.create_create_element_tool(mcp_instance)
-        self.create_update_element_tool(mcp_instance)
-        self.create_delete_element_tool(mcp_instance)
+        # 默认注册所有工具
+        if register_tools is None or len(register_tools) == 0:
+            register_tools = ["get", "create", "update", "delete"]
         
-        # 注册向量检索工具
+        # 注册上下文管理工具（根据 register_tools 选择性注册）
+        if "get" in register_tools:
+            self.create_get_context_tool(mcp_instance)
+        if "create" in register_tools:
+            self.create_create_element_tool(mcp_instance)
+        if "update" in register_tools:
+            self.create_update_element_tool(mcp_instance)
+        if "delete" in register_tools:
+            self.create_delete_element_tool(mcp_instance)
+        
+        # 注册向量检索工具（始终注册，因为不在 register_tools 列表中）
         self.create_vector_retrieve_tool(mcp_instance)
         
-        log_info("All tools registered successfully")
+        log_info(f"Tools registered successfully: {register_tools}")
 
 # ==================== 启动入口 ====================
 def run_mcp_server(
@@ -278,6 +287,7 @@ def run_mcp_server(
     host: str = "0.0.0.0",
     port: int = 9090,
     api_key: Optional[str] = None,
+    register_tools: Optional[List[str]] = None,
 ):
     """
     独立启动MCP服务器
@@ -287,6 +297,7 @@ def run_mcp_server(
         host: 主机地址
         port: 端口号
         api_key: API key，用于获取 context 信息
+        register_tools: 需要注册的工具列表（可选），如果为 None，则注册所有工具
     """
     # 1. 初始化 context 信息（必须在创建 MCP 实例之前）
     if not api_key:
@@ -319,8 +330,8 @@ def run_mcp_server(
         version="1.0.0",
     )
     
-    # 5. 注册所有工具（此时 context 信息已准备好，可以生成动态描述）
-    tool_registry.register_all_tools(mcp)
+    # 5. 注册工具（此时 context 信息已准备好，可以生成动态描述）
+    tool_registry.register_all_tools(mcp, register_tools=register_tools)
     
     log_info("Tool descriptions generated with dynamic context information")
 
@@ -352,11 +363,18 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=9090, help='监听端口，默认9090')
     parser.add_argument('--transport', type=str, default="http", choices=["http", "stdio"], help="传输协议（http 或 stdio），默认http")
     parser.add_argument('--api_key', type=str, required=True, help='API key，用于获取 context 信息')
+    parser.add_argument('--register_tools', type=str, default=None, help='需要注册的工具列表，逗号分隔，例如：get,create,update,delete。如果不提供，则注册所有工具。')
     args = parser.parse_args()
+
+    # 解析 register_tools 参数
+    register_tools = None
+    if args.register_tools:
+        register_tools = [tool.strip() for tool in args.register_tools.split(",") if tool.strip()]
 
     run_mcp_server(
         transport=args.transport,
         host=args.host,
         port=args.port,
         api_key=args.api_key,
+        register_tools=register_tools,
     )

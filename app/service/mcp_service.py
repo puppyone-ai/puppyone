@@ -3,7 +3,7 @@
 """
 import jwt
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from app.core.config import settings
 from app.schemas.mcp import McpTokenPayload
 from app.repositories.base import McpInstanceRepositoryBase
@@ -27,7 +27,7 @@ class McpService:
     def __init__(self, instance_repo: McpInstanceRepositoryBase):
         self.instance_repo = instance_repo
 
-    def generate_mcp_token(self, user_id: int, project_id: int, context_id: int) -> str:
+    def generate_mcp_token(self, user_id: str, project_id: str, context_id: str) -> str:
         """
         生成 MCP JWT token
         
@@ -40,9 +40,9 @@ class McpService:
             JWT token 字符串
         """
         payload = {
-            "user_id": str(user_id),
-            "project_id": str(project_id),
-            "context_id": str(context_id),
+            "user_id": user_id,
+            "project_id": project_id,
+            "context_id": context_id,
             "iat": datetime.now(timezone.utc),
         }
         token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
@@ -73,10 +73,11 @@ class McpService:
 
     async def create_mcp_instance(
         self,
-        user_id: int,
-        project_id: int,
-        context_id: int,
-        tools_definition: Optional[Dict[str, Any]] = None
+        user_id: str,
+        project_id: str,
+        context_id: str,
+        tools_definition: Optional[Dict[str, Any]] = None,
+        register_tools: Optional[List[str]] = None
     ) -> McpInstance:
         """
         创建 MCP 实例
@@ -93,6 +94,7 @@ class McpService:
             project_id: 项目ID
             context_id: 上下文ID
             tools_definition: 工具定义字典（可选），key只能是get/create/update/delete
+            register_tools: 需要注册的工具列表（可选），默认为所有工具
             
         Returns:
             McpInstance 对象
@@ -109,9 +111,10 @@ class McpService:
             # 注意：如果进程启动失败，manager 会抛出异常，此时不会存储数据
             instance_info = await manager_create_instance(
                 api_key=api_key,
-                user_id=str(user_id),
-                project_id=str(project_id),
-                context_id=str(context_id)
+                user_id=user_id,
+                project_id=project_id,
+                context_id=context_id,
+                register_tools=register_tools
             )
             
             port = instance_info["port"]
@@ -128,13 +131,14 @@ class McpService:
             # 4. 进程确认运行后，存储到 repository
             mcp_instance = self.instance_repo.create(
                 api_key=api_key,
-                user_id=str(user_id),
-                project_id=str(project_id),
-                context_id=str(context_id),
+                user_id=user_id,
+                project_id=project_id,
+                context_id=context_id,
                 status=1,  # 1 表示开启
                 port=port,
                 docker_info=docker_info,
-                tools_definition=tools_definition
+                tools_definition=tools_definition,
+                register_tools=register_tools
             )
             
             log_info(f"MCP instance created and verified: {mcp_instance.mcp_instance_id}, api_key={api_key}, port={port}, pid={docker_info.get('pid')}")
@@ -173,7 +177,8 @@ class McpService:
         self,
         api_key: str,
         status: Optional[int] = None,
-        tools_definition: Optional[Dict[str, Any]] = None
+        tools_definition: Optional[Dict[str, Any]] = None,
+        register_tools: Optional[List[str]] = None
     ) -> Optional[McpInstance]:
         """
         更新 MCP 实例
@@ -182,6 +187,7 @@ class McpService:
             api_key: API key
             status: 状态，0表示关闭，1表示开启
             tools_definition: 工具定义字典（可选），key只能是get/create/update/delete
+            register_tools: 需要注册的工具列表（可选）
             
         Returns:
             更新后的 McpInstance 对象，如果不存在则返回 None
@@ -190,14 +196,17 @@ class McpService:
         if not instance:
             return None
         
-        # 如果只更新 tools_definition，需要重启实例以应用新的工具定义
-        if status is None and tools_definition is not None:
+        # 检查 register_tools 是否改变（需要重启）
+        register_tools_changed = register_tools is not None and register_tools != instance.register_tools
+        
+        # 如果只更新 tools_definition 或 register_tools，需要重启实例以应用新的配置
+        if status is None and (tools_definition is not None or register_tools_changed):
             old_status = instance.status
             old_port = instance.port
             
-            # 如果实例当前是开启状态，需要重启以应用新的工具定义
+            # 如果实例当前是开启状态，需要重启以应用新的配置
             if old_status == 1:
-                log_info(f"Restarting MCP instance {api_key} to apply new tools_definition")
+                log_info(f"Restarting MCP instance {api_key} to apply new configuration")
                 
                 # 先停止实例
                 await manager_update_instance_status(
@@ -206,21 +215,25 @@ class McpService:
                     port=old_port
                 )
                 
-                # 再启动实例（使用新的 tools_definition）
+                # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
+                final_register_tools = register_tools if register_tools is not None else instance.register_tools
+                
+                # 再启动实例（使用新的配置）
                 instance_info = await manager_update_instance_status(
                     api_key=api_key,
                     status=1,
                     user_id=instance.user_id,
                     project_id=instance.project_id,
                     context_id=instance.context_id,
-                    port=old_port  # 尝试使用原有端口
+                    port=old_port,  # 尝试使用原有端口
+                    register_tools=final_register_tools
                 )
                 
                 # 更新端口和进程信息
                 new_port = instance_info.get("port", old_port)
                 new_docker_info = instance_info.get("docker_info", instance.docker_info)
                 
-                # 更新 repository 中的状态和进程信息，以及新的 tools_definition
+                # 更新 repository 中的状态和进程信息，以及新的配置
                 updated_instance = self.instance_repo.update_by_api_key(
                     api_key=api_key,
                     user_id=instance.user_id,
@@ -229,13 +242,15 @@ class McpService:
                     status=1,  # 保持开启状态
                     port=new_port,
                     docker_info=new_docker_info,
-                    tools_definition=tools_definition
+                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                    register_tools=final_register_tools
                 )
                 
-                log_info(f"MCP instance {api_key} restarted successfully with new tools_definition on port {new_port}")
+                log_info(f"MCP instance {api_key} restarted successfully with new configuration on port {new_port}")
                 return updated_instance
             else:
                 # 如果实例当前是关闭状态，只需要更新 repository
+                final_register_tools = register_tools if register_tools is not None else instance.register_tools
                 updated_instance = self.instance_repo.update_by_api_key(
                     api_key=api_key,
                     user_id=instance.user_id,
@@ -244,9 +259,10 @@ class McpService:
                     status=instance.status,
                     port=instance.port,
                     docker_info=instance.docker_info,
-                    tools_definition=tools_definition
+                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                    register_tools=final_register_tools
                 )
-                log_info(f"MCP instance {api_key} tools_definition updated (instance is stopped, will apply on next start)")
+                log_info(f"MCP instance {api_key} configuration updated (instance is stopped, will apply on next start)")
                 return updated_instance
         
         # 更新状态
@@ -258,6 +274,9 @@ class McpService:
             if old_status == 0 and status == 1:
                 log_info(f"Restarting MCP instance {api_key} (status change: {old_status} -> {status})")
                 
+                # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
+                final_register_tools = register_tools if register_tools is not None else instance.register_tools
+                
                 # 调用 manager 重新启动实例
                 instance_info = await manager_update_instance_status(
                     api_key=api_key,
@@ -265,7 +284,8 @@ class McpService:
                     user_id=instance.user_id,
                     project_id=instance.project_id,
                     context_id=instance.context_id,
-                    port=old_port  # 尝试使用原有端口，如果不可用则分配新端口
+                    port=old_port,  # 尝试使用原有端口，如果不可用则分配新端口
+                    register_tools=final_register_tools
                 )
                 
                 # 更新端口和进程信息
@@ -281,7 +301,8 @@ class McpService:
                     status=status,
                     port=new_port,
                     docker_info=new_docker_info,
-                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition
+                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                    register_tools=final_register_tools
                 )
                 
                 log_info(f"MCP instance {api_key} restarted successfully on port {new_port}")
@@ -298,6 +319,9 @@ class McpService:
                     port=old_port
                 )
                 
+                # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
+                final_register_tools = register_tools if register_tools is not None else instance.register_tools
+                
                 # 更新 repository 中的状态（保持端口和 docker_info，但状态改为关闭）
                 updated_instance = self.instance_repo.update_by_api_key(
                     api_key=api_key,
@@ -307,7 +331,8 @@ class McpService:
                     status=status,
                     port=old_port,
                     docker_info=instance.docker_info,  # 保留原有进程信息
-                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition
+                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                    register_tools=final_register_tools
                 )
                 
                 log_info(f"MCP instance {api_key} stopped successfully")
@@ -315,6 +340,9 @@ class McpService:
             
             # 如果状态没有变化，只更新 repository（可能用于其他字段更新）
             else:
+                # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
+                final_register_tools = register_tools if register_tools is not None else instance.register_tools
+                
                 log_info(f"MCP instance {api_key} status unchanged ({status}), updating repository only")
                 updated_instance = self.instance_repo.update_by_api_key(
                     api_key=api_key,
@@ -324,7 +352,8 @@ class McpService:
                     status=status,
                     port=instance.port,
                     docker_info=instance.docker_info,
-                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition
+                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                    register_tools=final_register_tools
                 )
                 return updated_instance
         
@@ -395,7 +424,8 @@ class McpService:
                 status=0,  # 更新为关闭状态
                 port=instance.port,
                 docker_info=instance.docker_info,
-                tools_definition=instance.tools_definition
+                tools_definition=instance.tools_definition,
+                register_tools=instance.register_tools
             )
             instance.status = 0
         
@@ -403,6 +433,7 @@ class McpService:
             "status": instance.status,
             "port": instance.port,
             "tools_definition": instance.tools_definition,
+            "register_tools": instance.register_tools,
             "docker_info": instance.docker_info,
             "manager_status": manager_status,
             "synced": True
@@ -448,7 +479,8 @@ class McpService:
                             user_id=instance.user_id,
                             project_id=instance.project_id,
                             context_id=instance.context_id,
-                            port=instance.port  # 尝试使用原有端口，如果不可用则分配新端口
+                            port=instance.port,  # 尝试使用原有端口，如果不可用则分配新端口
+                            register_tools=instance.register_tools
                         )
                         
                         # 更新 repository 中的端口和进程信息 
@@ -463,7 +495,8 @@ class McpService:
                             status=1,  # 保持开启状态
                             port=new_port,
                             docker_info=new_docker_info,
-                            tools_definition=instance.tools_definition
+                            tools_definition=instance.tools_definition,
+                            register_tools=instance.register_tools
                         )
                         
                         log_info(f"Instance {instance.api_key} restarted successfully on port {new_port}")
@@ -479,7 +512,8 @@ class McpService:
                             status=0,
                             port=instance.port,
                             docker_info=instance.docker_info,
-                            tools_definition=instance.tools_definition
+                            tools_definition=instance.tools_definition,
+                            register_tools=instance.register_tools
                         )
                         stopped_count += 1
                 elif is_running and instance.status == 0:
@@ -492,7 +526,8 @@ class McpService:
                         status=1,
                         port=instance.port,
                         docker_info=instance.docker_info,
-                        tools_definition=instance.tools_definition
+                        tools_definition=instance.tools_definition,
+                        register_tools=instance.register_tools
                     )
                     synced_count += 1
                 else:

@@ -99,7 +99,7 @@ class ContextTool:
 参数说明：
 - elements (List[Dict]): 要创建的元素数组，每个元素是一个字典，包含：
   - key (str): 字符串类型，新数据项的键名。必须是唯一的，如果已存在则创建失败
-  - content (dict): 字典类型，新数据项的值内容，可以是任意JSON对象结构
+  - content (Any): 任意类型，新数据项的值内容，可以是任意JSON可序列化的类型（dict、list、str、int、float、bool等）
 
 使用场景：
 - 当用户需要向知识库添加新的数据项时
@@ -110,7 +110,7 @@ class ContextTool:
 - 必须先使用 get_context 工具获取当前知识库内容，了解现有数据结构
 - key必须是字符串类型，且在当前知识库中唯一
 - 如果key已存在，创建操作将失败
-- content可以是任意JSON对象（dict），根据实际需求定义结构
+- content可以是任意JSON可序列化的类型（dict、list、str、int、float、bool等），根据实际需求定义结构
 - 支持批量创建，可以一次创建多个键值对
 
 示例：

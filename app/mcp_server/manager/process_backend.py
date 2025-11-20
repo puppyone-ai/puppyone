@@ -35,6 +35,7 @@ class ProcessBackend(MCPInstanceBackend):
         """
         port = config.get("port")
         api_key = config.get("api_key")
+        register_tools = config.get("register_tools")
         
         if not port:
             raise ValueError("port is required in config")
@@ -58,31 +59,34 @@ class ProcessBackend(MCPInstanceBackend):
                 log_info("uv not found, using system Python interpreter")
             
             # 构建启动命令
+            module_path = str(self.server_script).replace(str(self.backend_root) + "/", "").replace("/", ".").replace(".py", "")
+            base_cmd = [
+                "--host", "0.0.0.0",
+                "--port", str(port),
+                "--transport", "http",
+                "--api_key", api_key
+            ]
+            
+            # 添加 register_tools 参数（如果提供）
+            if register_tools:
+                # 将列表转换为逗号分隔的字符串
+                register_tools_str = ",".join(register_tools)
+                base_cmd.extend(["--register_tools", register_tools_str])
+            
             if use_uv:
                 # 使用 uv run 以模块方式运行（-m 参数确保正确的模块路径）
-                # 将 app/mcp_server/server.py 转换为模块路径 app.mcp_server.server
-                module_path = str(self.server_script).replace(str(self.backend_root) + "/", "").replace("/", ".").replace(".py", "")
                 cmd = [
                     "uv", "run",
-                    "python", "-m", module_path,
-                    "--host", "0.0.0.0",
-                    "--port", str(port),
-                    "--transport", "http",
-                    "--api_key", api_key
-                ]
-                command_str = f"uv run python -m {module_path} --host 0.0.0.0 --port {port} --transport http --api_key {api_key}"
+                    "python", "-m", module_path
+                ] + base_cmd
+                command_str = f"uv run python -m {module_path} {' '.join(base_cmd)}"
             else:
                 # 使用系统 Python 解释器，以模块方式运行
-                module_path = str(self.server_script).replace(str(self.backend_root) + "/", "").replace("/", ".").replace(".py", "")
                 cmd = [
                     sys.executable,
-                    "-m", module_path,
-                    "--host", "0.0.0.0",
-                    "--port", str(port),
-                    "--transport", "http",
-                    "--api_key", api_key
-                ]
-                command_str = f"{sys.executable} -m {module_path} --host 0.0.0.0 --port {port} --transport http --api_key {api_key}"
+                    "-m", module_path
+                ] + base_cmd
+                command_str = f"{sys.executable} -m {module_path} {' '.join(base_cmd)}"
             
             log_info(f"Starting MCP server with command: {command_str}")
             log_info(f"Working directory: {self.backend_root}")

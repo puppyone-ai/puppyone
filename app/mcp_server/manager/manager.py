@@ -1,7 +1,7 @@
 import random
 import secrets
 import socket
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from app.mcp_server.manager.process_backend import ProcessBackend
 from app.utils.logger import log_info, log_error
 
@@ -60,7 +60,8 @@ async def create_instance(
     api_key: str,
     user_id: str,
     project_id: str,
-    context_id: str
+    context_id: str,
+    register_tools: Optional[List[str]] = None
 ) -> Dict:
     """
     创建一个 MCP 实例
@@ -70,6 +71,7 @@ async def create_instance(
         user_id: 用户ID
         project_id: 项目ID
         context_id: 上下文ID
+        register_tools: 需要注册的工具列表（可选）
         
     Returns:
         包含实例信息的字典：port, docker_info
@@ -88,7 +90,8 @@ async def create_instance(
                 "api_key": api_key,
                 "user_id": user_id,
                 "project_id": project_id,
-                "context_id": context_id
+                "context_id": context_id,
+                "register_tools": register_tools
             }
         )
         
@@ -146,7 +149,8 @@ async def update_instance_status(
     user_id: str = None,
     project_id: str = None,
     context_id: str = None,
-    port: int = None
+    port: int = None,
+    register_tools: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     更新实例状态（启动或停止）
@@ -158,6 +162,7 @@ async def update_instance_status(
         project_id: 项目ID（启动时需要）
         context_id: 上下文ID（启动时需要）
         port: 端口号（启动时需要，如果未提供则重新分配）
+        register_tools: 需要注册的工具列表（可选，启动时需要）
         
     Returns:
         如果启动成功，返回包含 port 和 docker_info 的字典；如果停止，返回空字典
@@ -200,7 +205,8 @@ async def update_instance_status(
                 "api_key": api_key,
                 "user_id": user_id,
                 "project_id": project_id,
-                "context_id": context_id
+                "context_id": context_id,
+                "register_tools": register_tools
             }
         )
         

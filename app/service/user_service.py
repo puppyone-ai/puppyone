@@ -11,14 +11,14 @@ class UserService:
     def list_users(self) -> List[User]:
         return self.repo.get_all()
 
-    def get_user(self, user_id: int) -> Optional[User]:
+    def get_user(self, user_id: str) -> Optional[User]:
         return self.repo.get_by_id(user_id)
 
     def create_user(self, username: str) -> User:
         return self.repo.create(username)
 
-    def update_user(self, user_id: int, username: str) -> Optional[User]:
+    def update_user(self, user_id: str, username: str) -> Optional[User]:
         return self.repo.update(user_id, username)
 
-    def delete_user(self, user_id: int) -> bool:
+    def delete_user(self, user_id: str) -> bool:
         return self.repo.delete(user_id)

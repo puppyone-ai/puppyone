@@ -26,9 +26,9 @@ class McpCreate(BaseModel):
     """
     创建 MCP 实例请求模型
     """
-    user_id: int = Field(..., description="用户ID")
-    project_id: int = Field(..., description="项目ID")
-    context_id: int = Field(..., description="上下文ID")
+    user_id: str = Field(..., description="用户ID")
+    project_id: str = Field(..., description="项目ID")
+    context_id: str = Field(..., description="上下文ID")
     tools_definition: Optional[Dict[ToolTypeKey, McpToolsDefinition]] = Field(
         None,
         description="工具定义字典（可选）。\n\n**重要：字典的 key 必须是以下值之一：'get', 'create', 'update', 'delete'**\n\n每个 key 对应一个工具定义，用于自定义该工具的名称和描述模板。如果不提供，将使用默认的工具定义。",
@@ -63,12 +63,29 @@ class McpCreate(BaseModel):
                 if key not in valid_keys:
                     raise ValueError(f"Invalid tool type key: {key}. Must be one of {valid_keys}")
         return v
+    
+    register_tools: List[ToolTypeKey] = Field(
+        default=["get", "create", "update", "delete"],
+        description="需要注册的工具列表。默认为所有工具：['get', 'create', 'update', 'delete']。可以只选择部分工具进行注册。",
+        examples=[["get", "create"], ["get", "update", "delete"]]
+    )
+    
+    @field_validator('register_tools')
+    @classmethod
+    def validate_register_tools(cls, v):
+        """验证 register_tools 的值只能是 get/create/update/delete"""
+        if v is not None:
+            valid_keys = {"get", "create", "update", "delete"}
+            invalid_keys = set(v) - valid_keys
+            if invalid_keys:
+                raise ValueError(f"Invalid tool type keys in register_tools: {invalid_keys}. Must be one of {valid_keys}")
+        return v
 
 class McpUpdate(BaseModel):
     """
     更新 MCP 实例请求模型
     """
-    status: int = Field(..., description="实例状态，0表示关闭，1表示开启")
+    status: Optional[int] = Field(None, description="实例状态，0表示关闭，1表示开启")
     tools_definition: Optional[Dict[ToolTypeKey, McpToolsDefinition]] = Field(
         None,
         description="工具定义字典（可选）。\n\n**重要：字典的 key 必须是以下值之一：'get', 'create', 'update', 'delete'**\n\n每个 key 对应一个工具定义，用于自定义该工具的名称和描述模板。如果不提供，将保持原有的工具定义不变。",
@@ -103,6 +120,23 @@ class McpUpdate(BaseModel):
                 if key not in valid_keys:
                     raise ValueError(f"Invalid tool type key: {key}. Must be one of {valid_keys}")
         return v
+    
+    register_tools: Optional[List[ToolTypeKey]] = Field(
+        None,
+        description="需要注册的工具列表（可选）。如果不提供，将保持原有的工具注册配置不变。",
+        examples=[["get", "create"], ["get", "update", "delete"]]
+    )
+    
+    @field_validator('register_tools')
+    @classmethod
+    def validate_register_tools(cls, v):
+        """验证 register_tools 的值只能是 get/create/update/delete"""
+        if v is not None:
+            valid_keys = {"get", "create", "update", "delete"}
+            invalid_keys = set(v) - valid_keys
+            if invalid_keys:
+                raise ValueError(f"Invalid tool type keys in register_tools: {invalid_keys}. Must be one of {valid_keys}")
+        return v
 
 class McpTokenPayload(BaseModel):
     user_id: str
@@ -114,3 +148,4 @@ class McpStatusResponse(BaseModel):
     port: Optional[int] = None
     docker_info: Optional[Dict[Any, Any]] = None # 容器信息
     tools_definition: Optional[Dict[ToolTypeKey, McpToolsDefinition]] = None # 工具定义字典（可选），key只能是get/create/update/delete
+    register_tools: Optional[List[ToolTypeKey]] = None # 已注册的工具列表

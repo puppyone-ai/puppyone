@@ -2,6 +2,7 @@
 MCP 实例管理 API
 负责 MCP 实例的创建、查询、更新和删除
 """
+from this import d
 from fastapi import APIRouter, Depends
 from app.schemas.response import ApiResponse
 from app.schemas.mcp import McpCreate, McpStatusResponse, McpUpdate
@@ -10,7 +11,7 @@ from app.core.dependencies import get_mcp_instance_service
 from app.utils.logger import log_error
 from typing import Dict, Any
 
-router = APIRouter(prefix="/mcp", tags=["mcp"])
+router = APIRouter(prefix="/mcp", tags=["MCP实例管理"])
 
 ERROR_CODE = 1002
 
@@ -35,7 +36,8 @@ async def generate_mcp_instance(
             user_id=mcp_create.user_id,
             project_id=mcp_create.project_id,
             context_id=mcp_create.context_id,
-            tools_definition=mcp_create.tools_definition
+            tools_definition=mcp_create.tools_definition,
+            register_tools=mcp_create.register_tools
         )
         
         # 返回 API key (JWT token)
@@ -78,7 +80,8 @@ async def get_mcp_status(
             status=status_info.get("status", 0),
             port=status_info.get("port"),
             docker_info=status_info.get("docker_info"),
-            tools_definition=status_info.get("tools_definition")
+            tools_definition=status_info.get("tools_definition"),
+            register_tools=status_info.get("register_tools")
         )
         
         return ApiResponse.success(
@@ -93,7 +96,9 @@ async def get_mcp_status(
         )
 
 
-@router.put("/{api_key}", response_model=ApiResponse[None])
+@router.put("/{api_key}",response_model=ApiResponse[None],
+    description="更新MCP实例。\n 1. 任何无需改变的参数，请不要传入，包括status。\n 2. 如果需要更新工具定义，请传入tools_definition。\n 3. 如果需要更新注册工具，请传入register_tools。"
+)
 async def update_mcp(
     api_key: str,
     mcp_update: McpUpdate,
@@ -108,7 +113,8 @@ async def update_mcp(
         updated_instance = await mcp_instance_service.update_mcp_instance(
             api_key=api_key,
             status=mcp_update.status,
-            tools_definition=mcp_update.tools_definition
+            tools_definition=mcp_update.tools_definition,
+            register_tools=mcp_update.register_tools
         )
         
         if not updated_instance:

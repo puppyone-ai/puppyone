@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any, List
 from pathlib import Path
 from app.utils.logger import log_error
 from app.repositories.base import McpInstanceRepositoryBase
-from app.schemas.mcp import McpToolsDefinition
+from app.schemas.mcp import McpToolsDefinition, ToolTypeKey
 
 DATA_PATH = Path("./data/mcp_instances.json")
 
@@ -50,7 +50,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 return instance
         return None
     
-    def create(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None) -> McpInstance:
+    def create(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None, register_tools: Optional[List[ToolTypeKey]] = None) -> McpInstance:
         """创建新的 MCP 实例"""
         instances = self._read_data()
         # 生成唯一的 mcp_instance_id
@@ -64,13 +64,14 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
             status=status,
             port=port,
             docker_info=docker_info,
-            tools_definition=tools_definition
+            tools_definition=tools_definition,
+            register_tools=register_tools
         )
         instances.append(new_instance)
         self._write_data(instances)
         return new_instance
     
-    def update_by_id(self, mcp_instance_id: str, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None) -> Optional[McpInstance]:
+    def update_by_id(self, mcp_instance_id: str, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None, register_tools: Optional[List[ToolTypeKey]] = None) -> Optional[McpInstance]:
         """根据 mcp_instance_id 更新实例"""
         instances = self._read_data()
         for i, instance in enumerate(instances):
@@ -84,14 +85,15 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                     status=status,
                     port=port,
                     docker_info=docker_info,
-                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition
+                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                    register_tools=register_tools if register_tools is not None else instance.register_tools
                 )
                 instances[i] = updated_instance
                 self._write_data(instances)
                 return updated_instance
         return None
     
-    def update_by_api_key(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None) -> Optional[McpInstance]:
+    def update_by_api_key(self, api_key: str, user_id: str, project_id: str, context_id: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None, register_tools: Optional[List[ToolTypeKey]] = None) -> Optional[McpInstance]:
         """根据 api_key 更新实例"""
         instances = self._read_data()
         for i, instance in enumerate(instances):
@@ -105,7 +107,8 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                     status=status,
                     port=port,
                     docker_info=docker_info,
-                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition
+                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                    register_tools=register_tools if register_tools is not None else instance.register_tools
                 )
                 instances[i] = updated_instance
                 self._write_data(instances)
