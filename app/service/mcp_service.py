@@ -76,6 +76,7 @@ class McpService:
         user_id: str,
         project_id: str,
         context_id: str,
+        json_pointer: str = "",
         tools_definition: Optional[Dict[str, Any]] = None,
         register_tools: Optional[List[str]] = None
     ) -> McpInstance:
@@ -93,6 +94,7 @@ class McpService:
             user_id: 用户ID
             project_id: 项目ID
             context_id: 上下文ID
+            json_pointer: JSON指针路径，表示该MCP实例对应的数据路径，默认为空字符串表示根路径
             tools_definition: 工具定义字典（可选），key只能是get/create/update/delete
             register_tools: 需要注册的工具列表（可选），默认为所有工具
             
@@ -134,6 +136,7 @@ class McpService:
                 user_id=user_id,
                 project_id=project_id,
                 context_id=context_id,
+                json_pointer=json_pointer,
                 status=1,  # 1 表示开启
                 port=port,
                 docker_info=docker_info,
@@ -177,6 +180,7 @@ class McpService:
         self,
         api_key: str,
         status: Optional[int] = None,
+        json_pointer: Optional[str] = None,
         tools_definition: Optional[Dict[str, Any]] = None,
         register_tools: Optional[List[str]] = None
     ) -> Optional[McpInstance]:
@@ -186,6 +190,7 @@ class McpService:
         Args:
             api_key: API key
             status: 状态，0表示关闭，1表示开启
+            json_pointer: JSON指针路径（可选），如果提供则更新路径
             tools_definition: 工具定义字典（可选），key只能是get/create/update/delete
             register_tools: 需要注册的工具列表（可选）
             
@@ -196,11 +201,17 @@ class McpService:
         if not instance:
             return None
         
+        # 确定要使用的 json_pointer（优先使用新的，否则使用原有的）
+        final_json_pointer = json_pointer if json_pointer is not None else instance.json_pointer
+        
+        # 检查 json_pointer 是否改变（需要重启）
+        json_pointer_changed = json_pointer is not None and json_pointer != instance.json_pointer
+        
         # 检查 register_tools 是否改变（需要重启）
         register_tools_changed = register_tools is not None and register_tools != instance.register_tools
         
-        # 如果只更新 tools_definition 或 register_tools，需要重启实例以应用新的配置
-        if status is None and (tools_definition is not None or register_tools_changed):
+        # 如果只更新 tools_definition、register_tools 或 json_pointer，需要重启实例以应用新的配置
+        if status is None and (tools_definition is not None or register_tools_changed or json_pointer_changed):
             old_status = instance.status
             old_port = instance.port
             
@@ -239,6 +250,7 @@ class McpService:
                     user_id=instance.user_id,
                     project_id=instance.project_id,
                     context_id=instance.context_id,
+                    json_pointer=final_json_pointer,
                     status=1,  # 保持开启状态
                     port=new_port,
                     docker_info=new_docker_info,
@@ -256,6 +268,7 @@ class McpService:
                     user_id=instance.user_id,
                     project_id=instance.project_id,
                     context_id=instance.context_id,
+                    json_pointer=final_json_pointer,
                     status=instance.status,
                     port=instance.port,
                     docker_info=instance.docker_info,
@@ -298,6 +311,7 @@ class McpService:
                     user_id=instance.user_id,
                     project_id=instance.project_id,
                     context_id=instance.context_id,
+                    json_pointer=final_json_pointer,
                     status=status,
                     port=new_port,
                     docker_info=new_docker_info,
@@ -328,6 +342,7 @@ class McpService:
                     user_id=instance.user_id,
                     project_id=instance.project_id,
                     context_id=instance.context_id,
+                    json_pointer=final_json_pointer,
                     status=status,
                     port=old_port,
                     docker_info=instance.docker_info,  # 保留原有进程信息
@@ -349,6 +364,7 @@ class McpService:
                     user_id=instance.user_id,
                     project_id=instance.project_id,
                     context_id=instance.context_id,
+                    json_pointer=final_json_pointer,
                     status=status,
                     port=instance.port,
                     docker_info=instance.docker_info,
@@ -421,6 +437,7 @@ class McpService:
                 user_id=instance.user_id,
                 project_id=instance.project_id,
                 context_id=instance.context_id,
+                json_pointer=instance.json_pointer,
                 status=0,  # 更新为关闭状态
                 port=instance.port,
                 docker_info=instance.docker_info,
@@ -432,6 +449,7 @@ class McpService:
         return {
             "status": instance.status,
             "port": instance.port,
+            "json_pointer": instance.json_pointer,
             "tools_definition": instance.tools_definition,
             "register_tools": instance.register_tools,
             "docker_info": instance.docker_info,
@@ -492,6 +510,7 @@ class McpService:
                             user_id=instance.user_id,
                             project_id=instance.project_id,
                             context_id=instance.context_id,
+                            json_pointer=instance.json_pointer,
                             status=1,  # 保持开启状态
                             port=new_port,
                             docker_info=new_docker_info,
@@ -509,6 +528,7 @@ class McpService:
                             user_id=instance.user_id,
                             project_id=instance.project_id,
                             context_id=instance.context_id,
+                            json_pointer=instance.json_pointer,
                             status=0,
                             port=instance.port,
                             docker_info=instance.docker_info,
@@ -523,6 +543,7 @@ class McpService:
                         user_id=instance.user_id,
                         project_id=instance.project_id,
                         context_id=instance.context_id,
+                        json_pointer=instance.json_pointer,
                         status=1,
                         port=instance.port,
                         docker_info=instance.docker_info,

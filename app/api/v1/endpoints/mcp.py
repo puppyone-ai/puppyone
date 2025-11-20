@@ -2,7 +2,6 @@
 MCP 实例管理 API
 负责 MCP 实例的创建、查询、更新和删除
 """
-from this import d
 from fastapi import APIRouter, Depends
 from app.schemas.response import ApiResponse
 from app.schemas.mcp import McpCreate, McpStatusResponse, McpUpdate
@@ -36,6 +35,7 @@ async def generate_mcp_instance(
             user_id=mcp_create.user_id,
             project_id=mcp_create.project_id,
             context_id=mcp_create.context_id,
+            json_pointer=mcp_create.json_pointer,
             tools_definition=mcp_create.tools_definition,
             register_tools=mcp_create.register_tools
         )
@@ -80,6 +80,7 @@ async def get_mcp_status(
             status=status_info.get("status", 0),
             port=status_info.get("port"),
             docker_info=status_info.get("docker_info"),
+            json_pointer=status_info.get("json_pointer"),
             tools_definition=status_info.get("tools_definition"),
             register_tools=status_info.get("register_tools")
         )
@@ -113,6 +114,7 @@ async def update_mcp(
         updated_instance = await mcp_instance_service.update_mcp_instance(
             api_key=api_key,
             status=mcp_update.status,
+            json_pointer=mcp_update.json_pointer,
             tools_definition=mcp_update.tools_definition,
             register_tools=mcp_update.register_tools
         )

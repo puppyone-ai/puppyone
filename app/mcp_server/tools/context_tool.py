@@ -191,27 +191,43 @@ keys = ["user_001", "user_002"]
     
     def get_context(self, context_info: Dict[str, Any]) -> Dict[str, Any]:
         """
-        获取整个知识库内容（整个JSON对象）
+        获取指定路径下的知识库内容（JSON对象）
         
         Args:
-            context_info: 上下文信息字典，包含 context, context_id 等
+            context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
         
         Returns:
             操作结果字典
         """
         try:
-            context = context_info.get("context")
+            context_id = context_info.get("context_id")
+            json_pointer = context_info.get("json_pointer", "")
             
-            if not context:
+            if not context_id:
                 return {
-                    "error": "知识库不存在",
-                    "context_id": context_info.get("context_id")
+                    "error": "知识库ID不存在",
+                    "context_id": context_id
                 }
             
-            # 返回完整的context_data（JSON对象）
+            # 使用 user_context_service 获取指定路径的数据
+            user_context_service = get_user_context_service()
+            success, error_message, data = user_context_service.get_context_data(context_id, json_pointer)
+            
+            if not success:
+                return {
+                    "error": error_message or "获取知识库内容失败",
+                    "context_id": context_id,
+                    "json_pointer": json_pointer
+                }
+            
+            # 如果 data 是 None，返回空字典
+            if data is None:
+                data = {}
+            
             return {
                 "message": "获取知识库内容成功",
-                "data": context.context_data if context.context_data else {}
+                "data": data,
+                "json_pointer": json_pointer
             }
         except Exception as e:
             log_error(f"Error getting context: {e}")
@@ -225,30 +241,27 @@ keys = ["user_001", "user_002"]
         context_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        批量创建元素
+        批量创建元素到指定路径下
         
         Args:
             elements: 元素数组，每个元素包含 key（str）和 content（Any）
-            context_info: 上下文信息字典，包含 context, context_id 等
+            context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
         
         Returns:
             操作结果字典
         """
         try:
             context_id = context_info.get("context_id")
-            context = context_info.get("context")
+            json_pointer = context_info.get("json_pointer", "")
             
-            if not context:
+            if not context_id:
                 return {
-                    "error": "知识库不存在",
+                    "error": "知识库ID不存在",
                     "context_id": context_id
                 }
             
-            # 获取当前context_data
-            context_data = context.context_data.copy() if context.context_data else {}
-            
-            # 验证并创建元素
-            created_keys = []
+            # 验证元素格式
+            validated_elements = []
             failed_keys = []
             
             for element in elements:
@@ -256,48 +269,49 @@ keys = ["user_001", "user_002"]
                     failed_keys.append({"element": element, "reason": "元素必须是字典类型"})
                     continue
                 
-                key = element.get("key") if isinstance(element, dict) else getattr(element, "key", None)
-                content = element.get("content") if isinstance(element, dict) else getattr(element, "content", None)
+                key = element.get("key")
+                content = element.get("content")
                 
                 if not isinstance(key, str):
                     failed_keys.append({"key": key, "reason": "key必须是字符串类型"})
                     continue
                 
-                if key in context_data:
-                    failed_keys.append({"key": key, "reason": "key已存在"})
+                if "key" not in element or "content" not in element:
+                    failed_keys.append({"element": element, "reason": "元素缺少 'key' 或 'content' 字段"})
                     continue
                 
-                # 创建新的键值对
-                context_data[key] = content
-                created_keys.append(key)
+                validated_elements.append({"key": key, "content": content})
             
-            if not created_keys:
+            if not validated_elements:
                 return {
                     "error": "没有成功创建任何元素",
                     "failed": failed_keys
                 }
             
-            # 更新context_data
+            # 使用 user_context_service 在指定路径下创建数据
             user_context_service = get_user_context_service()
-            updated_context = user_context_service.update(
+            success, error_message, data = user_context_service.create_context_data(
                 context_id=context_id,
-                context_name=context.context_name,
-                context_description=context.context_description,
-                context_data=context_data,
-                metadata=context.metadata
+                mounted_json_pointer_path=json_pointer,
+                elements=validated_elements
             )
             
-            if not updated_context:
+            if not success:
                 return {
-                    "error": "更新知识库失败"
+                    "error": error_message or "创建元素失败",
+                    "failed": failed_keys if failed_keys else None
                 }
+            
+            # 提取成功创建的 keys
+            created_keys = [elem["key"] for elem in validated_elements]
             
             return {
                 "message": "元素创建成功",
                 "created_keys": created_keys,
                 "failed": failed_keys if failed_keys else None,
                 "total_created": len(created_keys),
-                "total_failed": len(failed_keys)
+                "total_failed": len(failed_keys),
+                "json_pointer": json_pointer
             }
         except Exception as e:
             log_error(f"Error creating elements: {e}")
@@ -311,30 +325,27 @@ keys = ["user_001", "user_002"]
         context_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        批量更新元素
+        批量更新指定路径下的元素
         
         Args:
             updates: 更新数组，每个元素包含 key（str）和 content（Any）
-            context_info: 上下文信息字典，包含 context, context_id 等
+            context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
         
         Returns:
             操作结果字典
         """
         try:
             context_id = context_info.get("context_id")
-            context = context_info.get("context")
+            json_pointer = context_info.get("json_pointer", "")
             
-            if not context:
+            if not context_id:
                 return {
-                    "error": "知识库不存在",
+                    "error": "知识库ID不存在",
                     "context_id": context_id
                 }
             
-            # 获取当前context_data
-            context_data = context.context_data.copy() if context.context_data else {}
-            
-            # 验证并更新元素
-            updated_keys = []
+            # 验证更新项格式
+            validated_updates = []
             failed_keys = []
             
             for update_item in updates:
@@ -342,48 +353,49 @@ keys = ["user_001", "user_002"]
                     failed_keys.append({"update": update_item, "reason": "更新项必须是字典类型"})
                     continue
                 
-                key = update_item.get("key") if isinstance(update_item, dict) else getattr(update_item, "key", None)
-                value = update_item.get("content") if isinstance(update_item, dict) else getattr(update_item, "content", None)
+                key = update_item.get("key")
+                content = update_item.get("content")
                 
                 if not isinstance(key, str):
                     failed_keys.append({"key": key, "reason": "key必须是字符串类型"})
                     continue
                 
-                if key not in context_data:
-                    failed_keys.append({"key": key, "reason": "key不存在于知识库中"})
+                if "key" not in update_item or "content" not in update_item:
+                    failed_keys.append({"update": update_item, "reason": "更新项缺少 'key' 或 'content' 字段"})
                     continue
                 
-                # 更新键值对（完全替换）
-                context_data[key] = value
-                updated_keys.append(key)
+                validated_updates.append({"key": key, "content": content})
             
-            if not updated_keys:
+            if not validated_updates:
                 return {
                     "error": "没有成功更新任何元素",
                     "failed": failed_keys
                 }
             
-            # 更新context_data
+            # 使用 user_context_service 更新指定路径的数据
             user_context_service = get_user_context_service()
-            updated_context = user_context_service.update(
+            success, error_message, data = user_context_service.update_context_data(
                 context_id=context_id,
-                context_name=context.context_name,
-                context_description=context.context_description,
-                context_data=context_data,
-                metadata=context.metadata
+                json_pointer_path=json_pointer,
+                elements=validated_updates
             )
             
-            if not updated_context:
+            if not success:
                 return {
-                    "error": "更新知识库失败"
+                    "error": error_message or "更新元素失败",
+                    "failed": failed_keys if failed_keys else None
                 }
+            
+            # 提取成功更新的 keys
+            updated_keys = [update["key"] for update in validated_updates]
             
             return {
                 "message": "元素更新成功",
                 "updated_keys": updated_keys,
                 "failed": failed_keys if failed_keys else None,
                 "total_updated": len(updated_keys),
-                "total_failed": len(failed_keys)
+                "total_failed": len(failed_keys),
+                "json_pointer": json_pointer
             }
         except Exception as e:
             log_error(f"Error updating elements: {e}")
@@ -397,72 +409,66 @@ keys = ["user_001", "user_002"]
         context_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        批量删除元素
+        批量删除指定路径下的元素
         
         Args:
             keys: 要删除的key数组
-            context_info: 上下文信息字典，包含 context, context_id 等
+            context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
         
         Returns:
             操作结果字典
         """
         try:
             context_id = context_info.get("context_id")
-            context = context_info.get("context")
+            json_pointer = context_info.get("json_pointer", "")
             
-            if not context:
+            if not context_id:
                 return {
-                    "error": "知识库不存在",
+                    "error": "知识库ID不存在",
                     "context_id": context_id
                 }
             
-            # 获取当前context_data
-            context_data = context.context_data.copy() if context.context_data else {}
-            
-            # 验证并删除元素
-            deleted_keys = []
-            not_found_keys = []
+            # 验证 keys 格式
+            validated_keys = []
+            invalid_keys = []
             
             for key in keys:
                 if not isinstance(key, str):
-                    not_found_keys.append({"key": key, "reason": "key必须是字符串类型"})
+                    invalid_keys.append({"key": key, "reason": "key必须是字符串类型"})
                     continue
-                
-                if key not in context_data:
-                    not_found_keys.append({"key": key, "reason": "key不存在于知识库中"})
-                    continue
-                
-                # 删除键值对
-                del context_data[key]
-                deleted_keys.append(key)
+                validated_keys.append(key)
             
-            if not deleted_keys:
+            if not validated_keys:
                 return {
-                    "error": "没有成功删除任何元素",
-                    "not_found": not_found_keys
+                    "error": "没有有效的key可以删除",
+                    "invalid": invalid_keys
                 }
             
-            # 更新context_data
+            # 使用 user_context_service 删除指定路径下的数据
             user_context_service = get_user_context_service()
-            updated_context = user_context_service.update(
+            success, error_message, data = user_context_service.delete_context_data(
                 context_id=context_id,
-                context_name=context.context_name,
-                context_description=context.context_description,
-                context_data=context_data,
-                metadata=context.metadata
+                json_pointer_path=json_pointer,
+                keys=validated_keys
             )
             
-            if not updated_context:
+            if not success:
                 return {
-                    "error": "更新知识库失败"
+                    "error": error_message or "删除元素失败",
+                    "invalid": invalid_keys if invalid_keys else None
                 }
+            
+            # 提取成功删除的 keys（从返回的数据中推断）
+            # 由于 delete_context_data 返回删除后的数据，我们可以通过比较来确认删除的 keys
+            deleted_keys = validated_keys  # 如果成功，说明所有 keys 都被删除了
             
             return {
                 "message": "元素删除成功",
                 "deleted_keys": deleted_keys,
-                "not_found": not_found_keys if not_found_keys else None,
+                "invalid": invalid_keys if invalid_keys else None,
                 "total_deleted": len(deleted_keys),
-                "total_not_found": len(not_found_keys)
+                "total_invalid": len(invalid_keys),
+                "json_pointer": json_pointer
             }
         except Exception as e:
             log_error(f"Error deleting elements: {e}")

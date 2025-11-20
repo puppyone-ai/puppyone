@@ -32,7 +32,7 @@ _context_info: Dict[str, Any] = {
     "user_id": None,
     "project_id": None,
     "context_id": None,
-
+    "json_pointer": None,
     "context_name": None,
     "context_description": None,
     "context_metadata": None,
@@ -104,10 +104,12 @@ def _init_context_info(api_key: str) -> None:
         }
         
         # 5. 更新全局 context 信息
+        json_pointer = instance.json_pointer if hasattr(instance, 'json_pointer') else ""
         _context_info = {
             "user_id": user_id,
             "project_id": project_id,
             "context_id": context_id,
+            "json_pointer": json_pointer,
             "context": context,
             "project_name": project_name,
             "project_description": project_description,
