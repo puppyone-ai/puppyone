@@ -121,21 +121,31 @@ class Logger:
         # 禁用传播到 root logger，避免重复输出
         self.logger.propagate = False
         
+        # 设置 logger 级别为 INFO，确保 INFO、WARNING、ERROR 等级别的日志都能输出
+        # handler 的级别会在创建时设置
+        self.logger.setLevel(logging.INFO)
+        
         # 设置自定义格式化器
         if self.use_color:
             # 如果已经有 handler，使用现有的；否则创建新的
             if not self.logger.handlers:
                 handler = logging.StreamHandler()
+                handler.setLevel(logging.INFO)  # 设置 handler 级别
                 self.logger.addHandler(handler)
             else:
                 handler = self.logger.handlers[0]
+                handler.setLevel(logging.INFO)  # 确保 handler 级别正确
             handler.setFormatter(ColoredFormatter(use_color=True))
         else:
             # 如果不使用颜色，确保至少有一个 handler
             if not self.logger.handlers:
                 handler = logging.StreamHandler()
+                handler.setLevel(logging.INFO)  # 设置 handler 级别
                 handler.setFormatter(logging.Formatter('%(levelname)s:%(name)s:%(message)s'))
                 self.logger.addHandler(handler)
+            else:
+                handler = self.logger.handlers[0]
+                handler.setLevel(logging.INFO)  # 确保 handler 级别正确
         
         self._log_handler = self._log_local
     

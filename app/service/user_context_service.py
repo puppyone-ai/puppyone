@@ -5,6 +5,8 @@
 from typing import List, Optional, Dict, Tuple, Any
 from jsonpointer import resolve_pointer, set_pointer
 import json
+import jmespath
+from app.utils.logger import log_warning
 from app.models.user_context import UserContext
 from app.repositories.base import UserContextRepositoryBase
 
@@ -223,3 +225,103 @@ class UserContextService:
         # 返回删除后的数据
         result = resolve_pointer(updated_context.context_data, json_pointer_path)
         return True, None, result
+    
+    def query_context_data_with_jmespath(
+        self, 
+        context_id: str, 
+        json_pointer_path: str, 
+        query: str
+    ) -> Tuple[bool, Optional[str], Optional[Any]]:
+        """
+        使用 JMESPath 查询 context_data 中指定路径的数据
+        
+        Args:
+            context_id: 知识库ID
+            json_pointer_path: JSON指针路径，查询将基于此路径下的数据
+            query: JMESPath 查询字符串
+        
+        Returns:
+            (success: bool, error_message: Optional[str], data: Optional[Any])
+            data 可以是任意类型：dict、list、str、int、float、bool等
+        """
+        context = self.repo.get_by_id(context_id)
+        if not context:
+            return False, "知识库不存在", None
+        
+        try:
+            # 先获取指定路径的数据
+            base_data = resolve_pointer(context.context_data, json_pointer_path, None)
+            if base_data is None:
+                return False, f"路径不存在: {json_pointer_path}", None
+            
+            # 使用 JMESPath 查询数据
+            result = jmespath.search(query, base_data)
+
+            # 处理空结果
+            if result is None:
+                return True, None, None
+            
+            return True, None, result
+            
+        except jmespath.exceptions.ParseError as e:
+            return False, f"JMESPath 查询语法错误: {str(e)}", None
+        except Exception as e:
+            return False, f"查询失败: {str(e)}", None
+    
+    def get_context_structure(
+        self, 
+        context_id: str, 
+        json_pointer_path: str
+    ) -> Tuple[bool, Optional[str], Optional[Dict]]:
+        """
+        获取 context_data 中指定路径的数据结构（不包含实际数据值）
+        
+        Args:
+            context_id: 知识库ID
+            json_pointer_path: JSON指针路径
+        
+        Returns:
+            (success: bool, error_message: Optional[str], structure: Optional[Dict])
+            structure 只包含结构信息，不包含数据值
+        """
+        context = self.repo.get_by_id(context_id)
+        if not context:
+            return False, "知识库不存在", None
+        
+        try:
+            data = resolve_pointer(context.context_data, json_pointer_path, None)
+            if data is None:
+                return False, f"路径不存在: {json_pointer_path}", None
+            
+            # 提取结构信息
+            structure = self._extract_structure(data)
+            return True, None, structure
+            
+        except Exception as e:
+            return False, f"获取结构失败: {str(e)}", None
+    
+    def _extract_structure(self, data: Any) -> Any:
+        """
+        递归提取数据结构，保留类型信息但不保留实际值
+        
+        Args:
+            data: 要提取结构的数据
+        
+        Returns:
+            结构信息（类型占位符）
+        """
+        if isinstance(data, dict):
+            structure = {}
+            for key, value in data.items():
+                structure[key] = self._extract_structure(value)
+            return structure
+        elif isinstance(data, list):
+            if len(data) > 0:
+                # 使用第一个元素的结构作为模板
+                return [self._extract_structure(data[0])]
+            else:
+                return []
+        else:
+            # 对于基本类型，返回类型名称
+            type_name = type(data).__name__
+            return f"<{type_name}>"

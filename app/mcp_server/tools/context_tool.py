@@ -67,30 +67,101 @@ class ContextTool:
 - value（值）：可以是任意JSON类型（对象、数组、字符串、数字、布尔值等）
 
 使用流程：
-1. 首次使用必须通过 get_context 工具获取整个知识库的内容，了解当前的数据结构
+1. 首次使用建议通过 get_context(schema="1") 工具获取知识库的结构。
 2. 在了解现有数据结构后，才能进行创建、更新或删除操作
 3. 所有操作都是基于key（键）来定位和操作数据项"""
         
         descriptions = {
             "get": f"""{base_description}
 
-功能：获取整个知识库的完整内容（整个JSON对象）。
+功能：获取知识库的内容，支持三种模式：
+1. 获取结构信息：传入 schema="1" 时，只返回JSON结构信息，不包含实际数据值
+2. JMESPath查询：传入 query 参数时，使用JMESPath语法灵活检索数据
+3. 获取所有数据：不传任何参数时，返回整个知识库的完整内容，除非用户特别需要，否则尽可能使用JMESPath的查询方式。
 
 参数说明：
-- 此工具不需要任何参数，直接调用即可获取整个知识库的所有数据。
+- schema (str, 可选): 是否只查询JSON结构。"1"表示只查询结构，此时会忽略query参数，只返回结构信息。不传入或传入"0"表示查询数据。默认值为None（0）
+- query (str, 可选): JMESPath查询字符串，用于灵活检索数据。支持精确匹配、条件过滤、数字展平和投影等语法
 
 返回值：
-- 返回完整的JSON对象，包含知识库中所有的键值对（key-value pairs）如果知识库为空，将返回空的JSON对象 {{}}
+- 结构模式（schema="1"）：返回只包含结构信息的JSON对象，不包含实际数据值
+- 查询模式（query参数）：返回符合JMESPath查询条件的数据，可以是任意类型（dict、list、str、int、float、bool等）
+- 无参数模式：返回完整的JSON对象，包含知识库中所有的键值对（key-value pairs）。如果知识库为空，将返回空的JSON对象 {{}}
+
+重要提示：JMESPath查询是基于知识库数据进行的。知识库数据可能是JSON对象（字典）或JSON数组，需要根据实际数据结构选择合适的查询语法。
+
+示例数据结构1（知识库数据是对象）：
+{{
+  "company": "FutureAI Inc.",
+  "departments": [
+    {{
+      "name": "R&D",
+      "employees": [
+        {{"name": "Alice", "active": true, "skills": ["Python", "AI"]}},
+        {{"name": "Bob", "active": false, "skills": ["Java"]}}
+      ]
+    }},
+    {{
+      "name": "Marketing",
+      "employees": [
+        {{"name": "Charlie", "active": true, "skills": ["SEO"]}}
+      ]
+    }}
+  ]
+}}
+
+JMESPath查询语法示例（知识库数据是对象时）：
+- 获取所有部门：`departments[*]` - 直接访问对象的departments字段（数组）
+- 获取第一个部门的员工：`departments[0].employees[*]` - 访问数组的第一个元素
+- 获取所有员工的技能：`departments[*].employees[*].skills[]` - 展平嵌套数组
+- 过滤活跃员工：`departments[*].employees[?active==true]` - 在数组中使用过滤（注意：`[?...]`只能用于数组，布尔值使用true/false，不需要引号）
+- 获取特定部门：`departments[?name=='R&D']` - 在departments数组中过滤（字符串比较使用单引号）
+- 获取所有员工名字：`departments[*].employees[*].name` - 投影操作
+- 获取公司名称：`company` - 直接访问对象的字段
+- 获取嵌套对象：`departments[0].employees[0].name` - 访问嵌套路径
+
+示例数据结构2（知识库数据是数组）：
+[
+  {{"company": "puppyagent", "name": "Alice", "age": 25}},
+  {{"company": "FutureAI", "name": "Bob", "age": 30}},
+  {{"company": "puppyagent", "name": "Charlie", "age": 28}}
+]
+
+JMESPath查询语法示例（知识库数据是数组时）：
+- 过滤特定公司：`[?company=='puppyagent']` - 在数组中使用过滤语法（注意：`[?...]`用于数组过滤）
+- 获取所有名字：`[*].name` - 投影操作，获取数组中所有元素的name字段
+- 获取特定公司的名字：`[?company=='puppyagent'].name` - 先过滤再投影
+- 获取第一个元素：`[0]` - 访问数组的第一个元素
+- 获取第一个元素的名字：`[0].name` - 访问数组第一个元素的name字段
+
+常见错误和正确示例：
+- ❌ 错误：`[?company=='puppyagent'].company_info.departments[*]` - 如果知识库数据是对象，不能对对象使用`[?...]`过滤
+- ✅ 正确（对象）：`company_info.departments[*]` - 直接访问对象的字段
+- ✅ 正确（数组）：`[?company=='puppyagent'].company_info.departments[*]` - 如果知识库数据是数组，可以先过滤再访问
+- ❌ 错误：如果知识库数据是对象，使用`[?name=='Alice']`会失败
+- ✅ 正确（对象）：`departments[*].employees[?name=='Alice']` - 在对象的数组字段中过滤
+- ✅ 正确（数组）：`[?name=='Alice']` - 如果知识库数据是数组，可以直接过滤
+
+条件表达式语法（重要）：
+JMESPath 不支持 `? :` 三元运算符，但可以使用 `&&` 和 `||` 操作符实现条件逻辑：
+- ❌ 错误：`school_info.school_name == 'puppyagent_university' ? school_info.departments[*].teachers[*] : []` - 不支持三元运算符
+- ✅ 正确：`school_info.school_name == 'puppyagent_university' && school_info.departments[*].teachers[] || ` + chr(96) + '[]' + chr(96) + r'` - 使用 && 和 || 操作符（注意：空数组字面量使用反引号包裹）
+  - 条件为真时：返回 `school_info.departments[*].teachers[]`（展平后的教师数组）
+  - 条件为假时：返回空数组（注意：空数组字面量需要使用反引号包裹，写法：反引号 + [] + 反引号）
+- 展平嵌套数组：使用 `[]` 而不是 `[*]` 来展平嵌套数组
+  - `departments[*].teachers[*]` - 返回嵌套数组：`[[teacher1, teacher2], [teacher3]]`
+  - `departments[*].teachers[]` - 返回展平数组：`[teacher1, teacher2, teacher3]`
+- 空数组字面量示例：在 JMESPath 查询中，如果要返回空数组，应写成：反引号 + 左方括号 + 右方括号 + 反引号（在代码中表示为 `` `[]` ``）
 
 使用场景：
-- 首次访问知识库时，必须先调用此工具了解数据结构
-- 需要查看知识库的完整内容时
-- 在进行增删改操作前，需要先了解现有数据
+- 首次访问知识库时，或者要实现增加、修改和删除操作时，必须先调用此工具了解数据结构（可以使用 schema="1" 快速查看结构）
+- 需要检索特定数据时（使用 query 参数）
+- 需要查看知识库的完整内容时（不传参数）
 
-示例场景：
-- 用户说"查看某某项目的某某知识库内容" → 使用此工具获取整个知识库
-- 用户说"显示某某项目的某某知识库所有数据" → 使用此工具获取完整JSON对象
-- 在进行任何修改操作前，必须先调用此工具""",
+⚠️注意：
+1. 如果你发现你的JMESPath写错，你可以通过这个网址查询他的具体语法：https://jmespath.org/specification.html#examples
+2. 你应该尽可能采用JMESPath的查询方式去查询，如果发现查询语法写错了，请你检查后重新构造query，而不是直接去查询所有数据。只有你修改了3-4次后语法还是不正确，才尝试去直接获取所有数据。
+""",
             
             "create": f"""{base_description}
 
@@ -189,12 +260,19 @@ keys = ["user_001", "user_002"]
         
         return descriptions.get(tool_type, base_description)
     
-    def get_context(self, context_info: Dict[str, Any]) -> Dict[str, Any]:
+    def get_context(
+        self, 
+        context_info: Dict[str, Any],
+        schema: Optional[str] = None,
+        query: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         获取指定路径下的知识库内容（JSON对象）
         
         Args:
             context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
+            schema: 是否只查询JSON结构。"1"或1表示只查询结构，此时会忽略query参数，只返回结构信息。默认值为None（0）
+            query: JMESPath 查询字符串，用于灵活检索数据。支持精确匹配、条件过滤、数字展平和投影等语法
         
         Returns:
             操作结果字典
@@ -209,15 +287,68 @@ keys = ["user_001", "user_002"]
                     "context_id": context_id
                 }
             
-            # 使用 user_context_service 获取指定路径的数据
             user_context_service = get_user_context_service()
+            
+            # 转换 schema 参数：将字符串转换为整数
+            schema_int = None
+            if schema is not None:
+                try:
+                    # FastMCP 会确保传入的是字符串类型，直接转换为整数
+                    schema_int = int(schema)
+                except (ValueError, TypeError) as e:
+                    return {
+                        "error": f"schema 参数无效，必须是 '1'，当前值: {schema}，错误: {str(e)}",
+                    }
+            
+            # 如果 schema=1，只返回结构信息
+            if schema_int == 1:
+                success, error_message, data = user_context_service.get_context_structure(
+                    context_id, json_pointer
+                )
+                
+                if not success:
+                    return {
+                        "error": error_message or "获取知识库结构失败",
+                    }
+                
+                return {
+                    "message": "获取知识库结构成功",
+                    "data": data,
+                    "schema_only": True
+                }
+            
+            # 如果提供了 query 参数，使用 JMESPath 查询
+            if query:
+                success, error_message, data = user_context_service.query_context_data_with_jmespath(
+                    context_id, json_pointer, query
+                )
+                
+                if not success:
+                    return {
+                        "error": error_message or "JMESPath 查询失败",
+                        "query": query
+                    }
+                
+                # 如果查询结果为 None，表示没有匹配的数据
+                if data is None:
+                    return {
+                        "message": "查询完成，但没有找到匹配的数据",
+                        "data": None,
+                        "query": query
+                    }
+                
+                return {
+                    "message": "JMESPath 查询成功",
+                    "data": data,
+                    "query": query
+                }
+            
+            # 默认情况：返回所有数据
             success, error_message, data = user_context_service.get_context_data(context_id, json_pointer)
             
             if not success:
                 return {
                     "error": error_message or "获取知识库内容失败",
-                    "context_id": context_id,
-                    "json_pointer": json_pointer
                 }
             
             # 如果 data 是 None，返回空字典
@@ -227,7 +358,6 @@ keys = ["user_001", "user_002"]
             return {
                 "message": "获取知识库内容成功",
                 "data": data,
-                "json_pointer": json_pointer
             }
         except Exception as e:
             log_error(f"Error getting context: {e}")
@@ -257,7 +387,6 @@ keys = ["user_001", "user_002"]
             if not context_id:
                 return {
                     "error": "知识库ID不存在",
-                    "context_id": context_id
                 }
             
             # 验证元素格式
@@ -311,7 +440,6 @@ keys = ["user_001", "user_002"]
                 "failed": failed_keys if failed_keys else None,
                 "total_created": len(created_keys),
                 "total_failed": len(failed_keys),
-                "json_pointer": json_pointer
             }
         except Exception as e:
             log_error(f"Error creating elements: {e}")
@@ -341,7 +469,6 @@ keys = ["user_001", "user_002"]
             if not context_id:
                 return {
                     "error": "知识库ID不存在",
-                    "context_id": context_id
                 }
             
             # 验证更新项格式
@@ -395,7 +522,6 @@ keys = ["user_001", "user_002"]
                 "failed": failed_keys if failed_keys else None,
                 "total_updated": len(updated_keys),
                 "total_failed": len(failed_keys),
-                "json_pointer": json_pointer
             }
         except Exception as e:
             log_error(f"Error updating elements: {e}")
@@ -425,7 +551,6 @@ keys = ["user_001", "user_002"]
             if not context_id:
                 return {
                     "error": "知识库ID不存在",
-                    "context_id": context_id
                 }
             
             # 验证 keys 格式
@@ -468,7 +593,6 @@ keys = ["user_001", "user_002"]
                 "invalid": invalid_keys if invalid_keys else None,
                 "total_deleted": len(deleted_keys),
                 "total_invalid": len(invalid_keys),
-                "json_pointer": json_pointer
             }
         except Exception as e:
             log_error(f"Error deleting elements: {e}")

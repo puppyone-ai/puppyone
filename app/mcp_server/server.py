@@ -171,8 +171,12 @@ class ToolRegistry:
         context_tool = self.tools_instances["context_tool"]
         
         @mcp_instance.tool(name=tool_name, description=description)
-        async def get_context(ctx: Context) -> dict:
-            return context_tool.get_context(self.context_info)
+        async def get_context(
+            schema: Optional[str] = None,
+            query: Optional[str] = None,
+            ctx: Context = None
+        ) -> dict:
+            return context_tool.get_context(self.context_info, schema=schema, query=query)
         
         get_context.__doc__ = description
         return get_context
