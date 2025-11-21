@@ -176,6 +176,18 @@ class McpService:
         """
         return self.instance_repo.get_by_id(mcp_instance_id)
 
+    async def get_user_mcp_instances(self, user_id: str) -> List[McpInstance]:
+        """
+        获取用户的所有 MCP 实例
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            McpInstance 列表
+        """
+        return self.instance_repo.get_by_user_id(user_id)
+
     async def update_mcp_instance(
         self,
         api_key: str,

@@ -29,7 +29,10 @@ class McpCreate(BaseModel):
     user_id: str = Field(..., description="用户ID")
     project_id: str = Field(..., description="项目ID")
     context_id: str = Field(..., description="上下文ID")
+<<<<<<< HEAD
     json_pointer: str = Field(default="", description="JSON指针路径，表示该MCP实例对应的数据路径，默认为空字符串表示根路径")
+=======
+>>>>>>> origin/feat/frontend-mcp
     tools_definition: Optional[Dict[ToolTypeKey, McpToolsDefinition]] = Field(
         None,
         description="工具定义字典（可选）。\n\n**重要：字典的 key 必须是以下值之一：'get', 'create', 'update', 'delete'**\n\n每个 key 对应一个工具定义，用于自定义该工具的名称和描述模板。如果不提供，将使用默认的工具定义。",

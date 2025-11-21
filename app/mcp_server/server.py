@@ -81,9 +81,9 @@ def _init_context_info(api_key: str) -> None:
             raise ValueError(f"MCP instance not found for api_key: {api_key[:20]}...")
         
         # 2. 提取业务参数
-        user_id = instance.user_id
-        project_id = instance.project_id
-        context_id = instance.context_id
+        user_id = str(instance.user_id)
+        project_id = str(instance.project_id)
+        context_id = str(instance.context_id)
         
         # 3. 根据 context_id 获取 context 对象
         user_context_service = get_user_context_service()

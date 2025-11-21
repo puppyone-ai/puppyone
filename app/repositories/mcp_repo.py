@@ -50,6 +50,11 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 return instance
         return None
     
+    def get_by_user_id(self, user_id: str) -> List[McpInstance]:
+        """根据 user_id 获取实例列表"""
+        instances = self._read_data()
+        return [instance for instance in instances if str(instance.user_id) == str(user_id)]
+        
     def create(self, api_key: str, user_id: str, project_id: str, context_id: str, json_pointer: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None, register_tools: Optional[List[ToolTypeKey]] = None) -> McpInstance:
         """创建新的 MCP 实例"""
         instances = self._read_data()
