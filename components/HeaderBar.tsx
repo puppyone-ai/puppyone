@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 type HeaderBarProps = {
   userAvatarUrl?: string | null;
 };
@@ -21,6 +23,14 @@ export function HeaderBar({ userAvatarUrl }: HeaderBarProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <img src="/puppybase.svg" alt="PuppyBase" width={20} height={20} />
         <div style={{ fontSize: 14, color: '#ddd', letterSpacing: 0.2 }}>PuppyBase</div>
+        <nav style={{ marginLeft: 24, display: 'flex', gap: 16 }}>
+          <Link href="/projects" style={{ fontSize: 13, color: '#94a3b8', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={(e) => e.currentTarget.style.color = '#e2e8f0'} onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}>
+            Projects
+          </Link>
+          <Link href="/mcp-instances" style={{ fontSize: 13, color: '#94a3b8', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={(e) => e.currentTarget.style.color = '#e2e8f0'} onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}>
+            MCP Instances
+          </Link>
+        </nav>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {userAvatarUrl ? (

@@ -26,6 +26,11 @@ export default function ProjectDetailPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = Array.isArray(params?.projectId) ? params.projectId[0] : params?.projectId ?? '';
   const project = mockProjects.find((p) => p.id === projectId);
+  
+  // 调试：输出 projectId
+  useEffect(() => {
+    console.log('ProjectDetailPage - projectId:', projectId, 'params:', params);
+  }, [projectId, params]);
 
   const [activeTableId, setActiveTableId] = useState(project?.tables[0]?.id ?? '');
   const [viewMode, setViewMode] = useState<'sidebar' | 'grid'>('sidebar');
@@ -53,6 +58,7 @@ export default function ProjectDetailPage() {
   const activeTable = project?.tables.find((t) => t.id === activeTableId);
   const [tableData, setTableData] = useState<ProjectTableJSON | undefined>(undefined);
   const [gridData, setGridData] = useState<Record<string, ProjectTableJSON | undefined>>({});
+  const [currentTreePath, setCurrentTreePath] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -240,7 +246,7 @@ export default function ProjectDetailPage() {
                         </div>
                       )}
                     </div>
-                    <McpBar />
+                    <McpBar projectId={projectId} currentTreePath={currentTreePath} />
                   </div>
                   <div style={{ marginTop: 12, fontSize: 11, color: '#6b7280' }}>
                     Showing mock data as JSON for quick inspection.
@@ -250,7 +256,7 @@ export default function ProjectDetailPage() {
                 <div style={{ flex: 1, padding: '18px 24px', overflowY: 'hidden', display: 'flex' }}>
                   {tableData ? (
                     <div style={{ flex: 1, borderRadius: 10, overflow: 'hidden' }}>
-                      <JsonEditorWithNoSSR json={tableData} />
+                      <JsonEditorWithNoSSR json={tableData} onPathChange={setCurrentTreePath} />
                     </div>
                   ) : (
                     <div
@@ -284,7 +290,7 @@ export default function ProjectDetailPage() {
                   <div style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0' }}>Grid view</div>
                   <div style={{ fontSize: 11, color: '#94a3b8' }}>{project.tables.length} tables</div>
                 </div>
-                <McpBar />
+                <McpBar projectId={projectId} />
               </div>
               <div
                 style={{
@@ -343,7 +349,7 @@ export default function ProjectDetailPage() {
                         }}
                       >
                         {data ? (
-                          <JsonEditorWithNoSSR json={data} />
+                          <JsonEditorWithNoSSR json={data} onPathChange={setCurrentTreePath} />
                         ) : (
                           <div
                             style={{
