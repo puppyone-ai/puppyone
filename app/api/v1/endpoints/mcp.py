@@ -97,7 +97,7 @@ async def get_mcp_status(
         )
 
 
-@router.put("/{api_key}",response_model=ApiResponse[None],
+@router.put("/{api_key}",response_model=ApiResponse[McpStatusResponse],
     description="更新MCP实例。\n 1. 任何无需改变的参数，请不要传入，包括status。\n 2. 如果需要更新工具定义，请传入tools_definition。\n 3. 如果需要更新注册工具，请传入register_tools。"
 )
 async def update_mcp(
@@ -109,6 +109,7 @@ async def update_mcp(
     更新 MCP 实例
     
     可以更新实例状态（开启/关闭）和工具定义
+    更新成功后返回最新的实例状态信息
     """
     try:
         updated_instance = await mcp_instance_service.update_mcp_instance(
@@ -125,8 +126,27 @@ async def update_mcp(
                 message="MCP 实例不存在"
             )
         
+        # 获取更新后的最新状态信息
+        status_info = await mcp_instance_service.get_mcp_instance_status(api_key)
+        
+        if "error" in status_info:
+            return ApiResponse.error(
+                code=ERROR_CODE,
+                message=status_info["error"]
+            )
+        
+        # 构建响应数据
+        response_data = McpStatusResponse(
+            status=status_info.get("status", 0),
+            port=status_info.get("port"),
+            docker_info=status_info.get("docker_info"),
+            json_pointer=status_info.get("json_pointer"),
+            tools_definition=status_info.get("tools_definition"),
+            register_tools=status_info.get("register_tools")
+        )
+        
         return ApiResponse.success(
-            data=None,
+            data=response_data,
             message="MCP 实例更新成功"
         )
     except Exception as e:
