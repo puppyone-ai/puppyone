@@ -18,8 +18,6 @@ router = APIRouter(
     }
 )
 
-ERROR_CODE = 1001
-
 @router.get(
     "/{user_id}",
     response_model=ApiResponse[List[UserContextOut]],
@@ -29,10 +27,9 @@ ERROR_CODE = 1001
     status_code=status.HTTP_200_OK
 )
 def list_user_contexts(user_id: str, user_context_service: UserContextService = Depends(get_user_context_service),user_service: UserService = Depends(get_user_service)):
-    # 1. 验证用户是否存在
-    user = user_service.get_user(user_id)
-    if not user:
-        return ApiResponse.error(code=ERROR_CODE, message="用户不存在")
+    # 1. 验证用户是否存在 (如果不存在会抛异常)
+    user_service.get_user(user_id)
+    
     # 2. 获取用户知识库
     user_contexts = user_context_service.get_by_user_id(user_id)
     return ApiResponse.success(data=user_contexts, message="用户知识库获取成功")
@@ -47,9 +44,8 @@ def list_user_contexts(user_id: str, user_context_service: UserContextService = 
 )
 def create_user_context(payload: UserContextCreate, user_context_service: UserContextService = Depends(get_user_context_service),user_service: UserService = Depends(get_user_service)):
     # 1. 验证用户是否存在
-    user = user_service.get_user(payload.user_id)
-    if not user:
-        return ApiResponse.error(code=ERROR_CODE, message="用户不存在")
+    user_service.get_user(payload.user_id)
+    
     # 2. 创建用户知识库
     user_context = user_context_service.create(payload.user_id, payload.project_id, payload.context_name, payload.context_description, payload.context_data, payload.metadata)
     return ApiResponse.success(data=user_context, message="用户知识库创建成功")
@@ -66,8 +62,6 @@ def update_user_context(context_id: str, payload: UserContextUpdate, user_contex
     # 如果 context_data 为空（None 或空字典），则不更新 context_data
     context_data = payload.context_data if payload.context_data is not None and payload.context_data != {} else None
     user_context = user_context_service.update(context_id, payload.context_name, payload.context_description, context_data, payload.metadata)
-    if not user_context:
-        return ApiResponse.error(code=ERROR_CODE, message="知识库更新失败")
     return ApiResponse.success(data=user_context, message="用户知识库更新成功")
 
 @router.delete(
@@ -79,9 +73,7 @@ def update_user_context(context_id: str, payload: UserContextUpdate, user_contex
     status_code=status.HTTP_200_OK
 )
 def delete_user_context(context_id: str, user_context_service: UserContextService = Depends(get_user_context_service)):
-    success = user_context_service.delete(context_id)
-    if not success:
-        return ApiResponse.error(code=ERROR_CODE, message="知识库不存在")
+    user_context_service.delete(context_id)
     return ApiResponse.success(message="用户知识库删除成功")
 
 # Context Data 相关的接口
@@ -98,25 +90,11 @@ def create_context_data(
     payload: ContextDataCreate,
     user_context_service: UserContextService = Depends(get_user_context_service)
 ):
-    """
-    在 context_data 的指定路径下创建新数据
-    
-    - **context_id**: 知识库ID
-    - **mounted_json_pointer_path**: JSON指针路径，数据将挂载到此路径下
-        - 使用 RFC 6901 标准格式（例如："/users"、"/users/123"）
-        - **根路径：使用空字符串 "" 可以在 context_data 的根路径下添加 key**
-        - 路径必须指向一个已存在的字典类型节点
-    - **elements**: 要创建的元素数组，每个元素包含：
-        - **key**: 数据项的键名
-        - **content**: 数据项的内容，可以是任意JSON可序列化的类型（dict、list、str、int、float、bool等）
-    """
-    success, error_message, data = user_context_service.create_context_data(
+    data = user_context_service.create_context_data(
         context_id=context_id,
         mounted_json_pointer_path=payload.mounted_json_pointer_path,
         elements=[{"key": e.key, "content": e.content} for e in payload.elements]
     )
-    if not success:
-        return ApiResponse.error(code=ERROR_CODE, message=error_message or "创建失败")
     return ApiResponse.success(data=ContextDataGet(data=data), message="数据创建成功")
 
 @router.get(
@@ -132,25 +110,14 @@ def get_context_data(
     json_pointer_path: Optional[str] = Query(default="", description="JSON指针路径，使用RFC 6901标准格式。例如：/users 或 /users/123。根路径使用空字符串 \"\" 可以获取整个 context_data。如果不传此参数，默认为空字符串（根路径）", min_length=0, examples=["", "/users", "/users/123"]),
     user_context_service: UserContextService = Depends(get_user_context_service)
 ):
-    """
-    获取 context_data 中指定路径的数据
-    
-    - **context_id**: 知识库ID
-    - **json_pointer_path**: JSON指针路径（查询参数），使用RFC 6901标准格式
-        - 例如："/users"、"/users/123"
-        - **根路径：使用空字符串 "" 或不传此参数可以获取整个 context_data**
-        - 如果不传此参数，默认为空字符串（根路径）
-    """
     # 如果未传入参数或为 None，使用空字符串（根路径）
     if json_pointer_path is None:
         json_pointer_path = ""
     
-    success, error_message, data = user_context_service.get_context_data(
+    data = user_context_service.get_context_data(
         context_id=context_id,
         json_pointer_path=json_pointer_path
     )
-    if not success:
-        return ApiResponse.error(code=ERROR_CODE, message=error_message or "获取失败")
     return ApiResponse.success(data=ContextDataGet(data=data), message="数据获取成功")
 
 @router.put(
@@ -166,25 +133,11 @@ def update_context_data(
     payload: ContextDataUpdate,
     user_context_service: UserContextService = Depends(get_user_context_service)
 ):
-    """
-    更新 context_data 中指定路径的数据
-    
-    - **context_id**: 知识库ID
-    - **json_pointer_path**: JSON指针路径
-        - 使用 RFC 6901 标准格式（例如："/users"、"/users/123"）
-        - **根路径：使用空字符串 "" 可以在 context_data 的根路径下更新 key**
-        - 路径必须指向一个已存在的字典类型节点
-    - **elements**: 要更新的元素数组，每个元素包含：
-        - **key**: 要更新的数据项的键名（必须已存在）
-        - **content**: 新的数据内容，可以是任意JSON可序列化的类型
-    """
-    success, error_message, data = user_context_service.update_context_data(
+    data = user_context_service.update_context_data(
         context_id=context_id,
         json_pointer_path=payload.json_pointer_path,
         elements=[{"key": e.key, "content": e.content} for e in payload.elements]
     )
-    if not success:
-        return ApiResponse.error(code=ERROR_CODE, message=error_message or "更新失败")
     return ApiResponse.success(data=ContextDataGet(data=data), message="数据更新成功")
 
 @router.delete(
@@ -200,21 +153,9 @@ def delete_context_data(
     payload: ContextDataDelete,
     user_context_service: UserContextService = Depends(get_user_context_service)
 ):
-    """
-    删除 context_data 中指定路径下的 keys
-    
-    - **context_id**: 知识库ID
-    - **json_pointer_path**: JSON指针路径
-        - 使用 RFC 6901 标准格式（例如："/users"、"/users/123"）
-        - **根路径：使用空字符串 "" 可以在 context_data 的根路径下删除 key**
-        - 路径必须指向一个已存在的字典类型节点
-    - **keys**: 要删除的键名列表（必须已存在）
-    """
-    success, error_message, data = user_context_service.delete_context_data(
+    data = user_context_service.delete_context_data(
         context_id=context_id,
         json_pointer_path=payload.json_pointer_path,
         keys=payload.keys
     )
-    if not success:
-        return ApiResponse.error(code=ERROR_CODE, message=error_message or "删除失败")
     return ApiResponse.success(data=ContextDataGet(data=data), message="数据删除成功")

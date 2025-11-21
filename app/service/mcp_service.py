@@ -5,6 +5,7 @@ import jwt
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from app.core.config import settings
+from app.core.exceptions import AuthException, BusinessException, NotFoundException, ErrorCode
 from app.schemas.mcp import McpTokenPayload
 from app.repositories.base import McpInstanceRepositoryBase
 from app.models.mcp import McpInstance
@@ -62,17 +63,17 @@ class McpService:
             McpTokenPayload 对象
             
         Raises:
-            ValueError: 如果 token 无效或已过期
+            AuthException: 如果 token 无效或已过期
         """
         try:
             payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
             return McpTokenPayload(**payload)
         except jwt.ExpiredSignatureError:
-            raise ValueError("Token has expired")
+            raise AuthException("Token has expired", code=ErrorCode.TOKEN_EXPIRED)
         except jwt.InvalidTokenError:
-            raise ValueError("Invalid token")
+            raise AuthException("Invalid token", code=ErrorCode.INVALID_TOKEN)
         except Exception as e:
-            raise ValueError(f"Error decoding token: {e}")
+            raise AuthException(f"Error decoding token: {e}", code=ErrorCode.INVALID_TOKEN)
 
     async def create_mcp_instance(
         self,
@@ -110,7 +111,7 @@ class McpService:
         """
         # 1. 生成 JWT token（作为 API key 使用）
         jwt_token = self.generate_mcp_token(user_id, project_id, context_id, json_pointer)
-        api_key = jwt_token  # JWT token 作为 API key
+        api_key = jwt_token
         
         port = None
         
@@ -138,7 +139,7 @@ class McpService:
             log_info(f"Created initial MCP instance record: {mcp_instance.mcp_instance_id}, api_key={api_key}, port={port}")
             
             # 4. 调用 manager 创建 MCP server 实例
-            # 注意：子进程启动时会立即查询 repository，所以必须先存储
+            # 注意：子进程启动时会立即查询 repository，所以上面必须先存储
             instance_info = await manager_create_instance(
                 api_key=api_key,
                 user_id=user_id,
@@ -153,7 +154,10 @@ class McpService:
             # 5. 再次验证进程状态（双重检查）
             status_info = await manager_get_instance_status(api_key)
             if not status_info.get("running", False):
-                raise RuntimeError(f"MCP server process failed to start or exited immediately. Status: {status_info}")
+                raise BusinessException(
+                    f"MCP server process failed to start or exited immediately. Status: {status_info}",
+                    code=ErrorCode.MCP_INSTANCE_CREATION_FAILED
+                )
             
             # 6. 更新 repository 中的进程信息
             updated_instance = self.instance_repo.update_by_api_key(
@@ -237,7 +241,7 @@ class McpService:
         json_pointer: Optional[str] = None,
         tools_definition: Optional[Dict[str, Any]] = None,
         register_tools: Optional[List[str]] = None
-    ) -> Optional[McpInstance]:
+    ) -> McpInstance:
         """
         更新 MCP 实例
         
@@ -249,185 +253,199 @@ class McpService:
             register_tools: 需要注册的工具列表（可选）
             
         Returns:
-            更新后的 McpInstance 对象，如果不存在则返回 None
+            更新后的 McpInstance 对象
+            
+        Raises:
+            NotFoundException: 实例不存在
+            BusinessException: 更新失败
         """
         instance = self.instance_repo.get_by_api_key(api_key)
         if not instance:
-            return None
+            raise NotFoundException(
+                f"MCP instance not found: api_key={api_key}",
+                code=ErrorCode.MCP_INSTANCE_NOT_FOUND
+            )
         
-        # 确定要使用的 json_pointer（优先使用新的，否则使用原有的）
-        final_json_pointer = json_pointer if json_pointer is not None else instance.json_pointer
-        
-        # 检查 json_pointer 是否改变（需要重启）
-        json_pointer_changed = json_pointer is not None and json_pointer != instance.json_pointer
-        
-        # 检查 register_tools 是否改变（需要重启）
-        register_tools_changed = register_tools is not None and register_tools != instance.register_tools
-        
-        # 如果只更新 tools_definition、register_tools 或 json_pointer，需要重启实例以应用新的配置
-        if status is None and (tools_definition is not None or register_tools_changed or json_pointer_changed):
-            old_status = instance.status
-            old_port = instance.port
+        try:
+            # 确定要使用的 json_pointer（优先使用新的，否则使用原有的）
+            final_json_pointer = json_pointer if json_pointer is not None else instance.json_pointer
             
-            # 如果实例当前是开启状态，需要重启以应用新的配置
-            if old_status == 1:
-                log_info(f"Restarting MCP instance {api_key} to apply new configuration")
-                
-                # 先停止实例
-                await manager_update_instance_status(
-                    api_key=api_key,
-                    status=0,
-                    port=old_port
-                )
-                
-                # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
-                final_register_tools = register_tools if register_tools is not None else instance.register_tools
-                
-                # 再启动实例（使用新的配置）
-                instance_info = await manager_update_instance_status(
-                    api_key=api_key,
-                    status=1,
-                    user_id=instance.user_id,
-                    project_id=instance.project_id,
-                    context_id=instance.context_id,
-                    port=old_port,  # 尝试使用原有端口
-                    register_tools=final_register_tools
-                )
-                
-                # 更新端口和进程信息
-                new_port = instance_info.get("port", old_port)
-                new_docker_info = instance_info.get("docker_info", instance.docker_info)
-                
-                # 更新 repository 中的状态和进程信息，以及新的配置
-                updated_instance = self.instance_repo.update_by_api_key(
-                    api_key=api_key,
-                    user_id=instance.user_id,
-                    project_id=instance.project_id,
-                    context_id=instance.context_id,
-                    json_pointer=final_json_pointer,
-                    status=1,  # 保持开启状态
-                    port=new_port,
-                    docker_info=new_docker_info,
-                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
-                    register_tools=final_register_tools
-                )
-                
-                log_info(f"MCP instance {api_key} restarted successfully with new configuration on port {new_port}")
-                return updated_instance
-            else:
-                # 如果实例当前是关闭状态，只需要更新 repository
-                final_register_tools = register_tools if register_tools is not None else instance.register_tools
-                updated_instance = self.instance_repo.update_by_api_key(
-                    api_key=api_key,
-                    user_id=instance.user_id,
-                    project_id=instance.project_id,
-                    context_id=instance.context_id,
-                    json_pointer=final_json_pointer,
-                    status=instance.status,
-                    port=instance.port,
-                    docker_info=instance.docker_info,
-                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
-                    register_tools=final_register_tools
-                )
-                log_info(f"MCP instance {api_key} configuration updated (instance is stopped, will apply on next start)")
-                return updated_instance
-        
-        # 更新状态
-        if status is not None:
-            old_status = instance.status
-            old_port = instance.port
+            # 检查 json_pointer 是否改变（需要重启）
+            json_pointer_changed = json_pointer is not None and json_pointer != instance.json_pointer
             
-            # 如果状态从关闭变为开启，需要重新启动进程
-            if old_status == 0 and status == 1:
-                log_info(f"Restarting MCP instance {api_key} (status change: {old_status} -> {status})")
-                
-                # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
-                final_register_tools = register_tools if register_tools is not None else instance.register_tools
-                
-                # 调用 manager 重新启动实例
-                instance_info = await manager_update_instance_status(
-                    api_key=api_key,
-                    status=status,
-                    user_id=instance.user_id,
-                    project_id=instance.project_id,
-                    context_id=instance.context_id,
-                    port=old_port,  # 尝试使用原有端口，如果不可用则分配新端口
-                    register_tools=final_register_tools
-                )
-                
-                # 更新端口和进程信息
-                new_port = instance_info.get("port", old_port)
-                new_docker_info = instance_info.get("docker_info", instance.docker_info)
-                
-                # 更新 repository 中的状态和进程信息
-                updated_instance = self.instance_repo.update_by_api_key(
-                    api_key=api_key,
-                    user_id=instance.user_id,
-                    project_id=instance.project_id,
-                    context_id=instance.context_id,
-                    json_pointer=final_json_pointer,
-                    status=status,
-                    port=new_port,
-                    docker_info=new_docker_info,
-                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
-                    register_tools=final_register_tools
-                )
-                
-                log_info(f"MCP instance {api_key} restarted successfully on port {new_port}")
-                return updated_instance
+            # 检查 register_tools 是否改变（需要重启）
+            register_tools_changed = register_tools is not None and register_tools != instance.register_tools
             
-            # 如果状态从开启变为关闭，停止进程
-            elif old_status == 1 and status == 0:
-                log_info(f"Stopping MCP instance {api_key} (status change: {old_status} -> {status})")
+            # 如果只更新 tools_definition、register_tools 或 json_pointer，需要重启实例以应用新的配置
+            if status is None and (tools_definition is not None or register_tools_changed or json_pointer_changed):
+                old_status = instance.status
+                old_port = instance.port
                 
-                # 调用 manager 停止实例
-                await manager_update_instance_status(
-                    api_key=api_key,
-                    status=status,
-                    port=old_port
-                )
-                
-                # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
-                final_register_tools = register_tools if register_tools is not None else instance.register_tools
-                
-                # 更新 repository 中的状态（保持端口和 docker_info，但状态改为关闭）
-                updated_instance = self.instance_repo.update_by_api_key(
-                    api_key=api_key,
-                    user_id=instance.user_id,
-                    project_id=instance.project_id,
-                    context_id=instance.context_id,
-                    json_pointer=final_json_pointer,
-                    status=status,
-                    port=old_port,
-                    docker_info=instance.docker_info,  # 保留原有进程信息
-                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
-                    register_tools=final_register_tools
-                )
-                
-                log_info(f"MCP instance {api_key} stopped successfully")
-                return updated_instance
+                # 如果实例当前是开启状态，需要重启以应用新的配置
+                if old_status == 1:
+                    log_info(f"Restarting MCP instance {api_key} to apply new configuration")
+                    
+                    # 先停止实例
+                    await manager_update_instance_status(
+                        api_key=api_key,
+                        status=0,
+                        port=old_port
+                    )
+                    
+                    # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
+                    final_register_tools = register_tools if register_tools is not None else instance.register_tools
+                    
+                    # 再启动实例（使用新的配置）
+                    instance_info = await manager_update_instance_status(
+                        api_key=api_key,
+                        status=1,
+                        user_id=instance.user_id,
+                        project_id=instance.project_id,
+                        context_id=instance.context_id,
+                        port=old_port,  # 尝试使用原有端口
+                        register_tools=final_register_tools
+                    )
+                    
+                    # 更新端口和进程信息
+                    new_port = instance_info.get("port", old_port)
+                    new_docker_info = instance_info.get("docker_info", instance.docker_info)
+                    
+                    # 更新 repository 中的状态和进程信息，以及新的配置
+                    updated_instance = self.instance_repo.update_by_api_key(
+                        api_key=api_key,
+                        user_id=instance.user_id,
+                        project_id=instance.project_id,
+                        context_id=instance.context_id,
+                        json_pointer=final_json_pointer,
+                        status=1,  # 保持开启状态
+                        port=new_port,
+                        docker_info=new_docker_info,
+                        tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                        register_tools=final_register_tools
+                    )
+                    
+                    log_info(f"MCP instance {api_key} restarted successfully with new configuration on port {new_port}")
+                    return updated_instance
+                else:
+                    # 如果实例当前是关闭状态，只需要更新 repository
+                    final_register_tools = register_tools if register_tools is not None else instance.register_tools
+                    updated_instance = self.instance_repo.update_by_api_key(
+                        api_key=api_key,
+                        user_id=instance.user_id,
+                        project_id=instance.project_id,
+                        context_id=instance.context_id,
+                        json_pointer=final_json_pointer,
+                        status=instance.status,
+                        port=instance.port,
+                        docker_info=instance.docker_info,
+                        tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                        register_tools=final_register_tools
+                    )
+                    log_info(f"MCP instance {api_key} configuration updated (instance is stopped, will apply on next start)")
+                    return updated_instance
             
-            # 如果状态没有变化，只更新 repository（可能用于其他字段更新）
-            else:
-                # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
-                final_register_tools = register_tools if register_tools is not None else instance.register_tools
+            # 更新状态
+            if status is not None:
+                old_status = instance.status
+                old_port = instance.port
                 
-                log_info(f"MCP instance {api_key} status unchanged ({status}), updating repository only")
-                updated_instance = self.instance_repo.update_by_api_key(
-                    api_key=api_key,
-                    user_id=instance.user_id,
-                    project_id=instance.project_id,
-                    context_id=instance.context_id,
-                    json_pointer=final_json_pointer,
-                    status=status,
-                    port=instance.port,
-                    docker_info=instance.docker_info,
-                    tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
-                    register_tools=final_register_tools
-                )
-                return updated_instance
-        
-        return instance
+                # 如果状态从关闭变为开启，需要重新启动进程
+                if old_status == 0 and status == 1:
+                    log_info(f"Restarting MCP instance {api_key} (status change: {old_status} -> {status})")
+                    
+                    # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
+                    final_register_tools = register_tools if register_tools is not None else instance.register_tools
+                    
+                    # 调用 manager 重新启动实例
+                    instance_info = await manager_update_instance_status(
+                        api_key=api_key,
+                        status=status,
+                        user_id=instance.user_id,
+                        project_id=instance.project_id,
+                        context_id=instance.context_id,
+                        port=old_port,  # 尝试使用原有端口，如果不可用则分配新端口
+                        register_tools=final_register_tools
+                    )
+                    
+                    # 更新端口和进程信息
+                    new_port = instance_info.get("port", old_port)
+                    new_docker_info = instance_info.get("docker_info", instance.docker_info)
+                    
+                    # 更新 repository 中的状态和进程信息
+                    updated_instance = self.instance_repo.update_by_api_key(
+                        api_key=api_key,
+                        user_id=instance.user_id,
+                        project_id=instance.project_id,
+                        context_id=instance.context_id,
+                        json_pointer=final_json_pointer,
+                        status=status,
+                        port=new_port,
+                        docker_info=new_docker_info,
+                        tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                        register_tools=final_register_tools
+                    )
+                    
+                    log_info(f"MCP instance {api_key} restarted successfully on port {new_port}")
+                    return updated_instance
+                
+                # 如果状态从开启变为关闭，停止进程
+                elif old_status == 1 and status == 0:
+                    log_info(f"Stopping MCP instance {api_key} (status change: {old_status} -> {status})")
+                    
+                    # 调用 manager 停止实例
+                    await manager_update_instance_status(
+                        api_key=api_key,
+                        status=status,
+                        port=old_port
+                    )
+                    
+                    # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
+                    final_register_tools = register_tools if register_tools is not None else instance.register_tools
+                    
+                    # 更新 repository 中的状态（保持端口和 docker_info，但状态改为关闭）
+                    updated_instance = self.instance_repo.update_by_api_key(
+                        api_key=api_key,
+                        user_id=instance.user_id,
+                        project_id=instance.project_id,
+                        context_id=instance.context_id,
+                        json_pointer=final_json_pointer,
+                        status=status,
+                        port=old_port,
+                        docker_info=instance.docker_info,  # 保留原有进程信息
+                        tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                        register_tools=final_register_tools
+                    )
+                    
+                    log_info(f"MCP instance {api_key} stopped successfully")
+                    return updated_instance
+                
+                # 如果状态没有变化，只更新 repository（可能用于其他字段更新）
+                else:
+                    # 确定要使用的 register_tools（优先使用新的，否则使用原有的）
+                    final_register_tools = register_tools if register_tools is not None else instance.register_tools
+                    
+                    log_info(f"MCP instance {api_key} status unchanged ({status}), updating repository only")
+                    updated_instance = self.instance_repo.update_by_api_key(
+                        api_key=api_key,
+                        user_id=instance.user_id,
+                        project_id=instance.project_id,
+                        context_id=instance.context_id,
+                        json_pointer=final_json_pointer,
+                        status=status,
+                        port=instance.port,
+                        docker_info=instance.docker_info,
+                        tools_definition=tools_definition if tools_definition is not None else instance.tools_definition,
+                        register_tools=final_register_tools
+                    )
+                    return updated_instance
+            
+            return instance
+        except Exception as e:
+            log_error(f"Failed to update MCP instance: {e}")
+            raise BusinessException(
+                f"Failed to update MCP instance: {e}",
+                code=ErrorCode.MCP_INSTANCE_UPDATE_FAILED
+            )
 
     async def delete_mcp_instance(self, api_key: str) -> bool:
         """
@@ -438,13 +456,19 @@ class McpService:
             
         Returns:
             是否成功删除
+            
+        Raises:
+            NotFoundException: 实例不存在
+            BusinessException: 删除失败
         """
         try:
             # 1. 先获取实例信息（用于释放端口）
             instance = self.instance_repo.get_by_api_key(api_key)
             if not instance:
-                log_error(f"MCP instance not found: api_key={api_key}")
-                return False
+                raise NotFoundException(
+                    f"MCP instance not found: api_key={api_key}",
+                    code=ErrorCode.MCP_INSTANCE_NOT_FOUND
+                )
             
             # 2. 从 manager 删除实例（停止进程）
             await manager_delete_instance(api_key)
@@ -458,12 +482,21 @@ class McpService:
             if result:
                 log_info(f"MCP instance deleted: api_key={api_key}, port={instance.port} released")
             else:
-                log_error(f"Failed to delete MCP instance from repository: api_key={api_key}")
+                # 理论上不应该走到这里，因为前面已经检查过 instance 存在
+                raise BusinessException(
+                    f"Failed to delete MCP instance from repository: api_key={api_key}",
+                    code=ErrorCode.MCP_INSTANCE_DELETE_FAILED
+                )
             
-            return result
+            return True
+        except NotFoundException:
+            raise
         except Exception as e:
             log_error(f"Failed to delete MCP instance {api_key}: {e}")
-            return False
+            raise BusinessException(
+                f"Failed to delete MCP instance: {e}",
+                code=ErrorCode.MCP_INSTANCE_DELETE_FAILED
+            )
 
     async def get_mcp_instance_status(self, api_key: str) -> Dict[str, Any]:
         """
@@ -477,7 +510,10 @@ class McpService:
         """
         instance = self.instance_repo.get_by_api_key(api_key)
         if not instance:
-            return {"error": "Instance not found"}
+            raise NotFoundException(
+                f"MCP instance not found: api_key={api_key}",
+                code=ErrorCode.MCP_INSTANCE_NOT_FOUND
+            )
         
         # 从 manager 获取实时状态
         manager_status = await manager_get_instance_status(api_key)
