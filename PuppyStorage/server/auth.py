@@ -7,7 +7,7 @@ PuppyStorage 认证授权模块
 
 import os
 import sys
-import requests
+import httpx
 from typing import Protocol, Optional, Dict, Any
 from fastapi import HTTPException, Header, Depends
 from pydantic import BaseModel
@@ -94,6 +94,12 @@ class RemoteAuthProvider:
         self.service_key = config.get("SERVICE_KEY")
         self.timeout = int(config.get("AUTH_TIMEOUT", "5"))
         
+        # 创建异步HTTP客户端
+        self.client = httpx.AsyncClient(
+            timeout=httpx.Timeout(self.timeout),
+            follow_redirects=True
+        )
+        
         log_info(f"RemoteAuthProvider initialized - user_system: {self.user_system_url}")
         
         if not self.service_key:
@@ -122,10 +128,9 @@ class RemoteAuthProvider:
             
             log_debug(f"向用户系统验证token: {self.user_system_url}/verify_token")
             
-            response = requests.post(
+            response = await self.client.post(
                 f"{self.user_system_url}/verify_token",
-                headers=headers,
-                timeout=self.timeout
+                headers=headers
             )
             
             if response.status_code == 200:
@@ -140,15 +145,15 @@ class RemoteAuthProvider:
             elif response.status_code == 401:
                 raise AuthenticationError("用户token验证失败")
             elif response.status_code == 403:
-                raise AuthenticationError("服务认证失败，请检查SERVICE_KEY配置")
+                raise AuthenticationError("服务认证失败，请检查SERVICE_KEY配置", status_code=403)
             else:
                 log_error(f"用户系统返回错误状态: {response.status_code}: {response.text}")
                 raise AuthenticationError("用户服务错误", status_code=503)
                 
-        except requests.exceptions.Timeout:
+        except httpx.TimeoutException:
             log_error("调用用户系统超时")
             raise AuthenticationError("用户服务超时", status_code=503)
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             log_error(f"调用用户系统时发生网络错误: {str(e)}")
             raise AuthenticationError("用户服务不可用", status_code=503)
         except AuthenticationError:
@@ -161,6 +166,10 @@ class RemoteAuthProvider:
     def requires_auth(self) -> bool:
         """远程模式需要认证"""
         return True
+    
+    async def close(self):
+        """关闭HTTP客户端连接"""
+        await self.client.aclose()
 
 
 def get_auth_provider() -> AuthProvider:
@@ -261,6 +270,9 @@ async def verify_user_and_resource_access(
         
         return user
         
+    except HTTPException:
+        # 保留由业务逻辑明确抛出的HTTP错误状态
+        raise
     except AuthenticationError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:

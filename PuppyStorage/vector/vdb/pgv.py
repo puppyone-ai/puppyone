@@ -179,6 +179,15 @@ class PostgresVectorDatabase(VectorDatabase):
         except PuppyException as e:
             log_warning(f"Error getting collection '{collection_name}': {str(e)}")
             return []
+        except Exception as e:
+            # Handle adapter-specific mismatched dimension or other client errors gracefully
+            if "dimension" in str(e).lower() or "mismatch" in str(e).lower():
+                log_warning(
+                    f"Dimension mismatch while getting collection '{collection_name}': {str(e)}"
+                )
+                return []
+            log_warning(f"Unexpected error getting collection '{collection_name}': {str(e)}")
+            return []
         
         # 2. Ensure index exists
         self._ensure_index(collection, metric)

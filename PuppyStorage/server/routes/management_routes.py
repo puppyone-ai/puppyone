@@ -13,16 +13,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from utils.logger import log_info, log_error, log_debug
-from storage import get_storage
+from storage import get_storage_adapter
+from storage.base import StorageAdapter
 from server.auth import verify_user_and_resource_access, User, get_auth_provider
 
 # Create management router
 management_router = APIRouter(prefix="/files", tags=["files"])
-
-# 获取存储适配器
-storage_adapter = get_storage()
 
 # === Request and Response Models ===
 
@@ -68,6 +66,15 @@ class DeleteFileResponse(BaseModel):
     success: bool = Field(..., description="操作是否成功")
     message: str = Field(default="文件删除成功")
 
+class CopyResourceRequest(BaseModel):
+    source_key: str = Field(..., description="源资源键")
+    target_key: str = Field(..., description="目标资源键")
+
+class CopyResourceResponse(BaseModel):
+    success: bool = Field(..., description="是否成功")
+    target_key: str = Field(..., description="目标资源键")
+    message: str = Field(default="资源复制成功")
+
 # === Helper Functions ===
 
 def validate_key_format(key: str) -> bool:
@@ -76,11 +83,16 @@ def validate_key_format(key: str) -> bool:
     return len(parts) >= 4 and all(part.strip() for part in parts)
 
 def extract_user_id_from_key(key: str) -> str:
-    """从resource_key中提取user_id"""
+    """从resource_key中提取user_id
+    
+    支持两种格式：
+    - userId/blockId/versionId (用于resource copy)
+    - userId/blockId/versionId/filename (用于file operations)
+    """
     parts = key.split('/')
-    if len(parts) >= 4:
+    if len(parts) >= 3:
         return parts[0]
-    raise ValueError("Invalid key format")
+    raise ValueError("Invalid key format: expected at least 3 parts (userId/blockId/versionId)")
 
 # === API Endpoints ===
 
@@ -113,7 +125,7 @@ async def list_versions(
         prefix = f"{user_id}/{block_id}/"
         
         # 使用delimiter="/"来获取版本目录列表
-        objects = storage_adapter.list_objects(prefix=prefix, delimiter="/")
+        objects = storage.list_objects(prefix=prefix, delimiter="/")
         
         versions = []
         for obj in objects:
@@ -124,7 +136,7 @@ async def list_versions(
                 # 尝试获取该版本的manifest信息
                 manifest_key = f"{version_path}/manifest.json"
                 try:
-                    manifest_content, _, _ = storage_adapter.get_file_with_metadata(manifest_key)
+                    manifest_content, _, _ = storage.get_file_with_metadata(manifest_key)
                     manifest = json.loads(manifest_content.decode('utf-8'))
                     
                     versions.append(VersionInfo(
@@ -187,7 +199,7 @@ async def get_latest_version(
         prefix = f"{user_id}/{block_id}/"
         
         # 列出所有版本
-        objects = storage_adapter.list_objects(prefix=prefix, delimiter="/")
+        objects = storage.list_objects(prefix=prefix, delimiter="/")
         
         version_ids = []
         for obj in objects:
@@ -208,7 +220,7 @@ async def get_latest_version(
         manifest_key = f"{user_id}/{block_id}/{latest_version_id}/manifest.json"
         
         try:
-            manifest_content, _, _ = storage_adapter.get_file_with_metadata(manifest_key)
+            manifest_content, _, _ = storage.get_file_with_metadata(manifest_key)
             manifest = json.loads(manifest_content.decode('utf-8'))
             
             log_info(f"找到最新版本: {latest_version_id}")
@@ -260,7 +272,7 @@ async def publish_version(
         
         # 读取现有manifest
         try:
-            manifest_content, _, current_etag = storage_adapter.get_file_with_metadata(manifest_key)
+            manifest_content, _, current_etag = storage.get_file_with_metadata(manifest_key)
             manifest = json.loads(manifest_content.decode('utf-8'))
         except Exception as e:
             log_error(f"无法读取manifest: {str(e)}")
@@ -275,7 +287,7 @@ async def publish_version(
         updated_content = json.dumps(manifest, indent=2).encode('utf-8')
         
         try:
-            success = storage_adapter.save_file(
+            success = storage.save_file(
                 key=manifest_key,
                 file_data=updated_content,
                 content_type="application/json",
@@ -309,6 +321,7 @@ async def publish_version(
 @management_router.delete("/delete", response_model=DeleteFileResponse)
 async def delete_file(
     request_data: DeleteFileRequest,
+    storage: StorageAdapter = Depends(get_storage_adapter),
     authorization: str = Header(None, alias="Authorization"),
     auth_provider = Depends(get_auth_provider)
 ):
@@ -329,11 +342,11 @@ async def delete_file(
         log_info(f"删除文件: user={current_user.user_id}, key={request_data.resource_key}")
         
         # 检查文件是否存在
-        if not storage_adapter.check_file_exists(request_data.resource_key):
+        if not storage.check_file_exists(request_data.resource_key):
             raise HTTPException(status_code=404, detail="File not found")
         
         # 执行删除
-        success = storage_adapter.delete_file(request_data.resource_key)
+        success = storage.delete_file(request_data.resource_key)
         
         if not success:
             raise HTTPException(status_code=500, detail="Failed to delete file")
@@ -349,4 +362,89 @@ async def delete_file(
         raise
     except Exception as e:
         log_error(f"删除文件失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Template user whitelist (allow copying from these users)
+TEMPLATE_USER_IDS = [
+    "template-official",
+    "8f3dbdc0-e742-4c6e-b041-a52fb32a2181",  # RAG template
+    "110789d4-265d-4d70-97da-89c7a93bd580",  # SEO, Getting Started, File Load
+]
+
+
+@management_router.post("/copy_resource", response_model=CopyResourceResponse)
+async def copy_resource(
+    request_data: CopyResourceRequest,
+    storage: StorageAdapter = Depends(get_storage_adapter),
+    authorization: str = Header(None, alias="Authorization"),
+    auth_provider = Depends(get_auth_provider)
+):
+    """
+    复制资源（支持模板实例化场景）
+    
+    安全策略：
+    - target_key 必须属于当前用户（验证写入权限）
+    - source_key 必须是模板用户或当前用户（白名单机制）
+    
+    需要提供 Authorization: Bearer <jwt_token> header
+    """
+    try:
+        # 1. 验证target_key属于当前用户
+        current_user = await verify_user_and_resource_access(
+            resource_key=request_data.target_key,
+            authorization=authorization,
+            auth_provider=auth_provider
+        )
+        
+        # 2. 提取并验证source_key的用户ID
+        try:
+            source_user_id = extract_user_id_from_key(request_data.source_key)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无效的source_key格式: {str(e)}"
+            )
+        
+        # 3. 白名单验证：只允许从模板用户或自己复制
+        is_from_template = source_user_id in TEMPLATE_USER_IDS
+        is_from_self = source_user_id == current_user.user_id
+        
+        if not (is_from_template or is_from_self):
+            log_error(f"未授权的复制请求: user={current_user.user_id}, source_user={source_user_id}")
+            raise HTTPException(
+                status_code=403,
+                detail=f"不允许从用户 {source_user_id} 复制资源"
+            )
+        
+        # 4. 记录审计日志
+        log_info(
+            f"[RESOURCE_COPY] user={current_user.user_id}, "
+            f"source={request_data.source_key}, "
+            f"target={request_data.target_key}, "
+            f"from_template={is_from_template}"
+        )
+        
+        # 5. 执行复制
+        success = storage.copy_resource(
+            source_key=request_data.source_key,
+            target_key=request_data.target_key
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="资源复制失败，请检查源资源是否存在"
+            )
+        
+        return CopyResourceResponse(
+            success=True,
+            target_key=request_data.target_key,
+            message="资源复制成功"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(f"复制资源异常: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

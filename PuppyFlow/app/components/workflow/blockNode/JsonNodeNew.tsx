@@ -65,7 +65,7 @@ export interface VectorIndexingItem extends BaseIndexingItem {
   status: VectorIndexingStatus;
   key_path: PathSegment[];
   value_path: PathSegment[];
-  chunks: any[];
+  entries: any[];
   index_name: string;
   collection_configs: {
     set_name: string;
@@ -538,7 +538,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
           const temporaryItem: VectorIndexingItem = {
             ...(newItem as VectorIndexingItem),
             status: 'processing',
-            chunks: [],
+            entries: [],
             index_name: '',
             collection_configs: {
               set_name: '',
@@ -707,13 +707,24 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
           !labelContainerRef.current?.contains(e.target as HTMLElement) &&
           !(e.target as HTMLElement).classList.contains('renameButton')
         ) {
+          // 先保存 label 修改，再设置为不可编辑
+          if (nodeState.isLocalEdit) {
+            editNodeLabel(id, nodeState.nodeLabel);
+            setNodeState(prev => ({ ...prev, isLocalEdit: false }));
+          }
           setNodeUneditable(id);
         }
       };
       document.addEventListener('mousedown', handleClickOutside);
       return () =>
         document.removeEventListener('mousedown', handleClickOutside);
-    }, [id, setNodeUneditable]);
+    }, [
+      id,
+      setNodeUneditable,
+      nodeState.isLocalEdit,
+      nodeState.nodeLabel,
+      editNodeLabel,
+    ]);
 
     // 自动聚焦
     useEffect(() => {

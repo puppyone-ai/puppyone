@@ -1,0 +1,138 @@
+PuppyAgent
+Doc
+Pricing
+Article
+Get Started
+Automate knowledge bases
+with an agentic RAG
+Connect to database, process information, and deliver results,
+all powered by AI agents and RAG
+
+Get Started
+User logo 1
+User logo 2
+User logo 3
+User logo 4
+User logo 5
+User logo 1
+User logo 2
+User logo 3
+User logo 4
+User logo 5
+Trusted by users worldwide
+
+connect_datasource
+Connect to
+datasource
+
+process_information
+Process information
+with AI
+
+distribute_result
+Deliver
+results
+
+Give it a go!
+Try out our demo workflow below: A Basic RAG
+Click anywhere to start !
+Activate
+
+Self-Evolving
+RAG Engine
+Upload data, score the result,
+improve retrieving pipeline better and better
+process_information
+Build Your Own
+Retrieving Pipeline
+on-going,
+fast, easy, and integrate it into your enterprise
+process_information
+Key Features
+Discover what makes PuppyAgent the ideal solution for your knowledge base needs
+Rapid Prototyping
+Create your
+RAG systems in just minutes
+with intuitive interface
+
+Rapid Prototyping
+Flexible Deployment
+Deploy RAG system into
+chatbots, APIs, or website bubbles
+
+Flexible Deployment
+Enterprise-wide Applications
+Use for customer support, SEO, training,
+and other knowledge use cases
+
+Enterprise-wide Applications
+Global LLMs
+All major language models, including
+GPT-4, Claude, Deepseek, and more
+
+Global LLMs
+Multiple file types
+Ingest, process and extract value from
+any document type in knowledge base
+
+Multiple file types
+Advanced RAG
+Access cutting-edge RAG techniques
+without complex setup
+
+Advanced RAG
+Ask Puppy Questions
+What is PuppyAgent?
+Is PuppyAgent free to use?
+What can PuppyAgent do?
+What is the mission of PuppyAgent?
+How can I contact the PuppyAgent team?
+Automate Different ?
+Get Started
+Talk with founders
+PuppyAgent
+X
+LinkedIn
+Discord
+Email
+English
+Resources
+
+About us
+
+Join us
+
+Blog
+
+FAQ
+
+Privacy
+
+Security
+
+Terms
+
+Backlink Exchange
+
+Friends
+
+OpenAI
+
+Anthropic
+
+IdeaHunt
+
+LlamaGen
+
+ResearchFlow
+
+LibrAI
+
+RingLink
+
+MiraclePlus
+
+© 2024 PuppyAgent Tech Pte Ltd All Rights Reserved.
+
+
+

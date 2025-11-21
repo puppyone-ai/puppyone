@@ -45,6 +45,16 @@ class BlockFactory:
             strategy = MemoryStrategy()
             log_debug(f"Creating block {block_id} with MemoryStrategy")
         
+        # Normalize loop flag location: frontends historically put `looped` at top level.
+        # Maintain SSOT by mirroring into data.looped for downstream components that read from data.
+        try:
+            top_level_looped = block_data.get('looped', None)
+            if top_level_looped is not None:
+                block_data.setdefault('data', {})['looped'] = bool(top_level_looped)
+        except Exception:
+            # Best-effort normalization; ignore if block_data is malformed
+            pass
+
         # Create GenericBlock instance
         # In the future, we could create different block types based on block_data['type']
         return GenericBlock(block_id, block_data, persistence_strategy=strategy)

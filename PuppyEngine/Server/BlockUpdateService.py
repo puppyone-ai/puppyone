@@ -142,13 +142,35 @@ class BlockUpdateService:
         """
         Handle block update with internal storage
         
+        Metadata Management Strategy:
+        - storage_class='internal' is set as the authoritative flag (SSOT)
+        - external_metadata is INTENTIONALLY PRESERVED for resource_key reuse optimization
+        
+        Design Rationale:
+        - Backend checks storage_class first, ignores metadata when storage_class='internal'
+        - Preserving metadata allows reusing the same resource_key if computation output
+          grows later, avoiding unnecessary resource creation in PuppyStorage
+        - This is a performance optimization for workflows with variable output sizes
+        
+        Why This Differs from Template Instantiation:
+        - Template instantiation MUST delete old metadata because it references invalid
+          resource_keys from the template author's workspace
+        - Runtime-generated metadata references current workspace's valid resource_keys,
+          which can be safely reused
+        
+        See: docs/architecture/STORAGE_CONSISTENCY_BEST_PRACTICES.md
+        
         Args:
             block: Block to update
             content: Content to store
             v1_results: Dictionary to populate with v1 compatibility data
         """
         # Force internal storage for short content
-        block.storage_class = 'internal'
+        block.storage_class = 'internal'  # ← SSOT: Authoritative flag
+        
+        # Intentionally preserve external_metadata for resource_key reuse optimization
+        # block.data.pop('external_metadata', None)  ← DO NOT do this (breaks reuse)
+        
         # For internal storage, we don't need to persist to external storage
         block.is_persisted = True
         

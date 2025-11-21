@@ -23,7 +23,7 @@ interface VectorIndexingItem extends BaseIndexingItem {
   status: 'notStarted' | 'processing' | 'done' | 'error';
   key_path: PathSegment[];
   value_path: PathSegment[];
-  chunks: any[];
+  entries: any[]; // Renamed from chunks
   index_name: string;
   collection_configs: {
     set_name: string;
@@ -166,7 +166,7 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
         index_name: indexName.trim() || 'vector_index_' + nanoid(8),
         key_path: keyPath,
         value_path: valuePath,
-        chunks: [],
+        entries: [],
         collection_configs: {
           set_name: '',
           model: '',

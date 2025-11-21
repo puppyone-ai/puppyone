@@ -15,24 +15,58 @@ import {
   ContentType,
 } from './externalStorage';
 
-// 内容长度阈值和分块大小：默认来自环境变量，可在运行期由后端事件覆盖
-let STORAGE_CHUNK_SIZE_DEFAULT = parseInt(
-  process.env.NEXT_PUBLIC_STORAGE_CHUNK_SIZE || '1024',
-  10
-);
+/**
+ * Storage threshold for automatic storage strategy decision
+ *
+ * CRITICAL CONSISTENCY REQUIREMENT:
+ * This threshold MUST match across all three write operations:
+ * 1. Template Instantiation: CloudTemplateLoader.STORAGE_THRESHOLD (1MB)
+ * 2. Frontend Runtime: dynamicStorageStrategy.CONTENT_LENGTH_THRESHOLD (1MB)
+ * 3. Backend Computation: HybridStoragePolicy.threshold (1MB)
+ *
+ * Design Rationale:
+ * - Threshold = Part Size (1MB) to avoid creating external storage for content
+ *   that would only produce a single part
+ * - 1MB is production-grade standard (AWS S3: 5MB, Azure: 4MB, GCP: 8MB)
+ * - Content <1MB: inline storage (efficient, no network overhead)
+ * - Content >=1MB: external storage with partitioning
+ *
+ * Why 1MB not 1KB:
+ * - 1KB is too aggressive, causes 80% of content to be externalized unnecessarily
+ * - 1MB in 1 request vs 1000x 1KB requests (network efficiency)
+ * - Aligns with part/chunk size to maintain consistent granularity
+ *
+ * Environment variable: STORAGE_THRESHOLD (optional override)
+ *
+ * See: docs/architecture/STORAGE_CONSISTENCY_BEST_PRACTICES.md
+ */
+const STORAGE_THRESHOLD_MB = 1024 * 1024; // 1MB = 1,048,576 bytes
 
 // 使用 let 导出以便在运行期调整，保持与后端 TASK_STARTED 的 storage_threshold_bytes 一致
-export let CONTENT_LENGTH_THRESHOLD = STORAGE_CHUNK_SIZE_DEFAULT;
-export let CHUNK_SIZE = STORAGE_CHUNK_SIZE_DEFAULT;
+export let CONTENT_LENGTH_THRESHOLD = STORAGE_THRESHOLD_MB;
 
-// 从后端运行时信号更新分块/阈值（单位：字节/字符，前后端保持一致的度量）
+// Part size for content partitioning (separate from threshold decision)
+// Backward compatibility: try new STORAGE_PART_SIZE first, fallback to old STORAGE_PART_SIZE
+let STORAGE_PART_SIZE_DEFAULT = parseInt(
+  process.env.NEXT_PUBLIC_STORAGE_PART_SIZE ||
+    process.env.NEXT_PUBLIC_STORAGE_PART_SIZE ||
+    String(STORAGE_THRESHOLD_MB),
+  10
+);
+export let PART_SIZE = STORAGE_PART_SIZE_DEFAULT;
+
+// 从后端运行时信号更新分区/阈值（单位：字节/字符，前后端保持一致的度量）
+// Keep old function name for backward compatibility
 export function setStorageChunkSize(bytes: number) {
   const n = Number(bytes);
   if (!Number.isFinite(n) || n <= 0) return;
   const value = Math.floor(n);
   CONTENT_LENGTH_THRESHOLD = value;
-  CHUNK_SIZE = value;
+  PART_SIZE = value;
 }
+
+// New function name for clarity (alias to setStorageChunkSize)
+export const setStoragePartSize = setStorageChunkSize;
 
 // 清理配置
 export const CLEANUP_CONFIG = {
@@ -55,101 +89,101 @@ export function determineStorageClass(content: string): StorageClass {
 }
 
 /**
- * 将内容按照CHUNK_SIZE进行分块
+ * 将内容按照PART_SIZE进行分块
  * 与阈值保持一致的分块策略
  */
-function chunkContent(
+function partitionContent(
   content: string,
   contentType: ContentType
 ): Array<{ name: string; mime: string; bytes: Uint8Array; index: number }> {
   const encoder = new TextEncoder();
 
   if (contentType === 'structured') {
-    // 对于结构化内容，尝试按JSON对象分块，但不超过CHUNK_SIZE
+    // 对于结构化内容，尝试按JSON对象分块，但不超过PART_SIZE
     try {
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed)) {
-        const chunks: Array<{
+        const parts: Array<{
           name: string;
           mime: string;
           bytes: Uint8Array;
           index: number;
         }> = [];
-        let currentChunk: any[] = [];
+        let currentPart: any[] = [];
         let currentSize = 0;
-        let chunkIndex = 0;
+        let partIndex = 0;
 
         for (const item of parsed) {
           const itemStr = JSON.stringify(item) + '\n';
           const itemSize = encoder.encode(itemStr).length;
 
-          // 如果单个item就超过CHUNK_SIZE，单独成块
-          if (itemSize > CHUNK_SIZE) {
-            // 先保存当前chunk（如果有内容）
-            if (currentChunk.length > 0) {
-              const chunkContent =
-                currentChunk.map(obj => JSON.stringify(obj)).join('\n') + '\n';
-              chunks.push({
-                name: `chunk_${String(chunkIndex).padStart(6, '0')}.jsonl`,
+          // 如果单个item就超过PART_SIZE，单独成块
+          if (itemSize > PART_SIZE) {
+            // 先保存当前part（如果有内容）
+            if (currentPart.length > 0) {
+              const partContent =
+                currentPart.map(obj => JSON.stringify(obj)).join('\n') + '\n';
+              parts.push({
+                name: `part_${String(partIndex).padStart(6, '0')}.jsonl`,
                 mime: 'application/jsonl',
-                bytes: encoder.encode(chunkContent),
-                index: chunkIndex,
+                bytes: encoder.encode(partContent),
+                index: partIndex,
               });
-              chunkIndex++;
-              currentChunk = [];
+              partIndex++;
+              currentPart = [];
               currentSize = 0;
             }
 
             // 大item单独成块
-            chunks.push({
-              name: `chunk_${String(chunkIndex).padStart(6, '0')}.jsonl`,
+            parts.push({
+              name: `part_${String(partIndex).padStart(6, '0')}.jsonl`,
               mime: 'application/jsonl',
               bytes: encoder.encode(itemStr),
-              index: chunkIndex,
+              index: partIndex,
             });
-            chunkIndex++;
+            partIndex++;
             continue;
           }
 
-          // 检查加入当前item是否会超过CHUNK_SIZE
-          if (currentSize + itemSize > CHUNK_SIZE && currentChunk.length > 0) {
-            // 保存当前chunk
-            const chunkContent =
-              currentChunk.map(obj => JSON.stringify(obj)).join('\n') + '\n';
-            chunks.push({
-              name: `chunk_${String(chunkIndex).padStart(6, '0')}.jsonl`,
+          // 检查加入当前item是否会超过PART_SIZE
+          if (currentSize + itemSize > PART_SIZE && currentPart.length > 0) {
+            // 保存当前part
+            const partContent =
+              currentPart.map(obj => JSON.stringify(obj)).join('\n') + '\n';
+            parts.push({
+              name: `part_${String(partIndex).padStart(6, '0')}.jsonl`,
               mime: 'application/jsonl',
-              bytes: encoder.encode(chunkContent),
-              index: chunkIndex,
+              bytes: encoder.encode(partContent),
+              index: partIndex,
             });
-            chunkIndex++;
-            currentChunk = [];
+            partIndex++;
+            currentPart = [];
             currentSize = 0;
           }
 
-          currentChunk.push(item);
+          currentPart.push(item);
           currentSize += itemSize;
         }
 
-        // 保存最后一个chunk
-        if (currentChunk.length > 0) {
-          const chunkContent =
-            currentChunk.map(obj => JSON.stringify(obj)).join('\n') + '\n';
-          chunks.push({
-            name: `chunk_${String(chunkIndex).padStart(6, '0')}.jsonl`,
+        // 保存最后一个part
+        if (currentPart.length > 0) {
+          const partContent =
+            currentPart.map(obj => JSON.stringify(obj)).join('\n') + '\n';
+          parts.push({
+            name: `part_${String(partIndex).padStart(6, '0')}.jsonl`,
             mime: 'application/jsonl',
-            bytes: encoder.encode(chunkContent),
-            index: chunkIndex,
+            bytes: encoder.encode(partContent),
+            index: partIndex,
           });
         }
 
-        return chunks;
+        return parts;
       } else {
         // 单个对象，直接转换
         const jsonStr = JSON.stringify(parsed) + '\n';
         return [
           {
-            name: `chunk_000000.jsonl`,
+            name: `part_000000.jsonl`,
             mime: 'application/jsonl',
             bytes: encoder.encode(jsonStr),
             index: 0,
@@ -158,41 +192,41 @@ function chunkContent(
       }
     } catch {
       // JSON解析失败，按文本处理
-      return chunkTextContent(content, encoder);
+      return partitionTextContent(content, encoder);
     }
   }
 
-  // 文本内容按字符分块
-  return chunkTextContent(content, encoder);
+  // 文本内容按字符分区
+  return partitionTextContent(content, encoder);
 }
 
 /**
- * 按字符数分块文本内容
+ * 按字符数分区文本内容
  */
-function chunkTextContent(
+function partitionTextContent(
   content: string,
   encoder: TextEncoder
 ): Array<{ name: string; mime: string; bytes: Uint8Array; index: number }> {
-  const chunks: Array<{
+  const parts: Array<{
     name: string;
     mime: string;
     bytes: Uint8Array;
     index: number;
   }> = [];
 
-  for (let i = 0; i < content.length; i += CHUNK_SIZE) {
-    const chunkText = content.slice(i, i + CHUNK_SIZE);
-    const chunkIndex = Math.floor(i / CHUNK_SIZE);
+  for (let i = 0; i < content.length; i += PART_SIZE) {
+    const partText = content.slice(i, i + PART_SIZE);
+    const partIndex = Math.floor(i / PART_SIZE);
 
-    chunks.push({
-      name: `chunk_${String(chunkIndex).padStart(6, '0')}.txt`,
+    parts.push({
+      name: `part_${String(partIndex).padStart(6, '0')}.txt`,
       mime: 'text/plain; charset=utf-8',
-      bytes: encoder.encode(chunkText),
-      index: chunkIndex,
+      bytes: encoder.encode(partText),
+      index: partIndex,
     });
   }
 
-  return chunks;
+  return parts;
 }
 
 /**
@@ -218,7 +252,24 @@ export function needsStorageSwitch(
 
 /**
  * 将节点从 external 切换回 internal storage
- * 清理外部存储相关的元数据，但保留resource_key用于将来可能的重用
+ *
+ * Metadata Management Strategy:
+ * - storage_class='internal' is set as the authoritative flag (SSOT)
+ * - external_metadata is INTENTIONALLY PRESERVED for resource_key reuse optimization
+ *
+ * Design Rationale:
+ * - Frontend checks storage_class first, ignores metadata when storage_class='internal'
+ * - Preserving metadata allows reusing the same resource_key if content grows again,
+ *   avoiding unnecessary resource creation in PuppyStorage
+ * - This is a performance optimization for frequent size fluctuations during editing
+ *
+ * Why This Differs from Template Instantiation:
+ * - Template instantiation MUST delete old metadata because it references a different
+ *   workspace's resources (invalid resource_keys from template author's namespace)
+ * - Runtime-generated metadata references current workspace's valid resource_keys,
+ *   which can be safely reused
+ *
+ * See: docs/architecture/STORAGE_CONSISTENCY_BEST_PRACTICES.md
  */
 export function switchToInternal(
   nodeId: string,
@@ -233,10 +284,9 @@ export function switchToInternal(
             data: {
               ...node.data,
               content, // 将内容直接存储在data中
-              storage_class: 'internal',
+              storage_class: 'internal', // ← SSOT: Authoritative flag
               isExternalStorage: false,
-              // 保留external_metadata以便将来重用，但标记为internal
-              // external_metadata: undefined, // 不清理，保留resource_key
+              // external_metadata: undefined, // ← DO NOT uncomment (breaks reuse optimization)
               dirty: false,
               savingStatus: 'saved',
             },
@@ -376,8 +426,8 @@ async function syncBlockContentWithConsistentKey({
   );
 
   // 4. 使用改进的分块策略
-  const chunks = chunkContent(content, contentType);
-  const uploaded = await uploadChunkList(node.id, versionId, chunks);
+  const parts = partitionContent(content, contentType);
+  const uploaded = await uploadPartList(node.id, versionId, parts);
 
   // 5. 清理不再需要的旧chunk
   if (CLEANUP_CONFIG.enabled) {
@@ -581,10 +631,10 @@ type ManifestChunk = {
   state: 'done';
 };
 
-async function uploadChunkList(
+async function uploadPartList(
   blockId: string,
   versionId: string,
-  chunks: Array<{
+  parts: Array<{
     name: string;
     mime: string;
     bytes: Uint8Array;
@@ -593,21 +643,21 @@ async function uploadChunkList(
 ): Promise<ManifestChunk[]> {
   const results: ManifestChunk[] = [];
 
-  for (const c of chunks) {
+  for (const p of parts) {
     const { etag, size } = await uploadChunkDirect(
       blockId,
-      c.name,
-      c.mime,
-      c.bytes,
+      p.name,
+      p.mime,
+      p.bytes,
       versionId
     );
     results.push({
-      name: c.name,
-      // For structured/text chunking, omit file_name to avoid BE misclassification as 'files'
-      mime_type: c.mime,
+      name: p.name,
+      // For structured/text partitioning, omit file_name to avoid BE misclassification as 'files'
+      mime_type: p.mime,
       size,
       etag,
-      index: c.index,
+      index: p.index,
       state: 'done',
     });
   }
@@ -749,30 +799,31 @@ async function cleanupOrphanedChunks(
     return;
   }
 
-  const newChunkNames = new Set(newChunks.map(c => c.file_name));
-  const oldChunkNames = oldManifest.chunks.map(
+  const newPartNames = new Set(newChunks.map(c => c.file_name));
+  // Backward compatibility: try 'parts' first, fallback to 'chunks'
+  const oldPartNames = (oldManifest.parts || oldManifest.chunks || []).map(
     (c: any) => c.file_name || c.name
   );
 
-  // 找出需要删除的chunk
-  const chunksToDelete = oldChunkNames.filter(
-    (name: string) => !newChunkNames.has(name)
+  // 找出需要删除的part
+  const partsToDelete = oldPartNames.filter(
+    (name: string) => !newPartNames.has(name)
   );
 
-  if (chunksToDelete.length === 0) {
+  if (partsToDelete.length === 0) {
     return;
   }
 
-  // 并行删除孤儿chunk（包括对应的metadata文件）
-  const deletePromises = chunksToDelete.map(async (chunkName: string) => {
+  // 并行删除孤儿part（包括对应的metadata文件）
+  const deletePromises = partsToDelete.map(async (partName: string) => {
     try {
-      // 删除主chunk文件
-      await deleteChunk(blockId, chunkName, versionId, userId);
+      // 删除主part文件
+      await deletePart(blockId, partName, versionId, userId);
 
       // 删除对应的metadata文件
-      const metadataFileName = `${chunkName}.metadata`;
+      const metadataFileName = `${partName}.metadata`;
       try {
-        await deleteChunk(blockId, metadataFileName, versionId, userId);
+        await deletePart(blockId, metadataFileName, versionId, userId);
       } catch (metadataError) {
         // metadata文件可能不存在，这是正常的
       }
@@ -787,7 +838,7 @@ async function cleanupOrphanedChunks(
 /**
  * 删除单个chunk文件
  */
-async function deleteChunk(
+async function deletePart(
   blockId: string,
   fileName: string,
   versionId: string,

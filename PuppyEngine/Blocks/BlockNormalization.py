@@ -20,7 +20,7 @@ Conservative defaults to avoid breaking behavior:
 from __future__ import annotations
 
 import json
-from typing import Any, List
+from typing import Any, List, Optional
 
 
 def _try_parse_json(value: Any) -> Any:
@@ -51,7 +51,7 @@ def _is_list_of_strings(values: Any) -> bool:
     return isinstance(values, list) and all(isinstance(v, str) for v in values)
 
 
-def _normalize_structured(block_like: Any, content: Any) -> Any:
+def _normalize_structured(content: Any, is_looped: bool) -> Any:
     """Normalize structured content across storage modes.
 
     Heuristics:
@@ -67,12 +67,6 @@ def _normalize_structured(block_like: Any, content: Any) -> Any:
         content = _parse_list_elements_when_possible(content)
 
     # 3) Non-loop, single-element list -> unwrap to unit
-    is_looped = False
-    try:
-        is_looped = bool(getattr(block_like, "data", {}).get("looped", False))
-    except Exception:
-        is_looped = False
-
     if not is_looped and isinstance(content, list) and len(content) == 1:
         return content[0]
 
@@ -88,12 +82,15 @@ def _normalize_text(content: Any) -> Any:
     return content
 
 
-def normalize_block_content(block_like: Any) -> Any:
+def normalize_block_content(block_like: Any, is_looped: Optional[bool] = None) -> Any:
     """Return a canonical, edge-friendly representation of the block content.
 
     The `block_like` is expected to have attributes:
       - type: str (e.g., 'structured', 'text')
       - data: dict containing at least 'content'
+
+    If `is_looped` is provided, it is used to guide single-element list unwrapping.
+    If not provided, we fall back to reading from the block for backward compatibility.
     """
     # Fetch raw content
     try:
@@ -106,7 +103,17 @@ def normalize_block_content(block_like: Any) -> Any:
     )
 
     if block_type == "structured":
-        return _normalize_structured(block_like, content)
+        # Determine loop flag with SSOT preference for the provided argument
+        if is_looped is None:
+            try:
+                is_looped_flag = bool(
+                    getattr(block_like, "data", {}).get("looped", False)
+                )
+            except Exception:
+                is_looped_flag = False
+        else:
+            is_looped_flag = bool(is_looped)
+        return _normalize_structured(content, is_looped_flag)
 
     if block_type == "text":
         return _normalize_text(content)

@@ -13,8 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set a working directory for the app
 WORKDIR /app
 
-# Copy requirements.txt and install dependencies
-COPY requirements.txt .
+# Copy requirements file and install dependencies
+# Can be overridden via build arg (e.g., requirements-e2e.txt for minimal CI builds)
+ARG REQUIREMENTS_FILE=requirements.txt
+COPY ${REQUIREMENTS_FILE} requirements.txt
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt
 

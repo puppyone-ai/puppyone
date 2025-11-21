@@ -201,7 +201,7 @@ async function createInitialManifest(
       block_id: blockId,
       status: 'generating',
       created_at: new Date().toISOString(),
-      chunks: [],
+      parts: [], // Updated to 'parts' (with backward compatibility support)
     }
   );
 
@@ -364,7 +364,7 @@ export async function syncBlockContent({
       version_id: versionId,
       updated_at: new Date().toISOString(),
       status: 'completed',
-      chunks: [],
+      parts: [], // Updated to 'parts' (with backward compatibility support)
     } as const;
 
     await overwriteManifest(node.id, versionId, manifestEmpty);
@@ -405,7 +405,7 @@ export async function syncBlockContent({
     version_id: versionId,
     updated_at: new Date().toISOString(),
     status: 'completed',
-    chunks: uploaded,
+    parts: uploaded, // Updated to 'parts'
   } as const;
 
   await overwriteManifest(node.id, versionId, manifest);

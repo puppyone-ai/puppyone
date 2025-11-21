@@ -1,0 +1,706 @@
+{
+    "metadata": {
+        "id": "agentic-rag",
+        "version": "1.0.0",
+        "name": "Agentic RAG",
+        "description": "Plan + retrieve + cite sources. Works best with a retriever.",
+        "author": "PuppyAgent Team",
+        "created_at": "2025-01-23T00:00:00Z",
+        "tags": [
+            "rag",
+            "retrieval",
+            "knowledge-base",
+            "vector-search"
+        ],
+        "requirements": {
+            "embedding_models": {
+                "preferred": [
+                    "text-embedding-ada-002",
+                    "text-embedding-3-small"
+                ],
+                "compatible": [
+                    "openai/*",
+                    "ollama/all-minilm",
+                    "ollama/nomic-embed-text"
+                ],
+                "minimum_dimension": 384
+            }
+        }
+    },
+    "workflow": {
+        "blocks": [
+            {
+                "id": "Lm-PbX",
+                "data": {
+                    "label": "Text1",
+                    "locked": false,
+                    "content": "price?",
+                    "isInput": true,
+                    "editable": false,
+                    "groupIds": [
+                        "avCif-"
+                    ],
+                    "isOutput": false,
+                    "isLoading": false,
+                    "isWaitingForFlow": false
+                },
+                "type": "text",
+                "style": {
+                    "zIndex": 1345
+                },
+                "width": 240,
+                "height": 176,
+                "dragging": false,
+                "position": {
+                    "x": -496,
+                    "y": -672
+                },
+                "resizing": false,
+                "selected": false
+            },
+            {
+                "id": "WzK6iT",
+                "data": {
+                    "dirty": false,
+                    "label": "FAQ Knowledge Base",
+                    "locked": false,
+                    "looped": false,
+                    "content": "",
+                    "isInput": false,
+                    "editable": false,
+                    "groupIds": [],
+                    "isOutput": false,
+                    "isLoading": false,
+                    "indexingList": [
+                        {
+                            "type": "vector",
+                            "entries": [],
+                            "status": "notStarted",
+                            "key_path": [
+                                {
+                                    "id": "NK-LPz",
+                                    "type": "key",
+                                    "value": "question"
+                                }
+                            ],
+                            "index_name": "",
+                            "value_path": [],
+                            "collection_configs": {
+                                "set_name": "",
+                                "model": "",
+                                "vdb_type": "pgvector",
+                                "user_id": "",
+                                "collection_name": ""
+                            }
+                        }
+                    ],
+                    "savingStatus": "saved",
+                    "storage_class": "internal",
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": false
+                },
+                "type": "structured",
+                "style": {
+                    "zIndex": 1342
+                },
+                "width": 720,
+                "height": 368,
+                "looped": false,
+                "dragging": false,
+                "position": {
+                    "x": -464,
+                    "y": -64
+                },
+                "resizing": false,
+                "selected": false
+            },
+            {
+                "id": "avCif-",
+                "data": {
+                    "label": "2. Chatbot RAG",
+                    "locked": false,
+                    "content": "",
+                    "isInput": false,
+                    "editable": false,
+                    "isOutput": false,
+                    "isLoading": false,
+                    "backgroundColor": "rgba(68, 106, 91, 0.2)"
+                },
+                "type": "group",
+                "style": {
+                    "zIndex": -1,
+                    "borderColor": "#555555",
+                    "borderWidth": "2.5px"
+                },
+                "width": 1776,
+                "height": 592,
+                "dragging": false,
+                "position": {
+                    "x": -576,
+                    "y": -768
+                },
+                "resizing": false,
+                "selected": false,
+                "className": ""
+            },
+            {
+                "id": "-DMqB-",
+                "data": {
+                    "dirty": false,
+                    "label": "-DMqB-",
+                    "locked": false,
+                    "content": "",
+                    "isInput": true,
+                    "editable": false,
+                    "groupIds": [
+                        "IRDR3a"
+                    ],
+                    "isOutput": false,
+                    "isLoading": false,
+                    "savingStatus": "saved",
+                    "storage_class": "external",
+                    "isExternalStorage": true
+                },
+                "type": "text",
+                "style": {
+                    "zIndex": 1338
+                },
+                "width": 560,
+                "height": 304,
+                "dragging": false,
+                "position": {
+                    "x": -2592,
+                    "y": -32
+                },
+                "selected": false,
+                "resizing": false
+            },
+            {
+                "id": "Ow9efZ",
+                "data": {
+                    "content": [
+                        {
+                            "role": "system",
+                            "content": "You are an AI"
+                        },
+                        {
+                            "role": "user",
+                            "content": "根据这个网页的里面的信息提取出一组FAQ的pair: {{-DMqB-}}。你需要按照这个格式来提取：{{cQIBpi}}"
+                        }
+                    ],
+                    "base_url": "",
+                    "max_tokens": 4096,
+                    "subMenuType": "llm",
+                    "sourceNodeId": "-DMqB-",
+                    "sourceNodeType": "text",
+                    "modelAndProvider": {
+                        "id": "openai/gpt-5",
+                        "name": "GPT-5",
+                        "provider": "OpenAI",
+                        "isLocal": false
+                    },
+                    "structured_output": true
+                },
+                "type": "llmnew",
+                "style": {
+                    "zIndex": 1315
+                },
+                "dragging": false,
+                "position": {
+                    "x": -1824,
+                    "y": 96
+                },
+                "selected": false,
+                "width": 240,
+                "height": 176
+            },
+            {
+                "id": "A-4un_",
+                "data": {
+                    "dirty": false,
+                    "label": "A-4un_",
+                    "locked": false,
+                    "content": "",
+                    "isInput": false,
+                    "editable": false,
+                    "groupIds": [
+                        "IRDR3a"
+                    ],
+                    "isOutput": false,
+                    "isLoading": false,
+                    "savingStatus": "saved",
+                    "storage_class": "external",
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": true
+                },
+                "type": "structured",
+                "style": {
+                    "zIndex": 1340
+                },
+                "width": 800,
+                "height": 368,
+                "dragging": false,
+                "position": {
+                    "x": -1632,
+                    "y": -64
+                },
+                "resizing": false,
+                "selected": false
+            },
+            {
+                "id": "cQIBpi",
+                "data": {
+                    "dirty": false,
+                    "label": "cQIBpi",
+                    "locked": false,
+                    "content": "",
+                    "isInput": true,
+                    "editable": false,
+                    "groupIds": [
+                        "IRDR3a"
+                    ],
+                    "isOutput": false,
+                    "isLoading": false,
+                    "savingStatus": "saved",
+                    "storage_class": "external",
+                    "isExternalStorage": true
+                },
+                "type": "structured",
+                "style": {
+                    "zIndex": 1337
+                },
+                "width": 560,
+                "height": 240,
+                "dragging": false,
+                "position": {
+                    "x": -2592,
+                    "y": 320
+                },
+                "resizing": false,
+                "selected": false
+            },
+            {
+                "id": "_Sgz-w",
+                "data": {
+                    "type": "get",
+                    "subMenuType": "edit-structured",
+                    "sourceNodeId": "A-4un_",
+                    "getConfigData": [
+                        {
+                            "key": "num",
+                            "value": "0"
+                        },
+                        {
+                            "key": "key",
+                            "value": "FAQ"
+                        }
+                    ],
+                    "sourceNodeType": "structured",
+                    "paramv": ""
+                },
+                "type": "editStructured",
+                "style": {
+                    "zIndex": 1313
+                },
+                "dragging": false,
+                "position": {
+                    "x": -640,
+                    "y": 96
+                },
+                "selected": false,
+                "width": 240,
+                "height": 176
+            },
+            {
+                "id": "IRDR3a",
+                "data": {
+                    "label": "1. FAQ cleaning",
+                    "locked": false,
+                    "content": "",
+                    "isInput": false,
+                    "editable": false,
+                    "isOutput": false,
+                    "isLoading": false,
+                    "backgroundColor": "rgba(64, 101, 131, 0.2)"
+                },
+                "type": "group",
+                "style": {
+                    "zIndex": -1
+                },
+                "width": 1952,
+                "height": 832,
+                "dragging": false,
+                "position": {
+                    "x": -2688,
+                    "y": -176
+                },
+                "resizing": false,
+                "selected": false
+            },
+            {
+                "id": "3YAeP8",
+                "data": {
+                    "top_k": 3,
+                    "query_id": {
+                        "id": "Lm-PbX",
+                        "label": "Text1"
+                    },
+                    "dataSource": [
+                        {
+                            "id": "WzK6iT",
+                            "label": "FAQ Knowledge Base",
+                            "index_item": {
+                                "index_name": ""
+                            }
+                        }
+                    ],
+                    "resultNode": "m3bHrN",
+                    "subMenuType": "retrieve",
+                    "sourceNodeId": "Lm-PbX",
+                    "extra_configs": {
+                        "threshold": 0.7
+                    },
+                    "sourceNodeType": "text"
+                },
+                "type": "retrieving",
+                "style": {
+                    "zIndex": 1300
+                },
+                "dragging": false,
+                "position": {
+                    "x": -144,
+                    "y": -400
+                },
+                "selected": false,
+                "width": 240,
+                "height": 176
+            },
+            {
+                "id": "m3bHrN",
+                "data": {
+                    "label": "Retrieved Results",
+                    "locked": false,
+                    "content": "[\n  {\n    \"question\": \"What is your price?\",\n    \"answer\": \"$25 for pro users, including more usages and storage\",\n    \"score\": 0.89\n  },\n  {\n    \"question\": \"Is PuppyAgent free to use?\",\n    \"answer\": \"PuppyAgent provides a free plan for individual users. For teams or enterprises requiring enhanced functionality, we offer Professional plans tailored to meet more advanced needs it's 28$ per user per month.\",\n    \"score\": 0.85\n  },\n  {\n    \"question\": \"What is PuppyAgent?\",\n    \"answer\": \"PuppyAgent is an automated AI knowledge builder that creates RAG pipelines based on your enterprise's own knowledge base, empowering businesses to automate workflows using their proprietary expertise.\",\n    \"score\": 0.72\n  }\n]",
+                    "isInput": false,
+                    "editable": false,
+                    "groupIds": [
+                        "avCif-"
+                    ],
+                    "isOutput": false,
+                    "isLoading": false,
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": false,
+                    "dirty": false,
+                    "savingStatus": "saved"
+                },
+                "type": "structured",
+                "style": {
+                    "zIndex": 1353
+                },
+                "width": 496,
+                "height": 240,
+                "dragging": false,
+                "position": {
+                    "x": 48,
+                    "y": -496
+                },
+                "resizing": false,
+                "selected": false
+            },
+            {
+                "id": "huFp6J",
+                "data": {
+                    "content": [
+                        {
+                            "role": "system",
+                            "content": "You are an AI"
+                        },
+                        {
+                            "role": "user",
+                            "content": "Answer the question: {{Text1}}"
+                        }
+                    ],
+                    "base_url": "",
+                    "max_tokens": 4096,
+                    "subMenuType": "llm",
+                    "sourceNodeId": "Lm-PbX",
+                    "sourceNodeType": "text",
+                    "modelAndProvider": {
+                        "id": "openai/gpt-5",
+                        "name": "GPT-5",
+                        "provider": "OpenAI",
+                        "isLocal": false
+                    },
+                    "structured_output": false
+                },
+                "type": "llmnew",
+                "style": {
+                    "zIndex": 1352
+                },
+                "dragging": false,
+                "position": {
+                    "x": 688,
+                    "y": -608
+                },
+                "selected": false,
+                "width": 240,
+                "height": 176
+            },
+            {
+                "id": "b9vr0c",
+                "data": {
+                    "label": "b9vr0c",
+                    "locked": false,
+                    "content": "Could you please provide more context or specify what item or service you are inquiring about regarding the price?",
+                    "isInput": false,
+                    "editable": false,
+                    "groupIds": [
+                        "avCif-"
+                    ],
+                    "isOutput": true,
+                    "isLoading": false,
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": false
+                },
+                "type": "text",
+                "style": {
+                    "zIndex": 1351
+                },
+                "width": 240,
+                "height": 176,
+                "dragging": false,
+                "position": {
+                    "x": 864,
+                    "y": -672
+                },
+                "resizing": false,
+                "selected": false
+            }
+        ],
+        "edges": [
+            {
+                "id": "4UUbsu",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "type": "floating",
+                "source": "-DMqB-",
+                "target": "Ow9efZ",
+                "selected": false
+            },
+            {
+                "id": "connection-1757416820454",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "type": "floating",
+                "source": "Ow9efZ",
+                "target": "A-4un_",
+                "selected": false,
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "color": "#CDCDCD",
+                    "width": 8,
+                    "height": 20,
+                    "strokeWidth": 0.1
+                },
+                "sourceHandle": "Ow9efZ-b",
+                "targetHandle": "A-4un_-d"
+            },
+            {
+                "id": "connection-1757416933044",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "type": "floating",
+                "source": "cQIBpi",
+                "target": "Ow9efZ",
+                "selected": false,
+                "sourceHandle": "cQIBpi-a",
+                "targetHandle": "Ow9efZ-d"
+            },
+            {
+                "id": "AM8iiK",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "type": "floating",
+                "source": "A-4un_",
+                "target": "_Sgz-w",
+                "selected": false
+            },
+            {
+                "id": "connection-1757417020687",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "type": "floating",
+                "source": "_Sgz-w",
+                "target": "WzK6iT",
+                "selected": false,
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "color": "#CDCDCD",
+                    "width": 8,
+                    "height": 20,
+                    "strokeWidth": 0.1
+                },
+                "sourceHandle": "_Sgz-w-d",
+                "targetHandle": "WzK6iT-d"
+            },
+            {
+                "id": "XfO5Q1",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "type": "floating",
+                "source": "Lm-PbX",
+                "target": "3YAeP8",
+                "selected": false
+            },
+            {
+                "id": "connection-1758178451513",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "type": "floating",
+                "source": "WzK6iT",
+                "target": "3YAeP8",
+                "selected": false,
+                "sourceHandle": "WzK6iT-a",
+                "targetHandle": "3YAeP8-d"
+            },
+            {
+                "id": "connection-1758178463162",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "type": "floating",
+                "source": "3YAeP8",
+                "target": "m3bHrN",
+                "selected": false,
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "color": "#CDCDCD",
+                    "width": 8,
+                    "height": 20,
+                    "strokeWidth": 0.1
+                }
+            },
+            {
+                "id": "9-8O4u",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "type": "floating",
+                "source": "Lm-PbX",
+                "target": "huFp6J",
+                "selected": false
+            },
+            {
+                "id": "connection-1758178615080",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "type": "floating",
+                "source": "m3bHrN",
+                "target": "huFp6J",
+                "selected": false,
+                "sourceHandle": "m3bHrN-b",
+                "targetHandle": "huFp6J-d"
+            },
+            {
+                "id": "connection-1758178884437",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "type": "floating",
+                "source": "huFp6J",
+                "target": "b9vr0c",
+                "selected": false,
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "color": "#CDCDCD",
+                    "width": 8,
+                    "height": 20,
+                    "strokeWidth": 0.1
+                },
+                "sourceHandle": "huFp6J-b",
+                "targetHandle": "b9vr0c-d"
+            }
+        ],
+        "version": "0.1.0"
+    },
+    "resources": {
+        "format": "separate",
+        "resources": [
+            {
+                "id": "web-content",
+                "type": "external_storage",
+                "block_id": "-DMqB-",
+                "mounted_path": "data.content",
+                "source": {
+                    "path": "resources/web-content.txt",
+                    "format": "text"
+                },
+                "target": {
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "faq-extracted",
+                "type": "external_storage",
+                "block_id": "A-4un_",
+                "mounted_path": "data.content",
+                "source": {
+                    "path": "resources/faq-extracted.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "faq-schema",
+                "type": "external_storage",
+                "block_id": "cQIBpi",
+                "mounted_path": "data.content",
+                "source": {
+                    "path": "resources/faq-schema.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "faq-vector-kb",
+                "type": "vector_collection",
+                "block_id": "WzK6iT",
+                "mounted_paths": {
+                    "content": "data.content",
+                    "entries": "data.indexingList[0].entries",
+                    "indexing_config": "data.indexingList[0]"
+                },
+                "source": {
+                    "path": "resources/faq-vector-kb.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true,
+                    "vector_handling": "preserve_entries_only",
+                    "embedding_model": {
+                        "model_id": "text-embedding-ada-002",
+                        "provider": "OpenAI",
+                        "dimension": 1536,
+                        "fallback_strategy": "auto"
+                    }
+                }
+            }
+        ]
+    }
+}

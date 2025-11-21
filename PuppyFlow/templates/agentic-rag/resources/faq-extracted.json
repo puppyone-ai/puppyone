@@ -1,0 +1,26 @@
+[
+    {
+        "FAQ": [
+            {
+                "question": "What is PuppyAgent?",
+                "answer": "PuppyAgent is a platform that automates knowledge bases using an agentic RAG (Retrieval-Augmented Generation) system, allowing users to connect to databases, process information, and deliver results powered by AI."
+            },
+            {
+                "question": "Is PuppyAgent free to use? ",
+                "answer": "The information regarding whether PuppyAgent is free to use is not specified on the webpage."
+            },
+            {
+                "question": "What can PuppyAgent do?",
+                "answer": "PuppyAgent can connect to data sources, process information using AI, and deliver results. It also allows for rapid prototyping, flexible deployment, and enterprise-wide applications."
+            },
+            {
+                "question": "What is the mission of PuppyAgent?",
+                "answer": "The mission of PuppyAgent is to provide an ideal solution for knowledge base needs through advanced RAG techniques without complex setup."
+            },
+            {
+                "question": "How can I contact the PuppyAgent team?",
+                "answer": "You can contact the PuppyAgent team through their LinkedIn, Discord, or email."
+            }
+        ]
+    }
+]

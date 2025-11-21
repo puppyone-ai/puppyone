@@ -1,0 +1,42 @@
+{
+    "content": [
+        {
+            "question": "Where are you?",
+            "answer": "PuppyAgent is based in Singapore, having 8 peoples"
+        },
+        {
+            "question": "What is PuppyAgent?",
+            "answer": "PuppyAgent is an automated AI knowledge builder that creates RAG pipelines based on your enterprise's own knowledge base, empowering businesses to automate workflows using their proprietary expertise."
+        },
+        {
+            "question": "Is PuppyAgent free to use?",
+            "answer": "PuppyAgent provides a free plan for individual users. For teams or enterprises requiring enhanced functionality, we offer Professional plans tailored to meet more advanced needs it's 28$ per user per month."
+        },
+        {
+            "question": "What can PuppyAgent do?",
+            "answer": "PuppyAgent enables you to construct Retrieval-Augmented Generation (RAG) systems for your enterprise knowledge base. It can be applied to various use cases, including supports chatbots community chatbots, AI-powered search engine optimization strategies, spreadsheet automation, and various other applications."
+        },
+        {
+            "question": "What is the mission of PuppyAgent?",
+            "answer": "PuppyAgent's mission is to reshape the world with AI agents. We are initiating this vision by focusing on knowledge base and Retrieval-Augmented Generation (RAG) technologies."
+        },
+        {
+            "question": "How can I contact the PuppyAgent team?",
+            "answer": "You can contact the PuppyAgent team through their LinkedIn, Discord, or email."
+        },
+        {
+            "question": "What is your price?",
+            "answer": "$25 for pro users, including more usages and storage"
+        }
+    ],
+    "indexing_config": {
+        "key_path": [
+            {
+                "id": "NK-LPz",
+                "type": "key",
+                "value": "question"
+            }
+        ],
+        "value_path": []
+    }
+}

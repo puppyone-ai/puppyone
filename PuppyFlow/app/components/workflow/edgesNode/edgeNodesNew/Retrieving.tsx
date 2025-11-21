@@ -143,7 +143,13 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
 
           if (Array.isArray(indexingList)) {
             indexingList.forEach(item => {
-              if (item.type === 'vector' && item.status === 'done') {
+              // Show indexed sets that are done, notStarted (ready for manual trigger), or error (failed, needs retry)
+              if (
+                item.type === 'vector' &&
+                (item.status === 'done' ||
+                  item.status === 'notStarted' ||
+                  item.status === 'error')
+              ) {
                 items.push({
                   nodeId: node.id,
                   nodeLabel: node.label,

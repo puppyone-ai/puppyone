@@ -29,6 +29,13 @@ build/
 # testing
 /coverage
 
+# Python tool configs (use pyproject.toml only)
+pytest.ini
+setup.cfg
+.coveragerc
+tox.ini
+mypy.ini
+
 # next.js
 **/.next/
 /out/

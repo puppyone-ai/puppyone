@@ -97,6 +97,26 @@ class StorageAdapter(ABC):
         pass
 
     @abstractmethod
+    def copy_resource(self, source_key: str, target_key: str) -> bool:
+        """
+        复制资源（server-side copy for S3, file copy for local）
+        
+        Args:
+            source_key: 源资源路径（格式：userId/blockId/versionId）
+            target_key: 目标资源路径（格式：userId/blockId/versionId）
+            
+        Returns:
+            bool: 成功返回True，失败返回False
+            
+        Note:
+            - S3: 使用server-side copy_object（高效，不经过网络传输）
+            - Local: 使用file system copy（shutil.copy2保留元数据）
+            - 不验证source_key所有权（允许从模板复制）
+            - 调用方负责验证target_key所有权
+        """
+        pass
+
+    @abstractmethod
     def ping(self) -> Dict[str, Any]:
         """
         轻量健康检查接口，用于检测存储后端可用性。

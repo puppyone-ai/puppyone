@@ -1,0 +1,1184 @@
+/**
+ * CloudTemplateLoader - Template Loader for Cloud Deployment
+ *
+ * Implements the TemplateLoader interface for loading and instantiating
+ * workflow templates from Git-managed template files.
+ *
+ * Phase 2: Template Loader Implementation
+ *
+ * ## Storage Service URLs
+ *
+ * This loader uses SERVER_ENV.PUPPY_STORAGE_BACKEND for all storage operations:
+ * - File uploads: `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/files/upload/part/direct`
+ * - Vector embedding: `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/vector/embed`
+ *
+ * The storage URL is NOT configurable via TemplateLoaderConfig to ensure
+ * consistency with other parts of the system (engine, workspace, etc).
+ *
+ * Configuration: Set PUPPYSTORAGE_URL environment variable (see serverEnv.ts)
+ */
+
+import { promises as fs } from 'fs';
+import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { set as setPath } from 'lodash';
+import { Model } from '@/app/components/states/AppSettingsContext';
+import { SERVER_ENV } from '@/lib/serverEnv';
+import {
+  TemplateLoader,
+  TemplateLoaderConfig,
+  DEFAULT_LOADER_CONFIG,
+} from './loader';
+import {
+  TemplatePackage,
+  WorkflowDefinition,
+  ResourceDescriptor,
+  Batch,
+  isBatch,
+} from './types';
+import { PartitioningService, PART_SIZE } from '../storage/partitioning';
+import { VectorIndexing } from '../indexing/vector-indexing';
+import { VectorAutoRebuildService } from './vector-auto-rebuild';
+
+/**
+ * Storage threshold for deciding inline vs external storage
+ * Aligned with STORAGE_SPEC.md: 1MB
+ */
+const STORAGE_THRESHOLD = 1024 * 1024; // 1MB
+
+/**
+ * CloudTemplateLoader
+ *
+ * Loads templates from filesystem and instantiates them into user workspaces.
+ */
+export class CloudTemplateLoader implements TemplateLoader {
+  private config: TemplateLoaderConfig;
+  private currentTemplateId: string = '';
+  private userAuthHeader?: string;
+
+  constructor(config?: Partial<TemplateLoaderConfig>, userAuthHeader?: string) {
+    this.config = { ...DEFAULT_LOADER_CONFIG, ...config };
+    this.userAuthHeader = userAuthHeader;
+  }
+
+  /**
+   * Get authentication header for PuppyStorage API calls
+   *
+   * Strategy:
+   * 1. Use provided authHeader (from /api/workspace/instantiate)
+   * 2. Fallback to 'Bearer local-dev' for localhost (consistent with Engine proxy)
+   * 3. Error in cloud mode without auth
+   */
+  private getUserAuthHeader(): string {
+    if (this.userAuthHeader) {
+      return this.userAuthHeader;
+    }
+
+    // Localhost fallback - consistent with Engine proxy behavior
+    const mode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
+    if (mode !== 'cloud') {
+      console.log(
+        '[CloudTemplateLoader] Localhost mode: using default auth token'
+      );
+      return 'Bearer local-dev';
+    }
+
+    throw new Error('Cloud deployment requires user authentication header');
+  }
+
+  /**
+   * Load a template package from Git
+   *
+   * Reads the package.json file and validates its structure.
+   *
+   * @param templateId - Template identifier (e.g., "agentic-rag")
+   * @returns Template package with metadata, workflow, and resources
+   */
+  async loadTemplate(templateId: string): Promise<TemplatePackage> {
+    this.currentTemplateId = templateId;
+
+    try {
+      // Build path to template package.json
+      const templateDir = path.join(process.cwd(), 'templates', templateId);
+      const packagePath = path.join(templateDir, 'package.json');
+
+      // Read and parse package.json
+      const packageContent = await fs.readFile(packagePath, 'utf-8');
+      const pkg: TemplatePackage = JSON.parse(packageContent);
+
+      // Validate package structure
+      this.validateTemplatePackage(pkg, templateId);
+
+      console.log(
+        `[CloudTemplateLoader] Successfully loaded template: ${templateId}`
+      );
+
+      return pkg;
+    } catch (error) {
+      console.error(
+        `[CloudTemplateLoader] Failed to load template ${templateId}:`,
+        error
+      );
+      throw new Error(
+        `Failed to load template ${templateId}: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Instantiate a template into a user workspace
+   *
+   * This method:
+   * 1. Clones the workflow JSON
+   * 2. Processes each resource (copy and rewrite references)
+   * 3. Attempts auto-rebuild for vector resources
+   * 4. Returns the instantiated workflow
+   *
+   * @param pkg - Template package
+   * @param userId - User ID
+   * @param workspaceId - Workspace ID
+   * @param availableModels - User's available models (for auto-rebuild)
+   * @returns Instantiated workflow definition
+   */
+  async instantiateTemplate(
+    pkg: TemplatePackage,
+    userId: string,
+    workspaceId: string,
+    availableModels: Model[]
+  ): Promise<WorkflowDefinition> {
+    console.log(
+      `[CloudTemplateLoader] Instantiating template ${pkg.metadata.id} for user ${userId}`
+    );
+
+    // Clone workflow to avoid mutating original
+    const workflow: WorkflowDefinition = JSON.parse(
+      JSON.stringify(pkg.workflow)
+    );
+
+    // Process each resource
+    for (const resource of pkg.resources.resources) {
+      console.log(
+        `[CloudTemplateLoader] Processing resource: ${resource.id} (type: ${resource.type})`
+      );
+
+      try {
+        await this.processResource(
+          resource,
+          userId,
+          workspaceId,
+          workflow,
+          availableModels
+        );
+      } catch (error) {
+        console.error(
+          `[CloudTemplateLoader] Failed to process resource ${resource.id}:`,
+          error
+        );
+        throw new Error(
+          `Failed to process resource ${resource.id}: ${(error as Error).message}`
+        );
+      }
+    }
+
+    console.log(
+      `[CloudTemplateLoader] Successfully instantiated template ${pkg.metadata.id}`
+    );
+
+    return workflow;
+  }
+
+  /**
+   * Process a single resource
+   *
+   * Reads the resource file, determines storage strategy, uploads if needed,
+   * and updates workflow references.
+   *
+   * @param resource - Resource descriptor from manifest
+   * @param userId - User ID
+   * @param workspaceId - Workspace ID
+   * @param workflow - Workflow definition (mutated)
+   * @param availableModels - User's available models
+   */
+  private async processResource(
+    resource: ResourceDescriptor,
+    userId: string,
+    workspaceId: string,
+    workflow: WorkflowDefinition,
+    availableModels: Model[]
+  ): Promise<void> {
+    // Read resource content from filesystem
+    const resourcePath = path.join(
+      process.cwd(),
+      'templates',
+      this.currentTemplateId,
+      resource.source.path
+    );
+    const resourceContent = await fs.readFile(resourcePath, 'utf-8');
+
+    // Parse if structured
+    let parsedContent: any;
+    if (resource.source.format === 'structured') {
+      parsedContent = JSON.parse(resourceContent);
+    }
+
+    // Determine storage strategy based on size
+    const contentSize = Buffer.byteLength(resourceContent, 'utf-8');
+    const isExternal = contentSize >= STORAGE_THRESHOLD;
+
+    console.log(
+      `[CloudTemplateLoader] Resource ${resource.id}: ${contentSize} bytes, ${isExternal ? 'external' : 'inline'} storage`
+    );
+
+    // Find the target block in workflow
+    const block = workflow.blocks.find(b => b.id === resource.block_id);
+    if (!block) {
+      throw new Error(
+        `Block ${resource.block_id} not found in workflow for resource ${resource.id}`
+      );
+    }
+
+    // Handle different resource types
+    switch (resource.type) {
+      case 'external_storage':
+        await this.processExternalStorage(
+          resource,
+          resourceContent,
+          parsedContent,
+          isExternal,
+          userId,
+          block,
+          workflow
+        );
+        break;
+
+      case 'vector_collection':
+        await this.processVectorCollection(
+          resource,
+          resourceContent,
+          parsedContent,
+          isExternal,
+          userId,
+          workspaceId,
+          block,
+          workflow,
+          availableModels
+        );
+        break;
+
+      case 'file':
+        await this.processFile(resource, resourcePath, userId, block, workflow);
+        break;
+
+      default:
+        throw new Error(`Unknown resource type: ${(resource as any).type}`);
+    }
+  }
+
+  /**
+   * Process external_storage resource
+   */
+  private async processExternalStorage(
+    resource: ResourceDescriptor,
+    resourceContent: string,
+    parsedContent: any,
+    isExternal: boolean,
+    userId: string,
+    block: any,
+    workflow: WorkflowDefinition
+  ): Promise<void> {
+    if (isExternal) {
+      // Upload with partitioning
+      const versionId = uuidv4();
+      const targetKey = `${userId}/${block.id}/${versionId}`;
+      const resourceKey = await this.uploadWithPartitioning(
+        resourceContent,
+        resource.source.format,
+        targetKey,
+        userId
+      );
+
+      // Update workflow reference to external storage
+      this.updateWorkflowReference(
+        workflow,
+        block.id,
+        resource.mounted_path,
+        resourceKey
+      );
+
+      // Set storage metadata
+      if (!block.data.external_metadata) {
+        block.data.external_metadata = {};
+      }
+      block.data.external_metadata.resource_key = resourceKey;
+      block.data.storage_class = 'external';
+      block.data.isExternalStorage = true;
+    } else {
+      // Inline storage
+      this.updateWorkflowReference(
+        workflow,
+        block.id,
+        resource.mounted_path,
+        parsedContent || resourceContent
+      );
+      block.data.storage_class = 'internal';
+      block.data.isExternalStorage = false;
+
+      // Clear any old external_metadata from template
+      if (block.data.external_metadata) {
+        delete block.data.external_metadata;
+      }
+    }
+  }
+
+  /**
+   * Process vector_collection resource
+   */
+  private async processVectorCollection(
+    resource: ResourceDescriptor,
+    resourceContent: string,
+    parsedContent: any,
+    isExternal: boolean,
+    userId: string,
+    workspaceId: string,
+    block: any,
+    workflow: WorkflowDefinition,
+    availableModels: Model[]
+  ): Promise<void> {
+    // Validate Batch structure (required for all vector_collection resources)
+    if (!isBatch(parsedContent)) {
+      throw new Error(
+        `vector_collection resource ${resource.id} must be a valid Batch: ` +
+          `{content: array, indexing_config: object}. ` +
+          `Got: ${JSON.stringify(parsedContent).substring(0, 200)}`
+      );
+    }
+
+    const batch = parsedContent as Batch;
+    const versionId = uuidv4();
+    const targetKey = `${userId}/${block.id}/${versionId}`;
+
+    if (isExternal) {
+      // External Storage: Upload ONLY content (not indexing_config)
+      // Principle: Storage contains data, not metadata
+      // indexing_config is stored in indexingList (Single Source of Truth)
+      const contentOnly = JSON.stringify(batch.content);
+      const resourceKey = await this.uploadWithPartitioning(
+        contentOnly,
+        'structured', // Always structured format for content array
+        targetKey,
+        userId
+      );
+
+      // Set external storage metadata
+      if (!block.data.external_metadata) {
+        block.data.external_metadata = {};
+      }
+      block.data.external_metadata.resource_key = resourceKey;
+      block.data.storage_class = 'external';
+      block.data.isExternalStorage = true;
+
+      console.log(
+        `[CloudTemplateLoader] 📤 Uploaded vector collection content (${batch.content.length} items) to external storage: ${resourceKey}`
+      );
+    } else {
+      // Inline storage: Inject content into workflow JSON
+      if (resource.mounted_paths?.content) {
+        this.updateWorkflowReference(
+          workflow,
+          block.id,
+          resource.mounted_paths.content,
+          batch.content
+        );
+      }
+      block.data.storage_class = 'internal';
+      block.data.isExternalStorage = false;
+
+      // Clear any old external_metadata from template
+      if (block.data.external_metadata) {
+        delete block.data.external_metadata;
+      }
+
+      console.log(
+        `[CloudTemplateLoader] 💾 Stored vector collection content (${batch.content.length} items) inline`
+      );
+    }
+
+    // Initialize indexing list with pending status
+    if (!block.data.indexingList) {
+      block.data.indexingList = [];
+    }
+
+    // Get indexing config from mounted_paths
+    const indexingConfigPath = resource.mounted_paths?.indexing_config;
+    let indexingItem: any = null;
+
+    // Template should have indexingList pre-populated; this check ensures it exists
+    if (indexingConfigPath && block.data.indexingList.length > 0) {
+      indexingItem = block.data.indexingList[0];
+
+      // Ensure complete structure for vector indexing (use || to avoid overwriting existing values)
+      indexingItem.entries = indexingItem.entries || [];
+      indexingItem.status = indexingItem.status || 'notStarted';
+      indexingItem.index_name = indexingItem.index_name || '';
+      if (!indexingItem.collection_configs) {
+        indexingItem.collection_configs = {
+          set_name: '',
+          model: '',
+          vdb_type: 'pgvector',
+          user_id: userId,
+          collection_name: '',
+        };
+      }
+
+      // Attempt auto-rebuild if enabled
+      // parsedContent is a Batch for vector_collection resources
+      const batch = parsedContent as Batch;
+      if (this.config.enableAutoRebuild && batch.content.length > 0) {
+        try {
+          const rebuildResult =
+            await VectorAutoRebuildService.attemptAutoRebuild({
+              resourceDescriptor: resource,
+              batch: batch, // Pass the complete Batch (content + indexing_config)
+              availableModels,
+              userId,
+              workspaceId,
+              blockId: block.id,
+            });
+
+          if (rebuildResult.success && rebuildResult.entries) {
+            indexingItem.entries = rebuildResult.entries;
+
+            // Phase 3.8: Auto-embedding support
+            if (
+              this.config.enableAutoEmbed &&
+              rebuildResult.entries.length > 0
+            ) {
+              try {
+                indexingItem.status = 'processing';
+                console.log(
+                  `[CloudTemplateLoader] Auto-rebuild prepared ${rebuildResult.entries.length} entries, starting embedding...`
+                );
+
+                // Call embedding API (waits for completion)
+                const embeddingResult = await this.callEmbeddingAPI(
+                  userId,
+                  block.id,
+                  rebuildResult.entries
+                );
+
+                // Update indexing item with embedding results
+                indexingItem.status = 'done';
+                indexingItem.index_name = embeddingResult.collection_name;
+                indexingItem.collection_configs = {
+                  set_name: embeddingResult.set_name,
+                  model: 'text-embedding-ada-002',
+                  vdb_type: 'pgvector',
+                  user_id: userId,
+                  collection_name: embeddingResult.collection_name,
+                };
+
+                console.log(
+                  `[CloudTemplateLoader] ✅ Auto-embedding completed for block ${block.id}: ${embeddingResult.collection_name}`
+                );
+              } catch (error) {
+                console.warn(
+                  `[CloudTemplateLoader] ⚠️ Auto-embedding failed for block ${block.id}:`,
+                  error
+                );
+                // Mark as error (consistent with frontend manual embedding error handling)
+                indexingItem.status = 'error';
+              }
+            } else {
+              // Auto-embedding disabled or no entries
+              indexingItem.status = 'notStarted'; // Ready for user to trigger embedding manually
+              console.log(
+                `[CloudTemplateLoader] Auto-rebuild prepared ${rebuildResult.entries.length} entries for block ${block.id} (auto-embedding ${this.config.enableAutoEmbed ? 'enabled but no entries' : 'disabled'})`
+              );
+            }
+          }
+        } catch (error) {
+          console.warn(
+            `[CloudTemplateLoader] Auto-rebuild failed for block ${block.id}:`,
+            error
+          );
+          // Continue with empty entries - user can manually trigger
+        }
+      }
+    }
+
+    // Phase 3.9: Lightweight sync - Only sync index_name to edges (for UI display and runtime lookup)
+    // collection_configs is NOT synced - it will be resolved at runtime from Block's indexingList
+
+    // Build data_source structure for edges connected to this vector collection block
+    this.ensureEdgeDataSource(workflow, block.id, indexingItem);
+
+    if (indexingItem?.index_name) {
+      this.syncIndexNameToEdges(workflow, block.id, indexingItem.index_name);
+      // Phase 3.11: Also sync to retrieval nodes' dataSource (template pre-fills this)
+      this.syncIndexNameToRetrievalNodes(
+        workflow,
+        block.id,
+        indexingItem.index_name
+      );
+    }
+  }
+
+  /**
+   * Ensure edge has data_source structure for vector collection references
+   *
+   * Template edges may not include data_source structure initially.
+   * This method builds the minimal structure required for validation and runtime.
+   *
+   * @param workflow - Workflow definition with edges
+   * @param blockId - Vector collection block ID
+   * @param indexingItem - Indexing configuration from block
+   */
+  private ensureEdgeDataSource(
+    workflow: WorkflowDefinition,
+    blockId: string,
+    indexingItem: any
+  ): void {
+    if (!workflow.edges) {
+      return;
+    }
+
+    console.log(
+      `[CloudTemplateLoader] Ensuring data_source structure for block ${blockId}`
+    );
+
+    for (const edge of workflow.edges) {
+      // Check if this edge has the vector collection as source
+      if (edge.source === blockId) {
+        if (!edge.data) {
+          edge.data = {};
+        }
+
+        // Initialize data_source array if not exists
+        if (!edge.data.dataSource && !edge.data.data_source) {
+          edge.data.data_source = [];
+        }
+
+        const dataSourceList = edge.data.data_source || edge.data.dataSource;
+
+        // Check if this block is already in data_source
+        const existingDataSource = dataSourceList.find(
+          (ds: any) => ds.id === blockId
+        );
+
+        if (!existingDataSource) {
+          // Add data_source entry for this vector collection block
+          dataSourceList.push({
+            id: blockId,
+            index_item: {
+              index_name: indexingItem?.index_name || '',
+              // collection_configs will be resolved at runtime
+            },
+          });
+
+          console.log(
+            `[CloudTemplateLoader] Added data_source entry for block ${blockId} to edge ${edge.id}`
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Sync index_name from vector collection block to edges that reference it
+   *
+   * Phase 3.9: Lightweight sync (index_name only)
+   *
+   * After auto-embedding completes, we need to update the Edge's index_name so that:
+   * 1. Runtime resolution can perform precise lookup (not just fallback)
+   * 2. UI can display the correct index name
+   *
+   * Note: We do NOT sync collection_configs - that will be resolved at runtime.
+   *
+   * @param workflow - Workflow definition with edges
+   * @param blockId - Vector collection block ID
+   * @param indexName - The index_name from the block's indexingList[0]
+   */
+  private syncIndexNameToEdges(
+    workflow: WorkflowDefinition,
+    blockId: string,
+    indexName: string
+  ): void {
+    if (!workflow.edges) {
+      console.log(`[CloudTemplateLoader] No edges found in workflow`);
+      return;
+    }
+
+    console.log(
+      `[CloudTemplateLoader] Syncing index_name for block ${blockId}, edges count: ${workflow.edges.length}`
+    );
+
+    // Find all edges that reference this block in dataSource/data_source
+    let syncedCount = 0;
+    for (const edge of workflow.edges) {
+      if (!edge.data) {
+        continue;
+      }
+
+      // Check both camelCase (frontend) and snake_case (backend) formats
+      const dataSourceList =
+        edge.data.dataSource || edge.data.data_source || null;
+
+      if (dataSourceList && Array.isArray(dataSourceList)) {
+        for (const dataSource of dataSourceList) {
+          console.log(
+            `[CloudTemplateLoader] Edge ${edge.id}: checking dataSource.id=${dataSource.id} vs blockId=${blockId}, has index_item=${!!dataSource.index_item}`
+          );
+          if (dataSource.id === blockId && dataSource.index_item) {
+            // Update only index_name (lightweight)
+            dataSource.index_item.index_name = indexName;
+            syncedCount++;
+            console.log(
+              `[CloudTemplateLoader] ✅ Synced index_name to edge ${edge.id} for block ${blockId}: ${indexName}`
+            );
+          }
+        }
+      }
+    }
+
+    if (syncedCount === 0) {
+      console.warn(
+        `[CloudTemplateLoader] ⚠️ No edges found referencing block ${blockId}`
+      );
+    } else {
+      console.log(
+        `[CloudTemplateLoader] Synced index_name to ${syncedCount} edge(s)`
+      );
+    }
+  }
+
+  /**
+   * Sync index_name to retrieval nodes that reference this vector collection
+   *
+   * Phase 3.11: Fix template instantiation for retrieval blocks
+   *
+   * Templates may pre-fill retrieval nodes' data.dataSource with empty index_name.
+   * UI's buildRetrievingNodeJson reads from node.data.dataSource (not edge), so we must update it.
+   *
+   * @param workflow - Workflow definition with blocks
+   * @param blockId - Vector collection block ID
+   * @param indexName - The index_name from the block's indexingList[0]
+   */
+  private syncIndexNameToRetrievalNodes(
+    workflow: WorkflowDefinition,
+    blockId: string,
+    indexName: string
+  ): void {
+    if (!workflow.blocks) {
+      return;
+    }
+
+    console.log(
+      `[CloudTemplateLoader] Syncing index_name to retrieval nodes for block ${blockId}`
+    );
+
+    let syncedCount = 0;
+    for (const block of workflow.blocks) {
+      // Only process retrieval-type blocks
+      if (block.type !== 'retrieving') {
+        continue;
+      }
+
+      const dataSource = block.data?.dataSource;
+      if (dataSource && Array.isArray(dataSource)) {
+        for (const ds of dataSource) {
+          if (ds.id === blockId) {
+            if (!ds.index_item) {
+              ds.index_item = {};
+            }
+            ds.index_item.index_name = indexName;
+            syncedCount++;
+            console.log(
+              `[CloudTemplateLoader] ✅ Synced index_name to retrieval node ${block.id}: ${indexName}`
+            );
+          }
+        }
+      }
+    }
+
+    if (syncedCount > 0) {
+      console.log(
+        `[CloudTemplateLoader] Synced index_name to ${syncedCount} retrieval node(s)`
+      );
+    }
+  }
+
+  /**
+   * Call embedding API to generate vectors for entries
+   *
+   * Phase 3.8: Auto-embedding support
+   *
+   * Reuses the same API endpoint as manual embedding (/api/storage/vector/embed).
+   * Synchronously waits for embedding to complete (10-30 seconds typically).
+   *
+   * @param userId - User ID for namespace
+   * @param blockId - Block ID for collection naming
+   * @param entries - Vector entries to embed
+   * @returns Embedding result with collection name and configs
+   */
+  private async callEmbeddingAPI(
+    userId: string,
+    blockId: string,
+    entries: any[]
+  ): Promise<{
+    collection_name: string;
+    set_name: string;
+  }> {
+    // Use PuppyStorage backend URL directly to avoid proxy issues
+    const apiUrl = `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/vector/embed`;
+
+    // Build payload (same structure as frontend useIndexingUtils.ts)
+    const payload = {
+      entries,
+      create_new: true,
+      vdb_type: 'pgvector',
+      model: 'text-embedding-ada-002', // Default model (TODO: select from availableModels)
+      set_name: `collection_${blockId}_${Date.now()}`,
+      user_id: userId, // Add user_id to payload
+    };
+
+    console.log(`[CloudTemplateLoader] 📤 Calling embedding API:`, {
+      url: apiUrl,
+      entriesCount: entries.length,
+      set_name: payload.set_name,
+      user_id: payload.user_id,
+      auth: this.getUserAuthHeader(),
+    });
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: this.getUserAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log(
+        `[CloudTemplateLoader] 📥 Embedding API response status: ${response.status}`
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          `[CloudTemplateLoader] ❌ Embedding API error response:`,
+          errorText
+        );
+        throw new Error(
+          `Embedding API failed: ${response.status} - ${errorText}`
+        );
+      }
+
+      const result = await response.json();
+      console.log(`[CloudTemplateLoader] 📥 Embedding API result:`, result);
+
+      if (!result.collection_name) {
+        throw new Error('Embedding API did not return collection_name');
+      }
+
+      console.log(
+        `[CloudTemplateLoader] ✅ Embedding completed: ${result.collection_name}`
+      );
+
+      return {
+        collection_name: result.collection_name,
+        set_name: result.set_name || payload.set_name, // Use returned set_name if available
+      };
+    } catch (error) {
+      console.error(
+        `[CloudTemplateLoader] ❌ callEmbeddingAPI exception:`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Upload file to PuppyStorage (direct upload for small template files)
+   *
+   * Uses /upload/chunk/direct API for simple single-request upload.
+   * Suitable for template files which are typically small (<5MB).
+   *
+   * API expects:
+   * - block_id and file_name as query parameters
+   * - Raw file data as request body
+   *
+   * @param fileKey - Storage key (userId/blockId/versionId/fileName)
+   * @param fileBuffer - File content as Buffer
+   * @returns ETag of uploaded file
+   */
+  private async uploadFileToPuppyStorage(
+    fileKey: string,
+    fileBuffer: Buffer
+  ): Promise<string> {
+    const baseUrl = SERVER_ENV.PUPPY_STORAGE_BACKEND;
+
+    // Parse fileKey: userId/blockId/versionId/fileName
+    const keyParts = fileKey.split('/');
+    const blockId = keyParts[1];
+    const versionId = keyParts[2];
+    const fileName = keyParts.slice(3).join('/'); // Handle filenames with slashes
+
+    // Build query parameters
+    const params = new URLSearchParams({
+      block_id: blockId,
+      file_name: fileName,
+      version_id: versionId,
+    });
+
+    const response = await fetch(`${baseUrl}/upload/chunk/direct?${params}`, {
+      method: 'POST',
+      headers: {
+        Authorization: this.getUserAuthHeader(),
+        'Content-Type': 'application/octet-stream',
+      },
+      body: fileBuffer as any, // Buffer is valid body type in Node.js fetch
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`File upload failed: ${response.status} - ${errorText}`);
+    }
+
+    const { etag } = await response.json();
+    console.log(`[CloudTemplateLoader] Successfully uploaded file: ${fileKey}`);
+    return etag;
+  }
+
+  /**
+   * Infer file type from extension and MIME type
+   *
+   * Logic copied from frontend: useFileUpload.ts
+   *
+   * @param fileName - File name with extension
+   * @param mimeType - MIME type of the file
+   * @returns Inferred file type string
+   */
+  private inferFileType(fileName: string, mimeType: string): string {
+    const extension = fileName
+      .substring(fileName.lastIndexOf('.') + 1)
+      .toLowerCase();
+
+    // Extension-based mapping (priority 1)
+    const extensionMap: Record<string, string> = {
+      // Documents
+      pdf: 'pdf',
+      doc: 'word',
+      docx: 'word',
+      txt: 'text',
+      md: 'markdown',
+      csv: 'csv',
+      json: 'json',
+      xml: 'xml',
+      // Spreadsheets
+      xls: 'excel',
+      xlsx: 'excel',
+      // Images
+      jpg: 'image',
+      jpeg: 'image',
+      png: 'image',
+      gif: 'image',
+      webp: 'image',
+      // Others
+      zip: 'archive',
+      html: 'html',
+    };
+
+    if (extensionMap[extension]) {
+      return extensionMap[extension];
+    }
+
+    // MIME type fallback (priority 2)
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('text/')) return 'text';
+    if (mimeType.includes('pdf')) return 'pdf';
+    if (mimeType.includes('word')) return 'word';
+    if (mimeType.includes('excel') || mimeType.includes('spreadsheet'))
+      return 'excel';
+
+    // Default
+    return 'file';
+  }
+
+  /**
+   * Process file resource (Phase 3.5 - Standard FILE-BLOCK-CONTRACT)
+   *
+   * File blocks now use external storage mode with manifest.json (standard contract).
+   * Process:
+   * 1. Upload file to PuppyStorage
+   * 2. Create manifest.json with chunks array
+   * 3. Upload manifest.json
+   * 4. Set external_metadata + storage_class='external'
+   * 5. Delete content (prefetch will populate it)
+   *
+   * @param resource - Resource descriptor
+   * @param resourcePath - Local path to file
+   * @param userId - User ID
+   * @param block - Block data
+   * @param workflow - Workflow definition
+   */
+  private async processFile(
+    resource: ResourceDescriptor,
+    resourcePath: string,
+    userId: string,
+    block: any,
+    workflow: WorkflowDefinition
+  ): Promise<void> {
+    const versionId = `${Date.now()}-${uuidv4().slice(0, 8)}`;
+    const resourceKey = `${userId}/${block.id}/${versionId}`;
+
+    const fileBuffer = await fs.readFile(resourcePath);
+    const fileName = path.basename(resourcePath);
+    const mimeType = resource.source.mime_type || 'application/octet-stream';
+
+    console.log(
+      `[CloudTemplateLoader] Processing file: ${fileName} (${fileBuffer.length} bytes)`
+    );
+
+    // 1. Upload file
+    const fileKey = `${resourceKey}/${fileName}`;
+    const etag = await this.uploadFileToPuppyStorage(fileKey, fileBuffer);
+
+    // 2. Create manifest.json
+    const manifest = {
+      version: '1.0',
+      block_id: block.id,
+      version_id: versionId,
+      created_at: new Date().toISOString(),
+      status: 'completed',
+      chunks: [
+        {
+          name: fileName,
+          file_name: fileName,
+          mime_type: mimeType,
+          size: fileBuffer.length,
+          etag: etag,
+          file_type: this.inferFileType(fileName, mimeType),
+        },
+      ],
+    };
+
+    // 3. Upload manifest
+    const manifestKey = `${resourceKey}/manifest.json`;
+    const manifestContent = JSON.stringify(manifest);
+    await this.uploadFileToPuppyStorage(
+      manifestKey,
+      Buffer.from(manifestContent, 'utf-8')
+    );
+
+    // 4. Set external mode (STANDARD)
+    block.data.external_metadata = {
+      resource_key: resourceKey,
+      content_type: 'files',
+    };
+    block.data.storage_class = 'external';
+
+    // 5. Set UI placeholder content (for frontend display)
+    // NOTE: This is a temporary placeholder for UI. Prefetch will REPLACE this
+    // with actual file data including local_path when workflow executes.
+    // Structure matches manual upload: { fileName, task_id, fileType, size, etag }
+    block.data.content = [
+      {
+        fileName: fileName,
+        task_id: fileKey, // Full storage key (matches manual upload pattern)
+        fileType: this.inferFileType(fileName, mimeType),
+        size: fileBuffer.length,
+        etag: etag,
+      },
+    ];
+
+    // Clean up old fields
+    delete block.data.uploadedFiles;
+
+    console.log(
+      `[CloudTemplateLoader] ✅ File uploaded with manifest: ${resourceKey}`
+    );
+  }
+
+  /**
+   * Upload a part directly to PuppyStorage backend
+   *
+   * @param partKey - Full key for the part (userId/blockId/versionId/partName)
+   * @param content - Part content as Uint8Array
+   * @param contentType - MIME type of the content
+   * @param userId - User ID for namespace
+   * @returns Upload result with etag and size
+   */
+  private async uploadPartToPuppyStorage(
+    partKey: string,
+    content: Uint8Array,
+    contentType: string,
+    userId: string
+  ): Promise<{ etag: string; size: number }> {
+    const url = `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/files/upload/part/direct`;
+
+    // Parse key: userId/blockId/versionId/partName
+    const [uid, blockId, versionId, ...rest] = partKey.split('/');
+    const fileName = rest.join('/');
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: this.getUserAuthHeader(),
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        block_id: blockId,
+        version_id: versionId,
+        file_name: fileName,
+        content: Buffer.from(content).toString('base64'),
+        content_type: contentType,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Upload part failed: ${response.status} ${response.statusText} - ${errorText}`
+      );
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Upload content with partitioning
+   *
+   * Uses PartitioningService to partition large content and uploads each part.
+   *
+   * @param content - Content to upload
+   * @param format - Content format ('text' or 'structured')
+   * @param targetKey - Base key for uploaded resource
+   * @param userId - User ID for namespace
+   * @returns Final resource key
+   */
+  private async uploadWithPartitioning(
+    content: string,
+    format: 'text' | 'structured' | 'binary',
+    targetKey: string,
+    userId: string
+  ): Promise<string> {
+    const contentType = format === 'structured' ? 'structured' : 'text';
+    const parts = PartitioningService.partition(content, contentType);
+
+    console.log(
+      `[CloudTemplateLoader] Uploading ${parts.length} parts for ${targetKey}...`
+    );
+
+    const manifestParts = [];
+
+    // Upload each part
+    for (const part of parts) {
+      const partKey = `${targetKey}/${part.name}`;
+      const result = await this.uploadPartToPuppyStorage(
+        partKey,
+        part.bytes,
+        part.mime,
+        userId
+      );
+
+      manifestParts.push({
+        name: part.name,
+        mime: part.mime,
+        size: result.size,
+        etag: result.etag,
+      });
+    }
+
+    // Create manifest
+    const manifest = {
+      format: 'partitioned',
+      parts: manifestParts,
+    };
+
+    // Upload manifest
+    const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
+    await this.uploadPartToPuppyStorage(
+      `${targetKey}/manifest.json`,
+      manifestBytes,
+      'application/json',
+      userId
+    );
+
+    console.log(
+      `[CloudTemplateLoader] Uploaded ${parts.length} parts + manifest for ${targetKey}`
+    );
+
+    return targetKey;
+  }
+
+  /**
+   * Update workflow reference
+   *
+   * Uses lodash.set() to update nested properties in workflow blocks.
+   *
+   * @param workflow - Workflow definition
+   * @param blockId - Block ID
+   * @param path - Property path (e.g., "data.content")
+   * @param value - New value
+   */
+  private updateWorkflowReference(
+    workflow: WorkflowDefinition,
+    blockId: string,
+    path: string,
+    value: any
+  ): void {
+    const block = workflow.blocks.find(b => b.id === blockId);
+    if (!block) {
+      throw new Error(`Block ${blockId} not found in workflow`);
+    }
+
+    // Convert mounted_path to property path
+    // e.g., "data.content" -> ["data", "content"]
+    const pathSegments = path.split('.');
+
+    // Set the value using lodash.set
+    setPath(block, pathSegments, value);
+
+    console.log(`[CloudTemplateLoader] Updated ${blockId}.${path}`);
+  }
+
+  /**
+   * Validate template package structure
+   */
+  private validateTemplatePackage(
+    pkg: TemplatePackage,
+    expectedId: string
+  ): void {
+    if (!pkg.metadata) {
+      throw new Error('Template package missing metadata');
+    }
+
+    if (!pkg.workflow) {
+      throw new Error('Template package missing workflow');
+    }
+
+    if (!pkg.resources) {
+      throw new Error('Template package missing resources');
+    }
+
+    if (pkg.metadata.id !== expectedId) {
+      throw new Error(
+        `Template ID mismatch: expected ${expectedId}, got ${pkg.metadata.id}`
+      );
+    }
+
+    if (!Array.isArray(pkg.workflow.blocks)) {
+      throw new Error('Workflow blocks must be an array');
+    }
+
+    if (!Array.isArray(pkg.workflow.edges)) {
+      throw new Error('Workflow edges must be an array');
+    }
+
+    if (!Array.isArray(pkg.resources.resources)) {
+      throw new Error('Resources must be an array');
+    }
+  }
+}

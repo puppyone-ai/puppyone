@@ -132,10 +132,34 @@ export class FileWorkspaceStore implements IWorkspaceStore {
       historyFile,
       JSON.stringify(data.history, null, 2)
     );
+
+    // Update latest.json while preserving workspaceName
     const latestFile = path.join(workspaceDir, 'latest.json');
+    let existingData: any = {};
+    if (fs.existsSync(latestFile)) {
+      try {
+        const fileContent = await fsPromises.readFile(latestFile, 'utf-8');
+        existingData = JSON.parse(fileContent);
+      } catch (e) {
+        console.warn(
+          `[FileStore] Failed to parse existing latest.json for workspace ${workspaceId}:`,
+          e
+        );
+      }
+    }
+
+    // Preserve workspaceName from existing data, merge with new history
+    const updatedData = {
+      ...data.history,
+      workspaceName:
+        existingData.workspaceName ||
+        data.history.workspaceName ||
+        'Untitled Workspace',
+    };
+
     await fsPromises.writeFile(
       latestFile,
-      JSON.stringify(data.history, null, 2)
+      JSON.stringify(updatedData, null, 2)
     );
   }
 }

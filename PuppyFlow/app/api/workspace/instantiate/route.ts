@@ -1,0 +1,238 @@
+/**
+ * Template Instantiation API Endpoint
+ *
+ * POST /api/workspace/instantiate
+ *
+ * Creates a new workspace from a template by:
+ * 1. Loading the template package
+ * 2. Instantiating it with user-specific resources
+ * 3. Creating the workspace
+ * 4. Saving the instantiated workflow
+ *
+ * Phase 2-3: Template Loader Implementation
+ */
+
+import { NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
+import { getWorkspaceStore } from '@/lib/workspace';
+import { getCurrentUserId } from '@/lib/auth/serverUser';
+import { extractAuthHeader } from '@/lib/auth/http';
+import { TemplateLoaderFactory } from '@/lib/templates/loader';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+export async function POST(request: Request) {
+  try {
+    // Parse request body
+    const body = await request.json();
+    const { templateId, workspaceName, availableModels } = body;
+
+    // Validate inputs
+    if (!templateId || !workspaceName) {
+      console.error(
+        '[API:/api/workspace/instantiate] Missing required fields:',
+        {
+          templateId,
+          workspaceName,
+        }
+      );
+      return NextResponse.json(
+        { error: 'Missing required fields: templateId and workspaceName' },
+        { status: 400 }
+      );
+    }
+
+    // Get user ID
+    const userId = await getCurrentUserId(request);
+    console.log(
+      `[API:/api/workspace/instantiate] User ${userId} instantiating template: ${templateId}`
+    );
+
+    // Get auth header with localhost fallback
+    const authHeader = extractAuthHeader(request);
+    let finalAuthHeader = authHeader;
+    if (
+      !finalAuthHeader &&
+      (process.env.DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud'
+    ) {
+      console.log('[Instantiate API] Localhost mode: using default auth token');
+      finalAuthHeader = 'Bearer local-dev';
+    }
+
+    // Create template loader
+    const loader = TemplateLoaderFactory.create(undefined, finalAuthHeader);
+
+    // Load template
+    let pkg;
+    try {
+      pkg = await loader.loadTemplate(templateId);
+      console.log(
+        `[API:/api/workspace/instantiate] Loaded template: ${pkg.metadata.name} v${pkg.metadata.version}`
+      );
+    } catch (error) {
+      console.error(
+        `[API:/api/workspace/instantiate] Failed to load template ${templateId}:`,
+        error
+      );
+      return NextResponse.json(
+        {
+          error: `Failed to load template: ${(error as Error).message}`,
+          templateId,
+        },
+        { status: 404 }
+      );
+    }
+
+    // Generate new workspace ID
+    const workspaceId = uuidv4();
+
+    // Instantiate template with user-specific resources
+    let content;
+    try {
+      content = await loader.instantiateTemplate(
+        pkg,
+        userId,
+        workspaceId,
+        availableModels || []
+      );
+      console.log(
+        `[API:/api/workspace/instantiate] Template instantiated with ${content.blocks.length} blocks`
+      );
+    } catch (error) {
+      console.error(
+        `[API:/api/workspace/instantiate] Failed to instantiate template ${templateId}:`,
+        error
+      );
+      return NextResponse.json(
+        {
+          error: `Failed to instantiate template: ${(error as Error).message}`,
+          templateId,
+        },
+        { status: 500 }
+      );
+    }
+
+    // Save instantiated workflow using existing /api/workspace logic
+    // This includes retry logic if workspace doesn't exist yet
+    const timestamp = new Date().toISOString();
+
+    try {
+      console.log(
+        `[API:/api/workspace/instantiate] Saving workflow with ${content.blocks.length} blocks to workspace ${workspaceId}...`
+      );
+
+      const store = getWorkspaceStore();
+
+      // Always create/update workspace first to ensure correct name is saved
+      // This prevents race condition where auto-save creates workspace with default name
+      try {
+        console.log(
+          `[API:/api/workspace/instantiate] Creating workspace with name: ${workspaceName}`
+        );
+        await store.createWorkspace(
+          userId,
+          {
+            workspace_id: workspaceId,
+            workspace_name: workspaceName,
+          },
+          authHeader ? { authHeader } : undefined
+        );
+        console.log(
+          `[API:/api/workspace/instantiate] ✅ Workspace created successfully`
+        );
+      } catch (createError: any) {
+        // If workspace already exists (from auto-save), update its name
+        const message = (createError?.message || '').toString();
+        console.log(
+          `[API:/api/workspace/instantiate] 🔍 Create workspace failed:`,
+          {
+            message,
+            error: createError,
+            checkingForExists: message.includes('already exists'),
+            checkingFor400: message.includes('400'),
+          }
+        );
+
+        if (message.includes('already exists') || message.includes('400')) {
+          console.log(
+            `[API:/api/workspace/instantiate] Workspace exists, updating name...`
+          );
+          try {
+            await store.renameWorkspace(
+              workspaceId,
+              workspaceName,
+              authHeader ? { authHeader } : undefined
+            );
+            console.log(
+              `[API:/api/workspace/instantiate] ✅ Workspace name updated to: ${workspaceName}`
+            );
+          } catch (renameError) {
+            console.error(
+              `[API:/api/workspace/instantiate] ❌ Failed to rename workspace:`,
+              renameError
+            );
+            // Continue anyway - at least the content will be saved
+          }
+        } else {
+          // Other error, log but continue to try saving history
+          console.warn(
+            `[API:/api/workspace/instantiate] ⚠️ Workspace creation failed (non-duplicate error):`,
+            createError
+          );
+        }
+      }
+
+      // Now save the history
+      await store.addHistory(
+        workspaceId,
+        { history: content, timestamp },
+        authHeader ? { authHeader } : undefined
+      );
+
+      console.log(
+        `[API:/api/workspace/instantiate] ✅ Workflow saved successfully`
+      );
+    } catch (error) {
+      console.error(
+        `[API:/api/workspace/instantiate] ❌ Failed to save workflow:`,
+        error
+      );
+      return NextResponse.json(
+        {
+          error: `Failed to save workflow: ${(error as Error).message}`,
+          workspaceId,
+          details: 'Could not save template content to workspace',
+        },
+        { status: 500 }
+      );
+    }
+
+    // Return success
+    console.log(
+      `[API:/api/workspace/instantiate] ✅ Successfully instantiated template ${templateId} as workspace ${workspaceId}`
+    );
+
+    return NextResponse.json(
+      {
+        success: true,
+        workspace_id: workspaceId,
+        template_id: templateId,
+        template_name: pkg.metadata.name,
+        template_version: pkg.metadata.version,
+        blocks_count: content.blocks.length,
+        edges_count: content.edges.length,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('[API:/api/workspace/instantiate] Unexpected error:', {
+      message: (error as any)?.message,
+      stack: (error as any)?.stack,
+    });
+    return NextResponse.json(
+      { error: 'Failed to instantiate template' },
+      { status: 500 }
+    );
+  }
+}
