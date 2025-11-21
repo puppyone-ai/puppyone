@@ -56,7 +56,7 @@
     "moment-timezone": "^0.5.46",
     "monaco-python": "^0.1.7",
     "nanoid": "^5.0.9",
-    "next": "^14.2.5",
+    "next": "14.2.25",
     "nookies": "^2.5.2",
     "npm": "^11.4.2",
     "puppychat": "^1.0.8",
