@@ -61,7 +61,8 @@ async def create_instance(
     user_id: str,
     project_id: str,
     context_id: str,
-    register_tools: Optional[List[str]] = None
+    register_tools: Optional[List[str]] = None,
+    port: Optional[int] = None
 ) -> Dict:
     """
     创建一个 MCP 实例
@@ -72,13 +73,19 @@ async def create_instance(
         project_id: 项目ID
         context_id: 上下文ID
         register_tools: 需要注册的工具列表（可选）
+        port: 指定端口（可选），如果提供则使用该端口，否则分配新端口
         
     Returns:
         包含实例信息的字典：port, docker_info
     """
     try:
         # 分配端口
-        port = allocate_port()
+        if port is None:
+            port = allocate_port()
+        else:
+            # 如果提供了端口，确保它被标记为已分配
+            if port not in _allocated_ports:
+                _allocated_ports.add(port)
         
         log_info(f"Creating MCP instance with api_key={api_key}, port={port}")
         

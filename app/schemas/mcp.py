@@ -144,6 +144,7 @@ class McpTokenPayload(BaseModel):
     user_id: str
     project_id: str
     context_id: str
+    json_pointer: str = ""
 
 class McpStatusResponse(BaseModel):
     status: int # 0表示关闭，1表示开启
