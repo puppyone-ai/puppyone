@@ -3,18 +3,21 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { McpInstanceInfo } from './McpInstanceInfo'
+import { treePathToJsonPointer } from '../lib/jsonPointer'
 
 interface McpBarProps {
   projectId?: string
+  currentTreePath?: string | null
 }
 
-export function McpBar({ projectId }: McpBarProps) {
+export function McpBar({ projectId, currentTreePath }: McpBarProps) {
   const { userId, session } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const [addedMethods, setAddedMethods] = useState<string[]>([])
   const [isApplying, setIsApplying] = useState(false)
   const [result, setResult] = useState<{ apiKey: string; url: string; port: number } | null>(null)
+  const [useJsonPointer, setUseJsonPointer] = useState(false)
   const barRef = useRef<HTMLDivElement>(null)
 
   const methodOptions = [
@@ -26,12 +29,12 @@ export function McpBar({ projectId }: McpBarProps) {
     { value: 'delete_element', label: 'Delete Element' },
   ]
 
-  // 调试：输出 userId 和 projectId
+  // Debug: log userId and projectId
   useEffect(() => {
     console.log('McpBar mounted/updated:', { userId, projectId, session })
   }, [userId, projectId, session])
 
-  // 点击外部关闭bar
+  // Close bar when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (barRef.current && !barRef.current.contains(event.target as Node)) {
@@ -50,7 +53,7 @@ export function McpBar({ projectId }: McpBarProps) {
 
   const handleApply = async () => {
     console.log('handleApply called', { userId, projectId, session })
-    // 检查 userId 和 projectId 是否有效（不能为空字符串、null 或 undefined）
+    // Check if userId and projectId are valid (cannot be empty string, null, or undefined)
     if (!userId || (typeof userId === 'string' && userId.trim() === '') || !projectId || (typeof projectId === 'string' && projectId.trim() === '')) {
       alert(`Missing user ID or project ID\nuserId: ${userId || 'undefined'}\nprojectId: ${projectId || 'undefined'}`)
       return
@@ -88,17 +91,26 @@ export function McpBar({ projectId }: McpBarProps) {
          }
       }
 
+      // Build request body
+      const requestBody: any = {
+        user_id: userId,
+        project_id: projectId,
+        context_id: projectId,
+        tools_definition: Object.keys(toolsDefinition).length > 0 ? toolsDefinition : undefined
+      }
+
+      // Add json_pointer if checkbox is checked and currentTreePath exists (not empty string)
+      if (useJsonPointer && currentTreePath && currentTreePath !== '') {
+        const jsonPointer = treePathToJsonPointer(currentTreePath)
+        requestBody.json_pointer = jsonPointer
+      }
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/mcp/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          user_id: userId,
-          project_id: projectId,
-          context_id: projectId,
-          tools_definition: Object.keys(toolsDefinition).length > 0 ? toolsDefinition : undefined
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       const data = await response.json()
@@ -106,7 +118,7 @@ export function McpBar({ projectId }: McpBarProps) {
       if (data.code === 0) {
         const apiKey = data.data.api_key
         const url = data.data.url
-        // 从 URL 中提取端口号
+        // Extract port number from URL
         const portMatch = url.match(/localhost:(\d+)/)
         const port = portMatch ? parseInt(portMatch[1]) : 0
         setResult({ apiKey, url, port })
@@ -259,6 +271,54 @@ export function McpBar({ projectId }: McpBarProps) {
                   Please select at least one method to enable.
                 </div>
               )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    id="useJsonPointer"
+                    checked={useJsonPointer}
+                    onChange={(e) => setUseJsonPointer(e.target.checked)}
+                    disabled={!currentTreePath || currentTreePath === ''}
+                    style={{
+                      width: 16,
+                      height: 16,
+                      cursor: (currentTreePath && currentTreePath !== '') ? 'pointer' : 'not-allowed',
+                      accentColor: '#2563eb',
+                    }}
+                  />
+                  <label
+                    htmlFor="useJsonPointer"
+                    style={{
+                      fontSize: 12,
+                      color: (currentTreePath && currentTreePath !== '') ? '#cbd5f5' : '#6b7280',
+                      cursor: (currentTreePath && currentTreePath !== '') ? 'pointer' : 'not-allowed',
+                      userSelect: 'none',
+                    }}
+                  >
+                    Pass JSON Pointer
+                    {currentTreePath && currentTreePath !== '' && (
+                      <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>
+                        ({currentTreePath})
+                      </span>
+                    )}
+                  </label>
+                </div>
+                {!currentTreePath && (
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginLeft: 24 }}>
+                    Select a node in the JSON editor to enable this option
+                  </div>
+                )}
+                {currentTreePath === '' && (
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginLeft: 24 }}>
+                    Root node selected. JSON Pointer is not needed (defaults to root path)
+                  </div>
+                )}
+                {useJsonPointer && (!currentTreePath || currentTreePath === '') && (
+                  <div style={{ fontSize: 11, color: '#f87171', marginLeft: 24 }}>
+                    No valid tree path selected. Cannot pass JSON Pointer.
+                  </div>
+                )}
+              </div>
               <button
                 onClick={handleApply}
                 disabled={isApplying || addedMethods.length === 0 || !userId || !projectId}
