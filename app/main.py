@@ -10,6 +10,15 @@ from app.api.router import api_router
 from app.core.config import settings
 # from app.mcp_server.server import get_mcp_http_app
 from app.utils.logger import log_info, log_error
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from app.core.exceptions import AppException
+from app.core.exception_handler import (
+    app_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+    generic_exception_handler
+)
 
 
 @asynccontextmanager
@@ -101,6 +110,12 @@ def create_app() -> FastAPI:
     
     # 注册路由
     app.include_router(api_router)
+
+    # 注册异常处理器
+    app.add_exception_handler(AppException, app_exception_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, generic_exception_handler)
     
     return app
 
