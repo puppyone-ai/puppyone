@@ -22,6 +22,7 @@ type ProjectWorkspaceViewProps = {
   projectId: string
   activeTableId?: string
   onActiveTableChange?: (tableId: string) => void
+  onTreePathChange?: (treePath: string | null) => void
   showHeaderBar?: boolean
   showBackButton?: boolean
   onNavigateBack?: () => void
@@ -32,6 +33,7 @@ export function ProjectWorkspaceView({
   projectId,
   activeTableId: activeTableIdProp,
   onActiveTableChange,
+  onTreePathChange,
   showHeaderBar = true,
   showBackButton = true,
   onNavigateBack,
@@ -53,6 +55,11 @@ export function ProjectWorkspaceView({
   const [tableData, setTableData] = useState<ProjectTableJSON | undefined>(undefined)
   const [gridData, setGridData] = useState<Record<string, ProjectTableJSON | undefined>>({})
   const [currentTreePath, setCurrentTreePath] = useState<string | null>(null)
+
+  // Notify parent component when tree path changes
+  useEffect(() => {
+    onTreePathChange?.(currentTreePath)
+  }, [currentTreePath, onTreePathChange])
 
   useEffect(() => {
     if (isControlled) {

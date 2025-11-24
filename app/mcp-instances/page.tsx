@@ -2,6 +2,7 @@
 
 import { useAuth } from '../supabase/SupabaseAuthProvider'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { McpInstanceInfo } from '../../components/McpInstanceInfo'
 
 interface McpInstance {
@@ -18,6 +19,7 @@ interface McpInstance {
 
 export default function McpInstancesPage() {
   const { session, userId } = useAuth()
+  const router = useRouter()
   const [instances, setInstances] = useState<McpInstance[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -110,7 +112,20 @@ export default function McpInstancesPage() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <img src="/puppybase.svg" alt="PuppyContext" width={18} height={18} />
-          <div style={{ fontSize: 14, color: '#ddd', letterSpacing: 0.2 }}>PuppyContext</div>
+          <div 
+            onClick={() => router.push('/')}
+            style={{ 
+              fontSize: 14, 
+              color: '#ddd', 
+              letterSpacing: 0.2,
+              cursor: 'pointer',
+              transition: 'color 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#ddd'}
+          >
+            PuppyContext
+          </div>
           <nav style={{ marginLeft: 24, display: 'flex', gap: 16, fontSize: 13 }}>
             <span style={{ color: '#94a3b8' }}>MCP Instances</span>
           </nav>

@@ -21,6 +21,7 @@ export default function ProjectsPage() {
   const [activeBaseId, setActiveBaseId] = useState<string>(mockProjects[0]?.id ?? '')
   const [activeTableId, setActiveTableId] = useState<string>(mockProjects[0]?.tables[0]?.id ?? '')
   const [expandedBaseId, setExpandedBaseId] = useState<string>(mockProjects[0]?.id ?? '')
+  const [currentTreePath, setCurrentTreePath] = useState<string | null>(null)
 
   const activeBase = useMemo(
     () => mockProjects.find((project) => project.id === activeBaseId) ?? null,
@@ -39,7 +40,14 @@ export default function ProjectsPage() {
       setActiveTableId('')
     }
     setExpandedBaseId(activeBaseId)
+    // Reset tree path when switching projects
+    setCurrentTreePath(null)
   }, [activeBaseId, activeBase?.tables])
+
+  // Reset tree path when switching tables
+  useEffect(() => {
+    setCurrentTreePath(null)
+  }, [activeTableId])
 
   const userInitial =
     (session?.user?.email?.[0] || session?.user?.user_metadata?.name?.[0] || 'U').toUpperCase()
@@ -91,7 +99,7 @@ export default function ProjectsPage() {
         <ProjectsHeader
           pathSegments={pathSegments}
           projectId={activeBase?.id ?? null}
-          currentTreePath={activeTable?.name ?? null}
+          currentTreePath={currentTreePath}
         />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {activeBase ? (
@@ -100,6 +108,7 @@ export default function ProjectsPage() {
               projectId={activeBase.id}
               activeTableId={activeTableId}
               onActiveTableChange={setActiveTableId}
+              onTreePathChange={setCurrentTreePath}
               showHeaderBar={false}
               showBackButton={false}
             />
