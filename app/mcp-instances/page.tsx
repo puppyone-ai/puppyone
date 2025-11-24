@@ -2,8 +2,6 @@
 
 import { useAuth } from '../supabase/SupabaseAuthProvider'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { HeaderBar } from '../../components/HeaderBar'
 import { McpInstanceInfo } from '../../components/McpInstanceInfo'
 
 interface McpInstance {
@@ -19,14 +17,9 @@ interface McpInstance {
 }
 
 export default function McpInstancesPage() {
-  const { session, isAuthReady, userId } = useAuth()
-  const router = useRouter()
+  const { session, userId } = useAuth()
   const [instances, setInstances] = useState<McpInstance[]>([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (isAuthReady && !session) router.replace('/login')
-  }, [isAuthReady, session, router])
 
   useEffect(() => {
     if (userId) {
@@ -96,11 +89,60 @@ export default function McpInstancesPage() {
   }
 
 
+  const userAvatarUrl =
+    (session?.user as any)?.user_metadata?.avatar_url || (session?.user as any)?.user_metadata?.picture
+
   return (
     <main style={{ minHeight: '100vh', background: '#0a0a0a', color: '#ddd' }}>
-      {session && (
-        <HeaderBar userAvatarUrl={(session.user as any)?.user_metadata?.avatar_url || (session.user as any)?.user_metadata?.picture} />
-      )}
+      <header
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+          height: 56,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 16px',
+          borderBottom: '1px solid #1f1f1f',
+          background: '#0b0b0b',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src="/puppybase.svg" alt="PuppyContext" width={18} height={18} />
+          <div style={{ fontSize: 14, color: '#ddd', letterSpacing: 0.2 }}>PuppyContext</div>
+          <nav style={{ marginLeft: 24, display: 'flex', gap: 16, fontSize: 13 }}>
+            <span style={{ color: '#94a3b8' }}>MCP Instances</span>
+          </nav>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {userAvatarUrl ? (
+            <img
+              src={userAvatarUrl}
+              alt="User"
+              width={28}
+              height={28}
+              style={{ borderRadius: 999, border: '1px solid #2a2a2a', objectFit: 'cover' }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 999,
+                border: '1px solid #2a2a2a',
+                display: 'grid',
+                placeItems: 'center',
+                color: '#aaa',
+                background: '#151515',
+                fontSize: 12,
+              }}
+            >
+              U
+            </div>
+          )}
+        </div>
+      </header>
       <div style={{ padding: 24 }}>        
         {loading ? (
           <div style={{ color: '#94a3b8' }}>Loading...</div>
