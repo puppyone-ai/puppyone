@@ -231,18 +231,66 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
     // Text file extensions
     const textExtensions = ['txt', 'md', 'html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'css', 'scss', 'json', 'xml', 'yaml', 'yml', 'py', 'java', 'cpp', 'c', 'h', 'hpp', 'go', 'rs', 'php', 'rb', 'sh', 'bat', 'ps1', 'sql', 'vue', 'svelte']
     
-    // Valuable binary file extensions
-    const valuableBinaryExtensions = ['pdf', 'docx', 'doc', 'ppt', 'pptx', 'png', 'jpg', 'jpeg', 'gif', 'tiff', 'tif', 'bmp', 'svg']
+    // Valuable binary file extensions (supported by MinerU)
+    const valuableBinaryExtensions = ['pdf', 'docx', 'doc', 'ppt', 'pptx', 'png', 'jpg', 'jpeg', 'gif', 'tiff', 'tif', 'bmp']
 
     if (textExtensions.includes(extension)) {
       // Text files: read directly
       return await file.text()
+    } else if (extension === 'svg') {
+      // SVG files: read as text (XML format)
+      return await file.text()
     } else if (valuableBinaryExtensions.includes(extension)) {
-      // Valuable binary files: placeholder
-      return `[Content Parsed via API: ${extension}]`
+      // Valuable binary files: parse via MinerU API
+      try {
+        return await parseWithMinerU(file, extension)
+      } catch (error) {
+        console.error(`Failed to parse ${extension} file with MinerU:`, error)
+        return `[Failed to parse ${extension} file: ${error instanceof Error ? error.message : 'Unknown error'}]`
+      }
     } else {
       // Other binary files
       return 'fail to parse'
+    }
+  }
+
+  const parseWithMinerU = async (file: File, extension: string): Promise<string> => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'
+    
+    // 创建 FormData
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('model_version', 'vlm')
+    
+    try {
+      // 调用后端 API 上传并解析文件
+      const response = await fetch(`${apiUrl}/api/v1/file-parser/parse-upload`, {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      
+      // 检查响应是否成功
+      if (data.code === 0) {
+        // 检查 content 字段是否存在（允许空字符串，因为有些文件可能真的没有文本内容）
+        if (data.data && 'content' in data.data) {
+          return data.data.content || '' // 如果 content 为空，返回空字符串而不是抛出错误
+        } else {
+          throw new Error('解析失败：响应中未包含 content 字段')
+        }
+      } else {
+        // 业务错误
+        throw new Error(data.message || '解析失败：未返回内容')
+      }
+    } catch (error) {
+      // 如果解析失败，返回错误信息
+      throw error
     }
   }
 

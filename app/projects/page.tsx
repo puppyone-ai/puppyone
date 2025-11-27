@@ -139,6 +139,7 @@ export default function ProjectsPage() {
         <ProjectsHeader
           pathSegments={pathSegments}
           projectId={activeBase?.id ?? null}
+          tableId={activeTableId || null}
           currentTreePath={currentTreePath}
           onProjectsRefresh={loadProjects}
         />

@@ -6,12 +6,13 @@ import { McpBar } from './McpBar'
 type ProjectsHeaderProps = {
   pathSegments: string[]
   projectId: string | null
+  tableId?: string | null
   currentTreePath: string | null
   onProjectsRefresh?: () => void
   onLog?: (type: 'error' | 'warning' | 'info' | 'success', message: string) => void
 }
 
-export function ProjectsHeader({ pathSegments, projectId, currentTreePath, onProjectsRefresh, onLog }: ProjectsHeaderProps) {
+export function ProjectsHeader({ pathSegments, projectId, tableId, currentTreePath, onProjectsRefresh, onLog }: ProjectsHeaderProps) {
   return (
     <header style={headerStyle}>
       <div style={pathWrapperStyle}>
@@ -19,7 +20,7 @@ export function ProjectsHeader({ pathSegments, projectId, currentTreePath, onPro
         <span style={pathValueStyle}>{pathSegments.join(' / ')}</span>
       </div>
       <div style={headerRightStyle}>
-        {projectId && <McpBar projectId={projectId} currentTreePath={currentTreePath} onProjectsRefresh={onProjectsRefresh} onLog={onLog} />}
+        {projectId && <McpBar projectId={projectId} tableId={tableId || undefined} currentTreePath={currentTreePath} onProjectsRefresh={onProjectsRefresh} onLog={onLog} />}
       </div>
     </header>
   )

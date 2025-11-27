@@ -8,12 +8,13 @@ import { ImportFolderDialog } from './ImportFolderDialog'
 
 interface McpBarProps {
   projectId?: string
+  tableId?: string
   currentTreePath?: string | null
   onProjectsRefresh?: () => void
   onLog?: (type: 'error' | 'warning' | 'info' | 'success', message: string) => void
 }
 
-export function McpBar({ projectId, currentTreePath, onProjectsRefresh, onLog }: McpBarProps) {
+export function McpBar({ projectId, tableId, currentTreePath, onProjectsRefresh, onLog }: McpBarProps) {
   const { userId, session } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
@@ -96,11 +97,16 @@ export function McpBar({ projectId, currentTreePath, onProjectsRefresh, onLog }:
       }
 
       // Build request body
+      // context_id should be tableId, not projectId
       const requestBody: any = {
         user_id: userId,
         project_id: projectId,
-        context_id: projectId,
+        context_id: tableId || projectId, // Use tableId if available, fallback to projectId
         tools_definition: Object.keys(toolsDefinition).length > 0 ? toolsDefinition : undefined
+      }
+      
+      if (!tableId) {
+        console.warn('McpBar: tableId not provided, using projectId as context_id. This may cause issues.')
       }
 
       // Add json_pointer if checkbox is checked and currentTreePath exists (not empty string)
