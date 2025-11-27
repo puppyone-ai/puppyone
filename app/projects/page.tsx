@@ -25,28 +25,40 @@ export default function ProjectsPage() {
   const [expandedBaseId, setExpandedBaseId] = useState<string>('')
   const [currentTreePath, setCurrentTreePath] = useState<string | null>(null)
 
-  // 从API加载项目列表
-  useEffect(() => {
-    async function loadProjects() {
-      try {
-        setLoading(true)
-        const data = await getProjects()
-        setProjects(data)
-        // 设置默认选中的项目
-        if (data.length > 0 && !activeBaseId) {
-          setActiveBaseId(data[0].id)
-          setExpandedBaseId(data[0].id)
-          if (data[0].tables.length > 0) {
-            setActiveTableId(data[0].tables[0].id)
-          }
+  // Load project list from API
+  const loadProjects = async () => {
+    try {
+      setLoading(true)
+      const data = await getProjects()
+      setProjects(data)
+      // Set default selected project
+      if (data.length > 0 && !activeBaseId) {
+        setActiveBaseId(data[0].id)
+        setExpandedBaseId(data[0].id)
+        if (data[0].tables.length > 0) {
+          setActiveTableId(data[0].tables[0].id)
         }
-      } catch (error) {
-        console.error('Failed to load projects:', error)
-      } finally {
-        setLoading(false)
       }
+    } catch (error) {
+      console.error('Failed to load projects:', error)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     loadProjects()
+  }, [])
+
+  // Listen for projects refresh event
+  useEffect(() => {
+    const handleProjectsRefresh = () => {
+      loadProjects()
+    }
+    window.addEventListener('projects-refresh', handleProjectsRefresh)
+    return () => {
+      window.removeEventListener('projects-refresh', handleProjectsRefresh)
+    }
   }, [])
 
   const activeBase = useMemo(
@@ -128,6 +140,7 @@ export default function ProjectsPage() {
           pathSegments={pathSegments}
           projectId={activeBase?.id ?? null}
           currentTreePath={currentTreePath}
+          onProjectsRefresh={loadProjects}
         />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {activeBase ? (

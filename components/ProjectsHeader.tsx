@@ -7,9 +7,11 @@ type ProjectsHeaderProps = {
   pathSegments: string[]
   projectId: string | null
   currentTreePath: string | null
+  onProjectsRefresh?: () => void
+  onLog?: (type: 'error' | 'warning' | 'info' | 'success', message: string) => void
 }
 
-export function ProjectsHeader({ pathSegments, projectId, currentTreePath }: ProjectsHeaderProps) {
+export function ProjectsHeader({ pathSegments, projectId, currentTreePath, onProjectsRefresh, onLog }: ProjectsHeaderProps) {
   return (
     <header style={headerStyle}>
       <div style={pathWrapperStyle}>
@@ -17,7 +19,7 @@ export function ProjectsHeader({ pathSegments, projectId, currentTreePath }: Pro
         <span style={pathValueStyle}>{pathSegments.join(' / ')}</span>
       </div>
       <div style={headerRightStyle}>
-        {projectId && <McpBar projectId={projectId} currentTreePath={currentTreePath} />}
+        {projectId && <McpBar projectId={projectId} currentTreePath={currentTreePath} onProjectsRefresh={onProjectsRefresh} onLog={onLog} />}
       </div>
     </header>
   )

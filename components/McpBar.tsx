@@ -4,13 +4,16 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { McpInstanceInfo } from './McpInstanceInfo'
 import { treePathToJsonPointer } from '../lib/jsonPointer'
+import { ImportFolderDialog } from './ImportFolderDialog'
 
 interface McpBarProps {
   projectId?: string
   currentTreePath?: string | null
+  onProjectsRefresh?: () => void
+  onLog?: (type: 'error' | 'warning' | 'info' | 'success', message: string) => void
 }
 
-export function McpBar({ projectId, currentTreePath }: McpBarProps) {
+export function McpBar({ projectId, currentTreePath, onProjectsRefresh, onLog }: McpBarProps) {
   const { userId, session } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
@@ -18,6 +21,7 @@ export function McpBar({ projectId, currentTreePath }: McpBarProps) {
   const [isApplying, setIsApplying] = useState(false)
   const [result, setResult] = useState<{ apiKey: string; url: string; port: number } | null>(null)
   const [useJsonPointer, setUseJsonPointer] = useState(false)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const barRef = useRef<HTMLDivElement>(null)
 
   const methodOptions = [
@@ -134,22 +138,38 @@ export function McpBar({ projectId, currentTreePath }: McpBarProps) {
   }
 
   return (
-    <div ref={barRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8 }}>
-      <button
-        onClick={() => setIsOpen((v) => !v)}
-        style={{
-          height: 28,
-          padding: '0 10px',
-          borderRadius: 6,
-          border: '1px solid rgba(148,163,184,0.35)',
-          background: 'transparent',
-          color: '#cbd5f5',
-          fontSize: 12,
-          cursor: 'pointer',
-        }}
-      >
-        Configure MCP
-      </button>
+    <>
+      <div ref={barRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={() => setIsImportDialogOpen(true)}
+          style={{
+            height: 28,
+            padding: '0 10px',
+            borderRadius: 6,
+            border: '1px solid rgba(148,163,184,0.35)',
+            background: 'transparent',
+            color: '#cbd5f5',
+            fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          Import Folder as Table
+        </button>
+        <button
+          onClick={() => setIsOpen((v) => !v)}
+          style={{
+            height: 28,
+            padding: '0 10px',
+            borderRadius: 6,
+            border: '1px solid rgba(148,163,184,0.35)',
+            background: 'transparent',
+            color: '#cbd5f5',
+            fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          Configure MCP
+        </button>
       {isOpen && (
         <div
           style={{
@@ -370,6 +390,31 @@ export function McpBar({ projectId, currentTreePath }: McpBarProps) {
           )}
         </div>
       )}
-    </div>
+      </div>
+      <ImportFolderDialog
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        onSuccess={() => {
+          // Refresh project data without reloading the page
+          if (onProjectsRefresh) {
+            onProjectsRefresh()
+          } else {
+            // Fallback: dispatch custom event for components to listen
+            window.dispatchEvent(new CustomEvent('projects-refresh'))
+          }
+        }}
+        onLog={(type, message) => {
+          // Use provided onLog callback or dispatch event as fallback
+          if (onLog) {
+            onLog(type, message)
+          } else {
+            // Dispatch custom event for ProjectWorkspaceView to listen
+            window.dispatchEvent(new CustomEvent('import-log', {
+              detail: { type, message }
+            }))
+          }
+        }}
+      />
+    </>
   )
 }

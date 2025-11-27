@@ -43,18 +43,46 @@ export function ProjectWorkspaceView({
   const router = useRouter()
   const [projects, setProjects] = useState<any[]>([])
 
-  // 从API加载项目数据
+  // Load project data from API
+  const loadProjects = async () => {
+    try {
+      const data = await getProjects()
+      setProjects(data)
+      // Table data will be automatically refreshed by useEffect when projects state changes
+    } catch (error) {
+      console.error('Failed to load projects:', error)
+    }
+  }
+
+  // Load projects on mount and when projectId changes
   useEffect(() => {
-    async function loadProjects() {
-      try {
-        const data = await getProjects()
-        setProjects(data)
-      } catch (error) {
-        console.error('Failed to load projects:', error)
+    loadProjects()
+  }, [projectId]) // Reload when projectId changes
+
+  // Listen for projects refresh event
+  useEffect(() => {
+    const handleProjectsRefresh = () => {
+      loadProjects()
+    }
+    window.addEventListener('projects-refresh', handleProjectsRefresh)
+    return () => {
+      window.removeEventListener('projects-refresh', handleProjectsRefresh)
+    }
+  }, [])
+
+  // Listen for import log events (from ProjectsHeader's McpBar)
+  useEffect(() => {
+    const handleImportLog = (event: CustomEvent<{ type: 'error' | 'warning' | 'info' | 'success', message: string }>) => {
+      const { type, message } = event.detail
+      if (addErrorLogRef.current) {
+        addErrorLogRef.current(type, message)
       }
     }
-    loadProjects()
-  }, [projectId]) // 当projectId变化时重新加载项目数据
+    window.addEventListener('import-log', handleImportLog as EventListener)
+    return () => {
+      window.removeEventListener('import-log', handleImportLog as EventListener)
+    }
+  }, [])
 
 
   const project = useMemo(() => projects.find((p) => p.id === projectId), [projects, projectId])
@@ -75,6 +103,7 @@ export function ProjectWorkspaceView({
   const [errorLogs, setErrorLogs] = useState<ErrorLog[]>([])
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const errorIdCounterRef = useRef(0)
+  const addErrorLogRef = useRef<((type: ErrorLog['type'], message: string) => void) | null>(null)
 
   // Notify parent component when tree path changes
   useEffect(() => {
@@ -103,23 +132,49 @@ export function ProjectWorkspaceView({
   const resolvedActiveTableId = isControlled ? activeTableIdProp ?? '' : internalActiveTableId
   const activeTable = project?.tables.find((t: TableInfo) => t.id === resolvedActiveTableId)
 
-  // 添加错误日志
+  // Add error log
   const addErrorLog = (type: ErrorLog['type'], message: string) => {
     errorIdCounterRef.current += 1
-    setErrorLogs((prev) => [
-      ...prev,
-      {
-        id: `error-${errorIdCounterRef.current}`,
-        timestamp: new Date(),
-        type,
-        message,
-      },
-    ])
+    const logEntry = {
+      id: `error-${errorIdCounterRef.current}`,
+      timestamp: new Date(),
+      type,
+      message,
+    }
+    
+    // Sync to browser console
+    const logPrefix = `[${type.toUpperCase()}]`
+    switch (type) {
+      case 'error':
+        console.error(logPrefix, message)
+        break
+      case 'warning':
+        console.warn(logPrefix, message)
+        break
+      case 'info':
+        console.info(logPrefix, message)
+        break
+      case 'success':
+        console.log(logPrefix, message)
+        break
+      default:
+        console.log(logPrefix, message)
+    }
+    
+    setErrorLogs((prev) => [...prev, logEntry])
   }
 
-  // 清除错误日志
+  // Store addErrorLog in ref for event listeners
+  addErrorLogRef.current = addErrorLog
+
+  // Clear error logs
   const clearErrorLogs = () => {
     setErrorLogs([])
+  }
+
+  // Expose addErrorLog for ImportFolderDialog
+  const handleImportLog = (type: 'error' | 'warning' | 'info' | 'success', message: string) => {
+    addErrorLog(type, message)
   }
 
   // 处理表数据变更，自动保存到后端
@@ -215,7 +270,12 @@ export function ProjectWorkspaceView({
       
       try {
         const tableData = await getTable(projectId, resolvedActiveTableId)
-        if (!cancelled) setTableData(tableData.data as any)
+        // 如果数据是数组且只有一个元素，且该元素是对象（可能是文件夹结构），则提取该对象
+        let displayData = tableData.data as any
+        if (Array.isArray(displayData) && displayData.length === 1 && typeof displayData[0] === 'object' && !Array.isArray(displayData[0])) {
+          displayData = displayData[0]
+        }
+        if (!cancelled) setTableData(displayData)
       } catch (error) {
         console.error('Failed to load table data:', error)
         if (!cancelled) {
@@ -246,7 +306,12 @@ export function ProjectWorkspaceView({
           project.tables.map(async (t: TableInfo) => {
             try {
               const tableData = await getTable(projectId, t.id)
-              all[t.id] = tableData.data as any
+              // 如果数据是数组且只有一个元素，且该元素是对象（可能是文件夹结构），则提取该对象
+              let displayData = tableData.data as any
+              if (Array.isArray(displayData) && displayData.length === 1 && typeof displayData[0] === 'object' && !Array.isArray(displayData[0])) {
+                displayData = displayData[0]
+              }
+              all[t.id] = displayData
             } catch (error) {
               console.error(`Failed to load table ${t.id}:`, error)
               all[t.id] = undefined
@@ -348,7 +413,12 @@ export function ProjectWorkspaceView({
                 ))}
             </div>
           </div>
-          <McpBar projectId={projectId} currentTreePath={currentTreePath} />
+          <McpBar 
+            projectId={projectId} 
+            currentTreePath={currentTreePath}
+            onProjectsRefresh={loadProjects}
+            onLog={handleImportLog}
+          />
         </div>
       )}
 
