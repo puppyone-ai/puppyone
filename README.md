@@ -23,7 +23,7 @@ uv sync
 Run the following command in the backend directory to start the server:
 
 ```bash
-uv run uvicorn app.main:app --host 0.0.0.0 --port 9090 --reload --log_level info
+uv run uvicorn app.main:app --host 0.0.0.0 --port 9090 --reload --log-level info
 ```
 
 ### MCP Config Example
@@ -149,4 +149,4 @@ backend/
 
 ## 开发规范
 
-1. 所有异常统一在`service`层抛出，更底层的`repository`层等不能抛出异常，除非数据库连接失败等。
+1. All exceptions should be raised only in the `service` layer. Lower layers such as the `repository` layer should not raise exceptions, except for cases like database connection failures.
