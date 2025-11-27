@@ -1,9 +1,10 @@
 name: PR Test Suite
 
 # 针对PR的快速测试套件 - unit + integration + contract + coverage
-# 暂时禁用：磁盘空间不足导致 CI 失败
+
 on:
   # pull_request: {}
+
   workflow_dispatch: {}
 
 permissions:
