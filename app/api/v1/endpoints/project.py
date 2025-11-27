@@ -5,7 +5,7 @@
 from fastapi import APIRouter, Depends, status
 from typing import List
 from app.schemas.response import ApiResponse
-from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectOut, TableCreate, TableUpdate, TableOut
+from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectOut, TableCreate, TableUpdate, TableOut, FolderImportRequest
 from app.service.project_service import ProjectService
 from app.core.dependencies import get_project_service
 
@@ -187,5 +187,34 @@ async def update_table_data(
             data=table_data
         ),
         message="表数据更新成功"
+    )
+
+@router.post("/{project_id}/import-folder", response_model=ApiResponse[TableOut], status_code=status.HTTP_201_CREATED)
+async def import_folder_as_table(
+    project_id: str,
+    payload: FolderImportRequest,
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """
+    导入文件夹结构作为表
+    """
+    table_info = project_service.import_folder_as_table(
+        project_id,
+        payload.table_name,
+        payload.folder_structure
+    )
+    
+    # 读取表数据（可能是JSON对象而不是数组）
+    # 将文件夹结构包装成数组格式以符合TableOut的要求
+    table_data = [payload.folder_structure]
+    
+    return ApiResponse.success(
+        data=TableOut(
+            id=table_info.id,
+            name=table_info.name,
+            rows=table_info.rows or 0,
+            data=table_data
+        ),
+        message="文件夹导入成功"
     )
 

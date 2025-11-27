@@ -99,4 +99,19 @@ class ProjectService:
         success = self.repo.update_table_data(project_id, table_id, data)
         if not success:
             raise NotFoundException(f"Table not found: {project_id}/{table_id}", code=ErrorCode.NOT_FOUND)
+    
+    def import_folder_as_table(self, project_id: str, table_name: str, folder_structure: dict) -> TableInfo:
+        """导入文件夹结构作为表"""
+        # 验证项目是否存在
+        project = self.repo.get_by_id(project_id)
+        if not project:
+            raise NotFoundException(f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND)
+        
+        if not table_name or not table_name.strip():
+            raise BusinessException("Table name cannot be empty", code=ErrorCode.VALIDATION_ERROR)
+        
+        if not isinstance(folder_structure, dict):
+            raise BusinessException("Folder structure must be a dictionary", code=ErrorCode.VALIDATION_ERROR)
+        
+        return self.repo.import_folder_as_table(project_id, table_name.strip(), folder_structure)
 

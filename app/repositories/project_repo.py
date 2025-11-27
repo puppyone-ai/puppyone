@@ -92,6 +92,9 @@ class ProjectRepositoryJSON(ProjectRepositoryBase):
         try:
             with open(table_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+                # 如果是字典（文件夹结构），包装成数组
+                if isinstance(data, dict):
+                    return [data]
                 # 确保返回的是列表
                 if isinstance(data, list):
                     return data
@@ -109,6 +112,17 @@ class ProjectRepositoryJSON(ProjectRepositoryBase):
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             log_error(f"Failed to write table data {table_path}: {e}")
+            raise
+    
+    def _write_table_json(self, project_id: str, table_id: str, json_data: dict) -> None:
+        """直接写入JSON对象到表文件（用于文件夹导入）"""
+        table_path = self._get_table_path(project_id, table_id)
+        table_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(table_path, "w", encoding="utf-8") as f:
+                json.dump(json_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            log_error(f"Failed to write table JSON {table_path}: {e}")
             raise
     
     def get_all(self) -> List[Project]:
@@ -287,8 +301,49 @@ class ProjectRepositoryJSON(ProjectRepositoryBase):
         if not self._read_project_meta(project_id):
             return False
         try:
+            # 如果数据是数组且只有一个元素，且该元素是对象（可能是文件夹结构），则提取该对象并保存为JSON对象
+            if len(data) == 1 and isinstance(data[0], dict):
+                # 检查是否是文件夹结构（对象的所有值都是字符串或对象）
+                first_item = data[0]
+                is_folder_structure = all(
+                    isinstance(v, (str, dict)) for v in first_item.values()
+                )
+                if is_folder_structure:
+                    # 保存为JSON对象
+                    self._write_table_json(project_id, table_id, first_item)
+                    return True
+            # 否则，保存为数组
             self._write_table_data(project_id, table_id, data)
             return True
         except Exception:
             return False
+    
+    def import_folder_as_table(self, project_id: str, table_name: str, folder_structure: dict) -> TableInfo:
+        """导入文件夹结构作为表"""
+        if not self._read_project_meta(project_id):
+            raise ValueError(f"Project {project_id} not found")
+        
+        table_id = self._generate_table_id(project_id, table_name)
+        self._write_table_json(project_id, table_id, folder_structure)
+        
+        # 更新项目元数据中的表信息
+        meta = self._read_project_meta(project_id)
+        if meta:
+            if "tables" not in meta:
+                meta["tables"] = {}
+            meta["tables"][table_id] = {"name": table_name}
+            self._write_project_meta(project_id, meta)
+        
+        # 计算"行数"（这里使用文件夹结构中的文件数量作为近似值）
+        def count_files(obj: dict) -> int:
+            count = 0
+            for value in obj.values():
+                if isinstance(value, str):
+                    count += 1
+                elif isinstance(value, dict):
+                    count += count_files(value)
+            return count
+        
+        rows = count_files(folder_structure)
+        return TableInfo(id=table_id, name=table_name, rows=rows)
 

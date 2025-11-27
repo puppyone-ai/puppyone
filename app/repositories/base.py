@@ -142,3 +142,8 @@ class ProjectRepositoryBase(ABC):
     def update_table_data(self, project_id: str, table_id: str, data: List[dict]) -> bool:
         """更新表数据"""
         pass
+    
+    @abstractmethod
+    def import_folder_as_table(self, project_id: str, table_name: str, folder_structure: dict) -> TableInfo:
+        """导入文件夹结构作为表"""
+        pass

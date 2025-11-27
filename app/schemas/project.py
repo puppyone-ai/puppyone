@@ -40,3 +40,8 @@ class TableOut(BaseModel):
     rows: int = Field(..., description="行数")
     data: List[dict] = Field(..., description="表数据")
 
+class FolderImportRequest(BaseModel):
+    """导入文件夹的请求"""
+    table_name: str = Field(..., description="表名称")
+    folder_structure: dict = Field(..., description="文件夹结构JSON对象")
+
