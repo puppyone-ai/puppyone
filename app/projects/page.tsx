@@ -114,8 +114,10 @@ export default function ProjectsPage() {
   return (
     <main
       style={{
-        minHeight: '100vh',
+        height: '100vh',
+        maxHeight: '100vh',
         display: 'flex',
+        overflow: 'hidden',
         backgroundColor: '#040404',
         color: '#EDEDED',
         fontFamily: 'Inter, system-ui, sans-serif',

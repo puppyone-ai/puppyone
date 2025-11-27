@@ -445,14 +445,18 @@ export function ProjectWorkspaceView({
                       border: '1px solid rgba(48,52,60,0.45)',
                       position: 'relative',
                       minHeight: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
                     }}
                   >
                     {tableData ? (
-                      <JsonEditorWithNoSSR 
-                        json={tableData} 
-                        onPathChange={setCurrentTreePath}
-                        onChange={handleTableDataChange}
-                      />
+                      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                        <JsonEditorWithNoSSR 
+                          json={tableData} 
+                          onPathChange={setCurrentTreePath}
+                          onChange={handleTableDataChange}
+                        />
+                      </div>
                     ) : (
                       <div
                         style={{

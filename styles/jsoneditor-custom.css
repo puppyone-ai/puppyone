@@ -10,6 +10,11 @@ div.jsoneditor {
   font-family: 'Inter', system-ui, sans-serif !important;
   background: #050607 !important;
   color: #e2e8f0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
 /* --- Menu Bar --- */
@@ -174,10 +179,23 @@ div.jsoneditor-menu>button.jsoneditor-format:hover {
   opacity: 1 !important;
 }
 
+/* --- Contents Area (wrapper for tree/code/view) --- */
+div.jsoneditor-contents {
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
 /* --- Tree View --- */
 div.jsoneditor-tree {
   background: #050607;
   padding: 8px 0;
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  min-height: 0 !important;
 }
 
 /* --- Value Colors (Refined & Modern) --- */
