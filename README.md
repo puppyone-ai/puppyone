@@ -1,9 +1,8 @@
 <p align="center">
-  <img src="assert/PuppyAgentLOGO.png" alt="PuppyAgent Logo" width="120" />
+  <img src="assert/PuppyAgentLOGO.png" alt="PuppyContext Logo" width="120" />
 </p>
 
-<h1 align="center">PuppyAgent</h1>
-
+<h1 align="center">PuppyContext</h1>
 
 
 
@@ -29,17 +28,21 @@
   </a>
 </p>
 
-<p align="center"> The new base for your agent</p>
+<p align="center"> The Context Management Platform for Agents</p>
 
 
 
-## What is PuppyAgent
+## What is PuppyContext
 
-PuppyAgent is a context‑centric workspace where agents connect contexts to automate your knowledge bases.
+PuppyContext is a **context management platform for Context Engineering**. It enables you to configure agent-facing tools (MCP) and orchestrate the flow and sequence between different contexts.
+
+<p align="center">
+  <img src="assert/puppycontextintro.png" alt="PuppyContext Introduction" width="100%" />
+</p>
 
 
 
-## Why PuppyAgent
+## Why PuppyContext
 
 - **Context‑centric**: not flow orchestration; context is the interface, users face results
 - **Agent‑friendly**: agent‑oriented indexing, not a static knowledge base or database
@@ -57,11 +60,11 @@ Common use cases:
 ## Quick Start
 
 Choose ONE (alternatives—pick just one):
-- **Cloud (Hosted by PuppyAgent)**: zero setup, managed upgrades/scaling, support.
+- **Cloud (Hosted by PuppyContext)**: zero setup, managed upgrades/scaling, support.
 - **Self-Hosted (Local)**: runs fully on your machine; data stays local; best for prototyping/dev.
 
 
-### Cloud (Hosted by PuppyAgent) — no setup
+### Cloud (Hosted by PuppyContext) — no setup
 
    Create an account at https://www.puppyagent.com and get started.
 
@@ -100,7 +103,7 @@ See docs for detailed steps:
 
 ## License
 
-This repository uses the PuppyAgent Sustainable Use License (SUL).
+This repository uses the PuppyContext Sustainable Use License (SUL).
 
 Summary (for convenience; the License controls):
 1) Personal use (individual): Allowed, free.
@@ -108,6 +111,6 @@ Summary (for convenience; the License controls):
 3) Self-hosted multi-tenant: Not allowed. To obtain rights, contact guantum@puppyagent.com.
 4) Managed/hosted service to third parties: Not allowed. Subscribe to the official hosted service at https://wwww.puppyagent.com or obtain a commercial license.
 5) Commercial redistribution (paid distribution): Not allowed. Commercial license required.
-6) Use of PuppyAgent trademarks/logos: Not granted; prior written permission required.
+6) Use of PuppyContext trademarks/logos: Not granted; prior written permission required.
 
 See `LICENSE` for full terms.
