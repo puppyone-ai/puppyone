@@ -47,7 +47,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 async def generic_exception_handler(request: Request, exc: Exception):
     """处理所有未捕获的异常"""
-    log_error(f"Unhandled exception: {exc}", exc_info=True)
+    import traceback
+    log_error(f"Unhandled exception: {exc}\n{traceback.format_exc()}")
     return JSONResponse(
         status_code=500,
         content=ApiResponse.error(

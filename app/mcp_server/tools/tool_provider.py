@@ -65,19 +65,17 @@ class DefaultToolDefinitionProvider(ToolDefinitionProvider):
     
     def get_tool_description(self, tool_type: tool_types, context_info: dict) -> str:
         """获取默认工具描述"""
-        context = context_info.get("context")
-        
-        if not context:
-            return f"知识库管理工具 - {tool_type}"
+        project_name = context_info.get("project_name", "未知项目")
+        table_name = context_info.get("table_name", "未知表")
         
         return self.context_tool.generate_tool_description(
-            project_name=context_info.get("project_name", "未知项目"),
-            context_name=context.context_name,
+            project_name=project_name,
+            table_name=table_name,
             tool_type=tool_type,
             project_description=context_info.get("project_description"),
             project_metadata=context_info.get("project_metadata"),
-            context_description=context.context_description,
-            context_metadata=context.metadata
+            table_description=None,  # 表描述暂时不支持
+            table_metadata=None  # 表元数据暂时不支持
         )
 
 

@@ -8,10 +8,11 @@ import asyncio
 
 from fastmcp import FastMCP, Context
 from app.utils.logger import log_info, log_error
-from app.models.user_context import UserContext
 from app.models.mcp import McpInstance
+from app.models.project import Project, TableInfo
 from app.mcp_server.middleware.http_auth_middleware import HttpJwtTokenAuthMiddleware
-from app.core.dependencies import get_mcp_instance_service, get_user_context_service
+from app.core.dependencies import get_mcp_instance_service, get_project_service
+from app.service.project_table_service import get_project_table_service
 from starlette.middleware import Middleware as StarletteMiddleware
 from typing import List, Dict, Any, Optional, Literal
 from pydantic import BaseModel
@@ -83,43 +84,59 @@ def _init_context_info(api_key: str) -> None:
         # 2. 提取业务参数
         user_id = str(instance.user_id)
         project_id = str(instance.project_id)
-        context_id = str(instance.context_id)
+        table_id = str(instance.context_id)  # context_id 对应 table_id（表ID）
         
-        # 3. 根据 context_id 获取 context 对象
-        user_context_service = get_user_context_service()
-        context: Optional[UserContext] = user_context_service.get_by_id(context_id)
+        # 3. 获取项目信息
+        project_service = get_project_service()
+        project: Optional[Project] = project_service.get_by_id(project_id)
         
-        if not context:
-            log_error(f"Context not found for context_id: {context_id}")
-            raise ValueError(f"Context not found for context_id: {context_id}")
+        if not project:
+            log_error(f"Project not found for project_id: {project_id}")
+            raise ValueError(f"Project not found for project_id: {project_id}")
         
-        # 4. 获取项目信息（暂时使用 project_id 作为 project_name）
-        # TODO: 如果有 project service，可以从 project_id 获取项目详细信息
-        project_name = "测试项目"
-        project_description = "测试项目描述"
-        project_metadata = {
-            "project_id": project_id,
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-        }
+        # 4. 查找表信息
+        table_info: Optional[TableInfo] = None
+        for table in project.tables:
+            if table.id == table_id:
+                table_info = table
+                break
+        
+        # 如果元数据中找不到表，检查表文件是否存在
+        if not table_info:
+            from pathlib import Path
+            from app.core.config import settings
+            table_path = Path(settings.DATA_PATH) / "projects" / project_id / f"{table_id}.json"
+            if table_path.exists():
+                # 表文件存在但元数据中没有记录，创建一个临时的 TableInfo
+                log_info(f"Table file exists but not in metadata: {table_id}, creating temporary TableInfo")
+                table_info = TableInfo(id=table_id, name=table_id, rows=None)
+            else:
+                # 表文件也不存在，列出可用的表ID以便调试
+                available_table_ids = [table.id for table in project.tables]
+                log_error(f"Table not found for table_id: {table_id} in project: {project_id}")
+                log_error(f"Available table IDs: {available_table_ids}")
+                raise ValueError(f"Table not found for table_id: {table_id} in project: {project_id}. Available tables: {available_table_ids}")
         
         # 5. 更新全局 context 信息
         json_pointer = instance.json_pointer if hasattr(instance, 'json_pointer') else ""
         _context_info = {
             "user_id": user_id,
             "project_id": project_id,
-            "context_id": context_id,
+            "table_id": table_id,  # 使用 table_id 替代 context_id
+            "context_id": table_id,  # 保持向后兼容
             "json_pointer": json_pointer,
-            "context": context,
-            "project_name": project_name,
-            "project_description": project_description,
-            "project_metadata": project_metadata,
-            "context_name": context.context_name,
-            "context_description": context.context_description,
-            "context_metadata": context.metadata,
+            "project_name": project.name,
+            "project_description": project.description or "",
+            "project_metadata": {
+                "project_id": project_id,
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+            },
+            "table_name": table_info.name,
+            "table_info": table_info,
         }
         
-        log_info(f"Context info initialized: user_id={user_id}, project_id={project_id}, context_id={context_id}")
+        log_info(f"Context info initialized: user_id={user_id}, project_id={project_id}, table_id={table_id}, project_name={project.name}, table_name={table_info.name}")
         
         # 6. 初始化工具定义提供者（从 instance 获取 tools_definition）
         global _tool_definition_provider
@@ -313,12 +330,13 @@ def run_mcp_server(
     log_info(f"Initializing context info with api_key: {api_key[:20]}...")
     _init_context_info(api_key)
     
-    context = _context_info.get("context")
-    if not context:
-        log_error("Failed to initialize context")
-        raise ValueError("Failed to initialize context")
+    project_id = _context_info.get("project_id")
+    table_id = _context_info.get("table_id")
+    if not project_id or not table_id:
+        log_error("Failed to initialize context: missing project_id or table_id")
+        raise ValueError("Failed to initialize context: missing project_id or table_id")
     
-    log_info(f"Context initialized: {context.context_name}")
+    log_info(f"Context initialized: project_id={project_id}, table_id={table_id}")
 
     # 2. 初始化工具实例
     tools_instances = _get_tools()

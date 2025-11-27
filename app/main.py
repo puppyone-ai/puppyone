@@ -6,6 +6,7 @@ import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.api.router import api_router
 from app.core.config import settings
 # from app.mcp_server.server import get_mcp_http_app
@@ -110,6 +111,12 @@ def create_app() -> FastAPI:
     
     # 注册路由
     app.include_router(api_router)
+    
+    # 配置静态文件服务（用于 MinerU API 访问上传的文件）
+    # 确保临时存储目录存在
+    settings.MINERU_TEMP_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    # 挂载静态文件目录
+    app.mount("/static/temp-files", StaticFiles(directory=str(settings.MINERU_TEMP_STORAGE_DIR)), name="temp-files")
 
     # 注册异常处理器
     app.add_exception_handler(AppException, app_exception_handler)

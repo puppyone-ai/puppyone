@@ -1,5 +1,5 @@
 from typing import Literal, List, Dict, Any, Optional
-from app.core.dependencies import get_user_context_service
+from app.service.project_table_service import get_project_table_service
 from app.utils.logger import log_error
 
 tool_types = Literal["create", "update", "delete", "get"]
@@ -18,12 +18,12 @@ class ContextTool:
     def generate_tool_description(
         self, 
         project_name: str, 
-        context_name: str, 
+        table_name: str, 
         tool_type: tool_types,
         project_description: Optional[str] = None,
         project_metadata: Optional[Dict[str, Any]] = None,
-        context_description: Optional[str] = None,
-        context_metadata: Optional[Dict[str, Any]] = None
+        table_description: Optional[str] = None,
+        table_metadata: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         生成工具描述
@@ -49,18 +49,18 @@ class ContextTool:
         if project_metadata:
             project_metadata_str = f'该项目其他信息包括：{project_metadata}'
         
-        # 构建知识库基础描述
-        context_info = f'知识库名称："{context_name}; "'
-        if context_description:
-            context_info += f' 知识库描述：{context_description};'
-        if context_metadata:
-            context_info += f' 知识库其他信息：{context_metadata} '
+        # 构建表基础描述
+        table_info = f'表名称："{table_name}"; '
+        if table_description:
+            table_info += f' 表描述：{table_description};'
+        if table_metadata:
+            table_info += f' 表其他信息：{table_metadata} '
         
         base_description = f"""这是一个用于管理知识库的工具。知识库本质上是一个JSON对象，以键值对（key-value）的形式存储数据。知识库的信息如下：
 
 {project_name_str}; {project_description_str}; {project_metadata_str}
 
-{context_info}
+{table_info}
 
 重要提示：知识库是一个JSON对象结构，其中：
 - key（键）：字符串类型，用于唯一标识数据项
@@ -278,16 +278,18 @@ keys = ["user_001", "user_002"]
             操作结果字典
         """
         try:
-            context_id = context_info.get("context_id")
+            project_id = context_info.get("project_id")
+            table_id = context_info.get("table_id") or context_info.get("context_id")
             json_pointer = context_info.get("json_pointer", "")
             
-            if not context_id:
+            if not project_id or not table_id:
                 return {
-                    "error": "知识库ID不存在",
-                    "context_id": context_id
+                    "error": "项目ID或表ID不存在",
+                    "project_id": project_id,
+                    "table_id": table_id
                 }
             
-            user_context_service = get_user_context_service()
+            project_table_service = get_project_table_service()
             
             # 转换 schema 参数：将字符串转换为整数
             schema_int = None
@@ -302,25 +304,25 @@ keys = ["user_001", "user_002"]
             
             # 如果 schema=1，只返回结构信息
             if schema_int == 1:
-                success, error_message, data = user_context_service.get_context_structure(
-                    context_id, json_pointer
+                success, error_message, data = project_table_service.get_table_structure(
+                    project_id, table_id, json_pointer
                 )
                 
                 if not success:
                     return {
-                        "error": error_message or "获取知识库结构失败",
+                        "error": error_message or "获取表结构失败",
                     }
                 
                 return {
-                    "message": "获取知识库结构成功",
+                    "message": "获取表结构成功",
                     "data": data,
                     "schema_only": True
                 }
             
             # 如果提供了 query 参数，使用 JMESPath 查询
             if query:
-                success, error_message, data = user_context_service.query_context_data_with_jmespath(
-                    context_id, json_pointer, query
+                success, error_message, data = project_table_service.query_table_data_with_jmespath(
+                    project_id, table_id, json_pointer, query
                 )
                 
                 if not success:
@@ -344,11 +346,11 @@ keys = ["user_001", "user_002"]
                 }
             
             # 默认情况：返回所有数据
-            success, error_message, data = user_context_service.get_context_data(context_id, json_pointer)
+            success, error_message, data = project_table_service.get_table_data(project_id, table_id, json_pointer)
             
             if not success:
                 return {
-                    "error": error_message or "获取知识库内容失败",
+                    "error": error_message or "获取表内容失败",
                 }
             
             # 如果 data 是 None，返回空字典
@@ -356,13 +358,13 @@ keys = ["user_001", "user_002"]
                 data = {}
             
             return {
-                "message": "获取知识库内容成功",
+                "message": "获取表内容成功",
                 "data": data,
             }
         except Exception as e:
             log_error(f"Error getting context: {e}")
             return {
-                "error": f"获取知识库内容失败: {str(e)}"
+                "error": f"获取表内容失败: {str(e)}"
             }
     
     def create_element(
@@ -381,12 +383,13 @@ keys = ["user_001", "user_002"]
             操作结果字典
         """
         try:
-            context_id = context_info.get("context_id")
+            project_id = context_info.get("project_id")
+            table_id = context_info.get("table_id") or context_info.get("context_id")
             json_pointer = context_info.get("json_pointer", "")
             
-            if not context_id:
+            if not project_id or not table_id:
                 return {
-                    "error": "知识库ID不存在",
+                    "error": "项目ID或表ID不存在",
                 }
             
             # 验证元素格式
@@ -417,11 +420,12 @@ keys = ["user_001", "user_002"]
                     "failed": failed_keys
                 }
             
-            # 使用 user_context_service 在指定路径下创建数据
-            user_context_service = get_user_context_service()
-            success, error_message, data = user_context_service.create_context_data(
-                context_id=context_id,
-                mounted_json_pointer_path=json_pointer,
+            # 使用 project_table_service 在指定路径下创建数据
+            project_table_service = get_project_table_service()
+            success, error_message, data = project_table_service.create_table_data(
+                project_id=project_id,
+                table_id=table_id,
+                json_pointer_path=json_pointer,
                 elements=validated_elements
             )
             
@@ -463,12 +467,13 @@ keys = ["user_001", "user_002"]
             操作结果字典
         """
         try:
-            context_id = context_info.get("context_id")
+            project_id = context_info.get("project_id")
+            table_id = context_info.get("table_id") or context_info.get("context_id")
             json_pointer = context_info.get("json_pointer", "")
             
-            if not context_id:
+            if not project_id or not table_id:
                 return {
-                    "error": "知识库ID不存在",
+                    "error": "项目ID或表ID不存在",
                 }
             
             # 验证更新项格式
@@ -499,10 +504,11 @@ keys = ["user_001", "user_002"]
                     "failed": failed_keys
                 }
             
-            # 使用 user_context_service 更新指定路径的数据
-            user_context_service = get_user_context_service()
-            success, error_message, data = user_context_service.update_context_data(
-                context_id=context_id,
+            # 使用 project_table_service 更新指定路径的数据
+            project_table_service = get_project_table_service()
+            success, error_message, data = project_table_service.update_table_data(
+                project_id=project_id,
+                table_id=table_id,
                 json_pointer_path=json_pointer,
                 elements=validated_updates
             )
@@ -545,12 +551,13 @@ keys = ["user_001", "user_002"]
             操作结果字典
         """
         try:
-            context_id = context_info.get("context_id")
+            project_id = context_info.get("project_id")
+            table_id = context_info.get("table_id") or context_info.get("context_id")
             json_pointer = context_info.get("json_pointer", "")
             
-            if not context_id:
+            if not project_id or not table_id:
                 return {
-                    "error": "知识库ID不存在",
+                    "error": "项目ID或表ID不存在",
                 }
             
             # 验证 keys 格式
@@ -569,10 +576,11 @@ keys = ["user_001", "user_002"]
                     "invalid": invalid_keys
                 }
             
-            # 使用 user_context_service 删除指定路径下的数据
-            user_context_service = get_user_context_service()
-            success, error_message, data = user_context_service.delete_context_data(
-                context_id=context_id,
+            # 使用 project_table_service 删除指定路径下的数据
+            project_table_service = get_project_table_service()
+            success, error_message, data = project_table_service.delete_table_data(
+                project_id=project_id,
+                table_id=table_id,
                 json_pointer_path=json_pointer,
                 keys=validated_keys
             )
@@ -584,7 +592,7 @@ keys = ["user_001", "user_002"]
                 }
             
             # 提取成功删除的 keys（从返回的数据中推断）
-            # 由于 delete_context_data 返回删除后的数据，我们可以通过比较来确认删除的 keys
+            # 由于 delete_table_data 返回删除后的数据，我们可以通过比较来确认删除的 keys
             deleted_keys = validated_keys  # 如果成功，说明所有 keys 都被删除了
             
             return {
