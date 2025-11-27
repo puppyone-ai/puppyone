@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../supabase/SupabaseAuthProvider'
-import { mockProjects } from '../../lib/mock'
+import { getProjects, type ProjectInfo } from '../../lib/projectsApi'
 import { ProjectWorkspaceView } from '../../components/ProjectWorkspaceView'
 import { ProjectsSidebar } from '../../components/ProjectsSidebar'
 import { ProjectsHeader } from '../../components/ProjectsHeader'
@@ -18,14 +18,40 @@ const utilityNav = [
 export default function ProjectsPage() {
   const router = useRouter()
   const { session } = useAuth()
-  const [activeBaseId, setActiveBaseId] = useState<string>(mockProjects[0]?.id ?? '')
-  const [activeTableId, setActiveTableId] = useState<string>(mockProjects[0]?.tables[0]?.id ?? '')
-  const [expandedBaseId, setExpandedBaseId] = useState<string>(mockProjects[0]?.id ?? '')
+  const [projects, setProjects] = useState<ProjectInfo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeBaseId, setActiveBaseId] = useState<string>('')
+  const [activeTableId, setActiveTableId] = useState<string>('')
+  const [expandedBaseId, setExpandedBaseId] = useState<string>('')
   const [currentTreePath, setCurrentTreePath] = useState<string | null>(null)
 
+  // 从API加载项目列表
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        setLoading(true)
+        const data = await getProjects()
+        setProjects(data)
+        // 设置默认选中的项目
+        if (data.length > 0 && !activeBaseId) {
+          setActiveBaseId(data[0].id)
+          setExpandedBaseId(data[0].id)
+          if (data[0].tables.length > 0) {
+            setActiveTableId(data[0].tables[0].id)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load projects:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadProjects()
+  }, [])
+
   const activeBase = useMemo(
-    () => mockProjects.find((project) => project.id === activeBaseId) ?? null,
-    [activeBaseId],
+    () => projects.find((project) => project.id === activeBaseId) ?? null,
+    [projects, activeBaseId],
   )
 
   const activeTable = useMemo(
@@ -84,7 +110,7 @@ export default function ProjectsPage() {
       }}
     >
       <ProjectsSidebar
-        projects={mockProjects}
+        projects={projects}
         activeBaseId={activeBaseId}
         expandedBaseId={expandedBaseId}
         activeTableId={activeTableId}
@@ -93,6 +119,8 @@ export default function ProjectsPage() {
         utilityNav={utilityNav}
         onUtilityNavClick={handleUtilityNavClick}
         userInitial={userInitial}
+        onProjectsChange={setProjects}
+        loading={loading}
       />
 
       <section style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#040404' }}>

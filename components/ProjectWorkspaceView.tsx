@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { McpBar } from './McpBar'
+import { ErrorConsole, type ErrorLog } from './ErrorConsole'
 import type { ProjectTableJSON } from '../lib/projectData'
-import { fetchProjectTableData, fetchProjectTablesData } from '../lib/projectData'
-import { mockProjects } from '../lib/mock'
+import { getProjects, getTable, updateTableData, type TableInfo } from '../lib/projectsApi'
 
 const JsonEditorWithNoSSR = dynamic(() => import('./JsonEditorComponent'), {
   ssr: false,
@@ -41,8 +41,23 @@ export function ProjectWorkspaceView({
 }: ProjectWorkspaceViewProps) {
   const { session, isAuthReady } = useAuth()
   const router = useRouter()
+  const [projects, setProjects] = useState<any[]>([])
 
-  const project = useMemo(() => mockProjects.find((p) => p.id === projectId), [projectId])
+  // 从API加载项目数据
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        const data = await getProjects()
+        setProjects(data)
+      } catch (error) {
+        console.error('Failed to load projects:', error)
+      }
+    }
+    loadProjects()
+  }, [projectId]) // 当projectId变化时重新加载项目数据
+
+
+  const project = useMemo(() => projects.find((p) => p.id === projectId), [projects, projectId])
 
   const isControlled = activeTableIdProp !== undefined
 
@@ -55,6 +70,11 @@ export function ProjectWorkspaceView({
   const [tableData, setTableData] = useState<ProjectTableJSON | undefined>(undefined)
   const [gridData, setGridData] = useState<Record<string, ProjectTableJSON | undefined>>({})
   const [currentTreePath, setCurrentTreePath] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [errorLogs, setErrorLogs] = useState<ErrorLog[]>([])
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const errorIdCounterRef = useRef(0)
 
   // Notify parent component when tree path changes
   useEffect(() => {
@@ -81,17 +101,134 @@ export function ProjectWorkspaceView({
   }, [onProjectMissing, isAuthReady, session, project])
 
   const resolvedActiveTableId = isControlled ? activeTableIdProp ?? '' : internalActiveTableId
-  const activeTable = project?.tables.find((t) => t.id === resolvedActiveTableId)
+  const activeTable = project?.tables.find((t: TableInfo) => t.id === resolvedActiveTableId)
+
+  // 添加错误日志
+  const addErrorLog = (type: ErrorLog['type'], message: string) => {
+    errorIdCounterRef.current += 1
+    setErrorLogs((prev) => [
+      ...prev,
+      {
+        id: `error-${errorIdCounterRef.current}`,
+        timestamp: new Date(),
+        type,
+        message,
+      },
+    ])
+  }
+
+  // 清除错误日志
+  const clearErrorLogs = () => {
+    setErrorLogs([])
+  }
+
+  // 处理表数据变更，自动保存到后端
+  const handleTableDataChange = async (newData: any) => {
+    if (!resolvedActiveTableId || !projectId) return
+
+    // 更新本地状态
+    setTableData(newData)
+
+    // 清除之前的保存定时器
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+
+    // 防抖：等待用户停止编辑2s后再保存
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        setSaving(true)
+        // 确保数据是数组格式
+        const dataArray = Array.isArray(newData) ? newData : [newData]
+        
+        // 验证数据格式
+        const isValid = dataArray.every(
+          (item) => item !== null && typeof item === 'object' && !Array.isArray(item)
+        )
+
+        if (!isValid) {
+          addErrorLog(
+            'error',
+            'Invalid data format: Data must be an array of objects. Each element must be an object (not null, not array).'
+          )
+          setSaving(false)
+          return
+        }
+
+        // 保存数据到后端
+        await updateTableData(projectId, resolvedActiveTableId, dataArray)
+
+        setLastSaved(new Date())
+        addErrorLog('success', 'Data saved successfully')
+        console.log('Data saved successfully')
+      } catch (error: any) {
+        console.error('Failed to save data:', error)
+        
+        // 尝试获取详细的错误信息
+        let errorMessage = 'Unknown error'
+        
+        // 检查错误对象是否包含详细的验证错误信息（从apiRequest中传递的）
+        if (error && typeof error === 'object') {
+          // 如果错误对象包含data字段（验证错误详情）
+          if (error.data && Array.isArray(error.data)) {
+            // 显示详细的验证错误
+            errorMessage = `Validation Error:\n${error.data.join('\n')}`
+          } else if (error.message) {
+            errorMessage = error.message
+          }
+        } else if (error instanceof Error) {
+          errorMessage = error.message
+        }
+        
+        addErrorLog('error', `Failed to save changes: ${errorMessage}`)
+      } finally {
+        setSaving(false)
+      }
+    }, 2000) // 2秒防抖
+  }
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
     async function run() {
       if (!resolvedActiveTableId) {
         setTableData(undefined)
+        setLastSaved(null)
         return
       }
-      const data = await fetchProjectTableData(projectId, resolvedActiveTableId)
-      if (!cancelled) setTableData(data)
+      // 清除之前的保存定时器
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        saveTimeoutRef.current = null
+      }
+      setSaving(false)
+      setLastSaved(null)
+      // 切换表时不清除错误日志，保留历史记录
+      
+      try {
+        const tableData = await getTable(projectId, resolvedActiveTableId)
+        if (!cancelled) setTableData(tableData.data as any)
+      } catch (error) {
+        console.error('Failed to load table data:', error)
+        if (!cancelled) {
+          setTableData(undefined)
+          // 如果表数据加载失败，可能是项目数据过时了，重新加载项目数据
+          try {
+            const updatedProjects = await getProjects()
+            if (!cancelled) setProjects(updatedProjects)
+          } catch (e) {
+            console.error('Failed to reload projects:', e)
+          }
+        }
+      }
     }
     run()
     return () => {
@@ -103,9 +240,23 @@ export function ProjectWorkspaceView({
     let cancelled = false
     async function run() {
       if (!project?.tables?.length) return
-      const ids = project.tables.map((t) => t.id)
-      const all = await fetchProjectTablesData(projectId, ids)
-      if (!cancelled) setGridData(all)
+      try {
+        const all: Record<string, ProjectTableJSON | undefined> = {}
+        await Promise.all(
+          project.tables.map(async (t: TableInfo) => {
+            try {
+              const tableData = await getTable(projectId, t.id)
+              all[t.id] = tableData.data as any
+            } catch (error) {
+              console.error(`Failed to load table ${t.id}:`, error)
+              all[t.id] = undefined
+            }
+          })
+        )
+        if (!cancelled) setGridData(all)
+      } catch (error) {
+        console.error('Failed to load tables data:', error)
+      }
     }
     run()
     return () => {
@@ -209,28 +360,44 @@ export function ProjectWorkspaceView({
                 <div
                   style={{
                     flex: 1,
-                    borderRadius: 10,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 0,
                     overflow: 'hidden',
-                    background: 'rgba(13,18,24,0.75)',
-                    border: '1px solid rgba(48,52,60,0.45)',
-                    position: 'relative',
                   }}
                 >
-                  {tableData ? (
-                    <JsonEditorWithNoSSR json={tableData} onPathChange={setCurrentTreePath} />
-                  ) : (
-                    <div
-                      style={{
-                        height: '100%',
-                        display: 'grid',
-                        placeItems: 'center',
-                        color: '#94a3b8',
-                        fontSize: 13,
-                      }}
-                    >
-                      Select a table to view its data.
-                    </div>
-                  )}
+                  <div
+                    style={{
+                      flex: 1,
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      background: 'rgba(13,18,24,0.75)',
+                      border: '1px solid rgba(48,52,60,0.45)',
+                      position: 'relative',
+                      minHeight: 0,
+                    }}
+                  >
+                    {tableData ? (
+                      <JsonEditorWithNoSSR 
+                        json={tableData} 
+                        onPathChange={setCurrentTreePath}
+                        onChange={handleTableDataChange}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          height: '100%',
+                          display: 'grid',
+                          placeItems: 'center',
+                          color: '#94a3b8',
+                          fontSize: 13,
+                        }}
+                      >
+                        Select a table to view its data.
+                      </div>
+                    )}
+                  </div>
+                  <ErrorConsole errors={errorLogs} onClear={clearErrorLogs} maxHeight={200} />
                 </div>
 
                 <aside
@@ -250,7 +417,16 @@ export function ProjectWorkspaceView({
                 >
                   <InfoRow label="Table" value={activeTable?.name ?? '—'} />
                   <InfoRow label="Rows" value={String(activeTable?.rows ?? '—')} />
-                  <InfoRow label="Last Sync" value="2 minutes ago" />
+                  <InfoRow 
+                    label="Last Sync" 
+                    value={
+                      saving 
+                        ? 'Saving...' 
+                        : lastSaved 
+                        ? `${Math.floor((Date.now() - lastSaved.getTime()) / 1000)}s ago` 
+                        : 'Never'
+                    } 
+                  />
                 </aside>
               </div>
             </section>

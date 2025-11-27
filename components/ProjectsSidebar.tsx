@@ -1,7 +1,10 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
-import type { ProjectInfo } from '../lib/mock'
+import type { ProjectInfo } from '../lib/projectsApi'
+import { ProjectManageDialog } from './ProjectManageDialog'
+import { TableManageDialog } from './TableManageDialog'
 
 type UtilityNavItem = {
   id: string
@@ -21,6 +24,8 @@ type ProjectsSidebarProps = {
   onUtilityNavClick: (path: string) => void
   userInitial: string
   environmentLabel?: string
+  onProjectsChange?: (projects: ProjectInfo[]) => void
+  loading?: boolean
 }
 
 export function ProjectsSidebar({
@@ -34,9 +39,64 @@ export function ProjectsSidebar({
   onUtilityNavClick,
   userInitial,
   environmentLabel = 'Local Dev',
+  onProjectsChange,
+  loading = false,
 }: ProjectsSidebarProps) {
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false)
+  const [tableDialogOpen, setTableDialogOpen] = useState(false)
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [editingTableId, setEditingTableId] = useState<string | null>(null)
+  const [deleteMode, setDeleteMode] = useState<'project' | 'table' | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'project' | 'table'; id: string; projectId?: string } | null>(null)
+
+  // 点击外部关闭上下文菜单
+  useEffect(() => {
+    if (!contextMenu) return
+    const handleClick = () => setContextMenu(null)
+    window.addEventListener('click', handleClick)
+    return () => window.removeEventListener('click', handleClick)
+  }, [contextMenu])
+
   const activeProject = projects.find((project) => project.id === activeBaseId) ?? null
   const activeTable = activeProject?.tables.find((table) => table.id === activeTableId) ?? null
+
+  const handleProjectContextMenu = (e: React.MouseEvent, projectId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ x: e.clientX, y: e.clientY, type: 'project', id: projectId })
+  }
+
+  const handleTableContextMenu = (e: React.MouseEvent, projectId: string, tableId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ x: e.clientX, y: e.clientY, type: 'table', id: tableId, projectId })
+  }
+
+  const handleCreateProject = () => {
+    setEditingProjectId(null)
+    setProjectDialogOpen(true)
+    setContextMenu(null)
+  }
+
+  const handleEditProject = (projectId: string) => {
+    setEditingProjectId(projectId)
+    setProjectDialogOpen(true)
+    setContextMenu(null)
+  }
+
+  const handleCreateTable = (projectId: string) => {
+    setEditingTableId(null)
+    setEditingProjectId(projectId)
+    setTableDialogOpen(true)
+    setContextMenu(null)
+  }
+
+  const handleEditTable = (projectId: string, tableId: string) => {
+    setEditingTableId(tableId)
+    setEditingProjectId(projectId)
+    setTableDialogOpen(true)
+    setContextMenu(null)
+  }
 
   return (
     <aside style={sidebarStyle}>
@@ -48,14 +108,38 @@ export function ProjectsSidebar({
       </div>
 
       <div style={sidebarListWrapperStyle}>
-        <div style={sidebarSectionLabelStyle}>Explorer</div>
-        {projects.map((project) => {
+        <div style={{ ...sidebarSectionLabelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Explorer</span>
+          <button
+            onClick={handleCreateProject}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(138,43,226,0.4)',
+              color: '#8A2BE2',
+              fontSize: 10,
+              padding: '2px 6px',
+              borderRadius: 4,
+              cursor: 'pointer',
+            }}
+            title="New Project"
+          >
+            + Project
+          </button>
+        </div>
+        {loading ? (
+          <div style={{ padding: '20px', textAlign: 'center', color: '#6F7580', fontSize: 12 }}>Loading...</div>
+        ) : (
+          projects.map((project) => {
           const isActiveBase = project.id === activeBaseId
           const isExpanded = project.id === expandedBaseId
           const arrow = isExpanded ? '▾' : '▸'
 
           return (
-            <div key={project.id} style={projectCardStyle(isActiveBase)}>
+            <div
+              key={project.id}
+              style={projectCardStyle(isActiveBase)}
+              onContextMenu={(e) => handleProjectContextMenu(e, project.id)}
+            >
               <button
                 type="button"
                 onClick={() => onBaseClick(project.id)}
@@ -79,6 +163,7 @@ export function ProjectsSidebar({
                           key={table.id}
                           type="button"
                           onClick={() => onTableClick(project.id, table.id)}
+                          onContextMenu={(e) => handleTableContextMenu(e, project.id, table.id)}
                           style={tableButtonStyle(isActiveTable)}
                         >
                           <span style={tableBulletStyle(isActiveTable)}>{isActiveTable ? '●' : '○'}</span>
@@ -92,14 +177,148 @@ export function ProjectsSidebar({
                       )
                     })
                   ) : (
-                    <div style={noTablesStyle}>No tables yet.</div>
+                    <div style={noTablesStyle}>
+                      No tables yet.
+                      <button
+                        onClick={() => handleCreateTable(project.id)}
+                        style={{
+                          marginTop: 8,
+                          padding: '4px 8px',
+                          background: 'rgba(138,43,226,0.2)',
+                          border: '1px solid rgba(138,43,226,0.4)',
+                          color: '#8A2BE2',
+                          fontSize: 10,
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        + New Table
+                      </button>
+                    </div>
+                  )}
+                  {isExpanded && project.tables.length > 0 && (
+                    <button
+                      onClick={() => handleCreateTable(project.id)}
+                      style={{
+                        marginTop: 4,
+                        padding: '6px 12px',
+                        background: 'rgba(138,43,226,0.15)',
+                        border: '1px solid rgba(138,43,226,0.3)',
+                        color: '#8A2BE2',
+                        fontSize: 10,
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        width: '100%',
+                      }}
+                    >
+                      + New Table
+                    </button>
                   )}
                 </div>
               )}
             </div>
           )
-        })}
+          })
+        )}
       </div>
+
+      {contextMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            background: '#1a1a1a',
+            border: '1px solid rgba(46,46,46,0.85)',
+            borderRadius: 6,
+            padding: 4,
+            zIndex: 1000,
+            minWidth: 120,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenu.type === 'project' ? (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEditProject(contextMenu.id)
+                }}
+                style={contextMenuItemStyle}
+              >
+                Rename
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setEditingProjectId(contextMenu.id)
+                  setDeleteMode('project')
+                  setProjectDialogOpen(true)
+                  setContextMenu(null)
+                }}
+                style={{ ...contextMenuItemStyle, color: '#ef4444' }}
+              >
+                Delete
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEditTable(contextMenu.projectId!, contextMenu.id)
+                }}
+                style={contextMenuItemStyle}
+              >
+                Rename
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setEditingProjectId(contextMenu.projectId!)
+                  setEditingTableId(contextMenu.id)
+                  setDeleteMode('table')
+                  setTableDialogOpen(true)
+                  setContextMenu(null)
+                }}
+                style={{ ...contextMenuItemStyle, color: '#ef4444' }}
+              >
+                Delete
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {projectDialogOpen && (
+        <ProjectManageDialog
+          projectId={editingProjectId}
+          projects={projects}
+          deleteMode={deleteMode === 'project'}
+          onClose={() => {
+            setProjectDialogOpen(false)
+            setEditingProjectId(null)
+            setDeleteMode(null)
+          }}
+          onProjectsChange={onProjectsChange}
+        />
+      )}
+
+      {tableDialogOpen && editingProjectId && (
+        <TableManageDialog
+          projectId={editingProjectId}
+          tableId={editingTableId}
+          projects={projects}
+          deleteMode={deleteMode === 'table'}
+          onClose={() => {
+            setTableDialogOpen(false)
+            setEditingTableId(null)
+            setEditingProjectId(null)
+            setDeleteMode(null)
+          }}
+          onProjectsChange={onProjectsChange}
+        />
+      )}
 
       <div style={explorerMetaWrapperStyle}>
         <div style={pathLabelStyle}>Path</div>
@@ -368,6 +587,18 @@ const userBadgeStyle: CSSProperties = {
   fontSize: 13,
   color: '#EDEDED',
   background: '#121212',
+}
+
+const contextMenuItemStyle: CSSProperties = {
+  width: '100%',
+  padding: '6px 12px',
+  textAlign: 'left',
+  background: 'transparent',
+  border: 'none',
+  color: '#EDEDED',
+  fontSize: 12,
+  cursor: 'pointer',
+  borderRadius: 4,
 }
 
 
