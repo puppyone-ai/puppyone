@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 from app.models.user import User
 from app.models.mcp import McpInstance
 from app.models.user_context import UserContext
+from app.models.project import Project, TableInfo
 from app.schemas.mcp import McpToolsDefinition, ToolTypeKey
 
 # 抽象用户仓库接口
@@ -87,4 +88,57 @@ class UserContextRepositoryBase(ABC):
     @abstractmethod
     def update_context_data(self, context_id: str, context_data: dict) -> Optional[UserContext]:
         """更新 context_data 字段"""
+        pass
+
+# 抽象项目仓库接口
+class ProjectRepositoryBase(ABC):
+    
+    @abstractmethod
+    def get_all(self) -> List[Project]:
+        """获取所有项目"""
+        pass
+    
+    @abstractmethod
+    def get_by_id(self, project_id: str) -> Optional[Project]:
+        """根据ID获取项目"""
+        pass
+    
+    @abstractmethod
+    def create(self, name: str, description: Optional[str] = None) -> Project:
+        """创建项目"""
+        pass
+    
+    @abstractmethod
+    def update(self, project_id: str, name: Optional[str] = None, description: Optional[str] = None) -> Optional[Project]:
+        """更新项目"""
+        pass
+    
+    @abstractmethod
+    def delete(self, project_id: str) -> bool:
+        """删除项目"""
+        pass
+    
+    @abstractmethod
+    def create_table(self, project_id: str, name: str, data: Optional[List[dict]] = None) -> TableInfo:
+        """创建表"""
+        pass
+    
+    @abstractmethod
+    def update_table(self, project_id: str, table_id: str, name: Optional[str] = None) -> Optional[TableInfo]:
+        """更新表"""
+        pass
+    
+    @abstractmethod
+    def delete_table(self, project_id: str, table_id: str) -> bool:
+        """删除表"""
+        pass
+    
+    @abstractmethod
+    def get_table_data(self, project_id: str, table_id: str) -> Optional[List[dict]]:
+        """获取表数据"""
+        pass
+    
+    @abstractmethod
+    def update_table_data(self, project_id: str, table_id: str, data: List[dict]) -> bool:
+        """更新表数据"""
         pass
