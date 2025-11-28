@@ -56,10 +56,12 @@ class DefaultToolDefinitionProvider(ToolDefinitionProvider):
     def get_tool_name(self, tool_type: tool_types) -> str:
         """获取默认工具名称"""
         tool_name_map = {
-            "get": "get_context",
+            "query": "query_context",
             "create": "create_element",
             "update": "update_element",
-            "delete": "delete_element"
+            "delete": "delete_element",
+            "preview": "preview_data",
+            "select": "select_contexts"
         }
         return tool_name_map.get(tool_type, f"unknown_{tool_type}")
     

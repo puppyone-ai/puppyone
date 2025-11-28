@@ -87,7 +87,8 @@ class McpService:
         context_id: str,
         json_pointer: str = "",
         tools_definition: Optional[Dict[str, Any]] = None,
-        register_tools: Optional[List[str]] = None
+        register_tools: Optional[List[str]] = None,
+        preview_keys: Optional[List[str]] = None
     ) -> McpInstance:
         """
         创建MCP实例并启动一个MCP服务器
@@ -99,6 +100,7 @@ class McpService:
             json_pointer: JSON指针路径，表示该MCP实例对应的数据路径，默认为空字符串表示根路径
             tools_definition: 工具定义字典（可选），key只能是get/create/update/delete
             register_tools: 需要注册的工具列表（可选），默认为所有工具
+            preview_keys: 预览字段列表（可选），用于preview_data工具过滤字段
             
         Returns:
             McpInstance 对象
@@ -127,7 +129,8 @@ class McpService:
                 port=port,
                 docker_info=initial_docker_info,
                 tools_definition=tools_definition,
-                register_tools=register_tools
+                register_tools=register_tools,
+                preview_keys=preview_keys
             )
             
             log_info(f"MCP实例启动中... ID={mcp_instance.mcp_instance_id}, API_KEY: {api_key}, 分配端口: {port}")
@@ -161,7 +164,8 @@ class McpService:
                 port=port,
                 docker_info=instance_info["docker_info"],
                 tools_definition=tools_definition,
-                register_tools=register_tools
+                register_tools=register_tools,
+                preview_keys=preview_keys
             )
             
             log_info(f"MCP实例创建成功: ID={updated_instance.mcp_instance_id}, API_KEY: {api_key}, 分配端口: {port}, PID: {instance_info['docker_info'].get('pid')}")
@@ -195,7 +199,8 @@ class McpService:
         status: Optional[int] = None,
         json_pointer: Optional[str] = None,
         tools_definition: Optional[Dict[str, Any]] = None,
-        register_tools: Optional[List[str]] = None
+        register_tools: Optional[List[str]] = None,
+        preview_keys: Optional[List[str]] = None
     ) -> McpInstance:
         """
         更新 MCP 实例
@@ -206,6 +211,7 @@ class McpService:
             json_pointer: JSON指针路径（可选）
             tools_definition: 工具定义字典（可选）
             register_tools: 需要注册的工具列表（可选）
+            preview_keys: 预览字段列表（可选），用于preview_data工具过滤字段
             
         Returns:
             更新后的 McpInstance 对象
@@ -226,13 +232,15 @@ class McpService:
             final_json_pointer = json_pointer if json_pointer is not None else instance.json_pointer
             final_register_tools = register_tools if register_tools is not None else instance.register_tools
             final_tools_definition = tools_definition if tools_definition is not None else instance.tools_definition
+            final_preview_keys = preview_keys if preview_keys is not None else instance.preview_keys
             target_status = status if status is not None else instance.status
             
             # 步骤2: 判断是否有配置变更（这些参数需要重启服务器才能生效）
             config_changed = (
                 (json_pointer is not None and json_pointer != instance.json_pointer) or
                 (register_tools is not None and register_tools != instance.register_tools) or
-                (tools_definition is not None and tools_definition != instance.tools_definition)
+                (tools_definition is not None and tools_definition != instance.tools_definition) or
+                (preview_keys is not None and preview_keys != instance.preview_keys)
             )
             
             # 步骤3: 决定服务器操作类型
@@ -301,7 +309,8 @@ class McpService:
                 port=new_port,
                 docker_info=new_docker_info,
                 tools_definition=final_tools_definition,
-                register_tools=final_register_tools
+                register_tools=final_register_tools,
+                preview_keys=final_preview_keys
             )
             
             log_info(f"MCP instance {api_key} updated successfully (status={target_status}, port={new_port})")
@@ -422,7 +431,8 @@ class McpService:
                     port=new_port,
                     docker_info=new_docker_info,
                     tools_definition=instance.tools_definition,
-                    register_tools=instance.register_tools
+                    register_tools=instance.register_tools,
+                    preview_keys=instance.preview_keys
                 )
                 
                 # 更新实例对象
@@ -447,7 +457,8 @@ class McpService:
                     port=instance.port,
                     docker_info=instance.docker_info,
                     tools_definition=instance.tools_definition,
-                    register_tools=instance.register_tools
+                    register_tools=instance.register_tools,
+                    preview_keys=instance.preview_keys
                 )
                 instance.status = 0
         
@@ -457,6 +468,7 @@ class McpService:
             "json_pointer": instance.json_pointer,
             "tools_definition": instance.tools_definition,
             "register_tools": instance.register_tools,
+            "preview_keys": instance.preview_keys,
             "docker_info": instance.docker_info,
             "manager_status": manager_status,
             "synced": True
@@ -521,7 +533,8 @@ class McpService:
                             port=new_port,
                             docker_info=new_docker_info,
                             tools_definition=instance.tools_definition,
-                            register_tools=instance.register_tools
+                            register_tools=instance.register_tools,
+                            preview_keys=instance.preview_keys
                         )
                         
                         log_info(f"Instance {instance.api_key} restarted successfully on port {new_port}")
@@ -539,7 +552,8 @@ class McpService:
                             port=instance.port,
                             docker_info=instance.docker_info,
                             tools_definition=instance.tools_definition,
-                            register_tools=instance.register_tools
+                            register_tools=instance.register_tools,
+                            preview_keys=instance.preview_keys
                         )
                         stopped_count += 1
                 elif is_running and instance.status == 0:
@@ -554,7 +568,8 @@ class McpService:
                         port=instance.port,
                         docker_info=instance.docker_info,
                         tools_definition=instance.tools_definition,
-                        register_tools=instance.register_tools
+                        register_tools=instance.register_tools,
+                        preview_keys=instance.preview_keys
                     )
                     synced_count += 1
                 else:

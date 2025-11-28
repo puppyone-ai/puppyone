@@ -54,7 +54,8 @@ async def generate_mcp_instance(
         context_id=mcp_create.context_id,
         json_pointer=mcp_create.json_pointer,
         tools_definition=mcp_create.tools_definition,
-        register_tools=mcp_create.register_tools
+        register_tools=mcp_create.register_tools,
+        preview_keys=mcp_create.preview_keys
     )
     
     # 返回 API key (JWT token)
@@ -88,7 +89,8 @@ async def get_mcp_status(
         docker_info=status_info.get("docker_info"),
         json_pointer=status_info.get("json_pointer"),
         tools_definition=status_info.get("tools_definition"),
-        register_tools=status_info.get("register_tools")
+        register_tools=status_info.get("register_tools"),
+        preview_keys=status_info.get("preview_keys")
     )
     
     return ApiResponse.success(
@@ -119,7 +121,8 @@ async def update_mcp(
         status=mcp_update.status,
         json_pointer=mcp_update.json_pointer,
         tools_definition=mcp_update.tools_definition,
-        register_tools=mcp_update.register_tools
+        register_tools=mcp_update.register_tools,
+        preview_keys=mcp_update.preview_keys
     )
     
     # 获取更新后的最新状态信息
@@ -132,7 +135,8 @@ async def update_mcp(
         docker_info=status_info.get("docker_info"),
         json_pointer=status_info.get("json_pointer"),
         tools_definition=status_info.get("tools_definition"),
-        register_tools=status_info.get("register_tools")
+        register_tools=status_info.get("register_tools"),
+        preview_keys=status_info.get("preview_keys")
     )
     
     return ApiResponse.success(

@@ -62,6 +62,7 @@ async def create_instance(
     project_id: str,
     context_id: str,
     register_tools: Optional[List[str]] = None,
+    preview_keys: Optional[List[str]] = None,
     port: Optional[int] = None
 ) -> Dict:
     """
@@ -73,6 +74,7 @@ async def create_instance(
         project_id: 项目ID
         context_id: 上下文ID
         register_tools: 需要注册的工具列表（可选）
+        preview_keys: 预览字段列表（可选）
         port: 指定端口（可选），如果提供则使用该端口，否则分配新端口
         
     Returns:
@@ -98,7 +100,8 @@ async def create_instance(
                 "user_id": user_id,
                 "project_id": project_id,
                 "context_id": context_id,
-                "register_tools": register_tools
+                "register_tools": register_tools,
+                "preview_keys": preview_keys
             }
         )
         
@@ -157,7 +160,8 @@ async def update_instance_status(
     project_id: str = None,
     context_id: str = None,
     port: int = None,
-    register_tools: Optional[List[str]] = None
+    register_tools: Optional[List[str]] = None,
+    preview_keys: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     更新实例状态（启动或停止）
@@ -170,6 +174,7 @@ async def update_instance_status(
         context_id: 上下文ID（启动时需要）
         port: 端口号（启动时需要，如果未提供则重新分配）
         register_tools: 需要注册的工具列表（可选，启动时需要）
+        preview_keys: 预览字段列表（可选，启动时需要）
         
     Returns:
         如果启动成功，返回包含 port 和 docker_info 的字典；如果停止，返回空字典
@@ -213,7 +218,8 @@ async def update_instance_status(
                 "user_id": user_id,
                 "project_id": project_id,
                 "context_id": context_id,
-                "register_tools": register_tools
+                "register_tools": register_tools,
+                "preview_keys": preview_keys
             }
         )
         

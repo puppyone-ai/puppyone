@@ -19,8 +19,8 @@ class McpToolsDefinition(BaseModel):
         ]
     )
 
-# 工具类型定义
-ToolTypeKey = Literal["get", "create", "update", "delete"]
+# 工具类型定义（注意：get已改为query，preview和select为新增工具）
+ToolTypeKey = Literal["get", "query", "create", "update", "delete", "preview", "select"]
 
 class McpCreate(BaseModel):
     """
@@ -35,17 +35,9 @@ class McpCreate(BaseModel):
     )
     tools_definition: Optional[Dict[ToolTypeKey, McpToolsDefinition]] = Field(
         ...,
-        description="🔧工具定义配置, 支持用户自定义工具名字,工具描述模板,工具描述参数. ⚠️重要: 目前仅支持'get', 'create', 'update', 'delete'这四个key. 如果不提供, 将沿用默认的工具配置.",
+        description="🔧工具定义配置, 支持用户自定义工具名字,工具描述模板,工具描述参数. 支持的key包括: query, create, update, delete, preview, select. 如果不提供, 将沿用默认的工具配置.",
         examples=[
             {
-                "get": {
-                    "tool_name": "get_context",
-                    "tool_desc_template": "获取知识库内容。项目：{project_name}，知识库：{context_name}",
-                    "tool_desc_parameters": [
-                        {"project_name": "测试项目"},
-                        {"context_name": "AI技术知识库"}
-                    ]
-                },
                 "create": {
                     "tool_name": "create_element",
                     "tool_desc_template": "创建新元素到知识库：{context_name}",
@@ -57,17 +49,22 @@ class McpCreate(BaseModel):
         ]
     )
     register_tools: List[ToolTypeKey] = Field(
-        default=["get", "create", "update", "delete"],
-        description="🔧工具注册列表. 默认注册所有工具: ['get', 'create', 'update', 'delete']. 可以只选择部分工具进行注册。",
-        examples=[["get", "create"], ["get", "update", "delete"]]
+        default=["query", "create", "update", "delete"],
+        description="🔧工具注册列表. 默认注册基础工具: ['query', 'create', 'update', 'delete']. 可以只选择部分工具进行注册。注意：'get'已改为'query'（仍兼容'get'）；'preview'和'select'工具只有在设置了preview_keys时才会自动注册。",
+        examples=[["query", "create"], ["query", "update", "delete"]]
+    )
+    preview_keys: Optional[List[str]] = Field(
+        default=None,
+        description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_contexts两个工具。preview_data工具会只返回指定字段的轻量级数据，select_contexts工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
+        examples=[["id", "name", "title"], ["user_id", "username"]]
     )
     
     @field_validator('tools_definition')
     @classmethod
     def validate_tools_definition_keys(cls, v):
-        """验证 tools_definition 的 key 只能是 get/create/update/delete"""
+        """验证 tools_definition 的 key 只能是 get/query/create/update/delete/preview/select"""
         if v is not None:
-            valid_keys = {"get", "create", "update", "delete"}
+            valid_keys = {"get", "query", "create", "update", "delete", "preview", "select"}
             for key in v.keys():
                 if key not in valid_keys:
                     raise ValueError(f"Invalid tool type key: {key}. Must be one of {valid_keys}")
@@ -76,9 +73,9 @@ class McpCreate(BaseModel):
     @field_validator('register_tools')
     @classmethod
     def validate_register_tools(cls, v):
-        """验证 register_tools 的值只能是 get/create/update/delete"""
+        """验证 register_tools 的值只能是 get/query/create/update/delete/preview/select"""
         if v is not None:
-            valid_keys = {"get", "create", "update", "delete"}
+            valid_keys = {"get", "query", "create", "update", "delete", "preview", "select"}
             invalid_keys = set(v) - valid_keys
             if invalid_keys:
                 raise ValueError(f"Invalid tool type keys in register_tools: {invalid_keys}. Must be one of {valid_keys}")
@@ -114,16 +111,21 @@ class McpUpdate(BaseModel):
         ]
     )
     register_tools: List[ToolTypeKey] = Field(
-        default=["get", "create", "update", "delete"],
-        description="🔧工具注册列表. 默认注册所有工具: ['get', 'create', 'update', 'delete']. 可以只选择部分工具进行注册。",
-        examples=[["get", "create"], ["get", "update", "delete"]]
-    ) 
+        default=["query", "create", "update", "delete"],
+        description="🔧工具注册列表. 默认注册基础工具: ['query', 'create', 'update', 'delete']. 可以只选择部分工具进行注册。注意：'get'已改为'query'（仍兼容'get'）；'preview'和'select'工具只有在设置了preview_keys时才会自动注册。",
+        examples=[["query", "create"], ["query", "update", "delete"]]
+    )
+    preview_keys: Optional[List[str]] = Field(
+        default=None,
+        description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_contexts两个工具。preview_data工具会只返回指定字段的轻量级数据，select_contexts工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
+        examples=[["id", "name", "title"], ["user_id", "username"]]
+    )
     @field_validator('tools_definition')
     @classmethod
     def validate_tools_definition_keys(cls, v):
-        """验证 tools_definition 的 key 只能是 get/create/update/delete"""
+        """验证 tools_definition 的 key 只能是 get/query/create/update/delete/preview/select"""
         if v is not None:
-            valid_keys = {"get", "create", "update", "delete"}
+            valid_keys = {"get", "query", "create", "update", "delete", "preview", "select"}
             for key in v.keys():
                 if key not in valid_keys:
                     raise ValueError(f"Invalid tool type key: {key}. Must be one of {valid_keys}")
@@ -132,9 +134,9 @@ class McpUpdate(BaseModel):
     @field_validator('register_tools')
     @classmethod
     def validate_register_tools(cls, v):
-        """验证 register_tools 的值只能是 get/create/update/delete"""
+        """验证 register_tools 的值只能是 get/query/create/update/delete/preview/select"""
         if v is not None:
-            valid_keys = {"get", "create", "update", "delete"}
+            valid_keys = {"get", "query", "create", "update", "delete", "preview", "select"}
             invalid_keys = set(v) - valid_keys
             if invalid_keys:
                 raise ValueError(f"Invalid tool type keys in register_tools: {invalid_keys}. Must be one of {valid_keys}")
@@ -153,3 +155,4 @@ class McpStatusResponse(BaseModel):
     json_pointer: str = Field(..., description="JSONPath")
     tools_definition: Dict[ToolTypeKey, McpToolsDefinition] = Field(..., description="工具定义")
     register_tools: List[ToolTypeKey] = Field(..., description="已注册的工具列表")
+    preview_keys: Optional[List[str]] = Field(None, description="预览字段列表")

@@ -14,3 +14,4 @@ class McpInstance(BaseModel):
     docker_info: Dict[Any, Any] # 容器信息
     tools_definition: Optional[Dict[ToolTypeKey, McpToolsDefinition]] = None  # 工具定义字典（可选），key只能是get/create/update/delete
     register_tools: Optional[List[ToolTypeKey]] = None  # 已注册的工具列表（可选），默认为所有工具
+    preview_keys: Optional[List[str]] = None  # 预览字段列表（可选），用于preview_data工具过滤字段，为空时返回所有字段

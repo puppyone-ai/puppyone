@@ -1,13 +1,16 @@
 from typing import Literal, List, Dict, Any, Optional
 from app.core.dependencies import get_user_context_service
+from app.core.exceptions import NotFoundException, BusinessException
 from app.utils.logger import log_error
 
-tool_types = Literal["create", "update", "delete", "get"]
+tool_types = Literal["create", "update", "delete", "query", "preview", "select"]
 tool_descriptions = {
     "create": "创建元素",
     "update": "更新元素",
     "delete": "删除元素",
-    "get": "获取元素",
+    "query": "查询元素",
+    "preview": "预览数据",
+    "select": "选择数据",
 }
 
 class ContextTool:
@@ -72,7 +75,7 @@ class ContextTool:
 3. 所有操作都是基于key（键）来定位和操作数据项"""
         
         descriptions = {
-            "get": f"""{base_description}
+            "query": f"""{base_description}
 
 功能：获取知识库的内容，支持三种模式：
 1. 获取结构信息：传入 schema="1" 时，只返回JSON结构信息，不包含实际数据值
@@ -240,7 +243,7 @@ updates = [{{"key": "user_001", "value": {{"name": "张三", "age": 26}}}}]
 - 当需要清理不再需要的数据时
 
 注意事项：
-- 必须先使用 get_context 工具获取当前知识库内容，确认要删除的key是否存在
+- 必须先使用 query_context 工具获取当前知识库内容，确认要删除的key是否存在
 - keys数组中的每个key必须是字符串类型
 - 如果某个key不存在，该key的删除操作将被忽略，其他key的删除操作仍会执行
 - 支持批量删除，可以一次删除多个键值对
@@ -255,19 +258,100 @@ keys = ["user_001", "user_002"]
 示例场景：
 - 用户说"删除key为user_001的数据" → 使用此工具删除
 - 用户说"移除key为doc_001和doc_002的文档" → 使用此工具批量删除
-- 用户说"清除key为config_001的配置" → 使用此工具删除"""
+- 用户说"清除key为config_001的配置" → 使用此工具删除""",
+            
+            "preview": f"""{base_description}
+
+功能：获取知识库数据的轻量级预览版本，只返回配置的关键字段，方便快速浏览和检索。
+
+参数说明：
+- 无参数
+
+工具逻辑：
+- 如果知识库数据是 List[Dict] 类型，会对每个字典过滤掉非预览字段，只保留预览字段
+- 如果预览字段列表为空，则返回所有字段
+- 如果知识库数据不是 List[Dict] 类型，会返回提示消息，建议使用 query_context 工具
+
+使用场景：
+- 当知识库数据量较大，需要快速浏览数据时
+- 当只需要查看关键字段，不需要完整数据时
+- 作为 select_contexts 工具的前置步骤，先预览后精选
+
+返回格式：
+- 成功时返回过滤后的轻量级数据列表
+- 如果数据类型不兼容，返回错误消息和建议
+
+示例：
+假设知识库数据为：
+[
+  {{"id": "1", "name": "张三", "age": 25, "address": "北京", "email": "zhang@example.com"}},
+  {{"id": "2", "name": "李四", "age": 30, "address": "上海", "email": "li@example.com"}}
+]
+如果预览字段配置为 ["id", "name"]，则返回：
+[
+  {{"id": "1", "name": "张三"}},
+  {{"id": "2", "name": "李四"}}
+]
+
+工作流程建议：
+1. 首次使用：调用 preview_data() 快速浏览数据
+2. 确定目标：根据预览结果确定需要的数据
+3. 精确获取：调用 select_contexts(field, keys) 获取完整数据""",
+            
+            "select": f"""{base_description}
+
+功能：根据指定字段和键值列表，从知识库中批量获取完整的数据记录。
+
+参数说明：
+- field (str): 用于匹配的字段名
+- keys (List[str]): 要匹配的值列表，支持字符串类型的值
+
+工具逻辑：
+- 如果知识库数据是 List[Dict] 类型，会根据指定的 field 字段，找出该字段值在 keys 列表中的所有记录
+- 返回完整的字典记录（不是轻量级版本）
+- 使用精确匹配（==）进行比较
+- 如果知识库数据不是 List[Dict] 类型，会返回提示消息，建议使用 query_context 工具
+
+使用场景：
+- 在使用 preview_data 预览后，需要获取特定记录的完整数据
+- 需要根据某个字段值批量获取多条记录
+- 需要精确匹配特定字段值的数据
+
+返回格式：
+- 成功时返回匹配的完整数据记录列表
+- 如果没有匹配的记录，返回空列表
+- 如果数据类型不兼容，返回错误消息和建议
+
+示例：
+假设知识库数据为：
+[
+  {{"id": "1", "name": "张三", "age": 25, "address": "北京", "email": "zhang@example.com"}},
+  {{"id": "2", "name": "李四", "age": 30, "address": "上海", "email": "li@example.com"}},
+  {{"id": "3", "name": "王五", "age": 28, "address": "广州", "email": "wang@example.com"}}
+]
+
+调用 select_contexts(field="id", keys=["1", "3"])，返回：
+[
+  {{"id": "1", "name": "张三", "age": 25, "address": "北京", "email": "zhang@example.com"}},
+  {{"id": "3", "name": "王五", "age": 28, "address": "广州", "email": "wang@example.com"}}
+]
+
+工作流程建议：
+1. 使用 preview_data() 快速浏览数据，确定关键字段
+2. 根据预览结果，使用 select_contexts(field, keys) 获取目标记录的完整数据
+3. 对获取的完整数据进行处理或展示"""
         }
         
         return descriptions.get(tool_type, base_description)
     
-    def get_context(
+    def query_context(
         self, 
         context_info: Dict[str, Any],
         schema: Optional[str] = None,
         query: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        获取指定路径下的知识库内容（JSON对象）
+        查询指定路径下的知识库内容（JSON对象）
         
         Args:
             context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
@@ -302,63 +386,75 @@ keys = ["user_001", "user_002"]
             
             # 如果 schema=1，只返回结构信息
             if schema_int == 1:
-                success, error_message, data = user_context_service.get_context_structure(
-                    context_id, json_pointer
-                )
-                
-                if not success:
+                try:
+                    data = user_context_service.get_context_structure(
+                        context_id, json_pointer
+                    )
                     return {
-                        "error": error_message or "获取知识库结构失败",
+                        "message": "获取知识库结构成功",
+                        "data": data,
+                        "schema_only": True
                     }
-                
-                return {
-                    "message": "获取知识库结构成功",
-                    "data": data,
-                    "schema_only": True
-                }
+                except NotFoundException as e:
+                    return {
+                        "error": str(e) or "获取知识库结构失败",
+                    }
+                except BusinessException as e:
+                    return {
+                        "error": str(e) or "获取知识库结构失败",
+                    }
             
             # 如果提供了 query 参数，使用 JMESPath 查询
             if query:
-                success, error_message, data = user_context_service.query_context_data_with_jmespath(
-                    context_id, json_pointer, query
-                )
-                
-                if not success:
+                try:
+                    data = user_context_service.query_context_data_with_jmespath(
+                        context_id, json_pointer, query
+                    )
+                    
+                    # 如果查询结果为 None，表示没有匹配的数据
+                    if data is None:
+                        return {
+                            "message": "查询完成，但没有找到匹配的数据",
+                            "data": None,
+                            "query": query
+                        }
+                    
                     return {
-                        "error": error_message or "JMESPath 查询失败",
+                        "message": "JMESPath 查询成功",
+                        "data": data,
                         "query": query
                     }
-                
-                # 如果查询结果为 None，表示没有匹配的数据
-                if data is None:
+                except NotFoundException as e:
                     return {
-                        "message": "查询完成，但没有找到匹配的数据",
-                        "data": None,
+                        "error": str(e) or "JMESPath 查询失败",
                         "query": query
                     }
-                
-                return {
-                    "message": "JMESPath 查询成功",
-                    "data": data,
-                    "query": query
-                }
+                except BusinessException as e:
+                    return {
+                        "error": str(e) or "JMESPath 查询失败",
+                        "query": query
+                    }
             
             # 默认情况：返回所有数据
-            success, error_message, data = user_context_service.get_context_data(context_id, json_pointer)
-            
-            if not success:
+            try:
+                data = user_context_service.get_context_data(context_id, json_pointer)
+                
+                # 如果 data 是 None，返回空字典
+                if data is None:
+                    data = {}
+                
                 return {
-                    "error": error_message or "获取知识库内容失败",
+                    "message": "获取知识库内容成功",
+                    "data": data,
                 }
-            
-            # 如果 data 是 None，返回空字典
-            if data is None:
-                data = {}
-            
-            return {
-                "message": "获取知识库内容成功",
-                "data": data,
-            }
+            except NotFoundException as e:
+                return {
+                    "error": str(e) or "获取知识库内容失败",
+                }
+            except BusinessException as e:
+                return {
+                    "error": str(e) or "获取知识库内容失败",
+                }
         except Exception as e:
             log_error(f"Error getting context: {e}")
             return {
@@ -419,15 +515,20 @@ keys = ["user_001", "user_002"]
             
             # 使用 user_context_service 在指定路径下创建数据
             user_context_service = get_user_context_service()
-            success, error_message, data = user_context_service.create_context_data(
-                context_id=context_id,
-                mounted_json_pointer_path=json_pointer,
-                elements=validated_elements
-            )
-            
-            if not success:
+            try:
+                data = user_context_service.create_context_data(
+                    context_id=context_id,
+                    mounted_json_pointer_path=json_pointer,
+                    elements=validated_elements
+                )
+            except NotFoundException as e:
                 return {
-                    "error": error_message or "创建元素失败",
+                    "error": str(e) or "创建元素失败",
+                    "failed": failed_keys if failed_keys else None
+                }
+            except BusinessException as e:
+                return {
+                    "error": str(e) or "创建元素失败",
                     "failed": failed_keys if failed_keys else None
                 }
             
@@ -501,15 +602,20 @@ keys = ["user_001", "user_002"]
             
             # 使用 user_context_service 更新指定路径的数据
             user_context_service = get_user_context_service()
-            success, error_message, data = user_context_service.update_context_data(
-                context_id=context_id,
-                json_pointer_path=json_pointer,
-                elements=validated_updates
-            )
-            
-            if not success:
+            try:
+                data = user_context_service.update_context_data(
+                    context_id=context_id,
+                    json_pointer_path=json_pointer,
+                    elements=validated_updates
+                )
+            except NotFoundException as e:
                 return {
-                    "error": error_message or "更新元素失败",
+                    "error": str(e) or "更新元素失败",
+                    "failed": failed_keys if failed_keys else None
+                }
+            except BusinessException as e:
+                return {
+                    "error": str(e) or "更新元素失败",
                     "failed": failed_keys if failed_keys else None
                 }
             
@@ -571,15 +677,20 @@ keys = ["user_001", "user_002"]
             
             # 使用 user_context_service 删除指定路径下的数据
             user_context_service = get_user_context_service()
-            success, error_message, data = user_context_service.delete_context_data(
-                context_id=context_id,
-                json_pointer_path=json_pointer,
-                keys=validated_keys
-            )
-            
-            if not success:
+            try:
+                data = user_context_service.delete_context_data(
+                    context_id=context_id,
+                    json_pointer_path=json_pointer,
+                    keys=validated_keys
+                )
+            except NotFoundException as e:
                 return {
-                    "error": error_message or "删除元素失败",
+                    "error": str(e) or "删除元素失败",
+                    "invalid": invalid_keys if invalid_keys else None
+                }
+            except BusinessException as e:
+                return {
+                    "error": str(e) or "删除元素失败",
                     "invalid": invalid_keys if invalid_keys else None
                 }
             
@@ -598,5 +709,171 @@ keys = ["user_001", "user_002"]
             log_error(f"Error deleting elements: {e}")
             return {
                 "error": f"删除元素失败: {str(e)}"
+            }
+    
+    def preview_data(
+        self,
+        context_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        获取知识库数据的轻量级预览版本
+        
+        Args:
+            context_info: 上下文信息字典，包含 context, context_id, json_pointer, preview_keys 等
+        
+        Returns:
+            操作结果字典
+        """
+        try:
+            context_id = context_info.get("context_id")
+            json_pointer = context_info.get("json_pointer", "")
+            preview_keys = context_info.get("preview_keys", [])
+            
+            if not context_id:
+                return {
+                    "error": "知识库ID不存在",
+                }
+            
+            user_context_service = get_user_context_service()
+            
+            # 获取完整数据
+            try:
+                data = user_context_service.get_context_data(context_id, json_pointer)
+            except NotFoundException as e:
+                return {
+                    "error": str(e) or "获取知识库内容失败",
+                }
+            except BusinessException as e:
+                return {
+                    "error": str(e) or "获取知识库内容失败",
+                }
+            
+            # 检查数据类型
+            if not isinstance(data, list):
+                return {
+                    "message": "当前数据不是列表类型，无法使用预览功能。请使用 query_context 工具查询数据。",
+                    "data_type": str(type(data).__name__)
+                }
+            
+            # 检查列表中的元素是否都是字典
+            if data and not all(isinstance(item, dict) for item in data):
+                return {
+                    "message": "当前数据不是 List[Dict] 类型，无法使用预览功能。请使用 query_context 工具查询数据。",
+                    "data_type": "List[mixed]"
+                }
+            
+            # 如果 preview_keys 为空，返回所有数据
+            if not preview_keys:
+                return {
+                    "message": "预览数据获取成功（显示所有字段）",
+                    "data": data,
+                    "preview_keys": "all"
+                }
+            
+            # 过滤数据，只保留 preview_keys 中的字段
+            filtered_data = []
+            for item in data:
+                filtered_item = {key: item.get(key) for key in preview_keys if key in item}
+                filtered_data.append(filtered_item)
+            
+            return {
+                "message": "预览数据获取成功",
+                "data": filtered_data,
+                "preview_keys": preview_keys,
+                "total_count": len(filtered_data)
+            }
+        except Exception as e:
+            log_error(f"Error previewing data: {e}")
+            return {
+                "error": f"预览数据失败: {str(e)}"
+            }
+    
+    def select_contexts(
+        self,
+        field: str,
+        keys: List[str],
+        context_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        根据字段和键值列表批量获取完整数据
+        
+        Args:
+            field: 用于匹配的字段名
+            keys: 要匹配的值列表
+            context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
+        
+        Returns:
+            操作结果字典
+        """
+        try:
+            context_id = context_info.get("context_id")
+            json_pointer = context_info.get("json_pointer", "")
+            
+            if not context_id:
+                return {
+                    "error": "知识库ID不存在",
+                }
+            
+            # 验证参数
+            if not field:
+                return {
+                    "error": "field 参数不能为空",
+                }
+            
+            if not keys or not isinstance(keys, list):
+                return {
+                    "error": "keys 参数必须是非空列表",
+                }
+            
+            user_context_service = get_user_context_service()
+            
+            # 获取完整数据
+            try:
+                data = user_context_service.get_context_data(context_id, json_pointer)
+            except NotFoundException as e:
+                return {
+                    "error": str(e) or "获取知识库内容失败",
+                }
+            except BusinessException as e:
+                return {
+                    "error": str(e) or "获取知识库内容失败",
+                }
+            
+            # 检查数据类型
+            if not isinstance(data, list):
+                return {
+                    "message": "当前数据不是列表类型，无法使用选择功能。请使用 query_context 工具查询数据。",
+                    "data_type": str(type(data).__name__)
+                }
+            
+            # 检查列表中的元素是否都是字典
+            if data and not all(isinstance(item, dict) for item in data):
+                return {
+                    "message": "当前数据不是 List[Dict] 类型，无法使用选择功能。请使用 query_context 工具查询数据。",
+                    "data_type": "List[mixed]"
+                }
+            
+            # 将 keys 转换为字符串集合以便快速查找
+            keys_set = set(str(k) for k in keys)
+            
+            # 根据 field 和 keys 筛选数据
+            selected_data = []
+            for item in data:
+                if field in item:
+                    # 将字段值转换为字符串进行比较（精确匹配）
+                    if str(item[field]) in keys_set:
+                        selected_data.append(item)
+            
+            return {
+                "message": "数据选择成功",
+                "data": selected_data,
+                "field": field,
+                "requested_keys": keys,
+                "matched_count": len(selected_data)
+            }
+        except Exception as e:
+            log_error(f"Error selecting contexts: {e}")
+            return {
+                "error": f"选择数据失败: {str(e)}"
             }
 
