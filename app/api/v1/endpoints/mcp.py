@@ -3,6 +3,7 @@ MCP 实例管理 API
 负责 MCP 实例的创建、查询、更新和删除
 """
 from fastapi import APIRouter, Depends
+from fastapi.params import Query
 from app.schemas.response import ApiResponse
 from app.schemas.mcp import McpCreate, McpStatusResponse, McpUpdate
 from app.service.mcp_service import McpService
@@ -12,9 +13,15 @@ from app.models.mcp import McpInstance
 
 router = APIRouter(prefix="/mcp", tags=["MCP实例管理"])
 
-@router.get("/list", response_model=ApiResponse[List[McpInstance]])
+@router.get(
+    "/list",
+    response_model=ApiResponse[List[McpInstance]],
+    summary="获取用户的所有 MCP 实例",
+    description="根据用户ID获取该用户下的所有MCP实例列表。⚠️：此接口目前无鉴权逻辑",
+    response_description="返回用户的所有MCP实例列表",
+)
 async def list_mcp_instances(
-    user_id: str,
+    user_id: str = Query(..., description="用户ID"),
     mcp_instance_service: McpService = Depends(get_mcp_instance_service)
 ):
     """
@@ -27,19 +34,18 @@ async def list_mcp_instances(
     )
 
 
-@router.post("/", response_model=ApiResponse[Dict[str, Any]])
+@router.post(
+    "/",
+    response_model=ApiResponse[Dict[str, Any]],
+    summary="创建并启动一个MCP实例并返回对应的 API_KEY和URL",
+    description="创建一个MCP实例并通过子进程方式启动一个MCP Server, 返回鉴权用的API_KEY和URL"
+)
 async def generate_mcp_instance(
     mcp_create: McpCreate,
     mcp_instance_service: McpService = Depends(get_mcp_instance_service)
 ):
     """
     创建一个 MCP 实例并返回对应的 API key (JWT token)
-    
-    流程：
-    1. 生成 JWT token
-    2. 调用 manager 创建 MCP server 实例（多进程方式）
-    3. 存储到 repository
-    4. 返回 API key
     """
     # 创建 MCP 实例
     instance = await mcp_instance_service.create_mcp_instance(
@@ -61,15 +67,17 @@ async def generate_mcp_instance(
     )
 
 
-@router.get("/{api_key}", response_model=ApiResponse[McpStatusResponse])
+@router.get(
+    "/{api_key}",
+    response_model=ApiResponse[McpStatusResponse],
+    summary="查询MCP实例的运行状态信息"
+)
 async def get_mcp_status(
     api_key: str,
     mcp_instance_service: McpService = Depends(get_mcp_instance_service)
 ):
     """
     获取 MCP 实例状态
-    
-    返回实例的运行状态、端口和进程信息
     """
     status_info = await mcp_instance_service.get_mcp_instance_status(api_key)
     
@@ -89,8 +97,11 @@ async def get_mcp_status(
     )
 
 
-@router.put("/{api_key}",response_model=ApiResponse[McpStatusResponse],
-    description="更新MCP实例。\n 1. 任何无需改变的参数，请不要传入，包括status。\n 2. 如果需要更新工具定义，请传入tools_definition。\n 3. 如果需要更新注册工具，请传入register_tools。"
+@router.put(
+    "/{api_key}",
+    response_model=ApiResponse[McpStatusResponse],
+    summary="更新MCP实例的相关配置并返回最新状态信息",
+    description="1. 对于任何无需改变的参数, 直接不传入.  2. 如果需要更新工具定义: 传入tools_definition。\n 3. 如果需要更新注册工具: 传入register_tools"
 )
 async def update_mcp(
     api_key: str,
@@ -130,15 +141,17 @@ async def update_mcp(
     )
 
 
-@router.delete("/{api_key}", response_model=ApiResponse[None])
+@router.delete(
+    "/{api_key}",
+    response_model=ApiResponse[None],
+    summary="停止MCP Server进程并删除MCP实例。"
+)
 async def delete_mcp_instance(
     api_key: str,
     mcp_instance_service: McpService = Depends(get_mcp_instance_service)
 ):
     """
     删除 MCP 实例
-    
-    停止 MCP server 进程并从 repository 中删除记录
     """
     await mcp_instance_service.delete_mcp_instance(api_key)
     
