@@ -1,2 +1,1 @@
 """MCP server management module."""
-

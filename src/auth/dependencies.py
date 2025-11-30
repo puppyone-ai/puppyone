@@ -11,4 +11,3 @@ def get_user_service() -> UserService:
         return UserService(UserRepositoryJSON())
     else:
         raise ValueError(f"Unsupported storage type: {settings.STORAGE_TYPE}")
-

@@ -11,4 +11,3 @@ def get_mcp_instance_service() -> McpService:
         return McpService(McpInstanceRepositoryJSON())
     else:
         raise ValueError(f"Unsupported storage type: {settings.STORAGE_TYPE}")
-

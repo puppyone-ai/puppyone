@@ -76,7 +76,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api/v1", tags=["users"])
     app.include_router(user_context_router, prefix="/api/v1", tags=["user_context"])
     app.include_router(mcp_router, prefix="/api/v1", tags=["mcp"])
-    app.include_router(s3_router,prefix="/api/v1")
+    app.include_router(s3_router, prefix="/api/v1")
 
     # 注册异常处理器
     app.add_exception_handler(AppException, app_exception_handler)

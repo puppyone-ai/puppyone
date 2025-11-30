@@ -13,24 +13,25 @@ tool_descriptions = {
     "select": "选择数据",
 }
 
+
 class ContextTool:
     """
     用户知识库管理工具类
     """
-    
+
     def generate_tool_description(
-        self, 
-        project_name: str, 
-        context_name: str, 
+        self,
+        project_name: str,
+        context_name: str,
         tool_type: tool_types,
         project_description: Optional[str] = None,
         project_metadata: Optional[Dict[str, Any]] = None,
         context_description: Optional[str] = None,
-        context_metadata: Optional[Dict[str, Any]] = None
+        context_metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         生成工具描述
-        
+
         Args:
             project_name: 项目名称
             context_name: 知识库名称
@@ -39,7 +40,7 @@ class ContextTool:
             project_metadata: 项目元数据
             context_description: 知识库描述
             context_metadata: 知识库元数据
-        
+
         Returns:
             详细的工具描述字符串，用于大语言模型理解工具用途和使用方式
         """
@@ -48,17 +49,17 @@ class ContextTool:
         project_description_str = ""
         project_metadata_str = ""
         if project_description:
-            project_description_str = f'该项目的描述为：{project_description}'
+            project_description_str = f"该项目的描述为：{project_description}"
         if project_metadata:
-            project_metadata_str = f'该项目其他信息包括：{project_metadata}'
-        
+            project_metadata_str = f"该项目其他信息包括：{project_metadata}"
+
         # 构建知识库基础描述
         context_info = f'知识库名称："{context_name}; "'
         if context_description:
-            context_info += f' 知识库描述：{context_description};'
+            context_info += f" 知识库描述：{context_description};"
         if context_metadata:
-            context_info += f' 知识库其他信息：{context_metadata} '
-        
+            context_info += f" 知识库其他信息：{context_metadata} "
+
         base_description = f"""这是一个用于管理知识库的工具。知识库本质上是一个JSON对象，以键值对（key-value）的形式存储数据。知识库的信息如下：
 
 {project_name_str}; {project_description_str}; {project_metadata_str}
@@ -73,7 +74,7 @@ class ContextTool:
 1. 首次使用建议通过 get_context(schema="1") 工具获取知识库的结构。
 2. 在了解现有数据结构后，才能进行创建、更新或删除操作
 3. 所有操作都是基于key（键）来定位和操作数据项"""
-        
+
         descriptions = {
             "query": f"""{base_description}
 
@@ -165,7 +166,6 @@ JMESPath 不支持 `? :` 三元运算符，但可以使用 `&&` 和 `||` 操作�
 1. 如果你发现你的JMESPath写错，你可以通过这个网址查询他的具体语法：https://jmespath.org/specification.html#examples
 2. 你应该尽可能采用JMESPath的查询方式去查询，如果发现查询语法写错了，请你检查后重新构造query，而不是直接去查询所有数据。只有你修改了3-4次后语法还是不正确，才尝试去直接获取所有数据。
 """,
-            
             "create": f"""{base_description}
 
 功能：在知识库中批量创建新的键值对（key-value pairs）。
@@ -199,7 +199,6 @@ elements = [
 - 用户说"在某某项目的某某知识库中添加一个新的用户信息，key是user_001" → 使用此工具创建
 - 用户说"在某某项目的某某知识库中记录这个文档，key是doc_001" → 使用此工具创建
 - 用户说"在某某项目的某某知识库中保存这个配置，key是config_001" → 使用此工具创建""",
-            
             "update": f"""{base_description}
 
 功能：批量更新知识库中已存在的键值对。
@@ -229,7 +228,6 @@ updates = [{{"key": "user_001", "value": {{"name": "张三", "age": 26}}}}]
 - 用户说"在某某项目的某某知识库中修改key为user_001的用户信息" → 使用此工具更新
 - 用户说"在某某项目的某某知识库中更新key为doc_001的文档内容" → 使用此工具更新
 - 用户说"在某某项目的某某知识库中把key为config_001的配置改为新值" → 使用此工具更新""",
-            
             "delete": f"""{base_description}
 
 功能：从知识库中批量删除指定的键值对。
@@ -259,7 +257,6 @@ keys = ["user_001", "user_002"]
 - 用户说"删除key为user_001的数据" → 使用此工具删除
 - 用户说"移除key为doc_001和doc_002的文档" → 使用此工具批量删除
 - 用户说"清除key为config_001的配置" → 使用此工具删除""",
-            
             "preview": f"""{base_description}
 
 功能：获取知识库数据的轻量级预览版本，只返回配置的关键字段，方便快速浏览和检索。
@@ -297,7 +294,6 @@ keys = ["user_001", "user_002"]
 1. 首次使用：调用 preview_data() 快速浏览数据
 2. 确定目标：根据预览结果确定需要的数据
 3. 精确获取：调用 select_contexts(field, keys) 获取完整数据""",
-            
             "select": f"""{base_description}
 
 功能：根据指定字段和键值列表，从知识库中批量获取完整的数据记录。
@@ -339,40 +335,37 @@ keys = ["user_001", "user_002"]
 工作流程建议：
 1. 使用 preview_data() 快速浏览数据，确定关键字段
 2. 根据预览结果，使用 select_contexts(field, keys) 获取目标记录的完整数据
-3. 对获取的完整数据进行处理或展示"""
+3. 对获取的完整数据进行处理或展示""",
         }
-        
+
         return descriptions.get(tool_type, base_description)
-    
+
     def query_context(
-        self, 
+        self,
         context_info: Dict[str, Any],
         schema: Optional[str] = None,
-        query: Optional[str] = None
+        query: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         查询指定路径下的知识库内容（JSON对象）
-        
+
         Args:
             context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
             schema: 是否只查询JSON结构。"1"或1表示只查询结构，此时会忽略query参数，只返回结构信息。默认值为None（0）
             query: JMESPath 查询字符串，用于灵活检索数据。支持精确匹配、条件过滤、数字展平和投影等语法
-        
+
         Returns:
             操作结果字典
         """
         try:
             context_id = context_info.get("context_id")
             json_pointer = context_info.get("json_pointer", "")
-            
+
             if not context_id:
-                return {
-                    "error": "知识库ID不存在",
-                    "context_id": context_id
-                }
-            
+                return {"error": "知识库ID不存在", "context_id": context_id}
+
             user_context_service = get_user_context_service()
-            
+
             # 转换 schema 参数：将字符串转换为整数
             schema_int = None
             if schema is not None:
@@ -383,7 +376,7 @@ keys = ["user_001", "user_002"]
                     return {
                         "error": f"schema 参数无效，必须是 '1'，当前值: {schema}，错误: {str(e)}",
                     }
-            
+
             # 如果 schema=1，只返回结构信息
             if schema_int == 1:
                 try:
@@ -393,7 +386,7 @@ keys = ["user_001", "user_002"]
                     return {
                         "message": "获取知识库结构成功",
                         "data": data,
-                        "schema_only": True
+                        "schema_only": True,
                     }
                 except NotFoundException as e:
                     return {
@@ -403,46 +396,40 @@ keys = ["user_001", "user_002"]
                     return {
                         "error": str(e) or "获取知识库结构失败",
                     }
-            
+
             # 如果提供了 query 参数，使用 JMESPath 查询
             if query:
                 try:
                     data = user_context_service.query_context_data_with_jmespath(
                         context_id, json_pointer, query
                     )
-                    
+
                     # 如果查询结果为 None，表示没有匹配的数据
                     if data is None:
                         return {
                             "message": "查询完成，但没有找到匹配的数据",
                             "data": None,
-                            "query": query
+                            "query": query,
                         }
-                    
+
                     return {
                         "message": "JMESPath 查询成功",
                         "data": data,
-                        "query": query
+                        "query": query,
                     }
                 except NotFoundException as e:
-                    return {
-                        "error": str(e) or "JMESPath 查询失败",
-                        "query": query
-                    }
+                    return {"error": str(e) or "JMESPath 查询失败", "query": query}
                 except BusinessException as e:
-                    return {
-                        "error": str(e) or "JMESPath 查询失败",
-                        "query": query
-                    }
-            
+                    return {"error": str(e) or "JMESPath 查询失败", "query": query}
+
             # 默认情况：返回所有数据
             try:
                 data = user_context_service.get_context_data(context_id, json_pointer)
-                
+
                 # 如果 data 是 None，返回空字典
                 if data is None:
                     data = {}
-                
+
                 return {
                     "message": "获取知识库内容成功",
                     "data": data,
@@ -457,84 +444,84 @@ keys = ["user_001", "user_002"]
                 }
         except Exception as e:
             log_error(f"Error getting context: {e}")
-            return {
-                "error": f"获取知识库内容失败: {str(e)}"
-            }
-    
+            return {"error": f"获取知识库内容失败: {str(e)}"}
+
     def create_element(
-        self, 
-        elements: List[Dict[str, Any]], 
-        context_info: Dict[str, Any]
+        self, elements: List[Dict[str, Any]], context_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         批量创建元素到指定路径下
-        
+
         Args:
             elements: 元素数组，每个元素包含 key（str）和 content（Any）
             context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
-        
+
         Returns:
             操作结果字典
         """
         try:
             context_id = context_info.get("context_id")
             json_pointer = context_info.get("json_pointer", "")
-            
+
             if not context_id:
                 return {
                     "error": "知识库ID不存在",
                 }
-            
+
             # 验证元素格式
             validated_elements = []
             failed_keys = []
-            
+
             for element in elements:
                 if not isinstance(element, dict):
-                    failed_keys.append({"element": element, "reason": "元素必须是字典类型"})
+                    failed_keys.append(
+                        {"element": element, "reason": "元素必须是字典类型"}
+                    )
                     continue
-                
+
                 key = element.get("key")
                 content = element.get("content")
-                
+
                 if not isinstance(key, str):
                     failed_keys.append({"key": key, "reason": "key必须是字符串类型"})
                     continue
-                
+
                 if "key" not in element or "content" not in element:
-                    failed_keys.append({"element": element, "reason": "元素缺少 'key' 或 'content' 字段"})
+                    failed_keys.append(
+                        {
+                            "element": element,
+                            "reason": "元素缺少 'key' 或 'content' 字段",
+                        }
+                    )
                     continue
-                
+
                 validated_elements.append({"key": key, "content": content})
-            
+
             if not validated_elements:
-                return {
-                    "error": "没有成功创建任何元素",
-                    "failed": failed_keys
-                }
-            
+                return {"error": "没有成功创建任何元素", "failed": failed_keys}
+
             # 使用 user_context_service 在指定路径下创建数据
             user_context_service = get_user_context_service()
             try:
                 data = user_context_service.create_context_data(
                     context_id=context_id,
                     mounted_json_pointer_path=json_pointer,
-                    elements=validated_elements
+                    elements=validated_elements,
                 )
             except NotFoundException as e:
                 return {
                     "error": str(e) or "创建元素失败",
-                    "failed": failed_keys if failed_keys else None
+                    "failed": failed_keys if failed_keys else None,
                 }
             except BusinessException as e:
                 return {
                     "error": str(e) or "创建元素失败",
-                    "failed": failed_keys if failed_keys else None
+                    "failed": failed_keys if failed_keys else None,
                 }
-            
+
             # 提取成功创建的 keys
             created_keys = [elem["key"] for elem in validated_elements]
-            
+
             return {
                 "message": "元素创建成功",
                 "created_keys": created_keys,
@@ -544,84 +531,84 @@ keys = ["user_001", "user_002"]
             }
         except Exception as e:
             log_error(f"Error creating elements: {e}")
-            return {
-                "error": f"创建元素失败: {str(e)}"
-            }
-    
+            return {"error": f"创建元素失败: {str(e)}"}
+
     def update_element(
-        self, 
-        updates: List[Dict[str, Any]], 
-        context_info: Dict[str, Any]
+        self, updates: List[Dict[str, Any]], context_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         批量更新指定路径下的元素
-        
+
         Args:
             updates: 更新数组，每个元素包含 key（str）和 content（Any）
             context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
-        
+
         Returns:
             操作结果字典
         """
         try:
             context_id = context_info.get("context_id")
             json_pointer = context_info.get("json_pointer", "")
-            
+
             if not context_id:
                 return {
                     "error": "知识库ID不存在",
                 }
-            
+
             # 验证更新项格式
             validated_updates = []
             failed_keys = []
-            
+
             for update_item in updates:
                 if not isinstance(update_item, dict):
-                    failed_keys.append({"update": update_item, "reason": "更新项必须是字典类型"})
+                    failed_keys.append(
+                        {"update": update_item, "reason": "更新项必须是字典类型"}
+                    )
                     continue
-                
+
                 key = update_item.get("key")
                 content = update_item.get("content")
-                
+
                 if not isinstance(key, str):
                     failed_keys.append({"key": key, "reason": "key必须是字符串类型"})
                     continue
-                
+
                 if "key" not in update_item or "content" not in update_item:
-                    failed_keys.append({"update": update_item, "reason": "更新项缺少 'key' 或 'content' 字段"})
+                    failed_keys.append(
+                        {
+                            "update": update_item,
+                            "reason": "更新项缺少 'key' 或 'content' 字段",
+                        }
+                    )
                     continue
-                
+
                 validated_updates.append({"key": key, "content": content})
-            
+
             if not validated_updates:
-                return {
-                    "error": "没有成功更新任何元素",
-                    "failed": failed_keys
-                }
-            
+                return {"error": "没有成功更新任何元素", "failed": failed_keys}
+
             # 使用 user_context_service 更新指定路径的数据
             user_context_service = get_user_context_service()
             try:
                 data = user_context_service.update_context_data(
                     context_id=context_id,
                     json_pointer_path=json_pointer,
-                    elements=validated_updates
+                    elements=validated_updates,
                 )
             except NotFoundException as e:
                 return {
                     "error": str(e) or "更新元素失败",
-                    "failed": failed_keys if failed_keys else None
+                    "failed": failed_keys if failed_keys else None,
                 }
             except BusinessException as e:
                 return {
                     "error": str(e) or "更新元素失败",
-                    "failed": failed_keys if failed_keys else None
+                    "failed": failed_keys if failed_keys else None,
                 }
-            
+
             # 提取成功更新的 keys
             updated_keys = [update["key"] for update in validated_updates]
-            
+
             return {
                 "message": "元素更新成功",
                 "updated_keys": updated_keys,
@@ -631,73 +618,66 @@ keys = ["user_001", "user_002"]
             }
         except Exception as e:
             log_error(f"Error updating elements: {e}")
-            return {
-                "error": f"更新元素失败: {str(e)}"
-            }
-    
+            return {"error": f"更新元素失败: {str(e)}"}
+
     def delete_element(
-        self, 
-        keys: List[str], 
-        context_info: Dict[str, Any]
+        self, keys: List[str], context_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         批量删除指定路径下的元素
-        
+
         Args:
             keys: 要删除的key数组
             context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
-        
+
         Returns:
             操作结果字典
         """
         try:
             context_id = context_info.get("context_id")
             json_pointer = context_info.get("json_pointer", "")
-            
+
             if not context_id:
                 return {
                     "error": "知识库ID不存在",
                 }
-            
+
             # 验证 keys 格式
             validated_keys = []
             invalid_keys = []
-            
+
             for key in keys:
                 if not isinstance(key, str):
                     invalid_keys.append({"key": key, "reason": "key必须是字符串类型"})
                     continue
                 validated_keys.append(key)
-            
+
             if not validated_keys:
-                return {
-                    "error": "没有有效的key可以删除",
-                    "invalid": invalid_keys
-                }
-            
+                return {"error": "没有有效的key可以删除", "invalid": invalid_keys}
+
             # 使用 user_context_service 删除指定路径下的数据
             user_context_service = get_user_context_service()
             try:
                 data = user_context_service.delete_context_data(
                     context_id=context_id,
                     json_pointer_path=json_pointer,
-                    keys=validated_keys
+                    keys=validated_keys,
                 )
             except NotFoundException as e:
                 return {
                     "error": str(e) or "删除元素失败",
-                    "invalid": invalid_keys if invalid_keys else None
+                    "invalid": invalid_keys if invalid_keys else None,
                 }
             except BusinessException as e:
                 return {
                     "error": str(e) or "删除元素失败",
-                    "invalid": invalid_keys if invalid_keys else None
+                    "invalid": invalid_keys if invalid_keys else None,
                 }
-            
+
             # 提取成功删除的 keys（从返回的数据中推断）
             # 由于 delete_context_data 返回删除后的数据，我们可以通过比较来确认删除的 keys
             deleted_keys = validated_keys  # 如果成功，说明所有 keys 都被删除了
-            
+
             return {
                 "message": "元素删除成功",
                 "deleted_keys": deleted_keys,
@@ -707,20 +687,15 @@ keys = ["user_001", "user_002"]
             }
         except Exception as e:
             log_error(f"Error deleting elements: {e}")
-            return {
-                "error": f"删除元素失败: {str(e)}"
-            }
-    
-    def preview_data(
-        self,
-        context_info: Dict[str, Any]
-    ) -> Dict[str, Any]:
+            return {"error": f"删除元素失败: {str(e)}"}
+
+    def preview_data(self, context_info: Dict[str, Any]) -> Dict[str, Any]:
         """
         获取知识库数据的轻量级预览版本
-        
+
         Args:
             context_info: 上下文信息字典，包含 context, context_id, json_pointer, preview_keys 等
-        
+
         Returns:
             操作结果字典
         """
@@ -728,14 +703,14 @@ keys = ["user_001", "user_002"]
             context_id = context_info.get("context_id")
             json_pointer = context_info.get("json_pointer", "")
             preview_keys = context_info.get("preview_keys", [])
-            
+
             if not context_id:
                 return {
                     "error": "知识库ID不存在",
                 }
-            
+
             user_context_service = get_user_context_service()
-            
+
             # 获取完整数据
             try:
                 data = user_context_service.get_context_data(context_id, json_pointer)
@@ -747,86 +722,83 @@ keys = ["user_001", "user_002"]
                 return {
                     "error": str(e) or "获取知识库内容失败",
                 }
-            
+
             # 检查数据类型
             if not isinstance(data, list):
                 return {
                     "message": "当前数据不是列表类型，无法使用预览功能。请使用 query_context 工具查询数据。",
-                    "data_type": str(type(data).__name__)
+                    "data_type": str(type(data).__name__),
                 }
-            
+
             # 检查列表中的元素是否都是字典
             if data and not all(isinstance(item, dict) for item in data):
                 return {
                     "message": "当前数据不是 List[Dict] 类型，无法使用预览功能。请使用 query_context 工具查询数据。",
-                    "data_type": "List[mixed]"
+                    "data_type": "List[mixed]",
                 }
-            
+
             # 如果 preview_keys 为空，返回所有数据
             if not preview_keys:
                 return {
                     "message": "预览数据获取成功（显示所有字段）",
                     "data": data,
-                    "preview_keys": "all"
+                    "preview_keys": "all",
                 }
-            
+
             # 过滤数据，只保留 preview_keys 中的字段
             filtered_data = []
             for item in data:
-                filtered_item = {key: item.get(key) for key in preview_keys if key in item}
+                filtered_item = {
+                    key: item.get(key) for key in preview_keys if key in item
+                }
                 filtered_data.append(filtered_item)
-            
+
             return {
                 "message": "预览数据获取成功",
                 "data": filtered_data,
                 "preview_keys": preview_keys,
-                "total_count": len(filtered_data)
+                "total_count": len(filtered_data),
             }
         except Exception as e:
             log_error(f"Error previewing data: {e}")
-            return {
-                "error": f"预览数据失败: {str(e)}"
-            }
-    
+            return {"error": f"预览数据失败: {str(e)}"}
+
     def select_contexts(
-        self,
-        field: str,
-        keys: List[str],
-        context_info: Dict[str, Any]
+        self, field: str, keys: List[str], context_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         根据字段和键值列表批量获取完整数据
-        
+
         Args:
             field: 用于匹配的字段名
             keys: 要匹配的值列表
             context_info: 上下文信息字典，包含 context, context_id, json_pointer 等
-        
+
         Returns:
             操作结果字典
         """
         try:
             context_id = context_info.get("context_id")
             json_pointer = context_info.get("json_pointer", "")
-            
+
             if not context_id:
                 return {
                     "error": "知识库ID不存在",
                 }
-            
+
             # 验证参数
             if not field:
                 return {
                     "error": "field 参数不能为空",
                 }
-            
+
             if not keys or not isinstance(keys, list):
                 return {
                     "error": "keys 参数必须是非空列表",
                 }
-            
+
             user_context_service = get_user_context_service()
-            
+
             # 获取完整数据
             try:
                 data = user_context_service.get_context_data(context_id, json_pointer)
@@ -838,24 +810,24 @@ keys = ["user_001", "user_002"]
                 return {
                     "error": str(e) or "获取知识库内容失败",
                 }
-            
+
             # 检查数据类型
             if not isinstance(data, list):
                 return {
                     "message": "当前数据不是列表类型，无法使用选择功能。请使用 query_context 工具查询数据。",
-                    "data_type": str(type(data).__name__)
+                    "data_type": str(type(data).__name__),
                 }
-            
+
             # 检查列表中的元素是否都是字典
             if data and not all(isinstance(item, dict) for item in data):
                 return {
                     "message": "当前数据不是 List[Dict] 类型，无法使用选择功能。请使用 query_context 工具查询数据。",
-                    "data_type": "List[mixed]"
+                    "data_type": "List[mixed]",
                 }
-            
+
             # 将 keys 转换为字符串集合以便快速查找
             keys_set = set(str(k) for k in keys)
-            
+
             # 根据 field 和 keys 筛选数据
             selected_data = []
             for item in data:
@@ -863,17 +835,14 @@ keys = ["user_001", "user_002"]
                     # 将字段值转换为字符串进行比较（精确匹配）
                     if str(item[field]) in keys_set:
                         selected_data.append(item)
-            
+
             return {
                 "message": "数据选择成功",
                 "data": selected_data,
                 "field": field,
                 "requested_keys": keys,
-                "matched_count": len(selected_data)
+                "matched_count": len(selected_data),
             }
         except Exception as e:
             log_error(f"Error selecting contexts: {e}")
-            return {
-                "error": f"选择数据失败: {str(e)}"
-            }
-
+            return {"error": f"选择数据失败: {str(e)}"}

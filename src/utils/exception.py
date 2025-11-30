@@ -2,15 +2,11 @@ import traceback
 from functools import wraps
 from src.utils.logger import log_error
 
+
 class PuppyException(Exception):
-    service_name = "contextbase"  
-    
-    def __init__(
-        self,
-        error_code: int,
-        error_message: str,
-        cause: str = None
-    ):
+    service_name = "contextbase"
+
+    def __init__(self, error_code: int, error_message: str, cause: str = None):
         self.error_code = error_code
         self.error_message = error_message
         self.cause = cause
@@ -21,9 +17,7 @@ class PuppyException(Exception):
 
 
 def global_exception_handler(
-    error_code: int,
-    error_message: str,
-    log_at_root: bool = False
+    error_code: int, error_message: str, log_at_root: bool = False
 ):
     def decorator(func):
         @wraps(func)
@@ -46,5 +40,7 @@ def global_exception_handler(
                 full_error_message = f"[{PuppyException.service_name.upper()}_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
                 log_error(full_error_message)
                 raise PuppyException(error_code, error_message, str(e))
+
         return wrapper
+
     return decorator

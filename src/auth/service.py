@@ -16,7 +16,9 @@ class UserService:
     def get_user(self, user_id: str) -> User:
         user = self.repo.get_by_id(user_id)
         if not user:
-            raise NotFoundException(f"User not found: {user_id}", code=ErrorCode.USER_NOT_FOUND)
+            raise NotFoundException(
+                f"User not found: {user_id}", code=ErrorCode.USER_NOT_FOUND
+            )
         return user
 
     def create_user(self, username: str) -> User:
@@ -26,11 +28,14 @@ class UserService:
     def update_user(self, user_id: str, username: str) -> User:
         user = self.repo.update(user_id, username)
         if not user:
-            raise NotFoundException(f"User not found: {user_id}", code=ErrorCode.USER_NOT_FOUND)
+            raise NotFoundException(
+                f"User not found: {user_id}", code=ErrorCode.USER_NOT_FOUND
+            )
         return user
 
     def delete_user(self, user_id: str) -> None:
         success = self.repo.delete(user_id)
         if not success:
-            raise NotFoundException(f"User not found: {user_id}", code=ErrorCode.USER_NOT_FOUND)
-
+            raise NotFoundException(
+                f"User not found: {user_id}", code=ErrorCode.USER_NOT_FOUND
+            )

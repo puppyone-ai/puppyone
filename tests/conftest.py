@@ -8,4 +8,3 @@ os.environ.setdefault("S3_BUCKET_NAME", "contextbase")
 os.environ.setdefault("S3_REGION", "us-east-1")
 os.environ.setdefault("S3_ACCESS_KEY_ID", "test")
 os.environ.setdefault("S3_SECRET_ACCESS_KEY", "test")
-

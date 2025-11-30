@@ -193,4 +193,3 @@ async def test_presigned_urls(client: AsyncClient):
 
     # 清理
     await client.delete(f"/api/v1/s3/{test_key}")
-

@@ -12,10 +12,8 @@ async def app_exception_handler(request: Request, exc: AppException):
     return JSONResponse(
         status_code=exc.status_code,
         content=ApiResponse.error(
-            code=exc.code, 
-            message=exc.message,
-            data=exc.details
-        ).model_dump()
+            code=exc.code, message=exc.message, data=exc.details
+        ).model_dump(),
     )
 
 
@@ -24,9 +22,9 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content=ApiResponse.error(
-            code=ErrorCode.BAD_REQUEST, # 默认映射为 BAD_REQUEST，或者根据 exc.status_code 细分
-            message=str(exc.detail)
-        ).model_dump()
+            code=ErrorCode.BAD_REQUEST,  # 默认映射为 BAD_REQUEST，或者根据 exc.status_code 细分
+            message=str(exc.detail),
+        ).model_dump(),
     )
 
 
@@ -38,14 +36,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         loc = ".".join([str(x) for x in error["loc"]])
         msg = error["msg"]
         errors.append(f"{loc}: {msg}")
-    
+
     return JSONResponse(
         status_code=422,
         content=ApiResponse.error(
-            code=ErrorCode.VALIDATION_ERROR,
-            message="Validation Error",
-            data=errors
-        ).model_dump()
+            code=ErrorCode.VALIDATION_ERROR, message="Validation Error", data=errors
+        ).model_dump(),
     )
 
 
@@ -55,8 +51,6 @@ async def generic_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content=ApiResponse.error(
-            code=ErrorCode.INTERNAL_SERVER_ERROR,
-            message="Internal Server Error"
-        ).model_dump()
+            code=ErrorCode.INTERNAL_SERVER_ERROR, message="Internal Server Error"
+        ).model_dump(),
     )
-

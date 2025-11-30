@@ -22,7 +22,14 @@ class UserContextRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def update(self, context_id: str, context_name: str, context_description: str, context_data: Optional[dict], metadata: dict) -> Optional[UserContext]:
+    def update(
+        self,
+        context_id: str,
+        context_name: str,
+        context_description: str,
+        context_data: Optional[dict],
+        metadata: dict,
+    ) -> Optional[UserContext]:
         pass
 
     @abstractmethod
@@ -30,18 +37,28 @@ class UserContextRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def create(self, user_id: str, project_id: str, context_name: str, context_description: str, context_data: dict, metadata: dict) -> UserContext:
+    def create(
+        self,
+        user_id: str,
+        project_id: str,
+        context_name: str,
+        context_description: str,
+        context_data: dict,
+        metadata: dict,
+    ) -> UserContext:
         pass
 
     @abstractmethod
-    def update_context_data(self, context_id: str, context_data: dict) -> Optional[UserContext]:
+    def update_context_data(
+        self, context_id: str, context_data: dict
+    ) -> Optional[UserContext]:
         """更新 context_data 字段"""
         pass
 
 
 class UserContextRepositoryJSON(UserContextRepositoryBase):
     """负责对用户知识库数据进行增删改查"""
-    
+
     # 这两个方法进行底层实现
     def _read_data(self) -> List[UserContext]:
         try:
@@ -50,29 +67,41 @@ class UserContextRepositoryJSON(UserContextRepositoryBase):
                 return [UserContext(**context) for context in contexts]
         except FileNotFoundError:
             return []
-    
+
     def _write_data(self, contexts: List[UserContext]) -> None:
         try:
             # 确保目录存在
             DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
             with open(DATA_PATH, "w", encoding="utf-8") as f:
-                json.dump([context.model_dump() for context in contexts], f, ensure_ascii=False, indent=4)
+                json.dump(
+                    [context.model_dump() for context in contexts],
+                    f,
+                    ensure_ascii=False,
+                    indent=4,
+                )
         except Exception as e:
             log_error(f"Failed to write data to {DATA_PATH}: {e}")
-    
+
     # 接口方法
     def get_by_user_id(self, user_id: str) -> List[UserContext]:
         contexts = self._read_data()
         return [context for context in contexts if context.user_id == user_id]
-    
+
     def get_by_id(self, context_id: str) -> Optional[UserContext]:
         contexts = self._read_data()
         for context in contexts:
             if context.context_id == context_id:
                 return context
         return None
-    
-    def update(self, context_id: str, context_name: str, context_description: str, context_data: Optional[dict], metadata: dict) -> Optional[UserContext]:
+
+    def update(
+        self,
+        context_id: str,
+        context_name: str,
+        context_description: str,
+        context_data: Optional[dict],
+        metadata: dict,
+    ) -> Optional[UserContext]:
         contexts = self._read_data()
         for context in contexts:
             if context.context_id == context_id:
@@ -85,16 +114,26 @@ class UserContextRepositoryJSON(UserContextRepositoryBase):
                 self._write_data(contexts)
                 return context
         return None
-    
+
     def delete(self, context_id: str) -> bool:
         contexts = self._read_data()
-        new_contexts = [context for context in contexts if context.context_id != context_id]
+        new_contexts = [
+            context for context in contexts if context.context_id != context_id
+        ]
         if len(new_contexts) == len(contexts):
             return False
         self._write_data(new_contexts)
         return True
-    
-    def create(self, user_id: str, project_id: str, context_name: str, context_description: str, context_data: dict, metadata: dict) -> UserContext:
+
+    def create(
+        self,
+        user_id: str,
+        project_id: str,
+        context_name: str,
+        context_description: str,
+        context_data: dict,
+        metadata: dict,
+    ) -> UserContext:
         contexts = self._read_data()
         # 生成新的 ID，使用字符串格式
         # 兼容历史数据：支持 int 和 str 类型的 context_id
@@ -112,13 +151,15 @@ class UserContextRepositoryJSON(UserContextRepositoryBase):
             context_name=context_name,
             context_description=context_description,
             context_data=context_data,
-            metadata=metadata
+            metadata=metadata,
         )
         contexts.append(new_context)
         self._write_data(contexts)
         return new_context
-    
-    def update_context_data(self, context_id: str, context_data: dict) -> Optional[UserContext]:
+
+    def update_context_data(
+        self, context_id: str, context_data: dict
+    ) -> Optional[UserContext]:
         """更新 context_data 字段"""
         contexts = self._read_data()
         for context in contexts:

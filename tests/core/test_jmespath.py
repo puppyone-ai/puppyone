@@ -1,15 +1,16 @@
 import json
 import jmespath
 
+
 def query_json_data(data: dict, query: str, max_length: int = 2000) -> str:
     """
     对 JSON 数据执行 JMESPath 查询。
-    
+
     Args:
         data (dict): 目标 JSON 数据源。
         query (str): JMESPath 查询字符串。
         max_length (int): 返回结果的最大字符数，防止 Context 溢出。
-        
+
     Returns:
         str: 查询结果的 JSON 字符串，或者错误信息。
     """
@@ -42,6 +43,7 @@ def query_json_data(data: dict, query: str, max_length: int = 2000) -> str:
         # 捕捉其他未知错误
         return f"Error: An unexpected error occurred: {str(e)}"
 
+
 # --- 测试代码 ---
 
 if __name__ == "__main__":
@@ -53,16 +55,14 @@ if __name__ == "__main__":
                 "name": "R&D",
                 "employees": [
                     {"name": "Alice", "active": True, "skills": ["Python", "AI"]},
-                    {"name": "Bob", "active": False, "skills": ["Java"]}
-                ]
+                    {"name": "Bob", "active": False, "skills": ["Java"]},
+                ],
             },
             {
                 "name": "Marketing",
-                "employees": [
-                    {"name": "Charlie", "active": True, "skills": ["SEO"]}
-                ]
-            }
-        ]
+                "employees": [{"name": "Charlie", "active": True, "skills": ["SEO"]}],
+            },
+        ],
     }
 
     # 测试 1: 获取特定数据
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     # 测试 2: 复杂过滤 (查找 R&D 部门 active 的员工名字)
     print("\n--- Test 2: Filter Active Employees in R&D ---")
     # 注意：JMESPath 中比较字符串用单引号
-    q2 = "departments[?name=='R&D'].employees[?active==`true`].name" 
+    q2 = "departments[?name=='R&D'].employees[?active==`true`].name"
     print(query_json_data(source_data, q2))
 
     # 测试 3: 错误的语法 (测试容错性)

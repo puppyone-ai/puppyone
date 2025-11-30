@@ -1,9 +1,10 @@
 """S3 存储服务核心业务逻辑"""
 
+import asyncio
 import logging
-from typing import AsyncIterator
+from typing import AsyncIterator, Callable, TypeVar
 
-import aioboto3
+import boto3
 from botocore.exceptions import ClientError
 
 from src.s3.config import s3_settings
@@ -26,6 +27,8 @@ from src.s3.schemas import (
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
 
 class S3Service:
     """S3 存储服务类"""
@@ -43,21 +46,33 @@ class S3Service:
         self.multipart_threshold = s3_settings.S3_MULTIPART_THRESHOLD
         self.multipart_chunksize = s3_settings.S3_MULTIPART_CHUNKSIZE
 
-        # 创建 aioboto3 session
-        self.session = aioboto3.Session(
-            aws_access_key_id=self.access_key_id,
-            aws_secret_access_key=self.secret_access_key,
-            region_name=self.region,
-        )
-
-    def _get_client_kwargs(self) -> dict:
-        """获取 S3 客户端参数"""
-        kwargs = {}
+        # 创建 boto3 客户端（线程安全）
+        client_kwargs = {
+            "service_name": "s3",
+            "aws_access_key_id": self.access_key_id,
+            "aws_secret_access_key": self.secret_access_key,
+            "region_name": self.region,
+        }
         if self.endpoint_url:
-            kwargs["endpoint_url"] = self.endpoint_url
-        return kwargs
+            client_kwargs["endpoint_url"] = self.endpoint_url
 
-    async def _handle_client_error(self, error: ClientError, operation: str) -> None:
+        self.client = boto3.client(**client_kwargs)
+
+    async def _run_sync(self, func: Callable[..., T], *args, **kwargs) -> T:
+        """
+        将同步函数包装为异步执行
+
+        Args:
+            func: 同步函数
+            *args: 位置参数
+            **kwargs: 关键字参数
+
+        Returns:
+            函数执行结果
+        """
+        return await asyncio.to_thread(func, *args, **kwargs)
+
+    def _handle_client_error(self, error: ClientError, operation: str) -> None:
         """处理 boto3 ClientError"""
         error_code = error.response.get("Error", {}).get("Code", "Unknown")
         error_message = error.response.get("Error", {}).get("Message", str(error))
@@ -105,29 +120,32 @@ class S3Service:
             raise S3FileSizeExceededError(file_size, self.max_file_size)
 
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                extra_args = {}
-                if content_type:
-                    extra_args["ContentType"] = content_type
-                if metadata:
-                    extra_args["Metadata"] = metadata
+            extra_args = {}
+            if content_type:
+                extra_args["ContentType"] = content_type
+            if metadata:
+                extra_args["Metadata"] = metadata
 
-                response = await s3.put_object(
-                    Bucket=self.bucket_name, Key=key, Body=content, **extra_args
-                )
+            response = await self._run_sync(
+                self.client.put_object,
+                Bucket=self.bucket_name,
+                Key=key,
+                Body=content,
+                **extra_args,
+            )
 
-                logger.info(f"File uploaded successfully: {key} ({file_size} bytes)")
+            logger.info(f"File uploaded successfully: {key} ({file_size} bytes)")
 
-                return FileUploadResponse(
-                    key=key,
-                    bucket=self.bucket_name,
-                    size=file_size,
-                    etag=response["ETag"].strip('"'),
-                    content_type=content_type,
-                )
+            return FileUploadResponse(
+                key=key,
+                bucket=self.bucket_name,
+                size=file_size,
+                etag=response["ETag"].strip('"'),
+                content_type=content_type,
+            )
 
         except ClientError as e:
-            await self._handle_client_error(e, "upload_file")
+            self._handle_client_error(e, "upload_file")
             raise  # 永远不会执行,但类型检查器需要
 
     async def upload_files_batch(
@@ -175,21 +193,30 @@ class S3Service:
             S3FileNotFoundError: 文件不存在
             S3OperationError: 下载失败
         """
+
+        def _get_response():
+            """获取 S3 响应"""
+            return self.client.get_object(Bucket=self.bucket_name, Key=key)
+
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                response = await s3.get_object(Bucket=self.bucket_name, Key=key)
+            # 在线程池中获取响应
+            response = await self._run_sync(_get_response)
+            stream = response["Body"]
 
-                async with response["Body"] as stream:
-                    while True:
-                        chunk = await stream.read(chunk_size)
-                        if not chunk:
-                            break
-                        yield chunk
+            try:
+                # 逐块读取数据
+                while True:
+                    chunk = await self._run_sync(stream.read, chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                stream.close()
 
-                logger.info(f"File downloaded successfully: {key}")
+            logger.info(f"File downloaded successfully: {key}")
 
         except ClientError as e:
-            await self._handle_client_error(e, "download_file")
+            self._handle_client_error(e, "download_file")
             raise
 
     # ============= 文件存在性检查 =============
@@ -205,9 +232,10 @@ class S3Service:
             bool: 文件是否存在
         """
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                await s3.head_object(Bucket=self.bucket_name, Key=key)
-                return True
+            await self._run_sync(
+                self.client.head_object, Bucket=self.bucket_name, Key=key
+            )
+            return True
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
             if error_code in ["404", "NoSuchKey"]:
@@ -233,12 +261,13 @@ class S3Service:
             raise S3FileNotFoundError(key)
 
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                await s3.delete_object(Bucket=self.bucket_name, Key=key)
-                logger.info(f"File deleted successfully: {key}")
+            await self._run_sync(
+                self.client.delete_object, Bucket=self.bucket_name, Key=key
+            )
+            logger.info(f"File deleted successfully: {key}")
 
         except ClientError as e:
-            await self._handle_client_error(e, "delete_file")
+            self._handle_client_error(e, "delete_file")
             raise
 
     async def delete_files_batch(self, keys: list[str]) -> list[BatchDeleteResult]:
@@ -297,45 +326,44 @@ class S3Service:
             tuple: (文件列表, 公共前缀列表, 下一页token, 是否截断)
         """
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                kwargs = {
-                    "Bucket": self.bucket_name,
-                    "Prefix": prefix,
-                    "MaxKeys": max_keys,
-                }
+            kwargs = {
+                "Bucket": self.bucket_name,
+                "Prefix": prefix,
+                "MaxKeys": max_keys,
+            }
 
-                if delimiter:
-                    kwargs["Delimiter"] = delimiter
-                if continuation_token:
-                    kwargs["ContinuationToken"] = continuation_token
+            if delimiter:
+                kwargs["Delimiter"] = delimiter
+            if continuation_token:
+                kwargs["ContinuationToken"] = continuation_token
 
-                response = await s3.list_objects_v2(**kwargs)
+            response = await self._run_sync(self.client.list_objects_v2, **kwargs)
 
-                # 解析文件列表
-                files = []
-                for obj in response.get("Contents", []):
-                    files.append(
-                        FileListItem(
-                            key=obj["Key"],
-                            size=obj["Size"],
-                            last_modified=obj["LastModified"],
-                            etag=obj["ETag"].strip('"'),
-                        )
+            # 解析文件列表
+            files = []
+            for obj in response.get("Contents", []):
+                files.append(
+                    FileListItem(
+                        key=obj["Key"],
+                        size=obj["Size"],
+                        last_modified=obj["LastModified"],
+                        etag=obj["ETag"].strip('"'),
                     )
+                )
 
-                # 解析公共前缀(文件夹)
-                common_prefixes = [
-                    cp["Prefix"] for cp in response.get("CommonPrefixes", [])
-                ]
+            # 解析公共前缀(文件夹)
+            common_prefixes = [
+                cp["Prefix"] for cp in response.get("CommonPrefixes", [])
+            ]
 
-                # 分页信息
-                next_token = response.get("NextContinuationToken")
-                is_truncated = response.get("IsTruncated", False)
+            # 分页信息
+            next_token = response.get("NextContinuationToken")
+            is_truncated = response.get("IsTruncated", False)
 
-                return files, common_prefixes, next_token, is_truncated
+            return files, common_prefixes, next_token, is_truncated
 
         except ClientError as e:
-            await self._handle_client_error(e, "list_files")
+            self._handle_client_error(e, "list_files")
             raise
 
     # ============= 文件元信息 =============
@@ -355,21 +383,22 @@ class S3Service:
             S3OperationError: 获取失败
         """
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                response = await s3.head_object(Bucket=self.bucket_name, Key=key)
+            response = await self._run_sync(
+                self.client.head_object, Bucket=self.bucket_name, Key=key
+            )
 
-                return FileMetadata(
-                    key=key,
-                    bucket=self.bucket_name,
-                    size=response["ContentLength"],
-                    etag=response["ETag"].strip('"'),
-                    last_modified=response["LastModified"],
-                    content_type=response.get("ContentType"),
-                    metadata=response.get("Metadata", {}),
-                )
+            return FileMetadata(
+                key=key,
+                bucket=self.bucket_name,
+                size=response["ContentLength"],
+                etag=response["ETag"].strip('"'),
+                last_modified=response["LastModified"],
+                content_type=response.get("ContentType"),
+                metadata=response.get("Metadata", {}),
+            )
 
         except ClientError as e:
-            await self._handle_client_error(e, "get_file_metadata")
+            self._handle_client_error(e, "get_file_metadata")
             raise
 
     # ============= 预签名 URL =============
@@ -389,21 +418,23 @@ class S3Service:
             str: 预签名 URL
         """
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                params = {"Bucket": self.bucket_name, "Key": key}
+            params = {"Bucket": self.bucket_name, "Key": key}
 
-                if content_type:
-                    params["ContentType"] = content_type
+            if content_type:
+                params["ContentType"] = content_type
 
-                url = await s3.generate_presigned_url(
-                    ClientMethod="put_object", Params=params, ExpiresIn=expires_in
-                )
+            url = await self._run_sync(
+                self.client.generate_presigned_url,
+                ClientMethod="put_object",
+                Params=params,
+                ExpiresIn=expires_in,
+            )
 
-                logger.info(f"Generated presigned upload URL for: {key}")
-                return url
+            logger.info(f"Generated presigned upload URL for: {key}")
+            return url
 
         except ClientError as e:
-            await self._handle_client_error(e, "generate_presigned_upload_url")
+            self._handle_client_error(e, "generate_presigned_upload_url")
             raise
 
     async def generate_presigned_download_url(
@@ -424,21 +455,23 @@ class S3Service:
             str: 预签名 URL
         """
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                params = {"Bucket": self.bucket_name, "Key": key}
+            params = {"Bucket": self.bucket_name, "Key": key}
 
-                if response_content_disposition:
-                    params["ResponseContentDisposition"] = response_content_disposition
+            if response_content_disposition:
+                params["ResponseContentDisposition"] = response_content_disposition
 
-                url = await s3.generate_presigned_url(
-                    ClientMethod="get_object", Params=params, ExpiresIn=expires_in
-                )
+            url = await self._run_sync(
+                self.client.generate_presigned_url,
+                ClientMethod="get_object",
+                Params=params,
+                ExpiresIn=expires_in,
+            )
 
-                logger.info(f"Generated presigned download URL for: {key}")
-                return url
+            logger.info(f"Generated presigned download URL for: {key}")
+            return url
 
         except ClientError as e:
-            await self._handle_client_error(e, "generate_presigned_download_url")
+            self._handle_client_error(e, "generate_presigned_download_url")
             raise
 
     # ============= 分片上传 =============
@@ -464,22 +497,23 @@ class S3Service:
             S3OperationError: 创建失败
         """
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                kwargs = {"Bucket": self.bucket_name, "Key": key}
+            kwargs = {"Bucket": self.bucket_name, "Key": key}
 
-                if content_type:
-                    kwargs["ContentType"] = content_type
-                if metadata:
-                    kwargs["Metadata"] = metadata
+            if content_type:
+                kwargs["ContentType"] = content_type
+            if metadata:
+                kwargs["Metadata"] = metadata
 
-                response = await s3.create_multipart_upload(**kwargs)
-                upload_id = response["UploadId"]
+            response = await self._run_sync(
+                self.client.create_multipart_upload, **kwargs
+            )
+            upload_id = response["UploadId"]
 
-                logger.info(f"Created multipart upload for {key}: {upload_id}")
-                return upload_id
+            logger.info(f"Created multipart upload for {key}: {upload_id}")
+            return upload_id
 
         except ClientError as e:
-            await self._handle_client_error(e, "create_multipart_upload")
+            self._handle_client_error(e, "create_multipart_upload")
             raise
 
     async def upload_part(
@@ -512,18 +546,18 @@ class S3Service:
             )
 
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                response = await s3.upload_part(
-                    Bucket=self.bucket_name,
-                    Key=key,
-                    UploadId=upload_id,
-                    PartNumber=part_number,
-                    Body=data,
-                )
+            response = await self._run_sync(
+                self.client.upload_part,
+                Bucket=self.bucket_name,
+                Key=key,
+                UploadId=upload_id,
+                PartNumber=part_number,
+                Body=data,
+            )
 
-                etag = response["ETag"].strip('"')
-                logger.info(f"Uploaded part {part_number} for {key}: {etag}")
-                return etag
+            etag = response["ETag"].strip('"')
+            logger.info(f"Uploaded part {part_number} for {key}: {etag}")
+            return etag
 
         except ClientError as e:
             logger.error(f"Failed to upload part {part_number} for {key}: {e}")
@@ -547,36 +581,35 @@ class S3Service:
             S3MultipartError: 完成失败
         """
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                multipart_upload = {
-                    "Parts": [
-                        {"PartNumber": part_num, "ETag": etag}
-                        for part_num, etag in parts
-                    ]
-                }
+            multipart_upload = {
+                "Parts": [
+                    {"PartNumber": part_num, "ETag": etag} for part_num, etag in parts
+                ]
+            }
 
-                response = await s3.complete_multipart_upload(
-                    Bucket=self.bucket_name,
-                    Key=key,
-                    UploadId=upload_id,
-                    MultipartUpload=multipart_upload,
-                )
+            response = await self._run_sync(
+                self.client.complete_multipart_upload,
+                Bucket=self.bucket_name,
+                Key=key,
+                UploadId=upload_id,
+                MultipartUpload=multipart_upload,
+            )
 
-                logger.info(f"Completed multipart upload for {key}")
+            logger.info(f"Completed multipart upload for {key}")
 
-                # 获取文件大小
-                try:
-                    metadata = await self.get_file_metadata(key)
-                    file_size = metadata.size
-                except Exception:
-                    file_size = None
+            # 获取文件大小
+            try:
+                metadata = await self.get_file_metadata(key)
+                file_size = metadata.size
+            except Exception:
+                file_size = None
 
-                return MultipartCompleteResponse(
-                    key=key,
-                    bucket=self.bucket_name,
-                    etag=response["ETag"].strip('"'),
-                    size=file_size,
-                )
+            return MultipartCompleteResponse(
+                key=key,
+                bucket=self.bucket_name,
+                etag=response["ETag"].strip('"'),
+                size=file_size,
+            )
 
         except ClientError as e:
             logger.error(f"Failed to complete multipart upload for {key}: {e}")
@@ -594,12 +627,14 @@ class S3Service:
             S3MultipartError: 取消失败
         """
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                await s3.abort_multipart_upload(
-                    Bucket=self.bucket_name, Key=key, UploadId=upload_id
-                )
+            await self._run_sync(
+                self.client.abort_multipart_upload,
+                Bucket=self.bucket_name,
+                Key=key,
+                UploadId=upload_id,
+            )
 
-                logger.info(f"Aborted multipart upload for {key}: {upload_id}")
+            logger.info(f"Aborted multipart upload for {key}: {upload_id}")
 
         except ClientError as e:
             logger.error(f"Failed to abort multipart upload for {key}: {e}")
@@ -619,26 +654,28 @@ class S3Service:
             tuple: (上传列表, 下一页token)
         """
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                response = await s3.list_multipart_uploads(
-                    Bucket=self.bucket_name, Prefix=prefix, MaxUploads=max_uploads
+            response = await self._run_sync(
+                self.client.list_multipart_uploads,
+                Bucket=self.bucket_name,
+                Prefix=prefix,
+                MaxUploads=max_uploads,
+            )
+
+            uploads = []
+            for upload in response.get("Uploads", []):
+                uploads.append(
+                    MultipartUploadListItem(
+                        key=upload["Key"],
+                        upload_id=upload["UploadId"],
+                        initiated=upload["Initiated"],
+                    )
                 )
 
-                uploads = []
-                for upload in response.get("Uploads", []):
-                    uploads.append(
-                        MultipartUploadListItem(
-                            key=upload["Key"],
-                            upload_id=upload["UploadId"],
-                            initiated=upload["Initiated"],
-                        )
-                    )
-
-                next_token = response.get("NextKeyMarker")
-                return uploads, next_token
+            next_token = response.get("NextKeyMarker")
+            return uploads, next_token
 
         except ClientError as e:
-            await self._handle_client_error(e, "list_multipart_uploads")
+            self._handle_client_error(e, "list_multipart_uploads")
             raise
 
     async def list_parts(
@@ -656,30 +693,30 @@ class S3Service:
             tuple: (分片列表, 下一页分片编号标记)
         """
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as s3:
-                response = await s3.list_parts(
-                    Bucket=self.bucket_name,
-                    Key=key,
-                    UploadId=upload_id,
-                    MaxParts=max_parts,
+            response = await self._run_sync(
+                self.client.list_parts,
+                Bucket=self.bucket_name,
+                Key=key,
+                UploadId=upload_id,
+                MaxParts=max_parts,
+            )
+
+            parts = []
+            for part in response.get("Parts", []):
+                parts.append(
+                    MultipartPartListItem(
+                        part_number=part["PartNumber"],
+                        size=part["Size"],
+                        etag=part["ETag"].strip('"'),
+                        last_modified=part["LastModified"],
+                    )
                 )
 
-                parts = []
-                for part in response.get("Parts", []):
-                    parts.append(
-                        MultipartPartListItem(
-                            part_number=part["PartNumber"],
-                            size=part["Size"],
-                            etag=part["ETag"].strip('"'),
-                            last_modified=part["LastModified"],
-                        )
-                    )
-
-                next_marker = response.get("NextPartNumberMarker")
-                return parts, next_marker
+            next_marker = response.get("NextPartNumberMarker")
+            return parts, next_marker
 
         except ClientError as e:
-            await self._handle_client_error(e, "list_parts")
+            self._handle_client_error(e, "list_parts")
             raise
 
 

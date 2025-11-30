@@ -28,15 +28,52 @@ class McpInstanceRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def create(self, api_key: str, user_id: str, project_id: str, context_id: str, json_pointer: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None, register_tools: Optional[List[ToolTypeKey]] = None) -> McpInstance:
+    def create(
+        self,
+        api_key: str,
+        user_id: str,
+        project_id: str,
+        context_id: str,
+        json_pointer: str,
+        status: int,
+        port: int,
+        docker_info: Dict[Any, Any],
+        tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
+        register_tools: Optional[List[ToolTypeKey]] = None,
+    ) -> McpInstance:
         pass
 
     @abstractmethod
-    def update_by_id(self, mcp_instance_id: str, api_key: str, user_id: str, project_id: str, context_id: str, json_pointer: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None, register_tools: Optional[List[ToolTypeKey]] = None) -> Optional[McpInstance]:
+    def update_by_id(
+        self,
+        mcp_instance_id: str,
+        api_key: str,
+        user_id: str,
+        project_id: str,
+        context_id: str,
+        json_pointer: str,
+        status: int,
+        port: int,
+        docker_info: Dict[Any, Any],
+        tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
+        register_tools: Optional[List[ToolTypeKey]] = None,
+    ) -> Optional[McpInstance]:
         pass
 
     @abstractmethod
-    def update_by_api_key(self, api_key: str, user_id: str, project_id: str, context_id: str, json_pointer: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None, register_tools: Optional[List[ToolTypeKey]] = None) -> Optional[McpInstance]:
+    def update_by_api_key(
+        self,
+        api_key: str,
+        user_id: str,
+        project_id: str,
+        context_id: str,
+        json_pointer: str,
+        status: int,
+        port: int,
+        docker_info: Dict[Any, Any],
+        tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
+        register_tools: Optional[List[ToolTypeKey]] = None,
+    ) -> Optional[McpInstance]:
         pass
 
     @abstractmethod
@@ -50,7 +87,7 @@ class McpInstanceRepositoryBase(ABC):
 
 class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
     """负责对 MCP 实例数据进行增删改查"""
-    
+
     def _read_data(self) -> List[McpInstance]:
         try:
             with open(DATA_PATH, "r", encoding="utf-8") as f:
@@ -58,41 +95,60 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 return [McpInstance(**instance) for instance in instances]
         except FileNotFoundError:
             return []
-    
+
     def _write_data(self, instances: List[McpInstance]) -> None:
         try:
             # 确保目录存在
             DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
             with open(DATA_PATH, "w", encoding="utf-8") as f:
-                json.dump([instance.model_dump() for instance in instances], f, ensure_ascii=False, indent=4)
+                json.dump(
+                    [instance.model_dump() for instance in instances],
+                    f,
+                    ensure_ascii=False,
+                    indent=4,
+                )
         except Exception as e:
             log_error(f"Failed to write data to {DATA_PATH}: {e}")
-    
+
     def get_by_id(self, mcp_instance_id: str) -> Optional[McpInstance]:
         instances = self._read_data()
         for instance in instances:
             if instance.mcp_instance_id == mcp_instance_id:
                 return instance
         return None
-    
+
     def get_by_api_key(self, api_key: str) -> Optional[McpInstance]:
         instances = self._read_data()
         for instance in instances:
             if instance.api_key == api_key:
                 return instance
         return None
-    
+
     def get_by_user_id(self, user_id: str) -> List[McpInstance]:
         """根据 user_id 获取该用户的所有 MCP 实例"""
         instances = self._read_data()
         return [instance for instance in instances if instance.user_id == user_id]
-    
-    def create(self, api_key: str, user_id: str, project_id: str, context_id: str, json_pointer: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None, register_tools: Optional[List[ToolTypeKey]] = None) -> McpInstance:
+
+    def create(
+        self,
+        api_key: str,
+        user_id: str,
+        project_id: str,
+        context_id: str,
+        json_pointer: str,
+        status: int,
+        port: int,
+        docker_info: Dict[Any, Any],
+        tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
+        register_tools: Optional[List[ToolTypeKey]] = None,
+    ) -> McpInstance:
         instances = self._read_data()
         # 生成新的 ID
-        existing_ids = [int(i.mcp_instance_id) for i in instances if i.mcp_instance_id.isdigit()]
+        existing_ids = [
+            int(i.mcp_instance_id) for i in instances if i.mcp_instance_id.isdigit()
+        ]
         new_id = str(max(existing_ids, default=0) + 1) if existing_ids else "1"
-        
+
         new_instance = McpInstance(
             mcp_instance_id=new_id,
             api_key=api_key,
@@ -104,13 +160,26 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
             port=port,
             docker_info=docker_info,
             tools_definition=tools_definition,
-            register_tools=register_tools
+            register_tools=register_tools,
         )
         instances.append(new_instance)
         self._write_data(instances)
         return new_instance
-    
-    def update_by_id(self, mcp_instance_id: str, api_key: str, user_id: str, project_id: str, context_id: str, json_pointer: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None, register_tools: Optional[List[ToolTypeKey]] = None) -> Optional[McpInstance]:
+
+    def update_by_id(
+        self,
+        mcp_instance_id: str,
+        api_key: str,
+        user_id: str,
+        project_id: str,
+        context_id: str,
+        json_pointer: str,
+        status: int,
+        port: int,
+        docker_info: Dict[Any, Any],
+        tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
+        register_tools: Optional[List[ToolTypeKey]] = None,
+    ) -> Optional[McpInstance]:
         instances = self._read_data()
         for instance in instances:
             if instance.mcp_instance_id == mcp_instance_id:
@@ -127,8 +196,20 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 self._write_data(instances)
                 return instance
         return None
-    
-    def update_by_api_key(self, api_key: str, user_id: str, project_id: str, context_id: str, json_pointer: str, status: int, port: int, docker_info: Dict[Any, Any], tools_definition: Optional[Dict[str, McpToolsDefinition]] = None, register_tools: Optional[List[ToolTypeKey]] = None) -> Optional[McpInstance]:
+
+    def update_by_api_key(
+        self,
+        api_key: str,
+        user_id: str,
+        project_id: str,
+        context_id: str,
+        json_pointer: str,
+        status: int,
+        port: int,
+        docker_info: Dict[Any, Any],
+        tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
+        register_tools: Optional[List[ToolTypeKey]] = None,
+    ) -> Optional[McpInstance]:
         instances = self._read_data()
         for instance in instances:
             if instance.api_key == api_key:
@@ -144,7 +225,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 self._write_data(instances)
                 return instance
         return None
-    
+
     def delete_by_id(self, mcp_instance_id: str) -> bool:
         instances = self._read_data()
         new_instances = [i for i in instances if i.mcp_instance_id != mcp_instance_id]
@@ -152,7 +233,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
             return False
         self._write_data(new_instances)
         return True
-    
+
     def delete_by_api_key(self, api_key: str) -> bool:
         instances = self._read_data()
         new_instances = [i for i in instances if i.api_key != api_key]

@@ -1,2 +1,1 @@
 """User context management module."""
-

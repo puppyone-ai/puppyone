@@ -11,4 +11,3 @@ def get_user_context_service() -> UserContextService:
         return UserContextService(UserContextRepositoryJSON())
     else:
         raise ValueError(f"Unsupported storage type: {settings.STORAGE_TYPE}")
-

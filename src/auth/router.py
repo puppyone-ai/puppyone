@@ -21,13 +21,19 @@ def get_user(user_id: str, user_service: UserService = Depends(get_user_service)
 
 
 @router.post("/", response_model=ApiResponse[UserOut])
-def create_user(payload: UserCreate, user_service: UserService = Depends(get_user_service)):
+def create_user(
+    payload: UserCreate, user_service: UserService = Depends(get_user_service)
+):
     user = user_service.create_user(payload.username)
     return ApiResponse.success(data=user, message="用户创建成功")
 
 
 @router.put("/{user_id}", response_model=ApiResponse[UserOut])
-def update_user(user_id: str, payload: UserUpdate, user_service: UserService = Depends(get_user_service)):
+def update_user(
+    user_id: str,
+    payload: UserUpdate,
+    user_service: UserService = Depends(get_user_service),
+):
     user = user_service.update_user(user_id, payload.username)
     return ApiResponse.success(data=user, message="用户更新成功")
 
@@ -36,4 +42,3 @@ def update_user(user_id: str, payload: UserUpdate, user_service: UserService = D
 def delete_user(user_id: str, user_service: UserService = Depends(get_user_service)):
     user_service.delete_user(user_id)
     return ApiResponse.success(message="用户删除成功")
-
