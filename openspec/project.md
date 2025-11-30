@@ -20,6 +20,8 @@ Goals: Cleanse and structure complex multimodal enterprise data, and offer data 
 
 ### Code Style
 
+#### Linting Tool
+
 We use `ruff` as our code linting tool. When you need to perform code linting, use the script below:
 
 ```bash
@@ -31,16 +33,53 @@ ruff format src
 ```
 
 ### Architecture Patterns
-[Document your architectural decisions and patterns]
 
-单体应用架构，项目目录如下:
+Monolithic application architecture, organized into service-based layers:
+1. All domain-specific directories are stored in the `src` folder:
+   1. `src/` – The top-level of the application, containing common models, configuration, and constants.
+   2. `src/main.py` – The root file of the project, used to initialize the FastAPI application.
+2. Each package includes its own routes, schemas, models, etc.:
+   1. `router.py` – The core of each module, containing all endpoints.
+   2. `schemas.py` – For Pydantic models.
+   3. `models.py` – For database models.
+   4. `service.py` – Module-specific business logic.
+   5. `dependencies.py` – Route dependencies.
+   6. `constants.py` – Module-specific constants and error codes.
+   7. `config.py` – For example, environment variables.
+   8. `utils.py` – Non-business logic functions, such as response normalization, data enrichment, etc.
+   9. `exceptions.py` – Module-specific exceptions, e.g., `PostNotFound`, `InvalidUserData`.
+3. When a package needs services, dependencies, or constants from another package, use explicit module imports.
 
-数据流组织: router -> service -> repository
-
-尽量使用依赖注入的方式来
+```python
+from src.auth import constants as auth_constants
+from src.notifications import service as notification_service
+from src.posts.constants import ErrorCode as PostsErrorCode  # In case each package's constants module defines its own standard ErrorCode
+```
 
 ### Testing Strategy
-[Explain your testing approach and requirements]
+
+#### Set Up Asynchronous Test Clients from the Start
+Writing integration tests involving the database can easily lead to confusing event loop errors in the future. Avoid this by setting up an asynchronous test client early on, such as httpx.
+
+```python
+import pytest
+from async_asgi_testclient import TestClient
+
+from src.main import app  # inited FastAPI app
+
+@pytest.fixture
+async def client() -> AsyncGenerator[TestClient, None]:
+    host, port = "127.0.0.1", "9000"
+
+    async with AsyncClient(transport=ASGITransport(app=app, client=(host, port)), base_url="http://test") as client:
+        yield client
+
+@pytest.mark.asyncio
+async def test_create_post(client: TestClient):
+    resp = await client.post("/posts")
+
+    assert resp.status_code == 201
+```
 
 ### Git Workflow
 [Describe your branching strategy and commit conventions]
@@ -50,6 +89,9 @@ ruff format src
 
 ## Important Constraints
 [List any technical, business, or regulatory constraints]
+
+- When defining routes, follow RESTful API conventions.
+- Extensively use Pydantic and its built-in comprehensive data processing tools, such as regular expressions, enums, string manipulation, email validation, etc.
 
 ## External Dependencies
 - MCP server: FastMCP
