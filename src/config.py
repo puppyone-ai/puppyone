@@ -5,16 +5,16 @@ from typing import Literal
 
 class Settings(BaseSettings):
     """应用配置"""
-    
+
     # 服务配置
     APP_NAME: str = "ContextBase"
     DEBUG: bool = True
     VERSION: str = "1.0.0"
-    
+
     # 存储配置
     DATA_PATH: Path = Path("./data")
     STORAGE_TYPE: Literal["json", "db"] = "json"
-    
+
     # CORS配置
     ALLOWED_HOSTS: list[str] = ["*"]
 
@@ -34,5 +34,5 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = True
 
-settings = Settings()
 
+settings = Settings()

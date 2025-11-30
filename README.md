@@ -18,6 +18,138 @@ Run the following command in the backend directory to install all dependencies:
 uv sync
 ```
 
+### Config S3 in local
+
+Install localstack in [localstack](https://docs.localstack.cloud/aws/tutorials/)
+
+Start localstack:
+```bash
+localstack start
+```
+
+Install aws-cli:
+```bash
+pip install awscli-local[ver1]
+```
+
+Create S3 bucket:
+```bash
+awslocal s3api create-bucket --bucket contextbase
+```
+
+List S3 bucket:
+```bash
+awslocal s3api list-buckets
+```
+
+### S3 Storage Module
+
+ContextBase 提供了完整的 S3 存储管理模块,支持本地开发(LocalStack)和生产环境(AWS S3)无缝切换。
+
+#### 存储路径结构
+
+所有文件遵循标准化路径结构:
+
+```
+/{raw/processed}/{project_id}/{filename}
+```
+
+- `raw/`: 存储原始多模态数据(音频、视频、图片、文档等)
+- `processed/`: 存储 ETL 转换后的 JSON 数据
+- `project_id`: 项目 ID,提供项目级隔离
+- `filename`: 原始文件名或 `table_id.json`
+
+**示例:**
+- `raw/proj123/document.pdf` - 原始文档
+- `processed/proj123/table_users.json` - 处理后的 JSON 数据
+
+#### 配置说明
+
+**本地开发环境 (LocalStack):**
+
+```bash
+# .env 配置
+S3_ENDPOINT_URL=http://localhost:4566
+S3_BUCKET_NAME=contextbase
+S3_REGION=us-east-1
+S3_ACCESS_KEY_ID=test
+S3_SECRET_ACCESS_KEY=test
+
+# 文件大小限制 (字节)
+S3_MAX_FILE_SIZE=104857600  # 100MB
+S3_MULTIPART_THRESHOLD=104857600  # 100MB
+S3_MULTIPART_CHUNKSIZE=5242880  # 5MB
+```
+
+**生产环境 (AWS S3):**
+
+```bash
+# .env 配置
+S3_ENDPOINT_URL=  # 留空使用 AWS 默认
+S3_BUCKET_NAME=your-production-bucket
+S3_REGION=us-east-1
+S3_ACCESS_KEY_ID=your-aws-access-key-id
+S3_SECRET_ACCESS_KEY=your-aws-secret-access-key
+```
+
+#### API 端点
+
+所有 S3 API 端点都在 `/api/v1/s3` 路径下:
+
+**基础操作:**
+- `POST /api/v1/s3/upload` - 单文件上传
+- `POST /api/v1/s3/upload/batch` - 批量上传
+- `GET /api/v1/s3/download/{key}` - 文件下载
+- `HEAD /api/v1/s3/exists/{key}` - 检查文件存在
+- `DELETE /api/v1/s3/{key}` - 删除文件
+- `POST /api/v1/s3/delete/batch` - 批量删除
+- `GET /api/v1/s3/list` - 列出文件
+- `GET /api/v1/s3/metadata/{key}` - 获取文件元信息
+
+**预签名 URL:**
+- `POST /api/v1/s3/presigned-url/upload` - 生成上传预签名 URL
+- `POST /api/v1/s3/presigned-url/download` - 生成下载预签名 URL
+
+**分片上传 (大文件):**
+- `POST /api/v1/s3/multipart/create` - 创建分片上传
+- `PUT /api/v1/s3/multipart/upload-part` - 上传单个分片
+- `POST /api/v1/s3/multipart/complete` - 完成分片上传
+- `DELETE /api/v1/s3/multipart/abort` - 取消分片上传
+- `GET /api/v1/s3/multipart/list` - 列出进行中的分片上传
+- `GET /api/v1/s3/multipart/list-parts` - 列出已上传的分片
+
+#### 分片上传使用方式
+
+对于大文件(>100MB),系统支持分片上传以提高可靠性:
+
+1. **创建分片上传会话:**
+```bash
+curl -X POST http://localhost:9090/api/v1/s3/multipart/create \
+  -H "Content-Type: application/json" \
+  -d '{"key": "raw/proj123/large-file.mp4", "content_type": "video/mp4"}'
+```
+
+2. **上传分片:**
+```bash
+curl -X PUT http://localhost:9090/api/v1/s3/multipart/upload-part \
+  -F "key=raw/proj123/large-file.mp4" \
+  -F "upload_id=<upload_id>" \
+  -F "part_number=1" \
+  -F "file=@part1.bin"
+```
+
+3. **完成上传:**
+```bash
+curl -X POST http://localhost:9090/api/v1/s3/multipart/complete \
+  -F "key=raw/proj123/large-file.mp4" \
+  -F "upload_id=<upload_id>" \
+  -F 'parts_json=[{"part_number":1,"etag":"..."}]'
+```
+
+查看 `/docs` 获取完整的 API 文档和交互式测试界面。
+
+
+
 ### Usage
 
 Run the following command in the backend directory to start the server:
@@ -43,91 +175,3 @@ Notice: You should first create a mcp server instance through `/api/v1/mcp/` ent
   }
 }
 ```
-
-## Project structure
-
-```
-backend/
-├── src/                      # 源代码目录（重构后采用模块化服务架构）
-│   ├── __init__.py
-│   ├── main.py               # FastAPI应用入口
-│   │
-│   ├── auth/                 # 认证服务模块
-│   │   ├── __init__.py
-│   │   ├── router.py         # 路由定义
-│   │   ├── schemas.py        # Pydantic模型
-│   │   ├── models.py         # 数据模型
-│   │   ├── service.py        # 业务逻辑
-│   │   ├── repository.py     # 仓储接口
-│   │   ├── repository_impl.py # 仓储实现
-│   │   └── dependencies.py   # 依赖注入
-│   │
-│   ├── user_context/         # 用户上下文服务模块
-│   │   ├── __init__.py
-│   │   ├── router.py
-│   │   ├── schemas.py
-│   │   ├── models.py
-│   │   ├── service.py
-│   │   ├── repository.py
-│   │   ├── repository_impl.py
-│   │   └── dependencies.py
-│   │
-│   ├── mcp/                  # MCP服务器管理模块
-│   │   ├── __init__.py
-│   │   ├── router.py
-│   │   ├── schemas.py
-│   │   ├── models.py
-│   │   ├── service.py
-│   │   ├── repository.py
-│   │   ├── repository_impl.py
-│   │   ├── dependencies.py
-│   │   └── server/           # MCP服务器实现
-│   │       ├── server.py
-│   │       ├── manager/
-│   │       ├── middleware/
-│   │       └── tools/
-│   │
-│   ├── config.py             # 全局配置
-│   ├── exceptions.py         # 全局异常
-│   ├── exception_handler.py  # 异常处理器
-│   ├── common_schemas.py     # 通用Schemas
-│   └── utils/                # 工具函数
-│       ├── exception.py
-│       └── logger.py
-│
-├── client/                   # MCP客户端
-│   ├── my_client.py         # 客户端实现
-│   └── README.md            # 客户端说明
-│
-├── data/                     # 数据存储目录
-│   ├── chroma_db/           # ChromaDB数据
-│   ├── mcp_instances.json   # MCP实例配置
-│   ├── mockdata.json        # 模拟数据
-│   ├── user_contexts.json   # 用户上下文数据
-│   └── userdata.json        # 用户数据
-│
-├── docs/                     # 文档目录
-│   ├── 开发文档.md
-│   ├── 开发架构.md
-│   └── ...
-│
-├── fastmcp_doc/             # FastMCP文档
-│   ├── docs/                # 文档内容
-│   └── examples/            # 示例代码
-│
-├── logs/                    # 日志目录
-│   └── mcp_instances/       # MCP实例日志
-│
-├── tests/                   # 测试目录
-│   ├── __init__.py
-│   ├── api/                 # API测试
-│   └── core/                # 核心功能测试
-│
-├── pyproject.toml           # 项目配置
-├── uv.lock                  # 依赖锁定文件
-└── README.md                # 项目说明
-```
-
-## 开发规范
-
-1. All exceptions should be raised only in the `service` layer. Lower layers such as the `repository` layer should not raise exceptions, except for cases like database connection failures.
