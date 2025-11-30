@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import JSONEditor, { JSONEditorOptions } from 'jsoneditor';
 import 'jsoneditor/dist/jsoneditor.css';
-import '../styles/jsoneditor-custom.css';
+import '../../../styles/jsoneditor-custom.css';
 
 interface JsonEditorComponentProps {
   json: object;

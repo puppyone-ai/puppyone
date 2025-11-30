@@ -8,15 +8,26 @@ import { McpBar } from './McpBar'
 import { ErrorConsole, type ErrorLog } from './ErrorConsole'
 import type { ProjectTableJSON } from '../lib/projectData'
 import { getProjects, getTable, updateTableData, type TableInfo } from '../lib/projectsApi'
+import type { EditorType } from './ProjectsHeader'
 
-const JsonEditorWithNoSSR = dynamic(() => import('./JsonEditorComponent'), {
-  ssr: false,
-  loading: () => (
+// Dynamic imports for editors (from editors/ folder)
+const EditorLoading = () => (
     <div style={{ padding: '20px', color: '#94a3b8', fontFamily: 'Inter, system-ui, sans-serif' }}>
       Loading Editor...
     </div>
-  ),
-})
+)
+
+// Tree editor with virtual scrolling
+const TreeLineVirtualEditor = dynamic(
+  () => import('./editors/tree/TreeLineVirtualEditor'),
+  { ssr: false, loading: EditorLoading }
+)
+
+// Monaco (raw JSON text editor)
+const MonacoJsonEditor = dynamic(
+  () => import('./editors/code/MonacoJsonEditor'),
+  { ssr: false, loading: EditorLoading }
+)
 
 type ProjectWorkspaceViewProps = {
   projectId: string
@@ -27,6 +38,7 @@ type ProjectWorkspaceViewProps = {
   showBackButton?: boolean
   onNavigateBack?: () => void
   onProjectMissing?: () => void
+  editorType?: EditorType
 }
 
 export function ProjectWorkspaceView({
@@ -38,6 +50,7 @@ export function ProjectWorkspaceView({
   showBackButton = true,
   onNavigateBack,
   onProjectMissing,
+  editorType = 'treeline-virtual',
 }: ProjectWorkspaceViewProps) {
   const { session, isAuthReady } = useAuth()
   const router = useRouter()
@@ -451,11 +464,20 @@ export function ProjectWorkspaceView({
                   >
                     {tableData ? (
                       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <JsonEditorWithNoSSR 
+                        {editorType === 'treeline-virtual' && (
+                          <TreeLineVirtualEditor 
+                            json={tableData} 
+                            onPathChange={setCurrentTreePath}
+                            onChange={handleTableDataChange}
+                          />
+                        )}
+                        {editorType === 'monaco' && (
+                          <MonacoJsonEditor 
                           json={tableData} 
                           onPathChange={setCurrentTreePath}
                           onChange={handleTableDataChange}
                         />
+                        )}
                       </div>
                     ) : (
                       <div
@@ -473,35 +495,6 @@ export function ProjectWorkspaceView({
                   </div>
                   <ErrorConsole errors={errorLogs} onClear={clearErrorLogs} maxHeight={200} />
                 </div>
-
-                <aside
-                  style={{
-                    width: 220,
-                    minWidth: 200,
-                    borderRadius: 10,
-                    border: '1px solid rgba(48,52,60,0.45)',
-                    background: 'rgba(10,14,18,0.85)',
-                    padding: '16px 18px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                    fontSize: 11,
-                    color: '#8A8F98',
-                  }}
-                >
-                  <InfoRow label="Table" value={activeTable?.name ?? '—'} />
-                  <InfoRow label="Rows" value={String(activeTable?.rows ?? '—')} />
-                  <InfoRow 
-                    label="Last Sync" 
-                    value={
-                      saving 
-                        ? 'Saving...' 
-                        : lastSaved 
-                        ? `${Math.floor((Date.now() - lastSaved.getTime()) / 1000)}s ago` 
-                        : 'Never'
-                    } 
-                  />
-                </aside>
               </div>
             </section>
           </>
@@ -540,12 +533,4 @@ export function ProjectWorkspaceView({
   )
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ color: '#6F7580', textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</span>
-      <span style={{ fontSize: 13, color: '#C8CBD3' }}>{value}</span>
-    </div>
-  )
-}
 

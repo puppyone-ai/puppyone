@@ -1,7 +1,10 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import { useState } from 'react'
 import { McpBar } from './McpBar'
+
+export type EditorType = 'treeline-virtual' | 'monaco'
 
 type ProjectsHeaderProps = {
   pathSegments: string[]
@@ -10,25 +13,111 @@ type ProjectsHeaderProps = {
   currentTreePath: string | null
   onProjectsRefresh?: () => void
   onLog?: (type: 'error' | 'warning' | 'info' | 'success', message: string) => void
+  detailPanelOpen?: boolean
+  onToggleDetailPanel?: () => void
+  editorType?: EditorType
+  onEditorTypeChange?: (type: EditorType) => void
+  tableInfo?: {
+    rows?: number
+    fields?: number
+    lastSync?: string
+  }
 }
 
-export function ProjectsHeader({ pathSegments, projectId, tableId, currentTreePath, onProjectsRefresh, onLog }: ProjectsHeaderProps) {
+const editorOptions: { id: EditorType; label: string; icon: string }[] = [
+  { id: 'treeline-virtual', label: 'Tree', icon: '├─' },
+  { id: 'monaco', label: 'Raw', icon: '{ }' },
+]
+
+export function ProjectsHeader({ 
+  pathSegments, 
+  projectId, 
+  tableId, 
+  currentTreePath, 
+  onProjectsRefresh, 
+  onLog,
+  detailPanelOpen = false,
+  onToggleDetailPanel,
+  editorType = 'treeline-virtual',
+  onEditorTypeChange,
+  tableInfo,
+}: ProjectsHeaderProps) {
+  const [showEditorMenu, setShowEditorMenu] = useState(false)
+
+  const currentEditor = editorOptions.find(e => e.id === editorType) || editorOptions[0]
+
   return (
     <header style={headerStyle}>
-      <div style={pathWrapperStyle}>
-        <span style={pathLabelStyle}>Path</span>
-        <span style={pathValueStyle}>{pathSegments.join(' / ')}</span>
-      </div>
+      <span style={pathStyle}>{pathSegments.join(' / ')}</span>
       <div style={headerRightStyle}>
         {projectId && <McpBar projectId={projectId} tableId={tableId || undefined} currentTreePath={currentTreePath} onProjectsRefresh={onProjectsRefresh} onLog={onLog} />}
+        
+        {/* Editor Type Switcher */}
+        <div style={{ position: 'relative' }}>
+          <button 
+            onClick={() => setShowEditorMenu(!showEditorMenu)}
+            style={editorSwitchBtnStyle}
+            title="Switch editor"
+          >
+            <span style={{ fontSize: 12 }}>{currentEditor.icon}</span>
+            <span style={{ fontSize: 11, color: '#9B9B9B' }}>{currentEditor.label}</span>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ color: '#6D7177' }}>
+              <path d="M2.5 4L5 6.5L7.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          
+          {showEditorMenu && (
+            <div style={editorMenuStyle}>
+              {editorOptions.map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => {
+                    onEditorTypeChange?.(option.id)
+                    setShowEditorMenu(false)
+                  }}
+                  style={{
+                    ...editorMenuItemStyle,
+                    background: option.id === editorType ? '#2C2C2C' : 'transparent',
+                  }}
+                >
+                  <span>{option.icon}</span>
+                  <span>{option.label}</span>
+                  {option.id === editorType && (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: 'auto', color: '#22c55e' }}>
+                      <path d="M2.5 6L5 8.5L9.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* Toggle Detail Panel Button */}
+        <button 
+          onClick={onToggleDetailPanel}
+          style={toggleBtnStyle}
+          title={detailPanelOpen ? 'Hide details' : 'Show details'}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.2"/>
+            <path d="M10 2v12" stroke="currentColor" strokeWidth="1.2"/>
+            {detailPanelOpen && (
+              <>
+                <path d="M12 5h1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <path d="M12 8h1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              </>
+            )}
+          </svg>
+        </button>
       </div>
     </header>
   )
 }
 
 const headerStyle: CSSProperties = {
-  height: 56,
-  padding: '0 28px',
+  height: 44,
+  padding: '0 20px',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -39,30 +128,76 @@ const headerStyle: CSSProperties = {
   zIndex: 10,
 }
 
-const pathWrapperStyle: CSSProperties = {
+const toggleBtnStyle: CSSProperties = {
   display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 28,
+  height: 28,
+  background: 'transparent',
+  border: 'none',
+  borderRadius: 6,
+  cursor: 'pointer',
+  color: '#6D7177',
+  transition: 'background 0.15s, color 0.15s',
 }
 
-const pathLabelStyle: CSSProperties = {
-  fontSize: 11,
-  color: '#6F7580',
-  textTransform: 'uppercase',
-  letterSpacing: 0.6,
-}
-
-const pathValueStyle: CSSProperties = {
-  fontFamily: "'JetBrains Mono', SFMono-Regular, Menlo, monospace",
-  fontSize: 12,
-  color: '#EDEDED',
-  letterSpacing: 0.4,
+const pathStyle: CSSProperties = {
+  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontSize: 13,
+  fontWeight: 500,
+  color: '#CDCDCD',
 }
 
 const headerRightStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
+}
+
+const editorSwitchBtnStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '4px 10px',
+  background: '#1a1a1a',
+  border: '1px solid #333',
+  borderRadius: 6,
+  cursor: 'pointer',
+  color: '#CDCDCD',
+  fontSize: 12,
+  transition: 'background 0.15s, border-color 0.15s',
+}
+
+const editorMenuStyle: CSSProperties = {
+  position: 'absolute',
+  top: '100%',
+  right: 0,
+  marginTop: 4,
+  minWidth: 140,
+  background: '#1a1a1a',
+  border: '1px solid #333',
+  borderRadius: 8,
+  padding: 4,
+  zIndex: 100,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+}
+
+const editorMenuItemStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '8px 10px',
+  background: 'transparent',
+  border: 'none',
+  borderRadius: 6,
+  cursor: 'pointer',
+  color: '#CDCDCD',
+  fontSize: 12,
+  textAlign: 'left',
+  transition: 'background 0.15s',
 }
 
 

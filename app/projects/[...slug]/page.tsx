@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '../supabase/SupabaseAuthProvider'
-import { getProjects, type ProjectInfo } from '../../lib/projectsApi'
-import { ProjectWorkspaceView } from '../../components/ProjectWorkspaceView'
-import { ProjectsSidebar } from '../../components/ProjectsSidebar'
-import { ProjectsHeader, type EditorType } from '../../components/ProjectsHeader'
-import { McpContentView } from '../../components/McpContentView'
-import { EtlContentView } from '../../components/EtlContentView'
+import { useAuth } from '../../supabase/SupabaseAuthProvider'
+import { getProjects, type ProjectInfo } from '../../../lib/projectsApi'
+import { ProjectWorkspaceView } from '../../../components/ProjectWorkspaceView'
+import { ProjectsSidebar } from '../../../components/ProjectsSidebar'
+import { ProjectsHeader, type EditorType } from '../../../components/ProjectsHeader'
+import { McpContentView } from '../../../components/McpContentView'
+import { EtlContentView } from '../../../components/EtlContentView'
 
 type ActiveView = 'projects' | 'mcp' | 'etl' | 'test' | 'logs' | 'settings'
 
@@ -20,18 +20,35 @@ const utilityNav = [
   { id: 'settings', label: 'Settings', path: 'settings', isAvailable: false },
 ]
 
-export default function ProjectsPage() {
+export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: string[] }> }) {
+  // Unwrap params Promise with React.use()
+  const { slug } = use(params)
+  
   const router = useRouter()
   const { session } = useAuth()
   const [projects, setProjects] = useState<ProjectInfo[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeBaseId, setActiveBaseId] = useState<string>('')
-  const [activeTableId, setActiveTableId] = useState<string>('')
   const [expandedBaseIds, setExpandedBaseIds] = useState<Set<string>>(new Set())
   const [currentTreePath, setCurrentTreePath] = useState<string | null>(null)
   const [activeView, setActiveView] = useState<ActiveView>('projects')
   const [detailPanelOpen, setDetailPanelOpen] = useState(false)
   const [editorType, setEditorType] = useState<EditorType>('treeline-virtual')
+
+  // Extract projectId and tableId from slug
+  const [projectId, tableId] = slug || []
+  const [activeBaseId, setActiveBaseId] = useState<string>(projectId || '')
+  const [activeTableId, setActiveTableId] = useState<string>(tableId || '')
+
+  // Update state when slug changes
+  useEffect(() => {
+    if (projectId) {
+      setActiveBaseId(projectId)
+      setExpandedBaseIds(prev => new Set([...prev, projectId]))
+    }
+    if (tableId) {
+      setActiveTableId(tableId)
+    }
+  }, [projectId, tableId])
 
   // Load project list from API
   const loadProjects = async () => {
@@ -39,14 +56,6 @@ export default function ProjectsPage() {
       setLoading(true)
       const data = await getProjects()
       setProjects(data)
-      // Set default selected project
-      if (data.length > 0 && !activeBaseId) {
-        setActiveBaseId(data[0].id)
-        setExpandedBaseIds(new Set([data[0].id]))
-        if (data[0].tables.length > 0) {
-          setActiveTableId(data[0].tables[0].id)
-        }
-      }
     } catch (error) {
       console.error('Failed to load projects:', error)
     } finally {
@@ -80,20 +89,15 @@ export default function ProjectsPage() {
   )
 
   useEffect(() => {
-    if (activeBase?.tables?.length) {
+    if (activeBase?.tables?.length && !activeTableId) {
       setActiveTableId(activeBase.tables[0].id)
-    } else {
-      setActiveTableId('')
     }
-    // Auto-expand active project
     if (activeBaseId) {
       setExpandedBaseIds(prev => new Set([...prev, activeBaseId]))
     }
-    // Reset tree path when switching projects
     setCurrentTreePath(null)
   }, [activeBaseId, activeBase?.tables])
 
-  // Reset tree path when switching tables
   useEffect(() => {
     setCurrentTreePath(null)
   }, [activeTableId])
@@ -101,33 +105,31 @@ export default function ProjectsPage() {
   const userInitial =
     (session?.user?.email?.[0] || session?.user?.user_metadata?.name?.[0] || 'U').toUpperCase()
 
-  const handleProjectSelect = (projectId: string) => {
-    setActiveBaseId(projectId)
+  const handleProjectSelect = (newProjectId: string) => {
+    setActiveBaseId(newProjectId)
     setExpandedBaseIds(prev => {
       const newSet = new Set(prev)
-      if (newSet.has(projectId)) {
-        newSet.delete(projectId)
+      if (newSet.has(newProjectId)) {
+        newSet.delete(newProjectId)
       } else {
-        newSet.add(projectId)
+        newSet.add(newProjectId)
       }
       return newSet
     })
-    // Update URL
-    const project = projects.find(p => p.id === projectId)
+    const project = projects.find(p => p.id === newProjectId)
     if (project) {
-      const url = `/projects/${encodeURIComponent(projectId)}`
+      const url = `/projects/${encodeURIComponent(newProjectId)}`
       window.history.pushState({}, '', url)
     }
   }
 
-  const handleTableSelect = (projectId: string, tableId: string) => {
-    setActiveBaseId(projectId)
-    setActiveTableId(tableId)
-    // Update URL
-    const project = projects.find(p => p.id === projectId)
-    const table = project?.tables.find(t => t.id === tableId)
+  const handleTableSelect = (newProjectId: string, newTableId: string) => {
+    setActiveBaseId(newProjectId)
+    setActiveTableId(newTableId)
+    const project = projects.find(p => p.id === newProjectId)
+    const table = project?.tables.find(t => t.id === newTableId)
     if (project && table) {
-      const url = `/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(tableId)}`
+      const url = `/projects/${encodeURIComponent(newProjectId)}/${encodeURIComponent(newTableId)}`
       window.history.pushState({}, '', url)
     }
   }
@@ -178,12 +180,12 @@ export default function ProjectsPage() {
         expandedBaseIds={expandedBaseIds}
         activeTableId={activeTableId}
         activeView={activeView}
-        onBaseClick={(projectId) => {
-          handleProjectSelect(projectId)
+        onBaseClick={(id) => {
+          handleProjectSelect(id)
           setActiveView('projects')
         }}
-        onTableClick={(projectId, tableId) => {
-          handleTableSelect(projectId, tableId)
+        onTableClick={(pId, tId) => {
+          handleTableSelect(pId, tId)
           setActiveView('projects')
         }}
         utilityNav={utilityNav}
@@ -196,47 +198,46 @@ export default function ProjectsPage() {
       <section style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#040404' }}>
         {activeView === 'projects' ? (
           <>
-        <ProjectsHeader
-          pathSegments={pathSegments}
-          projectId={activeBase?.id ?? null}
-          tableId={activeTableId || null}
-          currentTreePath={currentTreePath}
-          onProjectsRefresh={loadProjects}
+            <ProjectsHeader
+              pathSegments={pathSegments}
+              projectId={activeBase?.id ?? null}
+              tableId={activeTableId || null}
+              currentTreePath={currentTreePath}
+              onProjectsRefresh={loadProjects}
               detailPanelOpen={detailPanelOpen}
               onToggleDetailPanel={() => setDetailPanelOpen(!detailPanelOpen)}
               editorType={editorType}
               onEditorTypeChange={setEditorType}
-        />
-            <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          {activeBase ? (
-            <ProjectWorkspaceView
-              key={activeBase.id}
-              projectId={activeBase.id}
-              activeTableId={activeTableId}
-              onActiveTableChange={setActiveTableId}
-              onTreePathChange={setCurrentTreePath}
-              showHeaderBar={false}
-              showBackButton={false}
-                  editorType={editorType}
             />
-          ) : (
-            <div
-              style={{
-                flex: 1,
-                display: 'grid',
-                placeItems: 'center',
-                color: '#6F7580',
-                fontSize: 13,
-                letterSpacing: 0.4,
-              }}
-            >
-              Select a base to inspect its tables.
-            </div>
-          )}
-        </div>
+            <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                {activeBase ? (
+                  <ProjectWorkspaceView
+                    key={activeBase.id}
+                    projectId={activeBase.id}
+                    activeTableId={activeTableId}
+                    onActiveTableChange={setActiveTableId}
+                    onTreePathChange={setCurrentTreePath}
+                    showHeaderBar={false}
+                    showBackButton={false}
+                    editorType={editorType}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      flex: 1,
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: '#6F7580',
+                      fontSize: 13,
+                      letterSpacing: 0.4,
+                    }}
+                  >
+                    Select a base to inspect its tables.
+                  </div>
+                )}
+              </div>
               
-              {/* Detail Panel */}
               {detailPanelOpen && (
                 <aside style={{
                   width: 240,
@@ -297,5 +298,4 @@ export default function ProjectsPage() {
     </main>
   )
 }
-
 

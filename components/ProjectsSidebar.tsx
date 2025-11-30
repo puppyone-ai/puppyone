@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { CSSProperties } from 'react'
 import type { ProjectInfo } from '../lib/projectsApi'
 import { ProjectManageDialog } from './ProjectManageDialog'
 import { TableManageDialog } from './TableManageDialog'
@@ -16,8 +15,9 @@ type UtilityNavItem = {
 type ProjectsSidebarProps = {
   projects: ProjectInfo[]
   activeBaseId: string
-  expandedBaseId: string
+  expandedBaseIds: Set<string>
   activeTableId: string
+  activeView?: string
   onBaseClick: (projectId: string) => void
   onTableClick: (projectId: string, tableId: string) => void
   utilityNav: UtilityNavItem[]
@@ -28,11 +28,14 @@ type ProjectsSidebarProps = {
   loading?: boolean
 }
 
+type SectionId = 'contexts' | 'mcp' | 'try'
+
 export function ProjectsSidebar({
   projects,
   activeBaseId,
-  expandedBaseId,
+  expandedBaseIds,
   activeTableId,
+  activeView = 'projects',
   onBaseClick,
   onTableClick,
   utilityNav,
@@ -48,17 +51,30 @@ export function ProjectsSidebar({
   const [editingTableId, setEditingTableId] = useState<string | null>(null)
   const [deleteMode, setDeleteMode] = useState<'project' | 'table' | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'project' | 'table'; id: string; projectId?: string } | null>(null)
+  const [showAddMenu, setShowAddMenu] = useState(false)
+  const [expandedSections, setExpandedSections] = useState<Set<SectionId>>(new Set(['contexts', 'mcp', 'try']))
 
-  // 点击外部关闭上下文菜单
+  const toggleSection = (sectionId: SectionId) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev)
+      if (next.has(sectionId)) {
+        next.delete(sectionId)
+      } else {
+        next.add(sectionId)
+      }
+      return next
+    })
+  }
+
   useEffect(() => {
-    if (!contextMenu) return
-    const handleClick = () => setContextMenu(null)
+    if (!contextMenu && !showAddMenu) return
+    const handleClick = () => {
+      setContextMenu(null)
+      setShowAddMenu(false)
+    }
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
-  }, [contextMenu])
-
-  const activeProject = projects.find((project) => project.id === activeBaseId) ?? null
-  const activeTable = activeProject?.tables.find((table) => table.id === activeTableId) ?? null
+  }, [contextMenu, showAddMenu])
 
   const handleProjectContextMenu = (e: React.MouseEvent, projectId: string) => {
     e.preventDefault()
@@ -99,156 +115,813 @@ export function ProjectsSidebar({
   }
 
   return (
-    <aside style={sidebarStyle}>
-      <div style={sidebarHeaderStyle}>
-        <div style={sidebarHeaderBrandStyle}>
+    <aside className="sidebar">
+      <style jsx>{`
+        .sidebar {
+          width: 240px;
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+          background: #202020;
+          font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+          border-right: 1px solid #404040;
+        }
+
+        .header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 16px;
+          height: 44px;
+          border-bottom: 1px solid #404040;
+        }
+
+        .header-brand {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .header-title {
+          font-size: 14px;
+          font-weight: 600;
+          color: #EDEDED;
+          letter-spacing: 0.3px;
+        }
+
+        .content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding: 8px 0;
+        }
+
+        .section {
+          margin-bottom: 4px;
+        }
+
+        .section-header {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 0 12px;
+          height: 28px;
+          cursor: pointer;
+          user-select: none;
+        }
+
+        .section-header:hover {
+          background: rgba(255,255,255,0.03);
+        }
+
+        .section-title {
+          font-size: 12px;
+          font-weight: 600;
+          color: #6D7177;
+        }
+
+        .section-chevron {
+          width: 10px;
+          height: 10px;
+          color: #5D6065;
+          transition: transform 0.15s;
+          flex-shrink: 0;
+        }
+
+        .section-chevron.expanded {
+          transform: rotate(90deg);
+        }
+
+        .section-add-btn {
+          margin-left: auto;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          background: transparent;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          color: #5D6065;
+          opacity: 0;
+          transition: opacity 0.15s, background 0.15s, color 0.15s;
+        }
+
+        .section-header:hover .section-add-btn {
+          opacity: 1;
+        }
+
+        .section-add-btn:hover {
+          background: #3E3E41;
+          color: #FFFFFF;
+        }
+
+        .section-content {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          padding: 2px 8px 4px 12px;
+        }
+
+        .projects-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+        }
+
+        .project-item {
+          display: flex;
+          flex-direction: column;
+          border-radius: 8px;
+          transition: background 0.2s;
+        }
+
+        .project-row {
+          display: flex;
+          align-items: center;
+          height: 28px;
+          padding: 0 4px 0 0;
+          border-radius: 6px;
+          transition: background 0.2s;
+        }
+
+        .project-row:hover {
+          background: #2C2C2C;
+        }
+
+        .project-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex: 1;
+          min-width: 0;
+          height: 100%;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+        }
+
+        .folder-icon {
+          width: 14px;
+          height: 14px;
+          flex-shrink: 0;
+          color: #6D7177;
+          transition: color 0.2s;
+        }
+
+        .project-row:hover .folder-icon {
+          color: #CDCDCD;
+        }
+
+        .project-name {
+          font-size: 13px;
+          font-weight: 500;
+          color: #9B9B9B;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          transition: color 0.2s;
+        }
+
+        .project-row:hover .project-name {
+          color: #F0EFED;
+        }
+
+        .project-chevron {
+          width: 10px;
+          height: 10px;
+          color: #5D6065;
+          transition: transform 0.15s, color 0.15s;
+          flex-shrink: 0;
+        }
+
+        .project-chevron.expanded {
+          transform: rotate(90deg);
+        }
+
+        .project-row:hover .project-chevron {
+          color: #9B9B9B;
+        }
+
+        .project-add-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 20px;
+          height: 20px;
+          background: transparent;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          color: #5D6065;
+          opacity: 0;
+          transition: opacity 0.15s, background 0.15s, color 0.15s;
+        }
+
+        .project-row:hover .project-add-btn {
+          opacity: 1;
+        }
+
+        .project-add-btn:hover {
+          background: #3E3E41;
+          color: #FFFFFF;
+        }
+
+        .tables-wrapper {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          padding: 4px 0 8px 24px;
+        }
+
+        .table-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 0 4px 0 0;
+          height: 28px;
+          width: 100%;
+          background: transparent;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .table-btn:hover {
+          background: #2C2C2C;
+        }
+
+        .table-btn.active {
+          background: #2C2C2C;
+        }
+
+        .table-icon-svg {
+          width: 14px;
+          height: 14px;
+          flex-shrink: 0;
+          color: #5D6065;
+          transition: color 0.2s;
+        }
+
+        .table-btn:hover .table-icon-svg {
+          color: #9B9B9B;
+        }
+
+        .table-btn.active .table-icon-svg {
+          color: #CDCDCD;
+        }
+
+        .table-name {
+          font-size: 13px;
+          font-weight: 500;
+          color: #9B9B9B;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          text-align: left;
+          transition: color 0.2s;
+        }
+
+        .table-btn:hover .table-name {
+          color: #CDCDCD;
+        }
+
+        .table-btn.active .table-name {
+          color: #FFFFFF;
+        }
+
+        .add-menu {
+          min-width: 140px;
+          background: #252525;
+          border: 1px solid #404040;
+          border-radius: 8px;
+          padding: 6px;
+          margin-top: 4px;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .add-menu-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 10px;
+          background: transparent;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          color: #CDCDCD;
+          font-size: 12px;
+          text-align: left;
+          transition: background 0.15s;
+        }
+
+        .add-menu-item:hover {
+          background: #3E3E41;
+          color: #FFFFFF;
+        }
+
+        .add-menu-item svg {
+          flex-shrink: 0;
+        }
+
+        .empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 32px 16px;
+          gap: 12px;
+        }
+
+        .empty-text {
+          font-size: 12px;
+          color: #5D6065;
+        }
+
+        .empty-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 16px;
+          background: #313131;
+          border: 1px solid #404040;
+          border-radius: 6px;
+          color: #CDCDCD;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .empty-btn:hover {
+          background: #3E3E41;
+          border-color: #505050;
+          color: #FFFFFF;
+        }
+
+        .loading {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 32px;
+        }
+
+        .spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid #404040;
+          border-top-color: #8B8B8B;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .nav-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 0 4px 0 0;
+          height: 28px;
+          background: transparent;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: background 0.15s;
+          width: 100%;
+          text-align: left;
+        }
+
+        .nav-item:hover:not(:disabled) {
+          background: #2C2C2C;
+        }
+
+        .nav-item.active {
+          background: #2C2C2C;
+        }
+
+        .nav-item.active .nav-label {
+          color: #FFFFFF;
+        }
+
+        .nav-item:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+
+        .nav-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          color: #6D7177;
+          transition: color 0.15s;
+          flex-shrink: 0;
+        }
+
+        .nav-item:hover:not(:disabled) .nav-icon,
+        .nav-item.active .nav-icon {
+          color: #CDCDCD;
+        }
+
+        .nav-label {
+          font-size: 13px;
+          color: #9B9B9B;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .nav-item:hover:not(:disabled) .nav-label {
+          color: #F0EFED;
+        }
+
+        .nav-badge {
+          font-size: 10px;
+          color: #6D7177;
+          padding: 2px 6px;
+          background: #2A2A2A;
+          border-radius: 4px;
+          margin-left: auto;
+        }
+
+        .nav-soon {
+          font-size: 9px;
+          color: #5D6065;
+          padding: 2px 5px;
+          background: #252525;
+          border-radius: 3px;
+          margin-left: auto;
+        }
+
+        .footer {
+          padding: 12px 16px;
+          border-top: 1px solid #404040;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .env-badge {
+          font-size: 11px;
+          color: #808080;
+          padding: 4px 8px;
+          background: #2A2A2A;
+          border-radius: 4px;
+        }
+
+        .user-avatar {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: #3A3A3A;
+          color: #FFFFFF;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .context-menu {
+          position: fixed;
+          min-width: 128px;
+          background: #252525;
+          border: 1px solid #404040;
+          border-radius: 8px;
+          padding: 8px;
+          z-index: 9999;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .context-menu-item {
+          width: 100%;
+          padding: 6px 8px;
+          background: transparent;
+          border: none;
+          border-radius: 4px;
+          font-size: 12px;
+          color: #CDCDCD;
+          cursor: pointer;
+          text-align: left;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: background 0.15s;
+        }
+
+        .context-menu-item:hover {
+          background: #3E3E41;
+          color: #FFFFFF;
+        }
+
+        .context-menu-item.danger {
+          color: #F44336;
+        }
+
+        .context-menu-item.danger:hover {
+          color: #FF6B64;
+        }
+
+        .context-menu-divider {
+          height: 1px;
+          background: #404040;
+          margin: 2px 0;
+        }
+
+      `}</style>
+
+      {/* Header */}
+      <div className="header">
+        <div className="header-brand">
           <img src="/puppybase.svg" alt="PuppyContext" width={18} height={18} />
-          <span style={sidebarHeaderBrandTextStyle}>PuppyContext</span>
+          <span className="header-title">PuppyContext</span>
         </div>
       </div>
 
-      <div style={sidebarListWrapperStyle}>
-        <div style={{ ...sidebarSectionLabelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Explorer</span>
+      {/* Content */}
+      <div className="content">
+        
+        {/* Section: Contexts */}
+        <div className="section">
+          <div className="section-header" onClick={() => toggleSection('contexts')}>
+            <span className="section-title">Contexts</span>
+            <svg className={`section-chevron ${expandedSections.has('contexts') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
+              <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           <button
-            onClick={handleCreateProject}
-            style={{
-              background: 'transparent',
-              border: '1px solid rgba(138,43,226,0.4)',
-              color: '#8A2BE2',
-              fontSize: 10,
-              padding: '2px 6px',
-              borderRadius: 4,
-              cursor: 'pointer',
-            }}
-            title="New Project"
-          >
-            + Project
+              className="section-add-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowAddMenu(!showAddMenu)
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              </svg>
           </button>
         </div>
+          
+          {expandedSections.has('contexts') && (
+            <div className="section-content">
         {loading ? (
-          <div style={{ padding: '20px', textAlign: 'center', color: '#6F7580', fontSize: 12 }}>Loading...</div>
+                <div className="loading">
+                  <div className="spinner" />
+                </div>
+              ) : projects.length === 0 ? (
+                <button className="nav-item" onClick={handleCreateProject}>
+                  <span className="nav-icon">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M7 3v8M3 7h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    </svg>
+                  </span>
+                  <span className="nav-label" style={{ color: '#6D7177' }}>Add context...</span>
+                </button>
         ) : (
-          projects.map((project) => {
-          const isActiveBase = project.id === activeBaseId
-          const isExpanded = project.id === expandedBaseId
-          const arrow = isExpanded ? '▾' : '▸'
+                <div className="projects-list">
+                  {projects.map((project) => {
+                    const isExpanded = expandedBaseIds.has(project.id)
 
           return (
+                      <div key={project.id} className="project-item">
             <div
-              key={project.id}
-              style={projectCardStyle(isActiveBase)}
+                          className="project-row"
               onContextMenu={(e) => handleProjectContextMenu(e, project.id)}
             >
               <button
-                type="button"
+                            className="project-btn"
                 onClick={() => onBaseClick(project.id)}
-                style={projectButtonStyle(isActiveBase)}
-              >
-                <span style={projectButtonContentStyle}>
-                  <span style={projectButtonArrowStyle}>{arrow}</span>
-                  <span style={projectIconStyle} />
-                  <span>{project.name}</span>
-                </span>
-                <span style={projectTableBadgeStyle}>{project.tables.length}</span>
+                          >
+                            <svg className="folder-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                              <path d="M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z" stroke="currentColor" strokeWidth="1.2"/>
+                            </svg>
+                            <span className="project-name">{project.name}</span>
+                            <svg className={`project-chevron ${isExpanded ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
+                              <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </button>
+                          <button
+                            className="project-add-btn"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCreateTable(project.id)
+                            }}
+                            title="Add table"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                              <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                            </svg>
               </button>
+                        </div>
 
               {isExpanded && (
-                <div style={tablesWrapperStyle}>
-                  {project.tables.length ? (
-                    project.tables.map((table) => {
-                      const isActiveTable = table.id === activeTableId
-                      return (
+                          <div className="tables-wrapper">
+                            {project.tables.map((table) => (
                         <button
                           key={table.id}
-                          type="button"
+                                className={`table-btn ${activeView === 'projects' && table.id === activeTableId ? 'active' : ''}`}
                           onClick={() => onTableClick(project.id, table.id)}
                           onContextMenu={(e) => handleTableContextMenu(e, project.id, table.id)}
-                          style={tableButtonStyle(isActiveTable)}
-                        >
-                          <span style={tableBulletStyle(isActiveTable)}>{isActiveTable ? '●' : '○'}</span>
-                          <span style={tableTextWrapperStyle}>
-                            <span style={tableNameStyle(isActiveTable)}>{table.name}</span>
-                            <span style={tableMetaStyle(isActiveTable)}>
-                              {typeof table.rows === 'number' ? `${table.rows} rows` : 'Structured dataset'}
-                            </span>
-                          </span>
+                              >
+                                <svg className="table-icon-svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                  <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                                  <line x1="1.5" y1="5" x2="12.5" y2="5" stroke="currentColor" strokeWidth="1.2"/>
+                                  <line x1="5.5" y1="5" x2="5.5" y2="12.5" stroke="currentColor" strokeWidth="1.2"/>
+                                </svg>
+                                <span className="table-name">{table.name}</span>
                         </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       )
-                    })
-                  ) : (
-                    <div style={noTablesStyle}>
-                      No tables yet.
+                  })}
+                </div>
+              )}
+              
+              {/* Add Menu */}
+              {showAddMenu && (
+                <div className="add-menu" style={{ position: 'relative', left: 0, top: 0 }} onClick={(e) => e.stopPropagation()}>
                       <button
-                        onClick={() => handleCreateTable(project.id)}
-                        style={{
-                          marginTop: 8,
-                          padding: '4px 8px',
-                          background: 'rgba(138,43,226,0.2)',
-                          border: '1px solid rgba(138,43,226,0.4)',
-                          color: '#8A2BE2',
-                          fontSize: 10,
-                          borderRadius: 4,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        + New Table
+                    className="add-menu-item"
+                    onClick={() => {
+                      handleCreateProject()
+                      setShowAddMenu(false)
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 4C2 2.89543 2.89543 2 4 2H6.17157C6.70201 2 7.21071 2.21071 7.58579 2.58579L8.41421 3.41421C8.78929 3.78929 9.29799 4 9.82843 4H10C11.1046 4 12 4.89543 12 6V10C12 11.1046 11.1046 12 10 12H4C2.89543 12 2 11.1046 2 10V4Z" stroke="currentColor" strokeWidth="1.2"/>
+                    </svg>
+                    <span>New Folder</span>
                       </button>
-                    </div>
-                  )}
-                  {isExpanded && project.tables.length > 0 && (
                     <button
-                      onClick={() => handleCreateTable(project.id)}
-                      style={{
-                        marginTop: 4,
-                        padding: '6px 12px',
-                        background: 'rgba(138,43,226,0.15)',
-                        border: '1px solid rgba(138,43,226,0.3)',
-                        color: '#8A2BE2',
-                        fontSize: 10,
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        width: '100%',
-                      }}
-                    >
-                      + New Table
+                    className="add-menu-item"
+                    onClick={() => {
+                      if (activeBaseId) {
+                        handleCreateTable(activeBaseId)
+                      } else if (projects.length > 0) {
+                        handleCreateTable(projects[0].id)
+                      } else {
+                        handleCreateProject()
+                      }
+                      setShowAddMenu(false)
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                      <line x1="1.5" y1="5" x2="12.5" y2="5" stroke="currentColor" strokeWidth="1.2"/>
+                      <line x1="5.5" y1="5" x2="5.5" y2="12.5" stroke="currentColor" strokeWidth="1.2"/>
+                    </svg>
+                    <span>New Table</span>
                     </button>
-                  )}
                 </div>
               )}
             </div>
-          )
-          })
-        )}
+          )}
+        </div>
+
+        {/* Section: MCP */}
+        <div className="section">
+          <div className="section-header" onClick={() => toggleSection('mcp')}>
+            <span className="section-title">MCP</span>
+            <svg className={`section-chevron ${expandedSections.has('mcp') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
+              <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          
+          {expandedSections.has('mcp') && (
+            <div className="section-content">
+              <button 
+                className={`nav-item ${activeView === 'mcp' ? 'active' : ''}`}
+                onClick={() => onUtilityNavClick('mcp')}
+              >
+                <span className="nav-icon">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <circle cx="3" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
+                    <circle cx="11" cy="4" r="2" stroke="currentColor" strokeWidth="1.2"/>
+                    <circle cx="11" cy="10" r="2" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M5 7h2M9 4.5L7.5 6M9 9.5L7.5 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                </span>
+                <span className="nav-label">Instances</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Section: Try */}
+        <div className="section">
+          <div className="section-header" onClick={() => toggleSection('try')}>
+            <span className="section-title">Try</span>
+            <svg className={`section-chevron ${expandedSections.has('try') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
+              <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          
+          {expandedSections.has('try') && (
+            <div className="section-content">
+              <button 
+                className={`nav-item ${activeView === 'etl' ? 'active' : ''}`}
+                onClick={() => onUtilityNavClick('etl')}
+              >
+                <span className="nav-icon">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <rect x="1" y="2" width="4" height="4" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
+                    <rect x="9" y="8" width="4" height="4" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M5 4h2.5a1 1 0 011 1v4a1 1 0 001 1H12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    <path d="M10 8L12 10L10 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </span>
+                <span className="nav-label">ETL Strategies</span>
+              </button>
+              
+              <button 
+                className={`nav-item ${activeView === 'test' ? 'active' : ''}`}
+                disabled
+              >
+                <span className="nav-icon">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M4 2v3L7 8l3-3V2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M7 8v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    <circle cx="7" cy="12" r="1" fill="currentColor"/>
+                  </svg>
+                </span>
+                <span className="nav-label">Playground</span>
+                <span className="nav-soon">Soon</span>
+              </button>
+              
+              <button 
+                className={`nav-item ${activeView === 'logs' ? 'active' : ''}`}
+                disabled
+              >
+                <span className="nav-icon">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M2 3h10M2 7h7M2 11h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                </span>
+                <span className="nav-label">Logs</span>
+                <span className="nav-soon">Soon</span>
+              </button>
+              
+              <button 
+                className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
+                disabled
+              >
+                <span className="nav-icon">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.76 2.76l1.41 1.41M9.83 9.83l1.41 1.41M2.76 11.24l1.41-1.41M9.83 4.17l1.41-1.41" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                </span>
+                <span className="nav-label">Settings</span>
+                <span className="nav-soon">Soon</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Footer */}
+      <div className="footer">
+        <span className="env-badge">{environmentLabel}</span>
+        <div className="user-avatar">{userInitial}</div>
+      </div>
+
+      {/* Context Menu */}
       {contextMenu && (
         <div
-          style={{
-            position: 'fixed',
-            left: contextMenu.x,
-            top: contextMenu.y,
-            background: '#1a1a1a',
-            border: '1px solid rgba(46,46,46,0.85)',
-            borderRadius: 6,
-            padding: 4,
-            zIndex: 1000,
-            minWidth: 120,
-          }}
+          className="context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
           {contextMenu.type === 'project' ? (
             <>
               <button
+                className="context-menu-item"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleEditProject(contextMenu.id)
                 }}
-                style={contextMenuItemStyle}
               >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M10.889 0L14 3.111L7 10.111L3.889 7L10.889 0Z" fill="currentColor" />
+                  <path d="M3.111 7.778L6.222 10.889L1.556 12.444L3.111 7.778Z" fill="currentColor" />
+                </svg>
                 Rename
               </button>
+              <div className="context-menu-divider" />
               <button
+                className="context-menu-item danger"
                 onClick={(e) => {
                   e.stopPropagation()
                   setEditingProjectId(contextMenu.id)
@@ -256,23 +929,32 @@ export function ProjectsSidebar({
                   setProjectDialogOpen(true)
                   setContextMenu(null)
                 }}
-                style={{ ...contextMenuItemStyle, color: '#ef4444' }}
               >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M12 12L2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
                 Delete
               </button>
             </>
           ) : (
             <>
               <button
+                className="context-menu-item"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleEditTable(contextMenu.projectId!, contextMenu.id)
                 }}
-                style={contextMenuItemStyle}
               >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M10.889 0L14 3.111L7 10.111L3.889 7L10.889 0Z" fill="currentColor" />
+                  <path d="M3.111 7.778L6.222 10.889L1.556 12.444L3.111 7.778Z" fill="currentColor" />
+                </svg>
                 Rename
               </button>
+              <div className="context-menu-divider" />
               <button
+                className="context-menu-item danger"
                 onClick={(e) => {
                   e.stopPropagation()
                   setEditingProjectId(contextMenu.projectId!)
@@ -281,8 +963,11 @@ export function ProjectsSidebar({
                   setTableDialogOpen(true)
                   setContextMenu(null)
                 }}
-                style={{ ...contextMenuItemStyle, color: '#ef4444' }}
               >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M12 12L2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
                 Delete
               </button>
             </>
@@ -290,6 +975,7 @@ export function ProjectsSidebar({
         </div>
       )}
 
+      {/* Dialogs */}
       {projectDialogOpen && (
         <ProjectManageDialog
           projectId={editingProjectId}
@@ -319,286 +1005,6 @@ export function ProjectsSidebar({
           onProjectsChange={onProjectsChange}
         />
       )}
-
-      <div style={explorerMetaWrapperStyle}>
-        <div style={pathLabelStyle}>Path</div>
-        <div style={pathValueStyle}>
-          {['Context', activeProject?.name, activeTable?.name].filter(Boolean).join(' / ')}
-        </div>
-      </div>
-
-      <div style={utilityNavWrapperStyle}>
-        {utilityNav.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            disabled={!item.isAvailable}
-            onClick={() => item.isAvailable && onUtilityNavClick(item.path)}
-            style={utilityButtonStyle(item.isAvailable)}
-          >
-            <span>{item.label}</span>
-            {!item.isAvailable && <span style={utilitySoonStyle}>Soon</span>}
-          </button>
-        ))}
-      </div>
-
-      <div style={statusWrapperStyle}>
-        <span style={environmentBadgeStyle}>{environmentLabel}</span>
-        <div style={userBadgeStyle}>{userInitial}</div>
-      </div>
     </aside>
   )
 }
-
-const sidebarStyle: CSSProperties = {
-  width: 220,
-  display: 'flex',
-  flexDirection: 'column',
-  borderRight: '1px solid rgba(46,46,46,0.85)',
-  backgroundColor: '#080808',
-}
-
-const sidebarHeaderStyle: CSSProperties = {
-  height: 56,
-  padding: '0 16px',
-  borderBottom: '1px solid rgba(46,46,46,0.85)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-}
-
-const sidebarHeaderBrandStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-}
-
-const sidebarHeaderBrandTextStyle: CSSProperties = {
-  fontSize: 15,
-  fontWeight: 600,
-  letterSpacing: 0.4,
-  color: '#EDEDED',
-}
-
-const sidebarHeaderSubtitleStyle: CSSProperties = {
-  fontSize: 12,
-  color: '#8A8F98',
-  letterSpacing: 0.6,
-  textTransform: 'uppercase',
-}
-
-const sidebarListWrapperStyle: CSSProperties = {
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  padding: '14px 12px',
-  gap: 8,
-  overflowY: 'auto',
-}
-
-const sidebarSectionLabelStyle: CSSProperties = {
-  fontSize: 11,
-  color: '#565C66',
-  letterSpacing: 1.1,
-  textTransform: 'uppercase',
-}
-
-const projectCardStyle = (isActive: boolean): CSSProperties => ({
-  borderRadius: 6,
-  border: '1px solid rgba(46,46,46,0.7)',
-  background: isActive ? 'rgba(14,14,18,0.92)' : 'rgba(8,8,10,0.6)',
-  overflow: 'hidden',
-  transition: 'border-color 0.2s ease, background 0.2s ease',
-})
-
-const projectButtonStyle = (isActive: boolean): CSSProperties => ({
-  width: '100%',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 10,
-  padding: '8px 12px',
-  background: isActive ? 'rgba(138,43,226,0.22)' : 'transparent',
-  color: isActive ? '#EDEDED' : '#C7C7CB',
-  fontSize: 11,
-  letterSpacing: 0.35,
-  cursor: 'pointer',
-  border: 'none',
-  fontFamily: "'JetBrains Mono', SFMono-Regular, Menlo, monospace",
-})
-
-const projectButtonContentStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-}
-
-const projectButtonArrowStyle: CSSProperties = {
-  color: '#9FA4B1',
-  width: 10,
-  display: 'inline-flex',
-  justifyContent: 'center',
-}
-
-const projectIconStyle: CSSProperties = {
-  width: 14,
-  height: 14,
-  borderRadius: 3,
-  border: '1px solid rgba(138,43,226,0.4)',
-  background: 'linear-gradient(135deg, rgba(138,43,226,0.45), rgba(24,24,32,0.9))',
-}
-
-const projectTableBadgeStyle: CSSProperties = {
-  padding: '0 6px',
-  borderRadius: 999,
-  border: '1px solid rgba(46,46,46,0.8)',
-  background: 'rgba(20,20,24,0.9)',
-  fontSize: 10,
-  color: '#6F7580',
-}
-
-const tablesWrapperStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-  padding: '6px 0 8px 26px',
-  borderTop: '1px solid rgba(46,46,46,0.65)',
-  background: 'rgba(6,6,8,0.92)',
-}
-
-const tableButtonStyle = (isActive: boolean): CSSProperties => ({
-  textAlign: 'left',
-  display: 'grid',
-  gridTemplateColumns: '16px 1fr',
-  gap: 6,
-  padding: '6px 12px 6px 0',
-  borderRadius: 4,
-  border: '1px solid transparent',
-  color: isActive ? '#EDEDED' : '#9FA4B1',
-  fontSize: 11,
-  letterSpacing: 0.3,
-  cursor: 'pointer',
-  transition: 'all 0.15s ease',
-  background: isActive ? 'rgba(48,242,197,0.12)' : 'transparent',
-})
-
-const tableBulletStyle = (isActive: boolean): CSSProperties => ({
-  color: isActive ? '#48F2C5' : '#636874',
-  fontFamily: 'JetBrains Mono, monospace',
-})
-
-const tableTextWrapperStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 2,
-}
-
-const tableNameStyle = (isActive: boolean): CSSProperties => ({
-  fontWeight: isActive ? 600 : 500,
-})
-
-const tableMetaStyle = (isActive: boolean): CSSProperties => ({
-  fontSize: 10,
-  color: isActive ? '#86EFD2' : '#565C66',
-})
-
-const noTablesStyle: CSSProperties = {
-  fontSize: 10,
-  color: '#4C515B',
-  letterSpacing: 0.35,
-}
-
-const utilityNavWrapperStyle: CSSProperties = {
-  marginTop: 'auto',
-  padding: '20px 12px 18px',
-  borderTop: '1px solid rgba(46,46,46,0.85)',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-}
-
-const utilityButtonStyle = (isAvailable: boolean): CSSProperties => ({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '8px 10px',
-  borderRadius: 6,
-  border: '1px solid rgba(46,46,46,0.85)',
-  backgroundColor: 'rgba(10,10,10,0.6)',
-  color: isAvailable ? '#EDEDED' : '#4C515B',
-  fontSize: 12,
-  cursor: isAvailable ? 'pointer' : 'not-allowed',
-  opacity: isAvailable ? 1 : 0.5,
-  transition: 'border-color 0.2s ease, color 0.2s ease',
-})
-
-const utilitySoonStyle: CSSProperties = {
-  fontSize: 10,
-}
-
-const explorerMetaWrapperStyle: CSSProperties = {
-  padding: '16px 16px 12px',
-  borderTop: '1px solid rgba(46,46,46,0.65)',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-}
-
-const pathLabelStyle: CSSProperties = {
-  fontSize: 11,
-  color: '#6F7580',
-  textTransform: 'uppercase',
-  letterSpacing: 0.6,
-}
-
-const pathValueStyle: CSSProperties = {
-  fontFamily: "'JetBrains Mono', SFMono-Regular, Menlo, monospace",
-  fontSize: 11,
-  color: '#EDEDED',
-  letterSpacing: 0.4,
-}
-
-const statusWrapperStyle: CSSProperties = {
-  padding: '12px 16px 18px',
-  borderTop: '1px solid rgba(46,46,46,0.85)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-}
-
-const environmentBadgeStyle: CSSProperties = {
-  padding: '4px 10px',
-  borderRadius: 999,
-  border: '1px solid rgba(46,46,46,0.85)',
-  background: 'rgba(14,14,18,0.85)',
-  color: '#8A8F98',
-  fontSize: 11,
-  letterSpacing: 0.5,
-}
-
-const userBadgeStyle: CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: '50%',
-  border: '1px solid rgba(46,46,46,0.85)',
-  display: 'grid',
-  placeItems: 'center',
-  fontSize: 13,
-  color: '#EDEDED',
-  background: '#121212',
-}
-
-const contextMenuItemStyle: CSSProperties = {
-  width: '100%',
-  padding: '6px 12px',
-  textAlign: 'left',
-  background: 'transparent',
-  border: 'none',
-  color: '#EDEDED',
-  fontSize: 12,
-  cursor: 'pointer',
-  borderRadius: 4,
-}
-
-

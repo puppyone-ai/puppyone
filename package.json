@@ -10,14 +10,20 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@codemirror/lang-json": "^6.0.2",
+    "@monaco-editor/react": "^4.7.0",
     "@supabase/supabase-js": "^2.46.1",
+    "@tanstack/react-virtual": "^3.13.12",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@uiw/react-codemirror": "^4.25.3",
     "clsx": "^2.1.1",
     "jsoneditor": "^10.4.2",
     "next": "^15.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-syntax-highlighter": "^16.1.0"
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0",
+    "vanilla-jsoneditor": "^3.10.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",
