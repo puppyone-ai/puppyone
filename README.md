@@ -23,7 +23,7 @@ uv sync
 Run the following command in the backend directory to start the server:
 
 ```bash
-uv run uvicorn app.main:app --host 0.0.0.0 --port 9090 --reload --log-level info
+uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info
 ```
 
 ### MCP Config Example
@@ -48,71 +48,52 @@ Notice: You should first create a mcp server instance through `/api/v1/mcp/` ent
 
 ```
 backend/
-├── app/
+├── src/                      # 源代码目录（重构后采用模块化服务架构）
 │   ├── __init__.py
-│   ├── main.py                 # FastAPI应用入口
+│   ├── main.py               # FastAPI应用入口
 │   │
-│   ├── api/                   # API路由模块
+│   ├── auth/                 # 认证服务模块
 │   │   ├── __init__.py
-│   │   ├── router.py          # 路由汇总
-│   │   └── v1/                # API v1版本
-│   │       ├── __init__.py
-│   │       ├── router.py      # v1路由汇总
-│   │       └── endpoints/      # API端点
-│   │           ├── mcp.py      # MCP管理API
-│   │           ├── user.py    # 用户管理API
-│   │           └── user_context.py  # 用户上下文API
+│   │   ├── router.py         # 路由定义
+│   │   ├── schemas.py        # Pydantic模型
+│   │   ├── models.py         # 数据模型
+│   │   ├── service.py        # 业务逻辑
+│   │   ├── repository.py     # 仓储接口
+│   │   ├── repository_impl.py # 仓储实现
+│   │   └── dependencies.py   # 依赖注入
 │   │
-│   ├── core/                  # 核心配置和依赖
-│   │   ├── config.py          # 配置文件
-│   │   └── dependencies.py    # 依赖注入
-│   │
-│   ├── mcp_server/            # MCP服务器模块
+│   ├── user_context/         # 用户上下文服务模块
 │   │   ├── __init__.py
-│   │   ├── server.py          # MCP服务器实现
-│   │   ├── manager/           # MCP管理器
-│   │   │   ├── base_backend.py    # 后端基类
-│   │   │   ├── manager.py         # 管理器实现
-│   │   │   └── process_backend.py # 进程后端实现
-│   │   ├── middleware/        # 中间件
-│   │   │   └── http_auth_middleware.py  # HTTP认证中间件
-│   │   └── tools/             # MCP工具
-│   │       ├── context_tool.py    # 上下文工具
-│   │       ├── llm_tool.py        # LLM工具
-│   │       └── vector_tool.py     # 向量检索工具
+│   │   ├── router.py
+│   │   ├── schemas.py
+│   │   ├── models.py
+│   │   ├── service.py
+│   │   ├── repository.py
+│   │   ├── repository_impl.py
+│   │   └── dependencies.py
 │   │
-│   ├── models/                # 数据模型
-│   │   ├── mcp.py            # MCP模型
-│   │   ├── user.py           # 用户模型
-│   │   └── user_context.py   # 用户上下文模型
+│   ├── mcp/                  # MCP服务器管理模块
+│   │   ├── __init__.py
+│   │   ├── router.py
+│   │   ├── schemas.py
+│   │   ├── models.py
+│   │   ├── service.py
+│   │   ├── repository.py
+│   │   ├── repository_impl.py
+│   │   ├── dependencies.py
+│   │   └── server/           # MCP服务器实现
+│   │       ├── server.py
+│   │       ├── manager/
+│   │       ├── middleware/
+│   │       └── tools/
 │   │
-│   ├── repositories/          # 数据访问层
-│   │   ├── base.py           # 仓储基类
-│   │   ├── mcp_repo.py       # MCP仓储
-│   │   ├── user_repo.py      # 用户仓储
-│   │   ├── user_context_repo.py  # 用户上下文仓储
-│   │   └── vector/           # 向量数据库
-│   │       ├── __init__.py
-│   │       ├── embedder.py       # 嵌入器
-│   │       ├── vdb_base.py       # 向量数据库基类
-│   │       ├── vdb_chroma.py     # ChromaDB实现
-│   │       ├── vdb_pgv.py        # PGVector实现
-│   │       └── vdb_factory.py    # 向量数据库工厂
-│   │
-│   ├── schemas/              # Pydantic数据模型
-│   │   ├── mcp.py           # MCP Schema
-│   │   ├── response.py      # 响应Schema
-│   │   ├── user.py          # 用户Schema
-│   │   └── user_context.py  # 用户上下文Schema
-│   │
-│   ├── service/             # 业务逻辑层
-│   │   ├── mcp_service.py          # MCP服务
-│   │   ├── user_service.py         # 用户服务
-│   │   └── user_context_service.py # 用户上下文服务
-│   │
+│   ├── config.py             # 全局配置
+│   ├── exceptions.py         # 全局异常
+│   ├── exception_handler.py  # 异常处理器
+│   ├── common_schemas.py     # 通用Schemas
 │   └── utils/                # 工具函数
-│       ├── exception.py     # 自定义异常
-│       └── logger.py        # 日志工具
+│       ├── exception.py
+│       └── logger.py
 │
 ├── client/                   # MCP客户端
 │   ├── my_client.py         # 客户端实现
