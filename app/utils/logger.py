@@ -1,5 +1,4 @@
 import logging
-import warnings
 import inspect
 import os
 import sys

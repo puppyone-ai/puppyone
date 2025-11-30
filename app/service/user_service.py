@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 from app.models.user import User
 from app.repositories.base import UserRepositoryBase
 from app.core.exceptions import NotFoundException, ErrorCode

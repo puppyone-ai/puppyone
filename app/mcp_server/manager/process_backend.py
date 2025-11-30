@@ -1,7 +1,6 @@
 import subprocess
 import sys
 import time
-import os
 from pathlib import Path
 from typing import Dict, Any
 from app.mcp_server.manager.base_backend import MCPInstanceBackend
@@ -147,7 +146,7 @@ class ProcessBackend(MCPInstanceBackend):
                 # 注意：不能在这里关闭文件，因为进程还在使用它们
                 # 文件会在进程退出时自动关闭，或者在 stop_instance 时处理
                 
-            except Exception as e:
+            except Exception:
                 # 如果启动失败，关闭文件句柄
                 stdout_file.close()
                 stderr_file.close()

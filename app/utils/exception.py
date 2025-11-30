@@ -1,6 +1,6 @@
 import traceback
 from functools import wraps
-from app.utils.logger import log_error, log_info
+from app.utils.logger import log_error
 
 class PuppyException(Exception):
     service_name = "contextbase"  

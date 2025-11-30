@@ -1,5 +1,4 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints.user import router as user_router
 from app.api.v1.endpoints.mcp import router as mcp_instance_router
 from app.api.v1.endpoints.user_context import router as user_context_router
 

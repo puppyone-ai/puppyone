@@ -2,11 +2,10 @@
 负责用户知识库内容的管理
 """
 
-from typing import List, Optional, Dict, Tuple, Any
-from jsonpointer import resolve_pointer, set_pointer
+from typing import List, Optional, Dict, Any
+from jsonpointer import resolve_pointer
 import json
 import jmespath
-from app.utils.logger import log_warning, log_error
 from app.models.user_context import UserContext
 from app.repositories.base import UserContextRepositoryBase
 from app.core.exceptions import NotFoundException, BusinessException, ErrorCode
@@ -65,7 +64,7 @@ class UserContextService:
         
         # 确保父节点是字典类型
         if not isinstance(parent, dict):
-            raise BusinessException(f"Path points to non-dict node", code=ErrorCode.BAD_REQUEST)
+            raise BusinessException("Path points to non-dict node", code=ErrorCode.BAD_REQUEST)
         
         # 检查是否有重复的 key
         for element in elements:
@@ -140,7 +139,7 @@ class UserContextService:
             raise NotFoundException(f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND)
         
         if not isinstance(parent, dict):
-            raise BusinessException(f"Path points to non-dict node", code=ErrorCode.BAD_REQUEST)
+            raise BusinessException("Path points to non-dict node", code=ErrorCode.BAD_REQUEST)
         
         # 检查所有要更新的 key 是否存在
         for element in elements:
@@ -187,7 +186,7 @@ class UserContextService:
             raise NotFoundException(f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND)
         
         if not isinstance(parent, dict):
-            raise BusinessException(f"Path points to non-dict node", code=ErrorCode.BAD_REQUEST)
+            raise BusinessException("Path points to non-dict node", code=ErrorCode.BAD_REQUEST)
         
         # 检查所有要删除的 key 是否存在
         for key in keys:

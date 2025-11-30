@@ -19,7 +19,6 @@ from app.models.mcp import McpInstance
 from app.mcp_server.schema.context import CreateElementRequest
 # Tool Implementation
 from app.mcp_server.tools.context_tool import ContextTool, tool_types
-from app.mcp_server.tools.vector_tool import VectorRetriveTool
 from app.mcp_server.tools.tool_provider import create_tool_definition_provider, ToolDefinitionProvider
 
 # 全局 context 信息（在启动时初始化）
