@@ -36,21 +36,10 @@ interface TreeLineVirtualEditorProps {
 // ============================================
 const ROW_HEIGHT = 28
 const BRANCH_WIDTH = 16     // ├─ 分支线宽度
-const MIN_KEY_WIDTH = 80     // key 最小宽度
-const MAX_KEY_WIDTH = 120    // key 最大宽度
+const KEY_WIDTH = 64        // key 固定宽度
 const SEP_WIDTH = 8         // ── 分隔线宽度
 const MENU_WIDTH = 20       // 菜单按钮宽度 (absolute, 不占空间)
-
-// 根据深度计算每层宽度：深层嵌套时减小Key宽度，为Value留更多空间
-function getLevelWidth(depth: number): number {
-  const keyWidth = Math.max(MAX_KEY_WIDTH - depth * 10, MIN_KEY_WIDTH)
-  return BRANCH_WIDTH + keyWidth + SEP_WIDTH + 12
-}
-
-// 获取指定深度的Key宽度
-function getKeyWidth(depth: number): number {
-  return Math.max(MAX_KEY_WIDTH - depth * 10, MIN_KEY_WIDTH)
-}
+const LEVEL_WIDTH = BRANCH_WIDTH + KEY_WIDTH + SEP_WIDTH +12  // 每层 80px (不含菜单按钮)
 
 const LINE_COLOR = '#3a3f47'
 
@@ -235,19 +224,7 @@ const styles = {
     color: '#6b7280',  // 统一灰色
     fontWeight: 400,
     fontSize: 12,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
     flexShrink: 0,
-  } as CSSProperties,
-
-  separator: {
-    flex: 1,
-    height: 1,
-    background: 'linear-gradient(to right, #2d3139 0%, transparent 100%)',
-    margin: '0 10px',
-    minWidth: 20,
-    maxWidth: 120,
   } as CSSProperties,
 
   value: {
@@ -273,12 +250,11 @@ const LevelConnector = React.memo(function LevelConnector({
   parentLines: boolean[]
 }) {
   const hh = ROW_HEIGHT / 2
-  const levelWidth = getLevelWidth(depth)
-  const branchX = 8 + depth * levelWidth
+  const branchX = 8 + depth * LEVEL_WIDTH
 
   return (
-    <svg 
-      style={{ 
+    <svg
+      style={{
         position: 'absolute',
         left: 0,
         top: 0,
@@ -291,7 +267,7 @@ const LevelConnector = React.memo(function LevelConnector({
       {parentLines.map((showLine, i) => {
         if (!showLine) return null
         // 竖线位置 = depth=i 祖先的分支线位置
-        const x = 8 + i * getLevelWidth(i)
+        const x = 8 + i * LEVEL_WIDTH
         return (
           <line 
             key={i}
@@ -644,8 +620,7 @@ const VirtualRow = React.memo(function VirtualRow({
   }
 
   // 计算当前节点的内容起始位置
-  const keyWidth = getKeyWidth(node.depth)
-  const contentLeft = 8 + node.depth * getLevelWidth(node.depth) + BRANCH_WIDTH
+  const contentLeft = 8 + node.depth * LEVEL_WIDTH + BRANCH_WIDTH
 
   // 点击菜单按钮 - 直接调用父组件的 onContextMenu
   const handleMenuClick = useCallback((e: React.MouseEvent) => {
@@ -682,7 +657,7 @@ const VirtualRow = React.memo(function VirtualRow({
       
       {/* Notion 风格菜单按钮 - absolute, hover 时显示 */}
       <button
-        style={styles.menuHandle(hovered, contentLeft + keyWidth + SEP_WIDTH)}
+        style={styles.menuHandle(hovered, contentLeft + KEY_WIDTH + SEP_WIDTH)}
         onClick={handleMenuClick}
         title="操作菜单"
       >
@@ -705,32 +680,31 @@ const VirtualRow = React.memo(function VirtualRow({
       }}>
         {/* Key + 分隔线容器 */}
         <div style={{
-          width: keyWidth + SEP_WIDTH,  // 固定总宽度
+          width: KEY_WIDTH + SEP_WIDTH,  // 64px
           display: 'flex',
           alignItems: 'center',
           flexShrink: 0,
           height: 20,
-          overflow: 'hidden',  // 防止内容溢出容器
         }}>
-          {/* Key - 使用固定宽度 */}
+          {/* Key - 支持截断过长的key名 */}
           <span style={{
-            width: keyWidth,  // 使用固定宽度而不是maxWidth
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            display: 'inline-block',  // 确保宽度约束生效
+            maxWidth: KEY_WIDTH,
             ...(typeof node.key === 'number' ? styles.indexKey : styles.keyName),
           }}>
             {node.key}
           </span>
 
-          {/* 分隔线 ── 固定宽度 */}
+          {/* 分隔线 ── 填充剩余空间 */}
           <span style={{
-            width: SEP_WIDTH,  // 固定分隔线宽度
+            flex: 1,
             height: 1,
             background: LINE_COLOR,
             marginLeft: 6,
-            flexShrink: 0,
+            minWidth: 12,
           }} />
         </div>
         
