@@ -11,7 +11,7 @@ interface VanillaJsonEditorProps {
 
 export function VanillaJsonEditor({ json, onChange, onPathChange }: VanillaJsonEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const editorRef = useRef<JSONEditor | null>(null)
+  const editorRef = useRef<any>(null)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -26,7 +26,7 @@ export function VanillaJsonEditor({ json, onChange, onPathChange }: VanillaJsonE
       }
     }
 
-    editorRef.current = new JSONEditor({
+    editorRef.current = new (JSONEditor as any)({
       target: containerRef.current,
       props: {
         content,

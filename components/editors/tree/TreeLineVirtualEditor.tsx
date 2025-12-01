@@ -36,11 +36,24 @@ interface TreeLineVirtualEditorProps {
 // ============================================
 const ROW_HEIGHT = 28
 const BRANCH_WIDTH = 16     // ├─ 分支线宽度
-const KEY_WIDTH = 64        // key 固定宽度
+const MIN_KEY_WIDTH = 80     // key 最小宽度
+const MAX_KEY_WIDTH = 120    // key 最大宽度
 const SEP_WIDTH = 8         // ── 分隔线宽度
 const MENU_WIDTH = 20       // 菜单按钮宽度 (absolute, 不占空间)
-const LEVEL_WIDTH = BRANCH_WIDTH + KEY_WIDTH + SEP_WIDTH +12  // 每层 80px (不含菜单按钮)
+
+// 根据深度计算每层宽度：深层嵌套时减小Key宽度，为Value留更多空间
+function getLevelWidth(depth: number): number {
+  const keyWidth = Math.max(MAX_KEY_WIDTH - depth * 10, MIN_KEY_WIDTH)
+  return BRANCH_WIDTH + keyWidth + SEP_WIDTH + 12
+}
+
+// 获取指定深度的Key宽度
+function getKeyWidth(depth: number): number {
+  return Math.max(MAX_KEY_WIDTH - depth * 10, MIN_KEY_WIDTH)
+}
+
 const LINE_COLOR = '#3a3f47'
+
 
 // ============================================
 // Utils
@@ -212,6 +225,9 @@ const styles = {
     color: '#6b7280',  // 与 index 相近的灰色
     fontWeight: 400,
     fontSize: 12,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
     flexShrink: 0,
   } as CSSProperties,
 
@@ -219,6 +235,9 @@ const styles = {
     color: '#6b7280',  // 统一灰色
     fontWeight: 400,
     fontSize: 12,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
     flexShrink: 0,
   } as CSSProperties,
 
@@ -244,17 +263,18 @@ const styles = {
 // ============================================
 // 绘制一个层级的连接线：从父节点的值位置延伸下来
 // 连接线组件 - 优化版：减少不必要的计算
-const LevelConnector = React.memo(function LevelConnector({ 
-  depth, 
-  isLast, 
-  parentLines 
-}: { 
+const LevelConnector = React.memo(function LevelConnector({
+  depth,
+  isLast,
+  parentLines
+}: {
   depth: number
-  isLast: boolean 
+  isLast: boolean
   parentLines: boolean[]
 }) {
   const hh = ROW_HEIGHT / 2
-  const branchX = 8 + depth * LEVEL_WIDTH
+  const levelWidth = getLevelWidth(depth)
+  const branchX = 8 + depth * levelWidth
 
   return (
     <svg 
@@ -271,7 +291,7 @@ const LevelConnector = React.memo(function LevelConnector({
       {parentLines.map((showLine, i) => {
         if (!showLine) return null
         // 竖线位置 = depth=i 祖先的分支线位置
-        const x = 8 + i * LEVEL_WIDTH
+        const x = 8 + i * getLevelWidth(i)
         return (
           <line 
             key={i}
@@ -624,7 +644,8 @@ const VirtualRow = React.memo(function VirtualRow({
   }
 
   // 计算当前节点的内容起始位置
-  const contentLeft = 8 + node.depth * LEVEL_WIDTH + BRANCH_WIDTH
+  const keyWidth = getKeyWidth(node.depth)
+  const contentLeft = 8 + node.depth * getLevelWidth(node.depth) + BRANCH_WIDTH
 
   // 点击菜单按钮 - 直接调用父组件的 onContextMenu
   const handleMenuClick = useCallback((e: React.MouseEvent) => {
@@ -661,7 +682,7 @@ const VirtualRow = React.memo(function VirtualRow({
       
       {/* Notion 风格菜单按钮 - absolute, hover 时显示 */}
       <button
-        style={styles.menuHandle(hovered, contentLeft + KEY_WIDTH + SEP_WIDTH)}
+        style={styles.menuHandle(hovered, contentLeft + keyWidth + SEP_WIDTH)}
         onClick={handleMenuClick}
         title="操作菜单"
       >
@@ -684,28 +705,32 @@ const VirtualRow = React.memo(function VirtualRow({
       }}>
         {/* Key + 分隔线容器 */}
         <div style={{
-          width: KEY_WIDTH + SEP_WIDTH,  // 64px
+          width: keyWidth + SEP_WIDTH,  // 固定总宽度
           display: 'flex',
           alignItems: 'center',
           flexShrink: 0,
           height: 20,
+          overflow: 'hidden',  // 防止内容溢出容器
         }}>
-          {/* Key */}
+          {/* Key - 使用固定宽度 */}
           <span style={{
-            flexShrink: 0,
+            width: keyWidth,  // 使用固定宽度而不是maxWidth
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
+            display: 'inline-block',  // 确保宽度约束生效
             ...(typeof node.key === 'number' ? styles.indexKey : styles.keyName),
           }}>
             {node.key}
           </span>
-          
-          {/* 分隔线 ── 填充剩余空间 */}
+
+          {/* 分隔线 ── 固定宽度 */}
           <span style={{
-            flex: 1,
+            width: SEP_WIDTH,  // 固定分隔线宽度
             height: 1,
             background: LINE_COLOR,
             marginLeft: 6,
-            minWidth: 12,
+            flexShrink: 0,
           }} />
         </div>
         

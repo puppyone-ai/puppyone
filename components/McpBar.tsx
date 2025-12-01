@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { McpInstanceInfo } from './McpInstanceInfo'
 import { treePathToJsonPointer } from '../lib/jsonPointer'
-import { ImportFolderDialog } from './ImportFolderDialog'
 
 interface McpBarProps {
   projectId?: string
@@ -12,18 +11,41 @@ interface McpBarProps {
   currentTreePath?: string | null
   onProjectsRefresh?: () => void
   onLog?: (type: 'error' | 'warning' | 'info' | 'success', message: string) => void
+  onCloseOtherMenus?: () => void
 }
 
-export function McpBar({ projectId, tableId, currentTreePath, onProjectsRefresh, onLog }: McpBarProps) {
+export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ projectId, tableId, currentTreePath, onProjectsRefresh, onLog, onCloseOtherMenus }, ref) => {
   const { userId, session } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
   const [addedMethods, setAddedMethods] = useState<string[]>([])
   const [isApplying, setIsApplying] = useState(false)
   const [result, setResult] = useState<{ apiKey: string; url: string; port: number } | null>(null)
   const [useJsonPointer, setUseJsonPointer] = useState(false)
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [isImportMenuOpen, setIsImportMenuOpen] = useState(false)
+  const [selectedProject, setSelectedProject] = useState<string>('')
+  const [tableName, setTableName] = useState('')
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState(0)
+  const [projects, setProjects] = useState<any[]>([])
+
+  const [menuHeight, setMenuHeight] = useState(0)
+  const [importMenuHeight, setImportMenuHeight] = useState(0)
   const barRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const importMenuRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Close all menus when onClose prop is called from parent
+  const closeMenus = () => {
+    setIsOpen(false)
+    setIsImportMenuOpen(false)
+  }
+
+  // Expose closeMenus function to parent via ref
+  useImperativeHandle(ref, () => ({
+    closeMenus
+  }))
 
   const methodOptions = [
     { value: 'get_all', label: 'Get All' },
@@ -39,22 +61,199 @@ export function McpBar({ projectId, tableId, currentTreePath, onProjectsRefresh,
     console.log('McpBar mounted/updated:', { userId, projectId, session })
   }, [userId, projectId, session])
 
-  // Close bar when clicking outside
+  // Close bars when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (barRef.current && !barRef.current.contains(event.target as Node)) {
         setIsOpen(false)
+        setIsImportMenuOpen(false)
       }
     }
 
-    if (isOpen) {
+    if (isOpen || isImportMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside)
+      // Animate menus open
+      if (isOpen) setTimeout(() => setMenuHeight(380), 0)
+      if (isImportMenuOpen) setTimeout(() => setImportMenuHeight(500), 0)
+    } else {
+      // Reset menu heights for next animation
+      setMenuHeight(0)
+      setImportMenuHeight(0)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isOpen])
+  }, [isOpen, isImportMenuOpen])
+
+  // Fetch projects when import menu opens
+  useEffect(() => {
+    if (isImportMenuOpen && projects.length === 0) {
+      const fetchProjects = async () => {
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/projects`, {
+            headers: {
+              'Authorization': `Bearer ${session?.access_token}`
+            }
+          })
+          if (response.ok) {
+            const data = await response.json()
+            setProjects(data.data || [])
+          }
+        } catch (error) {
+          console.error('Failed to fetch projects:', error)
+        }
+      }
+      fetchProjects()
+    }
+  }, [isImportMenuOpen, projects.length, session?.access_token])
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setSelectedFiles(event.target.files)
+    }
+  }
+
+  const parseFolderStructure = async (
+    files: FileList,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<Record<string, any>> => {
+    const structure: Record<string, any> = {}
+    const fileArray = Array.from(files)
+    const totalFiles = fileArray.length
+    let processedFiles = 0
+
+    // Get root folder name (extracted from first file's path)
+    let rootFolderName = 'root'
+    if (fileArray.length > 0 && fileArray[0].webkitRelativePath) {
+      const firstPathParts = fileArray[0].webkitRelativePath.split('/').filter(Boolean)
+      if (firstPathParts.length > 0) {
+        rootFolderName = firstPathParts[0]
+      }
+    }
+
+    structure[rootFolderName] = {
+      type: 'folder',
+      children: {}
+    }
+
+    for (const file of fileArray) {
+      const pathParts = file.webkitRelativePath.split('/').filter(Boolean)
+      let current = structure[rootFolderName].children
+
+      // Build nested structure
+      for (let i = 1; i < pathParts.length - 1; i++) {
+        if (!current[pathParts[i]]) {
+          current[pathParts[i]] = {
+            type: 'folder',
+            children: {}
+          }
+        }
+        current = current[pathParts[i]].children
+      }
+
+      // Add file
+      const fileName = pathParts[pathParts.length - 1]
+      try {
+        const content = await file.text()
+        current[fileName] = {
+          type: 'file',
+          content: content
+        }
+      } catch (error) {
+        console.error(`Failed to read file ${fileName}:`, error)
+        // Skip files that can't be read as text
+      }
+
+      processedFiles++
+      if (onProgress) {
+        onProgress(processedFiles, totalFiles)
+      }
+    }
+
+    return structure
+  }
+
+  const handleImport = async () => {
+    if (!selectedFiles || selectedFiles.length === 0) {
+      alert('Please select files to import')
+      return
+    }
+
+    if (!selectedProject) {
+      alert('Please select a project')
+      return
+    }
+
+    // Generate table name
+    const finalTableName = tableName.trim()
+      ? tableName.replace(/[^a-zA-Z0-9_-]/g, '_')
+      : `table_${Date.now()}`
+
+    setIsImporting(true)
+    setImportProgress(0)
+
+    try {
+      // Build folder structure
+      if (onLog) {
+        onLog('info', 'Starting to parse folder structure...')
+      }
+      const folderStructure = await parseFolderStructure(selectedFiles, (current, total) => {
+        setImportProgress((current / total) * 50) // Parse phase is 50% of progress
+      })
+
+      // Send to backend
+      if (onLog) {
+        onLog('info', 'Uploading to server...')
+      }
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/projects/${selectedProject}/import-folder`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({
+            table_name: finalTableName,
+            folder_structure: folderStructure,
+          }),
+        }
+      )
+
+      const data = await response.json()
+      if (data.code === 0) {
+        setImportProgress(100)
+
+        // Trigger refresh
+        if (onProjectsRefresh) {
+          onProjectsRefresh()
+        } else {
+          window.dispatchEvent(new CustomEvent('projects-refresh'))
+        }
+
+        // Reset form
+        setSelectedProject('')
+        setTableName('')
+        setSelectedFiles(null)
+        setIsImportMenuOpen(false)
+
+        if (onLog) {
+          onLog('success', `Folder imported successfully! Table name: ${finalTableName}`)
+        }
+      } else {
+        throw new Error(data.message || 'Import failed')
+      }
+    } catch (error) {
+      console.error('Import error:', error)
+      if (onLog) {
+        onLog('error', `Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    } finally {
+      setIsImporting(false)
+      setImportProgress(0)
+    }
+  }
 
   const handleApply = async () => {
     console.log('handleApply called', { userId, projectId, session })
@@ -147,154 +346,341 @@ export function McpBar({ projectId, tableId, currentTreePath, onProjectsRefresh,
     <>
       <div ref={barRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8 }}>
         <button
-          onClick={() => setIsImportDialogOpen(true)}
+          onClick={() => {
+            setIsImportMenuOpen(!isImportMenuOpen)
+            setIsOpen(false) // Close MCP menu when opening Import menu
+            onCloseOtherMenus?.() // Close editor menu when opening Import menu
+          }}
           style={{
             height: 28,
-            padding: '0 10px',
+            padding: '4px 10px',
             borderRadius: 6,
-            border: '1px solid rgba(148,163,184,0.35)',
-            background: 'transparent',
-            color: '#cbd5f5',
+            border: '1px solid #333',
+            background: '#1a1a1a',
+            color: '#CDCDCD',
             fontSize: 12,
             cursor: 'pointer',
+            transition: 'background 0.15s, border-color 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#2a2a2a'
+            e.currentTarget.style.borderColor = '#444'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = '#1a1a1a'
+            e.currentTarget.style.borderColor = '#333'
           }}
         >
           Import Folder as Table
         </button>
         <button
-          onClick={() => setIsOpen((v) => !v)}
+          onClick={() => {
+            setIsOpen(!isOpen)
+            setIsImportMenuOpen(false) // Close Import menu when opening MCP menu
+            onCloseOtherMenus?.() // Close editor menu when opening MCP menu
+          }}
           style={{
             height: 28,
-            padding: '0 10px',
+            padding: '4px 10px',
             borderRadius: 6,
-            border: '1px solid rgba(148,163,184,0.35)',
-            background: 'transparent',
-            color: '#cbd5f5',
+            border: '1px solid #333',
+            background: '#1a1a1a',
+            color: '#CDCDCD',
             fontSize: 12,
             cursor: 'pointer',
+            transition: 'background 0.15s, border-color 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#2a2a2a'
+            e.currentTarget.style.borderColor = '#444'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = '#1a1a1a'
+            e.currentTarget.style.borderColor = '#333'
           }}
         >
           Configure MCP
         </button>
+      {isImportMenuOpen && (
+        <div
+          ref={importMenuRef}
+          style={{
+            position: 'absolute',
+            top: 36,
+            left: 0,
+            width: 180,
+            background: '#1a1a1a',
+            border: '1px solid #333',
+            borderRadius: 8,
+            padding: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            zIndex: 50,
+            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.2)',
+            opacity: importMenuHeight > 0 ? 1 : 0,
+            transform: `translateY(${importMenuHeight > 0 ? 0 : -10}px) scaleY(${importMenuHeight > 0 ? 1 : 0.8})`,
+            transformOrigin: 'top',
+            maxHeight: importMenuHeight,
+            overflow: 'hidden',
+            transition: 'all 0.2s cubic-bezier(0.2, 0, 0.2, 1)',
+          }}
+        >
+
+          {/* Project Selection */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 10, color: '#CDCDCD', fontWeight: 500 }}>
+              Project
+            </label>
+            <select
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              disabled={isImporting}
+              style={{
+                height: 24,
+                padding: '0 8px',
+                borderRadius: 4,
+                border: '1px solid #333',
+                background: '#1a1a1a',
+                color: '#CDCDCD',
+                fontSize: 10,
+                cursor: isImporting ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <option value="">Select Project</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Table Name */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 10, color: '#CDCDCD', fontWeight: 500 }}>
+              Table Name
+            </label>
+            <input
+              type="text"
+              value={tableName}
+              onChange={(e) => setTableName(e.target.value)}
+              placeholder="Leave empty to auto-generate"
+              disabled={isImporting}
+              style={{
+                height: 24,
+                padding: '0 8px',
+                borderRadius: 4,
+                border: '1px solid #333',
+                background: '#1a1a1a',
+                color: '#CDCDCD',
+                fontSize: 10,
+              }}
+            />
+          </div>
+
+          {/* Folder Selection */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 10, color: '#CDCDCD', fontWeight: 500 }}>
+              Import Folder
+            </label>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                {...({ webkitdirectory: '', directory: '' } as any)}
+                onChange={handleFileSelect}
+                disabled={isImporting}
+                multiple
+                style={{ display: 'none' }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isImporting}
+                style={{
+                  height: 24,
+                  padding: '0 8px',
+                  borderRadius: 4,
+                  border: '1px solid #333',
+                  background: '#1a1a1a',
+                  color: '#CDCDCD',
+                  fontSize: 10,
+                  cursor: isImporting ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'background 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isImporting) {
+                    e.currentTarget.style.background = '#2a2a2a'
+                    e.currentTarget.style.borderColor = '#444'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isImporting) {
+                    e.currentTarget.style.background = '#1a1a1a'
+                    e.currentTarget.style.borderColor = '#333'
+                  }
+                }}
+              >
+                Select
+              </button>
+              {selectedFiles && selectedFiles.length > 0 && (
+                <div style={{ fontSize: 9, color: '#94a3b8' }}>
+                  {selectedFiles[0].webkitRelativePath.split('/')[0]}, {selectedFiles.length} files
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          {isImporting && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 10, color: '#CDCDCD' }}>Processing...</span>
+                <span style={{ fontSize: 10, color: '#94a3b8' }}>{Math.round(importProgress)}%</span>
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  height: 6,
+                  background: '#1a1a1a',
+                  borderRadius: 3,
+                  overflow: 'hidden',
+                  border: '1px solid #333',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${importProgress}%`,
+                    height: '100%',
+                    background: '#1e3a8a',
+                    transition: 'width 0.3s ease',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Action Button */}
+          <button
+            onClick={handleImport}
+            disabled={isImporting || !selectedFiles || selectedFiles.length === 0 || !selectedProject}
+            style={{
+              height: 28,
+              padding: '6px 8px',
+              borderRadius: 6,
+              border: 'none',
+              background: isImporting || !selectedFiles || selectedFiles.length === 0 || !selectedProject ? '#374151' : '#1e3a8a',
+              color: isImporting || !selectedFiles || selectedFiles.length === 0 || !selectedProject ? '#9ca3af' : '#ffffff',
+              fontSize: 10,
+              fontWeight: 500,
+              cursor: isImporting || !selectedFiles || selectedFiles.length === 0 || !selectedProject ? 'not-allowed' : 'pointer',
+              transition: 'background 0.15s',
+              marginTop: 6,
+            }}
+            onMouseEnter={(e) => {
+              if (!isImporting && selectedFiles && selectedFiles.length > 0 && selectedProject) {
+                e.currentTarget.style.background = '#1e40af'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isImporting && selectedFiles && selectedFiles.length > 0 && selectedProject) {
+                e.currentTarget.style.background = '#1e3a8a'
+              }
+            }}
+          >
+            {isImporting ? 'Importing...' : 'Import'}
+          </button>
+        </div>
+      )}
       {isOpen && (
         <div
+          ref={menuRef}
           style={{
             position: 'absolute',
             top: 36,
             right: 0,
-            width: 400,
-            background: '#0e1117',
-            border: '1px solid rgba(148,163,184,0.25)',
-            borderRadius: 10,
-            padding: 12,
+            width: 180,
+            background: '#1a1a1a',
+            border: '1px solid #333',
+            borderRadius: 8,
+            padding: 10,
             display: 'flex',
             flexDirection: 'column',
-            gap: 10,
+            gap: 8,
             zIndex: 50,
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.2)',
+            opacity: menuHeight > 0 ? 1 : 0,
+            transform: `translateY(${menuHeight > 0 ? 0 : -10}px) scaleY(${menuHeight > 0 ? 1 : 0.8})`,
+            transformOrigin: 'top',
+            maxHeight: menuHeight,
+            overflow: 'hidden',
+            transition: 'all 0.2s cubic-bezier(0.2, 0, 0.2, 1)',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#e5e7eb' }}>MCP Configuration</div>
-            <button
-              onClick={() => setIsOpen(false)}
-              style={{
-                height: 24,
-                padding: '0 8px',
-                borderRadius: 6,
-                border: '1px solid rgba(148,163,184,0.35)',
-                background: 'transparent',
-                color: '#94a3b8',
-                fontSize: 12,
-                cursor: 'pointer',
-              }}
-            >
-              Close
-            </button>
-          </div>
-          
+            
           {!result ? (
             <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {methodOptions.map((m) => {
-                  const active = selected === m.value
                   const added = addedMethods.includes(m.value)
                   return (
-                    <div
+                    <button
                       key={m.value}
+                      onClick={() => {
+                        if (added) {
+                          setAddedMethods((prev) => prev.filter((v) => v !== m.value))
+                        } else {
+                          setAddedMethods((prev) => [...prev, m.value])
+                        }
+                      }}
                       style={{
+                        height: 28,
+                        padding: '6px 8px',
+                        borderRadius: 4,
+                        border: added
+                          ? '1px solid #333'
+                          : '1px solid #333',
+                        background: added
+                          ? 'rgba(107,114,128,0.15)'
+                          : 'transparent',
+                        color: added ? '#CDCDCD' : '#CDCDCD',
+                        fontSize: 10,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'background 0.15s, border-color 0.15s, color 0.15s',
+                        fontWeight: added ? 500 : 400,
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 10,
-                        padding: '6px 8px',
-                        borderRadius: 8,
-                        border: added
-                          ? '1px solid rgba(34,197,94,0.6)'
-                          : active
-                          ? '1px solid rgba(59,130,246,0.7)'
-                          : '1px solid rgba(148,163,184,0.35)',
-                        background: added
-                          ? 'rgba(34,197,94,0.18)'
-                          : active
-                          ? 'rgba(30,64,175,0.35)'
-                          : 'transparent',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!added) {
+                          e.currentTarget.style.background = '#2a2a2a'
+                          e.currentTarget.style.borderColor = '#444'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!added) {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.borderColor = '#333'
+                        }
                       }}
                     >
-                      <button
-                        onClick={() => setSelected(m.value)}
-                        style={{
-                          height: 28,
-                          padding: '0 8px',
-                          borderRadius: 6,
-                          border: '1px solid transparent',
-                          background: 'transparent',
-                          color: added ? '#86efac' : active ? '#bfdbfe' : '#cbd5f5',
-                          fontSize: 12,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          flex: 1,
-                        }}
-                      >
-                        {m.label}
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (added) {
-                            setAddedMethods((prev) => prev.filter((v) => v !== m.value))
-                          } else {
-                            setAddedMethods((prev) => [...prev, m.value])
-                          }
-                        }}
-                        title={added ? 'Remove' : 'Add'}
-                        style={{
-                          height: 24,
-                          minWidth: 24,
-                          padding: 0,
-                          borderRadius: 6,
-                          border: added ? '1px solid rgba(34,197,94,0.6)' : '1px solid rgba(148,163,184,0.35)',
-                          background: added ? 'rgba(34,197,94,0.2)' : 'transparent',
-                          color: added ? '#86efac' : '#cbd5f5',
-                          fontSize: 14,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {added ? '✓' : '+'}
-                      </button>
-                    </div>
+                      <span>{m.label}</span>
+                    </button>
                   )
                 })}
               </div>
               {(!userId || !projectId) && (
-                <div style={{ fontSize: 11, color: '#f87171', marginTop: 4 }}>
+                <div style={{ fontSize: 10, color: '#f87171', marginTop: 2, padding: '3px 6px', background: 'rgba(248, 113, 113, 0.1)', borderRadius: 3 }}>
                   {!userId && 'Missing user ID. '}
-                  {!projectId && 'Missing project ID. '}
-                  Please refresh the page.
+                  {!projectId && 'Missing project ID.'}
                 </div>
               )}
               {addedMethods.length === 0 && (
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
-                  Please select at least one method to enable.
+                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+                  Select at least one method
                 </div>
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
@@ -315,33 +701,33 @@ export function McpBar({ projectId, tableId, currentTreePath, onProjectsRefresh,
                   <label
                     htmlFor="useJsonPointer"
                     style={{
-                      fontSize: 12,
-                      color: (currentTreePath && currentTreePath !== '') ? '#cbd5f5' : '#6b7280',
+                      fontSize: 10,
+                      color: (currentTreePath && currentTreePath !== '') ? '#CDCDCD' : '#6b7280',
                       cursor: (currentTreePath && currentTreePath !== '') ? 'pointer' : 'not-allowed',
                       userSelect: 'none',
                     }}
                   >
-                    Pass JSON Pointer
+                    JSON Pointer
                     {currentTreePath && currentTreePath !== '' && (
-                      <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>
-                        ({currentTreePath})
+                      <span style={{ fontSize: 9, color: '#94a3b8', marginLeft: 4 }}>
+                        ({currentTreePath.length > 15 ? currentTreePath.substring(0, 15) + '...' : currentTreePath})
                       </span>
                     )}
                   </label>
                 </div>
                 {!currentTreePath && (
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginLeft: 24 }}>
-                    Select a node in the JSON editor to enable this option
+                  <div style={{ fontSize: 9, color: '#94a3b8', marginLeft: 20 }}>
+                    Select a node to enable
                   </div>
                 )}
                 {currentTreePath === '' && (
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginLeft: 24 }}>
-                    Root node selected. JSON Pointer is not needed (defaults to root path)
+                  <div style={{ fontSize: 9, color: '#94a3b8', marginLeft: 20 }}>
+                    Root node - no pointer needed
                   </div>
                 )}
                 {useJsonPointer && (!currentTreePath || currentTreePath === '') && (
-                  <div style={{ fontSize: 11, color: '#f87171', marginLeft: 24 }}>
-                    No valid tree path selected. Cannot pass JSON Pointer.
+                  <div style={{ fontSize: 9, color: '#f87171', marginLeft: 20 }}>
+                    No valid path selected
                   </div>
                 )}
               </div>
@@ -352,75 +738,71 @@ export function McpBar({ projectId, tableId, currentTreePath, onProjectsRefresh,
                   !userId || !projectId
                     ? 'Missing user ID or project ID'
                     : addedMethods.length === 0
-                    ? 'Please select at least one method'
+                    ? 'Select at least one method'
                     : ''
                 }
                 style={{
-                  marginTop: 8,
-                  height: 32,
+                  marginTop: 6,
+                  height: 28,
                   borderRadius: 6,
                   border: 'none',
-                  background: isApplying || addedMethods.length === 0 || !userId || !projectId ? '#374151' : '#2563eb',
+                  background: isApplying || addedMethods.length === 0 || !userId || !projectId ? '#374151' : '#1e3a8a',
                   color: isApplying || addedMethods.length === 0 || !userId || !projectId ? '#9ca3af' : '#ffffff',
-                  fontSize: 13,
+                  fontSize: 11,
                   fontWeight: 500,
                   cursor: isApplying || addedMethods.length === 0 || !userId || !projectId ? 'not-allowed' : 'pointer',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isApplying && addedMethods.length > 0 && userId && projectId) {
+                    e.currentTarget.style.background = '#1e40af'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isApplying && addedMethods.length > 0 && userId && projectId) {
+                    e.currentTarget.style.background = '#1e3a8a'
+                  }
                 }}
               >
-                {isApplying ? 'Creating Instance...' : 'Create MCP Instance'}
+                {isApplying ? 'Creating...' : 'Create'}
               </button>
             </>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <McpInstanceInfo 
-                apiKey={result.apiKey} 
-                url={result.url} 
-                port={result.port} 
+              <McpInstanceInfo
+                apiKey={result.apiKey}
+                url={result.url}
+                port={result.port}
               />
               <button
                 onClick={() => setResult(null)}
                 style={{
-                  marginTop: 8,
-                  height: 32,
+                  marginTop: 6,
+                  height: 28,
                   borderRadius: 6,
-                  border: '1px solid rgba(148,163,184,0.35)',
-                  background: 'transparent',
-                  color: '#cbd5f5',
-                  fontSize: 13,
+                  border: '1px solid #333',
+                  background: '#1a1a1a',
+                  color: '#CDCDCD',
+                  fontSize: 11,
                   cursor: 'pointer',
+                  transition: 'background 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#2a2a2a'
+                  e.currentTarget.style.borderColor = '#444'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#1a1a1a'
+                  e.currentTarget.style.borderColor = '#333'
                 }}
               >
-                Back to Configuration
+                Back
               </button>
             </div>
           )}
         </div>
       )}
       </div>
-      <ImportFolderDialog
-        isOpen={isImportDialogOpen}
-        onClose={() => setIsImportDialogOpen(false)}
-        onSuccess={() => {
-          // Refresh project data without reloading the page
-          if (onProjectsRefresh) {
-            onProjectsRefresh()
-          } else {
-            // Fallback: dispatch custom event for components to listen
-            window.dispatchEvent(new CustomEvent('projects-refresh'))
-          }
-        }}
-        onLog={(type, message) => {
-          // Use provided onLog callback or dispatch event as fallback
-          if (onLog) {
-            onLog(type, message)
-          } else {
-            // Dispatch custom event for ProjectWorkspaceView to listen
-            window.dispatchEvent(new CustomEvent('import-log', {
-              detail: { type, message }
-            }))
-          }
-        }}
-      />
     </>
   )
-}
+})

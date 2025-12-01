@@ -47,20 +47,22 @@ export function McpInstanceInfo({ apiKey, url, port }: McpInstanceInfoProps) {
     }, 2000)
   }
 
-  // 自定义深色主题
+  // 更紧凑的自定义深色主题
   const customTheme = {
     ...vscDarkPlus,
     'code[class*="language-"]': {
       ...vscDarkPlus['code[class*="language-"]'],
-      background: '#0d1117',
-      color: '#cbd5f5',
+      background: '#1a1a1a',
+      color: '#9ca3af',
       fontFamily: "'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace",
+      fontSize: '10px',
     },
     'pre[class*="language-"]': {
       ...vscDarkPlus['pre[class*="language-"]'],
-      background: '#0d1117',
-      color: '#cbd5f5',
+      background: '#1a1a1a',
+      color: '#9ca3af',
       fontFamily: "'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace",
+      fontSize: '10px',
     },
   }
 
@@ -81,90 +83,92 @@ export function McpInstanceInfo({ apiKey, url, port }: McpInstanceInfoProps) {
     const existingStyle = document.getElementById('mcp-code-block-styles')
     if (existingStyle) return
 
-    // 添加滚动条样式
+    // 更紧凑的滚动条样式
     const style = document.createElement('style')
     style.id = 'mcp-code-block-styles'
     style.textContent = `
       .mcp-code-block::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
       }
-      
+
       .mcp-code-block::-webkit-scrollbar-track {
-        background: transparent;
+        background: #1f1f1f;
       }
-      
+
       .mcp-code-block::-webkit-scrollbar-thumb {
-        background: rgba(148, 163, 184, 0.2);
-        border-radius: 4px;
+        background: #4b5563;
+        border-radius: 3px;
       }
-      
+
       .mcp-code-block::-webkit-scrollbar-thumb:hover {
-        background: rgba(148, 163, 184, 0.35);
+        background: #6b7280;
       }
-      
+
       .mcp-code-block {
         scrollbar-width: thin;
-        scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+        scrollbar-color: #4b5563 #1f1f1f;
       }
     `
     document.head.appendChild(style)
   }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* API Key */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>API Key</div>
-            <button 
-              onClick={() => copyToClipboard(apiKey, 'apiKey')} 
-              style={{ 
-                background: 'transparent', 
-                border: '1px solid rgba(148,163,184,0.2)', 
-                borderRadius: 4,
-                color: copiedStates.apiKey ? '#86efac' : '#94a3b8', 
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+            <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 500 }}>API Key</div>
+            <button
+              onClick={() => copyToClipboard(apiKey, 'apiKey')}
+              style={{
+                background: 'transparent',
+                border: '1px solid #374151',
+                borderRadius: 3,
+                color: copiedStates.apiKey ? '#34d399' : '#6b7280',
                 cursor: 'pointer',
-                padding: '4px 6px',
-                transition: 'all 0.2s',
+                padding: '2px 4px',
+                transition: 'all 0.15s',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 24,
-                height: 24
+                width: 18,
+                height: 18
               }}
               title={copiedStates.apiKey ? 'Copied!' : 'Copy'}
             >
               {copiedStates.apiKey ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                 </svg>
               )}
             </button>
           </div>
-          <div className="mcp-code-block" style={{ 
-            background: '#0d1117', 
-            borderRadius: 6, 
+          <div className="mcp-code-block" style={{
+            background: '#1f1f1f',
+            borderRadius: 4,
             overflow: 'hidden',
-            maxHeight: 60,
-            overflowY: 'auto'
+            maxHeight: 45,
+            overflowY: 'auto',
+            border: '1px solid #374151'
           }}>
             <SyntaxHighlighter
               language="text"
               style={customTheme}
               customStyle={{
                 margin: 0,
-                padding: '8px',
-                fontSize: '11px',
+                padding: '4px 6px',
+                fontSize: '9px',
                 fontFamily: "'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace",
-                background: '#0d1117',
+                background: '#1f1f1f',
                 wordBreak: 'break-all',
-                overflowWrap: 'break-word'
+                overflowWrap: 'break-word',
+                lineHeight: '1.3'
               }}
               wrapLines={true}
               wrapLongLines={true}
@@ -176,54 +180,56 @@ export function McpInstanceInfo({ apiKey, url, port }: McpInstanceInfoProps) {
 
       {/* URL */}
       <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>URL</div>
-            <button 
-              onClick={() => copyToClipboard(url, 'url')} 
-              style={{ 
-                background: 'transparent', 
-                border: '1px solid rgba(148,163,184,0.2)', 
-                borderRadius: 4,
-                color: copiedStates.url ? '#86efac' : '#94a3b8', 
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+            <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 500 }}>URL</div>
+            <button
+              onClick={() => copyToClipboard(url, 'url')}
+              style={{
+                background: 'transparent',
+                border: '1px solid #374151',
+                borderRadius: 3,
+                color: copiedStates.url ? '#34d399' : '#6b7280',
                 cursor: 'pointer',
-                padding: '4px 6px',
-                transition: 'all 0.2s',
+                padding: '2px 4px',
+                transition: 'all 0.15s',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 24,
-                height: 24
+                width: 18,
+                height: 18
               }}
               title={copiedStates.url ? 'Copied!' : 'Copy'}
             >
               {copiedStates.url ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                 </svg>
               )}
             </button>
         </div>
-        <div className="mcp-code-block" style={{ 
-          background: '#0d1117', 
-          borderRadius: 6, 
-          overflow: 'hidden'
+        <div className="mcp-code-block" style={{
+          background: '#1f1f1f',
+          borderRadius: 4,
+          overflow: 'hidden',
+          border: '1px solid #374151'
         }}>
           <SyntaxHighlighter
               language="text"
               style={customTheme}
               customStyle={{
                 margin: 0,
-                padding: '8px',
-                fontSize: '11px',
+                padding: '4px 6px',
+                fontSize: '9px',
                 fontFamily: "'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace",
-                background: '#0d1117',
+                background: '#1f1f1f',
                 wordBreak: 'break-all',
-                overflowWrap: 'break-word'
+                overflowWrap: 'break-word',
+                lineHeight: '1.3'
               }}
               wrapLines={true}
               wrapLongLines={true}
@@ -235,85 +241,87 @@ export function McpInstanceInfo({ apiKey, url, port }: McpInstanceInfoProps) {
 
       {/* MCP Config */}
       <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={() => setActiveTab('json')}
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: activeTab === 'json' ? '#60a5fa' : '#94a3b8',
-                  fontSize: 12,
+                  color: activeTab === 'json' ? '#3b82f6' : '#6b7280',
+                  fontSize: 10,
                   cursor: 'pointer',
                   padding: 0,
                   fontWeight: activeTab === 'json' ? 600 : 400,
-                  transition: 'color 0.2s'
+                  transition: 'color 0.15s'
                 }}
               >
-                JSON
+                json
               </button>
               <button
                 onClick={() => setActiveTab('yaml')}
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: activeTab === 'yaml' ? '#60a5fa' : '#94a3b8',
-                  fontSize: 12,
+                  color: activeTab === 'yaml' ? '#3b82f6' : '#6b7280',
+                  fontSize: 10,
                   cursor: 'pointer',
                   padding: 0,
                   fontWeight: activeTab === 'yaml' ? 600 : 400,
-                  transition: 'color 0.2s'
+                  transition: 'color 0.15s'
                 }}
               >
-                YAML
+                yaml
               </button>
             </div>
-            <button 
-              onClick={() => copyToClipboard(configText, 'config')} 
-              style={{ 
-                background: 'transparent', 
-                border: '1px solid rgba(148,163,184,0.2)', 
-                borderRadius: 4,
-                color: copiedStates.config ? '#86efac' : '#94a3b8', 
+            <button
+              onClick={() => copyToClipboard(configText, 'config')}
+              style={{
+                background: 'transparent',
+                border: '1px solid #374151',
+                borderRadius: 3,
+                color: copiedStates.config ? '#34d399' : '#6b7280',
                 cursor: 'pointer',
-                padding: '4px 6px',
-                transition: 'all 0.2s',
+                padding: '2px 4px',
+                transition: 'all 0.15s',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 24,
-                height: 24
+                width: 18,
+                height: 18
               }}
               title={copiedStates.config ? 'Copied!' : 'Copy'}
             >
               {copiedStates.config ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                 </svg>
               )}
             </button>
         </div>
-        <div className="mcp-code-block" style={{ 
-          background: '#0d1117', 
-          borderRadius: 6, 
+        <div className="mcp-code-block" style={{
+          background: '#1f1f1f',
+          borderRadius: 4,
           overflow: 'hidden',
-          maxHeight: 200,
-          overflowY: 'auto'
+          maxHeight: 120,
+          overflowY: 'auto',
+          border: '1px solid #374151'
         }}>
           <SyntaxHighlighter
               language={activeTab === 'json' ? 'json' : 'yaml'}
               style={customTheme}
               customStyle={{
                 margin: 0,
-                padding: '8px',
-                fontSize: '11px',
+                padding: '4px 6px',
+                fontSize: '9px',
                 fontFamily: "'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace",
-                background: '#0d1117',
+                background: '#1f1f1f',
+                lineHeight: '1.3'
               }}
               wrapLines={true}
               wrapLongLines={true}

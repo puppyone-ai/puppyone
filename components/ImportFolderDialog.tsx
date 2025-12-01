@@ -319,7 +319,7 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'rgba(0, 0, 0, 0.7)',
+        background: 'rgba(0, 0, 0, 0.8)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -338,21 +338,21 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
           width: '90%',
           maxWidth: 600,
           maxHeight: 'calc(100vh - 40px)',
-          background: '#0e1117',
-          border: '1px solid rgba(148,163,184,0.25)',
-          borderRadius: 10,
+          background: '#1a1a1a',
+          border: '1px solid #333',
+          borderRadius: 8,
           padding: 24,
           display: 'flex',
           flexDirection: 'column',
           gap: 16,
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)',
           margin: 'auto',
           overflow: 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, color: '#e5e7eb', margin: 0 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, color: '#CDCDCD', margin: 0 }}>
             Import Folder as Table
           </h2>
           <button
@@ -361,7 +361,7 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: '#CDCDCD',
               fontSize: 20,
               cursor: isImporting ? 'not-allowed' : 'pointer',
               padding: 0,
@@ -370,6 +370,18 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              borderRadius: 4,
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              if (!isImporting) {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isImporting) {
+                e.currentTarget.style.background = 'transparent'
+              }
             }}
           >
             ×
@@ -379,7 +391,7 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Project Selection */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 12, color: '#cbd5f5', fontWeight: 500 }}>
+            <label style={{ fontSize: 12, color: '#CDCDCD', fontWeight: 500 }}>
               Project
             </label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -400,9 +412,9 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
                   height: 32,
                   padding: '0 10px',
                   borderRadius: 6,
-                  border: '1px solid rgba(148,163,184,0.35)',
-                  background: '#161b22',
-                  color: '#e5e7eb',
+                  border: '1px solid #333',
+                  background: '#1a1a1a',
+                  color: '#CDCDCD',
                   fontSize: 13,
                   cursor: isImporting ? 'not-allowed' : 'pointer',
                 }}
@@ -420,7 +432,7 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
           {/* New Project Naming */}
           {isCreatingNewProject && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 12, color: '#cbd5f5', fontWeight: 500 }}>
+              <label style={{ fontSize: 12, color: '#CDCDCD', fontWeight: 500 }}>
                 New Project Name (Optional)
               </label>
               <input
@@ -433,9 +445,9 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
                   height: 32,
                   padding: '0 10px',
                   borderRadius: 6,
-                  border: '1px solid rgba(148,163,184,0.35)',
-                  background: '#161b22',
-                  color: '#e5e7eb',
+                  border: '1px solid #333',
+                  background: '#1a1a1a',
+                  color: '#CDCDCD',
                   fontSize: 13,
                 }}
               />
@@ -444,7 +456,7 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
 
           {/* Table Naming */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 12, color: '#cbd5f5', fontWeight: 500 }}>
+            <label style={{ fontSize: 12, color: '#CDCDCD', fontWeight: 500 }}>
               Table Name (Optional)
             </label>
             <input
@@ -457,9 +469,9 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
                 height: 32,
                 padding: '0 10px',
                 borderRadius: 6,
-                border: '1px solid rgba(148,163,184,0.35)',
-                background: '#161b22',
-                color: '#e5e7eb',
+                border: '1px solid #333',
+                background: '#1a1a1a',
+                color: '#CDCDCD',
                 fontSize: 13,
               }}
             />
@@ -467,7 +479,7 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
 
           {/* Folder Selection */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 12, color: '#cbd5f5', fontWeight: 500 }}>
+            <label style={{ fontSize: 12, color: '#CDCDCD', fontWeight: 500 }}>
               Select Folder
             </label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -494,12 +506,25 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
                   height: 32,
                   padding: '0 12px',
                   borderRadius: 6,
-                  border: '1px solid rgba(148,163,184,0.35)',
-                  background: '#161b22',
-                  color: '#e5e7eb',
+                  border: '1px solid #333',
+                  background: '#1a1a1a',
+                  color: '#CDCDCD',
                   fontSize: 13,
                   cursor: isImporting ? 'not-allowed' : 'pointer',
                   whiteSpace: 'nowrap',
+                  transition: 'background 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isImporting) {
+                    e.currentTarget.style.background = '#2a2a2a'
+                    e.currentTarget.style.borderColor = '#444'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isImporting) {
+                    e.currentTarget.style.background = '#1a1a1a'
+                    e.currentTarget.style.borderColor = '#333'
+                  }
                 }}
               >
                 Select Folder
@@ -510,9 +535,9 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
                   height: 32,
                   padding: '0 10px',
                   borderRadius: 6,
-                  border: '1px solid rgba(148,163,184,0.35)',
-                  background: '#161b22',
-                  color: selectedFolder && selectedFolder.length > 0 ? '#e5e7eb' : '#6b7280',
+                  border: '1px solid #333',
+                  background: '#1a1a1a',
+                  color: selectedFolder && selectedFolder.length > 0 ? '#CDCDCD' : '#6b7280',
                   fontSize: 13,
                   display: 'flex',
                   alignItems: 'center',
@@ -530,14 +555,14 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
         {isImporting && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: '#cbd5f5' }}>Processing Progress</span>
+              <span style={{ fontSize: 12, color: '#CDCDCD' }}>Processing Progress</span>
               <span style={{ fontSize: 12, color: '#94a3b8' }}>{Math.round(progress)}%</span>
             </div>
             <div
               style={{
                 width: '100%',
                 height: 8,
-                background: '#161b22',
+                background: '#1a1a1a',
                 borderRadius: 4,
                 overflow: 'hidden',
               }}
@@ -563,11 +588,24 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
               height: 32,
               padding: '0 16px',
               borderRadius: 6,
-              border: '1px solid rgba(148,163,184,0.35)',
-              background: 'transparent',
-              color: '#cbd5f5',
+              border: '1px solid #333',
+              background: '#1a1a1a',
+              color: '#CDCDCD',
               fontSize: 13,
               cursor: isImporting ? 'not-allowed' : 'pointer',
+              transition: 'background 0.15s, border-color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              if (!isImporting) {
+                e.currentTarget.style.background = '#2a2a2a'
+                e.currentTarget.style.borderColor = '#444'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isImporting) {
+                e.currentTarget.style.background = '#1a1a1a'
+                e.currentTarget.style.borderColor = '#333'
+              }
             }}
           >
             Cancel
@@ -580,11 +618,22 @@ export function ImportFolderDialog({ isOpen, onClose, onSuccess, onLog }: Import
               padding: '0 16px',
               borderRadius: 6,
               border: 'none',
-              background: isImporting || !selectedFolder || selectedFolder.length === 0 ? '#374151' : '#2563eb',
+              background: isImporting || !selectedFolder || selectedFolder.length === 0 ? '#374151' : '#1e3a8a',
               color: isImporting || !selectedFolder || selectedFolder.length === 0 ? '#9ca3af' : '#ffffff',
               fontSize: 13,
               fontWeight: 500,
               cursor: isImporting || !selectedFolder || selectedFolder.length === 0 ? 'not-allowed' : 'pointer',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              if (!isImporting && selectedFolder && selectedFolder.length > 0) {
+                e.currentTarget.style.background = '#1e40af'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isImporting && selectedFolder && selectedFolder.length > 0) {
+                e.currentTarget.style.background = '#1e3a8a'
+              }
             }}
           >
             {isImporting ? 'Importing...' : 'Import'}

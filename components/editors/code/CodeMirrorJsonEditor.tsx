@@ -44,7 +44,7 @@ export function CodeMirrorJsonEditor({ json, onChange, onPathChange }: CodeMirro
         value={JSON.stringify(json, null, 2)}
         height="100%"
         theme="dark"
-        extensions={[json()]}
+        extensions={[(json as any)()]}
         onChange={handleChange}
         onUpdate={handleUpdate}
         basicSetup={{
