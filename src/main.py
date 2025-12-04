@@ -21,6 +21,7 @@ from src.auth.router import router as auth_router
 from src.user_context.router import router as user_context_router
 from src.mcp.router import router as mcp_router
 from src.s3.router import router as s3_router
+from src.etl.router import router as etl_router
 
 
 @asynccontextmanager
@@ -43,10 +44,38 @@ async def app_lifespan(app: FastAPI):
     except Exception as e:
         log_error(f"Failed to recover MCP instances on startup: {e}")
 
+    # 初始化 ETL 服务
+    try:
+        from src.etl.dependencies import get_etl_service
+        from pathlib import Path
+
+        etl_service = get_etl_service()
+        
+        # 创建必要的目录
+        Path(".mineru_cache").mkdir(parents=True, exist_ok=True)
+        Path(".etl_rules").mkdir(parents=True, exist_ok=True)
+        
+        # 启动 ETL workers
+        await etl_service.start()
+        log_info("ETL service started successfully")
+    except Exception as e:
+        log_error(f"Failed to start ETL service: {e}")
+
     # TODO: 初始化数据库连接、缓存等
     yield
     # 关闭时的清理逻辑
     log_info("ContextBase API 关闭中...")
+    
+    # 停止 ETL 服务
+    try:
+        from src.etl.dependencies import get_etl_service
+        
+        etl_service = get_etl_service()
+        await etl_service.stop()
+        log_info("ETL service stopped successfully")
+    except Exception as e:
+        log_error(f"Failed to stop ETL service: {e}")
+    
     # TODO: 关闭数据库连接、清理资源等
 
 
@@ -77,6 +106,7 @@ def create_app() -> FastAPI:
     app.include_router(user_context_router, prefix="/api/v1", tags=["user_context"])
     app.include_router(mcp_router, prefix="/api/v1", tags=["mcp"])
     app.include_router(s3_router, prefix="/api/v1")
+    app.include_router(etl_router)
 
     # 注册异常处理器
     app.add_exception_handler(AppException, app_exception_handler)
