@@ -29,6 +29,9 @@ interface TreeLineVirtualEditorProps {
   json: object
   onChange?: (json: object) => void
   onPathChange?: (path: string | null) => void
+  onPublishPath?: (path: string) => void
+  isSelectingAccessPoint?: boolean
+  onAddAccessPoint?: (path: string, permissions: { read: boolean; write: boolean }) => void
 }
 
 // ============================================
@@ -240,21 +243,21 @@ const styles = {
 // ============================================
 // 绘制一个层级的连接线：从父节点的值位置延伸下来
 // 连接线组件 - 优化版：减少不必要的计算
-const LevelConnector = React.memo(function LevelConnector({
-  depth,
-  isLast,
-  parentLines
-}: {
+const LevelConnector = React.memo(function LevelConnector({ 
+  depth, 
+  isLast, 
+  parentLines 
+}: { 
   depth: number
-  isLast: boolean
+  isLast: boolean 
   parentLines: boolean[]
 }) {
   const hh = ROW_HEIGHT / 2
   const branchX = 8 + depth * LEVEL_WIDTH
 
   return (
-    <svg
-      style={{
+    <svg 
+      style={{ 
         position: 'absolute',
         left: 0,
         top: 0,
@@ -306,6 +309,9 @@ interface VirtualRowProps {
   onSelect: (path: string) => void
   onValueChange: (path: string, value: JsonValue) => void
   onContextMenu: (e: React.MouseEvent, path: string, value: JsonValue) => void
+  onPublish?: (path: string) => void
+  isSelectingAccessPoint?: boolean
+  onAddAccessPoint?: (path: string, permissions: { read: boolean; write: boolean }) => void
 }
 
 // 编辑时也要选中当前行
@@ -321,6 +327,9 @@ const VirtualRow = React.memo(function VirtualRow({
   onSelect,
   onValueChange,
   onContextMenu,
+  onPublish,
+  isSelectingAccessPoint,
+  onAddAccessPoint,
 }: VirtualRowProps) {
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -636,17 +645,28 @@ const VirtualRow = React.memo(function VirtualRow({
     )
   }, [node.path, node.value, onContextMenu])
 
+  // Handle click in selection mode
+  const handleRowClick = useCallback(() => {
+    if (isSelectingAccessPoint) {
+      setShowAccessConfig(true)
+    } else {
+      onSelect(node.path)
+    }
+  }, [isSelectingAccessPoint, node.path, onSelect])
+
   return (
     <div
       style={{
-        ...styles.row(isSelected, hovered),
+        ...styles.row(isSelected, hovered && !isSelectingAccessPoint),
         position: 'relative',
       }}
-      onClick={() => onSelect(node.path)}
-      onDoubleClick={handleDoubleClick}
-      onContextMenu={handleContextMenu}
+      onClick={isSelectingAccessPoint ? undefined : () => onSelect(node.path)}
+      onDoubleClick={isSelectingAccessPoint ? undefined : handleDoubleClick}
+      onContextMenu={isSelectingAccessPoint ? undefined : handleContextMenu}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseLeave={() => {
+        setHovered(false)
+      }}
     >
       {/* 连接线 (绝对定位) */}
       <LevelConnector 
@@ -677,6 +697,7 @@ const VirtualRow = React.memo(function VirtualRow({
         alignItems: 'flex-start',  // 顶部对齐
         marginLeft: contentLeft,
         paddingTop: 4,  // 与行高对齐
+        flex: 1,  // 占满剩余宽度
       }}>
         {/* Key + 分隔线容器 */}
         <div style={{
@@ -697,7 +718,7 @@ const VirtualRow = React.memo(function VirtualRow({
           }}>
             {node.key}
           </span>
-
+          
           {/* 分隔线 ── 填充剩余空间 */}
           <span style={{
             flex: 1,
@@ -708,9 +729,63 @@ const VirtualRow = React.memo(function VirtualRow({
           }} />
         </div>
         
-      {/* Value */}
+        {/* Value - with selection mode styling */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            flex: 1,  // 占满剩余宽度
+            ...(isSelectingAccessPoint ? {
+              borderRadius: 4,
+              transition: 'all 0.15s',
+              padding: '2px 6px',
+              margin: '-2px -6px',
+              ...(hovered ? {
+                background: 'rgba(52, 211, 153, 0.08)',
+                outline: '1px dashed rgba(52, 211, 153, 0.5)',
+              } : {}),
+            } : {}),
+          }}
+        >
         {node.isExpandable ? renderExpandableValue() : renderPrimitiveValue()}
       </div>
+      </div>
+      
+      {/* Config Button - fixed at row's right edge, in selection mode */}
+      {isSelectingAccessPoint && hovered && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            // 直接通知父组件选中了这个节点的路径
+            onAddAccessPoint?.(node.path, { read: true, write: false })
+          }}
+          style={{
+            position: 'absolute',
+            top: 4,
+            right: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '3px 8px',
+            background: '#34d399',
+            border: 'none',
+            borderRadius: 4,
+            color: '#000',
+            fontSize: 11,
+            fontWeight: 500,
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+            whiteSpace: 'nowrap',
+            zIndex: 10,
+          }}
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Select
+        </button>
+      )}
     </div>
   )
 })
@@ -718,7 +793,14 @@ const VirtualRow = React.memo(function VirtualRow({
 // ============================================
 // Main Component
 // ============================================
-export function TreeLineVirtualEditor({ json, onChange, onPathChange }: TreeLineVirtualEditorProps) {
+export function TreeLineVirtualEditor({ 
+  json, 
+  onChange, 
+  onPathChange, 
+  onPublishPath,
+  isSelectingAccessPoint = false,
+  onAddAccessPoint,
+}: TreeLineVirtualEditorProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
@@ -1006,6 +1088,9 @@ export function TreeLineVirtualEditor({ json, onChange, onPathChange }: TreeLine
                   onSelect={handleSelect}
                   onValueChange={handleValueChange}
                   onContextMenu={handleContextMenu}
+                  onPublish={onPublishPath}
+                  isSelectingAccessPoint={isSelectingAccessPoint}
+                  onAddAccessPoint={onAddAccessPoint}
                 />
               </div>
             )

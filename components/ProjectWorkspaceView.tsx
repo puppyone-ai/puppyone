@@ -39,6 +39,8 @@ type ProjectWorkspaceViewProps = {
   onNavigateBack?: () => void
   onProjectMissing?: () => void
   editorType?: EditorType
+  isSelectingAccessPoint?: boolean
+  onAddAccessPoint?: (path: string, permissions: { read: boolean; write: boolean }) => void
 }
 
 export function ProjectWorkspaceView({
@@ -51,6 +53,8 @@ export function ProjectWorkspaceView({
   onNavigateBack,
   onProjectMissing,
   editorType = 'treeline-virtual',
+  isSelectingAccessPoint = false,
+  onAddAccessPoint,
 }: ProjectWorkspaceViewProps) {
   const { session, isAuthReady } = useAuth()
   const router = useRouter()
@@ -469,6 +473,8 @@ export function ProjectWorkspaceView({
                             json={tableData} 
                             onPathChange={setCurrentTreePath}
                             onChange={handleTableDataChange}
+                            isSelectingAccessPoint={isSelectingAccessPoint}
+                            onAddAccessPoint={onAddAccessPoint}
                           />
                         )}
                         {editorType === 'monaco' && (
