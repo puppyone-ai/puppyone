@@ -1,10 +1,17 @@
 """S3 存储模块配置"""
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class S3Settings(BaseSettings):
     """S3 存储配置"""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+        env_file_encoding="utf-8"
+    )
 
     # S3 服务端点 (LocalStack: http://localhost:4566, AWS: None)
     S3_ENDPOINT_URL: str = "http://localhost:4566"
@@ -17,10 +24,6 @@ class S3Settings(BaseSettings):
     S3_MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB (字节)
     S3_MULTIPART_THRESHOLD: int = 100 * 1024 * 1024  # 100MB (字节)
     S3_MULTIPART_CHUNKSIZE: int = 5 * 1024 * 1024  # 5MB (字节)
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 s3_settings = S3Settings()

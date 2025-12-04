@@ -8,11 +8,17 @@ import os
 from typing import Optional
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class LLMConfig(BaseSettings):
     """Configuration for LLM service."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
     # Default model to use
     default_text_model: str = Field(
@@ -51,11 +57,6 @@ class LLMConfig(BaseSettings):
         default=3,
         description="Maximum number of retries on API failure"
     )
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"  # Allow extra environment variables
 
 
 # Global config instance

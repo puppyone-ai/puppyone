@@ -47,11 +47,22 @@ class S3Service:
         self.multipart_chunksize = s3_settings.S3_MULTIPART_CHUNKSIZE
 
         # 创建 boto3 客户端（线程安全）
+        from botocore.config import Config
+        
+        # 配置签名版本为 v4 (Supabase Storage 要求)
+        config = Config(
+            signature_version='s3v4',
+            s3={
+                'addressing_style': 'path'  # 使用路径样式 (bucket/key)
+            }
+        )
+        
         client_kwargs = {
             "service_name": "s3",
             "aws_access_key_id": self.access_key_id,
             "aws_secret_access_key": self.secret_access_key,
             "region_name": self.region,
+            "config": config,
         }
         if self.endpoint_url:
             client_kwargs["endpoint_url"] = self.endpoint_url
@@ -76,16 +87,24 @@ class S3Service:
         """处理 boto3 ClientError"""
         error_code = error.response.get("Error", {}).get("Code", "Unknown")
         error_message = error.response.get("Error", {}).get("Message", str(error))
+        http_status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
 
         logger.error(
-            f"S3 {operation} failed: {error_code} - {error_message}",
-            extra={"error_code": error_code, "operation": operation},
+            f"S3 {operation} failed: {error_code} - {error_message} (HTTP {http_status})",
+            extra={"error_code": error_code, "operation": operation, "http_status": http_status},
         )
 
-        if error_code == "NoSuchKey":
-            raise S3FileNotFoundError(error_message)
-        elif error_code == "404":
-            raise S3FileNotFoundError(error_message)
+        # 处理各种错误码
+        if error_code == "NoSuchKey" or error_code == "404" or http_status == 404:
+            # 404 可能是文件不存在或 bucket 不存在
+            if operation in ["upload_file", "create_multipart_upload"]:
+                raise S3OperationError(f"Bucket '{self.bucket_name}' may not exist or is not accessible: {error_message}")
+            else:
+                raise S3FileNotFoundError(error_message)
+        elif error_code == "NoSuchBucket":
+            raise S3OperationError(f"Bucket '{self.bucket_name}' does not exist")
+        elif error_code == "AccessDenied" or http_status == 403:
+            raise S3OperationError(f"Access denied: {error_message}")
         else:
             raise S3OperationError(f"{operation} failed: {error_message}")
 

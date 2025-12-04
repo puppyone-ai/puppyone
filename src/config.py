@@ -1,10 +1,17 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from typing import Literal
 
 
 class Settings(BaseSettings):
     """应用配置"""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+        env_file_encoding="utf-8"
+    )
 
     # 服务配置
     APP_NAME: str = "ContextBase"
@@ -29,10 +36,6 @@ class Settings(BaseSettings):
 
     # 向量数据库配置
     CHROMA_PERSIST_DIRECTORY: Path = Path("./data/chroma_db")
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 settings = Settings()
