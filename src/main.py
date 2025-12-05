@@ -32,9 +32,9 @@ async def app_lifespan(app: FastAPI):
     可以在这里初始化数据库连接、缓存等资源
     """
     # 启动时的初始化逻辑
-    log_info("ContextBase API 启动中...")
+    log_info("Initializing ContextBase API...")
 
-    # 恢复 MCP 实例状态（检查 repository 中的实例状态，同步进程状态）
+    # 1. MCP模块: 恢复 MCP 实例状态 (后续抽出单独的微服务)
     try:
         from src.mcp.dependencies import get_mcp_instance_service
 

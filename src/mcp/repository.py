@@ -30,6 +30,11 @@ class McpInstanceRepositoryBase(ABC):
         pass
 
     @abstractmethod
+    def get_all(self) -> List[McpInstance]:
+        """获取所有 MCP 实例"""
+        pass
+
+    @abstractmethod
     def create(
         self,
         api_key: str,
@@ -94,6 +99,10 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         try:
             with open(DATA_PATH, "r", encoding="utf-8") as f:
                 instances = json.load(f)
+                # 数据迁移：将旧的 context_id 字段转换为 table_id
+                for instance in instances:
+                    if "context_id" in instance and "table_id" not in instance:
+                        instance["table_id"] = instance.pop("context_id")
                 return [McpInstance(**instance) for instance in instances]
         except FileNotFoundError:
             return []
@@ -130,6 +139,10 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         """根据 user_id 获取该用户的所有 MCP 实例"""
         instances = self._read_data()
         return [instance for instance in instances if instance.user_id == user_id]
+
+    def get_all(self) -> List[McpInstance]:
+        """获取所有 MCP 实例"""
+        return self._read_data()
 
     def create(
         self,
@@ -296,6 +309,13 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
             return []
 
         mcp_responses = self._repo.get_mcps(user_id=user_id_int)
+        return [self._mcp_response_to_instance(resp) for resp in mcp_responses]
+
+    def get_all(self) -> List[McpInstance]:
+        """获取所有 MCP 实例"""
+        # 获取所有实例，不做任何过滤
+        # limit 设置为一个较大的值，如 10000
+        mcp_responses = self._repo.get_mcps(limit=10000)
         return [self._mcp_response_to_instance(resp) for resp in mcp_responses]
 
     def create(

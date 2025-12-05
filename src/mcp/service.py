@@ -528,7 +528,6 @@ class McpService:
         Returns:
             同步结果统计
         """
-        from src.mcp.repository import McpInstanceRepositoryJSON
         from src.mcp.server.manager.manager import (
             update_instance_status as update_and_restart_mcp_server,
         )
@@ -536,10 +535,9 @@ class McpService:
             get_instance_status as get_mcp_server_status,
         )
 
-        # 获取所有实例（这里需要添加 get_all 方法到 repository）
-        # 暂时通过读取文件获取所有实例
-        repo = McpInstanceRepositoryJSON()
-        instances = repo._read_data()
+        # 获取所有实例
+        repo = self.instance_repo
+        instances = repo.get_all()
 
         synced_count = 0
         restarted_count = 0

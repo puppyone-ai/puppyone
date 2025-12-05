@@ -59,8 +59,6 @@ def _get_tools():
     if not _tools_instances:
         _tools_instances = {
             "table_tool": TableTool(),
-            # "llm_tool": LLMTool(),
-            # "vector_retrive_tool": VectorRetriveTool(),
         }
     return _tools_instances
 
