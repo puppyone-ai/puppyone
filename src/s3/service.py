@@ -195,6 +195,37 @@ class S3Service:
 
     # ============= 文件下载 =============
 
+    async def download_file(self, key: str) -> bytes:
+        """
+        下载文件并返回完整内容
+
+        Args:
+            key: S3 对象键
+
+        Returns:
+            bytes: 文件内容
+
+        Raises:
+            S3FileNotFoundError: 文件不存在
+            S3OperationError: 下载失败
+        """
+        try:
+            response = await self._run_sync(
+                self.client.get_object,
+                Bucket=self.bucket_name,
+                Key=key
+            )
+            
+            # 读取完整内容
+            content = await self._run_sync(response["Body"].read)
+            
+            logger.info(f"File downloaded successfully: {key} ({len(content)} bytes)")
+            return content
+
+        except ClientError as e:
+            self._handle_client_error(e, "download_file")
+            raise
+
     async def download_file_stream(
         self, key: str, chunk_size: int = 8192
     ) -> AsyncIterator[bytes]:
