@@ -5,7 +5,7 @@ Supabase 数据模型
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
@@ -69,6 +69,7 @@ class TableBase(BaseModel):
     name: Optional[str] = None
     project_id: Optional[int] = None
     description: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
 
 
 class TableCreate(TableBase):
@@ -81,6 +82,7 @@ class TableUpdate(BaseModel):
     name: Optional[str] = None
     project_id: Optional[int] = None
     description: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
 
 
 class TableResponse(TableBase):

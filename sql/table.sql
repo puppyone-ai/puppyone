@@ -4,6 +4,7 @@ create table public.table (
   name text null,
   project_id bigint null,
   description text null,
+  data jsonb null,
   constraint table_pkey primary key (id),
   constraint table_project_id_fkey foreign KEY (project_id) references project (id)
 ) TABLESPACE pg_default;
