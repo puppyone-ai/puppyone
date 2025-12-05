@@ -8,7 +8,7 @@ class McpInstance(BaseModel):
     api_key: str
     user_id: str
     project_id: str
-    context_id: str
+    table_id: str
     json_pointer: str = (
         ""  # JSON指针路径，表示该MCP实例对应的数据路径，默认为空字符串表示根路径
     )

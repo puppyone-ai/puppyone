@@ -4,19 +4,15 @@ ETL Service
 Core ETL service for processing documents through MineRU and LLM transformation.
 """
 
-import asyncio
 import json
 import logging
 import time
 import uuid
-from pathlib import Path
 from typing import Optional
 
 from src.etl.config import etl_config
 from src.etl.exceptions import (
-    ETLTaskTimeoutError,
     ETLTransformationError,
-    FileNotFoundError,
     RuleNotFoundError,
 )
 from src.etl.mineru.client import MineRUClient

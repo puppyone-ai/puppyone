@@ -6,7 +6,6 @@ Client for interacting with MineRU document parsing API.
 
 import asyncio
 import logging
-import os
 import zipfile
 from pathlib import Path
 from typing import Optional
@@ -329,7 +328,6 @@ class MineRUClient:
         
         # 如果上述路径都不存在,使用通配符查找任何 .md 文件
         if not markdown_path:
-            import glob
             md_files = list(cache_dir.glob("*.md"))
             if md_files:
                 markdown_path = md_files[0]

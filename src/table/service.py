@@ -1,94 +1,89 @@
 """
-负责用户知识库内容的管理
+负责Table（知识库）内容的管理
 """
 
 from typing import List, Optional, Dict, Any
 from jsonpointer import resolve_pointer
 import json
 import jmespath
-from src.user_context.models import UserContext
-from src.user_context.repository import UserContextRepositoryBase
+from src.table.models import Table
+from src.table.repository import TableRepositoryBase
 from src.exceptions import NotFoundException, BusinessException, ErrorCode
 
 
-class UserContextService:
+class TableService:
     """封装业务逻辑层"""
 
-    def __init__(self, repo: UserContextRepositoryBase):
+    def __init__(self, repo: TableRepositoryBase):
         self.repo = repo
 
-    def get_by_user_id(self, user_id: str) -> List[UserContext]:
+    def get_by_user_id(self, user_id: int) -> List[Table]:
         return self.repo.get_by_user_id(user_id)
 
-    def get_by_id(self, context_id: str) -> Optional[UserContext]:
-        return self.repo.get_by_id(context_id)
+    def get_by_id(self, table_id: int) -> Optional[Table]:
+        return self.repo.get_by_id(table_id)
 
     def create(
         self,
-        user_id: str,
-        project_id: str,
-        context_name: str,
-        context_description: str,
-        context_data: dict,
-        metadata: dict,
-    ) -> UserContext:
+        project_id: int,
+        name: str,
+        description: str,
+        data: dict,
+    ) -> Table:
         return self.repo.create(
-            user_id,
             project_id,
-            context_name,
-            context_description,
-            context_data,
-            metadata,
+            name,
+            description,
+            data,
         )
 
     def update(
         self,
-        context_id: str,
-        context_name: str,
-        context_description: str,
-        context_data: Optional[dict],
-        metadata: dict,
-    ) -> UserContext:
+        table_id: int,
+        name: str,
+        description: str,
+        data: Optional[dict],
+    ) -> Table:
         updated = self.repo.update(
-            context_id, context_name, context_description, context_data, metadata
+            table_id, name, description, data
         )
         if not updated:
             raise NotFoundException(
-                f"Context not found: {context_id}", code=ErrorCode.NOT_FOUND
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
         return updated
 
-    def delete(self, context_id: str) -> None:
-        success = self.repo.delete(context_id)
+    def delete(self, table_id: int) -> None:
+        success = self.repo.delete(table_id)
         if not success:
             raise NotFoundException(
-                f"Context not found: {context_id}", code=ErrorCode.NOT_FOUND
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
     def create_context_data(
-        self, context_id: str, mounted_json_pointer_path: str, elements: List[Dict]
+        self, table_id: int, mounted_json_pointer_path: str, elements: List[Dict]
     ) -> Any:
         """
-        在 context_data 的指定路径下创建新数据
+        在 data 字段的指定路径下创建新数据
 
         Args:
-            context_id: 知识库ID
+            table_id: Table ID
             mounted_json_pointer_path: JSON指针路径，数据将挂载到此路径下
             elements: 要创建的元素数组，每个元素包含 key 和 content
 
 
         """
-        context = self.repo.get_by_id(context_id)
-        if not context:
+        table = self.repo.get_by_id(table_id)
+        if not table:
             raise NotFoundException(
-                f"Context not found: {context_id}", code=ErrorCode.NOT_FOUND
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
-        context_data = context.context_data.copy()
+        data = (table.data or {}).copy()
 
         # 获取挂载点的父节点
         try:
-            parent = resolve_pointer(context_data, mounted_json_pointer_path, None)
+            parent = resolve_pointer(data, mounted_json_pointer_path, None)
         except Exception as e:
             raise BusinessException(
                 f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
@@ -142,31 +137,31 @@ class UserContextService:
             content = element["content"]
             parent[key] = content
 
-        # 更新 context_data
-        updated_context = self.repo.update_context_data(context_id, context_data)
-        if not updated_context:
+        # 更新 data 字段
+        updated_table = self.repo.update_context_data(table_id, data)
+        if not updated_table:
             raise BusinessException(
                 "Update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
             )
 
         # 返回创建后的数据
         result = resolve_pointer(
-            updated_context.context_data, mounted_json_pointer_path
+            updated_table.data or {}, mounted_json_pointer_path
         )
         return result
 
-    def get_context_data(self, context_id: str, json_pointer_path: str) -> Any:
+    def get_context_data(self, table_id: int, json_pointer_path: str) -> Any:
         """
-        获取 context_data 中指定路径的数据
+        获取 data 字段中指定路径的数据
         """
-        context = self.repo.get_by_id(context_id)
-        if not context:
+        table = self.repo.get_by_id(table_id)
+        if not table:
             raise NotFoundException(
-                f"Context not found: {context_id}", code=ErrorCode.NOT_FOUND
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
         try:
-            data = resolve_pointer(context.context_data, json_pointer_path, None)
+            data = resolve_pointer(table.data or {}, json_pointer_path, None)
             if data is None:
                 # 为了保险，我们认为如果 resolve 返回 default (None)，就是没找到。
                 raise NotFoundException(
@@ -181,22 +176,22 @@ class UserContextService:
             )
 
     def update_context_data(
-        self, context_id: str, json_pointer_path: str, elements: List[Dict]
+        self, table_id: int, json_pointer_path: str, elements: List[Dict]
     ) -> Any:
         """
-        更新 context_data 中指定路径的数据
+        更新 data 字段中指定路径的数据
         """
-        context = self.repo.get_by_id(context_id)
-        if not context:
+        table = self.repo.get_by_id(table_id)
+        if not table:
             raise NotFoundException(
-                f"Context not found: {context_id}", code=ErrorCode.NOT_FOUND
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
-        context_data = context.context_data.copy()
+        data = (table.data or {}).copy()
 
         # 获取要更新的父节点
         try:
-            parent = resolve_pointer(context_data, json_pointer_path, None)
+            parent = resolve_pointer(data, json_pointer_path, None)
         except Exception as e:
             raise BusinessException(
                 f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
@@ -234,34 +229,34 @@ class UserContextService:
             content = element["content"]
             parent[key] = content
 
-        # 更新 context_data
-        updated_context = self.repo.update_context_data(context_id, context_data)
-        if not updated_context:
+        # 更新 data 字段
+        updated_table = self.repo.update_context_data(table_id, data)
+        if not updated_table:
             raise BusinessException(
                 "Update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
             )
 
         # 返回更新后的数据
-        result = resolve_pointer(updated_context.context_data, json_pointer_path)
+        result = resolve_pointer(updated_table.data or {}, json_pointer_path)
         return result
 
     def delete_context_data(
-        self, context_id: str, json_pointer_path: str, keys: List[str]
+        self, table_id: int, json_pointer_path: str, keys: List[str]
     ) -> Any:
         """
-        删除 context_data 中指定路径下的 keys
+        删除 data 字段中指定路径下的 keys
         """
-        context = self.repo.get_by_id(context_id)
-        if not context:
+        table = self.repo.get_by_id(table_id)
+        if not table:
             raise NotFoundException(
-                f"Context not found: {context_id}", code=ErrorCode.NOT_FOUND
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
-        context_data = context.context_data.copy()
+        data = (table.data or {}).copy()
 
         # 获取要删除的父节点
         try:
-            parent = resolve_pointer(context_data, json_pointer_path, None)
+            parent = resolve_pointer(data, json_pointer_path, None)
         except Exception as e:
             raise BusinessException(
                 f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
@@ -288,32 +283,32 @@ class UserContextService:
         for key in keys:
             del parent[key]
 
-        # 更新 context_data
-        updated_context = self.repo.update_context_data(context_id, context_data)
-        if not updated_context:
+        # 更新 data 字段
+        updated_table = self.repo.update_context_data(table_id, data)
+        if not updated_table:
             raise BusinessException(
                 "Update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
             )
 
         # 返回删除后的数据
-        result = resolve_pointer(updated_context.context_data, json_pointer_path)
+        result = resolve_pointer(updated_table.data or {}, json_pointer_path)
         return result
 
     def query_context_data_with_jmespath(
-        self, context_id: str, json_pointer_path: str, query: str
+        self, table_id: int, json_pointer_path: str, query: str
     ) -> Optional[Any]:
         """
-        使用 JMESPath 查询 context_data 中指定路径的数据
+        使用 JMESPath 查询 data 字段中指定路径的数据
         """
-        context = self.repo.get_by_id(context_id)
-        if not context:
+        table = self.repo.get_by_id(table_id)
+        if not table:
             raise NotFoundException(
-                f"Context not found: {context_id}", code=ErrorCode.NOT_FOUND
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
         try:
             # 先获取指定路径的数据
-            base_data = resolve_pointer(context.context_data, json_pointer_path, None)
+            base_data = resolve_pointer(table.data or {}, json_pointer_path, None)
             if base_data is None:
                 raise NotFoundException(
                     f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
@@ -337,18 +332,18 @@ class UserContextService:
                 f"Query failed: {str(e)}", code=ErrorCode.BAD_REQUEST
             )
 
-    def get_context_structure(self, context_id: str, json_pointer_path: str) -> Dict:
+    def get_context_structure(self, table_id: int, json_pointer_path: str) -> Dict:
         """
-        获取 context_data 中指定路径的数据结构（不包含实际数据值）
+        获取 data 字段中指定路径的数据结构（不包含实际数据值）
         """
-        context = self.repo.get_by_id(context_id)
-        if not context:
+        table = self.repo.get_by_id(table_id)
+        if not table:
             raise NotFoundException(
-                f"Context not found: {context_id}", code=ErrorCode.NOT_FOUND
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
         try:
-            data = resolve_pointer(context.context_data, json_pointer_path, None)
+            data = resolve_pointer(table.data or {}, json_pointer_path, None)
             if data is None:
                 raise NotFoundException(
                     f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND

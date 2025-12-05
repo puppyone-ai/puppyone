@@ -1,13 +1,9 @@
-from src.config import settings
-from src.user_context.repository import UserContextRepositoryJSON
-from src.user_context.service import UserContextService
+from src.table.repository import TableRepositorySupabase
+from src.table.service import TableService
 
 
-def get_user_context_service() -> UserContextService:
+def get_table_service() -> TableService:
     """
-    user_context_service的依赖注入工厂。支持通过配置项来决定存储策略
+    table_service的依赖注入工厂。使用Supabase作为存储后端
     """
-    if settings.STORAGE_TYPE == "json":
-        return UserContextService(UserContextRepositoryJSON())
-    else:
-        raise ValueError(f"Unsupported storage type: {settings.STORAGE_TYPE}")
+    return TableService(TableRepositorySupabase())

@@ -9,7 +9,7 @@ class McpToolsDefinition(BaseModel):
     """
 
     tool_name: str = Field(
-        ..., description="工具名称，例如：'get_context', 'create_element' 等"
+        ..., description="工具名称，例如：'query_table', 'create_element' 等"
     )
     tool_desc_template: str = Field(
         ...,
@@ -17,8 +17,8 @@ class McpToolsDefinition(BaseModel):
     )
     tool_desc_parameters: List[Dict[str, Any]] = Field(
         ...,
-        description='填充模板的参数列表，每个元素是一个字典，包含模板中占位符对应的值。例如：[{"project_name": "测试项目"}, {"context_name": "AI技术知识库"}]',
-        examples=[[{"project_name": "测试项目"}, {"context_name": "AI技术知识库"}]],
+        description='填充模板的参数列表，每个元素是一个字典，包含模板中占位符对应的值。例如：[{"project_name": "测试项目"}, {"table_name": "AI技术知识库"}]',
+        examples=[[{"project_name": "测试项目"}, {"table_name": "AI技术知识库"}]],
     )
 
 
@@ -33,8 +33,8 @@ class McpCreate(BaseModel):
 
     user_id: str = Field(..., description="用户ID")
     project_id: str = Field(..., description="项目ID, 暂时可以随便传")
-    context_id: str = Field(
-        ..., description="ContextID, 对应前端“Table”的概念, 表示一整个JSON对象."
+    table_id: str = Field(
+        ..., description="TableID, 对应前端“Table”的概念, 表示一整个JSON对象."
     )
     json_pointer: str = Field(
         default="",
@@ -60,7 +60,7 @@ class McpCreate(BaseModel):
     )
     preview_keys: Optional[List[str]] = Field(
         default=None,
-        description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_contexts两个工具。preview_data工具会只返回指定字段的轻量级数据，select_contexts工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
+        description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_tables两个工具。preview_data工具会只返回指定字段的轻量级数据，select_tables工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
         examples=[["id", "name", "title"], ["user_id", "username"]],
     )
 
@@ -122,17 +122,17 @@ class McpUpdate(BaseModel):
         examples=[
             {
                 "get": {
-                    "tool_name": "get_context",
-                    "tool_desc_template": "获取知识库内容。项目：{project_name}，知识库：{context_name}",
+                    "tool_name": "query_table",
+                    "tool_desc_template": "获取知识库内容。项目：{project_name}，知识库：{table_name}",
                     "tool_desc_parameters": [
                         {"project_name": "测试项目"},
-                        {"context_name": "AI技术知识库"},
+                        {"table_name": "AI技术知识库"},
                     ],
                 },
                 "create": {
                     "tool_name": "create_element",
-                    "tool_desc_template": "创建新元素到知识库：{context_name}",
-                    "tool_desc_parameters": [{"context_name": "AI技术知识库"}],
+                    "tool_desc_template": "创建新元素到知识库：{table_name}",
+                    "tool_desc_parameters": [{"table_name": "AI技术知识库"}],
                 },
             }
         ],
@@ -144,7 +144,7 @@ class McpUpdate(BaseModel):
     )
     preview_keys: Optional[List[str]] = Field(
         default=None,
-        description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_contexts两个工具。preview_data工具会只返回指定字段的轻量级数据，select_contexts工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
+        description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_tables两个工具。preview_data工具会只返回指定字段的轻量级数据，select_tables工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
         examples=[["id", "name", "title"], ["user_id", "username"]],
     )
 
@@ -194,7 +194,7 @@ class McpUpdate(BaseModel):
 class McpTokenPayload(BaseModel):
     user_id: str
     project_id: str
-    context_id: str
+    table_id: str
     json_pointer: str = ""
 
 

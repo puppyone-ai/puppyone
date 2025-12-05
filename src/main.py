@@ -18,7 +18,7 @@ from src.exception_handler import (
 )
 from src.utils.logger import log_info, log_error
 from src.auth.router import router as auth_router
-from src.user_context.router import router as user_context_router
+from src.table.router import router as table_router
 from src.mcp.router import router as mcp_router
 from src.s3.router import router as s3_router
 from src.etl.router import router as etl_router
@@ -103,7 +103,7 @@ def create_app() -> FastAPI:
 
     # 注册路由
     app.include_router(auth_router, prefix="/api/v1", tags=["users"])
-    app.include_router(user_context_router, prefix="/api/v1", tags=["user_context"])
+    app.include_router(table_router, prefix="/api/v1", tags=["tables"])
     app.include_router(mcp_router, prefix="/api/v1", tags=["mcp"])
     app.include_router(s3_router, prefix="/api/v1")
     app.include_router(etl_router)

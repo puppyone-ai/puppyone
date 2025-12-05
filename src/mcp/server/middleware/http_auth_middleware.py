@@ -112,7 +112,7 @@ class HttpJwtTokenAuthMiddleware(BaseHTTPMiddleware):
             返回的字典包含：
             - user_id: 用户 ID
             - project_id: 项目 ID
-            - context_id: 上下文 ID
+            - table_id: 上下文 ID
             - ctx_id: 上下文 ID（兼容性字段）
         """
         if not self.mcp_service:
@@ -156,12 +156,12 @@ class HttpJwtTokenAuthMiddleware(BaseHTTPMiddleware):
             business_params = {
                 "user_id": payload.user_id,
                 "project_id": payload.project_id,
-                "context_id": payload.context_id,
-                "ctx_id": payload.context_id,  # 同时保留 ctx_id 以保持兼容性
+                "table_id": payload.table_id,
+                "ctx_id": payload.table_id,  # 同时保留 ctx_id 以保持兼容性
             }
 
             log_info(
-                f"Token validated successfully for user_id: {payload.user_id}, project_id: {payload.project_id}, context_id: {payload.context_id}, port: {request_port}"
+                f"Token validated successfully for user_id: {payload.user_id}, project_id: {payload.project_id}, table_id: {payload.table_id}, port: {request_port}"
             )
 
             return business_params

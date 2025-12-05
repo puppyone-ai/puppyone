@@ -5,8 +5,8 @@
 
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
-from src.mcp.server.tools.context_tool import tool_types
-from src.mcp.server.tools.context_tool import ContextTool
+from src.mcp.server.tools.table_tool import tool_types
+from src.mcp.server.tools.table_tool import TableTool
 from src.mcp.schemas import McpToolsDefinition
 from src.utils.logger import log_info, log_error
 
@@ -31,13 +31,13 @@ class ToolDefinitionProvider(ABC):
         pass
 
     @abstractmethod
-    def get_tool_description(self, tool_type: tool_types, context_info: dict) -> str:
+    def get_tool_description(self, tool_type: tool_types, table_info: dict) -> str:
         """
         获取工具描述
 
         Args:
             tool_type: 工具类型（create/update/delete/get）
-            context_info: 上下文信息字典
+            table_info: 表格信息字典
 
         Returns:
             工具描述字符串
@@ -48,11 +48,11 @@ class ToolDefinitionProvider(ABC):
 class DefaultToolDefinitionProvider(ToolDefinitionProvider):
     """
     默认工具定义提供者
-    使用 context_tool.py 中的 generate_tool_description 方法
+    使用 table_tool.py 中的 generate_tool_description 方法
     """
 
     def __init__(self):
-        self.context_tool = ContextTool()
+        self.table_tool = TableTool()
 
     def get_tool_name(self, tool_type: tool_types) -> str:
         """获取默认工具名称"""
@@ -66,21 +66,21 @@ class DefaultToolDefinitionProvider(ToolDefinitionProvider):
         }
         return tool_name_map.get(tool_type, f"unknown_{tool_type}")
 
-    def get_tool_description(self, tool_type: tool_types, context_info: dict) -> str:
+    def get_tool_description(self, tool_type: tool_types, table_info: dict) -> str:
         """获取默认工具描述"""
-        context = context_info.get("context")
+        table = table_info.get("table")
 
-        if not context:
-            return f"知识库管理工具 - {tool_type}"
+        if not table:
+            return f"表格管理工具 - {tool_type}"
 
-        return self.context_tool.generate_tool_description(
-            project_name=context_info.get("project_name", "未知项目"),
-            context_name=context.context_name,
+        return self.table_tool.generate_tool_description(
+            project_name=table_info.get("project_name", "未知项目"),
+            table_name=table.name or table_info.get("table_name"),
             tool_type=tool_type,
-            project_description=context_info.get("project_description"),
-            project_metadata=context_info.get("project_metadata"),
-            context_description=context.context_description,
-            context_metadata=context.metadata,
+            project_description=table_info.get("project_description"),
+            project_metadata=table_info.get("project_metadata"),
+            table_description=table.description or table_info.get("table_description"),
+            table_metadata=None,  # Table 没有 metadata
         )
 
 
@@ -112,7 +112,7 @@ class CustomToolDefinitionProvider(ToolDefinitionProvider):
         # 否则返回默认名称
         return self.default_provider.get_tool_name(tool_type)
 
-    def get_tool_description(self, tool_type: tool_types, context_info: dict) -> str:
+    def get_tool_description(self, tool_type: tool_types, table_info: dict) -> str:
         """获取工具描述"""
         # 如果用户定义了该工具类型，使用用户定义的描述模板
         if tool_type in self.tool_definitions:
@@ -151,7 +151,7 @@ class CustomToolDefinitionProvider(ToolDefinitionProvider):
                 return template  # 如果格式化失败，返回原始模板
 
         # 如果没有用户定义，回退到默认提供者
-        return self.default_provider.get_tool_description(tool_type, context_info)
+        return self.default_provider.get_tool_description(tool_type, table_info)
 
 
 def create_tool_definition_provider(

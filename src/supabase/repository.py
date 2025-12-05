@@ -75,7 +75,7 @@ class SupabaseRepository:
         response = (
             self._client.table("user_temp")
             .select("*")
-            .eq("id", user_id)
+            .eq("id", str(user_id))
             .execute()
         )
         if response.data:
@@ -135,7 +135,7 @@ class SupabaseRepository:
             response = (
                 self._client.table("user_temp")
                 .update(data)
-                .eq("id", user_id)
+                .eq("id", str(user_id))
                 .execute()
             )
             if response.data:
@@ -157,7 +157,7 @@ class SupabaseRepository:
         response = (
             self._client.table("user_temp")
             .delete()
-            .eq("id", user_id)
+            .eq("id", str(user_id))
             .execute()
         )
         return len(response.data) > 0
@@ -200,7 +200,7 @@ class SupabaseRepository:
         response = (
             self._client.table("project")
             .select("*")
-            .eq("id", project_id)
+            .eq("id", str(project_id))
             .execute()
         )
         if response.data:
@@ -265,7 +265,7 @@ class SupabaseRepository:
             response = (
                 self._client.table("project")
                 .update(data)
-                .eq("id", project_id)
+                .eq("id", str(project_id))
                 .execute()
             )
             if response.data:

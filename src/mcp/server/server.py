@@ -9,36 +9,36 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from fastmcp import FastMCP, Context
 from src.utils.logger import log_info, log_error
-from src.mcp.dependencies import get_mcp_instance_service, get_user_context_service
+from src.mcp.dependencies import get_mcp_instance_service
+from src.table.dependencies import get_table_service
 
 # Middleware
 from src.mcp.server.middleware.http_auth_middleware import HttpJwtTokenAuthMiddleware
 from starlette.middleware import Middleware as StarletteMiddleware
 
 # Schema
-from src.user_context.models import UserContext
+from src.table.models import Table
 from src.mcp.models import McpInstance
-from src.mcp.server.schema.context import CreateElementRequest
+from src.mcp.server.schema.table import CreateElementRequest
 
 # Tool Implementation
-from src.mcp.server.tools.context_tool import ContextTool, tool_types
+from src.mcp.server.tools.table_tool import TableTool, tool_types
 from src.mcp.server.tools.tool_provider import (
     create_tool_definition_provider,
     ToolDefinitionProvider,
 )
 
-# 全局 context 信息（在启动时初始化）
-_context_info: Dict[str, Any] = {
+# 全局 table 信息（在启动时初始化）
+_table_info: Dict[str, Any] = {
     # MCP Server标识信息
     "user_id": None,
     "project_id": None,
-    "context_id": None,
+    "table_id": None,
     "json_pointer": None,
-    # 对应的知识库和项目内容
-    "context": None,
-    "context_name": None,
-    "context_description": None,
-    "context_metadata": None,
+    # 对应的表格和项目内容
+    "table": None,
+    "table_name": None,
+    "table_description": None,
     "project_name": None,
     "project_description": None,
     "project_metadata": None,
@@ -58,21 +58,21 @@ def _get_tools():
     global _tools_instances
     if not _tools_instances:
         _tools_instances = {
-            "context_tool": ContextTool(),
+            "table_tool": TableTool(),
             # "llm_tool": LLMTool(),
             # "vector_retrive_tool": VectorRetriveTool(),
         }
     return _tools_instances
 
 
-def _init_context_info_and_tool_definition_provider(api_key: str) -> None:
+def _init_table_info_and_tool_definition_provider(api_key: str) -> None:
     """
-    根据 api_key 初始化 context 信息
+    根据 api_key 初始化 table 信息
 
     Args:
         api_key: API key
     """
-    global _context_info
+    global _table_info
     try:
         # 获取API_KEY对应的MCP实例信息
         # 注意：这里需要使用同步方式，或者使用 asyncio.run
@@ -90,15 +90,15 @@ def _init_context_info_and_tool_definition_provider(api_key: str) -> None:
 
         user_id = str(instance.user_id)
         project_id = str(instance.project_id)
-        context_id = str(instance.context_id)
+        table_id = int(instance.table_id)  # 转换为 int
 
-        # 补充获取 context 对象
-        user_context_service = get_user_context_service()
-        context: Optional[UserContext] = user_context_service.get_by_id(context_id)
+        # 补充获取 table 对象
+        table_service = get_table_service()
+        table: Optional[Table] = table_service.get_by_id(table_id)
 
-        if not context:
-            log_error(f"Context not found for context_id: {context_id}")
-            raise ValueError(f"Context not found for context_id: {context_id}")
+        if not table:
+            log_error(f"Table not found for table_id: {table_id}")
+            raise ValueError(f"Table not found for table_id: {table_id}")
 
         # ⚠️: 这里是Mock的项目数据
         project_name = "测试项目名"
@@ -109,30 +109,29 @@ def _init_context_info_and_tool_definition_provider(api_key: str) -> None:
             "updated_at": datetime.now().isoformat(),
         }
 
-        # 更新全局 context 信息
+        # 更新全局 table 信息
         json_pointer = (
             instance.json_pointer if hasattr(instance, "json_pointer") else ""
         )
         preview_keys = (
             instance.preview_keys if hasattr(instance, "preview_keys") else None
         )
-        _context_info = {
+        _table_info = {
             "user_id": user_id,
             "project_id": project_id,
-            "context_id": context_id,
+            "table_id": str(table_id),  # 保持字符串格式以兼容现有代码
             "json_pointer": json_pointer,
-            "context": context,
+            "table": table,  # 使用 Table 对象
             "project_name": project_name,
             "project_description": project_description,
             "project_metadata": project_metadata,
-            "context_name": context.context_name,
-            "context_description": context.context_description,
-            "context_metadata": context.metadata,
+            "table_name": table.name,  # 使用 Table 的属性
+            "table_description": table.description,
             "preview_keys": preview_keys,
         }
 
         log_info(
-            f"Context info initialized: user_id={user_id}, project_id={project_id}, context_id={context_id}"
+            f"Table info initialized: user_id={user_id}, project_id={project_id}, table_id={table_id}"
         )
 
         # 初始化工具定义提供者, 支持用户自定义工具描述
@@ -141,7 +140,7 @@ def _init_context_info_and_tool_definition_provider(api_key: str) -> None:
         _tool_definition_provider = create_tool_definition_provider(tools_definition)
 
     except Exception as e:
-        log_error(f"Error initializing context info: {e}")
+        log_error(f"Error initializing table info: {e}")
         raise
 
 
@@ -157,7 +156,7 @@ class ToolRegistry:
     def __init__(
         self,
         tool_definition_provider: ToolDefinitionProvider,
-        context_info: Dict[str, Any],
+        table_info: Dict[str, Any],
         tools_instances: Dict[str, Any],
     ):
         """
@@ -165,11 +164,11 @@ class ToolRegistry:
 
         Args:
             tool_definition_provider: 工具定义提供者
-            context_info: 上下文信息字典
+            table_info: 表格信息字典
             tools_instances: 工具实例字典
         """
         self.tool_definition_provider = tool_definition_provider
-        self.context_info = context_info
+        self.table_info = table_info
         self.tools_instances = tools_instances
 
     def _get_tool_name(self, tool_type: tool_types) -> str:
@@ -179,33 +178,33 @@ class ToolRegistry:
     def _get_tool_description(self, tool_type: tool_types) -> str:
         """获取工具描述"""
         return self.tool_definition_provider.get_tool_description(
-            tool_type, self.context_info
+            tool_type, self.table_info
         )
 
-    def create_query_context_tool(self, mcp_instance: FastMCP):
-        """创建 query_context 工具"""
+    def create_query_table_tool(self, mcp_instance: FastMCP):
+        """创建 query_table 工具"""
         tool_name = self._get_tool_name("query")
         description = self._get_tool_description("query")
-        context_tool = self.tools_instances["context_tool"]
+        table_tool = self.tools_instances["table_tool"]
 
         @mcp_instance.tool(name=tool_name, description=description)
-        async def query_context(
+        async def query_table(
             schema: Optional[str] = None,
             query: Optional[str] = None,
             ctx: Context = None,
         ) -> dict:
-            return context_tool.query_context(
-                self.context_info, schema=schema, query=query
+            return table_tool.query_table(
+                self.table_info, schema=schema, query=query
             )
 
-        query_context.__doc__ = description
-        return query_context
+        query_table.__doc__ = description
+        return query_table
 
     def create_create_element_tool(self, mcp_instance: FastMCP):
         """创建 create_element 工具"""
         tool_name = self._get_tool_name("create")
         description = self._get_tool_description("create")
-        context_tool = self.tools_instances["context_tool"]
+        table_tool = self.tools_instances["table_tool"]
 
         @mcp_instance.tool(name=tool_name, description=description)
         async def create_element(
@@ -215,7 +214,7 @@ class ToolRegistry:
             elements_dict = [
                 {"key": elem.key, "content": elem.content} for elem in elements
             ]
-            return context_tool.create_element(elements_dict, self.context_info)
+            return table_tool.create_element(elements_dict, self.table_info)
 
         create_element.__doc__ = description
         return create_element
@@ -224,7 +223,7 @@ class ToolRegistry:
         """创建 update_element 工具"""
         tool_name = self._get_tool_name("update")
         description = self._get_tool_description("update")
-        context_tool = self.tools_instances["context_tool"]
+        table_tool = self.tools_instances["table_tool"]
 
         @mcp_instance.tool(name=tool_name, description=description)
         async def update_element(
@@ -234,7 +233,7 @@ class ToolRegistry:
             updates_dict = [
                 {"key": elem.key, "content": elem.content} for elem in updates
             ]
-            return context_tool.update_element(updates_dict, self.context_info)
+            return table_tool.update_element(updates_dict, self.table_info)
 
         update_element.__doc__ = description
         return update_element
@@ -243,11 +242,11 @@ class ToolRegistry:
         """创建 delete_element 工具"""
         tool_name = self._get_tool_name("delete")
         description = self._get_tool_description("delete")
-        context_tool = self.tools_instances["context_tool"]
+        table_tool = self.tools_instances["table_tool"]
 
         @mcp_instance.tool(name=tool_name, description=description)
         async def delete_element(keys: List[str], ctx: Context) -> dict:
-            return context_tool.delete_element(keys, self.context_info)
+            return table_tool.delete_element(keys, self.table_info)
 
         delete_element.__doc__ = description
         return delete_element
@@ -256,29 +255,29 @@ class ToolRegistry:
         """创建 preview_data 工具"""
         tool_name = self._get_tool_name("preview")
         description = self._get_tool_description("preview")
-        context_tool = self.tools_instances["context_tool"]
+        table_tool = self.tools_instances["table_tool"]
 
         @mcp_instance.tool(name=tool_name, description=description)
         async def preview_data(ctx: Context = None) -> dict:
-            return context_tool.preview_data(self.context_info)
+            return table_tool.preview_data(self.table_info)
 
         preview_data.__doc__ = description
         return preview_data
 
-    def create_select_contexts_tool(self, mcp_instance: FastMCP):
-        """创建 select_contexts 工具"""
+    def create_select_tables_tool(self, mcp_instance: FastMCP):
+        """创建 select_tables 工具"""
         tool_name = self._get_tool_name("select")
         description = self._get_tool_description("select")
-        context_tool = self.tools_instances["context_tool"]
+        table_tool = self.tools_instances["table_tool"]
 
         @mcp_instance.tool(name=tool_name, description=description)
-        async def select_contexts(
+        async def select_tables(
             field: str, keys: List[str], ctx: Context = None
         ) -> dict:
-            return context_tool.select_contexts(field, keys, self.context_info)
+            return table_tool.select_tables(field, keys, self.table_info)
 
-        select_contexts.__doc__ = description
-        return select_contexts
+        select_tables.__doc__ = description
+        return select_tables
 
     # def create_vector_retrieve_tool(self, mcp_instance: FastMCP):
     #     """创建 vector_retrieve 工具"""
@@ -330,9 +329,9 @@ class ToolRegistry:
                 tool if tool != "get" else "query" for tool in register_tools
             ]
 
-        # 注册上下文管理工具（根据 register_tools 选择性注册）
+        # 注册表格管理工具（根据 register_tools 选择性注册）
         if "query" in register_tools:
-            self.create_query_context_tool(mcp_instance)
+            self.create_query_table_tool(mcp_instance)
         if "create" in register_tools:
             self.create_create_element_tool(mcp_instance)
         if "update" in register_tools:
@@ -341,10 +340,10 @@ class ToolRegistry:
             self.create_delete_element_tool(mcp_instance)
 
         # LLM Retrieve 工具：只有当 preview_keys 非空时才注册
-        preview_keys = self.context_info.get("preview_keys")
+        preview_keys = self.table_info.get("preview_keys")
         if preview_keys and len(preview_keys) > 0:
             self.create_preview_data_tool(mcp_instance)
-            self.create_select_contexts_tool(mcp_instance)
+            self.create_select_tables_tool(mcp_instance)
             log_info(f"LLM Retrieve tools registered with preview_keys: {preview_keys}")
 
         # 注册向量检索工具
@@ -368,18 +367,18 @@ def run_mcp_server(
         transport: 传输协议，支持"http"和"stdio"
         host: 主机地址
         port: 端口号
-        api_key: API key，用于获取 context 信息
+        api_key: API key，用于获取 table 信息
         register_tools: 需要注册的工具列表（可选），如果为 None，则注册所有工具
     """
 
-    # 1. 初始化 context 信息和工具定义描述提供者
+    # 1. 初始化 table 信息和工具定义描述提供者
     if not api_key:
         log_error("api_key is required")
         raise ValueError("api_key is required")
 
-    log_info(f"Initializing context info with api_key: {api_key[:20]}...")
-    _init_context_info_and_tool_definition_provider(api_key)
-    log_info(f"Context initialized: {_context_info.get('context').context_name}")
+    log_info(f"Initializing table info with api_key: {api_key[:20]}...")
+    _init_table_info_and_tool_definition_provider(api_key)
+    log_info(f"Table initialized: {_table_info.get('table').name}")
 
     # 2. 初始化工具实现实例
     tools_instances = _get_tools()
@@ -387,11 +386,11 @@ def run_mcp_server(
     # 3. 创建工具注册器
     tool_registry = ToolRegistry(
         tool_definition_provider=_tool_definition_provider,
-        context_info=_context_info,
+        table_info=_table_info,
         tools_instances=tools_instances,
     )
 
-    # 4. 创建 MCP 实例（在 context 初始化之后）
+    # 4. 创建 MCP 实例（在 table 初始化之后）
     mcp = FastMCP(
         name="ContextBase MCP Server",
         version="1.0.0",
@@ -404,7 +403,7 @@ def run_mcp_server(
         log_error("暂时不支持stdio方式启动")
         exit(1)
     elif transport == "http":
-        log_info(f"""Tool descriptions generated with dynamic context information
+        log_info(f"""Tool descriptions generated with dynamic table information
 ContextBase MCP Server - FastMCP 2.13
 传输模式: {transport.upper()}
 HTTP端点: http://{host}:{port}/mcp
@@ -437,7 +436,7 @@ if __name__ == "__main__":
         help="传输协议（http 或 stdio），默认http",
     )
     parser.add_argument(
-        "--api_key", type=str, required=True, help="API key，用于获取 context 信息"
+        "--api_key", type=str, required=True, help="API key，用于获取 table 信息"
     )
     parser.add_argument(
         "--register_tools",

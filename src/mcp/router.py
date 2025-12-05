@@ -50,7 +50,7 @@ async def generate_mcp_instance(
     instance = await mcp_instance_service.create_mcp_instance(
         user_id=mcp_create.user_id,
         project_id=mcp_create.project_id,
-        context_id=mcp_create.context_id,
+        table_id=mcp_create.table_id,
         json_pointer=mcp_create.json_pointer,
         tools_definition=mcp_create.tools_definition,
         register_tools=mcp_create.register_tools,

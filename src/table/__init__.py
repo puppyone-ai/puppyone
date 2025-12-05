@@ -1,1 +1,1 @@
-"""User context management module."""
+"""Table management module."""

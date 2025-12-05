@@ -6,7 +6,7 @@ Supabase 数据模型
 
 from datetime import datetime
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 # User 相关模型

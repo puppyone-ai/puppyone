@@ -33,7 +33,7 @@ class McpInstanceRepositoryBase(ABC):
         api_key: str,
         user_id: str,
         project_id: str,
-        context_id: str,
+        table_id: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -50,7 +50,7 @@ class McpInstanceRepositoryBase(ABC):
         api_key: str,
         user_id: str,
         project_id: str,
-        context_id: str,
+        table_id: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -66,7 +66,7 @@ class McpInstanceRepositoryBase(ABC):
         api_key: str,
         user_id: str,
         project_id: str,
-        context_id: str,
+        table_id: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -134,7 +134,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         api_key: str,
         user_id: str,
         project_id: str,
-        context_id: str,
+        table_id: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -154,7 +154,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
             api_key=api_key,
             user_id=user_id,
             project_id=project_id,
-            context_id=context_id,
+            table_id=table_id,
             json_pointer=json_pointer,
             status=status,
             port=port,
@@ -172,7 +172,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         api_key: str,
         user_id: str,
         project_id: str,
-        context_id: str,
+        table_id: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -186,7 +186,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 instance.api_key = api_key
                 instance.user_id = user_id
                 instance.project_id = project_id
-                instance.context_id = context_id
+                instance.table_id = table_id
                 instance.json_pointer = json_pointer
                 instance.status = status
                 instance.port = port
@@ -202,7 +202,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         api_key: str,
         user_id: str,
         project_id: str,
-        context_id: str,
+        table_id: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -215,7 +215,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
             if instance.api_key == api_key:
                 instance.user_id = user_id
                 instance.project_id = project_id
-                instance.context_id = context_id
+                instance.table_id = table_id
                 instance.json_pointer = json_pointer
                 instance.status = status
                 instance.port = port

@@ -1,0 +1,3 @@
+不考虑兼容之前的版本，将user_context这个名字全面迁移为table，如果mcp里面有prompt是叫做context相关的，也需要一并改一下。另外将包名 user_context和改成table。
+
+同时继续完成tasks里面的测试和清理工作。

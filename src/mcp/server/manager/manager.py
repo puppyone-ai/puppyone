@@ -59,7 +59,7 @@ async def create_instance(
     api_key: str,
     user_id: str,
     project_id: str,
-    context_id: str,
+    table_id: str,
     register_tools: Optional[List[str]] = None,
     preview_keys: Optional[List[str]] = None,
     port: Optional[int] = None,
@@ -71,7 +71,7 @@ async def create_instance(
         api_key: API key（由外部生成）
         user_id: 用户ID
         project_id: 项目ID
-        context_id: 上下文ID
+        table_id: 表格ID
         register_tools: 需要注册的工具列表（可选）
         preview_keys: 预览字段列表（可选）
         port: 指定端口（可选），如果提供则使用该端口，否则分配新端口
@@ -98,7 +98,7 @@ async def create_instance(
                 "api_key": api_key,
                 "user_id": user_id,
                 "project_id": project_id,
-                "context_id": context_id,
+                "table_id": table_id,
                 "register_tools": register_tools,
                 "preview_keys": preview_keys,
             },
@@ -154,7 +154,7 @@ async def update_instance_status(
     status: int,
     user_id: str = None,
     project_id: str = None,
-    context_id: str = None,
+    table_id: str = None,
     port: int = None,
     register_tools: Optional[List[str]] = None,
     preview_keys: Optional[List[str]] = None,
@@ -167,7 +167,7 @@ async def update_instance_status(
         status: 状态，0表示关闭，1表示开启
         user_id: 用户ID（启动时需要）
         project_id: 项目ID（启动时需要）
-        context_id: 上下文ID（启动时需要）
+        table_id: 表格ID（启动时需要）
         port: 端口号（启动时需要，如果未提供则重新分配）
         register_tools: 需要注册的工具列表（可选，启动时需要）
         preview_keys: 预览字段列表（可选，启动时需要）
@@ -183,9 +183,9 @@ async def update_instance_status(
         return {}
     elif status == 1:
         # 启动实例
-        if not all([user_id, project_id, context_id]):
+        if not all([user_id, project_id, table_id]):
             raise ValueError(
-                "user_id, project_id, and context_id are required to start an instance"
+                "user_id, project_id, and table_id are required to start an instance"
             )
 
         # 处理端口分配
@@ -215,7 +215,7 @@ async def update_instance_status(
                 "api_key": api_key,
                 "user_id": user_id,
                 "project_id": project_id,
-                "context_id": context_id,
+                "table_id": table_id,
                 "register_tools": register_tools,
                 "preview_keys": preview_keys,
             },

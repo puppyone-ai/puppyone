@@ -39,8 +39,7 @@ def list_tables(
     user_service: UserService = Depends(get_user_service),
 ):
     # 1. 验证用户是否存在 (如果不存在会抛异常)
-    # 注意：UserService 目前仍使用 str，需要转换
-    user_service.get_user(str(user_id))
+    user_service.get_user(user_id)
 
     # 2. 获取用户知识库
     tables = table_service.get_by_user_id(user_id)

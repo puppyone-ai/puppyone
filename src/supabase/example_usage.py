@@ -8,7 +8,6 @@ from src.supabase.repository import SupabaseRepository
 from src.supabase.exceptions import (
     SupabaseException,
     SupabaseDuplicateKeyError,
-    SupabaseForeignKeyError,
 )
 from src.supabase.schemas import (
     UserCreate,
