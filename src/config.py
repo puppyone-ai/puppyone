@@ -18,9 +18,9 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     VERSION: str = "1.0.0"
 
-    # 存储配置
+    # 本地存储配置，现在基本都用Supabase
     DATA_PATH: Path = Path("./data")
-    STORAGE_TYPE: Literal["json", "db"] = "json"
+    STORAGE_TYPE: Literal["json", "db", "supabase"] = "supabase"
 
     # CORS配置
     ALLOWED_HOSTS: list[str] = ["*"]

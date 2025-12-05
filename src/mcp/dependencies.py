@@ -1,5 +1,5 @@
 from src.config import settings
-from src.mcp.repository import McpInstanceRepositoryJSON
+from src.mcp.repository import McpInstanceRepositoryJSON, McpInstanceRepositorySupabase
 from src.mcp.service import McpService
 
 
@@ -9,5 +9,7 @@ def get_mcp_instance_service() -> McpService:
     """
     if settings.STORAGE_TYPE == "json":
         return McpService(McpInstanceRepositoryJSON())
+    elif settings.STORAGE_TYPE == "supabase":
+        return McpService(McpInstanceRepositorySupabase())
     else:
         raise ValueError(f"Unsupported storage type: {settings.STORAGE_TYPE}")

@@ -27,6 +27,9 @@ from src.supabase.schemas import (
     TableCreate,
     TableUpdate,
     TableResponse,
+    McpCreate,
+    McpUpdate,
+    McpResponse,
 )
 
 __all__ = [
@@ -48,4 +51,7 @@ __all__ = [
     "TableCreate",
     "TableUpdate",
     "TableResponse",
+    "McpCreate",
+    "McpUpdate",
+    "McpResponse",
 ]

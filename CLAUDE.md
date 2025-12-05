@@ -16,3 +16,6 @@ Use `@/openspec/AGENTS.md` to learn:
 Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
+
+<!-- Other -->
+1. Documentation for external APIs used in this project is organized in `@/docs`.

@@ -6,6 +6,8 @@ from pathlib import Path
 from src.mcp.models import McpInstance
 from src.mcp.schemas import McpToolsDefinition, ToolTypeKey
 from src.utils.logger import log_error
+from src.supabase.repository import SupabaseRepository
+from src.supabase.schemas import McpCreate, McpUpdate
 
 
 DATA_PATH = Path("./data/mcp_instances.json")
@@ -241,3 +243,173 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
             return False
         self._write_data(new_instances)
         return True
+
+
+class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
+    """基于 Supabase 的 MCP 实例仓库实现"""
+
+    def __init__(self):
+        self._repo = SupabaseRepository()
+
+    def _mcp_response_to_instance(self, mcp_response) -> McpInstance:
+        """将 McpResponse 转换为 McpInstance 模型"""
+        # 字段映射：json_path → json_pointer, status (bool) → status (int), id → mcp_instance_id
+        return McpInstance(
+            mcp_instance_id=str(mcp_response.id),
+            api_key=mcp_response.api_key or "",
+            user_id=str(mcp_response.user_id) if mcp_response.user_id else "",
+            project_id=str(mcp_response.project_id) if mcp_response.project_id else "",
+            table_id=str(mcp_response.table_id) if mcp_response.table_id else "",
+            json_pointer=mcp_response.json_path or "",
+            status=1 if mcp_response.status else 0,
+            port=mcp_response.port or 0,
+            docker_info=mcp_response.docker_info or {},
+            tools_definition=mcp_response.tools_definition,
+            register_tools=mcp_response.register_tools,
+            preview_keys=mcp_response.preview_keys,
+        )
+
+    def get_by_id(self, mcp_instance_id: str) -> Optional[McpInstance]:
+        """根据 ID 获取 MCP 实例"""
+        try:
+            mcp_id = int(mcp_instance_id)
+        except (ValueError, TypeError):
+            return None
+
+        mcp_response = self._repo.get_mcp(mcp_id)
+        if mcp_response:
+            return self._mcp_response_to_instance(mcp_response)
+        return None
+
+    def get_by_api_key(self, api_key: str) -> Optional[McpInstance]:
+        """根据 API Key 获取 MCP 实例"""
+        mcp_response = self._repo.get_mcp_by_api_key(api_key)
+        if mcp_response:
+            return self._mcp_response_to_instance(mcp_response)
+        return None
+
+    def get_by_user_id(self, user_id: str) -> List[McpInstance]:
+        """根据 user_id 获取该用户的所有 MCP 实例"""
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            return []
+
+        mcp_responses = self._repo.get_mcps(user_id=user_id_int)
+        return [self._mcp_response_to_instance(resp) for resp in mcp_responses]
+
+    def create(
+        self,
+        api_key: str,
+        user_id: str,
+        project_id: str,
+        table_id: str,
+        json_pointer: str,
+        status: int,
+        port: int,
+        docker_info: Dict[Any, Any],
+        tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
+        register_tools: Optional[List[ToolTypeKey]] = None,
+    ) -> McpInstance:
+        """创建新的 MCP 实例"""
+        # 字段映射：json_pointer → json_path, status (int) → status (bool)
+        mcp_data = McpCreate(
+            api_key=api_key,
+            user_id=int(user_id) if user_id else None,
+            project_id=int(project_id) if project_id else None,
+            table_id=int(table_id) if table_id else None,
+            json_path=json_pointer,
+            status=bool(status),
+            port=port,
+            docker_info=docker_info,
+            tools_definition=tools_definition,
+            register_tools=register_tools,
+        )
+
+        mcp_response = self._repo.create_mcp(mcp_data)
+        return self._mcp_response_to_instance(mcp_response)
+
+    def update_by_id(
+        self,
+        mcp_instance_id: str,
+        api_key: str,
+        user_id: str,
+        project_id: str,
+        table_id: str,
+        json_pointer: str,
+        status: int,
+        port: int,
+        docker_info: Dict[Any, Any],
+        tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
+        register_tools: Optional[List[ToolTypeKey]] = None,
+    ) -> Optional[McpInstance]:
+        """根据 ID 更新 MCP 实例"""
+        try:
+            mcp_id = int(mcp_instance_id)
+        except (ValueError, TypeError):
+            return None
+
+        # 字段映射：json_pointer → json_path, status (int) → status (bool)
+        mcp_data = McpUpdate(
+            api_key=api_key,
+            user_id=int(user_id) if user_id else None,
+            project_id=int(project_id) if project_id else None,
+            table_id=int(table_id) if table_id else None,
+            json_path=json_pointer,
+            status=bool(status),
+            port=port,
+            docker_info=docker_info,
+            tools_definition=tools_definition,
+            register_tools=register_tools,
+        )
+
+        mcp_response = self._repo.update_mcp(mcp_id, mcp_data)
+        if mcp_response:
+            return self._mcp_response_to_instance(mcp_response)
+        return None
+
+    def update_by_api_key(
+        self,
+        api_key: str,
+        user_id: str,
+        project_id: str,
+        table_id: str,
+        json_pointer: str,
+        status: int,
+        port: int,
+        docker_info: Dict[Any, Any],
+        tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
+        register_tools: Optional[List[ToolTypeKey]] = None,
+    ) -> Optional[McpInstance]:
+        """根据 API Key 更新 MCP 实例"""
+        # 字段映射：json_pointer → json_path, status (int) → status (bool)
+        mcp_data = McpUpdate(
+            api_key=api_key,
+            user_id=int(user_id) if user_id else None,
+            project_id=int(project_id) if project_id else None,
+            table_id=int(table_id) if table_id else None,
+            json_path=json_pointer,
+            status=bool(status),
+            port=port,
+            docker_info=docker_info,
+            tools_definition=tools_definition,
+            register_tools=register_tools,
+        )
+
+        mcp_response = self._repo.update_mcp_by_api_key(api_key, mcp_data)
+        if mcp_response:
+            return self._mcp_response_to_instance(mcp_response)
+        return None
+
+    def delete_by_id(self, mcp_instance_id: str) -> bool:
+        """根据 ID 删除 MCP 实例"""
+        try:
+            mcp_id = int(mcp_instance_id)
+        except (ValueError, TypeError):
+            return False
+
+        return self._repo.delete_mcp(mcp_id)
+
+    def delete_by_api_key(self, api_key: str) -> bool:
+        """根据 API Key 删除 MCP 实例"""
+        return self._repo.delete_mcp_by_api_key(api_key)
