@@ -10,5 +10,5 @@ class UserUpdate(BaseModel):
 
 
 class UserOut(BaseModel):
-    user_id: str
+    user_id: int
     username: str

@@ -13,7 +13,7 @@ class UserService:
     def list_users(self) -> List[User]:
         return self.repo.get_all()
 
-    def get_user(self, user_id: str) -> User:
+    def get_user(self, user_id: int) -> User:
         user = self.repo.get_by_id(user_id)
         if not user:
             raise NotFoundException(
@@ -25,7 +25,7 @@ class UserService:
         # TODO 这里应该检查用户是否已存在，但为了简单起见，我们假设 repo 会处理或这里暂不处理
         return self.repo.create(username)
 
-    def update_user(self, user_id: str, username: str) -> User:
+    def update_user(self, user_id: int, username: str) -> User:
         user = self.repo.update(user_id, username)
         if not user:
             raise NotFoundException(
@@ -33,7 +33,7 @@ class UserService:
             )
         return user
 
-    def delete_user(self, user_id: str) -> None:
+    def delete_user(self, user_id: int) -> None:
         success = self.repo.delete(user_id)
         if not success:
             raise NotFoundException(

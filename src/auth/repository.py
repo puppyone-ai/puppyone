@@ -1,13 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
-import json
-from pathlib import Path
 
 from src.auth.models import User
-from src.utils.logger import log_error
-
-
-DATA_PATH = Path("./data/userdata.json")
 
 
 class UserRepositoryBase(ABC):
@@ -18,7 +12,7 @@ class UserRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_by_id(self, user_id: str) -> Optional[User]:
+    def get_by_id(self, user_id: int) -> Optional[User]:
         pass
 
     @abstractmethod
@@ -26,72 +20,125 @@ class UserRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def update(self, user_id: str, username: str) -> Optional[User]:
+    def update(self, user_id: int, username: str) -> Optional[User]:
         pass
 
     @abstractmethod
-    def delete(self, user_id: str) -> bool:
+    def delete(self, user_id: int) -> bool:
         pass
 
 
-class UserRepositoryJSON(UserRepositoryBase):
-    """负责对用户数据进行增删改查"""
+class UserRepositorySupabase(UserRepositoryBase):
+    """基于Supabase的用户仓库实现"""
 
-    # 这两个方法进行底层实现
-    def _read_data(self) -> List[User]:
-        try:
-            with open(DATA_PATH, "r", encoding="utf-8") as f:
-                users = json.load(f)
-                return [User(**user) for user in users]
-        except FileNotFoundError:
-            return []
+    def __init__(self, supabase_repo=None):
+        """
+        初始化仓库
 
-    def _write_data(self, users: List[User]) -> None:
-        try:
-            with open(DATA_PATH, "w", encoding="utf-8") as f:
-                json.dump(
-                    [user.model_dump() for user in users],
-                    f,
-                    ensure_ascii=False,
-                    indent=4,
-                )
-        except Exception as e:
-            log_error(f"Failed to write data to {DATA_PATH}: {e}")
+        Args:
+            supabase_repo: 可选的 SupabaseRepository 实例，如果不提供则创建新实例
+        """
+        if supabase_repo is None:
+            from src.supabase.repository import SupabaseRepository
+            self._supabase_repo = SupabaseRepository()
+        else:
+            self._supabase_repo = supabase_repo
 
-    # 接口方法
     def get_all(self) -> List[User]:
-        return self._read_data()
+        """获取所有用户"""
+        users = self._supabase_repo.get_users()
+        return [self._user_response_to_user(user) for user in users]
 
-    def get_by_id(self, user_id: str) -> Optional[User]:
-        users = self._read_data()
-        for user in users:
-            if user.user_id == user_id:
-                return user
+    def get_by_id(self, user_id: int) -> Optional[User]:
+        """
+        根据ID获取用户
+
+        Args:
+            user_id: 用户ID（int）
+
+        Returns:
+            User对象，如果不存在则返回None
+        """
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            return None
+
+        user_response = self._supabase_repo.get_user(user_id_int)
+        if user_response:
+            return self._user_response_to_user(user_response)
         return None
 
     def create(self, username: str) -> User:
-        users = self._read_data()
-        # 生成新的 ID，使用字符串格式
-        existing_ids = [int(u.user_id) for u in users if u.user_id.isdigit()]
-        new_id = str(max(existing_ids, default=0) + 1) if existing_ids else "1"
-        new_user = User(user_id=new_id, username=username)
-        users.append(new_user)
-        self._write_data(users)
-        return new_user
+        """
+        创建新用户
 
-    def update(self, user_id: str, username: str) -> User:
-        users = self._read_data()
-        for user in users:
-            if user.user_id == user_id:
-                user.username = username
-                self._write_data(users)
-                return user
+        Args:
+            username: 用户名
+
+        Returns:
+            创建的User对象
+        """
+        from src.supabase.schemas import UserCreate
+
+        user_data = UserCreate(name=username)
+        user_response = self._supabase_repo.create_user(user_data)
+        return self._user_response_to_user(user_response)
+
+    def update(self, user_id: int, username: str) -> Optional[User]:
+        """
+        更新用户
+
+        Args:
+            user_id: 用户ID（字符串，需要转换为int）
+            username: 用户名
+
+        Returns:
+            更新后的User对象，如果不存在则返回None
+        """
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            return None
+
+        from src.supabase.schemas import UserUpdate
+
+        update_data = UserUpdate(name=username)
+        user_response = self._supabase_repo.update_user(user_id_int, update_data)
+        if user_response:
+            return self._user_response_to_user(user_response)
         return None
 
-    def delete(self, user_id: str) -> bool:
-        users = self._read_data()
-        new_users = [user for user in users if user.user_id != user_id]
-        if len(new_users) == len(users):
+    def delete(self, user_id: int) -> bool:
+        """
+        删除用户
+
+        Args:
+            user_id: 用户ID（int）
+
+        Returns:
+            是否删除成功
+        """
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
             return False
-        self._write_data(new_users)
-        return True
+
+        return self._supabase_repo.delete_user(user_id_int)
+
+    def _user_response_to_user(self, user_response) -> User:
+        """
+        将UserResponse转换为User模型
+
+        Args:
+            user_response: UserResponse对象
+
+        Returns:
+            User对象
+        """
+        return User(
+            user_id=user_response.id,  # 保持为整数类型
+            username=user_response.name or "",
+        )
+
+
