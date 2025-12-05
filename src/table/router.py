@@ -26,7 +26,7 @@ router = APIRouter(
 
 
 @router.get(
-    "/{user_id}",
+    "/user/{user_id}",
     response_model=ApiResponse[List[TableOut]],
     summary="获取用户的所有表格",
     description="根据用户ID获取该用户下的所有表格（Table）列表。需要先验证用户是否存在。⚠️后续可能要修改这块的Api，改成Token鉴权",
@@ -44,6 +44,27 @@ def list_tables(
     # 2. 获取用户知识库
     tables = table_service.get_by_user_id(user_id)
     return ApiResponse.success(data=tables, message="表格列表获取成功")
+
+
+@router.get(
+    "/{table_id}",
+    response_model=ApiResponse[TableOut],
+    summary="获取单个表格详情",
+    description="根据表格ID获取单个表格的详细信息。如果表格不存在，将返回错误。⚠️后续可能要修改这块的Api，改成Token鉴权。",
+    response_description="返回表格详细信息",
+    status_code=status.HTTP_200_OK,
+)
+def get_table(
+    table_id: int,
+    table_service: TableService = Depends(get_table_service),
+):
+    table = table_service.get_by_id(table_id)
+    if not table:
+        from src.exceptions import NotFoundException, ErrorCode
+        raise NotFoundException(
+            f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+        )
+    return ApiResponse.success(data=table, message="表格获取成功")
 
 
 @router.post(
@@ -74,7 +95,7 @@ def create_table(
     "/{table_id}",
     response_model=ApiResponse[TableOut],
     summary="更新表格信息",
-    description="根据表格ID更新表格的名称、描述和数据。如果表格不存在，将返回错误。⚠️后续可能要修改这块的Api，改成Token鉴权，目前暂时无需传入user_id。",
+    description="根据表格ID更新表格的名称、描述和数据。所有字段都是可选的，只更新用户提供的字段，未提供的字段保持不变。如果表格不存在，将返回错误。⚠️后续可能要修改这块的Api，改成Token鉴权，目前暂时无需传入user_id。",
     response_description="返回更新后的表格信息",
     status_code=status.HTTP_200_OK,
 )
@@ -83,17 +104,11 @@ def update_table(
     payload: TableUpdate,
     table_service: TableService = Depends(get_table_service),
 ):
-    # 如果 data 为空（None 或空字典），则不更新 data
-    data = (
-        payload.data
-        if payload.data is not None and payload.data != {}
-        else None
-    )
     table = table_service.update(
         table_id=table_id,
         name=payload.name,
         description=payload.description,
-        data=data,
+        data=payload.data,
     )
     return ApiResponse.success(data=table, message="表格更新成功")
 

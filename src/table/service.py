@@ -40,8 +40,8 @@ class TableService:
     def update(
         self,
         table_id: int,
-        name: str,
-        description: str,
+        name: Optional[str],
+        description: Optional[str],
         data: Optional[dict],
     ) -> Table:
         updated = self.repo.update(

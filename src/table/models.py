@@ -14,8 +14,8 @@ class Table(BaseModel):
     description: Optional[str] = Field(
         None, description="知识库的描述，在MCP服务中可以提供给Agent"
     )
-    data: Optional[Dict[str, Any]] = Field(
-        None, description="关键存储数据的字段，本质上存储一个JSON对象（jsonb类型）"
+    data: Optional[Any] = Field(
+        None, description="关键存储数据的字段，本质上存储一个JSON对象（jsonb类型），可以是Dict、List或其他JSON类型"
     )
     created_at: datetime = Field(..., description="创建时间")
 

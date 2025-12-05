@@ -8,14 +8,14 @@ class TableCreate(BaseModel):
     project_id: int = Field(..., description="项目ID")
     name: str = Field(..., description="Table名称")
     description: str = Field(..., description="Table描述")
-    data: dict = Field(default_factory=dict, description="Table数据（JSON对象）")
+    data: Any = Field(default_factory=dict, description="Table数据（可以是Dict、List或其他JSON类型）")
 
 
 class TableUpdate(BaseModel):
     """更新Table的请求"""
-    name: str = Field(..., description="Table名称")
-    description: str = Field(..., description="Table描述")
-    data: Optional[dict] = Field(None, description="Table数据（可选）")
+    name: Optional[str] = Field(None, description="Table名称")
+    description: Optional[str] = Field(None, description="Table描述")
+    data: Optional[Any] = Field(None, description="Table数据（可选，可以是Dict、List或其他JSON类型）")
 
 
 class TableOut(BaseModel):
@@ -24,7 +24,7 @@ class TableOut(BaseModel):
     name: Optional[str] = Field(None, description="Table名称")
     project_id: Optional[int] = Field(None, description="项目ID")
     description: Optional[str] = Field(None, description="Table描述")
-    data: Optional[Dict[str, Any]] = Field(None, description="Table数据（JSON对象）")
+    data: Optional[Any] = Field(None, description="Table数据（JSON数据，可以是Dict、List或其他JSON类型）")
     created_at: datetime = Field(..., description="创建时间")
 
     class Config:

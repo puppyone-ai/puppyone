@@ -69,7 +69,7 @@ class TableBase(BaseModel):
     name: Optional[str] = None
     project_id: Optional[int] = None
     description: Optional[str] = None
-    data: Optional[Dict[str, Any]] = None
+    data: Optional[Any] = None  # 支持任意JSON类型（Dict, List, str, int等）
 
 
 class TableCreate(TableBase):
@@ -82,7 +82,7 @@ class TableUpdate(BaseModel):
     name: Optional[str] = None
     project_id: Optional[int] = None
     description: Optional[str] = None
-    data: Optional[Dict[str, Any]] = None
+    data: Optional[Any] = None  # 支持任意JSON类型（Dict, List, str, int等）
 
 
 class TableResponse(TableBase):

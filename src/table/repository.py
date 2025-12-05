@@ -20,8 +20,8 @@ class TableRepositoryBase(ABC):
     def update(
         self,
         table_id: int,
-        name: str,
-        description: str,
+        name: Optional[str],
+        description: Optional[str],
         data: Optional[dict],
     ) -> Optional[Table]:
         pass
@@ -138,8 +138,8 @@ class TableRepositorySupabase(TableRepositoryBase):
     def update(
         self,
         table_id: int,
-        name: str,
-        description: str,
+        name: Optional[str],
+        description: Optional[str],
         data: Optional[dict],
     ) -> Optional[Table]:
         """
@@ -147,8 +147,8 @@ class TableRepositorySupabase(TableRepositoryBase):
 
         Args:
             table_id: Table ID
-            name: Table名称
-            description: Table描述
+            name: Table名称（可选，如果为None则不更新）
+            description: Table描述（可选，如果为None则不更新）
             data: Table数据（可选，如果为None则不更新）
 
         Returns:
@@ -214,6 +214,6 @@ class TableRepositorySupabase(TableRepositoryBase):
             name=table_response.name,
             project_id=table_response.project_id,
             description=table_response.description,
-            data=table_response.data or {},
+            data=table_response.data,  # 保持原始数据类型（可以是Dict、List或其他JSON类型）
             created_at=table_response.created_at,
         )
