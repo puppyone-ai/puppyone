@@ -54,7 +54,17 @@ class S3Service:
             signature_version='s3v4',
             s3={
                 'addressing_style': 'path'  # 使用路径样式 (bucket/key)
-            }
+            },
+            # 增加重试次数和超时时间，避免SSL错误
+            retries={
+                'max_attempts': 5,
+                'mode': 'adaptive'
+            },
+            connect_timeout=60,
+            read_timeout=300,
+            # 禁用SSL验证（如果使用自签名证书或开发环境）
+            # 注意：生产环境应该使用有效的SSL证书
+            # verify=False
         )
         
         client_kwargs = {
@@ -118,7 +128,7 @@ class S3Service:
         metadata: dict[str, str] | None = None,
     ) -> FileUploadResponse:
         """
-        上传单个文件到 S3
+        上传单个文件到 S3（智能选择单次上传或分片上传）
 
         Args:
             key: S3 对象键
@@ -138,6 +148,15 @@ class S3Service:
         if file_size > self.max_file_size:
             raise S3FileSizeExceededError(file_size, self.max_file_size)
 
+        # 如果文件大小超过分片上传阈值，使用分片上传避免SSL错误
+        if file_size > self.multipart_threshold:
+            logger.info(
+                f"File size ({file_size} bytes) exceeds threshold ({self.multipart_threshold} bytes), "
+                f"using multipart upload for {key}"
+            )
+            return await self._upload_file_multipart(key, content, content_type, metadata)
+
+        # 小文件使用单次上传
         try:
             extra_args = {}
             if content_type:
@@ -166,6 +185,79 @@ class S3Service:
         except ClientError as e:
             self._handle_client_error(e, "upload_file")
             raise  # 永远不会执行,但类型检查器需要
+    
+    async def _upload_file_multipart(
+        self,
+        key: str,
+        content: bytes,
+        content_type: str | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> FileUploadResponse:
+        """
+        使用分片上传方式上传大文件
+
+        Args:
+            key: S3 对象键
+            content: 文件内容
+            content_type: 文件类型
+            metadata: 自定义元数据
+
+        Returns:
+            FileUploadResponse: 上传结果
+        """
+        file_size = len(content)
+        upload_id = None
+        
+        try:
+            # 1. 创建分片上传
+            upload_id = await self.create_multipart_upload(key, content_type, metadata)
+            
+            # 2. 分片上传
+            parts = []
+            part_number = 1
+            offset = 0
+            
+            while offset < file_size:
+                # 计算当前分片大小
+                chunk_size = min(self.multipart_chunksize, file_size - offset)
+                chunk_data = content[offset:offset + chunk_size]
+                
+                # 上传分片
+                etag = await self.upload_part(key, upload_id, part_number, chunk_data)
+                parts.append((part_number, etag))
+                
+                logger.info(
+                    f"Uploaded part {part_number}/{(file_size + self.multipart_chunksize - 1) // self.multipart_chunksize} "
+                    f"for {key} ({chunk_size} bytes)"
+                )
+                
+                offset += chunk_size
+                part_number += 1
+            
+            # 3. 完成分片上传
+            result = await self.complete_multipart_upload(key, upload_id, parts)
+            
+            logger.info(f"Multipart upload completed for {key} ({file_size} bytes)")
+            
+            return FileUploadResponse(
+                key=key,
+                bucket=self.bucket_name,
+                size=file_size,
+                etag=result.etag,
+                content_type=content_type,
+            )
+            
+        except Exception as e:
+            # 如果上传失败，取消分片上传
+            if upload_id:
+                try:
+                    await self.abort_multipart_upload(key, upload_id)
+                    logger.info(f"Aborted multipart upload for {key}: {upload_id}")
+                except Exception as abort_error:
+                    logger.error(f"Failed to abort multipart upload for {key}: {abort_error}")
+            
+            # 重新抛出原始错误
+            raise S3OperationError(f"Multipart upload failed for {key}: {e}")
 
     async def upload_files_batch(
         self, files: list[tuple[str, bytes, str | None]]

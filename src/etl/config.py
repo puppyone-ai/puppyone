@@ -19,7 +19,7 @@ class ETLConfig(BaseSettings):
 
     # Queue settings
     etl_queue_size: int = Field(
-        default=200,
+        default=30,
         description="Maximum ETL queue size"
     )
 

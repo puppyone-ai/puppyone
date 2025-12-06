@@ -150,12 +150,12 @@ Return a valid JSON object that strictly matches the schema. Do not include any 
 
         return prompt
 
-    def validate_output(self, output: dict, json_schema: dict) -> tuple[bool, Optional[str]]:
+    def validate_output(self, output: dict | list, json_schema: dict) -> tuple[bool, Optional[str]]:
         """
         Validate output against JSON Schema.
 
         Args:
-            output: JSON output to validate
+            output: JSON output to validate (dict or list)
             json_schema: JSON Schema to validate against
 
         Returns:

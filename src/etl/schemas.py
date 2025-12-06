@@ -108,3 +108,12 @@ class ETLMountResponse(BaseModel):
     message: str = Field(..., description="Status message")
     mounted_path: str = Field(..., description="Path where result was mounted")
 
+
+class ETLFileUploadResponse(BaseModel):
+    """Response for ETL file upload."""
+
+    key: str = Field(..., description="S3 object key")
+    bucket: str = Field(..., description="S3 bucket name")
+    size: int = Field(..., description="File size in bytes")
+    etag: str = Field(..., description="ETag hash")
+    content_type: Optional[str] = Field(None, description="File content type")

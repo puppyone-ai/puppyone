@@ -8,14 +8,17 @@ import json
 import logging
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import asyncio
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from src.etl.config import etl_config
 from src.etl.dependencies import get_etl_service, get_rule_repository
 from src.etl.exceptions import ETLError, RuleNotFoundError
+from src.s3.exceptions import S3Error, S3FileSizeExceededError
 from src.etl.rules.repository import RuleRepository
 from src.etl.rules.schemas import RuleCreateRequest
 from src.etl.schemas import (
+    ETLFileUploadResponse,
     ETLHealthResponse,
     ETLMountRequest,
     ETLMountResponse,
@@ -151,7 +154,7 @@ async def list_etl_tasks(
             status_enum = ETLTaskStatus(status)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
-    
+
     tasks = await etl_service.list_tasks(
         user_id=user_id,
         project_id=project_id,
@@ -160,7 +163,7 @@ async def list_etl_tasks(
 
     # Apply pagination
     total = len(tasks)
-    paginated_tasks = tasks[offset:offset + limit]
+    paginated_tasks = tasks[offset : offset + limit]
 
     task_responses = [
         ETLTaskResponse(
@@ -363,10 +366,12 @@ async def mount_etl_result(
 
         # Check task status
         if task.status != ETLTaskStatus.COMPLETED:
-            logger.warning(f"Task {task_id} not completed (status: {task.status.value})")
+            logger.warning(
+                f"Task {task_id} not completed (status: {task.status.value})"
+            )
             raise HTTPException(
                 status_code=400,
-                detail=f"Task not completed. Current status: {task.status.value}"
+                detail=f"Task not completed. Current status: {task.status.value}",
             )
 
         # Get result path
@@ -379,10 +384,12 @@ async def mount_etl_result(
         # Download result from S3
         logger.info(f"Downloading result from S3: {output_path}")
         download_content = await s3_service.download_file(output_path)
-        
+
         if not download_content:
             logger.error(f"Failed to download result from S3: {output_path}")
-            raise HTTPException(status_code=500, detail="Failed to download result from S3")
+            raise HTTPException(
+                status_code=500, detail="Failed to download result from S3"
+            )
 
         # Parse JSON
         try:
@@ -393,23 +400,40 @@ async def mount_etl_result(
 
         # Extract filename without extension as key
         import os
+
         filename_without_ext = os.path.splitext(task.filename)[0]
-        
+
         # Mount to table
         logger.info(
             f"Mounting result to table {request.table_id} at path {request.json_path}"
         )
-        
-        await table_service.create_context_data(
+
+        # Prepare elements for create_context_data
+        elements = [
+            {
+                "key": filename_without_ext,
+                "content": result_json
+            }
+        ]
+
+        # create_context_data is a sync method, so offload to thread
+        await asyncio.to_thread(
+            table_service.create_context_data,
             table_id=request.table_id,
-            key=filename_without_ext,
-            value=result_json,
-            json_path=request.json_path,
+            mounted_json_pointer_path=request.json_path,
+            elements=elements,
         )
 
-        mounted_path = f"{request.json_path}/{filename_without_ext}" if request.json_path else filename_without_ext
 
-        logger.info(f"Successfully mounted task {task_id} result to table {request.table_id}")
+        mounted_path = (
+            f"{request.json_path}/{filename_without_ext}"
+            if request.json_path
+            else filename_without_ext
+        )
+
+        logger.info(
+            f"Successfully mounted task {task_id} result to table {request.table_id}"
+        )
 
         return ETLMountResponse(
             success=True,
@@ -444,3 +468,87 @@ async def get_etl_health(
         worker_count=etl_config.etl_worker_count,
     )
 
+
+@router.post("/upload", response_model=ETLFileUploadResponse, status_code=201)
+async def upload_etl_file(
+    user_id: int = Form(..., description="User ID"),
+    project_id: int = Form(..., description="Project ID"),
+    file: UploadFile = File(..., description="File to upload"),
+    s3_service: Annotated[S3Service, Depends(get_s3_service)] = None,
+):
+    """
+    Upload a file to S3 for ETL processing.
+
+    The file will be automatically uploaded to the path:
+    `/users/{user_id}/raw/{project_id}/{filename}`
+
+    Args:
+        user_id: User ID
+        project_id: Project ID
+        file: File to upload
+        s3_service: S3 service dependency
+
+    Returns:
+        ETLFileUploadResponse with upload details
+
+    Raises:
+        HTTPException: If upload fails or file size exceeds limit
+    """
+    try:
+        # Generate S3 key path
+        filename = file.filename
+        s3_key = f"users/{user_id}/raw/{project_id}/{filename}"
+
+        # Read file content
+        content = await file.read()
+
+        # Upload to S3
+        result = await s3_service.upload_file(
+            key=s3_key,
+            content=content,
+            content_type=file.content_type,
+        )
+
+        logger.info(
+            f"File uploaded successfully to ETL: {s3_key} ({result.size} bytes)"
+        )
+
+        return ETLFileUploadResponse(
+            key=result.key,
+            bucket=result.bucket,
+            size=result.size,
+            etag=result.etag,
+            content_type=result.content_type,
+        )
+
+    except S3FileSizeExceededError as e:
+        logger.error(f"File size exceeded: {e}")
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "error": "PayloadTooLarge",
+                "message": str(e),
+                "max_size": e.max_size,
+                "suggestion": "Please use multipart upload or presigned URL for large files",
+            },
+        )
+
+    except S3Error as e:
+        logger.error(f"S3 error during ETL file upload: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "S3Error",
+                "message": f"Failed to upload file to S3: {str(e)}",
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Unexpected error during ETL file upload: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "InternalServerError",
+                "message": f"An unexpected error occurred: {str(e)}",
+            },
+        )

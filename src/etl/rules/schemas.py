@@ -60,7 +60,7 @@ class TransformationResult(BaseModel):
     """Result of applying an ETL rule."""
 
     success: bool = Field(..., description="Whether transformation succeeded")
-    output: Optional[dict[str, Any]] = Field(None, description="Transformed JSON output")
+    output: Optional[dict[str, Any] | list[Any]] = Field(None, description="Transformed JSON output (dict or list)")
     error: Optional[str] = Field(None, description="Error message if failed")
     llm_usage: Optional[dict[str, Any]] = Field(None, description="LLM usage statistics")
 

@@ -22,7 +22,8 @@ class S3Settings(BaseSettings):
 
     # S3 文件大小限制配置
     S3_MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB (字节)
-    S3_MULTIPART_THRESHOLD: int = 100 * 1024 * 1024  # 100MB (字节)
+    # 降低分片上传阈值，避免大文件单次上传导致SSL错误
+    S3_MULTIPART_THRESHOLD: int = 10 * 1024 * 1024  # 10MB (字节) - 超过10MB使用分片上传
     S3_MULTIPART_CHUNKSIZE: int = 5 * 1024 * 1024  # 5MB (字节)
 
 
