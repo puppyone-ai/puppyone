@@ -47,6 +47,7 @@ class McpInstanceRepositoryBase(ABC):
         docker_info: Dict[Any, Any],
         tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
         register_tools: Optional[List[ToolTypeKey]] = None,
+        preview_keys: Optional[List[str]] = None,
     ) -> McpInstance:
         pass
 
@@ -64,6 +65,7 @@ class McpInstanceRepositoryBase(ABC):
         docker_info: Dict[Any, Any],
         tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
         register_tools: Optional[List[ToolTypeKey]] = None,
+        preview_keys: Optional[List[str]] = None,
     ) -> Optional[McpInstance]:
         pass
 
@@ -80,6 +82,7 @@ class McpInstanceRepositoryBase(ABC):
         docker_info: Dict[Any, Any],
         tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
         register_tools: Optional[List[ToolTypeKey]] = None,
+        preview_keys: Optional[List[str]] = None,
     ) -> Optional[McpInstance]:
         pass
 
@@ -156,6 +159,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         docker_info: Dict[Any, Any],
         tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
         register_tools: Optional[List[ToolTypeKey]] = None,
+        preview_keys: Optional[List[str]] = None,
     ) -> McpInstance:
         instances = self._read_data()
         # 生成新的 ID
@@ -176,6 +180,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
             docker_info=docker_info,
             tools_definition=tools_definition,
             register_tools=register_tools,
+            preview_keys=preview_keys,
         )
         instances.append(new_instance)
         self._write_data(instances)
@@ -194,6 +199,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         docker_info: Dict[Any, Any],
         tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
         register_tools: Optional[List[ToolTypeKey]] = None,
+        preview_keys: Optional[List[str]] = None,
     ) -> Optional[McpInstance]:
         instances = self._read_data()
         for instance in instances:
@@ -208,6 +214,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 instance.docker_info = docker_info
                 instance.tools_definition = tools_definition
                 instance.register_tools = register_tools
+                instance.preview_keys = preview_keys
                 self._write_data(instances)
                 return instance
         return None
@@ -224,6 +231,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         docker_info: Dict[Any, Any],
         tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
         register_tools: Optional[List[ToolTypeKey]] = None,
+        preview_keys: Optional[List[str]] = None,
     ) -> Optional[McpInstance]:
         instances = self._read_data()
         for instance in instances:
@@ -237,6 +245,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 instance.docker_info = docker_info
                 instance.tools_definition = tools_definition
                 instance.register_tools = register_tools
+                instance.preview_keys = preview_keys
                 self._write_data(instances)
                 return instance
         return None
@@ -330,6 +339,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         docker_info: Dict[Any, Any],
         tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
         register_tools: Optional[List[ToolTypeKey]] = None,
+        preview_keys: Optional[List[str]] = None,
     ) -> McpInstance:
         """创建新的 MCP 实例"""
         # 字段映射：json_pointer → json_path, status (int) → status (bool)
@@ -344,6 +354,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
             docker_info=docker_info,
             tools_definition=tools_definition,
             register_tools=register_tools,
+            preview_keys=preview_keys,
         )
 
         mcp_response = self._repo.create_mcp(mcp_data)
@@ -362,6 +373,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         docker_info: Dict[Any, Any],
         tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
         register_tools: Optional[List[ToolTypeKey]] = None,
+        preview_keys: Optional[List[str]] = None,
     ) -> Optional[McpInstance]:
         """根据 ID 更新 MCP 实例"""
         try:
@@ -381,6 +393,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
             docker_info=docker_info,
             tools_definition=tools_definition,
             register_tools=register_tools,
+            preview_keys=preview_keys,
         )
 
         mcp_response = self._repo.update_mcp(mcp_id, mcp_data)
@@ -400,6 +413,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         docker_info: Dict[Any, Any],
         tools_definition: Optional[Dict[str, McpToolsDefinition]] = None,
         register_tools: Optional[List[ToolTypeKey]] = None,
+        preview_keys: Optional[List[str]] = None,
     ) -> Optional[McpInstance]:
         """根据 API Key 更新 MCP 实例"""
         # 字段映射：json_pointer → json_path, status (int) → status (bool)
@@ -414,6 +428,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
             docker_info=docker_info,
             tools_definition=tools_definition,
             register_tools=register_tools,
+            preview_keys=preview_keys,
         )
 
         mcp_response = self._repo.update_mcp_by_api_key(api_key, mcp_data)

@@ -23,7 +23,7 @@ router = APIRouter(prefix="/mcp", tags=["mcp"])
     response_description="返回用户的所有MCP实例列表",
 )
 async def list_mcp_instances(
-    user_id: str = Query(..., description="用户ID"),
+    user_id: int = Query(..., description="用户ID"),
     mcp_instance_service: McpService = Depends(get_mcp_instance_service),
 ):
     """

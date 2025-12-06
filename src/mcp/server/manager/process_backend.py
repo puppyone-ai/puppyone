@@ -16,11 +16,11 @@ class ProcessBackend(MCPInstanceBackend):
     def __init__(self):
         self.process_map: Dict[str, subprocess.Popen] = {}
         # 获取 backend 目录（项目根目录）
-        # __file__ 是 backend/app/mcp_server/manager/process_backend.py
-        # 向上4级：manager -> mcp_server -> app -> backend
-        self.backend_root = Path(__file__).parent.parent.parent.parent
+        # __file__ 是 backend/src/mcp/server/manager/process_backend.py
+        # 向上5级：manager -> server -> mcp -> src -> backend
+        self.backend_root = Path(__file__).parent.parent.parent.parent.parent
         # MCP server 脚本的相对路径（从 backend 目录）
-        self.server_script = "app/mcp_server/server.py"
+        self.server_script = "src/mcp/server/server.py"
 
     async def start_instance(
         self, instance_id: str, config: Dict[str, Any]
@@ -67,12 +67,9 @@ class ProcessBackend(MCPInstanceBackend):
                 log_info("uv not found, using system Python interpreter")
 
             # 构建启动命令
-            module_path = (
-                str(self.server_script)
-                .replace(str(self.backend_root) + "/", "")
-                .replace("/", ".")
-                .replace(".py", "")
-            )
+            # self.server_script 是相对路径（如 "src/mcp/server/server.py"）
+            # 转换为模块路径（如 "src.mcp.server.server"）
+            module_path = self.server_script.replace("/", ".").replace(".py", "")
             base_cmd = [
                 "--host",
                 "0.0.0.0",
@@ -107,8 +104,8 @@ class ProcessBackend(MCPInstanceBackend):
             log_dir.mkdir(parents=True, exist_ok=True)
 
             # 为每个实例创建独立的日志文件
-            stdout_log = log_dir / f"mcp_{instance_id[:20]}_stdout.log"
-            stderr_log = log_dir / f"mcp_{instance_id[:20]}_stderr.log"
+            stdout_log = log_dir / f"mcp_stdout_{instance_id}.log"
+            stderr_log = log_dir / f"mcp_stderr_{instance_id}.log"
 
             # 打开日志文件（追加模式）
             stdout_file = open(stdout_log, "a")
@@ -239,3 +236,20 @@ class ProcessBackend(MCPInstanceBackend):
         删除实例（停止并清理资源）
         """
         await self.stop_instance(instance_id)
+
+    async def shutdown_all(self) -> None:
+        """
+        关闭所有进程（应用关闭时调用）
+        
+        停止所有正在运行的 MCP 进程并清理资源
+        """
+        instance_ids = list(self.process_map.keys())
+        log_info(f"Shutting down {len(instance_ids)} MCP processes...")
+        
+        for instance_id in instance_ids:
+            try:
+                await self.stop_instance(instance_id)
+            except Exception as e:
+                log_error(f"Error stopping instance {instance_id} during shutdown: {e}")
+        
+        log_info("All MCP processes shutdown completed")

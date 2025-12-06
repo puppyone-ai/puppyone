@@ -66,7 +66,17 @@ async def app_lifespan(app: FastAPI):
     # 关闭时的清理逻辑
     log_info("ContextBase API 关闭中...")
     
-    # 停止 ETL 服务
+    # 1. 停止所有 MCP 实例
+    try:
+        from src.mcp.dependencies import get_mcp_instance_service
+        
+        mcp_service = get_mcp_instance_service()
+        shutdown_result = await mcp_service.shutdown_all_instances()
+        log_info(f"MCP instances shutdown completed: {shutdown_result}")
+    except Exception as e:
+        log_error(f"Failed to shutdown MCP instances: {e}")
+    
+    # 2. 停止 ETL 服务
     try:
         from src.etl.dependencies import get_etl_service
         
@@ -75,8 +85,6 @@ async def app_lifespan(app: FastAPI):
         log_info("ETL service stopped successfully")
     except Exception as e:
         log_error(f"Failed to stop ETL service: {e}")
-    
-    # TODO: 关闭数据库连接、清理资源等
 
 
 def create_app() -> FastAPI:

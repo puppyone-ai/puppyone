@@ -6,9 +6,9 @@ from src.mcp.schemas import McpToolsDefinition, ToolTypeKey
 class McpInstance(BaseModel):
     mcp_instance_id: str
     api_key: str
-    user_id: str
-    project_id: str
-    table_id: str
+    user_id: int
+    project_id: int
+    table_id: int
     json_pointer: str = (
         ""  # JSON指针路径，表示该MCP实例对应的数据路径，默认为空字符串表示根路径
     )

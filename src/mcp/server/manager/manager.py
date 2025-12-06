@@ -233,3 +233,17 @@ async def update_instance_status(
         return {"port": port, "docker_info": docker_info}
     else:
         raise ValueError(f"Invalid status: {status}, must be 0 or 1")
+
+
+async def shutdown_all_instances() -> None:
+    """
+    关闭所有 MCP 实例（应用关闭时调用）
+    
+    停止所有正在运行的 MCP 进程并清理资源
+    """
+    try:
+        await backend.shutdown_all()
+        log_info("All MCP instances shut down successfully")
+    except Exception as e:
+        log_error(f"Error during MCP instances shutdown: {e}")
+        raise

@@ -1,4 +1,5 @@
 src/logs/
+logs/
 .ruff_cache/
 .ocr-dataset/
 .test_data/

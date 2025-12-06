@@ -22,6 +22,7 @@ from src.mcp.server.manager.manager import (
     update_instance_status as update_and_restart_mcp_server,
     release_port as release_mcp_server_port,
     allocate_port as allocate_mcp_server_port,
+    shutdown_all_instances as shutdown_all_mcp_servers,
 )
 from src.utils.logger import log_info, log_error
 
@@ -39,7 +40,7 @@ class McpService:
     ### API_KEY生成和解析逻辑 ###
 
     def generate_mcp_token(
-        self, user_id: str, project_id: str, table_id: str, json_pointer: str = ""
+        self, user_id: int, project_id: int, table_id: int, json_pointer: str = ""
     ) -> str:
         """
         根据用户ID、项目ID、表格ID、JSON路径 生成代表MCP实例的JWT token
@@ -96,9 +97,9 @@ class McpService:
 
     async def create_mcp_instance(
         self,
-        user_id: str,
-        project_id: str,
-        table_id: str,
+        user_id: int,
+        project_id: int,
+        table_id: int,
         json_pointer: str = "",
         tools_definition: Optional[Dict[str, Any]] = None,
         register_tools: Optional[List[str]] = None,
@@ -674,7 +675,7 @@ class McpService:
         return self.instance_repo.get_by_api_key(api_key)
 
     async def get_mcp_instance_by_id(
-        self, mcp_instance_id: str
+        self, mcp_instance_id: int
     ) -> Optional[McpInstance]:
         """
         根据实例ID获取 MCP 实例
@@ -687,7 +688,42 @@ class McpService:
         """
         return self.instance_repo.get_by_id(mcp_instance_id)
 
-    async def get_user_mcp_instances(self, user_id: str) -> List[McpInstance]:
+    async def shutdown_all_instances(self) -> Dict[str, Any]:
+        """
+        关闭所有 MCP 实例（应用关闭时调用）
+        
+        停止所有正在运行的 MCP 进程,并清理资源
+        
+        Returns:
+            关闭结果统计
+        """
+        log_info("Shutting down all MCP instances...")
+        
+        try:
+            # 调用 manager 关闭所有进程
+            await shutdown_all_mcp_servers()
+            
+            # 获取所有实例
+            instances = self.instance_repo.get_all()
+            
+            result = {
+                "total": len(instances),
+                "stopped": len(instances),
+                "errors": 0,
+            }
+            
+            log_info(f"MCP instances shutdown completed: {result}")
+            return result
+        except Exception as e:
+            log_error(f"Error during MCP instances shutdown: {e}")
+            instances = self.instance_repo.get_all()
+            return {
+                "total": len(instances),
+                "stopped": 0,
+                "errors": len(instances),
+            }
+
+    async def get_user_mcp_instances(self, user_id: int) -> List[McpInstance]:
         """
         获取用户的所有 MCP 实例
 
