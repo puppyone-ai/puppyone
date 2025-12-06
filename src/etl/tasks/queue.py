@@ -8,7 +8,8 @@ import asyncio
 import logging
 from typing import Callable, Optional
 
-from src.etl.tasks.models import ETLTask
+from src.etl.tasks.models import ETLTask, ETLTaskStatus
+from src.etl.tasks.repository import ETLTaskRepositoryBase
 
 logger = logging.getLogger(__name__)
 
@@ -16,16 +17,23 @@ logger = logging.getLogger(__name__)
 class ETLQueue:
     """Asynchronous task queue for ETL processing."""
 
-    def __init__(self, max_size: int = 1000, worker_count: int = 3):
+    def __init__(
+        self,
+        task_repository: ETLTaskRepositoryBase,
+        max_size: int = 1000,
+        worker_count: int = 3,
+    ):
         """
         Initialize ETL queue.
 
         Args:
+            task_repository: Repository for task persistence
             max_size: Maximum queue size
             worker_count: Number of worker tasks
         """
-        self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=max_size)
-        self.tasks: dict[str, ETLTask] = {}
+        self.task_repository = task_repository
+        self.queue: asyncio.Queue[int] = asyncio.Queue(maxsize=max_size)
+        self.tasks: dict[int, ETLTask] = {}
         self.worker_count = worker_count
         self.workers: list[asyncio.Task] = []
         self.executor: Optional[Callable[[ETLTask], None]] = None
@@ -46,23 +54,34 @@ class ETLQueue:
         self.executor = executor
         logger.info("ETL queue executor set")
 
-    async def submit(self, task: ETLTask) -> None:
+    async def submit(self, task: ETLTask) -> ETLTask:
         """
         Submit a task to the queue.
 
         Args:
-            task: ETL task to submit
+            task: ETL task to submit (task_id will be assigned if None)
+
+        Returns:
+            Task with assigned task_id
 
         Raises:
             asyncio.QueueFull: If queue is full
         """
-        self.tasks[task.task_id] = task
-        await self.queue.put(task.task_id)
-        logger.info(f"Task {task.task_id} submitted to queue")
+        # Create task in database first to get task_id
+        task_with_id = self.task_repository.create_task(task)
+        
+        # Add to memory cache
+        self.tasks[task_with_id.task_id] = task_with_id
+        
+        # Add to queue
+        await self.queue.put(task_with_id.task_id)
+        
+        logger.info(f"Task {task_with_id.task_id} submitted to queue")
+        return task_with_id
 
-    def get_task(self, task_id: str) -> Optional[ETLTask]:
+    def get_task(self, task_id: int) -> Optional[ETLTask]:
         """
-        Get task by ID.
+        Get task by ID from memory cache.
 
         Args:
             task_id: Task identifier
@@ -70,13 +89,23 @@ class ETLQueue:
         Returns:
             ETLTask if found, None otherwise
         """
-        return self.tasks.get(task_id)
+        # First try memory cache
+        task = self.tasks.get(task_id)
+        
+        # If not in memory, try database
+        if task is None:
+            task = self.task_repository.get_task(task_id)
+            if task:
+                # Cache it in memory
+                self.tasks[task_id] = task
+        
+        return task
 
     def list_tasks(
         self,
-        user_id: Optional[str] = None,
-        project_id: Optional[str] = None,
-        status: Optional[str] = None,
+        user_id: Optional[int] = None,
+        project_id: Optional[int] = None,
+        status: Optional[ETLTaskStatus] = None,
     ) -> list[ETLTask]:
         """
         List tasks with optional filters.
@@ -89,13 +118,14 @@ class ETLQueue:
         Returns:
             List of matching tasks
         """
+        # Use memory cache for fast access
         tasks = list(self.tasks.values())
 
-        if user_id:
+        if user_id is not None:
             tasks = [t for t in tasks if t.user_id == user_id]
-        if project_id:
+        if project_id is not None:
             tasks = [t for t in tasks if t.project_id == project_id]
-        if status:
+        if status is not None:
             tasks = [t for t in tasks if t.status == status]
 
         return tasks
@@ -172,12 +202,33 @@ class ETLQueue:
                 try:
                     if self.executor:
                         await self.executor(task)
+                        
+                        # Update database if task completed or failed
+                        # (intermediate states are only in memory)
+                        if task.status in (ETLTaskStatus.COMPLETED, ETLTaskStatus.FAILED):
+                            try:
+                                self.task_repository.update_task(task)
+                                logger.info(
+                                    f"Task {task_id} status persisted: {task.status.value}"
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to persist task {task_id} status: {e}"
+                                )
                 except Exception as e:
                     logger.error(
                         f"Worker {worker_id}: Error processing task {task_id}: {e}",
                         exc_info=True
                     )
                     task.mark_failed(f"Worker error: {str(e)}")
+                    
+                    # Persist failure to database
+                    try:
+                        self.task_repository.update_task(task)
+                    except Exception as db_error:
+                        logger.error(
+                            f"Failed to persist task {task_id} failure: {db_error}"
+                        )
 
                 self.queue.task_done()
 

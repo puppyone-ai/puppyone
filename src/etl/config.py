@@ -19,7 +19,7 @@ class ETLConfig(BaseSettings):
 
     # Queue settings
     etl_queue_size: int = Field(
-        default=1000,
+        default=200,
         description="Maximum ETL queue size"
     )
 
@@ -30,7 +30,7 @@ class ETLConfig(BaseSettings):
 
     # Task timeout
     etl_task_timeout: int = Field(
-        default=600,
+        default=300,
         description="ETL task timeout in seconds (10 minutes)"
     )
 

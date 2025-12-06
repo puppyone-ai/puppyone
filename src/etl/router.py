@@ -4,6 +4,7 @@ ETL API Router
 FastAPI routes for ETL operations.
 """
 
+import json
 import logging
 from typing import Annotated, Optional
 
@@ -16,6 +17,8 @@ from src.etl.rules.repository import RuleRepository
 from src.etl.rules.schemas import RuleCreateRequest
 from src.etl.schemas import (
     ETLHealthResponse,
+    ETLMountRequest,
+    ETLMountResponse,
     ETLRuleCreateRequest,
     ETLRuleListResponse,
     ETLRuleResponse,
@@ -25,6 +28,11 @@ from src.etl.schemas import (
     ETLTaskResponse,
 )
 from src.etl.service import ETLService
+from src.etl.tasks.models import ETLTaskStatus
+from src.s3.dependencies import get_s3_service
+from src.s3.service import S3Service
+from src.table.dependencies import get_table_service
+from src.table.service import TableService
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +84,7 @@ async def submit_etl_task(
 
 @router.get("/tasks/{task_id}", response_model=ETLTaskResponse)
 async def get_etl_task_status(
-    task_id: str,
+    task_id: int,
     etl_service: Annotated[ETLService, Depends(get_etl_service)],
 ):
     """
@@ -117,8 +125,8 @@ async def get_etl_task_status(
 @router.get("/tasks", response_model=ETLTaskListResponse)
 async def list_etl_tasks(
     etl_service: Annotated[ETLService, Depends(get_etl_service)],
-    user_id: Optional[str] = Query(None, description="Filter by user ID"),
-    project_id: Optional[str] = Query(None, description="Filter by project ID"),
+    user_id: Optional[int] = Query(None, description="Filter by user ID"),
+    project_id: Optional[int] = Query(None, description="Filter by project ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of tasks"),
     offset: int = Query(0, ge=0, description="Number of tasks to skip"),
@@ -137,10 +145,17 @@ async def list_etl_tasks(
     Returns:
         ETLTaskListResponse with task list
     """
+    status_enum = None
+    if status:
+        try:
+            status_enum = ETLTaskStatus(status)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+    
     tasks = await etl_service.list_tasks(
         user_id=user_id,
         project_id=project_id,
-        status=status,
+        status=status_enum,
     )
 
     # Apply pagination
@@ -258,7 +273,7 @@ async def create_etl_rule(
 
 @router.get("/rules/{rule_id}", response_model=ETLRuleResponse)
 async def get_etl_rule(
-    rule_id: str,
+    rule_id: int,
     rule_repository: Annotated[RuleRepository, Depends(get_rule_repository)],
 ):
     """
@@ -274,7 +289,7 @@ async def get_etl_rule(
     Raises:
         HTTPException: If rule not found
     """
-    rule = rule_repository.get_rule(rule_id)
+    rule = rule_repository.get_rule(str(rule_id))
 
     if not rule:
         logger.warning(f"Rule not found: {rule_id}")
@@ -293,7 +308,7 @@ async def get_etl_rule(
 
 @router.delete("/rules/{rule_id}", status_code=204)
 async def delete_etl_rule(
-    rule_id: str,
+    rule_id: int,
     rule_repository: Annotated[RuleRepository, Depends(get_rule_repository)],
 ):
     """
@@ -306,13 +321,107 @@ async def delete_etl_rule(
     Raises:
         HTTPException: If rule not found
     """
-    success = rule_repository.delete_rule(rule_id)
+    success = rule_repository.delete_rule(str(rule_id))
 
     if not success:
         logger.warning(f"Rule not found for deletion: {rule_id}")
         raise HTTPException(status_code=404, detail="Rule not found")
 
     logger.info(f"ETL rule deleted: {rule_id}")
+
+
+@router.post("/tasks/{task_id}/mount", response_model=ETLMountResponse)
+async def mount_etl_result(
+    task_id: int,
+    request: ETLMountRequest,
+    etl_service: Annotated[ETLService, Depends(get_etl_service)],
+    s3_service: Annotated[S3Service, Depends(get_s3_service)],
+    table_service: Annotated[TableService, Depends(get_table_service)],
+):
+    """
+    Mount ETL result JSON to a table.
+
+    Args:
+        task_id: Task ID to mount
+        request: Mount request with table_id and json_path
+        etl_service: ETL service dependency
+        s3_service: S3 service dependency
+        table_service: Table service dependency
+
+    Returns:
+        ETLMountResponse with mount status
+
+    Raises:
+        HTTPException: If task not found, not completed, or mount fails
+    """
+    try:
+        # Get task
+        task = await etl_service.get_task_status(task_id)
+        if not task:
+            logger.warning(f"Task not found: {task_id}")
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        # Check task status
+        if task.status != ETLTaskStatus.COMPLETED:
+            logger.warning(f"Task {task_id} not completed (status: {task.status.value})")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Task not completed. Current status: {task.status.value}"
+            )
+
+        # Get result path
+        if not task.result or not task.result.output_path:
+            logger.error(f"Task {task_id} has no result path")
+            raise HTTPException(status_code=500, detail="Task result not found")
+
+        output_path = task.result.output_path
+
+        # Download result from S3
+        logger.info(f"Downloading result from S3: {output_path}")
+        download_content = await s3_service.download_file(output_path)
+        
+        if not download_content:
+            logger.error(f"Failed to download result from S3: {output_path}")
+            raise HTTPException(status_code=500, detail="Failed to download result from S3")
+
+        # Parse JSON
+        try:
+            result_json = json.loads(download_content.decode("utf-8"))
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse result JSON: {e}")
+            raise HTTPException(status_code=500, detail="Invalid JSON in result")
+
+        # Extract filename without extension as key
+        import os
+        filename_without_ext = os.path.splitext(task.filename)[0]
+        
+        # Mount to table
+        logger.info(
+            f"Mounting result to table {request.table_id} at path {request.json_path}"
+        )
+        
+        await table_service.create_context_data(
+            table_id=request.table_id,
+            key=filename_without_ext,
+            value=result_json,
+            json_path=request.json_path,
+        )
+
+        mounted_path = f"{request.json_path}/{filename_without_ext}" if request.json_path else filename_without_ext
+
+        logger.info(f"Successfully mounted task {task_id} result to table {request.table_id}")
+
+        return ETLMountResponse(
+            success=True,
+            message="Result mounted successfully",
+            mounted_path=mounted_path,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error mounting result: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/health", response_model=ETLHealthResponse)

@@ -7,7 +7,6 @@ Core ETL service for processing documents through MineRU and LLM transformation.
 import json
 import logging
 import time
-import uuid
 from typing import Optional
 
 from src.etl.config import etl_config
@@ -21,6 +20,7 @@ from src.etl.rules.engine import RuleEngine
 from src.etl.rules.repository import RuleRepository
 from src.etl.tasks.models import ETLTask, ETLTaskResult, ETLTaskStatus
 from src.etl.tasks.queue import ETLQueue
+from src.etl.tasks.repository import ETLTaskRepositoryBase
 from src.llm.service import LLMService
 from src.s3.service import S3Service
 
@@ -36,6 +36,7 @@ class ETLService:
         llm_service: LLMService,
         mineru_client: MineRUClient,
         rule_repository: RuleRepository,
+        task_repository: ETLTaskRepositoryBase,
     ):
         """
         Initialize ETL service.
@@ -45,15 +46,18 @@ class ETLService:
             llm_service: LLM service for transformations
             mineru_client: MineRU client for document parsing
             rule_repository: Repository for ETL rules
+            task_repository: Repository for ETL tasks
         """
         self.s3_service = s3_service
         self.llm_service = llm_service
         self.mineru_client = mineru_client
         self.rule_repository = rule_repository
+        self.task_repository = task_repository
         self.rule_engine = RuleEngine(llm_service)
 
         # Initialize task queue
         self.queue = ETLQueue(
+            task_repository=task_repository,
             max_size=etl_config.etl_queue_size,
             worker_count=etl_config.etl_worker_count,
         )
@@ -75,10 +79,10 @@ class ETLService:
 
     async def submit_etl_task(
         self,
-        user_id: str,
-        project_id: str,
+        user_id: int,
+        project_id: int,
         filename: str,
-        rule_id: str,
+        rule_id: int,
     ) -> ETLTask:
         """
         Submit an ETL task to the queue.
@@ -96,30 +100,29 @@ class ETLService:
             RuleNotFoundError: If rule doesn't exist
         """
         # Validate rule exists
-        rule = self.rule_repository.get_rule(rule_id)
+        rule = self.rule_repository.get_rule(str(rule_id))
         if not rule:
             logger.error(f"Rule not found: {rule_id}")
-            raise RuleNotFoundError(rule_id)
+            raise RuleNotFoundError(str(rule_id))
 
-        # Create task
-        task_id = str(uuid.uuid4())
+        # Create task (task_id will be assigned by repository)
         task = ETLTask(
-            task_id=task_id,
+            task_id=None,  # Will be assigned by database
             user_id=user_id,
             project_id=project_id,
             filename=filename,
             rule_id=rule_id,
         )
 
-        # Submit to queue
-        await self.queue.submit(task)
+        # Submit to queue (this will create in DB and assign ID)
+        task_with_id = await self.queue.submit(task)
 
         logger.info(
-            f"ETL task submitted: task_id={task_id}, "
+            f"ETL task submitted: task_id={task_with_id.task_id}, "
             f"user_id={user_id}, filename={filename}, rule_id={rule_id}"
         )
 
-        return task
+        return task_with_id
 
     async def _execute_etl_task(self, task: ETLTask):
         """
@@ -148,7 +151,7 @@ class ETLService:
             parsed_result = await self.mineru_client.parse_document(
                 file_url=presigned_url,
                 model_version=MineRUModelVersion.VLM,
-                data_id=task.task_id,
+                data_id=str(task.task_id),
             )
 
             logger.info(
@@ -159,9 +162,9 @@ class ETLService:
 
             # Step 3: Load ETL rule
             task.update_status(ETLTaskStatus.LLM_PROCESSING, progress=60)
-            rule = self.rule_repository.get_rule(task.rule_id)
+            rule = self.rule_repository.get_rule(str(task.rule_id))
             if not rule:
-                raise RuleNotFoundError(task.rule_id)
+                raise RuleNotFoundError(str(task.rule_id))
 
             logger.info(f"Task {task.task_id}: Applying rule '{rule.name}'")
 
@@ -194,8 +197,8 @@ class ETLService:
                 content=output_bytes,
                 content_type="application/json",
                 metadata={
-                    "task_id": task.task_id,
-                    "rule_id": task.rule_id,
+                    "task_id": str(task.task_id),
+                    "rule_id": str(task.rule_id),
                     "source_filename": task.filename,
                 },
             )
@@ -228,7 +231,7 @@ class ETLService:
             )
             task.mark_failed(str(e))
 
-    async def get_task_status(self, task_id: str) -> Optional[ETLTask]:
+    async def get_task_status(self, task_id: int) -> Optional[ETLTask]:
         """
         Get ETL task status.
 
@@ -242,9 +245,9 @@ class ETLService:
 
     async def list_tasks(
         self,
-        user_id: Optional[str] = None,
-        project_id: Optional[str] = None,
-        status: Optional[str] = None,
+        user_id: Optional[int] = None,
+        project_id: Optional[int] = None,
+        status: Optional[ETLTaskStatus] = None,
     ) -> list[ETLTask]:
         """
         List ETL tasks with optional filters.

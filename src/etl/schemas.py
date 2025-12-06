@@ -15,16 +15,16 @@ from src.etl.tasks.models import ETLTaskStatus
 class ETLSubmitRequest(BaseModel):
     """Request to submit an ETL task."""
 
-    user_id: str = Field(..., description="User ID")
-    project_id: str = Field(..., description="Project ID")
+    user_id: int = Field(..., description="User ID")
+    project_id: int = Field(..., description="Project ID")
     filename: str = Field(..., description="Source filename")
-    rule_id: str = Field(..., description="Rule ID to apply")
+    rule_id: int = Field(..., description="Rule ID to apply")
 
 
 class ETLSubmitResponse(BaseModel):
     """Response for ETL task submission."""
 
-    task_id: str = Field(..., description="Created task ID")
+    task_id: int = Field(..., description="Created task ID")
     status: ETLTaskStatus = Field(..., description="Initial task status")
     message: str = Field(..., description="Status message")
 
@@ -32,11 +32,11 @@ class ETLSubmitResponse(BaseModel):
 class ETLTaskResponse(BaseModel):
     """Response for ETL task status query."""
 
-    task_id: str
-    user_id: str
-    project_id: str
+    task_id: int
+    user_id: int
+    project_id: int
     filename: str
-    rule_id: str
+    rule_id: int
     status: ETLTaskStatus
     progress: int
     created_at: datetime
@@ -67,7 +67,7 @@ class ETLRuleCreateRequest(BaseModel):
 class ETLRuleResponse(BaseModel):
     """Response for ETL rule query."""
 
-    rule_id: str
+    rule_id: int
     name: str
     description: str
     json_schema: dict[str, Any]
@@ -92,4 +92,19 @@ class ETLHealthResponse(BaseModel):
     queue_size: int
     task_count: int
     worker_count: int
+
+
+class ETLMountRequest(BaseModel):
+    """Request to mount ETL result to table."""
+
+    table_id: int = Field(..., description="Table ID to mount to")
+    json_path: str = Field(..., description="JSON path in table data structure")
+
+
+class ETLMountResponse(BaseModel):
+    """Response for ETL result mount."""
+
+    success: bool = Field(..., description="Whether mount was successful")
+    message: str = Field(..., description="Status message")
+    mounted_path: str = Field(..., description="Path where result was mounted")
 
