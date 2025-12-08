@@ -31,7 +31,7 @@ export default function McpInstancesPage() {
 
   const fetchInstances = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/mcp/list?user_id=${userId}`)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/mcp/list?user_id=${userId}`)
       const data = await response.json()
       console.log('Fetch instances response:', data)
       if (data.code === 0) {
@@ -50,7 +50,7 @@ export default function McpInstancesPage() {
     if (!confirm('Are you sure you want to delete this instance?')) return
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/mcp/${apiKey}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/mcp/${apiKey}`, {
         method: 'DELETE',
       })
       const data = await response.json()
@@ -68,7 +68,7 @@ export default function McpInstancesPage() {
   const handleToggleStatus = async (instance: McpInstance) => {
     const newStatus = instance.status === 1 ? 0 : 1
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/mcp/${instance.api_key}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/mcp/${instance.api_key}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

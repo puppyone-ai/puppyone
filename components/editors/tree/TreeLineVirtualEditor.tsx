@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useCallback, useMemo, useRef, useEffect, CSSProperties, memo } from 'react'
+import { createPortal } from 'react-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import ReactMarkdown from 'react-markdown'
 import { ContextMenu, type ContextMenuState } from './components/ContextMenu'
@@ -25,13 +26,31 @@ interface FlatNode {
 
 // ContextMenuState is imported from './components/ContextMenu'
 
+// Access Point 类型，用于显示已配置的节点
+interface ConfiguredAccessPoint {
+  path: string
+  permissions: { read: boolean; write: boolean }
+}
+
+interface PendingConfig {
+  path: string
+  permissions: { read: boolean; write: boolean }
+}
+
 interface TreeLineVirtualEditorProps {
   json: object
   onChange?: (json: object) => void
   onPathChange?: (path: string | null) => void
   onPublishPath?: (path: string) => void
   isSelectingAccessPoint?: boolean
+  selectedAccessPath?: string | null
   onAddAccessPoint?: (path: string, permissions: { read: boolean; write: boolean }) => void
+  // 已配置的 Access Points，用于在 JSON Editor 中高亮显示
+  configuredAccessPoints?: ConfiguredAccessPoint[]
+  // Pending 配置 - 用于在节点旁边显示浮动配置面板
+  pendingConfig?: PendingConfig | null
+  onPendingConfigChange?: (config: PendingConfig | null) => void
+  onPendingConfigSave?: () => void
 }
 
 // ============================================
@@ -60,13 +79,13 @@ function getTypeInfo(value: JsonValue): { type: string; color: string } {
   return { type: 'unknown', color: '#9ca3af' }
 }
 
-// 扁平化 JSON 树
-function flattenJson(
+// 扁平化 JSON 树（内部递归）
+function flattenJsonRecursive(
   json: any,
   expandedPaths: Set<string>,
-  path = '',
-  depth = 0,
-  parentLines: boolean[] = []
+  path: string,
+  depth: number,
+  parentLines: boolean[]
 ): FlatNode[] {
   if (json === null || typeof json !== 'object') return []
   
@@ -92,12 +111,39 @@ function flattenJson(
       parentLines: [...parentLines],
     })
     
-    // 只有展开时才递归添加子节点
     if (isExpandable && isExpanded) {
       const childParentLines = [...parentLines, !isLast]
-      result.push(...flattenJson(value, expandedPaths, nodePath, depth + 1, childParentLines))
+      result.push(...flattenJsonRecursive(value, expandedPaths, nodePath, depth + 1, childParentLines))
     }
   })
+  
+  return result
+}
+
+// 扁平化 JSON 树（带根节点）
+function flattenJson(json: any, expandedPaths: Set<string>): FlatNode[] {
+  const ROOT_PATH = ''
+  const isRootExpanded = expandedPaths.has(ROOT_PATH)
+  const isRootExpandable = json !== null && typeof json === 'object'
+  
+  // 根节点（depth = -1，不占用缩进空间）
+  const rootNode: FlatNode = {
+    path: ROOT_PATH,
+    key: '$root',
+    value: json,
+    depth: -1,
+    isLast: true,
+    isExpanded: isRootExpanded,
+    isExpandable: isRootExpandable,
+    parentLines: [],
+  }
+  
+  const result: FlatNode[] = [rootNode]
+  
+  // 根节点展开时添加子节点（子节点 depth 从 0 开始）
+  if (isRootExpandable && isRootExpanded) {
+    result.push(...flattenJsonRecursive(json, expandedPaths, ROOT_PATH, 0, []))
+  }
   
   return result
 }
@@ -124,7 +170,7 @@ const styles = {
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
-    background: '#0a0a0c',
+    background: 'transparent',
     color: '#d4d4d4',
     overflow: 'hidden',
     fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
@@ -161,9 +207,11 @@ const styles = {
   } as CSSProperties,
 
   scrollContainer: {
-    flex: 1,
-    overflow: 'auto',
-  } as CSSProperties,
+  flex: 1,
+  overflow: 'auto',
+  paddingLeft: 24,
+  paddingTop: 16,
+} as CSSProperties,
 
   row: (isSelected: boolean, isHovered: boolean): CSSProperties => ({
     display: 'flex',
@@ -242,7 +290,7 @@ const styles = {
 // Line Drawing Helpers
 // ============================================
 // 绘制一个层级的连接线：从父节点的值位置延伸下来
-// 连接线组件 - 优化版：减少不必要的计算
+// 连接线组件 - 支持动态行高
 const LevelConnector = React.memo(function LevelConnector({ 
   depth, 
   isLast, 
@@ -252,7 +300,7 @@ const LevelConnector = React.memo(function LevelConnector({
   isLast: boolean 
   parentLines: boolean[]
 }) {
-  const hh = ROW_HEIGHT / 2
+  const hh = ROW_HEIGHT / 2  // 水平线的垂直位置（基于最小行高）
   const branchX = 8 + depth * LEVEL_WIDTH
 
   return (
@@ -262,22 +310,24 @@ const LevelConnector = React.memo(function LevelConnector({
         left: 0,
         top: 0,
         width: branchX + BRANCH_WIDTH,
-        height: ROW_HEIGHT,
+        height: '100%',  // 适应实际行高
         pointerEvents: 'none',
+        overflow: 'visible',
       }}
+      preserveAspectRatio="none"
     >
       {/* 父级竖线：parentLines[i]=true → depth=i 的祖先不是最后一个，画竖线延伸 */}
       {parentLines.map((showLine, i) => {
         if (!showLine) return null
-        // 竖线位置 = depth=i 祖先的分支线位置
         const x = 8 + i * LEVEL_WIDTH
         return (
           <line 
             key={i}
             x1={x} y1={0} 
-            x2={x} y2={ROW_HEIGHT} 
+            x2={x} y2="100%" 
             stroke={LINE_COLOR} 
             strokeWidth={1} 
+            vectorEffect="non-scaling-stroke"
           />
         )
       })}
@@ -285,15 +335,17 @@ const LevelConnector = React.memo(function LevelConnector({
       {/* 当前节点的 ├─ 或 └─ */}
       <line 
         x1={branchX} y1={0} 
-        x2={branchX} y2={isLast ? hh : ROW_HEIGHT} 
+        x2={branchX} y2={isLast ? hh : '100%'} 
         stroke={LINE_COLOR} 
         strokeWidth={1} 
+        vectorEffect="non-scaling-stroke"
       />
       <line 
         x1={branchX} y1={hh} 
         x2={branchX + BRANCH_WIDTH - 2} y2={hh} 
         stroke={LINE_COLOR} 
         strokeWidth={1} 
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   )
@@ -311,7 +363,19 @@ interface VirtualRowProps {
   onContextMenu: (e: React.MouseEvent, path: string, value: JsonValue) => void
   onPublish?: (path: string) => void
   isSelectingAccessPoint?: boolean
+  selectedAccessPath?: string | null
   onAddAccessPoint?: (path: string, permissions: { read: boolean; write: boolean }) => void
+  // 已配置的 Access Point（如果当前节点已配置）
+  configuredAccess?: { read: boolean; write: boolean } | null
+  // 祖先 Access Point 信息（用于子孙节点的竖线和背景）
+  ancestorAccess?: { 
+    permissions: { read: boolean; write: boolean }
+    depth: number  // 祖先节点的 depth，用于计算竖线位置
+  } | null
+  // Pending 配置面板
+  pendingConfig?: PendingConfig | null
+  onPendingConfigChange?: (config: PendingConfig | null) => void
+  onPendingConfigSave?: () => void
 }
 
 // 编辑时也要选中当前行
@@ -329,11 +393,44 @@ const VirtualRow = React.memo(function VirtualRow({
   onContextMenu,
   onPublish,
   isSelectingAccessPoint,
+  selectedAccessPath,
   onAddAccessPoint,
+  configuredAccess,
+  ancestorAccess,
+  pendingConfig,
+  onPendingConfigChange,
+  onPendingConfigSave,
 }: VirtualRowProps) {
   const [hovered, setHovered] = useState(false)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const [panelPosition, setPanelPosition] = useState<{ top: number; left: number } | null>(null)
+  
+  // Check if this node is the currently selected access point
+  const isAccessSelected = isSelectingAccessPoint && selectedAccessPath === node.path
+  // Check if this node is already configured (for View Mode highlighting)
+  const isConfigured = !!configuredAccess
+  const hasWriteAccess = configuredAccess?.write
+  // Check if this node is a descendant of an access point
+  const isDescendant = !!ancestorAccess && !isConfigured
+  const ancestorHasWrite = ancestorAccess?.permissions.write
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
+  
+  // Check if this node has a pending config panel
+  const isPendingNode = pendingConfig?.path === node.path
+  
+  // 计算浮动面板位置
+  useEffect(() => {
+    if (isPendingNode && rowRef.current) {
+      const rect = rowRef.current.getBoundingClientRect()
+      setPanelPosition({
+        top: rect.bottom + 4,
+        left: rect.right - 180, // 面板宽度 180px，靠右对齐
+      })
+    } else {
+      setPanelPosition(null)
+    }
+  }, [isPendingNode])
   
   const typeInfo = getTypeInfo(node.value)
 
@@ -461,11 +558,11 @@ const VirtualRow = React.memo(function VirtualRow({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             ref={editableRef}
-            contentEditable
+            contentEditable={!isSelectingAccessPoint}
             suppressContentEditableWarning
             onBlur={handleContentEditableBlur}
             onKeyDown={handleContentEditableKeyDown}
-            onClick={(e) => handleEditClick(e, () => onSelect(node.path))}
+            onClick={isSelectingAccessPoint ? undefined : (e) => handleEditClick(e, () => onSelect(node.path))}
           style={{
               color: typeInfo.color,
               fontSize: 12,
@@ -476,8 +573,9 @@ const VirtualRow = React.memo(function VirtualRow({
             outline: 'none',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
-              cursor: 'text',
+              cursor: isSelectingAccessPoint ? 'pointer' : 'text',
               transition: 'background 0.15s',
+              pointerEvents: isSelectingAccessPoint ? 'none' : 'auto',
             }}
             onFocus={(e) => {
               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)'
@@ -495,7 +593,7 @@ const VirtualRow = React.memo(function VirtualRow({
           >
             {displayContent}
           </div>
-          {isLong && !expanded && (
+          {isLong && !expanded && !isSelectingAccessPoint && (
             <button
               onClick={(e) => { e.stopPropagation(); setExpanded(true) }}
               style={{
@@ -519,7 +617,7 @@ const VirtualRow = React.memo(function VirtualRow({
               {`Expand (${processedStr.length} chars)`}
             </button>
           )}
-          {isLong && expanded && (
+          {isLong && expanded && !isSelectingAccessPoint && (
             <button
               onClick={(e) => { e.stopPropagation(); setExpanded(false) }}
               style={{
@@ -551,19 +649,20 @@ const VirtualRow = React.memo(function VirtualRow({
     return (
       <div
         ref={editableRef}
-        contentEditable
+        contentEditable={!isSelectingAccessPoint}
         suppressContentEditableWarning
         onBlur={handleContentEditableBlur}
         onKeyDown={handleContentEditableKeyDown}
-        onClick={(e) => handleEditClick(e, () => onSelect(node.path))}
+        onClick={isSelectingAccessPoint ? undefined : (e) => handleEditClick(e, () => onSelect(node.path))}
         style={{
           color: typeInfo.color,
           padding: '2px 4px',
           margin: '-2px -4px',
           borderRadius: 3,
           outline: 'none',
-          cursor: 'text',
+          cursor: isSelectingAccessPoint ? 'pointer' : 'text',
           transition: 'background 0.15s',
+          pointerEvents: isSelectingAccessPoint ? 'none' : 'auto',
         }}
         onFocus={(e) => {
           e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)'
@@ -594,14 +693,15 @@ const VirtualRow = React.memo(function VirtualRow({
     
     return (
       <span
-        onClick={(e) => { e.stopPropagation(); onToggle(node.path) }}
+        onClick={isSelectingAccessPoint ? undefined : (e) => { e.stopPropagation(); onToggle(node.path) }}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: 4,
-          cursor: 'pointer',
+          cursor: isSelectingAccessPoint ? 'pointer' : 'pointer',
           fontSize: 13,
           fontFamily: 'inherit',
+          pointerEvents: isSelectingAccessPoint ? 'none' : 'auto',
         }}
       >
         {/* 括号内放三角形 */}
@@ -628,16 +728,19 @@ const VirtualRow = React.memo(function VirtualRow({
     )
   }
 
+  // 是否是根节点
+  const isRootNode = node.key === '$root'
+  
   // 计算当前节点的内容起始位置
-  const contentLeft = 8 + node.depth * LEVEL_WIDTH + BRANCH_WIDTH
+  // 根节点：marginLeft = -1，让 toggleBtn (18px) 的中心对齐到 x=8（子节点竖线位置）
+  // 子节点：正常计算
+  const contentLeft = isRootNode ? -1 : (8 + node.depth * LEVEL_WIDTH + BRANCH_WIDTH)
 
   // 点击菜单按钮 - 直接调用父组件的 onContextMenu
   const handleMenuClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    // 菜单弹出在按钮左侧，菜单右边缘对齐按钮左边缘
-    // 菜单 minWidth=160，所以 x = rect.left - 160 - 4
     onContextMenu(
       { clientX: rect.left - 164, clientY: rect.top } as React.MouseEvent,
       node.path,
@@ -645,39 +748,72 @@ const VirtualRow = React.memo(function VirtualRow({
     )
   }, [node.path, node.value, onContextMenu])
 
-  // Handle click in selection mode
+  // Handle click - in selection mode, directly trigger onAddAccessPoint
   const handleRowClick = useCallback(() => {
     if (isSelectingAccessPoint) {
-      setShowAccessConfig(true)
+      onAddAccessPoint?.(node.path, { read: true, write: false })
     } else {
       onSelect(node.path)
     }
-  }, [isSelectingAccessPoint, node.path, onSelect])
+  }, [isSelectingAccessPoint, node.path, onSelect, onAddAccessPoint])
 
   return (
     <div
+      ref={rowRef}
       style={{
         ...styles.row(isSelected, hovered && !isSelectingAccessPoint),
         position: 'relative',
+        cursor: isSelectingAccessPoint ? 'pointer' : 'pointer',
       }}
-      onClick={isSelectingAccessPoint ? undefined : () => onSelect(node.path)}
+      onClick={handleRowClick}
       onDoubleClick={isSelectingAccessPoint ? undefined : handleDoubleClick}
       onContextMenu={isSelectingAccessPoint ? undefined : handleContextMenu}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => {
-        setHovered(false)
-      }}
+      onMouseLeave={() => setHovered(false)}
     >
-      {/* 连接线 (绝对定位) */}
-      <LevelConnector 
-        depth={node.depth} 
-        isLast={node.isLast} 
-        parentLines={node.parentLines} 
-      />
+      {/* 连接线（根节点不显示） */}
+      {!isRootNode && (
+        <LevelConnector 
+          depth={node.depth} 
+          isLast={node.isLast} 
+          parentLines={node.parentLines} 
+        />
+      )}
       
-      {/* Notion 风格菜单按钮 - absolute, hover 时显示 */}
+      {/* 子孙节点的 Access Point 背景和竖线 */}
+      {isDescendant && ancestorAccess && (() => {
+        // 计算祖先节点的 contentLeft
+        const ancestorContentLeft = ancestorAccess.depth === -1 
+          ? -1  // root node
+          : (8 + ancestorAccess.depth * LEVEL_WIDTH + BRANCH_WIDTH)
+        
+        // 背景起始位置 = 祖先的 value 框左边缘
+        // 对于 root：value 直接在 contentLeft，box 左边缘 = contentLeft - 8 (margin)
+        // 对于非 root：value 在 contentLeft + KEY_WIDTH + SEP_WIDTH，box 左边缘 = 那个位置 - 8
+        const bgStartX = ancestorAccess.depth === -1
+          ? ancestorContentLeft - 8  // root: -1 - 8 = -9
+          : ancestorContentLeft + KEY_WIDTH + SEP_WIDTH - 8  // others: contentLeft + 64
+        
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              left: bgStartX,
+              top: 0,
+              right: 0,
+              bottom: 0,
+              // 纯背景色块，像荧光笔一样标记区域
+              background: ancestorHasWrite ? 'rgba(251, 191, 36, 0.12)' : 'rgba(52, 211, 153, 0.12)',
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+          />
+        )
+      })()}
+      
+      {/* 菜单按钮 */}
       <button
-        style={styles.menuHandle(hovered, contentLeft + KEY_WIDTH + SEP_WIDTH)}
+        style={styles.menuHandle(hovered, isRootNode ? contentLeft : (contentLeft + KEY_WIDTH + SEP_WIDTH))}
         onClick={handleMenuClick}
         title="操作菜单"
       >
@@ -691,100 +827,262 @@ const VirtualRow = React.memo(function VirtualRow({
         </svg>
       </button>
       
-      {/* 内容区域: [key ────] [value] */}
+      {/* 内容区域 */}
       <div style={{ 
         display: 'flex', 
-        alignItems: 'flex-start',  // 顶部对齐
+        alignItems: 'flex-start',
         marginLeft: contentLeft,
-        paddingTop: 4,  // 与行高对齐
-        flex: 1,  // 占满剩余宽度
+        paddingTop: 4,
+        flex: 1,
       }}>
-        {/* Key + 分隔线容器 */}
-        <div style={{
-          width: KEY_WIDTH + SEP_WIDTH,  // 64px
-          display: 'flex',
-          alignItems: 'center',
-          flexShrink: 0,
-          height: 20,
-        }}>
-          {/* Key - 支持截断过长的key名 */}
-          <span style={{
+        {/* Key + 分隔线（根节点不显示） */}
+        {!isRootNode && (
+          <div style={{
+            width: KEY_WIDTH + SEP_WIDTH,
+            display: 'flex',
+            alignItems: 'center',
             flexShrink: 0,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            maxWidth: KEY_WIDTH,
-            ...(typeof node.key === 'number' ? styles.indexKey : styles.keyName),
+            height: 20,
           }}>
-            {node.key}
-          </span>
-          
-          {/* 分隔线 ── 填充剩余空间 */}
-          <span style={{
-            flex: 1,
-            height: 1,
-            background: LINE_COLOR,
-            marginLeft: 6,
-            minWidth: 12,
-          }} />
-        </div>
+            <span style={{
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: KEY_WIDTH,
+              ...(typeof node.key === 'number' ? styles.indexKey : styles.keyName),
+            }}>
+              {node.key}
+            </span>
+            <span style={{
+              flex: 1,
+              height: 1,
+              background: LINE_COLOR,
+              marginLeft: 6,
+              minWidth: 12,
+            }} />
+          </div>
+        )}
         
-        {/* Value - with selection mode styling */}
+        {/* Value */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            flex: 1,  // 占满剩余宽度
-            ...(isSelectingAccessPoint ? {
-              borderRadius: 4,
-              transition: 'all 0.15s',
-              padding: '2px 6px',
-              margin: '-2px -6px',
-              ...(hovered ? {
+            flex: 1,
+            borderRadius: 4,
+            transition: 'all 0.12s ease',
+            padding: '3px 8px',
+            margin: '-3px -8px',
+            // 优先级：Selection Mode 交互 > 已配置节点
+            ...(isSelectingAccessPoint && (isAccessSelected || hovered) ? {
+              // Selection Mode 交互样式（选中或 hover）
+              ...(isAccessSelected ? {
+                background: 'rgba(52, 211, 153, 0.15)',
+                outline: '2px solid rgba(52, 211, 153, 0.8)',
+              } : {
                 background: 'rgba(52, 211, 153, 0.08)',
-                outline: '1px dashed rgba(52, 211, 153, 0.5)',
-              } : {}),
+                outline: '1.5px dashed rgba(52, 211, 153, 0.6)',
+              }),
+            } : 
+            // 已配置节点的圈起来效果
+            isConfigured ? {
+              // 背景色与子节点呼应，略深一点作为 Header
+              background: hasWriteAccess ? 'rgba(251, 191, 36, 0.15)' : 'rgba(52, 211, 153, 0.15)',
+              // 统一的柔和边框
+              border: `1px solid ${hasWriteAccess ? 'rgba(251, 191, 36, 0.4)' : 'rgba(52, 211, 153, 0.4)'}`,
+              // 左侧短粗线强调，作为权限区块的入口锚点
+              borderLeft: `3px solid ${hasWriteAccess ? 'rgba(251, 191, 36, 0.7)' : 'rgba(52, 211, 153, 0.7)'}`,
             } : {}),
+            // 子孙节点的背景已经通过绝对定位的 div 实现，这里不需要额外样式
           }}
         >
-        {node.isExpandable ? renderExpandableValue() : renderPrimitiveValue()}
-      </div>
+          {node.isExpandable ? renderExpandableValue() : renderPrimitiveValue()}
+          
+          {/* 已配置节点的权限标签（始终显示，Selection Mode 下也显示） */}
+          {isConfigured && (
+            <div style={{ 
+              display: 'flex', 
+              gap: 3, 
+              marginLeft: 8,
+              flexShrink: 0,
+            }}>
+              {configuredAccess?.read && (
+                <span style={{
+                  padding: '1px 4px',
+                  background: 'rgba(52, 211, 153, 0.2)',
+                  color: '#34d399',
+                  fontSize: 9,
+                  fontWeight: 600,
+                  borderRadius: 3,
+                  letterSpacing: '0.5px',
+                }}>R</span>
+              )}
+              {configuredAccess?.write && (
+                <span style={{
+                  padding: '1px 4px',
+                  background: 'rgba(251, 191, 36, 0.2)',
+                  color: '#fbbf24',
+                  fontSize: 9,
+                  fontWeight: 600,
+                  borderRadius: 3,
+                  letterSpacing: '0.5px',
+                }}>W</span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
       
-      {/* Config Button - fixed at row's right edge, in selection mode */}
-      {isSelectingAccessPoint && hovered && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            // 直接通知父组件选中了这个节点的路径
-            onAddAccessPoint?.(node.path, { read: true, write: false })
-          }}
+      {/* Pending Config 浮动面板 - 使用 Portal 渲染到 body，避免被 overflow 裁剪 */}
+      {isPendingNode && pendingConfig && onPendingConfigChange && panelPosition && typeof document !== 'undefined' && createPortal(
+        <div
           style={{
-            position: 'absolute',
-            top: 4,
-            right: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '3px 8px',
-            background: '#34d399',
-            border: 'none',
-            borderRadius: 4,
-            color: '#000',
-            fontSize: 11,
-            fontWeight: 500,
-            cursor: 'pointer',
-            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
-            whiteSpace: 'nowrap',
-            zIndex: 10,
+            position: 'fixed',
+            top: panelPosition.top,
+            left: panelPosition.left,
+            width: 180,
+            background: 'rgba(15, 15, 18, 0.98)',
+            border: '1px solid rgba(52, 211, 153, 0.4)',
+            borderRadius: 6,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+            zIndex: 10000,
+            overflow: 'hidden',
+            fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
           }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          Select
-        </button>
+          {/* Checkbox 列表 */}
+          <div style={{ padding: '6px 0' }}>
+            {/* Read 选项 */}
+            <label 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 8,
+                padding: '6px 10px',
+                cursor: 'pointer',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <div 
+                onClick={() => onPendingConfigChange({
+                  ...pendingConfig,
+                  permissions: { ...pendingConfig.permissions, read: !pendingConfig.permissions.read }
+                })}
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 3,
+                  border: '1px solid',
+                  borderColor: pendingConfig.permissions.read ? '#34d399' : '#404040',
+                  background: pendingConfig.permissions.read ? '#34d399' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                {pendingConfig.permissions.read && (
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+              <span style={{ fontSize: 11, color: '#e2e8f0' }}>Read</span>
+            </label>
+            
+            {/* Write 选项 */}
+            <label 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 8,
+                padding: '6px 10px',
+                cursor: 'pointer',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <div 
+                onClick={() => onPendingConfigChange({
+                  ...pendingConfig,
+                  permissions: { ...pendingConfig.permissions, write: !pendingConfig.permissions.write }
+                })}
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 3,
+                  border: '1px solid',
+                  borderColor: pendingConfig.permissions.write ? '#fbbf24' : '#404040',
+                  background: pendingConfig.permissions.write ? '#fbbf24' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                {pendingConfig.permissions.write && (
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+              <span style={{ fontSize: 11, color: '#e2e8f0' }}>Write</span>
+            </label>
+          </div>
+          
+          {/* 按钮 */}
+          <div style={{ 
+            display: 'flex', 
+            gap: 6, 
+            padding: '8px 10px',
+            borderTop: '1px solid rgba(45,45,50,0.5)',
+          }}>
+            <button 
+              onClick={() => onPendingConfigChange(null)} 
+              style={{ 
+                flex: 1, 
+                height: 26, 
+                background: 'transparent', 
+                border: '1px solid rgba(255,255,255,0.1)', 
+                borderRadius: 4, 
+                color: '#6b7280', 
+                fontSize: 10, 
+                fontWeight: 500, 
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={() => {
+                if (pendingConfig.permissions.read || pendingConfig.permissions.write) {
+                  onPendingConfigSave?.()
+                }
+              }} 
+              style={{ 
+                flex: 1, 
+                height: 26, 
+                background: (pendingConfig.permissions.read || pendingConfig.permissions.write) ? '#34d399' : 'rgba(52, 211, 153, 0.3)', 
+                border: 'none', 
+                borderRadius: 4, 
+                color: (pendingConfig.permissions.read || pendingConfig.permissions.write) ? '#000' : '#525252', 
+                fontSize: 10, 
+                fontWeight: 600, 
+                cursor: (pendingConfig.permissions.read || pendingConfig.permissions.write) ? 'pointer' : 'not-allowed',
+              }}
+            >
+              Save
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -799,8 +1097,21 @@ export function TreeLineVirtualEditor({
   onPathChange, 
   onPublishPath,
   isSelectingAccessPoint = false,
+  selectedAccessPath = null,
   onAddAccessPoint,
+  configuredAccessPoints = [],
+  pendingConfig = null,
+  onPendingConfigChange,
+  onPendingConfigSave,
 }: TreeLineVirtualEditorProps) {
+  // 创建 path -> permissions 的快速查找表
+  const configuredAccessMap = useMemo(() => {
+    const map = new Map<string, { read: boolean; write: boolean }>()
+    configuredAccessPoints.forEach(ap => {
+      map.set(ap.path, ap.permissions)
+    })
+    return map
+  }, [configuredAccessPoints])
   const scrollRef = useRef<HTMLDivElement>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
@@ -809,9 +1120,11 @@ export function TreeLineVirtualEditor({
     path: '',
     value: null,
   })
+  
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
-    // 默认展开前两层
+    // 默认展开根节点和前两层
     const paths = new Set<string>()
+    paths.add('') // 根节点
     const expand = (obj: any, path: string, depth: number) => {
       if (depth > 1 || obj === null || typeof obj !== 'object') return
       paths.add(path)
@@ -832,6 +1145,29 @@ export function TreeLineVirtualEditor({
   const flatNodes = useMemo(() => {
     return flattenJson(json, expandedPaths)
   }, [json, expandedPaths])
+
+  // 创建祖先 access point 查找函数
+  const getAncestorAccess = useMemo(() => {
+    // 建立 path -> depth 的映射
+    const pathToDepth = new Map<string, number>()
+    flatNodes.forEach(node => pathToDepth.set(node.path, node.depth))
+    
+    return (nodePath: string): { permissions: { read: boolean; write: boolean }; depth: number } | null => {
+      // 如果自身是 access point，跳过
+      if (configuredAccessMap.has(nodePath)) return null
+      
+      // 找最近的祖先 access point
+      for (const ap of configuredAccessPoints) {
+        if (nodePath.startsWith(ap.path + '/')) {
+          const ancestorDepth = pathToDepth.get(ap.path)
+          if (ancestorDepth !== undefined) {
+            return { permissions: ap.permissions, depth: ancestorDepth }
+          }
+        }
+      }
+      return null
+    }
+  }, [flatNodes, configuredAccessPoints, configuredAccessMap])
 
   // 虚拟滚动
   const virtualizer = useVirtualizer({
@@ -1043,21 +1379,10 @@ export function TreeLineVirtualEditor({
   }, [json])
 
   const isArray = Array.isArray(json)
+  const isPrimitive = json === null || typeof json !== 'object'
 
   return (
     <div style={styles.container}>
-      <div style={styles.header}>
-        <div style={styles.headerLeft}>
-          <span style={styles.rootLabel}>{isArray ? 'Array' : 'Object'}</span>
-          <span style={{ fontSize: 11, color: '#555' }}>
-            ({flatNodes.length} visible)
-          </span>
-        </div>
-        <span style={styles.stats}>
-          ⚡ Virtual · {totalNodes.toLocaleString()} total nodes
-        </span>
-      </div>
-
       <div ref={scrollRef} style={styles.scrollContainer}>
         <div
           style={{
@@ -1070,7 +1395,7 @@ export function TreeLineVirtualEditor({
             const node = flatNodes[virtualRow.index]
             return (
               <div
-                key={node.path}
+                key={node.path || '$root'}
                 data-index={virtualRow.index}
                 ref={(el) => observeElement(el, virtualRow.index)}
                 style={{
@@ -1090,7 +1415,13 @@ export function TreeLineVirtualEditor({
                   onContextMenu={handleContextMenu}
                   onPublish={onPublishPath}
                   isSelectingAccessPoint={isSelectingAccessPoint}
+                  selectedAccessPath={selectedAccessPath}
                   onAddAccessPoint={onAddAccessPoint}
+                  configuredAccess={configuredAccessMap.get(node.path) || null}
+                  ancestorAccess={getAncestorAccess(node.path)}
+                  pendingConfig={pendingConfig}
+                  onPendingConfigChange={onPendingConfigChange}
+                  onPendingConfigSave={onPendingConfigSave}
                 />
               </div>
             )

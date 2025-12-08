@@ -29,6 +29,12 @@ const MonacoJsonEditor = dynamic(
   { ssr: false, loading: EditorLoading }
 )
 
+// Access Point 类型
+interface ConfiguredAccessPoint {
+  path: string
+  permissions: { read: boolean; write: boolean }
+}
+
 type ProjectWorkspaceViewProps = {
   projectId: string
   activeTableId?: string
@@ -40,7 +46,15 @@ type ProjectWorkspaceViewProps = {
   onProjectMissing?: () => void
   editorType?: EditorType
   isSelectingAccessPoint?: boolean
+  selectedAccessPath?: string | null
   onAddAccessPoint?: (path: string, permissions: { read: boolean; write: boolean }) => void
+  onCancelSelection?: () => void
+  publishPanel?: React.ReactNode  // Publish Panel 作为 slot 传入
+  configuredAccessPoints?: ConfiguredAccessPoint[]  // 已配置的 Access Points，用于高亮显示
+  // Pending 配置 - 用于在节点旁边显示浮动配置面板
+  pendingConfig?: { path: string; permissions: { read: boolean; write: boolean } } | null
+  onPendingConfigChange?: (config: { path: string; permissions: { read: boolean; write: boolean } } | null) => void
+  onPendingConfigSave?: () => void
 }
 
 export function ProjectWorkspaceView({
@@ -48,13 +62,20 @@ export function ProjectWorkspaceView({
   activeTableId: activeTableIdProp,
   onActiveTableChange,
   onTreePathChange,
+  publishPanel,
+  configuredAccessPoints = [],
+  pendingConfig = null,
+  onPendingConfigChange,
+  onPendingConfigSave,
   showHeaderBar = true,
   showBackButton = true,
   onNavigateBack,
   onProjectMissing,
   editorType = 'treeline-virtual',
   isSelectingAccessPoint = false,
+  selectedAccessPath = null,
   onAddAccessPoint,
+  onCancelSelection,
 }: ProjectWorkspaceViewProps) {
   const { session, isAuthReady } = useAuth()
   const router = useRouter()
@@ -365,14 +386,15 @@ export function ProjectWorkspaceView({
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        flex: 1,
-        minHeight: 0,
-      }}
-    >
+    <>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
       {showHeaderBar && (
         <div
           style={{
@@ -443,7 +465,7 @@ export function ProjectWorkspaceView({
         {project && project.tables.length > 0 ? (
           <>
             <section style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#050607' }}>
-              <div style={{ flex: 1, padding: '24px', display: 'flex', gap: 16, overflow: 'hidden' }}>
+              <div style={{ flex: 1, padding: 24, display: 'flex', gap: 24, overflow: 'hidden' }}>
                 <div
                   style={{
                     flex: 1,
@@ -456,14 +478,15 @@ export function ProjectWorkspaceView({
                   <div
                     style={{
                       flex: 1,
-                      borderRadius: 10,
+                      borderRadius: 8,
                       overflow: 'hidden',
-                      background: 'rgba(13,18,24,0.75)',
-                      border: '1px solid rgba(48,52,60,0.45)',
+                      background: 'transparent',
+                      border: isSelectingAccessPoint ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid transparent',
                       position: 'relative',
                       minHeight: 0,
                       display: 'flex',
                       flexDirection: 'column',
+                      transition: 'border-color 0.2s ease',
                     }}
                   >
                     {tableData ? (
@@ -474,7 +497,12 @@ export function ProjectWorkspaceView({
                             onPathChange={setCurrentTreePath}
                             onChange={handleTableDataChange}
                             isSelectingAccessPoint={isSelectingAccessPoint}
+                            selectedAccessPath={selectedAccessPath}
                             onAddAccessPoint={onAddAccessPoint}
+                            configuredAccessPoints={configuredAccessPoints}
+                            pendingConfig={pendingConfig}
+                            onPendingConfigChange={onPendingConfigChange}
+                            onPendingConfigSave={onPendingConfigSave}
                           />
                         )}
                         {editorType === 'monaco' && (
@@ -499,8 +527,11 @@ export function ProjectWorkspaceView({
                       </div>
                     )}
                   </div>
-                  <ErrorConsole errors={errorLogs} onClear={clearErrorLogs} maxHeight={200} />
+                  {/* Console hidden - logs only shown as toast notifications */}
                 </div>
+                
+                {/* Publish Panel Slot - rendered inside the same padding container */}
+                {publishPanel}
               </div>
             </section>
           </>
@@ -535,7 +566,8 @@ export function ProjectWorkspaceView({
           {overlayMessage}
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }
 

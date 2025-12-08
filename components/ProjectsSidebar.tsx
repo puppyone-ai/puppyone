@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { ProjectInfo } from '../lib/projectsApi'
 import { ProjectManageDialog } from './ProjectManageDialog'
 import { TableManageDialog } from './TableManageDialog'
@@ -26,9 +26,17 @@ type ProjectsSidebarProps = {
   environmentLabel?: string
   onProjectsChange?: (projects: ProjectInfo[]) => void
   loading?: boolean
+  isCollapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
+  sidebarWidth?: number
+  onSidebarWidthChange?: (width: number) => void
 }
 
 type SectionId = 'contexts' | 'mcp' | 'try'
+
+const MIN_SIDEBAR_WIDTH = 200
+const MAX_SIDEBAR_WIDTH = 400
+const DEFAULT_SIDEBAR_WIDTH = 240
 
 export function ProjectsSidebar({
   projects,
@@ -44,6 +52,10 @@ export function ProjectsSidebar({
   environmentLabel = 'Local Dev',
   onProjectsChange,
   loading = false,
+  isCollapsed = false,
+  onCollapsedChange,
+  sidebarWidth = DEFAULT_SIDEBAR_WIDTH,
+  onSidebarWidthChange,
 }: ProjectsSidebarProps) {
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
@@ -53,6 +65,42 @@ export function ProjectsSidebar({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'project' | 'table'; id: string; projectId?: string } | null>(null)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [expandedSections, setExpandedSections] = useState<Set<SectionId>>(new Set(['contexts', 'mcp', 'try']))
+  const [isResizing, setIsResizing] = useState(false)
+  const sidebarRef = useRef<HTMLElement>(null)
+
+  // Handle resize
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!sidebarRef.current) return
+      const newWidth = e.clientX
+      const clampedWidth = Math.min(Math.max(newWidth, MIN_SIDEBAR_WIDTH), MAX_SIDEBAR_WIDTH)
+      onSidebarWidthChange?.(clampedWidth)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizing, onSidebarWidthChange])
+  const [showCollapsedContextMenu, setShowCollapsedContextMenu] = useState(false)
 
   const toggleSection = (sectionId: SectionId) => {
     setExpandedSections(prev => {
@@ -115,25 +163,59 @@ export function ProjectsSidebar({
   }
 
   return (
-    <aside className="sidebar">
+    <aside 
+      ref={sidebarRef}
+      className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}
+      style={{ width: isCollapsed ? 45 : sidebarWidth }}
+    >
       <style jsx>{`
         .sidebar {
-          width: 240px;
           height: 100vh;
           display: flex;
           flex-direction: column;
           background: #202020;
           font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
           border-right: 1px solid #404040;
+          transition: ${isResizing ? 'none' : 'width 0.2s ease'};
+          position: relative;
+          flex-shrink: 0;
+        }
+        
+        .sidebar.collapsed {
+          width: 45px !important;
+        }
+        
+        .resize-handle {
+          position: absolute;
+          top: 0;
+          right: -2px;
+          width: 4px;
+          height: 100%;
+          cursor: col-resize;
+          z-index: 10;
+        }
+        
+        .resize-handle:hover,
+        .resize-handle.active {
+          background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar.collapsed .resize-handle {
+          display: none;
         }
 
         .header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0 16px;
-          height: 44px;
+          padding: 0 9px 0 16px;
+          height: 45px;
           border-bottom: 1px solid #404040;
+        }
+        
+        .sidebar.collapsed .header {
+          padding: 0;
+          justify-content: center;
         }
 
         .header-brand {
@@ -148,6 +230,58 @@ export function ProjectsSidebar({
           color: #EDEDED;
           letter-spacing: 0.3px;
         }
+        
+        .collapse-toggle-wrapper {
+          width: 28px;
+          height: 28px;
+          background: transparent;
+          border: none;
+          color: #6b7280;
+          cursor: pointer;
+          border-radius: 5px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s;
+        }
+        
+        .collapse-toggle-wrapper:hover {
+          background: rgba(255,255,255,0.08);
+          color: #9ca3af;
+        }
+        
+        .collapsed-logo-wrapper {
+          width: 28px;
+          height: 28px;
+          cursor: pointer;
+          border-radius: 5px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s;
+          position: relative;
+        }
+        
+        .collapsed-logo-wrapper:hover {
+          background: rgba(255,255,255,0.08);
+        }
+        
+        .collapsed-logo-wrapper .product-logo {
+          display: block;
+        }
+        
+        .collapsed-logo-wrapper .sidebar-toggle-icon {
+          display: none;
+          color: #9ca3af;
+        }
+        
+        .collapsed-logo-wrapper:hover .product-logo {
+          display: none;
+        }
+        
+        .collapsed-logo-wrapper:hover .sidebar-toggle-icon {
+          display: block;
+        }
 
         .content {
           flex: 1;
@@ -155,7 +289,238 @@ export function ProjectsSidebar({
           flex-direction: column;
           overflow-y: auto;
           overflow-x: hidden;
+        }
+        
+        .content-main {
+          flex: 1;
+          padding-top: 12px;
+        }
+        
+        .content-bottom {
+          flex-shrink: 0;
+          padding-bottom: 8px;
+          border-top: 1px solid #333;
+          margin-top: 8px;
+          padding-top: 8px;
+        }
+        
+        .sidebar.collapsed .content {
+          display: none;
+        }
+        
+        .collapsed-nav {
+          display: none;
+          flex: 1;
+          flex-direction: column;
+          padding: 12px 0;
+        }
+        
+        .sidebar.collapsed .collapsed-nav {
+          display: flex;
+        }
+        
+        .collapsed-nav-main {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+        }
+        
+        .collapsed-nav-bottom {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          padding-top: 8px;
+          border-top: 1px solid #333;
+          margin-top: 8px;
+        }
+        
+        .collapsed-nav-btn {
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          border: none;
+          border-radius: 5px;
+          color: #808080;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        
+        .collapsed-nav-btn:hover {
+          background: rgba(255,255,255,0.08);
+          color: #e2e8f0;
+        }
+        
+        .collapsed-nav-btn.active {
+          background: rgba(59, 130, 246, 0.15);
+          color: #60a5fa;
+        }
+        
+        .collapsed-nav-item {
+          position: relative;
+        }
+        
+        .collapsed-nav-popover {
+          position: absolute;
+          left: 100%;
+          top: 0;
+          margin-left: 8px;
+          background: #1a1a1a;
+          border: 1px solid #333;
+          border-radius: 8px;
           padding: 8px 0;
+          min-width: 180px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+          z-index: 100;
+          opacity: 0;
+          visibility: hidden;
+          transform: translateX(-4px);
+          transition: all 0.15s ease;
+        }
+        
+        .collapsed-nav-item:hover .collapsed-nav-popover {
+          opacity: 1;
+          visibility: visible;
+          transform: translateX(0);
+        }
+        
+        .popover-section {
+          padding: 4px 0;
+        }
+        
+        .popover-section:not(:last-child) {
+          border-bottom: 1px solid #333;
+          margin-bottom: 4px;
+        }
+        
+        .popover-project {
+          padding: 6px 12px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #9ca3af;
+          font-size: 12px;
+          font-weight: 500;
+        }
+        
+        .popover-table {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 12px 6px 28px;
+          color: #808080;
+          font-size: 12px;
+          background: transparent;
+          border: none;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.1s;
+        }
+        
+        .popover-table:hover {
+          background: rgba(255, 255, 255, 0.05);
+          color: #e2e8f0;
+        }
+        
+        .popover-table.active {
+          background: rgba(59, 130, 246, 0.15);
+          color: #60a5fa;
+        }
+        
+        .popover-empty {
+          padding: 12px;
+          color: #6b7280;
+          font-size: 11px;
+          text-align: center;
+        }
+        
+        .collapsed-context-menu-wrapper {
+          position: relative;
+        }
+        
+        .collapsed-context-popover {
+          position: absolute;
+          left: 100%;
+          top: 0;
+          margin-left: 8px;
+          min-width: 180px;
+          max-width: 240px;
+          background: #1a1a1a;
+          border: 1px solid #333;
+          border-radius: 8px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+          padding: 6px;
+          z-index: 1000;
+        }
+        
+        .collapsed-context-popover-title {
+          font-size: 11px;
+          font-weight: 600;
+          color: #6D7177;
+          padding: 6px 8px 4px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        
+        .collapsed-context-folder {
+          margin-bottom: 2px;
+        }
+        
+        .collapsed-context-folder-name {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 8px;
+          font-size: 12px;
+          color: #9ca3af;
+          border-radius: 4px;
+        }
+        
+        .collapsed-context-folder-name svg {
+          flex-shrink: 0;
+        }
+        
+        .collapsed-context-table {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          width: 100%;
+          padding: 6px 8px 6px 26px;
+          background: transparent;
+          border: none;
+          border-radius: 4px;
+          font-size: 12px;
+          color: #9ca3af;
+          cursor: pointer;
+          text-align: left;
+          transition: all 0.1s;
+        }
+        
+        .collapsed-context-table:hover {
+          background: rgba(255, 255, 255, 0.08);
+          color: #e2e8f0;
+        }
+        
+        .collapsed-context-table.active {
+          background: rgba(59, 130, 246, 0.15);
+          color: #60a5fa;
+        }
+        
+        .collapsed-context-table svg {
+          flex-shrink: 0;
+        }
+        
+        .collapsed-context-empty {
+          padding: 12px 8px;
+          font-size: 12px;
+          color: #6D7177;
+          text-align: center;
         }
 
         .section {
@@ -492,7 +857,7 @@ export function ProjectsSidebar({
           height: 28px;
           background: transparent;
           border: none;
-          border-radius: 6px;
+          border-radius: 5px;
           cursor: pointer;
           transition: background 0.15s;
           width: 100%;
@@ -563,19 +928,39 @@ export function ProjectsSidebar({
         }
 
         .footer {
-          padding: 12px 16px;
-          border-top: 1px solid #404040;
+          height: 45px;
+          padding: 0 16px;
+          border-top: 1px solid #333;
           display: flex;
           align-items: center;
           justify-content: space-between;
+          flex-shrink: 0;
+        }
+        
+        .sidebar.collapsed .footer {
+          height: 45px;
+          padding: 0 12px;
+          justify-content: center;
+          border-top: 1px solid #333;
+        }
+        
+        .sidebar.collapsed .env-badge {
+          display: none;
+        }
+        
+        .sidebar.collapsed .user-avatar {
+          margin: 0;
         }
 
         .env-badge {
+          height: 28px;
           font-size: 11px;
           color: #808080;
-          padding: 4px 8px;
+          padding: 0 10px;
           background: #2A2A2A;
-          border-radius: 4px;
+          border-radius: 5px;
+          display: flex;
+          align-items: center;
         }
 
         .user-avatar {
@@ -643,15 +1028,51 @@ export function ProjectsSidebar({
 
       {/* Header */}
       <div className="header">
+        {isCollapsed ? (
+          <div
+            className="collapsed-logo-wrapper"
+            onClick={() => onCollapsedChange?.(false)}
+            title="Expand sidebar"
+          >
+            {/* Product logo - shows by default, hides on hover */}
+            <img 
+              className="product-logo" 
+              src="/puppybase.svg" 
+              alt="PuppyContext" 
+              width={14} 
+              height={14} 
+            />
+            {/* Sidebar toggle icon - hidden by default, shows on hover */}
+            <svg className="sidebar-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="9" y1="3" x2="9" y2="21"/>
+            </svg>
+          </div>
+        ) : (
+          <>
         <div className="header-brand">
-          <img src="/puppybase.svg" alt="PuppyContext" width={18} height={18} />
+              <img src="/puppybase.svg" alt="PuppyContext" width={14} height={14} />
           <span className="header-title">PuppyContext</span>
         </div>
+            <div
+              className="collapse-toggle-wrapper"
+              onClick={() => onCollapsedChange?.(true)}
+              title="Collapse sidebar"
+            >
+              {/* Sidebar collapse icon */}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <line x1="9" y1="3" x2="9" y2="21"/>
+              </svg>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Content */}
       <div className="content">
-        
+        {/* Main Content - Contexts (flex: 1, scrollable) */}
+        <div className="content-main">
         {/* Section: Contexts */}
         <div className="section">
           <div className="section-header" onClick={() => toggleSection('contexts')}>
@@ -789,7 +1210,10 @@ export function ProjectsSidebar({
             </div>
           )}
         </div>
+        </div>
 
+        {/* Bottom Content - MCP & Try (flex-shrink: 0, bottom aligned) */}
+        <div className="content-bottom">
         {/* Section: MCP */}
         <div className="section">
           <div className="section-header" onClick={() => toggleSection('mcp')}>
@@ -844,50 +1268,87 @@ export function ProjectsSidebar({
                 </span>
                 <span className="nav-label">ETL Strategies</span>
               </button>
-              
-              <button 
-                className={`nav-item ${activeView === 'test' ? 'active' : ''}`}
-                disabled
-              >
-                <span className="nav-icon">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M4 2v3L7 8l3-3V2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M7 8v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                    <circle cx="7" cy="12" r="1" fill="currentColor"/>
-                  </svg>
-                </span>
-                <span className="nav-label">Playground</span>
-                <span className="nav-soon">Soon</span>
-              </button>
-              
-              <button 
-                className={`nav-item ${activeView === 'logs' ? 'active' : ''}`}
-                disabled
-              >
-                <span className="nav-icon">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 3h10M2 7h7M2 11h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  </svg>
-                </span>
-                <span className="nav-label">Logs</span>
-                <span className="nav-soon">Soon</span>
-              </button>
-              
-              <button 
-                className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
-                disabled
-              >
-                <span className="nav-icon">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
-                    <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.76 2.76l1.41 1.41M9.83 9.83l1.41 1.41M2.76 11.24l1.41-1.41M9.83 4.17l1.41-1.41" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  </svg>
-                </span>
-                <span className="nav-label">Settings</span>
-                <span className="nav-soon">Soon</span>
-              </button>
             </div>
           )}
+        </div>
+        </div>
+      </div>
+              
+      {/* Collapsed Navigation - Shows only when sidebar is collapsed */}
+      <div className="collapsed-nav">
+        <div className="collapsed-nav-main">
+          {/* Contexts Icon with Hover Popover */}
+          <div className="collapsed-nav-item">
+              <button 
+              className={`collapsed-nav-btn ${activeView === 'projects' ? 'active' : ''}`}
+              >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z" stroke="currentColor" strokeWidth="1.2"/>
+                  </svg>
+              </button>
+              
+            {/* Popover showing all contexts */}
+            <div className="collapsed-nav-popover">
+              {projects.length === 0 ? (
+                <div className="popover-empty">No contexts yet</div>
+              ) : (
+                projects.map((project) => (
+                  <div key={project.id} className="popover-section">
+                    <div className="popover-project">
+                      <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                        <path d="M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z" stroke="currentColor" strokeWidth="1.2"/>
+                      </svg>
+                      <span>{project.name}</span>
+                    </div>
+                    {project.tables.map((table) => (
+              <button 
+                        key={table.id}
+                        className={`popover-table ${activeTableId === table.id ? 'active' : ''}`}
+                        onClick={() => onTableClick(project.id, table.id)}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                          <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                          <line x1="1.5" y1="5" x2="12.5" y2="5" stroke="currentColor" strokeWidth="1.2"/>
+                          <line x1="5.5" y1="5" x2="5.5" y2="12.5" stroke="currentColor" strokeWidth="1.2"/>
+                        </svg>
+                        <span>{table.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <div className="collapsed-nav-bottom">
+          {/* MCP Icon */}
+          <button
+            className={`collapsed-nav-btn ${activeView === 'mcp' ? 'active' : ''}`}
+            onClick={() => onUtilityNavClick('mcp')}
+            title="MCP Instances"
+          >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="3" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
+              <circle cx="11" cy="4" r="2" stroke="currentColor" strokeWidth="1.2"/>
+              <circle cx="11" cy="10" r="2" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M5 7h2M9 4.5L7.5 6M9 9.5L7.5 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+              </button>
+              
+          {/* ETL Icon */}
+              <button 
+            className={`collapsed-nav-btn ${activeView === 'etl' ? 'active' : ''}`}
+            onClick={() => onUtilityNavClick('etl')}
+            title="ETL Strategies"
+              >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="1" y="2" width="4" height="4" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
+              <rect x="9" y="8" width="4" height="4" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M5 4h2.5a1 1 0 011 1v4a1 1 0 001 1H12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              <path d="M10 8L12 10L10 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+              </button>
         </div>
       </div>
 
@@ -1003,6 +1464,14 @@ export function ProjectsSidebar({
             setDeleteMode(null)
           }}
           onProjectsChange={onProjectsChange}
+        />
+      )}
+
+      {/* Resize Handle */}
+      {!isCollapsed && (
+        <div 
+          className={`resize-handle ${isResizing ? 'active' : ''}`}
+          onMouseDown={handleMouseDown}
         />
       )}
     </aside>

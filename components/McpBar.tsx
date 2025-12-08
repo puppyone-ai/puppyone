@@ -91,7 +91,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
     if (isImportMenuOpen && projects.length === 0) {
       const fetchProjects = async () => {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/projects`, {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects`, {
             headers: {
               'Authorization': `Bearer ${session?.access_token}`
             }
@@ -207,7 +207,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
         onLog('info', 'Uploading to server...')
       }
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/projects/${selectedProject}/import-folder`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${selectedProject}/import-folder`,
         {
           method: 'POST',
           headers: {
@@ -314,7 +314,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
         requestBody.json_pointer = jsonPointer
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/mcp/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/mcp/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

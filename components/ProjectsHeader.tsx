@@ -1,24 +1,23 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { ImportMenu } from './ImportMenu'
 
 export type EditorType = 'treeline-virtual' | 'monaco'
-export type SidebarContent = 'none' | 'chat' | 'publish'
 
 type ProjectsHeaderProps = {
   pathSegments: string[]
   projectId: string | null
-  tableId?: string | null
-  currentTreePath: string | null
   onProjectsRefresh?: () => void
-  onLog?: (type: 'error' | 'warning' | 'info' | 'success', message: string) => void
   editorType?: EditorType
   onEditorTypeChange?: (type: EditorType) => void
-  onTargetPathChange?: (path: string | null) => void
-  sidebarContent?: SidebarContent
-  onSidebarContentChange?: (content: SidebarContent) => void
+  // Publish (Context Level)
+  isPublishOpen?: boolean
+  onPublishOpenChange?: (open: boolean) => void
+  // Chat (Global Level)
+  isChatOpen?: boolean
+  onChatOpenChange?: (open: boolean) => void
 }
 
 const editorOptions: { id: EditorType; label: string; icon: string }[] = [
@@ -26,35 +25,20 @@ const editorOptions: { id: EditorType; label: string; icon: string }[] = [
   { id: 'monaco', label: 'Raw', icon: '{ }' },
 ]
 
-export function ProjectsHeader({
-  pathSegments,
-  projectId,
-  tableId,
-  currentTreePath,
-  onProjectsRefresh,
-  onLog,
+export function ProjectsHeader({ 
+  pathSegments, 
+  projectId, 
+  onProjectsRefresh, 
   editorType = 'treeline-virtual',
   onEditorTypeChange,
-  onTargetPathChange,
-  sidebarContent = 'none',
-  onSidebarContentChange,
+  isPublishOpen = false,
+  onPublishOpenChange,
+  isChatOpen = false,
+  onChatOpenChange,
 }: ProjectsHeaderProps) {
   const [showEditorMenu, setShowEditorMenu] = useState(false)
-  const [editorMenuHeight, setEditorMenuHeight] = useState(0)
-  
-  // Refs for closing menus
-  const importMenuRef = useRef<{ close: () => void } | null>(null)
 
   const currentEditor = editorOptions.find(e => e.id === editorType) || editorOptions[0]
-
-  // Handle editor menu animation
-  useEffect(() => {
-    if (showEditorMenu) {
-      setTimeout(() => setEditorMenuHeight(100), 0)
-    } else {
-      setEditorMenuHeight(0)
-    }
-  }, [showEditorMenu])
 
   // Close editor menu when clicking outside
   useEffect(() => {
@@ -78,142 +62,166 @@ export function ProjectsHeader({
     }
   }, [showEditorMenu])
 
-  const closeAllMenus = () => {
-    setShowEditorMenu(false)
-  }
-
   return (
     <header style={headerStyle}>
       {/* LEFT SIDE: Context Definition (Breadcrumbs + View Switcher) */}
       <div style={headerLeftStyle}>
         {/* Breadcrumbs */}
-        <span style={pathStyle}>{pathSegments.join(' / ')}</span>
+      <span style={pathStyle}>{pathSegments.join(' / ')}</span>
         
         {/* View Switcher - Segmented Control Style */}
         <div style={viewSwitcherContainerStyle}>
           {editorOptions.map((option) => {
             const isSelected = option.id === editorType
             return (
-              <button
-                key={option.id}
+                <button
+                  key={option.id}
                 onClick={() => onEditorTypeChange?.(option.id)}
-                style={{
+                  style={{
                   ...viewSwitcherBtnStyle,
                   background: isSelected ? 'rgba(255,255,255,0.1)' : 'transparent',
                   color: isSelected ? '#e2e8f0' : '#6b7280',
-                }}
-              >
+                  }}
+                >
                 <span style={{ fontSize: 11 }}>{option.icon}</span>
                 <span style={{ fontSize: 10 }}>{option.label}</span>
-              </button>
+                </button>
             )
           })}
         </div>
       </div>
-
-      {/* RIGHT SIDE: Action Flow (Sync -> Publish -> Chat) */}
-      <div style={headerRightStyle}>
-        {/* Sync Button (Input) */}
+        
+      {/* RIGHT SIDE: Context Actions (Sync + Publish) + Chat Toggle */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        marginLeft: 'auto',
+      }}>
+        {/* Sync Button */}
         {projectId && (
           <ImportMenu
             projectId={projectId}
             onProjectsRefresh={onProjectsRefresh}
-            onLog={onLog}
-            onCloseOtherMenus={closeAllMenus}
           />
         )}
         
-        {/* Divider */}
-        <div style={{ 
-          width: 1, 
-          height: 20, 
-          background: '#333',
-          margin: '0 4px',
-        }} />
+        {/* View Toggle: Human ↔ Agent */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          height: 28,
+          borderRadius: 6,
+          border: '1px solid #333',
+          background: 'rgba(0,0,0,0.3)',
+          padding: 2,
+          gap: 2,
+        }}>
+          <button 
+            onClick={() => isPublishOpen && onPublishOpenChange?.(false)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              height: 22,
+              padding: '0 10px',
+              borderRadius: 4,
+              border: 'none',
+              background: !isPublishOpen ? 'rgba(255,255,255,0.1)' : 'transparent',
+              color: !isPublishOpen ? '#e2e8f0' : '#6b7280',
+              fontSize: 11,
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            You
+          </button>
+          <button 
+            onClick={() => !isPublishOpen && onPublishOpenChange?.(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              height: 22,
+              padding: '0 10px',
+              borderRadius: 4,
+              border: 'none',
+              background: isPublishOpen ? 'rgba(52, 211, 153, 0.15)' : 'transparent',
+              color: isPublishOpen ? '#34d399' : '#6b7280',
+              fontSize: 11,
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2a4 4 0 0 1 4 4c0 1.1-.9 2-2 2h-4c-1.1 0-2-.9-2-2a4 4 0 0 1 4-4z"/>
+              <path d="M12 8v8"/>
+              <path d="M8 12h8"/>
+              <circle cx="12" cy="20" r="2"/>
+            </svg>
+            Agent
+          </button>
+        </div>
         
-        {/* Publish Button - Opens Sidebar */}
-        <button
-          onClick={() => onSidebarContentChange?.(sidebarContent === 'publish' ? 'none' : 'publish')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            height: 28,
-            padding: '0 12px',
-            borderRadius: 6,
-            border: '1px solid',
-            borderColor: sidebarContent === 'publish' ? '#22c55e' : '#404040',
-            background: sidebarContent === 'publish' ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
-            color: sidebarContent === 'publish' ? '#22c55e' : '#9ca3af',
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: 'pointer',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={(e) => {
-            if (sidebarContent !== 'publish') {
-              e.currentTarget.style.borderColor = '#525252'
-              e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-              e.currentTarget.style.color = '#e2e8f0'
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (sidebarContent !== 'publish') {
-              e.currentTarget.style.borderColor = '#404040'
-              e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.color = '#9ca3af'
-            }
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-            <polyline points="16 6 12 2 8 6"/>
-            <line x1="12" y1="2" x2="12" y2="15"/>
-          </svg>
-          <span>Publish</span>
-        </button>
-
-        {/* Chat Button - Opens Sidebar */}
-        <button
-          onClick={() => onSidebarContentChange?.(sidebarContent === 'chat' ? 'none' : 'chat')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            height: 28,
-            padding: '0 12px',
-            borderRadius: 6,
-            border: '1px solid',
-            borderColor: sidebarContent === 'chat' ? '#d97706' : '#404040',
-            background: sidebarContent === 'chat' ? 'rgba(217, 119, 6, 0.1)' : 'transparent',
-            cursor: 'pointer',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={(e) => {
-            if (sidebarContent !== 'chat') {
-              e.currentTarget.style.borderColor = '#525252'
-              e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (sidebarContent !== 'chat') {
-              e.currentTarget.style.borderColor = '#404040'
-              e.currentTarget.style.background = 'transparent'
-            }
-          }}
-          title="Chat with context"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={sidebarContent === 'chat' ? '#d97706' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          </svg>
-          <span style={{ 
-            fontSize: 12, 
-            fontWeight: 500, 
-            color: sidebarContent === 'chat' ? '#d97706' : '#9ca3af',
-          }}>
-            Chat
-          </span>
-        </button>
+        {/* Vertical Divider + Chat Toggle - Hidden when chat is open */}
+        {!isChatOpen ? (
+          <>
+            <div style={{
+              width: 1,
+              height: 45,
+              background: '#262626',
+              marginLeft: 4,
+            }} />
+            
+            {/* Chat Toggle Block - 28x28 to match left sidebar toggle */}
+            <div
+              onClick={() => onChatOpenChange?.(true)}
+              style={{
+                width: 28,
+                height: 28,
+                background: 'transparent',
+                borderRadius: 5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                marginRight: 8,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent'
+              }}
+              title="Open Chat"
+            >
+              {/* Sidebar toggle icon - Rectangle like OpenAI, 14px to match left sidebar */}
+              <svg 
+                width="14" 
+                height="14" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="#6b7280"
+                strokeWidth="1.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <line x1="15" y1="3" x2="15" y2="21"/>
+              </svg>
+            </div>
+          </>
+        ) : (
+          /* Right padding when chat is open */
+          <div style={{ width: 8 }} />
+        )}
       </div>
     </header>
   )
@@ -221,8 +229,9 @@ export function ProjectsHeader({
 
 // Styles
 const headerStyle: CSSProperties = {
-  height: 48,
-  padding: '0 16px',
+  height: 45,
+  paddingLeft: 16,
+  paddingRight: 0, // No right padding, Chat toggle goes to edge
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -239,11 +248,6 @@ const headerLeftStyle: CSSProperties = {
   gap: 16,
 }
 
-const headerRightStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-}
 
 const pathStyle: CSSProperties = {
   fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
