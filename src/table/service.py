@@ -1,0 +1,382 @@
+"""
+负责Table（知识库）内容的管理
+"""
+
+from typing import List, Optional, Dict, Any
+from jsonpointer import resolve_pointer
+import json
+import jmespath
+from src.table.models import Table
+from src.table.repository import TableRepositoryBase
+from src.exceptions import NotFoundException, BusinessException, ErrorCode
+
+
+class TableService:
+    """封装业务逻辑层"""
+
+    def __init__(self, repo: TableRepositoryBase):
+        self.repo = repo
+
+    def get_by_user_id(self, user_id: int) -> List[Table]:
+        return self.repo.get_by_user_id(user_id)
+
+    def get_by_id(self, table_id: int) -> Optional[Table]:
+        return self.repo.get_by_id(table_id)
+
+    def create(
+        self,
+        project_id: int,
+        name: str,
+        description: str,
+        data: dict,
+    ) -> Table:
+        return self.repo.create(
+            project_id,
+            name,
+            description,
+            data,
+        )
+
+    def update(
+        self,
+        table_id: int,
+        name: Optional[str],
+        description: Optional[str],
+        data: Optional[dict],
+    ) -> Table:
+        updated = self.repo.update(
+            table_id, name, description, data
+        )
+        if not updated:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+        return updated
+
+    def delete(self, table_id: int) -> None:
+        success = self.repo.delete(table_id)
+        if not success:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+
+    def create_context_data(
+        self, table_id: int, mounted_json_pointer_path: str, elements: List[Dict]
+    ) -> Any:
+        """
+        在 data 字段的指定路径下创建新数据
+
+        Args:
+            table_id: Table ID
+            mounted_json_pointer_path: JSON指针路径，数据将挂载到此路径下
+            elements: 要创建的元素数组，每个元素包含 key 和 content
+
+
+        """
+        table = self.repo.get_by_id(table_id)
+        if not table:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        data = (table.data or {}).copy()
+
+        # 获取挂载点的父节点
+        try:
+            parent = resolve_pointer(data, mounted_json_pointer_path, None)
+        except Exception as e:
+            raise BusinessException(
+                f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
+            )
+
+        if parent is None:
+            raise BusinessException(
+                f"Path not found: {mounted_json_pointer_path}",
+                code=ErrorCode.BAD_REQUEST,
+            )
+
+        # 确保父节点是字典类型
+        if not isinstance(parent, dict):
+            raise BusinessException(
+                "Path points to non-dict node", code=ErrorCode.BAD_REQUEST
+            )
+
+        # 检查是否有重复的 key
+        for element in elements:
+            if "key" not in element:
+                raise BusinessException(
+                    "Element missing 'key' field", code=ErrorCode.VALIDATION_ERROR
+                )
+            key = element["key"]
+            if key in parent:
+                raise BusinessException(
+                    f"Key '{key}' already exists", code=ErrorCode.VALIDATION_ERROR
+                )
+
+        # 检查 content 是否重复（深度比较）
+        existing_content_strs = {
+            json.dumps(parent[k], sort_keys=True) for k in parent.keys()
+        }
+        for element in elements:
+            if "content" not in element:
+                raise BusinessException(
+                    "Element missing 'content' field", code=ErrorCode.VALIDATION_ERROR
+                )
+            content = element["content"]
+            # 深度比较：序列化后比较字符串
+            content_str = json.dumps(content, sort_keys=True)
+            if content_str in existing_content_strs:
+                raise BusinessException(
+                    f"Content already exists for key: {element['key']}",
+                    code=ErrorCode.VALIDATION_ERROR,
+                )
+
+        # 创建新数据
+        for element in elements:
+            key = element["key"]
+            content = element["content"]
+            parent[key] = content
+
+        # 更新 data 字段
+        updated_table = self.repo.update_context_data(table_id, data)
+        if not updated_table:
+            raise BusinessException(
+                "Update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
+            )
+
+        # 返回创建后的数据
+        result = resolve_pointer(
+            updated_table.data or {}, mounted_json_pointer_path
+        )
+        return result
+
+    def get_context_data(self, table_id: int, json_pointer_path: str) -> Any:
+        """
+        获取 data 字段中指定路径的数据
+        """
+        table = self.repo.get_by_id(table_id)
+        if not table:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        try:
+            data = resolve_pointer(table.data or {}, json_pointer_path, None)
+            if data is None:
+                # 为了保险，我们认为如果 resolve 返回 default (None)，就是没找到。
+                raise NotFoundException(
+                    f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
+                )
+            return data
+        except Exception as e:
+            if isinstance(e, NotFoundException):
+                raise
+            raise BusinessException(
+                f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
+            )
+
+    def update_context_data(
+        self, table_id: int, json_pointer_path: str, elements: List[Dict]
+    ) -> Any:
+        """
+        更新 data 字段中指定路径的数据
+        """
+        table = self.repo.get_by_id(table_id)
+        if not table:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        data = (table.data or {}).copy()
+
+        # 获取要更新的父节点
+        try:
+            parent = resolve_pointer(data, json_pointer_path, None)
+        except Exception as e:
+            raise BusinessException(
+                f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
+            )
+
+        if parent is None:
+            raise NotFoundException(
+                f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
+            )
+
+        if not isinstance(parent, dict):
+            raise BusinessException(
+                "Path points to non-dict node", code=ErrorCode.BAD_REQUEST
+            )
+
+        # 检查所有要更新的 key 是否存在
+        for element in elements:
+            if "key" not in element:
+                raise BusinessException(
+                    "Element missing 'key' field", code=ErrorCode.VALIDATION_ERROR
+                )
+            key = element["key"]
+            if key not in parent:
+                raise NotFoundException(
+                    f"Key '{key}' not found", code=ErrorCode.NOT_FOUND
+                )
+
+        # 更新数据
+        for element in elements:
+            if "content" not in element:
+                raise BusinessException(
+                    "Element missing 'content' field", code=ErrorCode.VALIDATION_ERROR
+                )
+            key = element["key"]
+            content = element["content"]
+            parent[key] = content
+
+        # 更新 data 字段
+        updated_table = self.repo.update_context_data(table_id, data)
+        if not updated_table:
+            raise BusinessException(
+                "Update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
+            )
+
+        # 返回更新后的数据
+        result = resolve_pointer(updated_table.data or {}, json_pointer_path)
+        return result
+
+    def delete_context_data(
+        self, table_id: int, json_pointer_path: str, keys: List[str]
+    ) -> Any:
+        """
+        删除 data 字段中指定路径下的 keys
+        """
+        table = self.repo.get_by_id(table_id)
+        if not table:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        data = (table.data or {}).copy()
+
+        # 获取要删除的父节点
+        try:
+            parent = resolve_pointer(data, json_pointer_path, None)
+        except Exception as e:
+            raise BusinessException(
+                f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
+            )
+
+        if parent is None:
+            raise NotFoundException(
+                f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
+            )
+
+        if not isinstance(parent, dict):
+            raise BusinessException(
+                "Path points to non-dict node", code=ErrorCode.BAD_REQUEST
+            )
+
+        # 检查所有要删除的 key 是否存在
+        for key in keys:
+            if key not in parent:
+                raise NotFoundException(
+                    f"Key '{key}' not found", code=ErrorCode.NOT_FOUND
+                )
+
+        # 删除数据
+        for key in keys:
+            del parent[key]
+
+        # 更新 data 字段
+        updated_table = self.repo.update_context_data(table_id, data)
+        if not updated_table:
+            raise BusinessException(
+                "Update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
+            )
+
+        # 返回删除后的数据
+        result = resolve_pointer(updated_table.data or {}, json_pointer_path)
+        return result
+
+    def query_context_data_with_jmespath(
+        self, table_id: int, json_pointer_path: str, query: str
+    ) -> Optional[Any]:
+        """
+        使用 JMESPath 查询 data 字段中指定路径的数据
+        """
+        table = self.repo.get_by_id(table_id)
+        if not table:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        try:
+            # 先获取指定路径的数据
+            base_data = resolve_pointer(table.data or {}, json_pointer_path, None)
+            if base_data is None:
+                raise NotFoundException(
+                    f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
+                )
+
+            # 使用 JMESPath 查询数据
+            result = jmespath.search(query, base_data)
+
+            # 处理空结果 (JMESPath returns None if nothing matched)
+            # 我们认为这也是一种成功结果，只是数据为空
+            return result
+
+        except jmespath.exceptions.ParseError as e:
+            raise BusinessException(
+                f"JMESPath syntax error: {str(e)}", code=ErrorCode.BAD_REQUEST
+            )
+        except Exception as e:
+            if isinstance(e, NotFoundException):
+                raise
+            raise BusinessException(
+                f"Query failed: {str(e)}", code=ErrorCode.BAD_REQUEST
+            )
+
+    def get_context_structure(self, table_id: int, json_pointer_path: str) -> Dict:
+        """
+        获取 data 字段中指定路径的数据结构（不包含实际数据值）
+        """
+        table = self.repo.get_by_id(table_id)
+        if not table:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        try:
+            data = resolve_pointer(table.data or {}, json_pointer_path, None)
+            if data is None:
+                raise NotFoundException(
+                    f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
+                )
+
+            # 提取结构信息
+            structure = self._extract_structure(data)
+            return structure
+
+        except Exception as e:
+            if isinstance(e, NotFoundException):
+                raise
+            raise BusinessException(
+                f"Failed to extract structure: {str(e)}",
+                code=ErrorCode.INTERNAL_SERVER_ERROR,
+            )
+
+    def _extract_structure(self, data: Any) -> Any:
+        """
+        递归提取数据结构，保留类型信息但不保留实际值
+        """
+        if isinstance(data, dict):
+            structure = {}
+            for key, value in data.items():
+                structure[key] = self._extract_structure(value)
+            return structure
+        elif isinstance(data, list):
+            if len(data) > 0:
+                # 使用第一个元素的结构作为模板
+                return [self._extract_structure(data[0])]
+            else:
+                return []
+        else:
+            # 对于基本类型，返回类型名称
+            type_name = type(data).__name__
+            return f"<{type_name}>"

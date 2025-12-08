@@ -1,0 +1,7 @@
+src/logs/
+logs/
+.ruff_cache/
+.ocr-dataset/
+.test_data/
+.mineru_cache/
+.etl_rules/
