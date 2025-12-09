@@ -1,24 +1,38 @@
 """
-Supabase 数据访问层
+Supabase 数据访问层 (Facade)
 
-提供针对 user_temp、project、table 三个表的增删改查操作。
+提供针对 user_temp、project、table、mcp 表的增删改查操作。
+此类作为 Facade 模式的实现，委托给各个子模块的 Repository。
 """
 
 from typing import List, Optional
 from supabase import Client
 
 from src.supabase.client import SupabaseClient
-from src.supabase.exceptions import handle_supabase_error
-from src.supabase.schemas import (
+
+# 导入各个子模块的 Repository
+from src.supabase.users.repository import UserRepository
+from src.supabase.projects.repository import ProjectRepository
+from src.supabase.tables.repository import TableRepository
+from src.supabase.mcps.repository import McpRepository
+
+# 导入各个子模块的 Schema
+from src.supabase.users.schemas import (
     UserCreate,
     UserUpdate,
     UserResponse,
+)
+from src.supabase.projects.schemas import (
     ProjectCreate,
     ProjectUpdate,
     ProjectResponse,
+)
+from src.supabase.tables.schemas import (
     TableCreate,
     TableUpdate,
     TableResponse,
+)
+from src.supabase.mcps.schemas import (
     McpCreate,
     McpUpdate,
     McpResponse,
@@ -26,7 +40,7 @@ from src.supabase.schemas import (
 
 
 class SupabaseRepository:
-    """Supabase 数据访问仓库"""
+    """Supabase 数据访问仓库 (Facade)"""
 
     def __init__(self, client: Optional[Client] = None):
         """
@@ -39,6 +53,12 @@ class SupabaseRepository:
             self._client = SupabaseClient().get_client()
         else:
             self._client = client
+        
+        # 初始化各个子仓库
+        self._user_repo = UserRepository(self._client)
+        self._project_repo = ProjectRepository(self._client)
+        self._table_repo = TableRepository(self._client)
+        self._mcp_repo = McpRepository(self._client)
 
     # ==================== User 相关操作 ====================
 
@@ -55,15 +75,7 @@ class SupabaseRepository:
         Raises:
             SupabaseException: 当创建失败时
         """
-        try:
-            data = user_data.model_dump(exclude_none=True)
-            # 确保不包含 id 和 created_at（这些由数据库自动生成）
-            data.pop("id", None)
-            data.pop("created_at", None)
-            response = self._client.table("user_temp").insert(data).execute()
-            return UserResponse(**response.data[0])
-        except Exception as e:
-            raise handle_supabase_error(e, "创建用户")
+        return self._user_repo.create(user_data)
 
     def get_user(self, user_id: int) -> Optional[UserResponse]:
         """
@@ -75,15 +87,7 @@ class SupabaseRepository:
         Returns:
             用户数据，如果不存在则返回 None
         """
-        response = (
-            self._client.table("user_temp")
-            .select("*")
-            .eq("id", str(user_id))
-            .execute()
-        )
-        if response.data:
-            return UserResponse(**response.data[0])
-        return None
+        return self._user_repo.get_by_id(user_id)
 
     def get_users(
         self,
@@ -102,13 +106,7 @@ class SupabaseRepository:
         Returns:
             用户列表
         """
-        query = self._client.table("user_temp").select("*")
-
-        if name:
-            query = query.eq("name", name)
-
-        response = query.range(skip, skip + limit - 1).execute()
-        return [UserResponse(**item) for item in response.data]
+        return self._user_repo.get_list(skip=skip, limit=limit, name=name)
 
     def update_user(
         self, user_id: int, user_data: UserUpdate
@@ -126,26 +124,7 @@ class SupabaseRepository:
         Raises:
             SupabaseException: 当更新失败时
         """
-        try:
-            data = user_data.model_dump(exclude_none=True)
-            if not data:
-                return self.get_user(user_id)
-
-            # 确保不包含 id 和 created_at
-            data.pop("id", None)
-            data.pop("created_at", None)
-
-            response = (
-                self._client.table("user_temp")
-                .update(data)
-                .eq("id", str(user_id))
-                .execute()
-            )
-            if response.data:
-                return UserResponse(**response.data[0])
-            return None
-        except Exception as e:
-            raise handle_supabase_error(e, "更新用户")
+        return self._user_repo.update(user_id, user_data)
 
     def delete_user(self, user_id: int) -> bool:
         """
@@ -157,13 +136,7 @@ class SupabaseRepository:
         Returns:
             是否删除成功
         """
-        response = (
-            self._client.table("user_temp")
-            .delete()
-            .eq("id", str(user_id))
-            .execute()
-        )
-        return len(response.data) > 0
+        return self._user_repo.delete(user_id)
 
     # ==================== Project 相关操作 ====================
 
@@ -180,15 +153,7 @@ class SupabaseRepository:
         Raises:
             SupabaseException: 当创建失败时
         """
-        try:
-            data = project_data.model_dump(exclude_none=True)
-            # 确保不包含 id 和 created_at（这些由数据库自动生成）
-            data.pop("id", None)
-            data.pop("created_at", None)
-            response = self._client.table("project").insert(data).execute()
-            return ProjectResponse(**response.data[0])
-        except Exception as e:
-            raise handle_supabase_error(e, "创建项目")
+        return self._project_repo.create(project_data)
 
     def get_project(self, project_id: int) -> Optional[ProjectResponse]:
         """
@@ -200,15 +165,7 @@ class SupabaseRepository:
         Returns:
             项目数据，如果不存在则返回 None
         """
-        response = (
-            self._client.table("project")
-            .select("*")
-            .eq("id", str(project_id))
-            .execute()
-        )
-        if response.data:
-            return ProjectResponse(**response.data[0])
-        return None
+        return self._project_repo.get_by_id(project_id)
 
     def get_projects(
         self,
@@ -229,16 +186,7 @@ class SupabaseRepository:
         Returns:
             项目列表
         """
-        query = self._client.table("project").select("*")
-
-        if user_id is not None:
-            query = query.eq("user_id", user_id)
-
-        if name:
-            query = query.eq("name", name)
-
-        response = query.range(skip, skip + limit - 1).execute()
-        return [ProjectResponse(**item) for item in response.data]
+        return self._project_repo.get_list(skip=skip, limit=limit, user_id=user_id, name=name)
 
     def update_project(
         self, project_id: int, project_data: ProjectUpdate
@@ -256,26 +204,7 @@ class SupabaseRepository:
         Raises:
             SupabaseException: 当更新失败时
         """
-        try:
-            data = project_data.model_dump(exclude_none=True)
-            if not data:
-                return self.get_project(project_id)
-
-            # 确保不包含 id 和 created_at
-            data.pop("id", None)
-            data.pop("created_at", None)
-
-            response = (
-                self._client.table("project")
-                .update(data)
-                .eq("id", str(project_id))
-                .execute()
-            )
-            if response.data:
-                return ProjectResponse(**response.data[0])
-            return None
-        except Exception as e:
-            raise handle_supabase_error(e, "更新项目")
+        return self._project_repo.update(project_id, project_data)
 
     def delete_project(self, project_id: int) -> bool:
         """
@@ -287,13 +216,7 @@ class SupabaseRepository:
         Returns:
             是否删除成功
         """
-        response = (
-            self._client.table("project")
-            .delete()
-            .eq("id", project_id)
-            .execute()
-        )
-        return len(response.data) > 0
+        return self._project_repo.delete(project_id)
 
     # ==================== Table 相关操作 ====================
 
@@ -310,15 +233,7 @@ class SupabaseRepository:
         Raises:
             SupabaseException: 当创建失败时
         """
-        try:
-            data = table_data.model_dump(exclude_none=True)
-            # 确保不包含 id 和 created_at（这些由数据库自动生成）
-            data.pop("id", None)
-            data.pop("created_at", None)
-            response = self._client.table("table").insert(data).execute()
-            return TableResponse(**response.data[0])
-        except Exception as e:
-            raise handle_supabase_error(e, "创建表")
+        return self._table_repo.create(table_data)
 
     def get_table(self, table_id: int) -> Optional[TableResponse]:
         """
@@ -330,15 +245,7 @@ class SupabaseRepository:
         Returns:
             表数据，如果不存在则返回 None
         """
-        response = (
-            self._client.table("table")
-            .select("*")
-            .eq("id", table_id)
-            .execute()
-        )
-        if response.data:
-            return TableResponse(**response.data[0])
-        return None
+        return self._table_repo.get_by_id(table_id)
 
     def get_tables(
         self,
@@ -359,16 +266,7 @@ class SupabaseRepository:
         Returns:
             表列表
         """
-        query = self._client.table("table").select("*")
-
-        if project_id is not None:
-            query = query.eq("project_id", project_id)
-
-        if name:
-            query = query.eq("name", name)
-
-        response = query.range(skip, skip + limit - 1).execute()
-        return [TableResponse(**item) for item in response.data]
+        return self._table_repo.get_list(skip=skip, limit=limit, project_id=project_id, name=name)
 
     def update_table(
         self, table_id: int, table_data: TableUpdate
@@ -386,26 +284,7 @@ class SupabaseRepository:
         Raises:
             SupabaseException: 当更新失败时
         """
-        try:
-            data = table_data.model_dump(exclude_none=True)
-            if not data:
-                return self.get_table(table_id)
-
-            # 确保不包含 id 和 created_at
-            data.pop("id", None)
-            data.pop("created_at", None)
-
-            response = (
-                self._client.table("table")
-                .update(data)
-                .eq("id", table_id)
-                .execute()
-            )
-            if response.data:
-                return TableResponse(**response.data[0])
-            return None
-        except Exception as e:
-            raise handle_supabase_error(e, "更新表")
+        return self._table_repo.update(table_id, table_data)
 
     def delete_table(self, table_id: int) -> bool:
         """
@@ -417,13 +296,7 @@ class SupabaseRepository:
         Returns:
             是否删除成功
         """
-        response = (
-            self._client.table("table")
-            .delete()
-            .eq("id", table_id)
-            .execute()
-        )
-        return len(response.data) > 0
+        return self._table_repo.delete(table_id)
 
     # ==================== MCP 相关操作 ====================
 
@@ -440,15 +313,7 @@ class SupabaseRepository:
         Raises:
             SupabaseException: 当创建失败时
         """
-        try:
-            data = mcp_data.model_dump(exclude_none=True)
-            # 确保不包含 id 和 created_at（这些由数据库自动生成）
-            data.pop("id", None)
-            data.pop("created_at", None)
-            response = self._client.table("mcp").insert(data).execute()
-            return McpResponse(**response.data[0])
-        except Exception as e:
-            raise handle_supabase_error(e, "创建 MCP 实例")
+        return self._mcp_repo.create(mcp_data)
 
     def get_mcp(self, mcp_id: int) -> Optional[McpResponse]:
         """
@@ -460,15 +325,7 @@ class SupabaseRepository:
         Returns:
             MCP 实例数据，如果不存在则返回 None
         """
-        response = (
-            self._client.table("mcp")
-            .select("*")
-            .eq("id", mcp_id)
-            .execute()
-        )
-        if response.data:
-            return McpResponse(**response.data[0])
-        return None
+        return self._mcp_repo.get_by_id(mcp_id)
 
     def get_mcp_by_api_key(self, api_key: str) -> Optional[McpResponse]:
         """
@@ -480,15 +337,7 @@ class SupabaseRepository:
         Returns:
             MCP 实例数据，如果不存在则返回 None
         """
-        response = (
-            self._client.table("mcp")
-            .select("*")
-            .eq("api_key", api_key)
-            .execute()
-        )
-        if response.data:
-            return McpResponse(**response.data[0])
-        return None
+        return self._mcp_repo.get_by_api_key(api_key)
 
     def get_mcps(
         self,
@@ -511,19 +360,13 @@ class SupabaseRepository:
         Returns:
             MCP 实例列表
         """
-        query = self._client.table("mcp").select("*")
-
-        if user_id is not None:
-            query = query.eq("user_id", user_id)
-
-        if project_id is not None:
-            query = query.eq("project_id", project_id)
-
-        if table_id is not None:
-            query = query.eq("table_id", table_id)
-
-        response = query.range(skip, skip + limit - 1).execute()
-        return [McpResponse(**item) for item in response.data]
+        return self._mcp_repo.get_list(
+            skip=skip,
+            limit=limit,
+            user_id=user_id,
+            project_id=project_id,
+            table_id=table_id
+        )
 
     def update_mcp(
         self, mcp_id: int, mcp_data: McpUpdate
@@ -541,26 +384,7 @@ class SupabaseRepository:
         Raises:
             SupabaseException: 当更新失败时
         """
-        try:
-            data = mcp_data.model_dump(exclude_none=True)
-            if not data:
-                return self.get_mcp(mcp_id)
-
-            # 确保不包含 id 和 created_at
-            data.pop("id", None)
-            data.pop("created_at", None)
-
-            response = (
-                self._client.table("mcp")
-                .update(data)
-                .eq("id", mcp_id)
-                .execute()
-            )
-            if response.data:
-                return McpResponse(**response.data[0])
-            return None
-        except Exception as e:
-            raise handle_supabase_error(e, "更新 MCP 实例")
+        return self._mcp_repo.update(mcp_id, mcp_data)
 
     def update_mcp_by_api_key(
         self, api_key: str, mcp_data: McpUpdate
@@ -578,26 +402,7 @@ class SupabaseRepository:
         Raises:
             SupabaseException: 当更新失败时
         """
-        try:
-            data = mcp_data.model_dump(exclude_none=True)
-            if not data:
-                return self.get_mcp_by_api_key(api_key)
-
-            # 确保不包含 id 和 created_at
-            data.pop("id", None)
-            data.pop("created_at", None)
-
-            response = (
-                self._client.table("mcp")
-                .update(data)
-                .eq("api_key", api_key)
-                .execute()
-            )
-            if response.data:
-                return McpResponse(**response.data[0])
-            return None
-        except Exception as e:
-            raise handle_supabase_error(e, "更新 MCP 实例")
+        return self._mcp_repo.update_by_api_key(api_key, mcp_data)
 
     def delete_mcp(self, mcp_id: int) -> bool:
         """
@@ -609,13 +414,7 @@ class SupabaseRepository:
         Returns:
             是否删除成功
         """
-        response = (
-            self._client.table("mcp")
-            .delete()
-            .eq("id", mcp_id)
-            .execute()
-        )
-        return len(response.data) > 0
+        return self._mcp_repo.delete(mcp_id)
 
     def delete_mcp_by_api_key(self, api_key: str) -> bool:
         """
@@ -627,10 +426,4 @@ class SupabaseRepository:
         Returns:
             是否删除成功
         """
-        response = (
-            self._client.table("mcp")
-            .delete()
-            .eq("api_key", api_key)
-            .execute()
-        )
-        return len(response.data) > 0
+        return self._mcp_repo.delete_by_api_key(api_key)
