@@ -16,4 +16,5 @@
 2. **MODIFY** Table模块修改
    1. **接口修改**：List接口从`GET /api/v1/tables/user/{user_id}`修改成`GET /api/v1/tables/`, 通过Token获取用户ID信息，并返回所有项目和对应的Table。
    2. **安全性**：通过依赖注入实现所有接口的Token鉴权和数据权限校验。
-3. 
+3. **MODIFY** MCP模块
+   1. **安全性**：通过依赖注入实现所有接口的Token鉴权和数据权限校验。

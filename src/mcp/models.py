@@ -6,7 +6,7 @@ from src.mcp.schemas import McpToolsDefinition, ToolTypeKey
 class McpInstance(BaseModel):
     mcp_instance_id: str
     api_key: str
-    user_id: int
+    user_id: str
     project_id: int
     table_id: int
     json_pointer: str = (

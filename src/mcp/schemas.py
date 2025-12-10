@@ -31,8 +31,7 @@ class McpCreate(BaseModel):
     创建 MCP 实例请求模型
     """
 
-    user_id: int = Field(..., description="用户ID")
-    project_id: int = Field(..., description="项目ID, 暂时可以随便传")
+    project_id: int = Field(..., description="项目ID")
     table_id: int = Field(
         ..., description="TableID, 对应前端“Table”的概念, 表示一整个JSON对象."
     )
@@ -192,7 +191,7 @@ class McpUpdate(BaseModel):
 
 
 class McpTokenPayload(BaseModel):
-    user_id: int
+    user_id: str
     project_id: int
     table_id: int
     json_pointer: str = ""

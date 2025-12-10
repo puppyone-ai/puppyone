@@ -12,7 +12,7 @@ from pydantic import BaseModel
 class McpBase(BaseModel):
     """MCP 基础模型"""
     api_key: Optional[str] = None
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None
     project_id: Optional[int] = None
     table_id: Optional[int] = None
     json_path: Optional[str] = None
@@ -32,7 +32,7 @@ class McpCreate(McpBase):
 class McpUpdate(BaseModel):
     """更新 MCP 实例模型"""
     api_key: Optional[str] = None
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None
     project_id: Optional[int] = None
     table_id: Optional[int] = None
     json_path: Optional[str] = None

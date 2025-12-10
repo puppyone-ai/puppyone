@@ -312,12 +312,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
 
     def get_by_user_id(self, user_id: str) -> List[McpInstance]:
         """根据 user_id 获取该用户的所有 MCP 实例"""
-        try:
-            user_id_int = int(user_id)
-        except (ValueError, TypeError):
-            return []
-
-        mcp_responses = self._repo.get_mcps(user_id=user_id_int)
+        mcp_responses = self._repo.get_mcps(user_id=user_id)
         return [self._mcp_response_to_instance(resp) for resp in mcp_responses]
 
     def get_all(self) -> List[McpInstance]:
@@ -345,7 +340,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         # 字段映射：json_pointer → json_path, status (int) → status (bool)
         mcp_data = McpCreate(
             api_key=api_key,
-            user_id=int(user_id) if user_id else None,
+            user_id=user_id if user_id else None,
             project_id=int(project_id) if project_id else None,
             table_id=int(table_id) if table_id else None,
             json_path=json_pointer,
@@ -384,7 +379,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         # 字段映射：json_pointer → json_path, status (int) → status (bool)
         mcp_data = McpUpdate(
             api_key=api_key,
-            user_id=int(user_id) if user_id else None,
+            user_id=user_id if user_id else None,
             project_id=int(project_id) if project_id else None,
             table_id=int(table_id) if table_id else None,
             json_path=json_pointer,
@@ -419,7 +414,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         # 字段映射：json_pointer → json_path, status (int) → status (bool)
         mcp_data = McpUpdate(
             api_key=api_key,
-            user_id=int(user_id) if user_id else None,
+            user_id=user_id if user_id else None,
             project_id=int(project_id) if project_id else None,
             table_id=int(table_id) if table_id else None,
             json_path=json_pointer,

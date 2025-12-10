@@ -343,7 +343,7 @@ class SupabaseRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         project_id: Optional[int] = None,
         table_id: Optional[int] = None,
     ) -> List[McpResponse]:

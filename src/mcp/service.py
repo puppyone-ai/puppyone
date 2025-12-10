@@ -40,7 +40,7 @@ class McpService:
     ### API_KEY生成和解析逻辑 ###
 
     def generate_mcp_token(
-        self, user_id: int, project_id: int, table_id: int, json_pointer: str = ""
+        self, user_id: str, project_id: int, table_id: int, json_pointer: str = ""
     ) -> str:
         """
         根据用户ID、项目ID、表格ID、JSON路径 生成代表MCP实例的JWT token
@@ -97,7 +97,7 @@ class McpService:
 
     async def create_mcp_instance(
         self,
-        user_id: int,
+        user_id: str,
         project_id: int,
         table_id: int,
         json_pointer: str = "",
@@ -723,7 +723,7 @@ class McpService:
                 "errors": len(instances),
             }
 
-    async def get_user_mcp_instances(self, user_id: int) -> List[McpInstance]:
+    async def get_user_mcp_instances(self, user_id: str) -> List[McpInstance]:
         """
         获取用户的所有 MCP 实例
 
@@ -734,3 +734,35 @@ class McpService:
             McpInstance 列表
         """
         return self.instance_repo.get_by_user_id(user_id)
+
+    async def get_mcp_instance_by_api_key_with_access_check(
+        self, api_key: str, user_id: str
+    ) -> McpInstance:
+        """
+        获取 MCP 实例并验证用户权限
+
+        Args:
+            api_key: API key
+            user_id: 用户ID
+
+        Returns:
+            已验证的 McpInstance 对象
+
+        Raises:
+            NotFoundException: 如果实例不存在或用户无权限
+        """
+        instance = self.instance_repo.get_by_api_key(api_key)
+        if not instance:
+            raise NotFoundException(
+                f"MCP instance not found: api_key={api_key}",
+                code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+            )
+
+        # 检查用户权限
+        if instance.user_id != user_id:
+            raise NotFoundException(
+                f"MCP instance not found: api_key={api_key}",
+                code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+            )
+
+        return instance
