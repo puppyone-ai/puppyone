@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Query, status
 from typing import List, Optional
 from src.table.service import TableService
-from src.table.dependencies import get_table_service
+from src.table.dependencies import get_table_service, get_verified_table
+from src.table.models import Table
 from src.table.schemas import (
     TableCreate,
     TableUpdate,
@@ -47,20 +48,13 @@ def list_tables(
     "/{table_id}",
     response_model=ApiResponse[TableOut],
     summary="获取单个表格详情",
-    description="根据表格ID获取单个表格的详细信息。如果表格不存在，将返回错误。⚠️后续可能要修改这块的Api，改成Token鉴权。",
+    description="根据表格ID获取单个表格的详细信息。如果表格不存在，将返回错误。",
     response_description="返回表格详细信息",
     status_code=status.HTTP_200_OK,
 )
 def get_table(
-    table_id: int,
-    table_service: TableService = Depends(get_table_service),
+    table: Table = Depends(get_verified_table),
 ):
-    table = table_service.get_by_id(table_id)
-    if not table:
-        from src.exceptions import NotFoundException, ErrorCode
-        raise NotFoundException(
-            f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
-        )
     return ApiResponse.success(data=table, message="表格获取成功")
 
 
@@ -92,37 +86,37 @@ def create_table(
     "/{table_id}",
     response_model=ApiResponse[TableOut],
     summary="更新表格信息",
-    description="根据表格ID更新表格的名称、描述和数据。所有字段都是可选的，只更新用户提供的字段，未提供的字段保持不变。如果表格不存在，将返回错误。⚠️后续可能要修改这块的Api，改成Token鉴权，目前暂时无需传入user_id。",
+    description="根据表格ID更新表格的名称、描述和数据。所有字段都是可选的，只更新用户提供的字段，未提供的字段保持不变。如果表格不存在，将返回错误。",
     response_description="返回更新后的表格信息",
     status_code=status.HTTP_200_OK,
 )
 def update_table(
-    table_id: int,
-    payload: TableUpdate,
+    table: Table = Depends(get_verified_table),
+    payload: TableUpdate = ...,
     table_service: TableService = Depends(get_table_service),
 ):
-    table = table_service.update(
-        table_id=table_id,
+    updated_table = table_service.update(
+        table_id=table.id,
         name=payload.name,
         description=payload.description,
         data=payload.data,
     )
-    return ApiResponse.success(data=table, message="表格更新成功")
+    return ApiResponse.success(data=updated_table, message="表格更新成功")
 
 
 @router.delete(
     "/{table_id}",
     response_model=ApiResponse[None],
     summary="删除表格",
-    description="根据表格ID删除指定的表格。如果表格不存在，将返回错误。⚠️后续可能要修改这块的Api，改成Token鉴权，目前暂时无需传入user_id。",
+    description="根据表格ID删除指定的表格。如果表格不存在，将返回错误。",
     response_description="删除成功，返回空数据",
     status_code=status.HTTP_200_OK,
 )
 def delete_table(
-    table_id: int,
+    table: Table = Depends(get_verified_table),
     table_service: TableService = Depends(get_table_service),
 ):
-    table_service.delete(table_id)
+    table_service.delete(table.id)
     return ApiResponse.success(message="表格删除成功")
 
 
@@ -131,17 +125,17 @@ def delete_table(
     "/{table_id}/data",
     response_model=ApiResponse[ContextDataGet],
     summary="在表格中创建数据",
-    description='在指定表格的 data 字段中，通过 JSON 指针路径创建新的数据项。可以一次创建多个元素，每个元素包含 key 和 content。⚠️后续可能要修改这块的Api，改成Token鉴权，目前暂时无需传入user_id。\n\n**JSON指针路径说明：**\n- 使用 RFC 6901 标准格式，例如："/users"、"/users/123"\n- **根路径：使用空字符串 "" 可以在 data 的根路径下添加 key**\n- 路径必须指向一个已存在的字典类型节点\n\n**示例：**\n- 在根路径添加 key：`mounted_json_pointer_path: ""`\n- 在 /users 路径下添加 key：`mounted_json_pointer_path: "/users"`',
+    description='在指定表格的 data 字段中，通过 JSON 指针路径创建新的数据项。可以一次创建多个元素，每个元素包含 key 和 content。\n\n**JSON指针路径说明：**\n- 使用 RFC 6901 标准格式，例如："/users"、"/users/123"\n- **根路径：使用空字符串 "" 可以在 data 的根路径下添加 key**\n- 路径必须指向一个已存在的字典类型节点\n\n**示例：**\n- 在根路径添加 key：`mounted_json_pointer_path: ""`\n- 在 /users 路径下添加 key：`mounted_json_pointer_path: "/users"`',
     response_description="返回创建后的数据",
     status_code=status.HTTP_201_CREATED,
 )
 def create_context_data(
-    table_id: int,
-    payload: ContextDataCreate,
+    table: Table = Depends(get_verified_table),
+    payload: ContextDataCreate = ...,
     table_service: TableService = Depends(get_table_service),
 ):
     data = table_service.create_context_data(
-        table_id=table_id,
+        table_id=table.id,
         mounted_json_pointer_path=payload.mounted_json_pointer_path,
         elements=[{"key": e.key, "content": e.content} for e in payload.elements],
     )
@@ -152,12 +146,12 @@ def create_context_data(
     "/{table_id}/data",
     response_model=ApiResponse[ContextDataGet],
     summary="获取表格中的数据",
-    description='根据表格ID和JSON指针路径，获取表格中指定路径的数据。JSON指针路径使用RFC 6901标准格式（例如："/users/123"）。⚠️后续可能要修改这块的Api，改成Token鉴权，目前暂时无需传入user_id。\n\n**JSON指针路径说明：**\n- 使用 RFC 6901 标准格式，例如："/users"、"/users/123"\n- **根路径：使用空字符串 "" 可以获取整个 data**\n\n**示例：**\n- 获取根路径数据：`json_pointer_path=""`\n- 获取 /users 路径数据：`json_pointer_path="/users"`',
+    description='根据表格ID和JSON指针路径，获取表格中指定路径的数据。JSON指针路径使用RFC 6901标准格式（例如："/users/123"）。\n\n**JSON指针路径说明：**\n- 使用 RFC 6901 标准格式，例如："/users"、"/users/123"\n- **根路径：使用空字符串 "" 可以获取整个 data**\n\n**示例：**\n- 获取根路径数据：`json_pointer_path=""`\n- 获取 /users 路径数据：`json_pointer_path="/users"`',
     response_description="返回指定路径的数据",
     status_code=status.HTTP_200_OK,
 )
 def get_context_data(
-    table_id: int,
+    table: Table = Depends(get_verified_table),
     json_pointer_path: Optional[str] = Query(
         default="",
         description='JSON指针路径，使用RFC 6901标准格式。例如：/users 或 /users/123。根路径使用空字符串 "" 可以获取整个 data。如果不传此参数，默认为空字符串（根路径）',
@@ -171,7 +165,7 @@ def get_context_data(
         json_pointer_path = ""
 
     data = table_service.get_context_data(
-        table_id=table_id, json_pointer_path=json_pointer_path
+        table_id=table.id, json_pointer_path=json_pointer_path
     )
     return ApiResponse.success(data=ContextDataGet(data=data), message="数据获取成功")
 
@@ -180,17 +174,17 @@ def get_context_data(
     "/{table_id}/data",
     response_model=ApiResponse[ContextDataGet],
     summary="更新表格中的数据",
-    description='在指定表格的 data 字段中，通过 JSON 指针路径更新已存在的数据项。只能更新已存在的 key，不能创建新的 key。⚠️后续可能要修改这块的Api，改成Token鉴权，目前暂时无需传入user_id。\n\n**JSON指针路径说明：**\n- 使用 RFC 6901 标准格式，例如："/users"、"/users/123"\n- **根路径：使用空字符串 "" 可以在 data 的根路径下更新 key**\n- 路径必须指向一个已存在的字典类型节点\n\n**示例：**\n- 在根路径更新 key：`json_pointer_path: ""`\n- 在 /users 路径下更新 key：`json_pointer_path: "/users"`',
+    description='在指定表格的 data 字段中，通过 JSON 指针路径更新已存在的数据项。只能更新已存在的 key，不能创建新的 key。\n\n**JSON指针路径说明：**\n- 使用 RFC 6901 标准格式，例如："/users"、"/users/123"\n- **根路径：使用空字符串 "" 可以在 data 的根路径下更新 key**\n- 路径必须指向一个已存在的字典类型节点\n\n**示例：**\n- 在根路径更新 key：`json_pointer_path: ""`\n- 在 /users 路径下更新 key：`json_pointer_path: "/users"`',
     response_description="返回更新后的数据",
     status_code=status.HTTP_200_OK,
 )
 def update_context_data(
-    table_id: int,
-    payload: ContextDataUpdate,
+    table: Table = Depends(get_verified_table),
+    payload: ContextDataUpdate = ...,
     table_service: TableService = Depends(get_table_service),
 ):
     data = table_service.update_context_data(
-        table_id=table_id,
+        table_id=table.id,
         json_pointer_path=payload.json_pointer_path,
         elements=[{"key": e.key, "content": e.content} for e in payload.elements],
     )
@@ -201,17 +195,17 @@ def update_context_data(
     "/{table_id}/data",
     response_model=ApiResponse[ContextDataGet],
     summary="删除表格中的数据",
-    description='在指定表格的 data 字段中，通过 JSON 指针路径删除指定路径下的一个或多个 key。只能删除已存在的 key。⚠️后续可能要修改这块的Api，改成Token鉴权，目前暂时无需传入user_id。\n\n**JSON指针路径说明：**\n- 使用 RFC 6901 标准格式，例如："/users"、"/users/123"\n- **根路径：使用空字符串 "" 可以在 data 的根路径下删除 key**\n- 路径必须指向一个已存在的字典类型节点\n\n**示例：**\n- 在根路径删除 key：`json_pointer_path: ""`\n- 在 /users 路径下删除 key：`json_pointer_path: "/users"`',
+    description='在指定表格的 data 字段中，通过 JSON 指针路径删除指定路径下的一个或多个 key。只能删除已存在的 key。\n\n**JSON指针路径说明：**\n- 使用 RFC 6901 标准格式，例如："/users"、"/users/123"\n- **根路径：使用空字符串 "" 可以在 data 的根路径下删除 key**\n- 路径必须指向一个已存在的字典类型节点\n\n**示例：**\n- 在根路径删除 key：`json_pointer_path: ""`\n- 在 /users 路径下删除 key：`json_pointer_path: "/users"`',
     response_description="返回删除后的数据",
     status_code=status.HTTP_200_OK,
 )
 def delete_context_data(
-    table_id: int,
-    payload: ContextDataDelete,
+    table: Table = Depends(get_verified_table),
+    payload: ContextDataDelete = ...,
     table_service: TableService = Depends(get_table_service),
 ):
     data = table_service.delete_context_data(
-        table_id=table_id,
+        table_id=table.id,
         json_pointer_path=payload.json_pointer_path,
         keys=payload.keys,
     )

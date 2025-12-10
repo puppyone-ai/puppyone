@@ -53,6 +53,22 @@ class TableRepositoryBase(ABC):
         """更新 data 字段"""
         pass
 
+    @abstractmethod
+    def verify_table_access(self, table_id: int, user_id: str) -> bool:
+        """
+        验证用户是否有权限访问指定的表格
+        
+        通过 table.project_id 关联到 project 表，检查 project.user_id 是否等于用户ID
+        
+        Args:
+            table_id: 表格ID
+            user_id: 用户ID
+            
+        Returns:
+            如果用户有权限返回True，否则返回False
+        """
+        pass
+
 
 class TableRepositorySupabase(TableRepositoryBase):
     """基于Supabase的Table仓库实现"""
@@ -251,6 +267,36 @@ class TableRepositorySupabase(TableRepositoryBase):
         if table_response:
             return self._table_response_to_table(table_response)
         return None
+
+    def verify_table_access(self, table_id: int, user_id: str) -> bool:
+        """
+        验证用户是否有权限访问指定的表格
+        
+        通过 table.project_id 关联到 project 表，检查 project.user_id 是否等于用户ID
+        
+        Args:
+            table_id: 表格ID
+            user_id: 用户ID
+            
+        Returns:
+            如果用户有权限返回True，否则返回False
+        """
+        # 获取表格
+        table = self.get_by_id(table_id)
+        if not table:
+            return False
+        
+        # 如果表格没有关联项目，返回False（安全起见）
+        if not table.project_id:
+            return False
+        
+        # 获取项目并检查用户权限
+        project = self._supabase_repo.get_project(table.project_id)
+        if not project:
+            return False
+        
+        # 检查项目是否属于当前用户
+        return project.user_id == user_id
 
     def _table_response_to_table(self, table_response) -> Table:
         """

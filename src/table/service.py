@@ -33,6 +33,38 @@ class TableService:
     def get_by_id(self, table_id: int) -> Optional[Table]:
         return self.repo.get_by_id(table_id)
 
+    def get_by_id_with_access_check(self, table_id: int, user_id: str) -> Table:
+        """
+        获取表格并验证用户权限
+        
+        通过 table.project_id 关联到 project 表，检查 project.user_id 是否等于用户ID
+        
+        Args:
+            table_id: 表格ID
+            user_id: 用户ID
+            
+        Returns:
+            已验证的 Table 对象
+            
+        Raises:
+            NotFoundException: 如果表格不存在、没有关联项目、项目不存在或用户无权限
+        """
+        table = self.get_by_id(table_id)
+        if not table:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+        
+        has_access = self.repo.verify_table_access(table_id, user_id)
+        if not has_access:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+        
+        return table
+
+
+
     def create(
         self,
         project_id: int,
