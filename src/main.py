@@ -111,8 +111,7 @@ def create_app() -> FastAPI:
     # 注册路由
     app.include_router(table_router, prefix="/api/v1", tags=["tables"])
     app.include_router(mcp_router, prefix="/api/v1", tags=["mcp"])
-    app.include_router(s3_router, prefix="/api/v1")
-    app.include_router(etl_router)
+    app.include_router(etl_router, prefix="/api/v1", tags=["etl"])
 
     # 注册异常处理器
     app.add_exception_handler(AppException, app_exception_handler)

@@ -15,7 +15,6 @@ from src.etl.tasks.models import ETLTaskStatus
 class ETLSubmitRequest(BaseModel):
     """Request to submit an ETL task."""
 
-    user_id: int = Field(..., description="User ID")
     project_id: int = Field(..., description="Project ID")
     filename: str = Field(..., description="Source filename")
     rule_id: int = Field(..., description="Rule ID to apply")
@@ -33,7 +32,7 @@ class ETLTaskResponse(BaseModel):
     """Response for ETL task status query."""
 
     task_id: int
-    user_id: int
+    user_id: str
     project_id: int
     filename: str
     rule_id: int

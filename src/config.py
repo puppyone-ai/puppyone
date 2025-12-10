@@ -29,4 +29,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "ContextBase-256-bit-secret"
     JWT_ALGORITHM: str = "HS256"
 
+    # 测试配置
+    SKIP_AUTH: bool = False  # 是否跳过鉴权（仅用于测试环境）
+
 settings = Settings()

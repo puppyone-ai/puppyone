@@ -8,6 +8,8 @@ from src.auth.service import AuthService
 from src.auth.models import CurrentUser
 from src.supabase.client import SupabaseClient
 from src.exceptions import AuthException
+from src.config import settings
+from src.utils.logger import log_warning
 
 
 def get_auth_service() -> AuthService:
@@ -30,6 +32,8 @@ def get_current_user(
 
     这是一个 FastAPI 依赖函数，用于需要认证的路由中。
 
+    如果配置了 SKIP_AUTH=True，将跳过鉴权并返回一个模拟的测试用户。
+
     Args:
         authorization: Authorization 请求头，格式为 "Bearer <token>"
         auth_service: 认证服务实例
@@ -38,8 +42,21 @@ def get_current_user(
         CurrentUser: 当前认证的用户信息
 
     Raises:
-        HTTPException: 认证失败时抛出 401 错误
+        HTTPException: 认证失败时抛出 401 错误（仅在 SKIP_AUTH=False 时）
     """
+    # 如果启用了跳过鉴权配置，返回模拟的测试用户
+    if settings.SKIP_AUTH:
+        log_warning("SKIP_AUTH is enabled - returning mock test user")
+        return CurrentUser(
+            user_id="test-user-id",
+            email="test@example.com",
+            phone=None,
+            role="authenticated",
+            is_anonymous=False,
+            app_metadata={},
+            user_metadata={},
+        )
+
     if not authorization:
         raise HTTPException(
             status_code=401,
@@ -85,13 +102,28 @@ def get_current_user_optional(
 
     这个依赖适用于既可以公开访问，又可以提供用户专属功能的接口。
 
+    如果配置了 SKIP_AUTH=True，将始终返回模拟的测试用户。
+
     Args:
         authorization: Authorization 请求头，格式为 "Bearer <token>"
         auth_service: 认证服务实例
 
     Returns:
-        Optional[CurrentUser]: 当前用户信息，如果未认证则返回 None
+        Optional[CurrentUser]: 当前用户信息，如果未认证则返回 None（SKIP_AUTH=False 时）
     """
+    # 如果启用了跳过鉴权配置，返回模拟的测试用户
+    if settings.SKIP_AUTH:
+        log_warning("SKIP_AUTH is enabled - returning mock test user")
+        return CurrentUser(
+            user_id="test-user-id",
+            email="test@example.com",
+            phone=None,
+            role="authenticated",
+            is_anonymous=False,
+            app_metadata={},
+            user_metadata={},
+        )
+
     if not authorization:
         return None
 

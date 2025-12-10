@@ -12,11 +12,14 @@ import asyncio
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from src.etl.config import etl_config
-from src.etl.dependencies import get_etl_service, get_rule_repository
+from src.etl.dependencies import get_etl_service, get_rule_repository, get_verified_etl_task
 from src.etl.exceptions import ETLError, RuleNotFoundError
 from src.s3.exceptions import S3Error, S3FileSizeExceededError
 from src.etl.rules.repository import RuleRepository
 from src.etl.rules.schemas import RuleCreateRequest
+from src.etl.tasks.models import ETLTask
+from src.auth.models import CurrentUser
+from src.auth.dependencies import get_current_user
 from src.etl.schemas import (
     ETLFileUploadResponse,
     ETLHealthResponse,
@@ -39,13 +42,14 @@ from src.table.service import TableService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/etl", tags=["etl"])
+router = APIRouter(prefix="/etl", tags=["etl"])
 
 
 @router.post("/submit", response_model=ETLSubmitResponse)
 async def submit_etl_task(
     request: ETLSubmitRequest,
     etl_service: Annotated[ETLService, Depends(get_etl_service)],
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     """
     Submit an ETL task for processing.
@@ -53,6 +57,7 @@ async def submit_etl_task(
     Args:
         request: ETL task submission request
         etl_service: ETL service dependency
+        current_user: Current user (from token)
 
     Returns:
         ETLSubmitResponse with task ID and status
@@ -61,8 +66,9 @@ async def submit_etl_task(
         HTTPException: If rule not found or submission fails
     """
     try:
+        # 将 user_id 从 str 转换为 int（因为 ETLTask 使用 int）
         task = await etl_service.submit_etl_task(
-            user_id=request.user_id,
+            user_id=current_user.user_id,
             project_id=request.project_id,
             filename=request.filename,
             rule_id=request.rule_id,
@@ -87,15 +93,13 @@ async def submit_etl_task(
 
 @router.get("/tasks/{task_id}", response_model=ETLTaskResponse)
 async def get_etl_task_status(
-    task_id: int,
-    etl_service: Annotated[ETLService, Depends(get_etl_service)],
+    task: ETLTask = Depends(get_verified_etl_task),
 ):
     """
     Get status of an ETL task.
 
     Args:
-        task_id: Task ID to query
-        etl_service: ETL service dependency
+        task: Verified ETL task (from dependency injection)
 
     Returns:
         ETLTaskResponse with task details
@@ -103,11 +107,6 @@ async def get_etl_task_status(
     Raises:
         HTTPException: If task not found
     """
-    task = await etl_service.get_task_status(task_id)
-
-    if not task:
-        logger.warning(f"Task not found: {task_id}")
-        raise HTTPException(status_code=404, detail="Task not found")
 
     return ETLTaskResponse(
         task_id=task.task_id,
@@ -128,7 +127,7 @@ async def get_etl_task_status(
 @router.get("/tasks", response_model=ETLTaskListResponse)
 async def list_etl_tasks(
     etl_service: Annotated[ETLService, Depends(get_etl_service)],
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),
+    current_user: CurrentUser = Depends(get_current_user),
     project_id: Optional[int] = Query(None, description="Filter by project ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of tasks"),
@@ -138,12 +137,12 @@ async def list_etl_tasks(
     List ETL tasks with optional filters.
 
     Args:
-        user_id: Optional user ID filter
+        etl_service: ETL service dependency
+        current_user: Current user (from token)
         project_id: Optional project ID filter
         status: Optional status filter
         limit: Maximum number of tasks to return
         offset: Number of tasks to skip
-        etl_service: ETL service dependency
 
     Returns:
         ETLTaskListResponse with task list
@@ -156,7 +155,7 @@ async def list_etl_tasks(
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
 
     tasks = await etl_service.list_tasks(
-        user_id=user_id,
+        user_id=current_user.user_id,
         project_id=project_id,
         status=status_enum,
     )
@@ -335,19 +334,17 @@ async def delete_etl_rule(
 
 @router.post("/tasks/{task_id}/mount", response_model=ETLMountResponse)
 async def mount_etl_result(
-    task_id: int,
-    request: ETLMountRequest,
-    etl_service: Annotated[ETLService, Depends(get_etl_service)],
-    s3_service: Annotated[S3Service, Depends(get_s3_service)],
-    table_service: Annotated[TableService, Depends(get_table_service)],
+    task: ETLTask = Depends(get_verified_etl_task),
+    request: ETLMountRequest = ...,
+    s3_service: Annotated[S3Service, Depends(get_s3_service)] = None,
+    table_service: Annotated[TableService, Depends(get_table_service)] = None,
 ):
     """
     Mount ETL result JSON to a table.
 
     Args:
-        task_id: Task ID to mount
+        task: Verified ETL task (from dependency injection)
         request: Mount request with table_id and json_path
-        etl_service: ETL service dependency
         s3_service: S3 service dependency
         table_service: Table service dependency
 
@@ -358,16 +355,11 @@ async def mount_etl_result(
         HTTPException: If task not found, not completed, or mount fails
     """
     try:
-        # Get task
-        task = await etl_service.get_task_status(task_id)
-        if not task:
-            logger.warning(f"Task not found: {task_id}")
-            raise HTTPException(status_code=404, detail="Task not found")
 
         # Check task status
         if task.status != ETLTaskStatus.COMPLETED:
             logger.warning(
-                f"Task {task_id} not completed (status: {task.status.value})"
+                f"Task {task.task_id} not completed (status: {task.status.value})"
             )
             raise HTTPException(
                 status_code=400,
@@ -376,7 +368,7 @@ async def mount_etl_result(
 
         # Get result path
         if not task.result or not task.result.output_path:
-            logger.error(f"Task {task_id} has no result path")
+            logger.error(f"Task {task.task_id} has no result path")
             raise HTTPException(status_code=500, detail="Task result not found")
 
         output_path = task.result.output_path
@@ -432,7 +424,7 @@ async def mount_etl_result(
         )
 
         logger.info(
-            f"Successfully mounted task {task_id} result to table {request.table_id}"
+            f"Successfully mounted task {task.task_id} result to table {request.table_id}"
         )
 
         return ETLMountResponse(
@@ -471,9 +463,9 @@ async def get_etl_health(
 
 @router.post("/upload", response_model=ETLFileUploadResponse, status_code=201)
 async def upload_etl_file(
-    user_id: int = Form(..., description="User ID"),
     project_id: int = Form(..., description="Project ID"),
     file: UploadFile = File(..., description="File to upload"),
+    current_user: CurrentUser = Depends(get_current_user),
     s3_service: Annotated[S3Service, Depends(get_s3_service)] = None,
 ):
     """
@@ -483,9 +475,9 @@ async def upload_etl_file(
     `/users/{user_id}/raw/{project_id}/{filename}`
 
     Args:
-        user_id: User ID
         project_id: Project ID
         file: File to upload
+        current_user: Current user (from token)
         s3_service: S3 service dependency
 
     Returns:
@@ -495,9 +487,10 @@ async def upload_etl_file(
         HTTPException: If upload fails or file size exceeds limit
     """
     try:
+        # 将 user_id 从 str 转换为 int（因为 S3 key 路径使用 int）
         # Generate S3 key path
         filename = file.filename
-        s3_key = f"users/{user_id}/raw/{project_id}/{filename}"
+        s3_key = f"users/{current_user.user_id}/raw/{project_id}/{filename}"
 
         # Read file content
         content = await file.read()

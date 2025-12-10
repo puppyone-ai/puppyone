@@ -14,6 +14,7 @@ from src.etl.exceptions import (
     ETLTransformationError,
     RuleNotFoundError,
 )
+from src.exceptions import NotFoundException, ErrorCode
 from src.etl.mineru.client import MineRUClient
 from src.etl.mineru.schemas import MineRUModelVersion
 from src.etl.rules.engine import RuleEngine
@@ -242,6 +243,42 @@ class ETLService:
             ETLTask if found, None otherwise
         """
         return self.queue.get_task(task_id)
+
+    async def get_task_status_with_access_check(
+        self, task_id: int, user_id: str
+    ) -> ETLTask:
+        """
+        获取任务状态并验证用户权限
+
+        Args:
+            task_id: 任务ID
+            user_id: 用户ID（字符串类型）
+
+        Returns:
+            已验证的 ETLTask 对象
+
+        Raises:
+            NotFoundException: 如果任务不存在或用户无权限
+        """
+        task = await self.get_task_status(task_id)
+        if not task:
+            raise NotFoundException(
+                f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        # 检查用户权限（将 user_id 转换为 int 进行比较）
+        try:
+            user_id_int = int(user_id)
+            if task.user_id != user_id_int:
+                raise NotFoundException(
+                    f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
+                )
+        except (ValueError, TypeError):
+            raise NotFoundException(
+                f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        return task
 
     async def list_tasks(
         self,
