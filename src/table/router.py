@@ -1,9 +1,7 @@
 from fastapi import APIRouter, Depends, Query, status
 from typing import List, Optional
 from src.table.service import TableService
-from src.auth.service import UserService
 from src.table.dependencies import get_table_service
-from src.auth.dependencies import get_user_service
 from src.table.schemas import (
     TableCreate,
     TableUpdate,
@@ -12,8 +10,11 @@ from src.table.schemas import (
     ContextDataUpdate,
     ContextDataDelete,
     ContextDataGet,
+    ProjectWithTables,
 )
 from src.common_schemas import ApiResponse
+from src.auth.models import CurrentUser
+from src.auth.dependencies import get_current_user
 
 router = APIRouter(
     prefix="/tables",
@@ -26,24 +27,20 @@ router = APIRouter(
 
 
 @router.get(
-    "/user/{user_id}",
-    response_model=ApiResponse[List[TableOut]],
-    summary="获取用户的所有表格",
-    description="根据用户ID获取该用户下的所有表格（Table）列表。需要先验证用户是否存在。⚠️后续可能要修改这块的Api，改成Token鉴权",
-    response_description="返回用户的所有表格列表",
+    "/",
+    response_model=ApiResponse[List[ProjectWithTables]],
+    summary="获取所有项目及其下的表格",
+    description="获取当前用户的所有项目，每个项目包含其下的所有表格信息",
+    response_description="返回用户的所有项目列表，每个项目包含其下的表格列表",
     status_code=status.HTTP_200_OK,
 )
 def list_tables(
-    user_id: int,
     table_service: TableService = Depends(get_table_service),
-    user_service: UserService = Depends(get_user_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
-    # 1. 验证用户是否存在 (如果不存在会抛异常)
-    user_service.get_user(user_id)
-
-    # 2. 获取用户知识库
-    tables = table_service.get_by_user_id(user_id)
-    return ApiResponse.success(data=tables, message="表格列表获取成功")
+    # 获取用户的所有项目及其下的表格
+    projects_with_tables = table_service.get_projects_with_tables_by_user_id(current_user.user_id)
+    return ApiResponse.success(data=projects_with_tables, message="项目及表格列表获取成功")
 
 
 @router.get(

@@ -79,3 +79,16 @@ class ContextDataGet(BaseModel):
         ...,
         description="获取到的JSON数据，可以是任意类型（dict、list、str、int、float、bool等）",
     )
+
+
+class ProjectWithTables(BaseModel):
+    """包含项目信息和其下所有表格的响应模型"""
+    id: int = Field(..., description="项目ID")
+    name: Optional[str] = Field(None, description="项目名称")
+    description: Optional[str] = Field(None, description="项目描述")
+    user_id: Optional[str] = Field(None, description="用户ID")
+    created_at: datetime = Field(..., description="创建时间")
+    tables: List[TableOut] = Field(default_factory=list, description="该项目下的所有表格列表")
+
+    class Config:
+        from_attributes = True

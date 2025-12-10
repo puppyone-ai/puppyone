@@ -13,7 +13,7 @@ class ProjectBase(BaseModel):
     """项目基础模型"""
     name: str
     description: Optional[str] = None
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None
 
 
 class ProjectCreate(ProjectBase):
@@ -25,7 +25,7 @@ class ProjectUpdate(BaseModel):
     """更新项目模型"""
     name: Optional[str] = None
     description: Optional[str] = None
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None
 
 
 class ProjectResponse(ProjectBase):

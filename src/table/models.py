@@ -2,6 +2,17 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
 
+class Project(BaseModel):
+    """
+    Project表示项目，对应Supabase数据库中的project表.
+    """
+    id: int = Field(..., description="主键，表示项目的ID")
+    user_id: str = Field(..., description="用户ID")
+    name: Optional[str] = Field(None, description="项目名称")
+    description: Optional[str] = Field(None, description="项目描述")
+    created_at: datetime = Field(..., description="创建时间")
+    class Config:
+        from_attributes = True
 
 class Table(BaseModel):
     """

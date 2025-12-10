@@ -5,6 +5,7 @@ Project 数据访问层
 """
 
 from typing import List, Optional
+from xxlimited import Str
 from supabase import Client
 
 from src.supabase.exceptions import handle_supabase_error
@@ -74,7 +75,7 @@ class ProjectRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         name: Optional[str] = None,
     ) -> List[ProjectResponse]:
         """

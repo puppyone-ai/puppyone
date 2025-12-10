@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from src.table.models import Table
+from src.table.schemas import ProjectWithTables
 
 
 class TableRepositoryBase(ABC):
@@ -10,6 +11,11 @@ class TableRepositoryBase(ABC):
     @abstractmethod
     def get_by_user_id(self, user_id: int) -> List[Table]:
         """通过用户ID获取所有Tables（通过project关联）"""
+        pass
+
+    @abstractmethod
+    def get_projects_with_tables_by_user_id(self, user_id: str) -> List[ProjectWithTables]:
+        """获取用户的所有项目及其下的所有表格"""
         pass
 
     @abstractmethod
@@ -90,6 +96,53 @@ class TableRepositorySupabase(TableRepositoryBase):
         # 转换为Table模型
         return [self._table_response_to_table(table) for table in all_tables]
 
+    def get_projects_with_tables_by_user_id(self, user_id: str) -> List[ProjectWithTables]:
+        """
+        获取用户的所有项目及其下的所有表格
+
+        Args:
+            user_id: 用户ID（字符串类型）
+
+        Returns:
+            包含项目信息和其下所有表格的列表
+        """
+        from src.table.schemas import TableOut
+
+        # 获取用户的所有项目
+        projects = self._supabase_repo.get_projects(user_id=user_id)
+
+        # 为每个项目获取其下的所有表格
+        result = []
+        for project in projects:
+            # 获取该项目下的所有表格
+            tables_response = self._supabase_repo.get_tables(project_id=project.id)
+            
+            # 转换为 TableOut 模型
+            tables = [
+                TableOut(
+                    id=table.id,
+                    name=table.name,
+                    project_id=table.project_id,
+                    description=table.description,
+                    data=table.data,
+                    created_at=table.created_at,
+                )
+                for table in tables_response
+            ]
+
+            # 创建 ProjectWithTables 对象
+            project_with_tables = ProjectWithTables(
+                id=project.id,
+                name=project.name,
+                description=project.description,
+                user_id=project.user_id,
+                created_at=project.created_at,
+                tables=tables,
+            )
+            result.append(project_with_tables)
+
+        return result
+
     def get_by_id(self, table_id: int) -> Optional[Table]:
         """
         根据ID获取Table
@@ -124,7 +177,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         Returns:
             创建的Table对象
         """
-        from src.supabase.schemas import TableCreate
+        from src.supabase.tables.schemas import TableCreate
 
         table_data = TableCreate(
             name=name,
@@ -154,7 +207,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         Returns:
             更新后的Table对象，如果不存在则返回None
         """
-        from src.supabase.schemas import TableUpdate
+        from src.supabase.tables.schemas import TableUpdate
 
         update_data = TableUpdate(
             name=name,
@@ -191,7 +244,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         Returns:
             更新后的Table对象，如果不存在则返回None
         """
-        from src.supabase.schemas import TableUpdate
+        from src.supabase.tables.schemas import TableUpdate
 
         update_data = TableUpdate(data=data)
         table_response = self._supabase_repo.update_table(table_id, update_data)

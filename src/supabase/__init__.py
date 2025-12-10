@@ -6,7 +6,6 @@ Supabase 客户端模块
 模块结构:
 - client: Supabase 客户端单例
 - repository: 统一的数据访问仓库 (Facade)
-- users: User 相关的数据访问层
 - projects: Project 相关的数据访问层
 - tables: Table 相关的数据访问层
 - mcps: MCP 相关的数据访问层
@@ -30,17 +29,11 @@ from src.supabase.exceptions import (
 )
 
 # 导入子模块的 Repository (可选，供高级用户使用)
-from src.supabase.users.repository import UserRepository
 from src.supabase.projects.repository import ProjectRepository
 from src.supabase.tables.repository import TableRepository
 from src.supabase.mcps.repository import McpRepository
 
 # 从子模块导入 Schema，保持向后兼容
-from src.supabase.users.schemas import (
-    UserCreate,
-    UserUpdate,
-    UserResponse,
-)
 from src.supabase.projects.schemas import (
     ProjectCreate,
     ProjectUpdate,
@@ -64,7 +57,6 @@ __all__ = [
     "get_supabase_client",
     "get_supabase_repository",
     # 子模块的 Repository (可选使用)
-    "UserRepository",
     "ProjectRepository",
     "TableRepository",
     "McpRepository",
@@ -75,9 +67,6 @@ __all__ = [
     "SupabaseForeignKeyError",
     "handle_supabase_error",
     # Schema (向后兼容)
-    "UserCreate",
-    "UserUpdate",
-    "UserResponse",
     "ProjectCreate",
     "ProjectUpdate",
     "ProjectResponse",

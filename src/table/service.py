@@ -8,6 +8,7 @@ import json
 import jmespath
 from src.table.models import Table
 from src.table.repository import TableRepositoryBase
+from src.table.schemas import ProjectWithTables
 from src.exceptions import NotFoundException, BusinessException, ErrorCode
 
 
@@ -17,8 +18,17 @@ class TableService:
     def __init__(self, repo: TableRepositoryBase):
         self.repo = repo
 
-    def get_by_user_id(self, user_id: int) -> List[Table]:
-        return self.repo.get_by_user_id(user_id)
+    def get_projects_with_tables_by_user_id(self, user_id: str) -> List[ProjectWithTables]:
+        """
+        获取用户的所有项目及其下的所有表格
+
+        Args:
+            user_id: 用户ID（字符串类型）
+
+        Returns:
+            包含项目信息和其下所有表格的列表
+        """
+        return self.repo.get_projects_with_tables_by_user_id(user_id)
 
     def get_by_id(self, table_id: int) -> Optional[Table]:
         return self.repo.get_by_id(table_id)
