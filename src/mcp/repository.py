@@ -7,7 +7,7 @@ from src.mcp.models import McpInstance
 from src.mcp.schemas import McpToolsDefinition, ToolTypeKey
 from src.utils.logger import log_error
 from src.supabase.repository import SupabaseRepository
-from src.supabase.schemas import McpCreate, McpUpdate
+from src.supabase.mcps.schemas import McpCreate, McpUpdate
 
 
 DATA_PATH = Path("./data/mcp_instances.json")
