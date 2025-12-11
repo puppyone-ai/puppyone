@@ -44,15 +44,20 @@ async def list_mcp_instances(
     "/",
     response_model=ApiResponse[Dict[str, Any]],
     summary="创建并启动一个MCP实例并返回对应的 API_KEY和URL",
-    description="创建一个MCP实例并通过子进程方式启动一个MCP Server, 返回鉴权用的API_KEY和URL",
+    description="创建一个MCP实例并通过子进程方式启动一个MCP Server, 返回鉴权用的API_KEY和URL（包括代理URL和直接访问URL）",
 )
 async def generate_mcp_instance(
+    request: Request,
     mcp_create: McpCreate,
     mcp_instance_service: McpService = Depends(get_mcp_instance_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
     创建一个 MCP 实例并返回对应的 API key (JWT token)
+    
+    返回两个 URL：
+    1. proxy_url: 通过代理访问的 URL（推荐使用，无需记住端口）
+    2. direct_url: 直接访问 MCP Server 的 URL（需要记住端口）
     """
     # 创建 MCP 实例（使用当前用户的 user_id）
     instance = await mcp_instance_service.create_mcp_instance(
@@ -65,11 +70,22 @@ async def generate_mcp_instance(
         preview_keys=mcp_create.preview_keys,
     )
 
-    # 返回 API key (JWT token)
+    # 构建代理 URL（使用当前请求的 host 和 scheme）
+    scheme = request.url.scheme  # http 或 https
+    host = request.headers.get("host", f"localhost:{request.url.port or 8000}")
+    proxy_url = f"{scheme}://{host}/api/v1/mcp/server/{instance.api_key}"
+    
+    # 构建直接访问 URL
+    direct_url = f"http://localhost:{instance.port}/mcp"
+
+    # 返回 API key (JWT token) 和两个 URL
     return ApiResponse.success(
         data={
             "api_key": instance.api_key,
-            "url": f"http://localhost:{instance.port}/mcp",
+            "proxy_url": proxy_url,
+            "direct_url": direct_url,
+            # 为了向后兼容，保留原来的 url 字段，指向直接访问 URL
+            "url": direct_url,
         },
         message="MCP 实例创建成功",
     )
