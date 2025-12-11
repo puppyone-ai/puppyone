@@ -5,36 +5,35 @@ ETL Rules Repository Dependencies
 """
 
 import logging
-from typing import Optional
+from fastapi import Depends
 
-from src.config import settings
-from src.etl.rules.repository import RuleRepository
 from src.etl.rules.repository_supabase import RuleRepositorySupabase
-from src.etl.config import etl_config
+from src.supabase.dependencies import get_supabase_client
+from src.auth.models import CurrentUser
+from src.auth.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 
 
-def get_rule_repository(user_id: Optional[int] = None):
+def get_rule_repository(
+    current_user: CurrentUser = Depends(get_current_user),
+    supabase_client = Depends(get_supabase_client),
+) -> RuleRepositorySupabase:
     """
     获取 ETL 规则仓库实例。
     
-    根据配置返回适当的仓库实现：
-    - 如果 STORAGE_TYPE 为 "supabase"，返回 RuleRepositorySupabase
-    - 否则返回 RuleRepository (本地文件存储)
+    自动从 token 中获取 user_id 并注入到 repository 中。
     
     Args:
-        user_id: 用户 ID（用于 Supabase 实现）
+        current_user: 当前用户（从 token 中获取）
+        supabase_client: Supabase 客户端实例
     
     Returns:
         规则仓库实例
     """
-    storage_type = getattr(settings, "STORAGE_TYPE", "json")
-    
-    if storage_type == "supabase":
-        logger.debug(f"Using Supabase repository for user_id: {user_id}")
-        return RuleRepositorySupabase(user_id=user_id)
-    else:
-        logger.debug(f"Using file-based repository: {etl_config.etl_rules_dir}")
-        return RuleRepository(rules_dir=etl_config.etl_rules_dir)
+    logger.debug(f"Creating rule repository for user_id: {current_user.user_id}")
+    return RuleRepositorySupabase(
+        supabase_client=supabase_client,
+        user_id=current_user.user_id
+    )
 

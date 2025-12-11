@@ -10,7 +10,6 @@ from datetime import datetime, UTC
 from typing import Optional
 
 from src.etl.rules.schemas import ETLRule, RuleCreateRequest, RuleUpdateRequest
-from src.supabase.client import SupabaseClient
 from src.supabase.exceptions import handle_supabase_error, SupabaseNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -42,14 +41,15 @@ class RuleRepositorySupabase:
 
     TABLE_NAME = "etl_rule"
 
-    def __init__(self, user_id: Optional[int] = None):
+    def __init__(self, supabase_client, user_id: Optional[str] = None):
         """
         初始化 Supabase rule repository.
 
         Args:
+            supabase_client: Supabase client 实例
             user_id: 用户 ID，用于过滤和关联规则
         """
-        self.supabase = SupabaseClient().client
+        self.supabase = supabase_client
         self.user_id = user_id
         logger.info(f"RuleRepositorySupabase initialized for user_id: {user_id}")
 

@@ -18,12 +18,13 @@ from src.exceptions import NotFoundException, ErrorCode
 from src.etl.mineru.client import MineRUClient
 from src.etl.mineru.schemas import MineRUModelVersion
 from src.etl.rules.engine import RuleEngine
-from src.etl.rules.repository import RuleRepository
+from src.etl.rules.repository_supabase import RuleRepositorySupabase
 from src.etl.tasks.models import ETLTask, ETLTaskResult, ETLTaskStatus
 from src.etl.tasks.queue import ETLQueue
 from src.etl.tasks.repository import ETLTaskRepositoryBase
 from src.llm.service import LLMService
 from src.s3.service import S3Service
+from src.supabase.dependencies import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,6 @@ class ETLService:
         s3_service: S3Service,
         llm_service: LLMService,
         mineru_client: MineRUClient,
-        rule_repository: RuleRepository,
         task_repository: ETLTaskRepositoryBase,
     ):
         """
@@ -46,13 +46,11 @@ class ETLService:
             s3_service: S3 service for file operations
             llm_service: LLM service for transformations
             mineru_client: MineRU client for document parsing
-            rule_repository: Repository for ETL rules
             task_repository: Repository for ETL tasks
         """
         self.s3_service = s3_service
         self.llm_service = llm_service
         self.mineru_client = mineru_client
-        self.rule_repository = rule_repository
         self.task_repository = task_repository
         self.rule_engine = RuleEngine(llm_service)
 
@@ -68,6 +66,19 @@ class ETLService:
 
         logger.info("ETLService initialized")
 
+    def _get_rule_repository(self, user_id: str) -> RuleRepositorySupabase:
+        """
+        获取规则仓库实例（按用户）。
+
+        Args:
+            user_id: 用户 ID
+
+        Returns:
+            RuleRepositorySupabase 实例
+        """
+        supabase_client = get_supabase_client()
+        return RuleRepositorySupabase(supabase_client=supabase_client, user_id=user_id)
+
     async def start(self):
         """Start ETL service workers."""
         await self.queue.start_workers()
@@ -80,7 +91,7 @@ class ETLService:
 
     async def submit_etl_task(
         self,
-        user_id: int,
+        user_id: str,
         project_id: int,
         filename: str,
         rule_id: int,
@@ -89,7 +100,7 @@ class ETLService:
         Submit an ETL task to the queue.
 
         Args:
-            user_id: User ID
+            user_id: User ID (string type)
             project_id: Project ID
             filename: Source filename
             rule_id: Rule ID to apply
@@ -100,8 +111,9 @@ class ETLService:
         Raises:
             RuleNotFoundError: If rule doesn't exist
         """
-        # Validate rule exists
-        rule = self.rule_repository.get_rule(str(rule_id))
+        # Validate rule exists (using user's rule repository)
+        rule_repository = self._get_rule_repository(user_id)
+        rule = rule_repository.get_rule(str(rule_id))
         if not rule:
             logger.error(f"Rule not found: {rule_id}")
             raise RuleNotFoundError(str(rule_id))
@@ -163,7 +175,8 @@ class ETLService:
 
             # Step 3: Load ETL rule
             task.update_status(ETLTaskStatus.LLM_PROCESSING, progress=60)
-            rule = self.rule_repository.get_rule(str(task.rule_id))
+            rule_repository = self._get_rule_repository(task.user_id)
+            rule = rule_repository.get_rule(str(task.rule_id))
             if not rule:
                 raise RuleNotFoundError(str(task.rule_id))
 
@@ -266,13 +279,8 @@ class ETLService:
                 f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
             )
 
-        # 检查用户权限（将 user_id 转换为 int 进行比较）
-        try:
-            if task.user_id != user_id:
-                raise NotFoundException(
-                    f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
-                )
-        except (ValueError, TypeError):
+        # 检查用户权限
+        if task.user_id != user_id:
             raise NotFoundException(
                 f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
             )
@@ -281,7 +289,7 @@ class ETLService:
 
     async def list_tasks(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         project_id: Optional[int] = None,
         status: Optional[ETLTaskStatus] = None,
     ) -> list[ETLTask]:
@@ -289,7 +297,7 @@ class ETLService:
         List ETL tasks with optional filters.
 
         Args:
-            user_id: Filter by user ID
+            user_id: Filter by user ID (string type)
             project_id: Filter by project ID
             status: Filter by status
 

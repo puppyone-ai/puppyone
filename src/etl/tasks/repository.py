@@ -61,7 +61,7 @@ class ETLTaskRepositoryBase(ABC):
     @abstractmethod
     def list_tasks(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         project_id: Optional[int] = None,
         status: Optional[ETLTaskStatus] = None,
         limit: int = 100,
@@ -85,7 +85,7 @@ class ETLTaskRepositoryBase(ABC):
     @abstractmethod
     def count_tasks(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         project_id: Optional[int] = None,
         status: Optional[ETLTaskStatus] = None,
     ) -> int:
@@ -221,7 +221,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
     def list_tasks(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         project_id: Optional[int] = None,
         status: Optional[ETLTaskStatus] = None,
         limit: int = 100,
@@ -262,7 +262,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
     def count_tasks(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         project_id: Optional[int] = None,
         status: Optional[ETLTaskStatus] = None,
     ) -> int:

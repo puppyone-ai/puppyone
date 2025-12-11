@@ -12,10 +12,11 @@ import asyncio
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from src.etl.config import etl_config
-from src.etl.dependencies import get_etl_service, get_rule_repository, get_verified_etl_task
+from src.etl.dependencies import get_etl_service, get_verified_etl_task
 from src.etl.exceptions import ETLError, RuleNotFoundError
 from src.s3.exceptions import S3Error, S3FileSizeExceededError
-from src.etl.rules.repository import RuleRepository
+from src.etl.rules.dependencies import get_rule_repository
+from src.etl.rules.repository_supabase import RuleRepositorySupabase
 from src.etl.rules.schemas import RuleCreateRequest
 from src.etl.tasks.models import ETLTask
 from src.auth.models import CurrentUser
@@ -66,7 +67,6 @@ async def submit_etl_task(
         HTTPException: If rule not found or submission fails
     """
     try:
-        # 将 user_id 从 str 转换为 int（因为 ETLTask 使用 int）
         task = await etl_service.submit_etl_task(
             user_id=current_user.user_id,
             project_id=request.project_id,
@@ -192,17 +192,17 @@ async def list_etl_tasks(
 
 @router.get("/rules", response_model=ETLRuleListResponse)
 async def list_etl_rules(
-    rule_repository: Annotated[RuleRepository, Depends(get_rule_repository)],
+    rule_repository: Annotated[RuleRepositorySupabase, Depends(get_rule_repository)],
     limit: int = Query(50, ge=1, le=100, description="Maximum number of rules"),
     offset: int = Query(0, ge=0, description="Number of rules to skip"),
 ):
     """
-    List all ETL rules.
+    List all ETL rules for current user.
 
     Args:
         limit: Maximum number of rules to return
         offset: Number of rules to skip
-        rule_repository: Rule repository dependency
+        rule_repository: Rule repository dependency (includes user authentication)
 
     Returns:
         ETLRuleListResponse with rule list
@@ -234,14 +234,14 @@ async def list_etl_rules(
 @router.post("/rules", response_model=ETLRuleResponse, status_code=201)
 async def create_etl_rule(
     request: ETLRuleCreateRequest,
-    rule_repository: Annotated[RuleRepository, Depends(get_rule_repository)],
+    rule_repository: Annotated[RuleRepositorySupabase, Depends(get_rule_repository)],
 ):
     """
-    Create a new ETL rule.
+    Create a new ETL rule for current user.
 
     Args:
         request: Rule creation request
-        rule_repository: Rule repository dependency
+        rule_repository: Rule repository dependency (includes user authentication)
 
     Returns:
         ETLRuleResponse with created rule details
@@ -276,20 +276,20 @@ async def create_etl_rule(
 @router.get("/rules/{rule_id}", response_model=ETLRuleResponse)
 async def get_etl_rule(
     rule_id: int,
-    rule_repository: Annotated[RuleRepository, Depends(get_rule_repository)],
+    rule_repository: Annotated[RuleRepositorySupabase, Depends(get_rule_repository)],
 ):
     """
-    Get an ETL rule by ID.
+    Get an ETL rule by ID for current user.
 
     Args:
         rule_id: Rule ID to query
-        rule_repository: Rule repository dependency
+        rule_repository: Rule repository dependency (includes user authentication)
 
     Returns:
         ETLRuleResponse with rule details
 
     Raises:
-        HTTPException: If rule not found
+        HTTPException: If rule not found or access denied
     """
     rule = rule_repository.get_rule(str(rule_id))
 
@@ -311,17 +311,17 @@ async def get_etl_rule(
 @router.delete("/rules/{rule_id}", status_code=204)
 async def delete_etl_rule(
     rule_id: int,
-    rule_repository: Annotated[RuleRepository, Depends(get_rule_repository)],
+    rule_repository: Annotated[RuleRepositorySupabase, Depends(get_rule_repository)],
 ):
     """
-    Delete an ETL rule.
+    Delete an ETL rule for current user.
 
     Args:
         rule_id: Rule ID to delete
-        rule_repository: Rule repository dependency
+        rule_repository: Rule repository dependency (includes user authentication)
 
     Raises:
-        HTTPException: If rule not found
+        HTTPException: If rule not found or access denied
     """
     success = rule_repository.delete_rule(str(rule_id))
 
@@ -487,7 +487,6 @@ async def upload_etl_file(
         HTTPException: If upload fails or file size exceeds limit
     """
     try:
-        # 将 user_id 从 str 转换为 int（因为 S3 key 路径使用 int）
         # Generate S3 key path
         filename = file.filename
         s3_key = f"users/{current_user.user_id}/raw/{project_id}/{filename}"

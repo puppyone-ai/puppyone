@@ -109,26 +109,44 @@ class ETLQueue:
     ) -> list[ETLTask]:
         """
         List tasks with optional filters.
+        
+        从数据库和内存缓存中合并任务列表。
 
         Args:
-            user_id: Filter by user ID
+            user_id: Filter by user ID (string type)
             project_id: Filter by project ID
             status: Filter by status
 
         Returns:
             List of matching tasks
         """
-        # Use memory cache for fast access
-        tasks = list(self.tasks.values())
-
-        if user_id is not None:
-            tasks = [t for t in tasks if t.user_id == user_id]
-        if project_id is not None:
-            tasks = [t for t in tasks if t.project_id == project_id]
-        if status is not None:
-            tasks = [t for t in tasks if t.status == status]
-
-        return tasks
+        # 从数据库获取任务列表
+        db_tasks = self.task_repository.list_tasks(
+            user_id=user_id,
+            project_id=project_id,
+            status=status
+        )
+        
+        # 创建任务字典（以 task_id 为 key）
+        task_dict = {task.task_id: task for task in db_tasks}
+        
+        # 用内存中的任务状态覆盖数据库中的状态（内存中的状态更新）
+        for task_id, memory_task in self.tasks.items():
+            # 应用过滤条件
+            if user_id is not None and memory_task.user_id != user_id:
+                continue
+            if project_id is not None and memory_task.project_id != project_id:
+                continue
+            if status is not None and memory_task.status != status:
+                # 如果内存中的任务不匹配过滤条件，从结果中移除
+                if task_id in task_dict:
+                    del task_dict[task_id]
+                continue
+            
+            # 用内存中的任务覆盖或添加
+            task_dict[task_id] = memory_task
+        
+        return list(task_dict.values())
 
     async def start_workers(self):
         """Start worker tasks."""
