@@ -60,7 +60,6 @@ async def app_lifespan(app: FastAPI):
     except Exception as e:
         log_error(f"Failed to start ETL service: {e}")
 
-    # TODO: 初始化数据库连接、缓存等
     yield
     # 关闭时的清理逻辑
     log_info("ContextBase API 关闭中...")

@@ -6,7 +6,9 @@ from src.mcp.models import McpInstance
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
 
+from functools import lru_cache
 
+@lru_cache
 def get_mcp_instance_service() -> McpService:
     """
     mcp_instance_service的依赖注入工厂。支持通过配置项来决定存储策略

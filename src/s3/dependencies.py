@@ -2,12 +2,14 @@
 
 from fastapi import Depends, HTTPException, Path
 from typing import Annotated
+from functools import lru_cache
 
 from src.s3.service import S3Service, s3_service
 from src.s3.schemas import FileMetadata
 from src.s3.exceptions import S3Error, S3FileNotFoundError
 
 
+@lru_cache
 def get_s3_service() -> S3Service:
     """
     获取 S3 服务实例

@@ -7,15 +7,16 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from src.auth.service import AuthService
 from src.auth.models import CurrentUser
-from src.supabase.client import SupabaseClient
+from src.supabase.dependencies import get_supabase_client
 from src.exceptions import AuthException
 from src.config import settings
 from src.utils.logger import log_warning
-
+from functools import lru_cache
 # 定义 HTTPBearer 安全方案
 security = HTTPBearer(auto_error=False)
 
 
+@lru_cache
 def get_auth_service() -> AuthService:
     """
     获取认证服务实例
@@ -23,7 +24,7 @@ def get_auth_service() -> AuthService:
     Returns:
         AuthService: 认证服务实例
     """
-    supabase_client = SupabaseClient().get_client()
+    supabase_client = get_supabase_client()
     return AuthService(supabase_client)
 
 

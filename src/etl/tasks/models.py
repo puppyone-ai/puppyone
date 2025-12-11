@@ -33,7 +33,7 @@ class ETLTask(BaseModel):
     """ETL task model."""
 
     task_id: Optional[int] = Field(None, description="Unique task identifier (None for new tasks)")
-    user_id: int = Field(..., description="User ID who created the task")
+    user_id: str = Field(..., description="User ID who created the task")
     project_id: int = Field(..., description="Project ID")
     filename: str = Field(..., description="Original filename")
     rule_id: int = Field(..., description="Rule ID to apply")

@@ -103,7 +103,7 @@ class ETLQueue:
 
     def list_tasks(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         project_id: Optional[int] = None,
         status: Optional[ETLTaskStatus] = None,
     ) -> list[ETLTask]:

@@ -268,8 +268,7 @@ class ETLService:
 
         # 检查用户权限（将 user_id 转换为 int 进行比较）
         try:
-            user_id_int = int(user_id)
-            if task.user_id != user_id_int:
+            if task.user_id != user_id:
                 raise NotFoundException(
                     f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
                 )
