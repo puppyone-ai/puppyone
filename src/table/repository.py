@@ -69,6 +69,22 @@ class TableRepositoryBase(ABC):
         """
         pass
 
+    @abstractmethod
+    def verify_project_access(self, project_id: int, user_id: str) -> bool:
+        """
+        验证用户是否有权限访问指定的项目
+        
+        检查 project.user_id 是否等于用户ID
+        
+        Args:
+            project_id: 项目ID
+            user_id: 用户ID
+            
+        Returns:
+            如果用户有权限返回True，否则返回False
+        """
+        pass
+
 
 class TableRepositorySupabase(TableRepositoryBase):
     """基于Supabase的Table仓库实现"""
@@ -292,6 +308,27 @@ class TableRepositorySupabase(TableRepositoryBase):
         
         # 获取项目并检查用户权限
         project = self._supabase_repo.get_project(table.project_id)
+        if not project:
+            return False
+        
+        # 检查项目是否属于当前用户
+        return project.user_id == user_id
+
+    def verify_project_access(self, project_id: int, user_id: str) -> bool:
+        """
+        验证用户是否有权限访问指定的项目
+        
+        检查 project.user_id 是否等于用户ID
+        
+        Args:
+            project_id: 项目ID
+            user_id: 用户ID
+            
+        Returns:
+            如果用户有权限返回True，否则返回False
+        """
+        # 获取项目并检查用户权限
+        project = self._supabase_repo.get_project(project_id)
         if not project:
             return False
         

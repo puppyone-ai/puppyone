@@ -63,6 +63,19 @@ class TableService:
         
         return table
 
+    def verify_project_access(self, project_id: int, user_id: str) -> bool:
+        """
+        验证用户是否有权限访问指定的项目
+        
+        Args:
+            project_id: 项目ID
+            user_id: 用户ID
+            
+        Returns:
+            如果用户有权限返回True，否则返回False
+        """
+        return self.repo.verify_project_access(project_id, user_id)
+
 
 
     def create(

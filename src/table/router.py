@@ -16,6 +16,7 @@ from src.table.schemas import (
 from src.common_schemas import ApiResponse
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
+from src.exceptions import NotFoundException, ErrorCode
 
 router = APIRouter(
     prefix="/tables",
@@ -62,17 +63,22 @@ def get_table(
     "/",
     response_model=ApiResponse[TableOut],
     summary="创建新的表格",
-    description="创建一个新的表格（Table）。需要提供项目ID、表格名称、描述和初始数据。创建前会验证项目是否存在。⚠️后续可能要修改这块的Api，改成Token鉴权",
+    description="创建一个新的表格（Table）。需要提供项目ID、表格名称、描述和初始数据。创建前会验证项目是否存在且属于当前用户。",
     response_description="返回创建成功的表格信息",
     status_code=status.HTTP_201_CREATED,
 )
 def create_table(
     payload: TableCreate,
     table_service: TableService = Depends(get_table_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
-    # 注意：TableCreate 不再包含 user_id，需要通过 project_id 关联
-    # 如果需要验证用户权限，应该在 project 层面验证
-    # 2. 创建知识库
+    # 验证项目是否属于当前用户
+    if not table_service.verify_project_access(payload.project_id, current_user.user_id):
+        raise NotFoundException(
+            f"Project not found: {payload.project_id}", code=ErrorCode.NOT_FOUND
+        )
+    
+    # 创建表格
     table = table_service.create(
         project_id=payload.project_id,
         name=payload.name,
