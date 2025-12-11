@@ -47,3 +47,41 @@ async def get_verified_mcp_instance(
     return await mcp_instance_service.get_mcp_instance_by_api_key_with_access_check(
         api_key, current_user.user_id
     )
+
+
+async def get_mcp_instance_by_api_key(
+    api_key: str = Path(..., description="MCP实例的API Key"),
+    mcp_instance_service: McpService = Depends(get_mcp_instance_service),
+) -> McpInstance:
+    """
+    依赖注入函数：仅验证 API Key 是否有效，不检查用户权限
+    
+    用于代理路由等不需要用户登录的场景
+    
+    这个依赖只验证：
+    1. MCP 实例是否存在
+    
+    不验证：
+    - 用户登录状态
+    - 用户对实例的所有权
+    
+    Args:
+        api_key: MCP 实例的 API Key（从路径参数获取）
+        mcp_instance_service: McpService 实例（通过依赖注入）
+    
+    Returns:
+        McpInstance 对象
+    
+    Raises:
+        NotFoundException: 如果实例不存在
+    """
+    from src.exceptions import NotFoundException, ErrorCode
+    
+    instance = await mcp_instance_service.get_mcp_instance_by_api_key(api_key)
+    if not instance:
+        raise NotFoundException(
+            f"MCP instance not found: api_key={api_key[:20]}...",
+            code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+        )
+    
+    return instance

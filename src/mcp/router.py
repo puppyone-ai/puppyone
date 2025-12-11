@@ -3,15 +3,21 @@ MCP 实例管理 API
 负责 MCP 实例的创建、查询、更新和删除
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response
 from src.common_schemas import ApiResponse
 from src.mcp.schemas import McpCreate, McpStatusResponse, McpUpdate
 from src.mcp.service import McpService
-from src.mcp.dependencies import get_mcp_instance_service, get_verified_mcp_instance
+from src.mcp.dependencies import (
+    get_mcp_instance_service,
+    get_verified_mcp_instance,
+    get_mcp_instance_by_api_key,
+)
 from src.mcp.models import McpInstance
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
+from src.exceptions import NotFoundException, ErrorCode
 from typing import Dict, Any, List
+import httpx
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -155,3 +161,104 @@ async def delete_mcp_instance(
     await mcp_instance_service.delete_mcp_instance(instance.api_key)
 
     return ApiResponse.success(data=None, message="MCP 实例删除成功")
+
+
+@router.api_route(
+    "/server/{api_key}/{path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+    summary="MCP Server 代理路由",
+    description="将请求转发到对应的 MCP Server 实例。此接口不需要用户登录，只需提供有效的 api_key 即可。",
+    include_in_schema=True,
+)
+async def proxy_mcp_server(
+    request: Request,
+    path: str,
+    instance: McpInstance = Depends(get_mcp_instance_by_api_key),
+):
+    """
+    MCP Server 代理路由
+    
+    该路由充当代理，将所有请求转发到对应的 MCP Server 实例。
+    用户无需直接访问不同端口的 MCP Server，而是通过统一的代理端点访问。
+    
+    注意：此接口不需要用户登录的 JWT token，只需要在 URL 中提供有效的 api_key 即可。
+    
+    Args:
+        request: FastAPI Request 对象
+        path: 要转发的路径（从 URL 中提取）
+        instance: 验证后的 MCP 实例（通过依赖注入，只验证 api_key 是否存在）
+    
+    Returns:
+        转发的响应
+    
+    Raises:
+        NotFoundException: 如果 MCP 实例不存在或未运行
+    """
+    # 检查实例状态
+    if instance.status != 1:
+        raise NotFoundException(
+            f"MCP instance is not running (status={instance.status})",
+            code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+        )
+    
+    # 构建目标 URL
+    target_url = f"http://localhost:{instance.port}/mcp/{path}"
+    
+    # 获取请求体
+    body = await request.body()
+    
+    # 准备转发的请求头（排除某些不应转发的头）
+    headers = dict(request.headers)
+    # 移除 Host 头，让 httpx 自动设置
+    headers.pop("host", None)
+    # 移除 content-length，让 httpx 自动计算
+    headers.pop("content-length", None)
+    
+    # 准备查询参数：需要添加 token/api_key 以便 MCP Server 验证
+    # 将原始查询参数转换为字典，并添加 api_key
+    query_params = dict(request.query_params)
+    # 如果查询参数中还没有 token 或 api_key，添加它
+    if "token" not in query_params and "api_key" not in query_params:
+        query_params["token"] = instance.api_key
+    
+    # 创建 httpx 客户端并转发请求
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            # 转发请求
+            response = await client.request(
+                method=request.method,
+                url=target_url,
+                headers=headers,
+                content=body,
+                params=query_params,
+            )
+            
+            # 准备响应头
+            response_headers = dict(response.headers)
+            # 移除某些不应返回的头
+            response_headers.pop("transfer-encoding", None)
+            response_headers.pop("connection", None)
+            
+            # 返回响应
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=response_headers,
+                media_type=response.headers.get("content-type"),
+            )
+            
+        except httpx.ConnectError as e:
+            raise NotFoundException(
+                f"无法连接到 MCP Server (port={instance.port}): {str(e)}",
+                code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+            )
+        except httpx.TimeoutException as e:
+            raise NotFoundException(
+                f"MCP Server 请求超时 (port={instance.port}): {str(e)}",
+                code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+            )
+        except Exception as e:
+            raise NotFoundException(
+                f"转发请求到 MCP Server 时发生错误: {str(e)}",
+                code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+            )
