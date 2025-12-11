@@ -1,7 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ImportMenu } from './ImportMenu'
 
 export type EditorType = 'treeline-virtual' | 'monaco'
@@ -12,9 +12,10 @@ type ProjectsHeaderProps = {
   onProjectsRefresh?: () => void
   editorType?: EditorType
   onEditorTypeChange?: (type: EditorType) => void
-  // Publish (Context Level)
-  isPublishOpen?: boolean
-  onPublishOpenChange?: (open: boolean) => void
+  // Agent Dashboard (下拉菜单)
+  isAgentPanelOpen?: boolean
+  onAgentPanelOpenChange?: (open: boolean) => void
+  accessPointCount?: number  // 已配置的 Access Points 数量
   // Chat (Global Level)
   isChatOpen?: boolean
   onChatOpenChange?: (open: boolean) => void
@@ -31,12 +32,14 @@ export function ProjectsHeader({
   onProjectsRefresh, 
   editorType = 'treeline-virtual',
   onEditorTypeChange,
-  isPublishOpen = false,
-  onPublishOpenChange,
+  isAgentPanelOpen = false,
+  onAgentPanelOpenChange,
+  accessPointCount = 0,
   isChatOpen = false,
   onChatOpenChange,
 }: ProjectsHeaderProps) {
   const [showEditorMenu, setShowEditorMenu] = useState(false)
+  const agentPanelRef = useRef<HTMLDivElement>(null)
 
   const currentEditor = editorOptions.find(e => e.id === editorType) || editorOptions[0]
 
@@ -61,6 +64,28 @@ export function ProjectsHeader({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [showEditorMenu])
+  
+  // Close agent panel when clicking outside - REMOVED because it's now a sidebar
+  // useEffect(() => {
+  //   if (!isAgentPanelOpen) return
+  //   
+  //   const handleClickOutside = (event: MouseEvent) => {
+  //     const target = event.target as Node
+  //     if (agentPanelRef.current && !agentPanelRef.current.contains(target)) {
+  //       onAgentPanelOpenChange?.(false)
+  //     }
+  //   }
+  //   
+  //   // 使用 setTimeout 确保不会立即触发关闭
+  //   const timeoutId = setTimeout(() => {
+  //     document.addEventListener('mousedown', handleClickOutside)
+  //   }, 0)
+  //   
+  //   return () => {
+  //     clearTimeout(timeoutId)
+  //     document.removeEventListener('mousedown', handleClickOutside)
+  //   }
+  // }, [isAgentPanelOpen, onAgentPanelOpenChange])
 
   return (
     <header style={headerStyle}>
@@ -106,66 +131,58 @@ export function ProjectsHeader({
           />
         )}
         
-        {/* View Toggle: Human ↔ Agent */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          height: 28,
-          borderRadius: 6,
-          border: '1px solid #333',
-          background: 'rgba(0,0,0,0.3)',
-          padding: 2,
-          gap: 2,
-        }}>
-          <button 
-            onClick={() => isPublishOpen && onPublishOpenChange?.(false)}
+        {/* Agent Dashboard Button + Dropdown */}
+        <div ref={agentPanelRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => onAgentPanelOpenChange?.(!isAgentPanelOpen)}
             style={{
+              position: 'relative',
               display: 'flex',
               alignItems: 'center',
-              gap: 4,
-              height: 22,
-              padding: '0 10px',
-              borderRadius: 4,
-              border: 'none',
-              background: !isPublishOpen ? 'rgba(255,255,255,0.1)' : 'transparent',
-              color: !isPublishOpen ? '#e2e8f0' : '#6b7280',
-              fontSize: 11,
-              fontWeight: 500,
+              justifyContent: 'center',
+              height: 28,
+              padding: '0 8px',
+              gap: 6,
+              borderRadius: 6,
+              border: '1px solid',
+              borderColor: isAgentPanelOpen ? 'rgba(255, 167, 61, 0.4)' : '#333',
+              background: isAgentPanelOpen ? 'rgba(255, 167, 61, 0.15)' : 'rgba(0,0,0,0.3)',
+              color: isAgentPanelOpen ? '#FFA73D' : '#9ca3af',
               cursor: 'pointer',
               transition: 'all 0.15s',
             }}
+            title="Agent Dashboard"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
+            {/* 小狗爪子 SVG */}
+            <svg width="14" height="11" viewBox="0 0 33 26" fill="none">
+              <ellipse cx="27.9463" cy="11.0849" rx="3.45608" ry="4.0321" transform="rotate(14 27.9463 11.0849)" fill="currentColor"/>
+              <ellipse cx="11.5129" cy="4.75922" rx="3.45608" ry="4.3201" transform="rotate(-8 11.5129 4.75922)" fill="currentColor"/>
+              <ellipse cx="20.7294" cy="4.7593" rx="3.45608" ry="4.3201" transform="rotate(8 20.7294 4.7593)" fill="currentColor"/>
+              <ellipse cx="4.32887" cy="11.0848" rx="3.45608" ry="4.0321" transform="rotate(-14 4.32887 11.0848)" fill="currentColor"/>
+              <path d="M15.4431 11.5849C15.9709 11.499 16.0109 11.4991 16.5387 11.585C17.4828 11.7388 17.9619 12.099 18.7308 12.656C20.3528 13.8309 20.0223 15.0304 21.4709 16.4048C22.2387 17.1332 23.2473 17.7479 23.9376 18.547C24.7716 19.5125 25.1949 20.2337 25.3076 21.4924C25.4028 22.5548 25.3449 23.2701 24.7596 24.1701C24.1857 25.0527 23.5885 25.4635 22.5675 25.7768C21.6486 26.0587 21.0619 25.8454 20.1014 25.7768C18.4688 25.66 17.6279 24.9515 15.9912 24.9734C14.4592 24.994 13.682 25.655 12.155 25.7768C11.1951 25.8533 10.6077 26.0587 9.68884 25.7768C8.66788 25.4635 8.07066 25.0527 7.49673 24.1701C6.91143 23.2701 6.85388 22.5546 6.94907 21.4922C7.06185 20.2335 7.57596 19.5812 8.31877 18.547C9.01428 17.5786 9.71266 17.2943 10.5109 16.4048C11.7247 15.0521 11.7621 13.7142 13.251 12.656C14.0251 12.1059 14.499 11.7387 15.4431 11.5849Z" fill="currentColor"/>
             </svg>
-            You
-          </button>
-          <button 
-            onClick={() => !isPublishOpen && onPublishOpenChange?.(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              height: 22,
-              padding: '0 10px',
-              borderRadius: 4,
-              border: 'none',
-              background: isPublishOpen ? 'rgba(52, 211, 153, 0.15)' : 'transparent',
-              color: isPublishOpen ? '#34d399' : '#6b7280',
-              fontSize: 11,
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2a4 4 0 0 1 4 4c0 1.1-.9 2-2 2h-4c-1.1 0-2-.9-2-2a4 4 0 0 1 4-4z"/>
-              <path d="M12 8v8"/>
-              <path d="M8 12h8"/>
-              <circle cx="12" cy="20" r="2"/>
-            </svg>
-            Agent
+            <span style={{ fontSize: 12, fontWeight: 500 }}>Tools</span>
+            {/* 数量徽章 */}
+            {accessPointCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: -4,
+                right: -4,
+                minWidth: 14,
+                height: 14,
+                padding: '0 4px',
+                borderRadius: 7,
+                background: '#FFA73D',
+                color: '#000',
+                fontSize: 9,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                {accessPointCount}
+              </span>
+            )}
           </button>
         </div>
         

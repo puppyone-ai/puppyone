@@ -7,7 +7,8 @@ import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { McpBar } from './McpBar'
 import { ErrorConsole, type ErrorLog } from './ErrorConsole'
 import type { ProjectTableJSON } from '../lib/projectData'
-import { getProjects, getTable, updateTableData, type TableInfo } from '../lib/projectsApi'
+import { updateTableData, type TableInfo } from '../lib/projectsApi'
+import { useProjects, useTable, refreshProjects } from '../lib/hooks/useData'
 import type { EditorType } from './ProjectsHeader'
 
 // Dynamic imports for editors (from editors/ folder)
@@ -30,9 +31,19 @@ const MonacoJsonEditor = dynamic(
 )
 
 // Access Point 类型
+// MCP 工具权限类型 - 对应后端 6 种工具
+interface McpToolPermissions {
+  query?: boolean
+  preview?: boolean
+  select?: boolean
+  create?: boolean
+  update?: boolean
+  delete?: boolean
+}
+
 interface ConfiguredAccessPoint {
   path: string
-  permissions: { read: boolean; write: boolean }
+  permissions: McpToolPermissions
 }
 
 type ProjectWorkspaceViewProps = {
@@ -47,14 +58,17 @@ type ProjectWorkspaceViewProps = {
   editorType?: EditorType
   isSelectingAccessPoint?: boolean
   selectedAccessPath?: string | null
-  onAddAccessPoint?: (path: string, permissions: { read: boolean; write: boolean }) => void
+  onAddAccessPoint?: (path: string, permissions: McpToolPermissions) => void
   onCancelSelection?: () => void
   publishPanel?: React.ReactNode  // Publish Panel 作为 slot 传入
   configuredAccessPoints?: ConfiguredAccessPoint[]  // 已配置的 Access Points，用于高亮显示
   // Pending 配置 - 用于在节点旁边显示浮动配置面板
-  pendingConfig?: { path: string; permissions: { read: boolean; write: boolean } } | null
-  onPendingConfigChange?: (config: { path: string; permissions: { read: boolean; write: boolean } } | null) => void
+  pendingConfig?: { path: string; permissions: McpToolPermissions } | null
+  onPendingConfigChange?: (config: { path: string; permissions: McpToolPermissions } | null) => void
   onPendingConfigSave?: () => void
+  // 统一交互模型：右侧 Gutter 配置 Agent 权限
+  onAccessPointChange?: (path: string, permissions: McpToolPermissions) => void
+  onAccessPointRemove?: (path: string) => void
 }
 
 export function ProjectWorkspaceView({
@@ -76,31 +90,19 @@ export function ProjectWorkspaceView({
   selectedAccessPath = null,
   onAddAccessPoint,
   onCancelSelection,
+  onAccessPointChange,
+  onAccessPointRemove,
 }: ProjectWorkspaceViewProps) {
   const { session, isAuthReady } = useAuth()
   const router = useRouter()
-  const [projects, setProjects] = useState<any[]>([])
-
-  // Load project data from API
-  const loadProjects = async () => {
-    try {
-      const data = await getProjects()
-      setProjects(data)
-      // Table data will be automatically refreshed by useEffect when projects state changes
-    } catch (error) {
-      console.error('Failed to load projects:', error)
-    }
-  }
-
-  // Load projects on mount and when projectId changes
-  useEffect(() => {
-    loadProjects()
-  }, [projectId]) // Reload when projectId changes
+  
+  // 使用 SWR 获取项目列表（自动缓存、去重）
+  const { projects, refresh: refreshProjectsList } = useProjects()
 
   // Listen for projects refresh event
   useEffect(() => {
     const handleProjectsRefresh = () => {
-      loadProjects()
+      refreshProjects() // 使用 SWR 的 mutate 刷新
     }
     window.addEventListener('projects-refresh', handleProjectsRefresh)
     return () => {
@@ -133,8 +135,26 @@ export function ProjectWorkspaceView({
     }
     return project?.tables[0]?.id ?? ''
   })
-  const [tableData, setTableData] = useState<ProjectTableJSON | undefined>(undefined)
-  const [gridData, setGridData] = useState<Record<string, ProjectTableJSON | undefined>>({})
+  
+  // 计算当前激活的表 ID
+  const resolvedActiveTableId = isControlled ? activeTableIdProp ?? '' : internalActiveTableId
+  
+  // 使用 SWR 获取当前表数据（自动缓存、去重）
+  const { tableData: rawTableData, refresh: refreshTableData } = useTable(projectId, resolvedActiveTableId)
+  
+  // 处理表数据格式（保持原有逻辑）
+  const tableData = useMemo(() => {
+    if (!rawTableData?.data) return undefined
+    let displayData = rawTableData.data as any
+    // 如果数据是数组且只有一个元素，且该元素是对象（可能是文件夹结构），则提取该对象
+    if (Array.isArray(displayData) && displayData.length === 1 && typeof displayData[0] === 'object' && !Array.isArray(displayData[0])) {
+      displayData = displayData[0]
+    }
+    return displayData as ProjectTableJSON
+  }, [rawTableData])
+  
+  // 本地编辑状态（用于防抖保存）
+  const [localTableData, setLocalTableData] = useState<ProjectTableJSON | undefined>(undefined)
   const [currentTreePath, setCurrentTreePath] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -167,8 +187,12 @@ export function ProjectWorkspaceView({
     }
   }, [onProjectMissing, isAuthReady, session, project])
 
-  const resolvedActiveTableId = isControlled ? activeTableIdProp ?? '' : internalActiveTableId
   const activeTable = project?.tables.find((t: TableInfo) => t.id === resolvedActiveTableId)
+  
+  // 当 SWR 数据变化时，同步到本地状态
+  useEffect(() => {
+    setLocalTableData(tableData)
+  }, [tableData])
 
   // Add error log
   const addErrorLog = (type: ErrorLog['type'], message: string) => {
@@ -219,8 +243,8 @@ export function ProjectWorkspaceView({
   const handleTableDataChange = async (newData: any) => {
     if (!resolvedActiveTableId || !projectId) return
 
-    // 更新本地状态
-    setTableData(newData)
+    // 更新本地状态（用于即时显示）
+    setLocalTableData(newData)
 
     // 清除之前的保存定时器
     if (saveTimeoutRef.current) {
@@ -289,83 +313,15 @@ export function ProjectWorkspaceView({
     }
   }, [])
 
+  // 切换表时重置状态
   useEffect(() => {
-    let cancelled = false
-    async function run() {
-      if (!resolvedActiveTableId) {
-        setTableData(undefined)
-        setLastSaved(null)
-        return
-      }
-      // 清除之前的保存定时器
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
         saveTimeoutRef.current = null
       }
       setSaving(false)
       setLastSaved(null)
-      // 切换表时不清除错误日志，保留历史记录
-      
-      try {
-        const tableData = await getTable(projectId, resolvedActiveTableId)
-        // 如果数据是数组且只有一个元素，且该元素是对象（可能是文件夹结构），则提取该对象
-        let displayData = tableData.data as any
-        if (Array.isArray(displayData) && displayData.length === 1 && typeof displayData[0] === 'object' && !Array.isArray(displayData[0])) {
-          displayData = displayData[0]
-        }
-        if (!cancelled) setTableData(displayData)
-      } catch (error) {
-        console.error('Failed to load table data:', error)
-        if (!cancelled) {
-          setTableData(undefined)
-          // 如果表数据加载失败，可能是项目数据过时了，重新加载项目数据
-          try {
-            const updatedProjects = await getProjects()
-            if (!cancelled) setProjects(updatedProjects)
-          } catch (e) {
-            console.error('Failed to reload projects:', e)
-          }
-        }
-      }
-    }
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [projectId, resolvedActiveTableId])
-
-  useEffect(() => {
-    let cancelled = false
-    async function run() {
-      if (!project?.tables?.length) return
-      try {
-        const all: Record<string, ProjectTableJSON | undefined> = {}
-        await Promise.all(
-          project.tables.map(async (t: TableInfo) => {
-            try {
-              const tableData = await getTable(projectId, t.id)
-              // 如果数据是数组且只有一个元素，且该元素是对象（可能是文件夹结构），则提取该对象
-              let displayData = tableData.data as any
-              if (Array.isArray(displayData) && displayData.length === 1 && typeof displayData[0] === 'object' && !Array.isArray(displayData[0])) {
-                displayData = displayData[0]
-              }
-              all[t.id] = displayData
-            } catch (error) {
-              console.error(`Failed to load table ${t.id}:`, error)
-              all[t.id] = undefined
-            }
-          })
-        )
-        if (!cancelled) setGridData(all)
-      } catch (error) {
-        console.error('Failed to load tables data:', error)
-      }
-    }
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [projectId, project?.tables])
+  }, [resolvedActiveTableId])
 
   const overlayMessage = !isAuthReady ? 'Loading…' : undefined
 
@@ -455,7 +411,7 @@ export function ProjectWorkspaceView({
           <McpBar 
             projectId={projectId} 
             currentTreePath={currentTreePath}
-            onProjectsRefresh={loadProjects}
+            onProjectsRefresh={() => refreshProjects()}
             onLog={handleImportLog}
           />
         </div>
@@ -489,11 +445,11 @@ export function ProjectWorkspaceView({
                       transition: 'border-color 0.2s ease',
                     }}
                   >
-                    {tableData ? (
+                    {(localTableData ?? tableData) ? (
                       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                         {editorType === 'treeline-virtual' && (
                           <TreeLineVirtualEditor 
-                            json={tableData} 
+                            json={localTableData ?? tableData!} 
                             onPathChange={setCurrentTreePath}
                             onChange={handleTableDataChange}
                             isSelectingAccessPoint={isSelectingAccessPoint}
@@ -503,11 +459,13 @@ export function ProjectWorkspaceView({
                             pendingConfig={pendingConfig}
                             onPendingConfigChange={onPendingConfigChange}
                             onPendingConfigSave={onPendingConfigSave}
+                            onAccessPointChange={onAccessPointChange}
+                            onAccessPointRemove={onAccessPointRemove}
                           />
                         )}
                         {editorType === 'monaco' && (
                           <MonacoJsonEditor 
-                          json={tableData} 
+                          json={localTableData ?? tableData!} 
                           onPathChange={setCurrentTreePath}
                           onChange={handleTableDataChange}
                         />

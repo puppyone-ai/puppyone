@@ -151,12 +151,12 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
         onProjectsRefresh?.()
         setTableName('')
         setIsOpen(false)
-        onLog?.('success', `Synced successfully as "${finalTableName}"`)
+        onLog?.('success', `Imported successfully as "${finalTableName}"`)
       } else {
-        throw new Error(data.message || 'Sync failed')
+        throw new Error(data.message || 'Import failed')
       }
     } catch (error) {
-      onLog?.('error', `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      onLog?.('error', `Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsImporting(false)
       setImportProgress(0)
@@ -248,9 +248,11 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
         }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        <span>Sync</span>
+        <span>Import</span>
       </button>
 
       {isOpen && (
@@ -279,7 +281,7 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
             fontWeight: 500,
             color: '#9ca3af',
           }}>
-            Sync to this context
+            Import to this context
           </div>
 
           {/* Main Content */}
@@ -288,7 +290,7 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
               /* Progress View */
               <div style={{ padding: '20px 16px', textAlign: 'center' }}>
                 <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 10 }}>
-                  Syncing... {Math.round(importProgress)}%
+                  Importing... {Math.round(importProgress)}%
                 </div>
                 <div style={{
                   height: 4,

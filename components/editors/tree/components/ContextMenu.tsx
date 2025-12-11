@@ -13,6 +13,10 @@ export interface ContextMenuState {
   y: number
   path: string
   value: JsonValue
+  anchorElement?: HTMLElement | null  // 触发菜单的元素，用于滚动时更新位置
+  offsetX?: number  // 相对于 anchor 元素的 X 偏移
+  offsetY?: number  // 相对于 anchor 元素的 Y 偏移
+  align?: 'left' | 'right' // 对齐方式，right 表示菜单主体向左延伸（transform: translateX(-100%)）
 }
 
 interface ContextMenuProps {
@@ -120,6 +124,44 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null)
   const typeInfo = getTypeInfo(state.value)
   const isExpandable = state.value !== null && typeof state.value === 'object'
+  
+  // 动态位置（用于滚动时更新）
+  const [position, setPosition] = useState({ x: state.x, y: state.y })
+  
+  // 滚动监听 - 实时更新菜单位置
+  useEffect(() => {
+    if (!state.visible) return
+    
+    // 如果有 anchor element，监听滚动并更新位置
+    if (state.anchorElement) {
+      const updatePosition = () => {
+        if (!state.anchorElement) return
+        const rect = state.anchorElement.getBoundingClientRect()
+        setPosition({
+          x: rect.left + (state.offsetX ?? 0),
+          y: rect.top + (state.offsetY ?? 0),
+        })
+      }
+      
+      // 初始位置
+      updatePosition()
+      
+      const handleScroll = () => {
+        requestAnimationFrame(updatePosition)
+      }
+      
+      window.addEventListener('scroll', handleScroll, true)
+      window.addEventListener('resize', handleScroll)
+      
+      return () => {
+        window.removeEventListener('scroll', handleScroll, true)
+        window.removeEventListener('resize', handleScroll)
+      }
+    } else {
+      // 没有 anchor element，使用传入的静态位置
+      setPosition({ x: state.x, y: state.y })
+    }
+  }, [state.visible, state.anchorElement, state.x, state.y, state.offsetX, state.offsetY])
 
   // 延迟显示/隐藏子菜单
   const handleTurnIntoHover = useCallback((show: boolean) => {
@@ -209,7 +251,15 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
   )
 
   return (
-    <div ref={menuRef} style={{ ...styles.contextMenu, left: state.x, top: state.y }}>
+    <div 
+      ref={menuRef} 
+      style={{ 
+        ...styles.contextMenu, 
+        left: position.x, 
+        top: position.y,
+        transform: state.align === 'right' ? 'translateX(-100%)' : 'none',
+      }}
+    >
       {/* 添加新元素 */}
       {isExpandable && (
         <>

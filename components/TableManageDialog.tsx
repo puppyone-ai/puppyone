@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import type { ProjectInfo } from '../lib/projectsApi'
-import { createTable, updateTable, deleteTable, getProjects } from '../lib/projectsApi'
+import { createTable, updateTable, deleteTable } from '../lib/projectsApi'
+import { refreshProjects } from '../lib/hooks/useData'
 
 type TableManageDialogProps = {
   projectId: string
   tableId: string | null
   projects: ProjectInfo[]
   onClose: () => void
-  onProjectsChange?: (projects: ProjectInfo[]) => void
+  onProjectsChange?: (projects: ProjectInfo[]) => void  // 保留接口兼容
   deleteMode?: boolean
 }
 
@@ -18,7 +19,6 @@ export function TableManageDialog({
   tableId,
   projects,
   onClose,
-  onProjectsChange,
   deleteMode = false,
 }: TableManageDialogProps) {
   const isEdit = tableId !== null
@@ -46,9 +46,8 @@ export function TableManageDialog({
       } else {
         await createTable(projectId, name.trim(), [])
       }
-      // 重新加载项目列表
-      const updatedProjects = await getProjects()
-      onProjectsChange?.(updatedProjects)
+      // 使用 SWR 刷新项目列表
+      await refreshProjects()
       onClose()
     } catch (error) {
       console.error('Failed to save table:', error)
@@ -64,9 +63,8 @@ export function TableManageDialog({
     try {
       setLoading(true)
       await deleteTable(projectId, tableId)
-      // 重新加载项目列表
-      const updatedProjects = await getProjects()
-      onProjectsChange?.(updatedProjects)
+      // 使用 SWR 刷新项目列表
+      await refreshProjects()
       onClose()
     } catch (error) {
       console.error('Failed to delete table:', error)

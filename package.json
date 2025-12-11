@@ -23,6 +23,7 @@
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.0",
+    "swr": "^2.3.7",
     "vanilla-jsoneditor": "^3.10.0"
   },
   "devDependencies": {

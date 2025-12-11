@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../supabase/SupabaseAuthProvider'
-import { getProjects, type ProjectInfo } from '../../../lib/projectsApi'
+import { type ProjectInfo } from '../../../lib/projectsApi'
+import { useProjects, refreshProjects } from '../../../lib/hooks/useData'
 import { ProjectWorkspaceView } from '../../../components/ProjectWorkspaceView'
 import { ProjectsSidebar } from '../../../components/ProjectsSidebar'
 import { ProjectsHeader, type EditorType } from '../../../components/ProjectsHeader'
@@ -11,6 +12,13 @@ import { McpContentView } from '../../../components/McpContentView'
 import { EtlContentView } from '../../../components/EtlContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
 import { ImportMenu } from '../../../components/ImportMenu'
+import { 
+  type McpToolPermissions, 
+  type McpToolType,
+  createMcpInstance, 
+  permissionsToRegisterTools,
+  TOOL_INFO 
+} from '../../../lib/mcpApi'
 
 type ActiveView = 'projects' | 'mcp' | 'etl' | 'test' | 'logs' | 'settings'
 
@@ -22,14 +30,30 @@ const utilityNav = [
   { id: 'settings', label: 'Settings', path: 'settings', isAvailable: false },
 ]
 
+// Access Point 类型定义
+interface AccessPoint {
+  id: string
+  path: string
+  permissions: McpToolPermissions
+}
+
+// 已发布的 MCP 实例信息
+interface PublishedMcpInstance {
+  apiKey: string
+  url: string
+  publishedAt: Date
+}
+
 export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: string[] }> }) {
   // Unwrap params Promise with React.use()
   const { slug } = use(params)
   
   const router = useRouter()
   const { session } = useAuth()
-  const [projects, setProjects] = useState<ProjectInfo[]>([])
-  const [loading, setLoading] = useState(true)
+  
+  // 使用 SWR 获取项目列表（自动缓存、去重）
+  const { projects, isLoading: loading } = useProjects()
+  
   const [expandedBaseIds, setExpandedBaseIds] = useState<Set<string>>(new Set())
   const [currentTreePath, setCurrentTreePath] = useState<string | null>(null)
   const [activeView, setActiveView] = useState<ActiveView>('projects')
@@ -41,25 +65,18 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   const [sidebarWidth, setSidebarWidth] = useState(240)
   const [chatWidth, setChatWidth] = useState(340)
   
-  // Project State - Publish is project-specific
-  const [isPublishOpen, setIsPublishOpen] = useState(false)
+  // Agent Dashboard 抽屉状态
+  const [isAgentPanelOpen, setIsAgentPanelOpen] = useState(false)
   
-  // Publish Mode States
-  const [isSelectingAccessPoint, setIsSelectingAccessPoint] = useState(false)
-  const [accessPoints, setAccessPoints] = useState<Array<{
-    id: string
-    path: string
-    permissions: { read: boolean; write: boolean }
-    capabilities?: Record<string, boolean>
-  }>>([])
-  // Pending configuration - when user selects a node in tree
-  const [pendingAccessPoint, setPendingAccessPoint] = useState<{
-    path: string
-    permissions: { read: boolean; write: boolean }
-    capabilities?: Record<string, boolean>
-  } | null>(null)
+  // Access Points 状态 - 用于存储已配置的 MCP 工具权限
+  const [accessPoints, setAccessPoints] = useState<AccessPoint[]>([])
   // 展开的 access point id
   const [expandedAccessPointId, setExpandedAccessPointId] = useState<string | null>(null)
+  
+  // 已发布的 MCP 实例
+  const [publishedInstance, setPublishedInstance] = useState<PublishedMcpInstance | null>(null)
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
 
   // Extract projectId and tableId from slug
   const [projectId, tableId] = slug || []
@@ -77,27 +94,10 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     }
   }, [projectId, tableId])
 
-  // Load project list from API
-  const loadProjects = async () => {
-    try {
-      setLoading(true)
-      const data = await getProjects()
-      setProjects(data)
-    } catch (error) {
-      console.error('Failed to load projects:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadProjects()
-  }, [])
-
   // Listen for projects refresh event
   useEffect(() => {
     const handleProjectsRefresh = () => {
-      loadProjects()
+      refreshProjects() // 使用 SWR 的 mutate 刷新
     }
     window.addEventListener('projects-refresh', handleProjectsRefresh)
     return () => {
@@ -189,6 +189,57 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     return segments
   }, [activeBase, activeTable])
 
+  // 发布 MCP 实例
+  const handlePublishMcp = async () => {
+    if (!activeBaseId || !activeTableId || accessPoints.length === 0) return
+    
+    setIsPublishing(true)
+    setPublishError(null)
+    
+    try {
+      // 合并所有 access points 的权限，选择第一个有效的 json_pointer
+      // 注意：后端目前只支持单个 json_pointer，如果有多个 access points 需要创建多个实例
+      // 这里简化处理，只取第一个 access point
+      const firstAp = accessPoints[0]
+      const allTools = permissionsToRegisterTools(
+        accessPoints.reduce((acc, ap) => {
+          Object.entries(ap.permissions).forEach(([key, value]) => {
+            if (value) acc[key as McpToolType] = true
+          })
+          return acc
+        }, {} as McpToolPermissions)
+      )
+      
+      const response = await createMcpInstance({
+        user_id: session?.user?.id || '', // 从 session 获取用户 UUID
+        project_id: Number(activeBaseId),
+        table_id: Number(activeTableId),
+        json_pointer: firstAp.path || '',
+        register_tools: allTools,
+      })
+      
+      setPublishedInstance({
+        apiKey: response.api_key,
+        url: response.url,
+        publishedAt: new Date(),
+      })
+    } catch (error: any) {
+      console.error('Failed to publish MCP instance:', error)
+      setPublishError(error.message || 'Failed to publish MCP instance')
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+  
+  // 复制到剪贴板
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
   return (
     <main
       style={{
@@ -218,7 +269,6 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
         utilityNav={utilityNav}
         onUtilityNavClick={handleUtilityNavClick}
         userInitial={userInitial}
-        onProjectsChange={setProjects}
         loading={loading}
         isCollapsed={isNavCollapsed}
         onCollapsedChange={setIsNavCollapsed}
@@ -232,17 +282,12 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
             <ProjectsHeader
               pathSegments={pathSegments}
               projectId={activeBase?.id ?? null}
-              onProjectsRefresh={loadProjects}
+              onProjectsRefresh={() => refreshProjects()}
               editorType={editorType}
               onEditorTypeChange={setEditorType}
-              isPublishOpen={isPublishOpen}
-              onPublishOpenChange={(open) => {
-                setIsPublishOpen(open)
-                // 不再自动进入选取模式，用户需要手动点击 "Select Node" 按钮
-                if (!open) {
-                  setIsSelectingAccessPoint(false)
-                }
-              }}
+              isAgentPanelOpen={isAgentPanelOpen}
+              onAgentPanelOpenChange={setIsAgentPanelOpen}
+              accessPointCount={accessPoints.length}
               isChatOpen={isChatOpen}
               onChatOpenChange={setIsChatOpen}
             />
@@ -259,509 +304,40 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                     showHeaderBar={false}
                     showBackButton={false}
                     editorType={editorType}
-                    isSelectingAccessPoint={isSelectingAccessPoint}
-                    selectedAccessPath={pendingAccessPoint?.path ?? null}
-                    onAddAccessPoint={(path) => {
-                      setPendingAccessPoint({
-                        path,
-                        permissions: { read: true, write: false },
-                        capabilities: { get_all: true }
-                      })
-                    }}
-                    onCancelSelection={() => {
-                      setIsSelectingAccessPoint(false)
-                      setPendingAccessPoint(null)
-                    }}
-                    // 当 Publish Panel 打开时，传入已配置的 Access Points 用于高亮显示
-                    configuredAccessPoints={isPublishOpen ? accessPoints.map(ap => ({
+                    // 已配置的 Access Points，用于右侧 Gutter 显示徽章
+                    configuredAccessPoints={accessPoints.map(ap => ({
                       path: ap.path,
                       permissions: ap.permissions
-                    })) : []}
-                    // Pending 配置 - 用于在节点旁边显示浮动配置面板
-                    pendingConfig={pendingAccessPoint ? {
-                      path: pendingAccessPoint.path,
-                      permissions: pendingAccessPoint.permissions
-                    } : null}
-                    onPendingConfigChange={(config) => {
-                      if (config) {
-                        setPendingAccessPoint({
-                          path: config.path,
-                          permissions: config.permissions,
-                          capabilities: { 
-                            get_all: config.permissions.read, 
-                            update: config.permissions.write 
+                    }))}
+                    // 统一交互模型：右侧 Gutter 配置
+                    onAccessPointChange={(path, permissions) => {
+                      // 如果该 path 已存在，更新权限；否则添加新的
+                      setAccessPoints(prev => {
+                        const existing = prev.find(ap => ap.path === path)
+                        const hasAnyPermission = Object.values(permissions).some(Boolean)
+                        if (existing) {
+                          // 如果没有任何权限了，则移除
+                          if (!hasAnyPermission) {
+                            return prev.filter(ap => ap.path !== path)
                           }
-                        })
-                      } else {
-                        setPendingAccessPoint(null)
-                        setIsSelectingAccessPoint(false)
-                      }
+                          return prev.map(ap => 
+                            ap.path === path 
+                              ? { ...ap, permissions }
+                              : ap
+                          )
+                        } else if (hasAnyPermission) {
+                          return [...prev, {
+                            id: `ap-${Date.now()}`,
+                            path,
+                            permissions,
+                          }]
+                        }
+                        return prev
+                      })
                     }}
-                    onPendingConfigSave={() => {
-                      if (pendingAccessPoint && (pendingAccessPoint.permissions.read || pendingAccessPoint.permissions.write)) {
-                        setAccessPoints(prev => [...prev, {
-                          id: `ap-${Date.now()}`,
-                          path: pendingAccessPoint.path,
-                          permissions: pendingAccessPoint.permissions,
-                          capabilities: pendingAccessPoint.capabilities
-                        }])
-                        setPendingAccessPoint(null)
-                        setIsSelectingAccessPoint(false)
-                      }
+                    onAccessPointRemove={(path) => {
+                      setAccessPoints(prev => prev.filter(ap => ap.path !== path))
                     }}
-                    publishPanel={isPublishOpen ? (
-                <div style={{
-                  width: 260,
-                  margin: 0,
-                  borderRadius: 10,
-                  background: 'rgba(12,12,14,0.75)',
-                  border: '1px solid rgba(45,45,50,0.45)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-                  overflow: 'hidden',
-                  flexShrink: 0,
-                  height: '100%',
-                  // Selection Mode: 轻微"退后"，让用户视线转向 JSON Editor
-                  opacity: isSelectingAccessPoint ? 0.6 : 1,
-                  transition: 'opacity 0.3s ease',
-                }}>
-                  {/* Publish Panel Header - Now shows Context Title & Count */}
-                  <div style={{
-                    height: 36,
-                    padding: '0 14px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderBottom: '1px solid rgba(45,45,50,0.45)',
-                    flexShrink: 0,
-                    background: 'rgba(255,255,255,0.02)',
-                  }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ 
-                          fontSize: 11, 
-                          fontWeight: 600, 
-                          color: '#e2e8f0',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                        }}>
-                          Agent View
-                        </span>
-                        {accessPoints.length > 0 && (
-                          <span style={{ 
-                            background: 'rgba(255,255,255,0.1)', 
-                            padding: '1px 5px', 
-                            borderRadius: 3, 
-                            color: '#9ca3af',
-                            fontSize: 9,
-                            fontWeight: 500,
-                          }}>
-                            {accessPoints.length}
-                          </span>
-                        )}
-                      </div>
-                      <span style={{ 
-                        fontSize: 9, 
-                        color: '#525252',
-                        letterSpacing: '0.3px',
-                      }}>
-                        What agents can see
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Publish Content */}
-                  <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-                    {/* ========== Section 1: Access Management (Primary Focus) ========== */}
-                    <div style={{ 
-                      flex: 1, 
-                      padding: 12, 
-                      display: 'flex', 
-                      flexDirection: 'column',
-                      overflowY: 'auto', // Enable scrolling for the whole section
-                      minHeight: 0,
-                    }}>
-                      
-                      {/* Rules List - Natural height */}
-                      <div style={{ marginBottom: 12 }}>
-                        {accessPoints.length === 0 && !pendingAccessPoint && !isSelectingAccessPoint ? (
-                          <div style={{ 
-                            padding: '20px 12px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            textAlign: 'center',
-                            gap: 8,
-                          }}>
-                            <div style={{ 
-                              fontSize: 12, 
-                              color: '#6b7280',
-                            }}>
-                              Agent can't see anything yet
-                            </div>
-                            <div style={{ 
-                              fontSize: 11, 
-                              color: '#525252',
-                            }}>
-                              Select data from the left to share
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {accessPoints.map((ap) => {
-                              // 从 path 提取最后一级作为 title
-                              const pathParts = ap.path.split('/').filter(Boolean)
-                              const title = pathParts[pathParts.length - 1] || ap.path
-                              const isExpanded = expandedAccessPointId === ap.id
-                              
-                              return (
-                                <div key={ap.id} style={{
-                                  background: 'rgba(255,255,255,0.02)',
-                                  border: '1px solid',
-                                  borderColor: isExpanded ? 'rgba(52, 211, 153, 0.3)' : 'rgba(45,45,50,0.3)',
-                                  borderRadius: 5,
-                                  overflow: 'hidden',
-                                  transition: 'all 0.15s',
-                                }}>
-                                  {/* Header - 可点击展开/收起 */}
-                                  <div 
-                                    onClick={() => setExpandedAccessPointId(isExpanded ? null : ap.id)}
-                                    style={{
-                                      padding: '8px 10px',
-                                      cursor: 'pointer',
-                                      transition: 'background 0.15s',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background = 'transparent'
-                                    }}
-                                  >
-                                    {/* 第一行：Title + 权限 + 展开箭头 */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                      <span style={{ 
-                                        flex: 1, 
-                                        fontSize: 12, 
-                                        fontWeight: 500,
-                                        color: '#e2e8f0', 
-                                        overflow: 'hidden', 
-                                        textOverflow: 'ellipsis', 
-                                        whiteSpace: 'nowrap' 
-                                      }}>
-                                        {title}
-                                      </span>
-                                      <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-                                        {ap.permissions.read && <span style={{ padding: '2px 6px', background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', fontSize: 9, fontWeight: 600, borderRadius: 3 }}>R</span>}
-                                        {ap.permissions.write && <span style={{ padding: '2px 6px', background: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24', fontSize: 9, fontWeight: 600, borderRadius: 3 }}>W</span>}
-                                      </div>
-                                      <svg 
-                                        width="12" height="12" 
-                                        viewBox="0 0 24 24" 
-                                        fill="none" 
-                                        stroke="#525252" 
-                                        strokeWidth="2"
-                                        style={{ 
-                                          flexShrink: 0,
-                                          transition: 'transform 0.15s',
-                                          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                                        }}
-                                      >
-                                        <polyline points="6 9 12 15 18 9" />
-                                      </svg>
-                                    </div>
-                                    {/* 第二行：Path 作为 description，弱化 */}
-                                    <div style={{ 
-                                      fontSize: 10, 
-                                      color: '#525252', 
-                                      overflow: 'hidden', 
-                                      textOverflow: 'ellipsis', 
-                                      whiteSpace: 'nowrap',
-                                      fontFamily: 'monospace',
-                                    }}>
-                                      {ap.path}
-                                    </div>
-                                  </div>
-                                  
-                                  {/* 展开的内容 - Checkbox 样式 */}
-                                  {isExpanded && (
-                                    <div style={{
-                                      borderTop: '1px solid rgba(45,45,50,0.3)',
-                                    }}>
-                                      {/* Checkbox 列表 */}
-                                      <div style={{ padding: '6px 0' }}>
-                                        {/* Read 选项 */}
-                                        <label 
-                                          style={{ 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            gap: 10,
-                                            padding: '6px 10px',
-                                            cursor: 'pointer',
-                                            transition: 'background 0.1s',
-                                          }}
-                                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <div 
-                                            onClick={() => {
-                                              setAccessPoints(prev => prev.map(p => 
-                                                p.id === ap.id 
-                                                  ? { ...p, permissions: { ...p.permissions, read: !p.permissions.read } }
-                                                  : p
-                                              ))
-                                            }}
-                                            style={{
-                                              width: 14,
-                                              height: 14,
-                                              borderRadius: 3,
-                                              border: '1px solid',
-                                              borderColor: ap.permissions.read ? '#34d399' : '#404040',
-                                              background: ap.permissions.read ? '#34d399' : 'transparent',
-                                              display: 'flex',
-                                              alignItems: 'center',
-                                              justifyContent: 'center',
-                                              transition: 'all 0.15s',
-                                              flexShrink: 0,
-                                            }}
-                                          >
-                                            {ap.permissions.read && (
-                                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="20 6 9 17 4 12" />
-                                              </svg>
-                                            )}
-                                          </div>
-                                          <span style={{ fontSize: 11, color: '#e2e8f0' }}>Read</span>
-                                        </label>
-                                        
-                                        {/* Write 选项 */}
-                                        <label 
-                                          style={{ 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            gap: 10,
-                                            padding: '6px 10px',
-                                            cursor: 'pointer',
-                                            transition: 'background 0.1s',
-                                          }}
-                                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <div 
-                                            onClick={() => {
-                                              setAccessPoints(prev => prev.map(p => 
-                                                p.id === ap.id 
-                                                  ? { ...p, permissions: { ...p.permissions, write: !p.permissions.write } }
-                                                  : p
-                                              ))
-                                            }}
-                                            style={{
-                                              width: 14,
-                                              height: 14,
-                                              borderRadius: 3,
-                                              border: '1px solid',
-                                              borderColor: ap.permissions.write ? '#fbbf24' : '#404040',
-                                              background: ap.permissions.write ? '#fbbf24' : 'transparent',
-                                              display: 'flex',
-                                              alignItems: 'center',
-                                              justifyContent: 'center',
-                                              transition: 'all 0.15s',
-                                              flexShrink: 0,
-                                            }}
-                                          >
-                                            {ap.permissions.write && (
-                                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="20 6 9 17 4 12" />
-                                              </svg>
-                                            )}
-                                          </div>
-                                          <span style={{ fontSize: 11, color: '#e2e8f0' }}>Write</span>
-                                        </label>
-                                      </div>
-                                      
-                                      {/* 删除按钮 */}
-                                      <div style={{ 
-                                        padding: '8px 10px',
-                                        borderTop: '1px solid rgba(45,45,50,0.3)',
-                                      }}>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            setAccessPoints(prev => prev.filter(p => p.id !== ap.id))
-                                            setExpandedAccessPointId(null)
-                                          }}
-                                          style={{
-                                            width: '100%',
-                                            height: 28,
-                                            fontSize: 11,
-                                            fontWeight: 500,
-                                            background: 'transparent',
-                                            border: '1px solid rgba(239, 68, 68, 0.25)',
-                                            borderRadius: 4,
-                                            color: '#ef4444',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.15s',
-                                            opacity: 0.8,
-                                          }}
-                                          onMouseEnter={(e) => {
-                                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
-                                            e.currentTarget.style.opacity = '1'
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            e.currentTarget.style.background = 'transparent'
-                                            e.currentTarget.style.opacity = '0.8'
-                                          }}
-                                        >
-                                          Remove
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Add Rule Button / Cancel Button */}
-                      {!pendingAccessPoint && (
-                        <button
-                          onClick={() => {
-                            if (isSelectingAccessPoint) {
-                              // Cancel: 退出 Selection Mode
-                              setIsSelectingAccessPoint(false)
-                            } else {
-                              // 进入 Selection Mode
-                              setIsSelectingAccessPoint(true)
-                            }
-                          }}
-                          style={{
-                            width: '100%',
-                            height: 34,
-                            flexShrink: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                            background: isSelectingAccessPoint ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
-                            border: isSelectingAccessPoint ? '1px solid rgba(239, 68, 68, 0.3)' : '1px dashed rgba(255,255,255,0.15)',
-                            borderRadius: 6,
-                            color: isSelectingAccessPoint ? '#ef4444' : '#6b7280',
-                            fontSize: 11,
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s',
-                          }}
-                          onMouseEnter={(e) => {
-                            if (isSelectingAccessPoint) {
-                              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)'
-                              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'
-                            } else {
-                              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'
-                              e.currentTarget.style.color = '#9ca3af'
-                              e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (isSelectingAccessPoint) {
-                              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'
-                              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'
-                              e.currentTarget.style.color = '#ef4444'
-                            } else {
-                              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'
-                              e.currentTarget.style.color = '#6b7280'
-                              e.currentTarget.style.background = 'transparent'
-                            }
-                          }}
-                        >
-                          {isSelectingAccessPoint ? (
-                            <>
-                              {/* X icon for cancel */}
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <path d="M18 6L6 18M6 6l12 12" />
-                              </svg>
-                              Cancel
-                            </>
-                          ) : (
-                            <>
-                              {/* Simple plus icon */}
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <path d="M12 5v14M5 12h14" />
-                              </svg>
-                              Select & Share
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                    
-                    {/* ========== Section 2: Connection Details (Bottom/Secondary) ========== */}
-                    <div style={{ 
-                      padding: 12, 
-                      borderTop: '1px solid rgba(45,45,50,0.4)',
-                      background: 'rgba(0,0,0,0.2)',
-                      flexShrink: 0,
-                    }}>
-                      <div style={{ 
-                        fontSize: 10, 
-                        color: '#404040', 
-                        marginBottom: 8,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.8px',
-                        fontWeight: 600,
-                      }}>
-                        Agent Connection
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {/* API */}
-                        <div style={{ 
-                          padding: '6px 8px',
-                          background: 'rgba(255,255,255,0.01)',
-                          borderRadius: 4,
-                          border: '1px solid rgba(45,45,50,0.2)',
-                          opacity: 0.7,
-                          transition: 'opacity 0.2s',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: '#6b7280' }}>HTTP API</span>
-                            <button onClick={() => {
-                              if (activeBase?.id) navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${activeBase.id}`);
-                            }} style={{ fontSize: 9, color: '#34d399', background: 'none', border: 'none', cursor: 'pointer' }}>COPY</button>
-                          </div>
-                          <div style={{ fontSize: 9, color: '#404040', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>/api/v1/projects/...</div>
-                        </div>
-                        
-                        {/* MCP */}
-                        <div style={{ 
-                          padding: '6px 8px',
-                          background: 'rgba(255,255,255,0.01)',
-                          borderRadius: 4,
-                          border: '1px solid rgba(45,45,50,0.2)',
-                          opacity: 0.7,
-                          transition: 'opacity 0.2s',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: '#6b7280' }}>MCP</span>
-                            <span style={{ fontSize: 9, color: '#60a5fa' }}>READY</span>
-                          </div>
-                          <div style={{ fontSize: 9, color: '#404040' }}>Standard Protocol</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                    ) : null}
                   />
                 ) : (
                   <div
@@ -778,6 +354,413 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                   </div>
                 )}
               </div>
+
+              {/* Agent Sidebar - Right side of Editor */}
+              {isAgentPanelOpen && (
+                <div style={{
+                  width: 268, // 260 + 8 左侧间距补偿
+                  display: 'flex',
+                  flexDirection: 'column',
+                  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+                  padding: 8, // 四周都有 8px 间距，呈现卡片感
+                }}>
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    background: '#1a1a1e',
+                    borderRadius: 8,
+                    border: '1px solid #333',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                    overflow: 'hidden',
+                  }}>
+                    {/* Header - 更低调的样式 */}
+                    <div style={{
+                      padding: '8px 12px',
+                      borderBottom: '1px solid #2a2a2e',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      flexShrink: 0,
+                    }}>
+                    <svg width="12" height="10" viewBox="0 0 33 26" fill="none" style={{ color: '#6b7280' }}>
+                      <ellipse cx="27.9463" cy="11.0849" rx="3.45608" ry="4.0321" transform="rotate(14 27.9463 11.0849)" fill="currentColor"/>
+                      <ellipse cx="11.5129" cy="4.75922" rx="3.45608" ry="4.3201" transform="rotate(-8 11.5129 4.75922)" fill="currentColor"/>
+                      <ellipse cx="20.7294" cy="4.7593" rx="3.45608" ry="4.3201" transform="rotate(8 20.7294 4.7593)" fill="currentColor"/>
+                      <ellipse cx="4.32887" cy="11.0848" rx="3.45608" ry="4.0321" transform="rotate(-14 4.32887 11.0848)" fill="currentColor"/>
+                      <path d="M15.4431 11.5849C15.9709 11.499 16.0109 11.4991 16.5387 11.585C17.4828 11.7388 17.9619 12.099 18.7308 12.656C20.3528 13.8309 20.0223 15.0304 21.4709 16.4048C22.2387 17.1332 23.2473 17.7479 23.9376 18.547C24.7716 19.5125 25.1949 20.2337 25.3076 21.4924C25.4028 22.5548 25.3449 23.2701 24.7596 24.1701C24.1857 25.0527 23.5885 25.4635 22.5675 25.7768C21.6486 26.0587 21.0619 25.8454 20.1014 25.7768C18.4688 25.66 17.6279 24.9515 15.9912 24.9734C14.4592 24.994 13.682 25.655 12.155 25.7768C11.1951 25.8533 10.6077 26.0587 9.68884 25.7768C8.66788 25.4635 8.07066 25.0527 7.49673 24.1701C6.91143 23.2701 6.85388 22.5546 6.94907 21.4922C7.06185 20.2335 7.57596 19.5812 8.31877 18.547C9.01428 17.5786 9.71266 17.2943 10.5109 16.4048C11.7247 15.0521 11.7621 13.7142 13.251 12.656C14.0251 12.1059 14.499 11.7387 15.4431 11.5849Z" fill="currentColor"/>
+                    </svg>
+                    <span style={{ fontSize: 11, fontWeight: 500, color: '#6b7280' }}>Agent Tools</span>
+                    {(() => {
+                      const toolIds: McpToolType[] = ['query', 'preview', 'select', 'create', 'update', 'delete']
+                      const count = toolIds.filter(id => accessPoints.some(ap => ap.permissions[id])).length
+                      return count > 0 && (
+                        <span style={{ 
+                          marginLeft: 'auto',
+                          fontSize: 10,
+                          color: '#525252',
+                        }}>{count} active</span>
+                      )
+                    })()}
+                  </div>
+                  
+                  {/* Content */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+                    {accessPoints.length === 0 ? (
+                      <div style={{ 
+                        padding: '16px 8px',
+                        textAlign: 'center',
+                        color: '#525252',
+                        fontSize: 11,
+                      }}>
+                        <div style={{ marginBottom: 4 }}>No tools configured</div>
+                        <div style={{ fontSize: 10, color: '#3f3f46' }}>
+                          Click 🐾 on JSON elements
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {(() => {
+                          const TOOL_DEFS = [
+                            { 
+                              id: 'query' as McpToolType, 
+                              label: 'Query', 
+                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.2"/><path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                            },
+                            { 
+                              id: 'preview' as McpToolType, 
+                              label: 'Preview', 
+                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/></svg>
+                            },
+                            { 
+                              id: 'select' as McpToolType, 
+                              label: 'Select', 
+                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2"/><path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            },
+                            { 
+                              id: 'create' as McpToolType, 
+                              label: 'Create', 
+                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                            },
+                            { 
+                              id: 'update' as McpToolType, 
+                              label: 'Update', 
+                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10 2l2 2-7 7H3v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+                            },
+                            { 
+                              id: 'delete' as McpToolType, 
+                              label: 'Delete', 
+                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V2.5A.5.5 0 015.5 2h3a.5.5 0 01.5.5V4M11 4v7.5a1.5 1.5 0 01-1.5 1.5h-5A1.5 1.5 0 013 11.5V4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                            },
+                          ]
+
+                          return TOOL_DEFS.map(tool => {
+                            const paths = accessPoints.filter(ap => ap.permissions[tool.id])
+                            if (paths.length === 0) return null
+                            
+                            return (
+                              <div key={tool.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {/* Section Title - 小字 */}
+                                <div style={{ 
+                                  fontSize: 10, 
+                                  color: '#525252', 
+                                  textTransform: 'uppercase', 
+                                  letterSpacing: '0.5px',
+                                  paddingLeft: 2,
+                                  fontWeight: 600,
+                                }}>{tool.label}</div>
+                                
+                                {/* Tool Elements List */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                  {paths.map((ap, index) => {
+                                    // 模拟 Tool Name 生成
+                                    const pathSegments = ap.path ? ap.path.split('/').filter(Boolean) : []
+                                    const lastSegment = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : 'root'
+                                    // 简单的命名规则：tool_lastSegment (e.g. query_users)
+                                    // 移除非字母数字字符
+                                    const safeName = lastSegment.replace(/[^a-zA-Z0-9_]/g, '')
+                                    const toolName = `${tool.id}_${safeName}`
+
+                                    return (
+                                      <div 
+                                        key={`${ap.path}-${index}`}
+                                        onClick={() => {
+                                          // TODO: 打开详细配置面板
+                                          console.log('Open config for:', toolName, ap.path)
+                                        }}
+                                        style={{
+                                          background: 'rgba(255,255,255,0.03)',
+                                          border: '1px solid rgba(255,255,255,0.05)',
+                                          borderRadius: 8,
+                                          padding: '10px',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          gap: 6,
+                                          transition: 'all 0.1s',
+                                          position: 'relative',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                                          // 显示配置图标
+                                          const configIcon = e.currentTarget.querySelector('.config-icon') as HTMLElement
+                                          if (configIcon) configIcon.style.opacity = '1'
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'
+                                          // 隐藏配置图标
+                                          const configIcon = e.currentTarget.querySelector('.config-icon') as HTMLElement
+                                          if (configIcon) configIcon.style.opacity = '0'
+                                        }}
+                                      >
+                                        {/* Config Icon (Hover时显示) */}
+                                        <div 
+                                          className="config-icon"
+                                          style={{
+                                            position: 'absolute',
+                                            top: 8,
+                                            right: 8,
+                                            opacity: 0,
+                                            transition: 'opacity 0.1s',
+                                            color: '#6b7280',
+                                          }}
+                                        >
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <circle cx="12" cy="12" r="3" />
+                                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+                                          </svg>
+                                        </div>
+
+                                        {/* Header: Logo + Tool Name */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                          <span style={{ color: '#9ca3af', display: 'flex', flexShrink: 0 }}>
+                                            {tool.icon}
+                                          </span>
+                                          <span style={{ 
+                                            fontSize: 12, 
+                                            fontWeight: 600, 
+                                            color: '#e2e8f0',
+                                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                          }}>
+                                            {toolName}
+                                          </span>
+                                        </div>
+
+                                        {/* Description Placeholder */}
+                                        <div style={{
+                                          fontSize: 10,
+                                          color: '#525252',
+                                          lineHeight: 1.4,
+                                        }}>
+                                          No description provided.
+                                        </div>
+                                        
+                                        {/* Path (Muted) */}
+                                        <div style={{ 
+                                          fontSize: 10, 
+                                          color: '#525252',
+                                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                        }}>
+                                          <span style={{ opacity: 0.7 }}>Target:</span>
+                                          <span style={{ color: '#6b7280' }}>{ap.path || '/'}</span>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Footer - Publish Button and Published Instance */}
+                  <div style={{ 
+                    borderTop: '1px solid #333', 
+                    padding: 8,
+                    flexShrink: 0,
+                  }}>
+                    {publishedInstance ? (
+                      // 已发布状态
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: 6,
+                          padding: '6px 8px',
+                          background: 'rgba(52, 211, 153, 0.1)',
+                          borderRadius: 4,
+                        }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2">
+                            <path d="M20 6L9 17l-5-5"/>
+                          </svg>
+                          <span style={{ fontSize: 10, color: '#34d399', fontWeight: 500 }}>MCP Published</span>
+                          <button
+                            onClick={() => setPublishedInstance(null)}
+                            style={{
+                              marginLeft: 'auto',
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#6b7280',
+                              fontSize: 10,
+                              cursor: 'pointer',
+                              padding: '2px 6px',
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        
+                        {/* API Key */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase' }}>API Key</div>
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            background: 'rgba(0,0,0,0.3)',
+                            borderRadius: 4,
+                            padding: '6px 8px',
+                          }}>
+                            <code style={{ 
+                              flex: 1, 
+                              fontSize: 9, 
+                              color: '#9ca3af',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontFamily: 'ui-monospace, monospace',
+                            }}>
+                              {publishedInstance.apiKey.slice(0, 32)}...
+                            </code>
+                            <button
+                              onClick={() => copyToClipboard(publishedInstance.apiKey)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#6b7280',
+                                cursor: 'pointer',
+                                padding: 4,
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              title="Copy API Key"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* URL */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase' }}>URL</div>
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            background: 'rgba(0,0,0,0.3)',
+                            borderRadius: 4,
+                            padding: '6px 8px',
+                          }}>
+                            <code style={{ 
+                              flex: 1, 
+                              fontSize: 9, 
+                              color: '#9ca3af',
+                              fontFamily: 'ui-monospace, monospace',
+                            }}>
+                              {publishedInstance.url}
+                            </code>
+                            <button
+                              onClick={() => copyToClipboard(publishedInstance.url)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#6b7280',
+                                cursor: 'pointer',
+                                padding: 4,
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              title="Copy URL"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      // 未发布状态
+                      <>
+                        {publishError && (
+                          <div style={{
+                            padding: '6px 8px',
+                            marginBottom: 8,
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            borderRadius: 4,
+                            fontSize: 10,
+                            color: '#ef4444',
+                          }}>
+                            {publishError}
+                          </div>
+                        )}
+                        <button
+                          onClick={handlePublishMcp}
+                          disabled={accessPoints.length === 0 || isPublishing}
+                          style={{
+                            width: '100%',
+                            height: 32,
+                            background: accessPoints.length === 0 ? 'rgba(255,167,61,0.2)' : '#FFA73D',
+                            border: 'none',
+                            borderRadius: 6,
+                            color: accessPoints.length === 0 ? '#9ca3af' : '#000',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: accessPoints.length === 0 ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            transition: 'all 0.15s',
+                            opacity: isPublishing ? 0.7 : 1,
+                          }}
+                        >
+                          {isPublishing ? (
+                            <>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                                <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                                <path d="M12 2a10 10 0 0110 10" strokeLinecap="round"/>
+                              </svg>
+                              Publishing...
+                            </>
+                          ) : (
+                            <>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 19V5M5 12l7-7 7 7"/>
+                              </svg>
+                              Publish MCP
+                            </>
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         ) : activeView === 'mcp' ? (

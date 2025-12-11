@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../supabase/SupabaseAuthProvider'
-import { getProjects, type ProjectInfo } from '../../lib/projectsApi'
+import { type ProjectInfo } from '../../lib/projectsApi'
+import { useProjects, refreshProjects } from '../../lib/hooks/useData'
 import { ProjectWorkspaceView } from '../../components/ProjectWorkspaceView'
 import { ProjectsSidebar } from '../../components/ProjectsSidebar'
 import { ProjectsHeader, type EditorType } from '../../components/ProjectsHeader'
@@ -23,8 +24,10 @@ const utilityNav = [
 export default function ProjectsPage() {
   const router = useRouter()
   const { session } = useAuth()
-  const [projects, setProjects] = useState<ProjectInfo[]>([])
-  const [loading, setLoading] = useState(true)
+  
+  // 使用 SWR 获取项目列表（自动缓存、去重）
+  const { projects, isLoading: loading } = useProjects()
+  
   const [activeBaseId, setActiveBaseId] = useState<string>('')
   const [activeTableId, setActiveTableId] = useState<string>('')
   const [expandedBaseIds, setExpandedBaseIds] = useState<Set<string>>(new Set())
@@ -33,35 +36,21 @@ export default function ProjectsPage() {
   const [detailPanelOpen, setDetailPanelOpen] = useState(false)
   const [editorType, setEditorType] = useState<EditorType>('treeline-virtual')
 
-  // Load project list from API
-  const loadProjects = async () => {
-    try {
-      setLoading(true)
-      const data = await getProjects()
-      setProjects(data)
-      // Set default selected project
-      if (data.length > 0 && !activeBaseId) {
-        setActiveBaseId(data[0].id)
-        setExpandedBaseIds(new Set([data[0].id]))
-        if (data[0].tables.length > 0) {
-          setActiveTableId(data[0].tables[0].id)
+  // 初始化默认选中的项目
+  useEffect(() => {
+    if (projects.length > 0 && !activeBaseId) {
+      setActiveBaseId(projects[0].id)
+      setExpandedBaseIds(new Set([projects[0].id]))
+      if (projects[0].tables.length > 0) {
+        setActiveTableId(projects[0].tables[0].id)
         }
       }
-    } catch (error) {
-      console.error('Failed to load projects:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadProjects()
-  }, [])
+  }, [projects, activeBaseId])
 
   // Listen for projects refresh event
   useEffect(() => {
     const handleProjectsRefresh = () => {
-      loadProjects()
+      refreshProjects() // 使用 SWR 的 mutate 刷新
     }
     window.addEventListener('projects-refresh', handleProjectsRefresh)
     return () => {
@@ -189,7 +178,6 @@ export default function ProjectsPage() {
         utilityNav={utilityNav}
         onUtilityNavClick={handleUtilityNavClick}
         userInitial={userInitial}
-        onProjectsChange={setProjects}
         loading={loading}
       />
 
@@ -201,7 +189,7 @@ export default function ProjectsPage() {
           projectId={activeBase?.id ?? null}
           tableId={activeTableId || null}
           currentTreePath={currentTreePath}
-          onProjectsRefresh={loadProjects}
+          onProjectsRefresh={() => refreshProjects()}
               detailPanelOpen={detailPanelOpen}
               onToggleDetailPanel={() => setDetailPanelOpen(!detailPanelOpen)}
               editorType={editorType}

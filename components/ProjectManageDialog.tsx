@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import type { ProjectInfo } from '../lib/projectsApi'
-import { createProject, updateProject, deleteProject, getProjects } from '../lib/projectsApi'
+import { createProject, updateProject, deleteProject } from '../lib/projectsApi'
+import { refreshProjects } from '../lib/hooks/useData'
 
 type ProjectManageDialogProps = {
   projectId: string | null
   projects: ProjectInfo[]
   onClose: () => void
-  onProjectsChange?: (projects: ProjectInfo[]) => void
+  onProjectsChange?: (projects: ProjectInfo[]) => void  // 保留接口兼容
   deleteMode?: boolean
 }
 
@@ -16,7 +17,6 @@ export function ProjectManageDialog({
   projectId,
   projects,
   onClose,
-  onProjectsChange,
   deleteMode = false,
 }: ProjectManageDialogProps) {
   const isEdit = projectId !== null
@@ -45,9 +45,8 @@ export function ProjectManageDialog({
       } else {
         await createProject(name.trim(), description.trim() || undefined)
       }
-      // 重新加载项目列表
-      const updatedProjects = await getProjects()
-      onProjectsChange?.(updatedProjects)
+      // 使用 SWR 刷新项目列表
+      await refreshProjects()
       onClose()
     } catch (error) {
       console.error('Failed to save project:', error)
@@ -63,9 +62,8 @@ export function ProjectManageDialog({
     try {
       setLoading(true)
       await deleteProject(projectId)
-      // 重新加载项目列表
-      const updatedProjects = await getProjects()
-      onProjectsChange?.(updatedProjects)
+      // 使用 SWR 刷新项目列表
+      await refreshProjects()
       onClose()
     } catch (error) {
       console.error('Failed to delete project:', error)
