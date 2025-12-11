@@ -420,7 +420,9 @@ curl http://localhost:9090/api/v1/etl/tasks/{task_id}
 Run the following command in the backend directory to start the server:
 
 ```bash
-uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info
+
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log_level info
+
 ```
 
 ### MCP Config Example
