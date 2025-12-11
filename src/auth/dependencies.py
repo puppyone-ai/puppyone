@@ -3,13 +3,17 @@
 """
 
 from typing import Optional
-from fastapi import Depends, HTTPException, Header
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from src.auth.service import AuthService
 from src.auth.models import CurrentUser
 from src.supabase.client import SupabaseClient
 from src.exceptions import AuthException
 from src.config import settings
 from src.utils.logger import log_warning
+
+# 定义 HTTPBearer 安全方案
+security = HTTPBearer(auto_error=False)
 
 
 def get_auth_service() -> AuthService:
@@ -24,7 +28,7 @@ def get_auth_service() -> AuthService:
 
 
 def get_current_user(
-    authorization: Optional[str] = Header(None, description="Bearer token"),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> CurrentUser:
     """
@@ -35,7 +39,7 @@ def get_current_user(
     如果配置了 SKIP_AUTH=True，将跳过鉴权并返回一个模拟的测试用户。
 
     Args:
-        authorization: Authorization 请求头，格式为 "Bearer <token>"
+        credentials: HTTP Bearer 认证凭证
         auth_service: 认证服务实例
 
     Returns:
@@ -57,23 +61,15 @@ def get_current_user(
             user_metadata={},
         )
 
-    if not authorization:
+    # 检查是否提供了认证凭证
+    if not credentials:
         raise HTTPException(
             status_code=401,
             detail="缺少 Authorization 请求头",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 提取 Bearer token
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(
-            status_code=401,
-            detail="Authorization 请求头格式错误，应为 'Bearer <token>'",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = parts[1]
+    token = credentials.credentials
 
     try:
         # 验证 token 并获取用户信息
@@ -94,7 +90,7 @@ def get_current_user(
 
 
 def get_current_user_optional(
-    authorization: Optional[str] = Header(None, description="Bearer token"),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Optional[CurrentUser]:
     """
@@ -105,7 +101,7 @@ def get_current_user_optional(
     如果配置了 SKIP_AUTH=True，将始终返回模拟的测试用户。
 
     Args:
-        authorization: Authorization 请求头，格式为 "Bearer <token>"
+        credentials: HTTP Bearer 认证凭证
         auth_service: 认证服务实例
 
     Returns:
@@ -124,15 +120,11 @@ def get_current_user_optional(
             user_metadata={},
         )
 
-    if not authorization:
+    # 如果没有提供认证凭证，返回 None
+    if not credentials:
         return None
 
-    # 提取 Bearer token
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        return None
-
-    token = parts[1]
+    token = credentials.credentials
 
     try:
         current_user = auth_service.get_current_user(token)

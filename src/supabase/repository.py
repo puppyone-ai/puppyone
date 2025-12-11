@@ -11,17 +11,11 @@ from supabase import Client
 from src.supabase.client import SupabaseClient
 
 # 导入各个子模块的 Repository
-from src.supabase.users.repository import UserRepository
 from src.supabase.projects.repository import ProjectRepository
 from src.supabase.tables.repository import TableRepository
 from src.supabase.mcps.repository import McpRepository
 
 # 导入各个子模块的 Schema
-from src.supabase.users.schemas import (
-    UserCreate,
-    UserUpdate,
-    UserResponse,
-)
 from src.supabase.projects.schemas import (
     ProjectCreate,
     ProjectUpdate,
@@ -55,88 +49,9 @@ class SupabaseRepository:
             self._client = client
         
         # 初始化各个子仓库
-        self._user_repo = UserRepository(self._client)
         self._project_repo = ProjectRepository(self._client)
         self._table_repo = TableRepository(self._client)
         self._mcp_repo = McpRepository(self._client)
-
-    # ==================== User 相关操作 ====================
-
-    def create_user(self, user_data: UserCreate) -> UserResponse:
-        """
-        创建用户
-
-        Args:
-            user_data: 用户创建数据
-
-        Returns:
-            创建的用户数据
-
-        Raises:
-            SupabaseException: 当创建失败时
-        """
-        return self._user_repo.create(user_data)
-
-    def get_user(self, user_id: int) -> Optional[UserResponse]:
-        """
-        根据 ID 获取用户
-
-        Args:
-            user_id: 用户 ID
-
-        Returns:
-            用户数据，如果不存在则返回 None
-        """
-        return self._user_repo.get_by_id(user_id)
-
-    def get_users(
-        self,
-        skip: int = 0,
-        limit: int = 100,
-        name: Optional[str] = None,
-    ) -> List[UserResponse]:
-        """
-        获取用户列表
-
-        Args:
-            skip: 跳过记录数
-            limit: 返回记录数
-            name: 可选，按名称过滤
-
-        Returns:
-            用户列表
-        """
-        return self._user_repo.get_list(skip=skip, limit=limit, name=name)
-
-    def update_user(
-        self, user_id: int, user_data: UserUpdate
-    ) -> Optional[UserResponse]:
-        """
-        更新用户
-
-        Args:
-            user_id: 用户 ID
-            user_data: 用户更新数据
-
-        Returns:
-            更新后的用户数据，如果不存在则返回 None
-
-        Raises:
-            SupabaseException: 当更新失败时
-        """
-        return self._user_repo.update(user_id, user_data)
-
-    def delete_user(self, user_id: int) -> bool:
-        """
-        删除用户
-
-        Args:
-            user_id: 用户 ID
-
-        Returns:
-            是否删除成功
-        """
-        return self._user_repo.delete(user_id)
 
     # ==================== Project 相关操作 ====================
 
