@@ -39,7 +39,7 @@ class ProjectBase(BaseModel):
     """项目基础模型"""
     name: str
     description: Optional[str] = None
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None  # UUID 字符串格式
 
 
 class ProjectCreate(ProjectBase):
@@ -51,7 +51,7 @@ class ProjectUpdate(BaseModel):
     """更新项目模型"""
     name: Optional[str] = None
     description: Optional[str] = None
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None  # UUID 字符串格式
 
 
 class ProjectResponse(ProjectBase):
@@ -98,7 +98,7 @@ class TableResponse(TableBase):
 class McpBase(BaseModel):
     """MCP 基础模型"""
     api_key: Optional[str] = None
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None  # UUID 字符串格式
     project_id: Optional[int] = None
     table_id: Optional[int] = None
     json_path: Optional[str] = None
@@ -118,7 +118,7 @@ class McpCreate(McpBase):
 class McpUpdate(BaseModel):
     """更新 MCP 实例模型"""
     api_key: Optional[str] = None
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None  # UUID 字符串格式
     project_id: Optional[int] = None
     table_id: Optional[int] = None
     json_path: Optional[str] = None
