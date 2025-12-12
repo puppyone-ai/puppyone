@@ -43,7 +43,7 @@ export interface ImportDataResponse {
 }
 
 export interface ApiResponse<T> {
-  success: boolean
+  code: number
   data: T
   message: string
 }
@@ -79,8 +79,8 @@ export async function parseUrl(url: string): Promise<ParseUrlResponse> {
   }
 
   const result: ApiResponse<ParseUrlResponse> = await response.json()
-  
-  if (!result.success) {
+
+  if (result.code !== 0) {
     throw new Error(result.message || 'Failed to parse URL')
   }
 
@@ -108,8 +108,8 @@ export async function importData(params: ImportDataRequest): Promise<ImportDataR
   }
 
   const result: ApiResponse<ImportDataResponse> = await response.json()
-  
-  if (!result.success) {
+
+  if (result.code !== 0) {
     throw new Error(result.message || 'Failed to import data')
   }
 
