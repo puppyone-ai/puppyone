@@ -10,12 +10,14 @@ import { ProjectsSidebar } from '../../components/ProjectsSidebar'
 import { ProjectsHeader, type EditorType } from '../../components/ProjectsHeader'
 import { McpContentView } from '../../components/McpContentView'
 import { EtlContentView } from '../../components/EtlContentView'
+import { ConnectContentView } from '../../components/ConnectContentView'
 
-type ActiveView = 'projects' | 'mcp' | 'etl' | 'test' | 'logs' | 'settings'
+type ActiveView = 'projects' | 'mcp' | 'etl' | 'connect' | 'test' | 'logs' | 'settings'
 
 const utilityNav = [
   { id: 'mcp', label: 'MCP', path: 'mcp', isAvailable: true },
   { id: 'etl', label: 'ETL Strategies', path: 'etl', isAvailable: true },
+  { id: 'connect', label: 'Connect', path: 'connect', isAvailable: true },
   { id: 'test', label: 'Test', path: 'test', isAvailable: false },
   { id: 'logs', label: 'Logs', path: 'logs', isAvailable: false },
   { id: 'settings', label: 'Settings', path: 'settings', isAvailable: false },
@@ -128,6 +130,9 @@ export default function ProjectsPage() {
     } else if (viewId === 'etl') {
       setActiveView('etl')
       window.history.pushState({}, '', '/etl')
+    } else if (viewId === 'connect') {
+      setActiveView('connect')
+      window.history.pushState({}, '', '/connect')
     }
   }
 
@@ -280,6 +285,8 @@ export default function ProjectsPage() {
           <McpContentView onBack={handleBackToProjects} />
         ) : activeView === 'etl' ? (
           <EtlContentView onBack={handleBackToProjects} />
+        ) : activeView === 'connect' ? (
+          <ConnectContentView onBack={handleBackToProjects} />
         ) : null}
       </section>
     </main>

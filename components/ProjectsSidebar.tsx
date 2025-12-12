@@ -1268,6 +1268,21 @@ export function ProjectsSidebar({
                 </span>
                 <span className="nav-label">ETL Strategies</span>
               </button>
+              
+              <button 
+                className={`nav-item ${activeView === 'connect' ? 'active' : ''}`}
+                onClick={() => onUtilityNavClick('connect')}
+              >
+                <span className="nav-icon">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M5.5 8.5L8.5 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    <path d="M4 7C4 6.44772 4.44772 6 5 6H6C6.55228 6 7 6.44772 7 7V8C7 8.55228 6.55228 9 6 9H5C4.44772 9 4 8.55228 4 8V7Z" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M7 5C7 4.44772 7.44772 4 8 4H9C9.55228 4 10 4.44772 10 5V6C10 6.55228 9.55228 7 9 7H8C7.44772 7 7 6.55228 7 6V5Z" stroke="currentColor" strokeWidth="1.2"/>
+                    <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                  </svg>
+                </span>
+                <span className="nav-label">Connect</span>
+              </button>
             </div>
           )}
         </div>
