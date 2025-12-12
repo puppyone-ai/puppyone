@@ -205,6 +205,19 @@ ETL_QUEUE_SIZE=50
 
 ## 常见问题
 
+### Q: 提示 "SUPABASE_URL 和 SUPABASE_KEY 环境变量必须设置"
+**原因：** 环境变量加载问题
+
+**解决：**
+- 确认在 Railway Variables 中已正确配置 `SUPABASE_URL` 和 `SUPABASE_KEY`
+- 变量名必须完全匹配（区分大小写）
+- 变量值不要有多余的空格或引号
+- 重新部署：`railway up` 或在 Web 界面触发重新部署
+
+**注意：** 本项目已正确配置环境变量加载：
+- 本地开发：使用 `.env` 文件（需自行创建）
+- 生产环境：使用 Railway Variables（自动注入到系统环境）
+
 ### Q: 502 Bad Gateway
 **原因：** 应用未正确启动或端口配置错误
 

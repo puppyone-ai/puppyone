@@ -24,6 +24,7 @@ dependencies = [
     "pyjwt>=2.10.1",
     "pytest>=9.0.1",
     "pytest-asyncio>=1.3.0",
+    "python-dotenv>=1.0.0",
     "python-multipart>=0.0.20",
     "sentence-transformers>=5.1.2",
     "supabase>=2.25.0",

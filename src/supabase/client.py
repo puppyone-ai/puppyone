@@ -6,11 +6,8 @@ Supabase 客户端
 
 import os
 from typing import Optional
-from dotenv import load_dotenv
 from supabase import create_client, Client
 from supabase.client import ClientOptions
-
-load_dotenv()
 
 
 class SupabaseClient:

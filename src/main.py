@@ -8,6 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+# 加载 .env 文件（仅用于本地开发，生产环境直接使用系统环境变量）
+from dotenv import load_dotenv
+load_dotenv()
+
 from src.config import settings
 from src.exceptions import AppException
 from src.exception_handler import (
