@@ -7,10 +7,13 @@ Project Router
 from fastapi import APIRouter, Depends, status
 from typing import List
 
-from src.supabase.repository import SupabaseRepository
-from src.supabase.schemas import ProjectCreate as SupabaseProjectCreate, ProjectUpdate as SupabaseProjectUpdate
-from src.project.dependencies import get_supabase_repository
+from src.project.service import ProjectService
+from src.project.dependencies import get_project_service, get_verified_project
+from src.project.models import Project
 from src.project.schemas import ProjectOut, ProjectCreate, ProjectUpdate, TableInfo
+from src.supabase.dependencies import get_supabase_repository
+from src.auth.models import CurrentUser
+from src.auth.dependencies import get_current_user
 from src.common_schemas import ApiResponse
 from src.exceptions import NotFoundException, ErrorCode
 
@@ -24,8 +27,8 @@ router = APIRouter(
 )
 
 
-def _convert_to_project_out(project_response, tables=None) -> ProjectOut:
-    """将 ProjectResponse 转换为 ProjectOut"""
+def _convert_to_project_out(project: Project, tables=None) -> ProjectOut:
+    """将 Project 转换为 ProjectOut"""
     table_infos = []
     if tables:
         for t in tables:
@@ -43,9 +46,9 @@ def _convert_to_project_out(project_response, tables=None) -> ProjectOut:
             ))
     
     return ProjectOut(
-        id=str(project_response.id),
-        name=project_response.name,
-        description=project_response.description,
+        id=str(project.id),
+        name=project.name,
+        description=project.description,
         tables=table_infos,
     )
 
@@ -54,16 +57,23 @@ def _convert_to_project_out(project_response, tables=None) -> ProjectOut:
     "/",
     response_model=ApiResponse[List[ProjectOut]],
     summary="获取项目列表",
-    description="获取所有项目列表，包含每个项目下的表信息。",
+    description="获取当前用户的所有项目列表，包含每个项目下的表信息。",
+    response_description="返回用户的所有项目列表，每个项目包含其下的表格列表",
     status_code=status.HTTP_200_OK,
 )
 def list_projects(
-    repo: SupabaseRepository = Depends(get_supabase_repository),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
-    projects = repo.get_projects()
+    # 获取当前用户的所有项目
+    projects = project_service.get_by_user_id(current_user.user_id)
+    
+    # 需要获取每个项目的表信息
+    supabase_repo = get_supabase_repository()
+    
     result = []
     for p in projects:
-        tables = repo.get_tables(project_id=p.id)
+        tables = supabase_repo.get_tables(project_id=p.id)
         result.append(_convert_to_project_out(p, tables))
     return ApiResponse.success(data=result, message="项目列表获取成功")
 
@@ -72,18 +82,17 @@ def list_projects(
     "/{project_id}",
     response_model=ApiResponse[ProjectOut],
     summary="获取项目详情",
-    description="根据项目 ID 获取项目详情，包含表信息。",
+    description="根据项目 ID 获取项目详情，包含表信息。如果项目不存在或用户无权限，将返回错误。",
+    response_description="返回项目详细信息",
     status_code=status.HTTP_200_OK,
 )
 def get_project(
-    project_id: int,
-    repo: SupabaseRepository = Depends(get_supabase_repository),
+    project: Project = Depends(get_verified_project),
 ):
-    project = repo.get_project(project_id)
-    if not project:
-        raise NotFoundException(f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND)
+    # 获取项目下的表信息
+    supabase_repo = get_supabase_repository()
     
-    tables = repo.get_tables(project_id=project_id)
+    tables = supabase_repo.get_tables(project_id=project.id)
     return ApiResponse.success(data=_convert_to_project_out(project, tables), message="项目获取成功")
 
 
@@ -91,18 +100,21 @@ def get_project(
     "/",
     response_model=ApiResponse[ProjectOut],
     summary="创建项目",
-    description="创建一个新项目。",
+    description="创建一个新项目。项目将自动关联到当前用户。",
+    response_description="返回创建成功的项目信息",
     status_code=status.HTTP_201_CREATED,
 )
 def create_project(
     payload: ProjectCreate,
-    repo: SupabaseRepository = Depends(get_supabase_repository),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
-    project_data = SupabaseProjectCreate(
+    # 创建项目，自动关联到当前用户
+    project = project_service.create(
         name=payload.name,
         description=payload.description,
+        user_id=current_user.user_id,
     )
-    project = repo.create_project(project_data)
     return ApiResponse.success(data=_convert_to_project_out(project, []), message="项目创建成功")
 
 
@@ -110,44 +122,42 @@ def create_project(
     "/{project_id}",
     response_model=ApiResponse[ProjectOut],
     summary="更新项目",
-    description="更新项目信息。",
+    description="更新项目信息。所有字段都是可选的，只更新用户提供的字段，未提供的字段保持不变。如果项目不存在或用户无权限，将返回错误。",
+    response_description="返回更新后的项目信息",
     status_code=status.HTTP_200_OK,
 )
 def update_project(
-    project_id: int,
-    payload: ProjectUpdate,
-    repo: SupabaseRepository = Depends(get_supabase_repository),
+    project: Project = Depends(get_verified_project),
+    payload: ProjectUpdate = ...,
+    project_service: ProjectService = Depends(get_project_service),
 ):
-    # 检查项目是否存在
-    existing = repo.get_project(project_id)
-    if not existing:
-        raise NotFoundException(f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND)
-    
-    update_data = SupabaseProjectUpdate(
+    # 更新项目
+    updated_project = project_service.update(
+        project_id=project.id,
         name=payload.name,
         description=payload.description,
     )
-    project = repo.update_project(project_id, update_data)
-    tables = repo.get_tables(project_id=project_id)
-    return ApiResponse.success(data=_convert_to_project_out(project, tables), message="项目更新成功")
+    
+    # 获取项目下的表信息
+    supabase_repo = get_supabase_repository()
+    
+    tables = supabase_repo.get_tables(project_id=project.id)
+    return ApiResponse.success(data=_convert_to_project_out(updated_project, tables), message="项目更新成功")
 
 
 @router.delete(
     "/{project_id}",
     response_model=ApiResponse[None],
     summary="删除项目",
-    description="删除指定项目。",
+    description="删除指定项目。如果项目不存在或用户无权限，将返回错误。",
+    response_description="删除成功，返回空数据",
     status_code=status.HTTP_200_OK,
 )
 def delete_project(
-    project_id: int,
-    repo: SupabaseRepository = Depends(get_supabase_repository),
+    project: Project = Depends(get_verified_project),
+    project_service: ProjectService = Depends(get_project_service),
 ):
-    # 检查项目是否存在
-    existing = repo.get_project(project_id)
-    if not existing:
-        raise NotFoundException(f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND)
-    
-    repo.delete_project(project_id)
+    # 删除项目
+    project_service.delete(project.id)
     return ApiResponse.success(message="项目删除成功")
 

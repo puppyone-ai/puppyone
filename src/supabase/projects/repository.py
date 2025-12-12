@@ -5,7 +5,6 @@ Project 数据访问层
 """
 
 from typing import List, Optional
-from xxlimited import Str
 from supabase import Client
 
 from src.supabase.exceptions import handle_supabase_error
