@@ -120,10 +120,10 @@ def create_app() -> FastAPI:
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
 
     # 注册异常处理器
-    app.add_exception_handler(AppException, app_exception_handler)
-    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
-    app.add_exception_handler(RequestValidationError, validation_exception_handler)
-    app.add_exception_handler(Exception, generic_exception_handler)
+    app.add_exception_handler(AppException, app_exception_handler)  # type: ignore
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore
+    app.add_exception_handler(Exception, generic_exception_handler)  # type: ignore
 
     return app
 
@@ -135,7 +135,21 @@ app = create_app()
 @app.get("/health")
 async def health_check():
     """健康检查接口"""
-    return {"status": "healthy", "service": "ContextBase API"}
+    import os
+    
+    # 检查关键环境变量
+    env_status = {
+        "supabase_configured": bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY")),
+        "s3_configured": bool(os.getenv("S3_BUCKET_NAME")),
+        "mineru_configured": bool(os.getenv("MINERU_API_KEY")),
+    }
+    
+    return {
+        "status": "healthy",
+        "service": "ContextBase API",
+        "version": settings.VERSION,
+        "environment": env_status
+    }
 
 
 # 启动命令: uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info
