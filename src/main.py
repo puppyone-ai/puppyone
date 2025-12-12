@@ -22,6 +22,7 @@ from src.mcp.router import router as mcp_router
 from src.s3.router import router as s3_router
 from src.etl.router import router as etl_router
 from src.project.router import router as project_router
+from src.connect.router import router as connect_router
 
 
 @asynccontextmanager
@@ -114,6 +115,7 @@ def create_app() -> FastAPI:
     app.include_router(s3_router, prefix="/api/v1")
     app.include_router(etl_router, prefix="/api/v1", tags=["etl"])
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
+    app.include_router(connect_router, prefix="/api/v1", tags=["connect"])
 
     # 注册异常处理器
     app.add_exception_handler(AppException, app_exception_handler)
