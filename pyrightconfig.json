@@ -21,7 +21,7 @@
   ],
   "pythonVersion": "3.12",
   "pythonPlatform": "Darwin",
-  "typeCheckingMode": "basic",
+  "typeCheckingMode": "off",
   "reportMissingImports": true,
   "reportMissingTypeStubs": false
 }

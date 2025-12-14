@@ -6,11 +6,36 @@ from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
 
 
+# 使用全局变量存储单例，而不是每次都创建新实例
+# 这样可以避免重复初始化和提升性能
+_table_repository = None
+_table_service = None
+
+
+def get_table_repository() -> TableRepositorySupabase:
+    """
+    获取 table repository 单例
+    
+    Returns:
+        TableRepositorySupabase 实例
+    """
+    global _table_repository
+    if _table_repository is None:
+        _table_repository = TableRepositorySupabase()
+    return _table_repository
+
+
 def get_table_service() -> TableService:
     """
     table_service的依赖注入工厂。使用Supabase作为存储后端
+    
+    Returns:
+        TableService 单例
     """
-    return TableService(TableRepositorySupabase())
+    global _table_service
+    if _table_service is None:
+        _table_service = TableService(get_table_repository())
+    return _table_service
 
 
 def get_verified_table(

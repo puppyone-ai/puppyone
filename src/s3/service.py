@@ -862,5 +862,35 @@ class S3Service:
             raise
 
 
-# 创建全局服务实例
-s3_service = S3Service()
+# 创建全局服务实例（延迟初始化，避免在模块导入时立即创建）
+_s3_service_instance = None
+
+
+def get_s3_service_instance() -> S3Service:
+    """
+    获取 S3 服务单例
+    
+    Returns:
+        S3Service 实例
+    """
+    global _s3_service_instance
+    if _s3_service_instance is None:
+        _s3_service_instance = S3Service()
+    return _s3_service_instance
+
+
+# 为了保持向后兼容，保留 s3_service 变量但使用懒加载
+# 注意：直接访问 s3_service 会触发初始化，建议使用 get_s3_service_instance()
+@property
+def _lazy_s3_service():
+    return get_s3_service_instance()
+
+
+# 使用属性描述符实现懒加载
+class _S3ServiceProxy:
+    def __getattr__(self, name):
+        return getattr(get_s3_service_instance(), name)
+
+
+s3_service = _S3ServiceProxy()
+

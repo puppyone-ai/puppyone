@@ -97,8 +97,10 @@ class TableRepositorySupabase(TableRepositoryBase):
             supabase_repo: 可选的 SupabaseRepository 实例，如果不提供则创建新实例
         """
         if supabase_repo is None:
-            from src.supabase.repository import SupabaseRepository
-            self._supabase_repo = SupabaseRepository()
+            # 延迟导入，避免在模块导入时触发
+            from src.supabase.dependencies import get_supabase_repository
+            # 使用共享的单例实例，避免重复创建
+            self._supabase_repo = get_supabase_repository()
         else:
             self._supabase_repo = supabase_repo
 

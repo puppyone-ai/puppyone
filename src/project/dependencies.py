@@ -10,11 +10,36 @@ from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
 
 
+# 使用全局变量存储单例，而不是每次都创建新实例
+# 这样可以避免重复初始化和提升性能
+_project_repository = None
+_project_service = None
+
+
+def get_project_repository() -> ProjectRepositorySupabase:
+    """
+    获取 project repository 单例
+    
+    Returns:
+        ProjectRepositorySupabase 实例
+    """
+    global _project_repository
+    if _project_repository is None:
+        _project_repository = ProjectRepositorySupabase()
+    return _project_repository
+
+
 def get_project_service() -> ProjectService:
     """
     project_service的依赖注入工厂。使用Supabase作为存储后端
+    
+    Returns:
+        ProjectService 单例
     """
-    return ProjectService(ProjectRepositorySupabase())
+    global _project_service
+    if _project_service is None:
+        _project_service = ProjectService(get_project_repository())
+    return _project_service
 
 
 def get_verified_project(

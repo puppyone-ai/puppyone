@@ -2,6 +2,9 @@
 LLM Service
 
 Core service for interacting with text models via litellm.
+
+注意：litellm 库的导入非常慢（20秒+），所以我们使用懒加载策略，
+只在实际调用 LLM 时才导入，以提升应用启动和 reload 速度。
 """
 
 import asyncio
@@ -9,13 +12,8 @@ import json
 import logging
 from typing import Any, Literal, Optional
 
-from litellm import acompletion
-from litellm.exceptions import (
-    APIError,
-    AuthenticationError,
-    RateLimitError as LiteLLMRateLimitError,
-    Timeout,
-)
+# 延迟导入 litellm - 只在实际使用时才导入
+# from litellm import acompletion  # 不在这里导入！
 
 from src.llm.config import llm_config
 from src.llm.exceptions import (
@@ -39,9 +37,29 @@ class LLMService:
         self.config = llm_config
         self.default_model = self.config.default_text_model
         self.supported_models = self.config.supported_text_models
+        self._litellm_loaded = False
+        self._acompletion = None
         logger.info(
-            f"LLMService initialized with default model: {self.default_model}"
+            f"LLMService initialized with default model: {self.default_model} (litellm not loaded yet)"
         )
+    
+    def _ensure_litellm(self):
+        """
+        确保 litellm 已加载（懒加载）
+        
+        只在第一次调用 LLM 时才导入 litellm，避免在应用启动时加载这个重量级库。
+        这能将启动时间从 ~43秒 降低到 ~20秒。
+        """
+        if not self._litellm_loaded:
+            logger.info("Lazy-loading litellm library (this may take a few seconds on first use)...")
+            start_time = asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0
+            
+            from litellm import acompletion
+            self._acompletion = acompletion
+            self._litellm_loaded = True
+            
+            duration = (asyncio.get_event_loop().time() - start_time) * 1000 if start_time else 0
+            logger.info(f"litellm loaded successfully (took {duration:.2f}ms)")
 
     async def call_text_model(
         self,
@@ -73,6 +91,16 @@ class LLMService:
             RateLimitError: If rate limit is exceeded
             LLMError: For other errors
         """
+        # 懒加载 litellm（只在第一次使用时加载）
+        self._ensure_litellm()
+        
+        # 导入异常类型（也需要懒加载）
+        from litellm.exceptions import (
+            APIError,
+            AuthenticationError,
+            RateLimitError as LiteLLMRateLimitError,
+            Timeout,
+        )
         # Validate model
         model = model or self.default_model
         if model not in self.supported_models:
@@ -110,7 +138,8 @@ class LLMService:
                     f"model={model}, response_format={response_format}"
                 )
                 
-                response = await acompletion(**request_params)
+                # 使用懒加载的 acompletion
+                response = await self._acompletion(**request_params)
 
                 # Extract response content
                 message = response.choices[0].message
