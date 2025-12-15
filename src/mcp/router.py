@@ -4,6 +4,9 @@ MCP 实例管理 API
 """
 
 from fastapi import APIRouter, Depends, Request, Response
+from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
+from starlette.requests import ClientDisconnect
 from src.common_schemas import ApiResponse
 from src.mcp.schemas import McpCreate, McpStatusResponse, McpUpdate
 from src.mcp.service import McpService
@@ -18,6 +21,7 @@ from src.auth.dependencies import get_current_user
 from src.exceptions import NotFoundException, ErrorCode
 from typing import Dict, Any, List
 import httpx
+import asyncio
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -180,6 +184,13 @@ async def delete_mcp_instance(
 
 
 @router.api_route(
+    "/server/{api_key}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+    summary="MCP Server 代理路由（根路径）",
+    description="将请求转发到对应的 MCP Server 实例根路径（等价于 /mcp）。此接口不需要用户登录，只需提供有效的 api_key 即可。",
+    include_in_schema=False,
+)
+@router.api_route(
     "/server/{api_key}/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
     summary="MCP Server 代理路由",
@@ -188,7 +199,8 @@ async def delete_mcp_instance(
 )
 async def proxy_mcp_server(
     request: Request,
-    path: str,
+    api_key: str,
+    path: str = "",
     instance: McpInstance = Depends(get_mcp_instance_by_api_key),
 ):
     """
@@ -211,17 +223,38 @@ async def proxy_mcp_server(
         NotFoundException: 如果 MCP 实例不存在或未运行
     """
     # 检查实例状态
-    if instance.status != 1:
+    if instance.status != True:
         raise NotFoundException(
             f"MCP instance is not running (status={instance.status})",
             code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
         )
+
+    # 代理转发到本机端口：必须禁用环境代理变量，否则 localhost 可能被错误走代理导致 502
+
+    # 构建目标 URL（兼容客户端把 /mcp 写进 path 与否）
+    # - 代理 base: /api/v1/mcp/server/{api_key}   -> 下游 /mcp
+    # - 代理 base: /api/v1/mcp/server/{api_key}/mcp -> 下游 /mcp
+    # - 其余路径：默认都认为是相对 /mcp 的子路径
+    normalized_path = (path or "").lstrip("/")
+    if normalized_path in ("", "mcp"):
+        downstream_path = "/mcp"
+    elif normalized_path.startswith("mcp/"):
+        downstream_path = f"/{normalized_path}"
+    else:
+        downstream_path = f"/mcp/{normalized_path}"
+
+    target_url = f"http://localhost:{instance.port}{downstream_path}"
     
-    # 构建目标 URL
-    target_url = f"http://localhost:{instance.port}/mcp/{path}"
-    
-    # 获取请求体
-    body = await request.body()
+    # 获取请求体：
+    # - GET/HEAD/OPTIONS 通常无 body，且读取可能在客户端断开时触发 ClientDisconnect
+    # - 仅在可能携带 body 的方法下读取
+    body = b""
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        try:
+            body = await request.body()
+        except ClientDisconnect:
+            # 客户端已断开连接，无需继续转发
+            return Response(status_code=204)
     
     # 准备转发的请求头（排除某些不应转发的头）
     headers = dict(request.headers)
@@ -231,50 +264,138 @@ async def proxy_mcp_server(
     headers.pop("content-length", None)
     
     # 准备查询参数：需要添加 token/api_key 以便 MCP Server 验证
-    # 将原始查询参数转换为字典，并添加 api_key
+    # 将原始查询参数转换为字典，并添加 token/api_key（下游中间件支持二者）
     query_params = dict(request.query_params)
-    # 如果查询参数中还没有 token 或 api_key，添加它
+    # 如果查询参数中还没有 token 或 api_key，补齐（优先保持与直连一致：使用 api_key）
     if "token" not in query_params and "api_key" not in query_params:
-        query_params["token"] = instance.api_key
-    
+        query_params["api_key"] = instance.api_key
+
     # 创建 httpx 客户端并转发请求
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    # - 对于 SSE（Accept: text/event-stream）：使用 stream=True + read=None
+    # - 其他情况：普通请求，read=30s
+    accept = (request.headers.get("accept") or "").lower()
+    wants_sse = "text/event-stream" in accept
+
+    def _filter_response_headers(raw_headers: httpx.Headers) -> dict:
+        filtered: dict[str, str] = {}
+        for k, v in raw_headers.items():
+            lk = k.lower()
+            if lk.startswith("mcp-") or lk.startswith("x-"):
+                filtered[lk] = v
+        return filtered
+
+    if wants_sse:
+        timeout = httpx.Timeout(connect=10.0, read=None, write=30.0, pool=10.0)
+        client = httpx.AsyncClient(timeout=timeout, trust_env=False)
+        upstream_response: httpx.Response | None = None
         try:
-            # 转发请求
-            response = await client.request(
-                method=request.method,
-                url=target_url,
-                headers=headers,
-                content=body,
-                params=query_params,
-            )
-            
-            # 准备响应头
-            response_headers = dict(response.headers)
-            # 移除某些不应返回的头
-            response_headers.pop("transfer-encoding", None)
-            response_headers.pop("connection", None)
-            
-            # 返回响应
-            return Response(
-                content=response.content,
-                status_code=response.status_code,
+            # 启动/重启后端口可能需要一点时间才能接受连接，这里做轻量重试
+            last_exc: Exception | None = None
+            for attempt in range(5):
+                try:
+                    upstream_request = client.build_request(
+                        method=request.method,
+                        url=target_url,
+                        headers=headers,
+                        content=body,
+                        params=query_params,
+                    )
+                    upstream_response = await client.send(upstream_request, stream=True)
+                    last_exc = None
+                    break
+                except httpx.ConnectError as e:
+                    last_exc = e
+                    await asyncio.sleep(min(0.2 * (2**attempt), 1.0))
+
+            if upstream_response is None and last_exc is not None:
+                raise last_exc
+
+            response_headers = _filter_response_headers(upstream_response.headers)
+            media_type = upstream_response.headers.get("content-type")
+
+            async def _close_upstream():
+                try:
+                    if upstream_response is not None:
+                        await upstream_response.aclose()
+                finally:
+                    await client.aclose()
+
+            return StreamingResponse(
+                upstream_response.aiter_raw(),
+                status_code=upstream_response.status_code,
                 headers=response_headers,
-                media_type=response.headers.get("content-type"),
+                media_type=media_type,
+                background=BackgroundTask(_close_upstream),
             )
-            
         except httpx.ConnectError as e:
+            if upstream_response is not None:
+                await upstream_response.aclose()
+            await client.aclose()
             raise NotFoundException(
                 f"无法连接到 MCP Server (port={instance.port}): {str(e)}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
         except httpx.TimeoutException as e:
+            if upstream_response is not None:
+                await upstream_response.aclose()
+            await client.aclose()
             raise NotFoundException(
                 f"MCP Server 请求超时 (port={instance.port}): {str(e)}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
         except Exception as e:
+            if upstream_response is not None:
+                await upstream_response.aclose()
+            await client.aclose()
             raise NotFoundException(
                 f"转发请求到 MCP Server 时发生错误: {str(e)}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
+    else:
+        timeout = httpx.Timeout(connect=10.0, read=30.0, write=30.0, pool=10.0)
+        async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+            try:
+                last_exc: Exception | None = None
+                upstream_response = None
+                for attempt in range(5):
+                    try:
+                        upstream_response = await client.request(
+                            method=request.method,
+                            url=target_url,
+                            headers=headers,
+                            content=body,
+                            params=query_params,
+                        )
+                        last_exc = None
+                        break
+                    except httpx.ConnectError as e:
+                        last_exc = e
+                        await asyncio.sleep(min(0.2 * (2**attempt), 1.0))
+
+                if upstream_response is None and last_exc is not None:
+                    raise last_exc
+
+                response_headers = _filter_response_headers(upstream_response.headers)
+                media_type = upstream_response.headers.get("content-type")
+
+                return Response(
+                    content=upstream_response.content,
+                    status_code=upstream_response.status_code,
+                    headers=response_headers,
+                    media_type=media_type,
+                )
+            except httpx.ConnectError as e:
+                raise NotFoundException(
+                    f"无法连接到 MCP Server (port={instance.port}): {str(e)}",
+                    code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+                )
+            except httpx.TimeoutException as e:
+                raise NotFoundException(
+                    f"MCP Server 请求超时 (port={instance.port}): {str(e)}",
+                    code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+                )
+            except Exception as e:
+                raise NotFoundException(
+                    f"转发请求到 MCP Server 时发生错误: {str(e)}",
+                    code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+                )

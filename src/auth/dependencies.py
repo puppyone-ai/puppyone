@@ -11,12 +11,16 @@ from src.supabase.dependencies import get_supabase_client
 from src.exceptions import AuthException
 from src.config import settings
 from src.utils.logger import log_warning
-from functools import lru_cache
+
 # 定义 HTTPBearer 安全方案
 security = HTTPBearer(auto_error=False)
 
 
-@lru_cache
+# 使用全局变量存储单例，而不是 lru_cache
+# 这样可以避免 reload 时的缓存问题
+_auth_service = None
+
+
 def get_auth_service() -> AuthService:
     """
     获取认证服务实例
@@ -24,8 +28,11 @@ def get_auth_service() -> AuthService:
     Returns:
         AuthService: 认证服务实例
     """
-    supabase_client = get_supabase_client()
-    return AuthService(supabase_client)
+    global _auth_service
+    if _auth_service is None:
+        supabase_client = get_supabase_client()
+        _auth_service = AuthService(supabase_client)
+    return _auth_service
 
 
 def get_current_user(

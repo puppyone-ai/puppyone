@@ -32,4 +32,16 @@ class Settings(BaseSettings):
     # 测试配置
     SKIP_AUTH: bool = False  # 是否跳过鉴权（仅用于测试环境）
 
+    # ETL 配置
+    # - None: 自动模式（本地 DEBUG 默认关闭，非 DEBUG 默认开启）
+    # - True/False: 强制开启/关闭（可通过环境变量 ENABLE_ETL 覆盖）
+    ENABLE_ETL: bool | None = None
+
+    @property
+    def etl_enabled(self) -> bool:
+        """ETL 是否启用（同时控制 ETL 路由导入与 ETL 服务启动）"""
+        if self.ENABLE_ETL is not None:
+            return self.ENABLE_ETL
+        return not self.DEBUG
+
 settings = Settings()

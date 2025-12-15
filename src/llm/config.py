@@ -15,7 +15,8 @@ class LLMConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
+        env_ignore_empty=True
     )
 
     # Default model to use

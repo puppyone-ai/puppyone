@@ -5,20 +5,27 @@ from src.mcp.service import McpService
 from src.mcp.models import McpInstance
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
+from src.utils.logger import log_error, log_info
 
-from functools import lru_cache
 
-@lru_cache
+# 使用全局变量存储单例，而不是 lru_cache
+# 这样可以避免 reload 时的缓存问题
+_mcp_service = None
+
+
 def get_mcp_instance_service() -> McpService:
     """
     mcp_instance_service的依赖注入工厂。支持通过配置项来决定存储策略
     """
-    if settings.STORAGE_TYPE == "json":
-        return McpService(McpInstanceRepositoryJSON())
-    elif settings.STORAGE_TYPE == "supabase":
-        return McpService(McpInstanceRepositorySupabase())
-    else:
-        raise ValueError(f"Unsupported storage type: {settings.STORAGE_TYPE}")
+    global _mcp_service
+    if _mcp_service is None:
+        if settings.STORAGE_TYPE == "json":
+            _mcp_service = McpService(McpInstanceRepositoryJSON())
+        elif settings.STORAGE_TYPE == "supabase":
+            _mcp_service = McpService(McpInstanceRepositorySupabase())
+        else:
+            raise ValueError(f"Unsupported storage type: {settings.STORAGE_TYPE}")
+    return _mcp_service
 
 
 async def get_verified_mcp_instance(

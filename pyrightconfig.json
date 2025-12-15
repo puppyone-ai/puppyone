@@ -1,0 +1,27 @@
+{
+  "include": [
+    "src",
+    "tests"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.venv",
+    "**/venv",
+    "**/node_modules",
+    "**/.git",
+    ".claude",
+    ".cursor",
+    "openspec",
+    "example",
+    "sql"
+  ],
+  "ignore": [
+    "**/test_*.py"
+  ],
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Darwin",
+  "typeCheckingMode": "off",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false
+}

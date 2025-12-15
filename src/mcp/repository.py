@@ -270,8 +270,19 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
 class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
     """基于 Supabase 的 MCP 实例仓库实现"""
 
-    def __init__(self):
-        self._repo = SupabaseRepository()
+    def __init__(self, supabase_repo=None):
+        """
+        初始化仓库
+        
+        Args:
+            supabase_repo: 可选的 SupabaseRepository 实例，如果不提供则使用共享单例
+        """
+        if supabase_repo is None:
+            # 延迟导入，避免在模块导入时触发
+            from src.supabase.dependencies import get_supabase_repository
+            self._repo = get_supabase_repository()
+        else:
+            self._repo = supabase_repo
 
     def _mcp_response_to_instance(self, mcp_response) -> McpInstance:
         """将 McpResponse 转换为 McpInstance 模型"""

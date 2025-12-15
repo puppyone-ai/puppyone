@@ -4,7 +4,6 @@ ETL Service Dependencies
 FastAPI dependency injection for ETL service.
 """
 
-from functools import lru_cache
 from fastapi import Depends, Path
 
 from src.etl.config import etl_config
@@ -18,7 +17,13 @@ from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
 
 
-@lru_cache
+# 使用全局变量存储单例，而不是 lru_cache
+# 这样可以避免 reload 时的缓存问题
+_mineru_client = None
+_etl_task_repository = None
+_etl_service = None
+
+
 def get_mineru_client() -> MineRUClient:
     """
     Get MineRU client instance (singleton).
@@ -26,10 +31,12 @@ def get_mineru_client() -> MineRUClient:
     Returns:
         MineRUClient instance
     """
-    return MineRUClient()
+    global _mineru_client
+    if _mineru_client is None:
+        _mineru_client = MineRUClient()
+    return _mineru_client
 
 
-@lru_cache
 def get_etl_task_repository() -> ETLTaskRepositoryBase:
     """
     Get ETL task repository instance (singleton).
@@ -37,10 +44,12 @@ def get_etl_task_repository() -> ETLTaskRepositoryBase:
     Returns:
         ETLTaskRepositoryBase instance
     """
-    return ETLTaskRepositorySupabase()
+    global _etl_task_repository
+    if _etl_task_repository is None:
+        _etl_task_repository = ETLTaskRepositorySupabase()
+    return _etl_task_repository
 
 
-@lru_cache
 def get_etl_service() -> ETLService:
     """
     Get ETL service instance (singleton).
@@ -48,12 +57,15 @@ def get_etl_service() -> ETLService:
     Returns:
         ETLService instance
     """
-    return ETLService(
-        s3_service=get_s3_service(),
-        llm_service=get_llm_service(),
-        mineru_client=get_mineru_client(),
-        task_repository=get_etl_task_repository(),
-    )
+    global _etl_service
+    if _etl_service is None:
+        _etl_service = ETLService(
+            s3_service=get_s3_service(),
+            llm_service=get_llm_service(),
+            mineru_client=get_mineru_client(),
+            task_repository=get_etl_task_repository(),
+        )
+    return _etl_service
 
 
 async def get_verified_etl_task(

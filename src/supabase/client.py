@@ -13,7 +13,7 @@ from supabase.client import ClientOptions
 class SupabaseClient:
     """Supabase 客户端单例类"""
 
-    _instance: Optional[Client] = None
+    _instance: Optional["SupabaseClient"] = None
     _client: Optional[Client] = None
 
     def __new__(cls):
@@ -47,6 +47,7 @@ class SupabaseClient:
         """获取 Supabase 客户端实例"""
         if self._client is None:
             self.__init__()
+        assert self._client is not None
         return self._client
 
     def get_client(self) -> Client:
