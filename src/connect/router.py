@@ -42,18 +42,18 @@ router = APIRouter(
 async def parse_url(
     payload: ParseUrlRequest,
     connect_service: ConnectService = Depends(get_connect_service),
-    current_user: CurrentUser = Depends(get_current_user),
 ):
     """
     解析URL并返回数据预览
-    
+
     - 支持JSON格式
     - 支持HTML表格
     - 支持HTML列表
     - 自动识别数据源类型（GitHub、Notion等）
+    - 支持OAuth认证的SaaS平台
     """
-    log_info(f"User {current_user.user_id} parsing URL: {payload.url}")
-    
+    log_info(f"User parsing URL: {payload.url}")
+
     result = await connect_service.parse_url(str(payload.url))
     return ApiResponse.success(data=result, message="URL解析成功")
 
@@ -74,7 +74,7 @@ async def import_data(
 ):
     """
     导入数据到表格
-    
+
     - 如果提供table_id，将数据追加到现有表格
     - 如果未提供table_id，将创建新表格
     - 数据将保持原始平台的结构
@@ -83,7 +83,7 @@ async def import_data(
         f"User {current_user.user_id} importing data from {payload.url} "
         f"to project {payload.project_id}"
     )
-    
+
     # 验证项目是否属于当前用户
     if not table_service.verify_project_access(payload.project_id, current_user.user_id):
         raise NotFoundException(

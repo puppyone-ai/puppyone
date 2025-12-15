@@ -6,21 +6,40 @@ Connect 服务层
 from typing import Dict, Any, Optional, List
 from src.connect.parser import UrlParser
 from src.connect.schemas import ParseUrlResponse, DataField
+from src.connect.providers.notion_provider import NotionProvider
+from src.oauth.notion_service import NotionOAuthService
 from src.exceptions import BusinessException, ErrorCode
 from src.utils.logger import log_info, log_error
 
 
 class ConnectService:
     """Connect 服务类"""
-    
-    def __init__(self, parser: UrlParser):
+
+    def __init__(self, parser: UrlParser, user_id: Optional[str] = None):
         """
         初始化 Connect 服务
-        
+
         Args:
             parser: URL 解析器
+            user_id: 用户ID，用于获取OAuth tokens
         """
         self.parser = parser
+        self.user_id = user_id
+
+        # 注册数据提供者
+        self._register_providers()
+
+    def _register_providers(self):
+        """注册数据提供者"""
+        if self.user_id:
+            # 注册 Notion provider（需要用户ID）
+            log_info(f"Registering NotionProvider for user_id: {self.user_id}")
+            notion_service = NotionOAuthService()
+            notion_provider = NotionProvider(self.user_id, notion_service)
+            self.parser.register_provider(notion_provider)
+            log_info(f"NotionProvider registered successfully, total providers: {len(self.parser.providers)}")
+        else:
+            log_warning("Cannot register NotionProvider: user_id is None")
     
     async def parse_url(self, url: str) -> ParseUrlResponse:
         """

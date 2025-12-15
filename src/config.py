@@ -44,4 +44,9 @@ class Settings(BaseSettings):
             return self.ENABLE_ETL
         return not self.DEBUG
 
+    # Notion OAuth 配置
+    NOTION_CLIENT_ID: str = ""
+    NOTION_CLIENT_SECRET: str = ""
+    NOTION_REDIRECT_URI: str = "http://localhost:3000/oauth/callback"
+
 settings = Settings()

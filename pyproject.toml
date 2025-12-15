@@ -17,6 +17,7 @@ dependencies = [
     "litellm>=1.80.7",
     "lxml>=5.0.0",
     "moto[s3]>=5.0.0",
+    "notion-client>=2.2.1",
     "openai>=2.8.0",
     "pdfminer.six>=20231228",
     "pi-heif>=1.1.1",

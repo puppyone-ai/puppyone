@@ -569,6 +569,7 @@ dependencies = [
     { name = "litellm" },
     { name = "lxml" },
     { name = "moto", extra = ["s3"] },
+    { name = "notion-client" },
     { name = "openai" },
     { name = "pdfminer-six" },
     { name = "pi-heif" },
@@ -601,6 +602,7 @@ requires-dist = [
     { name = "litellm", specifier = ">=1.80.7" },
     { name = "lxml", specifier = ">=5.0.0" },
     { name = "moto", extras = ["s3"], specifier = ">=5.0.0" },
+    { name = "notion-client", specifier = ">=2.2.1" },
     { name = "openai", specifier = ">=2.8.0" },
     { name = "pdfminer-six", specifier = ">=20231228" },
     { name = "pi-heif", specifier = ">=1.1.1" },
@@ -2388,6 +2390,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f9/76/3a5e4312c19a028770f86fd7c058cf9f4ec4321c6cf7526bab998a5b683c/nltk-3.9.2.tar.gz", hash = "sha256:0f409e9b069ca4177c1903c3e843eef90c7e92992fa4931ae607da6de49e1419", size = 2887629, upload-time = "2025-10-01T07:19:23.764Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/60/90/81ac364ef94209c100e12579629dc92bf7a709a84af32f8c551b02c07e94/nltk-3.9.2-py3-none-any.whl", hash = "sha256:1e209d2b3009110635ed9709a67a1a3e33a10f799490fa71cf4bec218c11c88a", size = 1513404, upload-time = "2025-10-01T07:19:21.648Z" },
+]
+
+[[package]]
+name = "notion-client"
+version = "2.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9b/ff/06695dca5d0691346fbd89ba300a2ceeeaf0b0632fe8235b588e83e505a3/notion_client-2.7.0.tar.gz", hash = "sha256:31bde3ae03ede77650cadce136152916efdd86579ff65f49fc6705fbe462e2fb", size = 26384, upload-time = "2025-10-31T12:10:15.264Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2a/6a/9716315432f5aba4c82979f9677aeb101018f0e790835721dc4e01deb933/notion_client-2.7.0-py2.py3-none-any.whl", hash = "sha256:9057a8ac2103ff245556c2a5102bde1d2ccdd3505f66bcc130fc31857731d91e", size = 16999, upload-time = "2025-10-31T12:10:13.835Z" },
 ]
 
 [[package]]

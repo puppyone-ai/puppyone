@@ -65,8 +65,12 @@ connect_router_start = time.time()
 from src.connect.router import router as connect_router
 connect_router_duration = time.time() - connect_router_start
 
+oauth_router_start = time.time()
+from src.oauth.router import router as oauth_router
+oauth_router_duration = time.time() - oauth_router_start
+
 routers_duration = (table_router_duration + mcp_router_duration +
-                   etl_router_duration + project_router_duration + connect_router_duration)
+                   etl_router_duration + project_router_duration + connect_router_duration + oauth_router_duration)
 
 
 @asynccontextmanager
@@ -96,7 +100,8 @@ async def app_lifespan(app: FastAPI):
     else:
         log_info("  │  ├─ etl_router: skipped (ENABLE_ETL=0 or DEBUG auto)")
     log_info(f"  │  ├─ project_router: {project_router_duration*1000:.2f}ms")
-    log_info(f"  │  └─ connect_router: {connect_router_duration*1000:.2f}ms")
+    log_info(f"  │  ├─ connect_router: {connect_router_duration*1000:.2f}ms")
+    log_info(f"  │  └─ oauth_router: {oauth_router_duration*1000:.2f}ms")
     log_info(f"  └─ 路由总耗时: {routers_duration*1000:.2f}ms")
     log_info(f"📊 总导入时间: {(time.time() - APP_START_TIME)*1000:.2f}ms")
     log_info("")
@@ -209,6 +214,7 @@ def create_app() -> FastAPI:
         app.include_router(etl_router, prefix="/api/v1", tags=["etl"])
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
     app.include_router(connect_router, prefix="/api/v1", tags=["connect"])
+    app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
     router_register_duration = time.time() - router_register_start
 
     # 注册异常处理器
