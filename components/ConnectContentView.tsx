@@ -177,7 +177,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       setError(err instanceof Error ? err.message : 'Failed to parse URL')
 
       // Check if error is related to authentication
-      if (isNotionUrl(url) && err.message.includes('授权') || err.message.includes('authentication')) {
+      if (err instanceof Error && isNotionUrl(url) && (err.message.includes('授权') || err.message.includes('authentication'))) {
         setShowNotionAuth(true)
       }
     } finally {

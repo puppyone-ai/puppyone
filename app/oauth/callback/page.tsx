@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { notionCallback } from "@/lib/oauthApi";
 
-export default function OAuthCallbackPage() {
+function OAuthCallbackContent() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
@@ -30,7 +30,7 @@ export default function OAuthCallbackPage() {
         if (result.success) {
           setStatus("success");
           setMessage("Successfully connected to Notion!");
-          setWorkspaceName(result.workspaceName || "");
+          setWorkspaceName(result.workspace_name || "");
         } else {
           setStatus("error");
           setMessage(result.message || "Failed to connect to Notion");
@@ -263,5 +263,23 @@ export default function OAuthCallbackPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OAuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        minHeight: '100vh',
+        backgroundColor: '#f9fafb',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ fontSize: '14px', color: '#6b7280' }}>Loading...</div>
+      </div>
+    }>
+      <OAuthCallbackContent />
+    </Suspense>
   );
 }
