@@ -192,13 +192,9 @@ export default function ProjectsPage() {
         <ProjectsHeader
           pathSegments={pathSegments}
           projectId={activeBase?.id ?? null}
-          tableId={activeTableId || null}
-          currentTreePath={currentTreePath}
           onProjectsRefresh={() => refreshProjects()}
-              detailPanelOpen={detailPanelOpen}
-              onToggleDetailPanel={() => setDetailPanelOpen(!detailPanelOpen)}
-              editorType={editorType}
-              onEditorTypeChange={setEditorType}
+          editorType={editorType}
+          onEditorTypeChange={setEditorType}
         />
             <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
