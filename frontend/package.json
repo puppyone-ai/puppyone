@@ -1,0 +1,40 @@
+{
+  "name": "context-base-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@codemirror/lang-json": "^6.0.2",
+    "@monaco-editor/react": "^4.7.0",
+    "@supabase/supabase-js": "^2.46.1",
+    "@tanstack/react-virtual": "^3.13.12",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@uiw/react-codemirror": "^4.25.3",
+    "clsx": "^2.1.1",
+    "jsoneditor": "^10.4.2",
+    "next": "^15.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0",
+    "swr": "^2.3.7",
+    "vanilla-jsoneditor": "^3.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.8",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.12.0",
+    "eslint-config-next": "^15.0.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3"
+  }
+}
