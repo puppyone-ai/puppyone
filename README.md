@@ -1,72 +1,74 @@
-<p align="center">
-  <img src="assert/PuppyAgentLOGO.png" alt="PuppyContext Logo" width="120" />
-</p>
+<img src="assert/puppyone.png" alt="Puppyone" width="100%" />
 
-<h1 align="center">PuppyContext</h1>
+# puppyone
 
 
-
-<p align="center">
-  <a href="https://www.puppyagent.com" target="_blank">
-    <img src="https://img.shields.io/badge/Web-puppyagent.com-39BC66?style=flat&logo=google-chrome&logoColor=white" alt="Homepage" height="22" />
-  </a>
-  &nbsp;
-  <a href="https://doc.puppyagent.com" target="_blank">
-    <img src="https://img.shields.io/badge/Docs-doc.puppyagent.com-D7F3FF?style=flat&logo=readthedocs&logoColor=white" alt="Docs" height="22" />
-  </a>
-   &nbsp;
-    <a href="https://x.com/PuppyAgentTech" target="_blank">
-    <img src="https://img.shields.io/badge/X-@PuppyAgentTech-000000?style=flat&logo=x&logoColor=white" alt="X (Twitter)" height="22" />
-  </a>
-  &nbsp;
-  <a href="https://discord.gg/eRjwqZpjBT" target="_blank">
-    <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat&logo=discord&logoColor=white" alt="Discord" height="22" />
-  </a>
-  &nbsp;
-  <a href="mailto:guantum@puppyagent.com">
-    <img src="https://img.shields.io/badge/FounderSupport-guantum@puppyagent.com-F44336?style=flat&logo=gmail&logoColor=white" alt="Support" height="22" />
-  </a>
-</p>
-
-<p align="center"> The Context Management Platform for Agents</p>
+<a href="https://www.puppyone.ai" target="_blank">
+  <img src="https://img.shields.io/badge/Web-puppyone.ai-39BC66?style=flat&logo=google-chrome&logoColor=white" alt="Homepage" height="22" />
+</a>
+&nbsp;
+<a href="https://doc.puppyagent.com" target="_blank">
+  <img src="https://img.shields.io/badge/Docs-doc.puppyagent.com-D7F3FF?style=flat&logo=readthedocs&logoColor=white" alt="Docs" height="22" />
+</a>
+&nbsp;
+<a href="https://x.com/PuppyAgentTech" target="_blank">
+  <img src="https://img.shields.io/badge/X-@PuppyAgentTech-000000?style=flat&logo=x&logoColor=white" alt="X (Twitter)" height="22" />
+</a>
+&nbsp;
+<a href="https://discord.gg/eRjwqZpjBT" target="_blank">
+  <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat&logo=discord&logoColor=white" alt="Discord" height="22" />
+</a>
+&nbsp;
+<a href="mailto:guantum@puppyagent.com">
+  <img src="https://img.shields.io/badge/FounderSupport-guantum@puppyagent.com-F44336?style=flat&logo=gmail&logoColor=white" alt="Support" height="22" />
+</a>
 
 
+<br>
 
-## What is PuppyContext
+**puppyone** is the #1 **Context Base for AI agents** 
 
-PuppyContext is a **context management platform for Context Engineering**. It enables you to configure agent-facing tools (MCP) and orchestrate the flow and sequence between different contexts.
-
-<p align="center">
-  <img src="assert/puppycontextintro.png" alt="PuppyContext Introduction" width="100%" />
-</p>
+a structured, agent-native context platform where all your agents collaborate seamlessly in real-time. It support: 1. data indexing
 
 
-
-## Why PuppyContext
-
-- **Context‑centric**: not flow orchestration; context is the interface, users face results
-- **Agent‑friendly**: agent‑oriented indexing, not a static knowledge base or database
-- **Workflow as edge**: workflows are edges between contexts; beyond orchestration, they embody agents
-- **RAG & Deep Research**: on local knowledge; supporting data cleaning, structuring, indexing
+<img src="assert/puppycontextintro.png" alt="Puppyone Introduction" width="100%" />
 
 
-Common use cases:
+## Why puppyone
 
-- Deep Research and document Q&A (Agentic RAG)
-- Content extractio
-- Agentive Archive
-- Content Generation
+### Agent Context Base vs. Knowledge Base
+A traditional Knowledge Base (like Notion) is designed for human reading, focusing on layout, formatting and human-collaborating. An Agent Context Base (ACB) is designed for **AI agents**, focusing on fiendness for agents. Structure, Logic, and Deterministic Indexing.
+
+### Agent Context Base vs. Vector Database
+Vector Databases rely on probabilistic similarity, which is inherently "fuzzy" and prone to hallucinations when dealing with precise data like SKUs, prices, or complex logic. Puppyone provides **deterministic, structured context** for reliable agent operations.
+
+### Key Differentiators
+
+- **Context-centric**: Not flow orchestration; context is the interface, users face results
+- **Agent-friendly**: Agent-oriented indexing, not a static knowledge base or database
+- **Workflow as edge**: Workflows are edges between contexts; beyond orchestration, they embody agents
+- **RAG & Deep Research**: On local knowledge; supporting data cleaning, structuring, indexing
+
+
+## Features
+
+- **Agentic RAG**: Deep+wide research agent with Tavily / Exa / Local knowledge
+- **Context Management**: Ingest, clean, version and govern enterprise knowledge (CRUD operations)
+- **Hybrid Indexing**: High-performance vector indexing and hybrid search (vector DB / Semantic Search / LLM retriever)
+- **Multiple Distribution**: MCP for support agents, API for crawl agents, Skills for BI agents
+- **Visual Dashboard**: Supabase-like visual interface—no backend engineering required
+
 
 ## Quick Start
 
 Choose ONE (alternatives—pick just one):
-- **Cloud (Hosted by PuppyContext)**: zero setup, managed upgrades/scaling, support.
+- **Cloud (Hosted)**: zero setup, managed upgrades/scaling, support.
 - **Self-Hosted (Local)**: runs fully on your machine; data stays local; best for prototyping/dev.
 
 
-### Cloud (Hosted by PuppyContext) — no setup
+### Cloud (Hosted) — no setup
 
-   Create an account at https://www.puppyagent.com and get started.
+   Create an account at https://www.puppyone.ai and get started.
 
 ### Self-Hosted (Local) — for developers
 
@@ -78,39 +80,30 @@ See docs for detailed steps:
 
 ## Core Concepts
 
-- Workspace: your project context (workflows, assets, settings)
-- Block: an operation (e.g., load file, embed, query, call model)
-- Edge: a connection that passes data between blocks
-- Workflow: a graph of blocks and edges that runs as a job
-- Storage: where files, chunks, and vectors are managed
-
-
-## Key Features
-
-- Visual editor for workflows (drag, connect, configure)
-- Blocks for file operations, LLM calls, embeddings, search, control-flow
-- Pluggable vector databases (Milvus, Qdrant, Chroma, Pinecone, Weaviate, Postgres+Vecs)
-- Streaming results and structured outputs
-- Local-first setup; ready to scale in production environments
+- **Workspace**: Your project context (workflows, assets, settings)
+- **Block**: An operation (e.g., load file, embed, query, call model)
+- **Edge**: A connection that passes data between blocks
+- **Workflow**: A graph of blocks and edges that runs as a job
+- **Storage**: Where files, chunks, and vectors are managed
 
 
 ## Contributing
 
 - Issues and feature requests are welcome
 - Please open a PR for small fixes; for larger changes, file an issue first to discuss the design
-- By contributing, you agree your contributions may be used under the project’s license
+- By contributing, you agree your contributions may be used under the project's license
 
 
 ## License
 
-This repository uses the PuppyContext Sustainable Use License (SUL).
+This repository uses the Puppyone Sustainable Use License (SUL).
 
 Summary (for convenience; the License controls):
 1) Personal use (individual): Allowed, free.
 2) Internal business use (single-tenant, per organization): Allowed, free.
 3) Self-hosted multi-tenant: Not allowed. To obtain rights, contact guantum@puppyagent.com.
-4) Managed/hosted service to third parties: Not allowed. Subscribe to the official hosted service at https://wwww.puppyagent.com or obtain a commercial license.
+4) Managed/hosted service to third parties: Not allowed. Subscribe to the official hosted service at https://www.puppyone.ai or obtain a commercial license.
 5) Commercial redistribution (paid distribution): Not allowed. Commercial license required.
-6) Use of PuppyContext trademarks/logos: Not granted; prior written permission required.
+6) Use of Puppyone trademarks/logos: Not granted; prior written permission required.
 
 See `LICENSE` for full terms.
