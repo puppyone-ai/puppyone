@@ -50,7 +50,6 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
             "table_id": table_metadata.table_id,
             "name": table_metadata.name,
             "description": table_metadata.description,
-            "user_id": table_metadata.user_id,
             "project_id": table_metadata.project_id,
         },
         "tools_definition": mcp_instance.tools_definition,

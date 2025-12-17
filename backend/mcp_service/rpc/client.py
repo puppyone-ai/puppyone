@@ -27,7 +27,6 @@ class TableMetadata:
     table_id: int
     name: str
     description: Optional[str]
-    user_id: str
     project_id: int
 
 
@@ -56,7 +55,8 @@ class InternalApiClient:
         self.timeout = timeout
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout),
-            headers={"X-Internal-Secret": secret}
+            headers={"X-Internal-Secret": secret},
+            trust_env=False
         )
     
     async def close(self):
@@ -123,12 +123,16 @@ class InternalApiClient:
             
             response.raise_for_status()
             data = response.json()
-            
+
+            # 兼容不同返回字段：
+            # - 新版主服务返回 table_id
+            # - 旧版/其他实现可能返回 id
+            resolved_table_id = data.get("table_id", data.get("id", table_id))
+
             return TableMetadata(
-                table_id=data["table_id"],
+                table_id=resolved_table_id,
                 name=data["name"],
                 description=data.get("description"),
-                user_id=data["user_id"],
                 project_id=data["project_id"]
             )
         except httpx.HTTPError as e:

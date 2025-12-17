@@ -36,6 +36,42 @@ class McpService:
     def __init__(self, instance_repo: McpInstanceRepositoryBase):
         # MCP Instance 存储层
         self.instance_repo = instance_repo
+        # 统一的 httpx 客户端（用于服务内访问 MCP Server）
+        # - 复用连接池，减少每次创建开销
+        # - trust_env=False：避免 localhost/127.0.0.1 请求被环境代理变量污染导致 502
+        self._http_client: httpx.AsyncClient | None = None
+
+    def _get_http_client(self) -> httpx.AsyncClient:
+        """获取（或惰性创建）统一的 httpx.AsyncClient。"""
+        if self._http_client is None:
+            # 默认 timeout 仅作为兜底；单次请求可通过 timeout= 覆盖
+            self._http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(5.0),
+                trust_env=False,
+            )
+        return self._http_client
+
+    async def aclose(self) -> None:
+        """释放统一 http client 的连接池资源（可选）。"""
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
+
+    async def _http_request(
+        self,
+        method: str,
+        url: str,
+        *,
+        timeout: float | httpx.Timeout | None = None,
+        **kwargs,
+    ) -> httpx.Response:
+        """
+        MCP Service 内部统一的 HTTP 请求封装。
+        - 默认使用 trust_env=False 的共享 client
+        - 允许按请求覆盖 timeout
+        """
+        client = self._get_http_client()
+        return await client.request(method=method, url=url, timeout=timeout, **kwargs)
 
 
 # ============================================================
@@ -375,12 +411,11 @@ class McpService:
             健康状态字典
         """
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(MCP_SERVER_HEALTHZ_URL)
-                if response.status_code == 200:
-                    return response.json()
-                else:
-                    return {"status": "unhealthy", "error": f"HTTP {response.status_code}"}
+            response = await self._http_request("GET", MCP_SERVER_HEALTHZ_URL, timeout=5.0)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {"status": "unhealthy", "error": f"HTTP {response.status_code}"}
         except Exception as e:
             return {"status": "unhealthy", "error": str(e)}
 
@@ -392,10 +427,11 @@ class McpService:
             api_key: API key
         """
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(
-                    MCP_SERVER_CACHE_INVALIDATE_URL,
-                    json={"api_key": api_key}
-                )
+            await self._http_request(
+                "POST",
+                MCP_SERVER_CACHE_INVALIDATE_URL,
+                timeout=5.0,
+                json={"api_key": api_key},
+            )
         except Exception as e:
             log_error(f"Failed to invalidate MCP cache: {e}")

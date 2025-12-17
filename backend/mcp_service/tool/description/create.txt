@@ -8,6 +8,10 @@
   - key (str): 唯一键名，不可与现有 key 重复
   - content (Any): 任意 JSON 可序列化的值
 
+挂载点类型说明（由 MCP 实例的 json_path 决定）：
+- 挂载点为 Dict：按 key 写入；key 必须唯一（不可与现有 key 重复）
+- 挂载点为 List：会按顺序将每个 content 追加（append）到列表末尾；⚠️key 在该场景会被忽略，但仍需提供一个字符串（占位即可）
+
 使用前提：先用 get_data_schema 了解现有数据结构
 
 示例：

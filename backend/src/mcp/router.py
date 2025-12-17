@@ -243,13 +243,16 @@ async def proxy_mcp_server(
         )
 
     # 2.1 拼接 mcp_server地址
-    mcp_server_url = settings.MCP_SERVER_URL
-    if mcp_server_url is None:
+    # 统一去掉末尾的 "/"，避免后续拼接出现双斜杠（例如 "...3090//mcp/"）
+    mcp_server_url = (settings.MCP_SERVER_URL or "").rstrip("/")
+    if not mcp_server_url:
         raise ValueError("MCP SERVER URL should not be empty.")
 
     normalized_path = (path or "").lstrip("/")
     if normalized_path in ("", "mcp"):
-        downstream_path = "/mcp"
+        # 下游 MCP 服务在 Mount("/mcp", ...) 下，访问 "/mcp" 会触发 307 -> "/mcp/"
+        # 某些客户端/中间层对 POST 307 处理不一致，直接使用 "/mcp/" 避免重定向
+        downstream_path = "/mcp/"
     elif normalized_path.startswith("mcp/"):
         downstream_path = f"/{normalized_path}"
     else:

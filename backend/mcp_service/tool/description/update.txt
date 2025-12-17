@@ -8,6 +8,10 @@
   - key (str): 已存在的键名
   - content (Any): 新的值内容（完全替换原值）
 
+挂载点类型说明（由 MCP 实例的 json_path 决定）：
+- 挂载点为 Dict：key 表示字段名/键名，对该 key 的值做整值替换
+- 挂载点为 List：key 视为下标（如 "0", "1"），对该下标位置做整值替换；下标必须在范围内，否则会失败
+
 使用前提：先用 get_data_schema 或 query_data 确认 key 存在
 
 示例：

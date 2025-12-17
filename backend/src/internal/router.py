@@ -88,10 +88,11 @@ async def get_table_metadata(
         raise HTTPException(status_code=404, detail="Table not found")
     
     return {
-        "table_id": table.table_id,
+        # 兼容字段：历史上有的客户端使用 id，有的使用 table_id
+        "id": table.id,
+        "table_id": table.id,
         "name": table.name,
         "description": table.description,
-        "user_id": table.user_id,
         "project_id": table.project_id
     }
 
@@ -212,109 +213,109 @@ async def delete_table_context_data(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post(
-    "/table-data/{table_id}/create",
-    summary="创建表格数据",
-    description="在指定表格和路径下创建数据",
-    dependencies=[Depends(verify_internal_secret)]
-)
-async def create_table_data(
-    table_id: int,
-    payload: Dict[str, Any],
-    table_service = Depends(get_table_service)
-):
-    """
-    创建表格数据
+# @router.post(
+#     "/table-data/{table_id}/create",
+#     summary="创建表格数据",
+#     description="在指定表格和路径下创建数据",
+#     dependencies=[Depends(verify_internal_secret)]
+# )
+# async def create_table_data(
+#     table_id: int,
+#     payload: Dict[str, Any],
+#     table_service = Depends(get_table_service)
+# ):
+#     """
+#     创建表格数据
     
-    Args:
-        table_id: 表格ID
-        payload: 请求体，包含json_pointer和elements
+#     Args:
+#         table_id: 表格ID
+#         payload: 请求体，包含json_pointer和elements
         
-    Returns:
-        操作结果
-    """
-    try:
-        json_pointer = payload.get("json_pointer", "")
-        elements = payload.get("elements", [])
+#     Returns:
+#         操作结果
+#     """
+#     try:
+#         json_pointer = payload.get("json_pointer", "")
+#         elements = payload.get("elements", [])
         
-        table_service.create_context_data(
-            table_id=table_id,
-            mounted_json_pointer_path=json_pointer,
-            elements=elements
-        )
+#         table_service.create_context_data(
+#             table_id=table_id,
+#             mounted_json_pointer_path=json_pointer,
+#             elements=elements
+#         )
         
-        return {"message": "创建成功"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+#         return {"message": "创建成功"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post(
-    "/table-data/{table_id}/update",
-    summary="更新表格数据",
-    description="更新指定表格和路径下的数据",
-    dependencies=[Depends(verify_internal_secret)]
-)
-async def update_table_data(
-    table_id: int,
-    payload: Dict[str, Any],
-    table_service = Depends(get_table_service)
-):
-    """
-    更新表格数据
+# @router.post(
+#     "/table-data/{table_id}/update",
+#     summary="更新表格数据",
+#     description="更新指定表格和路径下的数据",
+#     dependencies=[Depends(verify_internal_secret)]
+# )
+# async def update_table_data(
+#     table_id: int,
+#     payload: Dict[str, Any],
+#     table_service = Depends(get_table_service)
+# ):
+#     """
+#     更新表格数据
     
-    Args:
-        table_id: 表格ID
-        payload: 请求体，包含json_pointer和elements
+#     Args:
+#         table_id: 表格ID
+#         payload: 请求体，包含json_pointer和elements
         
-    Returns:
-        操作结果
-    """
-    try:
-        json_pointer = payload.get("json_pointer", "")
-        elements = payload.get("elements", [])
+#     Returns:
+#         操作结果
+#     """
+#     try:
+#         json_pointer = payload.get("json_pointer", "")
+#         elements = payload.get("elements", [])
         
-        table_service.update_context_data(
-            table_id=table_id,
-            json_pointer_path=json_pointer,
-            elements=elements
-        )
+#         table_service.update_context_data(
+#             table_id=table_id,
+#             json_pointer_path=json_pointer,
+#             elements=elements
+#         )
         
-        return {"message": "更新成功"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+#         return {"message": "更新成功"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post(
-    "/table-data/{table_id}/delete",
-    summary="删除表格数据",
-    description="删除指定表格和路径下的数据",
-    dependencies=[Depends(verify_internal_secret)]
-)
-async def delete_table_data(
-    table_id: int,
-    payload: Dict[str, Any],
-    table_service = Depends(get_table_service)
-):
-    """
-    删除表格数据
+# @router.post(
+#     "/table-data/{table_id}/delete",
+#     summary="删除表格数据",
+#     description="删除指定表格和路径下的数据",
+#     dependencies=[Depends(verify_internal_secret)]
+# )
+# async def delete_table_data(
+#     table_id: int,
+#     payload: Dict[str, Any],
+#     table_service = Depends(get_table_service)
+# ):
+#     """
+#     删除表格数据
     
-    Args:
-        table_id: 表格ID
-        payload: 请求体，包含json_pointer和keys
+#     Args:
+#         table_id: 表格ID
+#         payload: 请求体，包含json_pointer和keys
         
-    Returns:
-        操作结果
-    """
-    try:
-        json_pointer = payload.get("json_pointer", "")
-        keys = payload.get("keys", [])
+#     Returns:
+#         操作结果
+#     """
+#     try:
+#         json_pointer = payload.get("json_pointer", "")
+#         keys = payload.get("keys", [])
         
-        table_service.delete_context_data(
-            table_id=table_id,
-            json_pointer_path=json_pointer,
-            keys=keys
-        )
+#         table_service.delete_context_data(
+#             table_id=table_id,
+#             json_pointer_path=json_pointer,
+#             keys=keys
+#         )
         
-        return {"message": "删除成功"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+#         return {"message": "删除成功"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))

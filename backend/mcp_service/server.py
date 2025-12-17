@@ -23,7 +23,7 @@ from .cache import CacheManager
 from .core.auth import extract_api_key
 from .core.config_loader import load_mcp_config
 from .core.session_registry import SessionRegistry
-from .core.tools_definition import ToolDefinitionProvider, build_tools_list, tool_types
+from .core.tools_definition import ToolDefinitionProvider, build_tools_list, tool_types, ALL_TOOLS_LIST
 from .event_store import InMemoryEventStore
 from .rpc.client import create_client
 from .tool.table_tool import TableToolImplementation
@@ -110,7 +110,7 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             table_id = mcp_instance["table_id"]
             json_path = mcp_instance["json_path"]
             register_tools = mcp_instance.get(
-                "register_tools", ["query", "create", "update", "delete"]
+                "register_tools", ALL_TOOLS_LIST
             )
             preview_keys = mcp_instance.get("preview_keys")
 
