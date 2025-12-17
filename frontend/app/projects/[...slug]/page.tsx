@@ -225,11 +225,21 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
         }, {} as McpToolPermissions)
       )
       
+      // 构建工具定义
+      const tools_definition: Record<string, { name: string; description: string }> = {}
+      allTools.forEach(toolType => {
+        tools_definition[toolType] = {
+          name: `${toolType}_${activeTableId}`,
+          description: `${TOOL_INFO[toolType as keyof typeof TOOL_INFO]?.label || toolType} - ${activeBase?.name || 'Project'}`
+        }
+      })
+
       const response = await createMcpInstance({
         user_id: session?.user?.id || '', // 从 session 获取用户 UUID
         project_id: Number(activeBaseId),
         table_id: Number(activeTableId),
         json_pointer: firstAp.path || '',
+        tools_definition,
         register_tools: allTools,
       })
       
@@ -407,10 +417,24 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                     </svg>
                     <span style={{ fontSize: 11, fontWeight: 500, color: '#6b7280' }}>Agent Tools</span>
                     {(() => {
-                      const toolIds: McpToolType[] = ['query', 'preview', 'select', 'create', 'update', 'delete']
-                      const count = toolIds.filter(id => accessPoints.some(ap => ap.permissions[id])).length
+                      // 使用简化的UI工具类型映射到实际的后端类型
+                      const uiToolMapping = {
+                        query: 'query_data',
+                        preview: 'preview',
+                        select: 'select',
+                        create: 'create',
+                        update: 'update',
+                        delete: 'delete'
+                      } as const
+
+                      const toolIds = Object.keys(uiToolMapping) as Array<keyof typeof uiToolMapping>
+                      const count = toolIds.filter(id => {
+                        const backendType = uiToolMapping[id] as McpToolType
+                        return accessPoints.some(ap => ap.permissions[backendType])
+                      }).length
+
                       return count > 0 && (
-                        <span style={{ 
+                        <span style={{
                           marginLeft: 'auto',
                           fontSize: 10,
                           color: '#525252',
@@ -436,50 +460,57 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {(() => {
+                          // UI工具定义映射到后端类型
                           const TOOL_DEFS = [
-                            { 
-                              id: 'query' as McpToolType, 
-                              label: 'Query', 
+                            {
+                              uiId: 'query' as const,
+                              backendId: 'query_data' as McpToolType,
+                              label: 'Query',
                               icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.2"/><path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
                             },
-                            { 
-                              id: 'preview' as McpToolType, 
-                              label: 'Preview', 
+                            {
+                              uiId: 'preview' as const,
+                              backendId: 'preview' as McpToolType,
+                              label: 'Preview',
                               icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/></svg>
                             },
-                            { 
-                              id: 'select' as McpToolType, 
-                              label: 'Select', 
+                            {
+                              uiId: 'select' as const,
+                              backendId: 'select' as McpToolType,
+                              label: 'Select',
                               icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2"/><path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                             },
-                            { 
-                              id: 'create' as McpToolType, 
-                              label: 'Create', 
+                            {
+                              uiId: 'create' as const,
+                              backendId: 'create' as McpToolType,
+                              label: 'Create',
                               icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
                             },
-                            { 
-                              id: 'update' as McpToolType, 
-                              label: 'Update', 
+                            {
+                              uiId: 'update' as const,
+                              backendId: 'update' as McpToolType,
+                              label: 'Update',
                               icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10 2l2 2-7 7H3v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
                             },
-                            { 
-                              id: 'delete' as McpToolType, 
-                              label: 'Delete', 
+                            {
+                              uiId: 'delete' as const,
+                              backendId: 'delete' as McpToolType,
+                              label: 'Delete',
                               icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V2.5A.5.5 0 015.5 2h3a.5.5 0 01.5.5V4M11 4v7.5a1.5 1.5 0 01-1.5 1.5h-5A1.5 1.5 0 013 11.5V4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
                             },
                           ]
 
                           return TOOL_DEFS.map(tool => {
-                            const paths = accessPoints.filter(ap => ap.permissions[tool.id])
+                            const paths = accessPoints.filter(ap => ap.permissions[tool.backendId])
                             if (paths.length === 0) return null
                             
                             return (
-                              <div key={tool.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <div key={tool.uiId} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                 {/* Section Title - 小字 */}
-                                <div style={{ 
-                                  fontSize: 10, 
-                                  color: '#525252', 
-                                  textTransform: 'uppercase', 
+                                <div style={{
+                                  fontSize: 10,
+                                  color: '#525252',
+                                  textTransform: 'uppercase',
                                   letterSpacing: '0.5px',
                                   paddingLeft: 2,
                                   fontWeight: 600,
@@ -494,7 +525,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                     // 简单的命名规则：tool_lastSegment (e.g. query_users)
                                     // 移除非字母数字字符
                                     const safeName = lastSegment.replace(/[^a-zA-Z0-9_]/g, '')
-                                    const toolName = `${tool.id}_${safeName}`
+                                    const toolName = `${tool.uiId}_${safeName}`
 
                                     return (
                                       <div 

@@ -31,9 +31,11 @@ const MonacoJsonEditor = dynamic(
 )
 
 // Access Point 类型
-// MCP 工具权限类型 - 对应后端 6 种工具
+// MCP 工具权限类型 - 对应后端 8 种工具
 interface McpToolPermissions {
-  query?: boolean
+  get_data_schema?: boolean
+  get_all_data?: boolean
+  query_data?: boolean
   preview?: boolean
   select?: boolean
   create?: boolean

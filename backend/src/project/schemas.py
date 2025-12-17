@@ -4,7 +4,7 @@ Project API Schemas
 定义前端 API 请求/响应模型，匹配前端 ProjectInfo 类型。
 """
 
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 from pydantic import BaseModel
 
 
@@ -33,4 +33,18 @@ class ProjectUpdate(BaseModel):
     """更新项目请求"""
     name: Optional[str] = None
     description: Optional[str] = None
+
+
+class FolderImportRequest(BaseModel):
+    """文件夹导入请求"""
+    table_name: str
+    folder_structure: Dict[str, Any]
+
+
+class TableOut(BaseModel):
+    """表输出模型"""
+    id: str
+    name: str
+    rows: Optional[int] = None
+    data: Optional[List[Any]] = None
 
