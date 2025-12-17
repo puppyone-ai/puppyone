@@ -14,6 +14,66 @@ interface McpBarProps {
   onCloseOtherMenus?: () => void
 }
 
+// 辅助函数：检查文件是否为文本文件
+async function isTextFileType(file: File): Promise<boolean> {
+  const textFileExtensions = [
+    '.txt', '.md', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.h',
+    '.html', '.css', '.scss', '.less', '.xml', '.yaml', '.yml', '.toml', '.ini', '.cfg',
+    '.sql', '.sh', '.bat', '.ps1', '.log', '.csv', '.tsv', '.r', '.m', '.pl', '.rb',
+    '.go', '.rs', '.swift', '.kt', '.scala', '.php', '.rb', '.coffee', '.dart', '.lua'
+  ]
+
+  const binaryFileExtensions = [
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip', '.rar', '.tar', '.gz',
+    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.svg', '.webp', '.ico', '.mp3', '.mp4',
+    '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm', '.exe', '.dll', '.so', '.dylib', '.bin',
+    '.iso', '.img', '.dmg', '.pkg', '.deb', '.rpm', '.msi', '.app', '.apk', '.ipa'
+  ]
+
+  const fileName = file.name.toLowerCase()
+
+  // 明确的二进制文件
+  if (binaryFileExtensions.some(ext => fileName.endsWith(ext))) {
+    return false
+  }
+
+  // 明确的文本文件
+  if (textFileExtensions.some(ext => fileName.endsWith(ext))) {
+    return true
+  }
+
+  // 对于未知扩展名，检查文件头
+  const buffer = await file.slice(0, 1024).arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+
+  // 检查是否包含null字节（二进制文件的典型特征）
+  if (bytes.includes(0)) {
+    return false
+  }
+
+  // 检查是否大部分为可打印ASCII字符
+  let printableCount = 0
+  for (let i = 0; i < Math.min(bytes.length, 512); i++) {
+    const byte = bytes[i]
+    if (byte >= 32 && byte <= 126 || byte === 9 || byte === 10 || byte === 13) {
+      printableCount++
+    }
+  }
+
+  return printableCount / Math.min(bytes.length, 512) > 0.7
+}
+
+// 辅助函数：清理Unicode内容
+function sanitizeUnicodeContent(content: string): string {
+  return content
+    // 移除null字符和其他控制字符
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
+    // 替换其他可能有问题的Unicode字符
+    .replace(/[\uFFFE\uFFFF]/g, '')
+    // 确保字符串以有效的JSON开头（如果是JSON的话）
+    .trim()
+}
+
 export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ projectId, tableId, currentTreePath, onProjectsRefresh, onLog, onCloseOtherMenus }, ref) => {
   const { userId, session } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
@@ -155,14 +215,31 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
       // Add file
       const fileName = pathParts[pathParts.length - 1]
       try {
-        const content = await file.text()
+        // 检查是否为文本文件
+        const isTextFile = await isTextFileType(file)
+        let content = null
+
+        if (isTextFile) {
+          content = await file.text()
+          // 清理无效的Unicode字符
+          content = sanitizeUnicodeContent(content)
+        }
+
         current[fileName] = {
           type: 'file',
-          content: content
+          content,
+          size: file.size,
+          lastModified: file.lastModified
         }
       } catch (error) {
         console.error(`Failed to read file ${fileName}:`, error)
-        // Skip files that can't be read as text
+        current[fileName] = {
+          type: 'file',
+          content: null,
+          size: file.size,
+          lastModified: file.lastModified,
+          error: 'Failed to read file content'
+        }
       }
 
       processedFiles++

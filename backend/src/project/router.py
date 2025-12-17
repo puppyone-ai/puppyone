@@ -10,7 +10,7 @@ from typing import List
 from src.project.service import ProjectService
 from src.project.dependencies import get_project_service, get_verified_project
 from src.project.models import Project
-from src.project.schemas import ProjectOut, ProjectCreate, ProjectUpdate, TableInfo
+from src.project.schemas import ProjectOut, ProjectCreate, ProjectUpdate, TableInfo, FolderImportRequest, TableOut
 from src.supabase.dependencies import get_supabase_repository
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
@@ -160,4 +160,34 @@ def delete_project(
     # 删除项目
     project_service.delete(project.id)
     return ApiResponse.success(message="项目删除成功")
+
+
+@router.post("/{project_id}/import-folder", response_model=ApiResponse[TableOut], status_code=status.HTTP_201_CREATED)
+async def import_folder_as_table(
+    project_id: str,
+    payload: FolderImportRequest,
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """
+    导入文件夹结构作为表
+    """
+    table_info = project_service.import_folder_as_table(
+        project_id,
+        payload.table_name,
+        payload.folder_structure
+    )
+
+    # 读取表数据（可能是JSON对象而不是数组）
+    # 将文件夹结构包装成数组格式以符合TableOut的要求
+    table_data = [payload.folder_structure]
+
+    return ApiResponse.success(
+        data=TableOut(
+            id=str(table_info.id),
+            name=table_info.name,
+            rows=table_info.rows or 0,
+            data=table_data
+        ),
+        message="文件夹导入成功"
+    )
 
