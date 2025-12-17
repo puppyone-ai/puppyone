@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     NOTION_REDIRECT_URI: str = "http://localhost:3000/oauth/callback"
 
     # 服务间通信
-    INTERNAL_API_SECRET: str = ""
+    INTERNAL_API_SECRET: str = ""   # 内部服务通信密钥
+    MCP_SERVER_URL: str = ""        # MCP服务的地址
 
 settings = Settings()

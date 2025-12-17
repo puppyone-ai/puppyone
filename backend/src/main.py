@@ -4,10 +4,12 @@ ContextBase Backend Server Entrypoint.
 
 import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from src.mcp.dependencies import get_mcp_instance_service
 
 # 记录应用启动时间
 APP_START_TIME = time.time()
@@ -111,21 +113,24 @@ async def app_lifespan(app: FastAPI):
     log_info(f"📊 总导入时间: {(time.time() - APP_START_TIME)*1000:.2f}ms")
     log_info("")
 
-    # 1. MCP模块: 恢复 MCP 实例状态 (后续抽出单独的微服务)
+    # 1. MCP模块: 检查 MCP Server 健康状态
     mcp_init_start = time.time()
     try:
-        log_info("🔌 初始化 MCP 模块...")
+        log_info("🔌 检查 MCP Server 健康状态...")
         from src.mcp.dependencies import get_mcp_instance_service
 
         mcp_service = get_mcp_instance_service()
-        recovery_result = await mcp_service.recover_instances_on_startup()
+        health_result = await mcp_service.check_mcp_server_health()
         mcp_duration = time.time() - mcp_init_start
-        log_info(f"✅ MCP 实例恢复完成: {recovery_result} (耗时: {mcp_duration*1000:.2f}ms)")
+        if health_result.get("status","") != "unhealthy":
+            log_info(f"✅ MCP Server 健康检查完成: {health_result} (耗时: {mcp_duration*1000:.2f}ms)")
+        else:
+            log_error(f"❌ MCP Server停机, 健康信息: {health_result}")
     except Exception as e:
         mcp_duration = time.time() - mcp_init_start
-        log_error(f"❌ MCP 实例恢复失败 (耗时: {mcp_duration*1000:.2f}ms): {e}")
+        log_error(f"❌ MCP Server 健康检查失败 (耗时: {mcp_duration*1000:.2f}ms): {e}")
 
-    # 初始化 ETL 服务（需要启用 ETL，且非 DEBUG 才启动）
+    # 2. 初始化 ETL 服务（需要启用 ETL，且非 DEBUG 才启动）
     if settings.etl_enabled and not settings.DEBUG:
         etl_init_start = time.time()
         try:
@@ -161,17 +166,7 @@ async def app_lifespan(app: FastAPI):
     # 关闭时的清理逻辑
     log_info("ContextBase API 关闭中...")
     
-    # 1. 停止所有 MCP 实例
-    try:
-        from src.mcp.dependencies import get_mcp_instance_service
-        
-        mcp_service = get_mcp_instance_service()
-        shutdown_result = await mcp_service.shutdown_all_instances()
-        log_info(f"MCP instances shutdown completed: {shutdown_result}")
-    except Exception as e:
-        log_error(f"Failed to shutdown MCP instances: {e}")
-    
-    # 2. 停止 ETL 服务（需要启用 ETL，且非 DEBUG 才停止）
+    # 停止 ETL 服务（需要启用 ETL，且非 DEBUG 才停止）
     if settings.etl_enabled and not settings.DEBUG:
         try:
             from src.etl.dependencies import get_etl_service
@@ -250,7 +245,9 @@ app = create_app()
 
 
 @app.get("/health")
-async def health_check():
+async def health_check(
+    mcp_service = Depends(get_mcp_instance_service)
+):
     """健康检查接口"""
     import os
     
@@ -260,12 +257,15 @@ async def health_check():
         "s3_configured": bool(os.getenv("S3_BUCKET_NAME")),
         "mineru_configured": bool(os.getenv("MINERU_API_KEY")),
     }
+
+    health_result = await mcp_service.check_mcp_server_health()
     
     return {
         "status": "healthy",
         "service": "ContextBase API",
         "version": settings.VERSION,
-        "environment": env_status
+        "environment": env_status,
+        "mcp_status": health_result
     }
 
 
