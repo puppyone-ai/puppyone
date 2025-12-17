@@ -2,6 +2,6 @@
 builder = "RAILPACK"
 
 [deploy]
-startCommand = "uvicorn src.main:app --host 0.0.0.0 --port $PORT"
+startCommand = "sh -c 'uvicorn ${APP_MODULE:-src.main}:app --host 0.0.0.0 --port ${PORT}'"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
