@@ -8,24 +8,26 @@ class McpToolsDefinition(BaseModel):
     用于自定义工具的名称和描述模板
     """
 
-    tool_name: str = Field(
-        ..., description="工具名称，例如：'query_table', 'create_element' 等"
+    name: str = Field(
+        ..., description="工具名称"
     )
-    tool_desc_template: str = Field(
+    description: str = Field(
         ...,
-        description="工具描述模板，支持使用 {key} 格式的占位符，例如：'获取知识库内容。项目：{project_name}'",
-    )
-    tool_desc_parameters: List[Dict[str, Any]] = Field(
-        ...,
-        description='填充模板的参数列表，每个元素是一个字典，包含模板中占位符对应的值。例如：[{"project_name": "测试项目"}, {"table_name": "AI技术知识库"}]',
-        examples=[[{"project_name": "测试项目"}, {"table_name": "AI技术知识库"}]],
+        description="工具描述",
     )
 
 
 # 工具类型定义（注意：get已改为query，preview和select为新增工具）
-ToolTypeKey = Literal["get", "query", "create", "update", "delete", "preview", "select"]
-
-
+ToolTypeKey = Literal[
+    "get_data_schema",
+    "get_all_data",
+    "query_data",
+    "create",
+    "update",
+    "delete",
+    "preview",
+    "select",
+]
 class McpCreate(BaseModel):
     """
     创建 MCP 实例请求模型
@@ -41,13 +43,12 @@ class McpCreate(BaseModel):
     )
     tools_definition: Optional[Dict[ToolTypeKey, McpToolsDefinition]] = Field(
         ...,
-        description="🔧工具定义配置, 支持用户自定义工具名字,工具描述模板,工具描述参数. 支持的key包括: query, create, update, delete, preview, select. 如果不提供, 将沿用默认的工具配置.",
+        description="🔧工具定义配置, 支持用户自定义工具名字,工具描述模板,工具描述参数. 支持的key包括: get_data_schema, get_all_data, query_data, create, update, delete, preview, select. 如果不提供, 将沿用默认的工具配置.",
         examples=[
             {
                 "create": {
-                    "tool_name": "create_element",
-                    "tool_desc_template": "创建新元素到知识库：{context_name}",
-                    "tool_desc_parameters": [{"context_name": "AI技术知识库"}],
+                    "name": "create_element",
+                    "description": "创建新元素到知识库",
                 }
             }
         ],
@@ -59,7 +60,7 @@ class McpCreate(BaseModel):
     )
     preview_keys: Optional[List[str]] = Field(
         default=None,
-        description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_tables两个工具。preview_data工具会只返回指定字段的轻量级数据，select_tables工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
+        description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_data两个工具。preview_data工具会只返回指定字段的轻量级数据，select_tables工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
         examples=[["id", "name", "title"], ["user_id", "username"]],
     )
 

@@ -22,9 +22,18 @@ from src.exceptions import NotFoundException, ErrorCode
 from typing import Dict, Any, List
 import httpx
 import asyncio
+from src.config import settings
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
+# ============================================================
+# MCP实例管理接口
+#   - list
+#   - create
+#   - get_by_api_key
+#   - update
+#   - delete
+# ============================================================
 
 @router.get(
     "/list",
@@ -74,22 +83,18 @@ async def generate_mcp_instance(
         preview_keys=mcp_create.preview_keys,
     )
 
-    # 构建代理 URL（使用当前请求的 host 和 scheme）
+    # 构建MCP服务地址（Proxy的地址）
     scheme = request.url.scheme  # http 或 https
     host = request.headers.get("host", f"localhost:{request.url.port or 8000}")
     proxy_url = f"{scheme}://{host}/api/v1/mcp/server/{instance.api_key}"
-    
-    # 构建直接访问 URL
-    direct_url = f"http://localhost:{instance.port}/mcp"
 
-    # 返回 API key (JWT token) 和两个 URL
     return ApiResponse.success(
         data={
             "api_key": instance.api_key,
+            # 为兼容旧版本，这里返回三个一样的URL
+            "url": proxy_url,
             "proxy_url": proxy_url,
-            "direct_url": direct_url,
-            # 为了向后兼容，保留原来的 url 字段，指向直接访问 URL
-            "url": direct_url,
+            "direct_url": proxy_url
         },
         message="MCP 实例创建成功",
     )
@@ -182,37 +187,44 @@ async def delete_mcp_instance(
 
     return ApiResponse.success(data=None, message="MCP 实例删除成功")
 
+# ============================================================
+# MCP协议代理接口
+# - 职责:
+#   1. 基础拦截: 验证api_key是否合法。
+#   2. 状态拦截: 如果用户没有开启此mcp server，拒绝请求。
+#   3. 健康拦截: 如果目标实例不可达，拒绝请求
+# ============================================================
 
 @router.api_route(
     "/server/{api_key}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
     summary="MCP Server 代理路由（根路径）",
-    description="将请求转发到对应的 MCP Server 实例根路径（等价于 /mcp）。此接口不需要用户登录，只需提供有效的 api_key 即可。",
+    description="将请求转发到共享MCP Server（等价于 /mcp）。此接口不需要用户登录，只需提供有效的 api_key 即可。",
     include_in_schema=False,
 )
 @router.api_route(
     "/server/{api_key}/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
     summary="MCP Server 代理路由",
-    description="将请求转发到对应的 MCP Server 实例。此接口不需要用户登录，只需提供有效的 api_key 即可。",
+    description="将请求转发到共享MCP Server。此接口不需要用户登录，只需提供有效的 api_key 即可。",
     include_in_schema=True,
 )
 async def proxy_mcp_server(
     request: Request,
-    api_key: str,
     path: str = "",
     instance: McpInstance = Depends(get_mcp_instance_by_api_key),
 ):
     """
-    MCP Server 代理路由
+    MCP Server 代理路由（新版：转发到共享MCP Server）
     
-    该路由充当代理，将所有请求转发到对应的 MCP Server 实例。
-    用户无需直接访问不同端口的 MCP Server，而是通过统一的代理端点访问。
+    该路由充当代理，将所有请求转发到共享的 MCP Server 服务。
+    用户无需直接访问 MCP Server，而是通过统一的代理端点访问。
     
     注意：此接口不需要用户登录的 JWT token，只需要在 URL 中提供有效的 api_key 即可。
     
     Args:
         request: FastAPI Request 对象
+        api_key: API key（从URL提取）
         path: 要转发的路径（从 URL 中提取）
         instance: 验证后的 MCP 实例（通过依赖注入，只验证 api_key 是否存在）
     
@@ -222,30 +234,33 @@ async def proxy_mcp_server(
     Raises:
         NotFoundException: 如果 MCP 实例不存在或未运行
     """
-    # 检查实例状态
-    if instance.status != True:
+    
+    # 1. 检查是否启动了mcp server实例
+    if instance.status != 1:
         raise NotFoundException(
-            f"MCP instance is not running (status={instance.status})",
+            f"StatusError: MCP instance is not running (status={instance.status})",
             code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
         )
 
-    # 代理转发到本机端口：必须禁用环境代理变量，否则 localhost 可能被错误走代理导致 502
+    # 2.1 拼接 mcp_server地址
+    # 统一去掉末尾的 "/"，避免后续拼接出现双斜杠（例如 "...3090//mcp/"）
+    mcp_server_url = (settings.MCP_SERVER_URL or "").rstrip("/")
+    if not mcp_server_url:
+        raise ValueError("MCP SERVER URL should not be empty.")
 
-    # 构建目标 URL（兼容客户端把 /mcp 写进 path 与否）
-    # - 代理 base: /api/v1/mcp/server/{api_key}   -> 下游 /mcp
-    # - 代理 base: /api/v1/mcp/server/{api_key}/mcp -> 下游 /mcp
-    # - 其余路径：默认都认为是相对 /mcp 的子路径
     normalized_path = (path or "").lstrip("/")
     if normalized_path in ("", "mcp"):
-        downstream_path = "/mcp"
+        # 下游 MCP 服务在 Mount("/mcp", ...) 下，访问 "/mcp" 会触发 307 -> "/mcp/"
+        # 某些客户端/中间层对 POST 307 处理不一致，直接使用 "/mcp/" 避免重定向
+        downstream_path = "/mcp/"
     elif normalized_path.startswith("mcp/"):
         downstream_path = f"/{normalized_path}"
     else:
         downstream_path = f"/mcp/{normalized_path}"
 
-    target_url = f"http://localhost:{instance.port}{downstream_path}"
+    target_url = f"{mcp_server_url}{downstream_path}"
     
-    # 获取请求体：
+    # 2.2 获取请求体：
     # - GET/HEAD/OPTIONS 通常无 body，且读取可能在客户端断开时触发 ClientDisconnect
     # - 仅在可能携带 body 的方法下读取
     body = b""
@@ -256,21 +271,20 @@ async def proxy_mcp_server(
             # 客户端已断开连接，无需继续转发
             return Response(status_code=204)
     
-    # 准备转发的请求头（排除某些不应转发的头）
+    # 2.3 准备转发的请求头
     headers = dict(request.headers)
     # 移除 Host 头，让 httpx 自动设置
     headers.pop("host", None)
     # 移除 content-length，让 httpx 自动计算
     headers.pop("content-length", None)
     
-    # 准备查询参数：需要添加 token/api_key 以便 MCP Server 验证
-    # 将原始查询参数转换为字典，并添加 token/api_key（下游中间件支持二者）
+    # 2.4 添加 X-API-KEY header，用于MCP Server识别租户
+    headers["X-API-KEY"] = instance.api_key
+    
+    # 2.5 准备查询参数
     query_params = dict(request.query_params)
-    # 如果查询参数中还没有 token 或 api_key，补齐（优先保持与直连一致：使用 api_key）
-    if "token" not in query_params and "api_key" not in query_params:
-        query_params["api_key"] = instance.api_key
 
-    # 创建 httpx 客户端并转发请求
+    # 2.6 创建 httpx 客户端并转发请求
     # - 对于 SSE（Accept: text/event-stream）：使用 stream=True + read=None
     # - 其他情况：普通请求，read=30s
     accept = (request.headers.get("accept") or "").lower()
@@ -332,7 +346,7 @@ async def proxy_mcp_server(
                 await upstream_response.aclose()
             await client.aclose()
             raise NotFoundException(
-                f"无法连接到 MCP Server (port={instance.port}): {str(e)}",
+                f"无法连接到 MCP Server ({mcp_server_url}): {str(e)}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
         except httpx.TimeoutException as e:
@@ -340,7 +354,7 @@ async def proxy_mcp_server(
                 await upstream_response.aclose()
             await client.aclose()
             raise NotFoundException(
-                f"MCP Server 请求超时 (port={instance.port}): {str(e)}",
+                f"MCP Server 请求超时 ({mcp_server_url}): {str(e)}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
         except Exception as e:
@@ -386,12 +400,12 @@ async def proxy_mcp_server(
                 )
             except httpx.ConnectError as e:
                 raise NotFoundException(
-                    f"无法连接到 MCP Server (port={instance.port}): {str(e)}",
+                    f"无法连接到 MCP Server ({mcp_server_url}): {str(e)}",
                     code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
                 )
             except httpx.TimeoutException as e:
                 raise NotFoundException(
-                    f"MCP Server 请求超时 (port={instance.port}): {str(e)}",
+                    f"MCP Server 请求超时 ({mcp_server_url}): {str(e)}",
                     code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
                 )
             except Exception as e:
