@@ -1,7 +1,8 @@
 {
   "include": [
     "src",
-    "tests"
+    "tests",
+    "mcp_service"
   ],
   "exclude": [
     "**/__pycache__",

@@ -49,4 +49,7 @@ class Settings(BaseSettings):
     NOTION_CLIENT_SECRET: str = ""
     NOTION_REDIRECT_URI: str = "http://localhost:3000/oauth/callback"
 
+    # 服务间通信
+    INTERNAL_API_SECRET: str = ""
+
 settings = Settings()
