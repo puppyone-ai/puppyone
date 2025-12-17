@@ -15,7 +15,7 @@ from src.exceptions import (
 from src.mcp.schemas import McpTokenPayload
 from src.mcp.repository import McpInstanceRepositoryBase
 from src.mcp.models import McpInstance
-from src.mcp.server.manager.manager import (
+from src.mcp.server_old.manager.manager import (
     create_instance as create_mcp_server,
     delete_instance as kill_mcp_server,
     get_instance_status as get_mcp_server_status,
@@ -432,7 +432,7 @@ class McpService:
         Returns:
             状态信息字典
         """
-        from src.mcp.server.manager.manager import (
+        from src.mcp.server_old.manager.manager import (
             update_instance_status as update_and_restart_mcp_server,
         )
 
@@ -529,10 +529,10 @@ class McpService:
         Returns:
             同步结果统计
         """
-        from src.mcp.server.manager.manager import (
+        from src.mcp.server_old.manager.manager import (
             update_instance_status as update_and_restart_mcp_server,
         )
-        from src.mcp.server.manager.manager import (
+        from src.mcp.server_old.manager.manager import (
             get_instance_status as get_mcp_server_status,
         )
 
