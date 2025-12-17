@@ -27,9 +27,11 @@ interface FlatNode {
 
 // ContextMenuState is imported from './components/ContextMenu'
 
-// MCP 工具权限类型 - 对应后端 6 种工具
+// MCP 工具权限类型 - 对应后端 8 种工具
 interface McpToolPermissions {
-  query?: boolean
+  get_data_schema?: boolean
+  get_all_data?: boolean
+  query_data?: boolean
   preview?: boolean
   select?: boolean
   create?: boolean
@@ -922,7 +924,7 @@ const VirtualRow = React.memo(function VirtualRow({
   // Handle click - in selection mode, directly trigger onAddAccessPoint
   const handleRowClick = useCallback(() => {
     if (isSelectingAccessPoint) {
-      onAddAccessPoint?.(node.path, { query: true })
+      onAddAccessPoint?.(node.path, { query_data: true })
     } else {
       onSelect(node.path)
     }

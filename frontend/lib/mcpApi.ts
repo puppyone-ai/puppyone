@@ -9,12 +9,14 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 // 类型定义
 // ============================================
 
-// 后端支持的 6 种工具类型
-export type McpToolType = 'query' | 'preview' | 'select' | 'create' | 'update' | 'delete'
+// 后端支持的 8 种工具类型
+export type McpToolType = 'get_data_schema' | 'get_all_data' | 'query_data' | 'create' | 'update' | 'delete' | 'preview' | 'select'
 
 // MCP 工具权限类型（用于前端状态管理）
 export interface McpToolPermissions {
-  query?: boolean
+  get_data_schema?: boolean
+  get_all_data?: boolean
+  query_data?: boolean
   preview?: boolean
   select?: boolean
   create?: boolean
@@ -24,9 +26,8 @@ export interface McpToolPermissions {
 
 // 工具定义（用于自定义工具名称和描述）
 export interface McpToolDefinition {
-  tool_name: string
-  tool_desc_template: string
-  tool_desc_parameters: Array<Record<string, any>>
+  name: string
+  description: string
 }
 
 // MCP 实例信息
@@ -51,7 +52,7 @@ export interface McpCreateRequest {
   project_id: number
   table_id: number
   json_pointer?: string
-  tools_definition?: Record<McpToolType, McpToolDefinition>
+  tools_definition: Record<McpToolType, McpToolDefinition>
   register_tools?: McpToolType[]
   preview_keys?: string[]
 }
@@ -184,7 +185,9 @@ export function permissionsToRegisterTools(
   permissions: McpToolPermissions
 ): McpToolType[] {
   const tools: McpToolType[] = []
-  if (permissions.query) tools.push('query')
+  if (permissions.get_data_schema) tools.push('get_data_schema')
+  if (permissions.get_all_data) tools.push('get_all_data')
+  if (permissions.query_data) tools.push('query_data')
   if (permissions.preview) tools.push('preview')
   if (permissions.select) tools.push('select')
   if (permissions.create) tools.push('create')
@@ -201,7 +204,9 @@ export function registerToolsToPermissions(
 ): McpToolPermissions {
   if (!tools) return {}
   return {
-    query: tools.includes('query'),
+    get_data_schema: tools.includes('get_data_schema'),
+    get_all_data: tools.includes('get_all_data'),
+    query_data: tools.includes('query_data'),
     preview: tools.includes('preview'),
     select: tools.includes('select'),
     create: tools.includes('create'),
@@ -214,7 +219,9 @@ export function registerToolsToPermissions(
  * 工具类型的显示信息
  */
 export const TOOL_INFO: Record<McpToolType, { label: string; description: string }> = {
-  query: { label: 'Query', description: '查询元素（支持 JMESPath）' },
+  get_data_schema: { label: 'Get Schema', description: '获取数据结构' },
+  get_all_data: { label: 'Get All', description: '获取所有数据' },
+  query_data: { label: 'Query', description: '查询数据（支持 JMESPath）' },
   preview: { label: 'Preview', description: '预览数据（轻量级）' },
   select: { label: 'Select', description: '批量选择数据' },
   create: { label: 'Create', description: '创建新元素' },
