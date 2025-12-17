@@ -1,0 +1,27 @@
+使用 JMESPath 语法查询数据，支持灵活的条件过滤和投影。
+
+表格：{table_name}
+{table_description}
+
+参数：
+- query (str, 必填): JMESPath 查询表达式
+
+使用场景：
+- 需要精确检索特定数据时
+- 数据量较大，需要条件过滤时
+
+JMESPath 常用语法：
+- 访问字段: `field_name` 或 `nested.field`
+- 数组索引: `items[0]` 或 `items[*]`
+- 条件过滤: `items[?status=='active']`（仅用于数组）
+- 投影: `items[*].name`
+- 展平数组: `items[*].tags[]`
+
+示例：
+- 对象数据 `{{"users": [...]}}`：查询 `users[?age>20].name`
+- 数组数据 `[{{"id": 1}}, ...]`：查询 `[?id==1]`
+
+注意：
+- `[?...]` 过滤语法只能用于数组
+- 字符串比较用单引号：`[?name=='张三']`
+- 布尔值直接写：`[?active==true]`

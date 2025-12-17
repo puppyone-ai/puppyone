@@ -1,0 +1,20 @@
+根据指定字段和值列表，批量获取完整的数据记录。
+
+表格：{table_name}
+{table_description}
+
+参数：
+- field (str, 必填): 用于匹配的字段名
+- keys (List[str], 必填): 要匹配的值列表
+
+适用条件：数据必须是 List[Dict] 类型
+
+使用场景：
+- 在使用 preview_data 预览后，获取特定记录的完整数据
+- 需要根据某字段值批量获取多条记录
+
+示例：
+假设数据为 [{{"id": "1", "name": "张三", ...}}, {{"id": "2", "name": "李四", ...}}]
+调用 select_data(field="id", keys=["1", "2"]) 获取这两条完整记录
+
+注意：如果数据不是 List[Dict] 类型，请使用 get_all_data 或 query_data

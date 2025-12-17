@@ -1,0 +1,16 @@
+批量删除指定的键值对。
+
+表格：{table_name}
+{table_description}
+
+参数：
+- keys (List[str], 必填): 要删除的 key 列表
+
+使用前提：先用 get_data_schema 或 query_data 确认 key 存在
+
+示例：
+keys = ["user_001", "user_002"]
+
+注意：
+- 删除操作不可逆，请谨慎使用
+- 不存在的 key 会被忽略，不影响其他 key 的删除

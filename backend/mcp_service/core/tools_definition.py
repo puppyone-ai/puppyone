@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, Literal, Optional
 
 import mcp.types as mcp_types
@@ -27,9 +28,10 @@ ALL_TOOLS_LIST = [
     "create",
     "update",
     "delete",
-    "preview",
-    "select",
 ]
+
+# 描述模板目录
+DESCRIPTION_DIR = Path(__file__).parent.parent / "tool" / "description"
 
 
 class ToolDefinitionProvider:
@@ -47,16 +49,24 @@ class ToolDefinitionProvider:
             "preview": "preview_data",
             "select": "select_data",
         }
-        self.default_descriptions: Dict[str, str] = {
-            "get_data_schema": "获取挂载点数据结构（不包含实际值）",
-            "get_all_data": "获取挂载点全部数据",
-            "query_data": "对挂载点数据执行JMESPath查询",
-            "create": "创建表格元素",
-            "update": "更新表格元素",
-            "delete": "删除表格元素",
-            "preview": "预览表格数据（轻量级）",
-            "select": "根据字段选择表格数据",
-        }
+        # 缓存已加载的描述模板
+        self._description_cache: Dict[str, str] = {}
+
+    def _load_description_template(self, tool_type: str) -> str:
+        """从文件加载描述模板"""
+        if tool_type in self._description_cache:
+            return self._description_cache[tool_type]
+
+        template_path = DESCRIPTION_DIR / f"{tool_type}.txt"
+        if template_path.exists():
+            template = template_path.read_text(encoding="utf-8")
+            self._description_cache[tool_type] = template
+            return template
+
+        # 降级到简单描述
+        fallback = f"{tool_type} 工具"
+        self._description_cache[tool_type] = fallback
+        return fallback
 
     def get_tool_name(self, tool_type: tool_types) -> str:
         if tool_type in self.tools_definition:
@@ -66,15 +76,24 @@ class ToolDefinitionProvider:
         return self.default_names[tool_type]
 
     def get_tool_description(self, tool_type: tool_types, table_info: Dict[str, Any]) -> str:
+        # 优先使用自定义描述
         if tool_type in self.tools_definition:
             custom_desc = self.tools_definition[tool_type].get("description")
             if custom_desc:
                 return custom_desc
 
-        base_desc = self.default_descriptions[tool_type]
+        # 从模板文件加载并格式化
+        template = self._load_description_template(tool_type)
         table_name = table_info.get("table_name", "未知表格")
-        project_name = table_info.get("project_name", "未知项目")
-        return f"{base_desc}\n\n表格：{table_name}\n项目：{project_name}"
+        table_description = table_info.get("table_description", "")
+
+        # 格式化表格描述
+        table_description_str = f"描述：{table_description}" if table_description else ""
+
+        return template.format(
+            table_name=table_name,
+            table_description=table_description_str,
+        )
 
 
 def build_tools_list(config: Dict[str, Any], tool_provider: ToolDefinitionProvider) -> list[mcp_types.Tool]:
@@ -87,7 +106,6 @@ def build_tools_list(config: Dict[str, Any], tool_provider: ToolDefinitionProvid
 
     table_info = {
         "table_name": table_metadata["name"],
-        "project_name": f"项目{table_metadata['project_id']}",
         "table_description": table_metadata.get("description", ""),
     }
 

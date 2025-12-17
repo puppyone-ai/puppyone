@@ -1,0 +1,18 @@
+批量更新已存在的键值对。
+
+表格：{table_name}
+{table_description}
+
+参数：
+- updates (List[Dict], 必填): 要更新的元素数组
+  - key (str): 已存在的键名
+  - content (Any): 新的值内容（完全替换原值）
+
+使用前提：先用 get_data_schema 或 query_data 确认 key 存在
+
+示例：
+updates = [{{"key": "user_001", "content": {{"name": "张三", "age": 26}}}}]
+
+注意：
+- key 必须已存在，不存在的 key 会更新失败
+- content 是完全替换，不是部分更新
