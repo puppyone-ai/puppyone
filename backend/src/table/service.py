@@ -150,47 +150,56 @@ class TableService:
                 code=ErrorCode.BAD_REQUEST,
             )
 
-        # 确保父节点是字典类型
-        if not isinstance(parent, dict):
+        # dict 挂载点：按 key 写入；list 挂载点：按顺序 append content
+        if isinstance(parent, dict):
+            # 检查是否有重复的 key
+            for element in elements:
+                if "key" not in element:
+                    raise BusinessException(
+                        "Element missing 'key' field", code=ErrorCode.VALIDATION_ERROR
+                    )
+                key = element["key"]
+                if key in parent:
+                    raise BusinessException(
+                        f"Key '{key}' already exists", code=ErrorCode.VALIDATION_ERROR
+                    )
+
+            # 检查 content 是否重复（深度比较）
+            existing_content_strs = {
+                json.dumps(parent[k], sort_keys=True) for k in parent.keys()
+            }
+            for element in elements:
+                if "content" not in element:
+                    raise BusinessException(
+                        "Element missing 'content' field",
+                        code=ErrorCode.VALIDATION_ERROR,
+                    )
+                content = element["content"]
+                # 深度比较：序列化后比较字符串
+                content_str = json.dumps(content, sort_keys=True)
+                if content_str in existing_content_strs:
+                    raise BusinessException(
+                        f"Content already exists for key: {element['key']}",
+                        code=ErrorCode.VALIDATION_ERROR,
+                    )
+
+            # 创建新数据
+            for element in elements:
+                key = element["key"]
+                content = element["content"]
+                parent[key] = content
+        elif isinstance(parent, list):
+            # list 挂载点：忽略 key，追加 content
+            for element in elements:
+                if "content" not in element:
+                    raise BusinessException(
+                        "Element missing 'content' field", code=ErrorCode.VALIDATION_ERROR
+                    )
+                parent.append(element["content"])
+        else:
             raise BusinessException(
-                "Path points to non-dict node", code=ErrorCode.BAD_REQUEST
+                "Path points to non-dict/list node", code=ErrorCode.BAD_REQUEST
             )
-
-        # 检查是否有重复的 key
-        for element in elements:
-            if "key" not in element:
-                raise BusinessException(
-                    "Element missing 'key' field", code=ErrorCode.VALIDATION_ERROR
-                )
-            key = element["key"]
-            if key in parent:
-                raise BusinessException(
-                    f"Key '{key}' already exists", code=ErrorCode.VALIDATION_ERROR
-                )
-
-        # 检查 content 是否重复（深度比较）
-        existing_content_strs = {
-            json.dumps(parent[k], sort_keys=True) for k in parent.keys()
-        }
-        for element in elements:
-            if "content" not in element:
-                raise BusinessException(
-                    "Element missing 'content' field", code=ErrorCode.VALIDATION_ERROR
-                )
-            content = element["content"]
-            # 深度比较：序列化后比较字符串
-            content_str = json.dumps(content, sort_keys=True)
-            if content_str in existing_content_strs:
-                raise BusinessException(
-                    f"Content already exists for key: {element['key']}",
-                    code=ErrorCode.VALIDATION_ERROR,
-                )
-
-        # 创建新数据
-        for element in elements:
-            key = element["key"]
-            content = element["content"]
-            parent[key] = content
 
         # 更新 data 字段
         updated_table = self.repo.update_context_data(table_id, data)
@@ -257,32 +266,59 @@ class TableService:
                 f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
             )
 
-        if not isinstance(parent, dict):
+        if isinstance(parent, dict):
+            # 检查所有要更新的 key 是否存在
+            for element in elements:
+                if "key" not in element:
+                    raise BusinessException(
+                        "Element missing 'key' field",
+                        code=ErrorCode.VALIDATION_ERROR,
+                    )
+                key = element["key"]
+                if key not in parent:
+                    raise NotFoundException(
+                        f"Key '{key}' not found", code=ErrorCode.NOT_FOUND
+                    )
+
+            # 更新数据（整值替换，不做深层 merge）
+            for element in elements:
+                if "content" not in element:
+                    raise BusinessException(
+                        "Element missing 'content' field",
+                        code=ErrorCode.VALIDATION_ERROR,
+                    )
+                key = element["key"]
+                content = element["content"]
+                parent[key] = content
+        elif isinstance(parent, list):
+            # list 挂载点：key 视为下标（支持 str/int），对该位置整值替换
+            for element in elements:
+                if "key" not in element:
+                    raise BusinessException(
+                        "Element missing 'key' field",
+                        code=ErrorCode.VALIDATION_ERROR,
+                    )
+                if "content" not in element:
+                    raise BusinessException(
+                        "Element missing 'content' field",
+                        code=ErrorCode.VALIDATION_ERROR,
+                    )
+                try:
+                    idx = int(element["key"])
+                except (TypeError, ValueError):
+                    raise BusinessException(
+                        f"Invalid list index: {element['key']}",
+                        code=ErrorCode.BAD_REQUEST,
+                    )
+                if idx < 0 or idx >= len(parent):
+                    raise NotFoundException(
+                        f"Index '{idx}' not found", code=ErrorCode.NOT_FOUND
+                    )
+                parent[idx] = element["content"]
+        else:
             raise BusinessException(
-                "Path points to non-dict node", code=ErrorCode.BAD_REQUEST
+                "Path points to non-dict/list node", code=ErrorCode.BAD_REQUEST
             )
-
-        # 检查所有要更新的 key 是否存在
-        for element in elements:
-            if "key" not in element:
-                raise BusinessException(
-                    "Element missing 'key' field", code=ErrorCode.VALIDATION_ERROR
-                )
-            key = element["key"]
-            if key not in parent:
-                raise NotFoundException(
-                    f"Key '{key}' not found", code=ErrorCode.NOT_FOUND
-                )
-
-        # 更新数据
-        for element in elements:
-            if "content" not in element:
-                raise BusinessException(
-                    "Element missing 'content' field", code=ErrorCode.VALIDATION_ERROR
-                )
-            key = element["key"]
-            content = element["content"]
-            parent[key] = content
 
         # 更新 data 字段
         updated_table = self.repo.update_context_data(table_id, data)
@@ -322,21 +358,39 @@ class TableService:
                 f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
             )
 
-        if not isinstance(parent, dict):
+        if isinstance(parent, dict):
+            # 检查所有要删除的 key 是否存在
+            for key in keys:
+                if key not in parent:
+                    raise NotFoundException(
+                        f"Key '{key}' not found", code=ErrorCode.NOT_FOUND
+                    )
+
+            # 删除数据
+            for key in keys:
+                del parent[key]
+        elif isinstance(parent, list):
+            # list 挂载点：key 视为下标（支持 str/int），按倒序删除避免下标位移
+            indices: list[int] = []
+            for key in keys:
+                try:
+                    idx = int(key)
+                except (TypeError, ValueError):
+                    raise BusinessException(
+                        f"Invalid list index: {key}", code=ErrorCode.BAD_REQUEST
+                    )
+                if idx < 0 or idx >= len(parent):
+                    raise NotFoundException(
+                        f"Index '{idx}' not found", code=ErrorCode.NOT_FOUND
+                    )
+                indices.append(idx)
+
+            for idx in sorted(set(indices), reverse=True):
+                del parent[idx]
+        else:
             raise BusinessException(
-                "Path points to non-dict node", code=ErrorCode.BAD_REQUEST
+                "Path points to non-dict/list node", code=ErrorCode.BAD_REQUEST
             )
-
-        # 检查所有要删除的 key 是否存在
-        for key in keys:
-            if key not in parent:
-                raise NotFoundException(
-                    f"Key '{key}' not found", code=ErrorCode.NOT_FOUND
-                )
-
-        # 删除数据
-        for key in keys:
-            del parent[key]
 
         # 更新 data 字段
         updated_table = self.repo.update_context_data(table_id, data)
