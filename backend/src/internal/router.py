@@ -1,0 +1,320 @@
+"""
+Internal API路由
+供内部服务（如MCP Server）调用，使用SECRET鉴权
+"""
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from typing import Optional, Dict, Any
+from src.common_schemas import ApiResponse
+from src.mcp.dependencies import get_mcp_instance_service
+from src.table.dependencies import get_table_service
+from src.config import settings
+
+router = APIRouter(prefix="/internal", tags=["internal"])
+
+async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
+    """
+    验证Internal API的SECRET
+    
+    Args:
+        x_internal_secret: X-Internal-Secret header
+        
+    Raises:
+        HTTPException: 如果SECRET无效
+    """
+    if x_internal_secret != settings.INTERNAL_API_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid internal secret")
+
+
+@router.get(
+    "/mcp-instance/{api_key}",
+    summary="获取MCP实例数据",
+    description="根据API key获取MCP实例的完整数据",
+    dependencies=[Depends(verify_internal_secret)]
+)
+async def get_mcp_instance(
+    api_key: str,
+    mcp_service = Depends(get_mcp_instance_service)
+):
+    """
+    获取MCP实例数据
+    
+    Args:
+        api_key: API key
+        
+    Returns:
+        MCP实例数据
+    """
+    instance = await mcp_service.get_mcp_instance_by_api_key(api_key)
+    if not instance:
+        raise HTTPException(status_code=404, detail="MCP instance not found")
+    
+    return {
+        "api_key": instance.api_key,
+        "user_id": instance.user_id,
+        "project_id": instance.project_id,
+        "table_id": instance.table_id,
+        # 统一命名：json_path 表示该 MCP 实例挂载到 table.data 的 JSON Pointer 路径
+        # 兼容旧字段：仍返回 json_pointer
+        "json_path": instance.json_pointer,
+        "json_pointer": instance.json_pointer,
+        "status": instance.status,
+        "tools_definition": instance.tools_definition,
+        "register_tools": instance.register_tools,
+        "preview_keys": instance.preview_keys
+    }
+
+
+@router.get(
+    "/table/{table_id}",
+    summary="获取表格元数据",
+    description="根据table_id获取表格的元数据（不包含数据内容）",
+    dependencies=[Depends(verify_internal_secret)]
+)
+async def get_table_metadata(
+    table_id: int,
+    table_service = Depends(get_table_service)
+):
+    """
+    获取表格元数据
+    
+    Args:
+        table_id: 表格ID
+        
+    Returns:
+        表格元数据
+    """
+    table = table_service.get_by_id(table_id)
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    
+    return {
+        "table_id": table.table_id,
+        "name": table.name,
+        "description": table.description,
+        "user_id": table.user_id,
+        "project_id": table.project_id
+    }
+
+
+
+# ============================================================
+# 新版 internal 端点（命名更规范，参数更清晰）
+# - json_path: 挂载点（JSON Pointer），对应 mcp_instance 的职责范围
+# - query: JMESPath 查询表达式
+# ============================================================
+
+@router.get(
+    "/tables/{table_id}/context-schema",
+    summary="获取表格挂载点数据结构",
+    description="根据 table_id + json_path（JSON Pointer）获取结构（不包含实际值）",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def get_table_context_schema(
+    table_id: int,
+    json_path: str = Query(default="", description="挂载点 JSON Pointer 路径"),
+    table_service=Depends(get_table_service),
+):
+    try:
+        return table_service.get_context_structure(
+            table_id=table_id, json_pointer_path=json_path
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/tables/{table_id}/context-data",
+    summary="获取表格挂载点数据（可选JMESPath查询）",
+    description="根据 table_id + json_path 获取数据；如传 query 则在该数据上做 JMESPath 查询",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def get_table_context_data(
+    table_id: int,
+    json_path: str = Query(default="", description="挂载点 JSON Pointer 路径"),
+    query: Optional[str] = Query(default=None, description="JMESPath 查询表达式（可选）"),
+    table_service=Depends(get_table_service),
+):
+    try:
+        if query:
+            return table_service.query_context_data_with_jmespath(
+                table_id=table_id, json_pointer_path=json_path, query=query
+            )
+        return table_service.get_context_data(table_id=table_id, json_pointer_path=json_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/tables/{table_id}/context-data",
+    summary="在挂载点批量创建元素",
+    description="根据 table_id + json_path 在挂载点创建元素；挂载点是 dict 时按 key 写入，list 时按顺序追加 content",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def create_table_context_data(
+    table_id: int,
+    payload: Dict[str, Any],
+    table_service=Depends(get_table_service),
+):
+    try:
+        json_path = payload.get("json_path", "")
+        elements = payload.get("elements", [])
+        data = table_service.create_context_data(
+            table_id=table_id,
+            mounted_json_pointer_path=json_path,
+            elements=elements,
+        )
+        return {"message": "创建成功", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put(
+    "/tables/{table_id}/context-data",
+    summary="在挂载点批量更新元素",
+    description="根据 table_id + json_path 更新元素；dict 时按 key 替换，list 时 key 视为下标替换",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def update_table_context_data(
+    table_id: int,
+    payload: Dict[str, Any],
+    table_service=Depends(get_table_service),
+):
+    try:
+        json_path = payload.get("json_path", "")
+        elements = payload.get("elements", [])
+        data = table_service.update_context_data(
+            table_id=table_id, json_pointer_path=json_path, elements=elements
+        )
+        return {"message": "更新成功", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/tables/{table_id}/context-data",
+    summary="在挂载点批量删除元素",
+    description="根据 table_id + json_path 删除 keys；dict 时按 key 删除，list 时 key 视为下标删除",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def delete_table_context_data(
+    table_id: int,
+    payload: Dict[str, Any],
+    table_service=Depends(get_table_service),
+):
+    try:
+        json_path = payload.get("json_path", "")
+        keys = payload.get("keys", [])
+        data = table_service.delete_context_data(
+            table_id=table_id, json_pointer_path=json_path, keys=keys
+        )
+        return {"message": "删除成功", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/table-data/{table_id}/create",
+    summary="创建表格数据",
+    description="在指定表格和路径下创建数据",
+    dependencies=[Depends(verify_internal_secret)]
+)
+async def create_table_data(
+    table_id: int,
+    payload: Dict[str, Any],
+    table_service = Depends(get_table_service)
+):
+    """
+    创建表格数据
+    
+    Args:
+        table_id: 表格ID
+        payload: 请求体，包含json_pointer和elements
+        
+    Returns:
+        操作结果
+    """
+    try:
+        json_pointer = payload.get("json_pointer", "")
+        elements = payload.get("elements", [])
+        
+        table_service.create_context_data(
+            table_id=table_id,
+            mounted_json_pointer_path=json_pointer,
+            elements=elements
+        )
+        
+        return {"message": "创建成功"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/table-data/{table_id}/update",
+    summary="更新表格数据",
+    description="更新指定表格和路径下的数据",
+    dependencies=[Depends(verify_internal_secret)]
+)
+async def update_table_data(
+    table_id: int,
+    payload: Dict[str, Any],
+    table_service = Depends(get_table_service)
+):
+    """
+    更新表格数据
+    
+    Args:
+        table_id: 表格ID
+        payload: 请求体，包含json_pointer和elements
+        
+    Returns:
+        操作结果
+    """
+    try:
+        json_pointer = payload.get("json_pointer", "")
+        elements = payload.get("elements", [])
+        
+        table_service.update_context_data(
+            table_id=table_id,
+            json_pointer_path=json_pointer,
+            elements=elements
+        )
+        
+        return {"message": "更新成功"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/table-data/{table_id}/delete",
+    summary="删除表格数据",
+    description="删除指定表格和路径下的数据",
+    dependencies=[Depends(verify_internal_secret)]
+)
+async def delete_table_data(
+    table_id: int,
+    payload: Dict[str, Any],
+    table_service = Depends(get_table_service)
+):
+    """
+    删除表格数据
+    
+    Args:
+        table_id: 表格ID
+        payload: 请求体，包含json_pointer和keys
+        
+    Returns:
+        操作结果
+    """
+    try:
+        json_pointer = payload.get("json_pointer", "")
+        keys = payload.get("keys", [])
+        
+        table_service.delete_context_data(
+            table_id=table_id,
+            json_pointer_path=json_pointer,
+            keys=keys
+        )
+        
+        return {"message": "删除成功"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
