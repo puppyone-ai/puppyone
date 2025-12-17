@@ -79,6 +79,54 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
 
+  // 如果访问 /projects（slug 为空），重定向到第一个项目
+  useEffect(() => {
+    if (!slug || slug.length === 0) {
+      if (projects.length > 0 && !loading) {
+        router.replace(`/projects/${projects[0].id}`)
+      }
+    }
+  }, [slug, projects, loading, router])
+
+  // 如果正在加载或等待重定向，显示 loading
+  if (!slug || slug.length === 0) {
+    if (loading) {
+      return (
+        <div style={{
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#040404',
+          color: '#9ca3af',
+          fontSize: 14,
+        }}>
+          Loading projects...
+        </div>
+      )
+    }
+    if (projects.length === 0) {
+      return (
+        <div style={{
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: 12,
+          backgroundColor: '#040404',
+          color: '#9ca3af',
+          fontSize: 14,
+        }}>
+          <div>No projects found</div>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>Create a project to get started</div>
+        </div>
+      )
+    }
+    // 等待重定向
+    return null
+  }
+
   // Extract projectId and tableId from slug
   const [projectId, tableId] = slug || []
   const [activeBaseId, setActiveBaseId] = useState<string>(projectId || '')
