@@ -174,7 +174,7 @@ class UrlParser:
             # Check if this might be an authentication issue for known platforms
             if e.response.status_code in [401, 403] and source_type in ["notion", "github", "linear"]:
                 raise BusinessException(
-                    message=f"访问{source_type}需要授权，请先连接您的{source_type}账号",
+                    message=f"Authentication required to access {source_type}. Please connect your {source_type} account first.",
                     code=ErrorCode.UNAUTHORIZED
                 )
 

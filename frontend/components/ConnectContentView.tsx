@@ -177,7 +177,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       setError(err instanceof Error ? err.message : 'Failed to parse URL')
 
       // Check if error is related to authentication
-      if (err instanceof Error && isNotionUrl(url) && (err.message.includes('授权') || err.message.includes('authentication'))) {
+      if (err instanceof Error && isNotionUrl(url) && err.message.toLowerCase().includes('auth')) {
         setShowNotionAuth(true)
       }
     } finally {
@@ -226,11 +226,37 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const selectedProject = projects.find(p => Number(p.id) === selectedProjectId)
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-    }}>
+    <>
+      {/* Dark scrollbar styles for preview area */}
+      <style>{`
+        /* For Chrome, Safari, Edge */
+        .connect-preview-scrollbar::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .connect-preview-scrollbar::-webkit-scrollbar-track {
+          background: #0a0a0a;
+          border-radius: 4px;
+        }
+        .connect-preview-scrollbar::-webkit-scrollbar-thumb {
+          background: #404040;
+          border-radius: 4px;
+        }
+        .connect-preview-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #555;
+        }
+        /* For Firefox */
+        .connect-preview-scrollbar {
+          scrollbar-color: #404040 #0a0a0a;
+          scrollbar-width: thin;
+        }
+      `}</style>
+      
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+      }}>
       {/* Header */}
       <div style={{
         height: 44,
@@ -662,15 +688,17 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                     Sample Data ({parseResult.sample_data.length} items)
                   </div>
 
-                  <div style={{
-                    background: '#0a0a0a',
-                    border: '1px solid #2a2a2a',
-                    borderRadius: 6,
-                    padding: 12,
-                    fontSize: 11,
-                    maxHeight: 200,
-                    overflow: 'auto',
-                  }}>
+                  <div 
+                    className="connect-preview-scrollbar"
+                    style={{
+                      background: '#0a0a0a',
+                      border: '1px solid #2a2a2a',
+                      borderRadius: 6,
+                      padding: 12,
+                      fontSize: 11,
+                      maxHeight: 200,
+                      overflow: 'auto',
+                    }}>
                     <pre style={{
                       margin: 0,
                       whiteSpace: 'pre-wrap',
@@ -863,5 +891,6 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
         </div>
       </div>
     </div>
+    </>
   )
 }

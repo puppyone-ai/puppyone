@@ -461,6 +461,9 @@ export function ProjectWorkspaceView({
                             onPendingConfigSave={onPendingConfigSave}
                             onAccessPointChange={onAccessPointChange}
                             onAccessPointRemove={onAccessPointRemove}
+                            projectId={Number(projectId)}
+                            tableId={resolvedActiveTableId ? Number(resolvedActiveTableId) : undefined}
+                            onImportSuccess={refreshTableData}
                           />
                         )}
                         {editorType === 'monaco' && (

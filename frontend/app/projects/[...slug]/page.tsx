@@ -10,6 +10,7 @@ import { ProjectsSidebar } from '../../../components/ProjectsSidebar'
 import { ProjectsHeader, type EditorType } from '../../../components/ProjectsHeader'
 import { McpContentView } from '../../../components/McpContentView'
 import { EtlContentView } from '../../../components/EtlContentView'
+import { ConnectContentView } from '../../../components/ConnectContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
 import { ImportMenu } from '../../../components/ImportMenu'
 import { 
@@ -20,7 +21,7 @@ import {
   TOOL_INFO 
 } from '../../../lib/mcpApi'
 
-type ActiveView = 'projects' | 'mcp' | 'etl' | 'test' | 'logs' | 'settings'
+type ActiveView = 'projects' | 'mcp' | 'etl' | 'connect' | 'test' | 'logs' | 'settings'
 
 const utilityNav = [
   { id: 'mcp', label: 'MCP', path: 'mcp', isAvailable: true },
@@ -105,6 +106,17 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     }
   }, [])
 
+  // Listen for navigate to connect event (from ImportModal auth button)
+  useEffect(() => {
+    const handleNavigateToConnect = () => {
+      setActiveView('connect')
+    }
+    window.addEventListener('navigateToConnect', handleNavigateToConnect)
+    return () => {
+      window.removeEventListener('navigateToConnect', handleNavigateToConnect)
+    }
+  }, [])
+
   const activeBase = useMemo(
     () => projects.find((project) => project.id === activeBaseId) ?? null,
     [projects, activeBaseId],
@@ -168,6 +180,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     } else if (viewId === 'etl') {
       setActiveView('etl')
       window.history.pushState({}, '', '/etl')
+    } else if (viewId === 'connect') {
+      setActiveView('connect')
+      window.history.pushState({}, '', '/connect')
     }
   }
 
@@ -767,6 +782,8 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
           <McpContentView onBack={handleBackToProjects} />
         ) : activeView === 'etl' ? (
           <EtlContentView onBack={handleBackToProjects} />
+        ) : activeView === 'connect' ? (
+          <ConnectContentView onBack={handleBackToProjects} />
         ) : null}
       </section>
 

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import ReactMarkdown from 'react-markdown'
 import { ContextMenu, type ContextMenuState } from './components/ContextMenu'
+import { ImportModal } from './components/ImportModal'
 
 // ============================================
 // Types
@@ -64,6 +65,11 @@ interface TreeLineVirtualEditorProps {
   // 统一交互：右侧 Gutter 配置 Agent 权限
   onAccessPointChange?: (path: string, permissions: McpToolPermissions) => void
   onAccessPointRemove?: (path: string) => void
+  // Import功能所需的项目和表格ID
+  projectId?: number
+  tableId?: number
+  // 导入成功后的回调，用于刷新table数据
+  onImportSuccess?: () => void
 }
 
 // ============================================
@@ -964,7 +970,7 @@ const VirtualRow = React.memo(function VirtualRow({
             setHovered(false) // 移除 !isLockedByOther 限制
           }}
           onClick={handleMenuClick}
-          title="操作菜单"
+          title="Actions Menu"
         >
           <svg width="8" height="12" viewBox="0 0 8 12" fill="none">
             <circle cx="2" cy="2" r="1.2" fill="currentColor"/>
@@ -1076,7 +1082,7 @@ const VirtualRow = React.memo(function VirtualRow({
             setShowGutterPopover(newState)
             onPopoverOpenChange?.(newState ? node.path : null)
           }}
-          title="配置 MCP 工具权限"
+          title="Configure MCP Tool Permissions"
         >
           {/* 小狗爪子图标 - 使用用户提供的 SVG */}
           <svg 
@@ -1458,6 +1464,9 @@ export function TreeLineVirtualEditor({
   onPendingConfigSave,
   onAccessPointChange,
   onAccessPointRemove,
+  projectId,
+  tableId,
+  onImportSuccess,
 }: TreeLineVirtualEditorProps) {
   // 创建 path -> permissions 的快速查找表
   const configuredAccessMap = useMemo(() => {
@@ -1475,6 +1484,11 @@ export function TreeLineVirtualEditor({
     path: '',
     value: null,
   })
+  
+  // Import Modal状态
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importTargetPath, setImportTargetPath] = useState<string>('')
+  const [importTargetValue, setImportTargetValue] = useState<any>(null)
   
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
     // 默认展开根节点和前两层
@@ -1654,6 +1668,40 @@ export function TreeLineVirtualEditor({
   const handleMenuAction = useCallback((action: string, payload?: any) => {
     const { path, value } = contextMenu
 
+    // Handle copy-path separately (doesn't need onChange)
+    if (action === 'copy-path') {
+      const displayPath = path || '/' // 根节点显示为 '/'
+      navigator.clipboard.writeText(displayPath).then(() => {
+        console.log('Path copied to clipboard:', displayPath)
+      }).catch(err => {
+        console.error('Failed to copy path:', err)
+      })
+      closeContextMenu()
+      return
+    }
+
+    // Handle upload separately (doesn't need onChange for now)
+    if (action === 'upload') {
+      console.log('Upload action for path:', path)
+      // TODO: Implement upload functionality
+      closeContextMenu()
+      return
+    }
+
+    // Handle import-from-url
+    if (action === 'import-from-url') {
+      if (!projectId || !tableId) {
+        console.error('Cannot import: projectId or tableId is missing')
+        closeContextMenu()
+        return
+      }
+      setImportTargetPath(path)
+      setImportTargetValue(value)
+      setShowImportModal(true)
+      closeContextMenu()
+      return
+    }
+
     if (!onChange) return
 
     const parts = path.split('/').filter(Boolean)
@@ -1822,6 +1870,23 @@ export function TreeLineVirtualEditor({
         onClose={closeContextMenu}
         onAction={handleMenuAction}
       />
+
+      {/* Import Modal */}
+      {showImportModal && projectId && tableId && (
+        <ImportModal
+          visible={showImportModal}
+          targetPath={importTargetPath}
+          currentValue={importTargetValue}
+          tableId={tableId}
+          projectId={projectId}
+          mode="import_to_table"
+          onClose={() => setShowImportModal(false)}
+          onSuccess={() => {
+            setShowImportModal(false)
+            onImportSuccess?.()
+          }}
+        />
+      )}
     </div>
   )
 }
