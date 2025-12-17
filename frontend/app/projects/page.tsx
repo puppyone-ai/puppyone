@@ -60,6 +60,17 @@ export default function ProjectsPage() {
     }
   }, [])
 
+  // Listen for navigate to connect event (from ImportModal auth button)
+  useEffect(() => {
+    const handleNavigateToConnect = () => {
+      setActiveView('connect')
+    }
+    window.addEventListener('navigateToConnect', handleNavigateToConnect)
+    return () => {
+      window.removeEventListener('navigateToConnect', handleNavigateToConnect)
+    }
+  }, [])
+
   const activeBase = useMemo(
     () => projects.find((project) => project.id === activeBaseId) ?? null,
     [projects, activeBaseId],

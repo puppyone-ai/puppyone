@@ -278,6 +278,16 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
 
       {/* 数据操作 */}
       <MenuItem 
+        onClick={() => onAction('import-from-url')} 
+        icon={
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 2v8M11 6L7 2 3 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 12h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+        } 
+        label="Import from URL" 
+      />
+      <MenuItem 
         onClick={() => onAction('upload')} 
         icon={
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

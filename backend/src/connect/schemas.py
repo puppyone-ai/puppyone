@@ -36,6 +36,9 @@ class ImportDataRequest(BaseModel):
     table_id: Optional[int] = Field(None, description="目标表格ID，如果为空则创建新表格")
     table_name: Optional[str] = Field(None, description="新表格名称（仅当table_id为空时有效）")
     table_description: Optional[str] = Field(None, description="新表格描述（仅当table_id为空时有效）")
+    target_path: Optional[str] = Field(None, description="目标JSON路径，如 /users/0/profile (legacy)")
+    import_mode: str = Field("add_to_existing", description="导入模式: add_to_existing, replace_all, keep_separate")
+    merge_strategy: str = Field("smart", description="合并策略 (legacy): replace, merge_object, append_array, smart")
 
 
 class ImportDataResponse(BaseModel):

@@ -1,6 +1,6 @@
 /**
- * Connect API 客户端
- * 用于与后端 Connect 接口通信
+ * Connect API Client
+ * For communicating with backend Connect API
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:9090'
@@ -31,6 +31,9 @@ export interface ImportDataRequest {
   table_id?: number
   table_name?: string
   table_description?: string
+  target_path?: string  // Legacy
+  import_mode?: 'add_to_existing' | 'replace_all' | 'keep_separate'
+  merge_strategy?: 'replace' | 'merge_object' | 'append_array' | 'smart'  // Legacy
 }
 
 export interface ImportDataResponse {
@@ -49,7 +52,7 @@ export interface ApiResponse<T> {
 }
 
 /**
- * 获取认证token
+ * Get authentication token
  */
 function getAuthToken(): string | null {
   if (typeof window !== 'undefined') {
@@ -59,7 +62,7 @@ function getAuthToken(): string | null {
 }
 
 /**
- * 解析URL并返回数据预览
+ * Parse URL and return data preview
  */
 export async function parseUrl(url: string): Promise<ParseUrlResponse> {
   const token = getAuthToken()
@@ -88,7 +91,7 @@ export async function parseUrl(url: string): Promise<ParseUrlResponse> {
 }
 
 /**
- * 导入数据到项目表格
+ * Import data to project table
  */
 export async function importData(params: ImportDataRequest): Promise<ImportDataResponse> {
   const token = getAuthToken()
