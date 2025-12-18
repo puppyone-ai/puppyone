@@ -84,9 +84,32 @@ async def generate_mcp_instance(
     )
 
     # 构建MCP服务地址（Proxy的地址）
-    scheme = request.url.scheme  # http 或 https
-    host = request.headers.get("host", f"localhost:{request.url.port or 8000}")
-    proxy_url = f"{scheme}://{host}/api/v1/mcp/server/{instance.api_key}"
+    # 优先级：
+    # 1. 环境变量 PUBLIC_URL（显式配置）
+    # 2. X-Forwarded-* headers（反向代理环境，如 Railway）
+    # 3. request.url（本地开发）
+    
+    if settings.PUBLIC_URL:
+        # 显式配置的公共 URL（去除末尾斜杠）
+        base_url = settings.PUBLIC_URL.rstrip("/")
+    else:
+        # 从请求推断 URL
+        # 优先使用 X-Forwarded-* headers（反向代理环境）
+        forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+        forwarded_host = request.headers.get("x-forwarded-host")
+        
+        if forwarded_host:
+            # Railway 等反向代理环境
+            scheme = forwarded_proto
+            host = forwarded_host
+        else:
+            # 本地开发环境
+            scheme = request.url.scheme
+            host = request.headers.get("host", f"localhost:{request.url.port or 8000}")
+        
+        base_url = f"{scheme}://{host}"
+    
+    proxy_url = f"{base_url}/api/v1/mcp/server/{instance.api_key}"
 
     return ApiResponse.success(
         data={
