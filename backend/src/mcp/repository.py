@@ -41,6 +41,7 @@ class McpInstanceRepositoryBase(ABC):
         user_id: str,
         project_id: str,
         table_id: str,
+        name: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -59,6 +60,7 @@ class McpInstanceRepositoryBase(ABC):
         user_id: str,
         project_id: str,
         table_id: str,
+        name: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -76,6 +78,7 @@ class McpInstanceRepositoryBase(ABC):
         user_id: str,
         project_id: str,
         table_id: str,
+        name: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -153,6 +156,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         user_id: str,
         project_id: str,
         table_id: str,
+        name: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -174,6 +178,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
             user_id=user_id,
             project_id=project_id,
             table_id=table_id,
+            name=name,
             json_pointer=json_pointer,
             status=status,
             port=port,
@@ -193,6 +198,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         user_id: str,
         project_id: str,
         table_id: str,
+        name: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -208,6 +214,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 instance.user_id = user_id
                 instance.project_id = project_id
                 instance.table_id = table_id
+                instance.name = name
                 instance.json_pointer = json_pointer
                 instance.status = status
                 instance.port = port
@@ -225,6 +232,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         user_id: str,
         project_id: str,
         table_id: str,
+        name: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -239,6 +247,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 instance.user_id = user_id
                 instance.project_id = project_id
                 instance.table_id = table_id
+                instance.name = name
                 instance.json_pointer = json_pointer
                 instance.status = status
                 instance.port = port
@@ -293,6 +302,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
             user_id=str(mcp_response.user_id) if mcp_response.user_id else "",
             project_id=str(mcp_response.project_id) if mcp_response.project_id else "",
             table_id=str(mcp_response.table_id) if mcp_response.table_id else "",
+            name=mcp_response.name,
             json_pointer=mcp_response.json_path or "",
             status=1 if mcp_response.status else 0,
             port=mcp_response.port or 0,
@@ -339,6 +349,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         user_id: str,
         project_id: str,
         table_id: str,
+        name: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -354,6 +365,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
             user_id=user_id if user_id else None,
             project_id=int(project_id) if project_id else None,
             table_id=int(table_id) if table_id else None,
+            name=name,
             json_path=json_pointer,
             status=bool(status),
             port=port,
@@ -373,6 +385,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         user_id: str,
         project_id: str,
         table_id: str,
+        name: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -393,6 +406,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
             user_id=user_id if user_id else None,
             project_id=int(project_id) if project_id else None,
             table_id=int(table_id) if table_id else None,
+            name=name,
             json_path=json_pointer,
             status=bool(status),
             port=port,
@@ -413,6 +427,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         user_id: str,
         project_id: str,
         table_id: str,
+        name: str,
         json_pointer: str,
         status: int,
         port: int,
@@ -428,6 +443,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
             user_id=user_id if user_id else None,
             project_id=int(project_id) if project_id else None,
             table_id=int(table_id) if table_id else None,
+            name=name,
             json_path=json_pointer,
             status=bool(status),
             port=port,

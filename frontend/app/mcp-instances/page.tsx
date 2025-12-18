@@ -9,12 +9,16 @@ interface McpInstance {
   mcp_instance_id: string
   api_key: string
   user_id: string
-  project_id: string
-  context_id: string
+  project_id: number
+  table_id: number
+  name: string | null
+  json_pointer: string
   status: number
   port: number
   docker_info: any
   tools_definition: any
+  register_tools: any
+  preview_keys: any
 }
 
 export default function McpInstancesPage() {
@@ -88,6 +92,11 @@ export default function McpInstancesPage() {
       console.error('Failed to update status', e)
       alert('Error updating status')
     }
+  }
+
+  const handleUpdateInstance = async (apiKey: string, updates: Partial<McpInstance>) => {
+    // Update local state
+    setInstances(prev => prev.map(i => i.api_key === apiKey ? { ...i, ...updates } : i))
   }
 
 
@@ -166,8 +175,6 @@ export default function McpInstancesPage() {
         ) : (
           <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))' }}>
             {instances.map((instance) => {
-              const url = `http://localhost:${instance.port}/mcp`
-              
               return (
                 <div 
                   key={instance.mcp_instance_id}
@@ -184,10 +191,10 @@ export default function McpInstancesPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>
-                        Project: {instance.project_id}
+                        {instance.name || 'Unnamed Instance'}
                       </div>
                       <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                        Port: {instance.port}
+                        Project: {instance.project_id}
                       </div>
                     </div>
                     <div style={{ 
@@ -203,9 +210,8 @@ export default function McpInstancesPage() {
                   </div>
 
                   <McpInstanceInfo 
-                    apiKey={instance.api_key} 
-                    url={url} 
-                    port={instance.port} 
+                    instance={instance}
+                    onUpdate={(updates) => handleUpdateInstance(instance.api_key, updates)}
                   />
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 'auto', paddingTop: 8, borderTop: '1px solid rgba(148,163,184,0.1)' }}>

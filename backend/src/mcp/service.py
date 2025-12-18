@@ -141,6 +141,7 @@ class McpService:
         user_id: str,
         project_id: int,
         table_id: int,
+        name: str,
         json_pointer: str = "",
         tools_definition: Optional[Dict[str, Any]] = None,
         register_tools: Optional[List[str]] = None,
@@ -153,6 +154,7 @@ class McpService:
             user_id: 用户ID
             project_id: 项目ID
             table_id: 表格ID
+            name: MCP实例名称
             json_pointer: JSON指针路径
             tools_definition: 工具定义字典（可选）
             register_tools: 需要注册的工具列表（可选）
@@ -172,6 +174,7 @@ class McpService:
                 user_id=user_id,
                 project_id=project_id,
                 table_id=table_id,
+                name=name,
                 json_pointer=json_pointer,
                 status=1,   # 默认开启
                 # 工具配置
@@ -202,6 +205,7 @@ class McpService:
     async def update_mcp_instance(
         self,
         api_key: str,
+        name: Optional[str] = None,
         status: Optional[int] = None,
         json_pointer: Optional[str] = None,
         tools_definition: Optional[Dict[str, Any]] = None,
@@ -231,6 +235,7 @@ class McpService:
 
         try:
             # 准备最终参数
+            final_name = name if name is not None else instance.name
             final_json_pointer = (
                 json_pointer if json_pointer is not None else instance.json_pointer
             )
@@ -255,6 +260,7 @@ class McpService:
                 user_id=instance.user_id,
                 project_id=instance.project_id,
                 table_id=instance.table_id,
+                name=final_name,
                 json_pointer=final_json_pointer,
                 status=target_status,
                 port=instance.port,
@@ -346,6 +352,7 @@ class McpService:
         mcp_server_status = await self._check_mcp_server_health()
 
         return {
+            "name": instance.name,
             "status": instance.status,
             "port": instance.port,
             "json_pointer": instance.json_pointer,

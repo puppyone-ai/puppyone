@@ -15,6 +15,7 @@ class McpBase(BaseModel):
     user_id: Optional[str] = None
     project_id: Optional[int] = None
     table_id: Optional[int] = None
+    name: Optional[str] = None
     json_path: Optional[str] = None
     status: Optional[bool] = None
     port: Optional[int] = None
@@ -35,6 +36,7 @@ class McpUpdate(BaseModel):
     user_id: Optional[str] = None
     project_id: Optional[int] = None
     table_id: Optional[int] = None
+    name: Optional[str] = None
     json_path: Optional[str] = None
     status: Optional[bool] = None
     port: Optional[int] = None

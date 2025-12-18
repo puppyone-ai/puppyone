@@ -8,12 +8,16 @@ interface McpInstance {
   mcp_instance_id: string
   api_key: string
   user_id: string
-  project_id: string
-  context_id: string
+  project_id: number
+  table_id: number
+  name: string | null
+  json_pointer: string
   status: number
   port: number
   docker_info: any
   tools_definition: any
+  register_tools: any
+  preview_keys: any
 }
 
 type McpContentViewProps = {
@@ -88,6 +92,11 @@ export function McpContentView({ onBack }: McpContentViewProps) {
     }
   }
 
+  const handleUpdateInstance = async (apiKey: string, updates: Partial<McpInstance>) => {
+    // Update local state
+    setInstances(prev => prev.map(i => i.api_key === apiKey ? { ...i, ...updates } : i))
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
@@ -141,8 +150,6 @@ export function McpContentView({ onBack }: McpContentViewProps) {
         ) : (
           <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))' }}>
             {instances.map((instance) => {
-              const url = `http://localhost:${instance.port}/mcp`
-              
               return (
                 <div 
                   key={instance.mcp_instance_id}
@@ -159,10 +166,10 @@ export function McpContentView({ onBack }: McpContentViewProps) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#EDEDED', marginBottom: 4 }}>
-                        Project: {instance.project_id}
+                        {instance.name || 'Unnamed Instance'}
                       </div>
                       <div style={{ fontSize: 11, color: '#6D7177' }}>
-                        Port: {instance.port}
+                        Project: {instance.project_id}
                       </div>
                     </div>
                     <div style={{ 
@@ -178,9 +185,8 @@ export function McpContentView({ onBack }: McpContentViewProps) {
                   </div>
 
                   <McpInstanceInfo 
-                    apiKey={instance.api_key} 
-                    url={url} 
-                    port={instance.port} 
+                    instance={instance}
+                    onUpdate={(updates) => handleUpdateInstance(instance.api_key, updates)}
                   />
 
                   <div style={{ 

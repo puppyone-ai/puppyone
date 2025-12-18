@@ -77,6 +77,7 @@ async def generate_mcp_instance(
         user_id=current_user.user_id,
         project_id=mcp_create.project_id,
         table_id=mcp_create.table_id,
+        name=mcp_create.name,
         json_pointer=mcp_create.json_pointer,
         tools_definition=mcp_create.tools_definition,
         register_tools=mcp_create.register_tools,
@@ -139,6 +140,7 @@ async def get_mcp_status(
 
     # 构建响应数据
     response_data = McpStatusResponse(
+        name=status_info.get("name"),
         status=status_info.get("status", 0),
         port=status_info.get("port"),
         docker_info=status_info.get("docker_info"),
@@ -170,6 +172,7 @@ async def update_mcp(
     """
     await mcp_instance_service.update_mcp_instance(
         api_key=instance.api_key,
+        name=mcp_update.name,
         status=mcp_update.status,
         json_pointer=mcp_update.json_pointer,
         tools_definition=mcp_update.tools_definition,
@@ -182,6 +185,7 @@ async def update_mcp(
 
     # 构建响应数据
     response_data = McpStatusResponse(
+        name=status_info.get("name"),
         status=status_info.get("status", 0),
         port=status_info.get("port"),
         docker_info=status_info.get("docker_info"),
