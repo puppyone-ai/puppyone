@@ -52,5 +52,11 @@ class Settings(BaseSettings):
     # 服务间通信
     INTERNAL_API_SECRET: str = ""   # 内部服务通信密钥
     MCP_SERVER_URL: str = ""        # MCP服务的地址
+    
+    # 公共访问 URL（用于生成对外的 API 链接）
+    # - 本地开发: http://localhost:8000
+    # - Railway: https://your-app.railway.app
+    # - 如果不设置，会从请求头自动推断
+    PUBLIC_URL: str = ""
 
 settings = Settings()
