@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 're
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { McpInstanceInfo } from './McpInstanceInfo'
 import { treePathToJsonPointer } from '../lib/jsonPointer'
+import { McpInstance } from '../lib/mcpApi'
 
 interface McpBarProps {
   projectId?: string
@@ -847,9 +848,22 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <McpInstanceInfo
-                apiKey={result.apiKey}
-                url={result.url}
-                port={result.port}
+                instance={{
+                  mcp_instance_id: '',
+                  api_key: result.apiKey,
+                  url: result.url,
+                  user_id: userId || '',
+                  project_id: parseInt(projectId || '0'),
+                  table_id: parseInt(tableId || '0'),
+                  name: null,
+                  json_pointer: '',
+                  status: 1,
+                  port: result.port,
+                  docker_info: {},
+                  tools_definition: null,
+                  register_tools: null,
+                  preview_keys: null,
+                } as McpInstance}
               />
               <button
                 onClick={() => setResult(null)}

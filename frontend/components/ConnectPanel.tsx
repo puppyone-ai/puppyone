@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { McpInstanceInfo } from './McpInstanceInfo'
 import { treePathToJsonPointer } from '../lib/jsonPointer'
+import { McpInstance } from '../lib/mcpApi'
 
 interface ConnectPanelProps {
   projectId?: string
@@ -316,9 +317,22 @@ export function ConnectPanel({
                       <span>MCP Instance Created</span>
                     </div>
                     <McpInstanceInfo
-                      apiKey={mcpResult.apiKey}
-                      url={mcpResult.url}
-                      port={mcpResult.port}
+                      instance={{
+                        mcp_instance_id: '',
+                        api_key: mcpResult.apiKey,
+                        url: mcpResult.url,
+                        user_id: userId || '',
+                        project_id: parseInt(projectId || '0'),
+                        table_id: parseInt(tableId || '0'),
+                        name: null,
+                        json_pointer: '',
+                        status: 1,
+                        port: mcpResult.port,
+                        docker_info: {},
+                        tools_definition: null,
+                        register_tools: null,
+                        preview_keys: null,
+                      } as McpInstance}
                     />
                     <button
                       onClick={() => setMcpResult(null)}
