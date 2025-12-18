@@ -130,8 +130,30 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
     env: {}`
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Name (可编辑) */}
+    <>
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #0a0a0a;
+          border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #374151;
+          border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #4b5563;
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #374151 #0a0a0a;
+        }
+      `}</style>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Name (可编辑) */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
           <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 500 }}>Instance Name</div>
@@ -401,12 +423,16 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
             )}
           </button>
         </div>
-        <div style={{
-          background: '#1f1f1f',
-          borderRadius: 4,
-          overflow: 'hidden',
-          border: '1px solid #374151'
-        }}>
+        <div 
+          className="custom-scrollbar"
+          style={{
+            background: '#1f1f1f',
+            borderRadius: 4,
+            overflow: 'auto',
+            border: '1px solid #374151',
+            maxHeight: 80
+          }}
+        >
           <SyntaxHighlighter
             language="text"
             style={customTheme}
@@ -493,14 +519,16 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
             )}
           </button>
         </div>
-        <div style={{
-          background: '#1f1f1f',
-          borderRadius: 4,
-          overflow: 'hidden',
-          maxHeight: 120,
-          overflowY: 'auto',
-          border: '1px solid #374151'
-        }}>
+        <div 
+          className="custom-scrollbar"
+          style={{
+            background: '#1f1f1f',
+            borderRadius: 4,
+            overflow: 'auto',
+            maxHeight: 120,
+            border: '1px solid #374151'
+          }}
+        >
           <SyntaxHighlighter
             language={activeTab === 'json' ? 'json' : 'yaml'}
             style={customTheme}
@@ -519,6 +547,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
           </SyntaxHighlighter>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
