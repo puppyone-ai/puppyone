@@ -78,6 +78,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   const [publishedInstance, setPublishedInstance] = useState<PublishedMcpInstance | null>(null)
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
+  const [mcpInstanceName, setMcpInstanceName] = useState<string>('')
+  const [toolsDefinitionEdits, setToolsDefinitionEdits] = useState<Record<string, { name: string; description: string }>>({})
+  const [editingToolField, setEditingToolField] = useState<{ toolId: string; field: 'name' | 'description' } | null>(null)
 
   // 如果访问 /projects（slug 为空），重定向到第一个项目
   useEffect(() => {
@@ -254,7 +257,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
 
   // 发布 MCP 实例
   const handlePublishMcp = async () => {
-    if (!activeBaseId || !activeTableId || accessPoints.length === 0) return
+    if (!activeBaseId || !activeTableId || accessPoints.length === 0 || !mcpInstanceName.trim()) return
     
     setIsPublishing(true)
     setPublishError(null)
@@ -273,10 +276,11 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
         }, {} as McpToolPermissions)
       )
       
-      // 构建工具定义
+      // 构建工具定义 - 使用用户编辑的或默认值
       const tools_definition: Record<string, { name: string; description: string }> = {}
       allTools.forEach(toolType => {
-        tools_definition[toolType] = {
+        const edited = toolsDefinitionEdits[toolType]
+        tools_definition[toolType] = edited || {
           name: `${toolType}_${activeTableId}`,
           description: `${TOOL_INFO[toolType as keyof typeof TOOL_INFO]?.label || toolType} - ${activeBase?.name || 'Project'}`
         }
@@ -286,6 +290,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
         user_id: session?.user?.id || '', // 从 session 获取用户 UUID
         project_id: Number(activeBaseId),
         table_id: Number(activeTableId),
+        name: mcpInstanceName.trim(),
         json_pointer: firstAp.path || '',
         tools_definition,
         register_tools: allTools,
@@ -296,6 +301,10 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
         url: response.url,
         publishedAt: new Date(),
       })
+      
+      // 重置表单
+      setMcpInstanceName('')
+      setToolsDefinitionEdits({})
     } catch (error: any) {
       console.error('Failed to publish MCP instance:', error)
       setPublishError(error.message || 'Failed to publish MCP instance')
@@ -573,21 +582,26 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                     // 简单的命名规则：tool_lastSegment (e.g. query_users)
                                     // 移除非字母数字字符
                                     const safeName = lastSegment.replace(/[^a-zA-Z0-9_]/g, '')
-                                    const toolName = `${tool.uiId}_${safeName}`
+                                    const defaultToolName = `${tool.backendId}_${safeName}`
+                                    const defaultDescription = `${TOOL_INFO[tool.backendId as keyof typeof TOOL_INFO]?.label || tool.backendId} - ${activeBase?.name || 'Project'}`
+                                    
+                                    const currentDef = toolsDefinitionEdits[tool.backendId] || {
+                                      name: defaultToolName,
+                                      description: defaultDescription
+                                    }
+                                    
+                                    const toolFieldId = `${tool.backendId}-${ap.path}-${index}`
+                                    const isEditingName = editingToolField?.toolId === toolFieldId && editingToolField?.field === 'name'
+                                    const isEditingDesc = editingToolField?.toolId === toolFieldId && editingToolField?.field === 'description'
 
                                     return (
                                       <div 
                                         key={`${ap.path}-${index}`}
-                                        onClick={() => {
-                                          // TODO: 打开详细配置面板
-                                          console.log('Open config for:', toolName, ap.path)
-                                        }}
                                         style={{
                                           background: 'rgba(255,255,255,0.03)',
                                           border: '1px solid rgba(255,255,255,0.05)',
                                           borderRadius: 8,
                                           padding: '10px',
-                                          cursor: 'pointer',
                                           display: 'flex',
                                           flexDirection: 'column',
                                           gap: 6,
@@ -597,59 +611,141 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                         onMouseEnter={(e) => {
                                           e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
                                           e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
-                                          // 显示配置图标
-                                          const configIcon = e.currentTarget.querySelector('.config-icon') as HTMLElement
-                                          if (configIcon) configIcon.style.opacity = '1'
                                         }}
                                         onMouseLeave={(e) => {
                                           e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
                                           e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'
-                                          // 隐藏配置图标
-                                          const configIcon = e.currentTarget.querySelector('.config-icon') as HTMLElement
-                                          if (configIcon) configIcon.style.opacity = '0'
                                         }}
                                       >
-                                        {/* Config Icon (Hover时显示) */}
-                                        <div 
-                                          className="config-icon"
-                                          style={{
-                                            position: 'absolute',
-                                            top: 8,
-                                            right: 8,
-                                            opacity: 0,
-                                            transition: 'opacity 0.1s',
-                                            color: '#6b7280',
-                                          }}
-                                        >
-                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <circle cx="12" cy="12" r="3" />
-                                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
-                                          </svg>
-                                        </div>
-
-                                        {/* Header: Logo + Tool Name */}
+                                        {/* Header: Logo + Tool Name (可编辑) */}
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                           <span style={{ color: '#9ca3af', display: 'flex', flexShrink: 0 }}>
                                             {tool.icon}
                                           </span>
-                                          <span style={{ 
-                                            fontSize: 12, 
-                                            fontWeight: 600, 
-                                            color: '#e2e8f0',
-                                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                          }}>
-                                            {toolName}
-                                          </span>
+                                          {isEditingName ? (
+                                            <input
+                                              type="text"
+                                              value={currentDef.name}
+                                              onChange={(e) => setToolsDefinitionEdits(prev => ({
+                                                ...prev,
+                                                [tool.backendId]: { ...currentDef, name: e.target.value }
+                                              }))}
+                                              onBlur={() => setEditingToolField(null)}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') setEditingToolField(null)
+                                                if (e.key === 'Escape') {
+                                                  setToolsDefinitionEdits(prev => {
+                                                    const newEdits = { ...prev }
+                                                    delete newEdits[tool.backendId]
+                                                    return newEdits
+                                                  })
+                                                  setEditingToolField(null)
+                                                }
+                                              }}
+                                              autoFocus
+                                              style={{
+                                                flex: 1,
+                                                fontSize: 12,
+                                                fontWeight: 600,
+                                                color: '#e2e8f0',
+                                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                                background: 'rgba(0,0,0,0.3)',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                borderRadius: 4,
+                                                padding: '4px 6px',
+                                                outline: 'none',
+                                              }}
+                                              onClick={(e) => e.stopPropagation()}
+                                            />
+                                          ) : (
+                                            <span 
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                setEditingToolField({ toolId: toolFieldId, field: 'name' })
+                                              }}
+                                              style={{ 
+                                                flex: 1,
+                                                fontSize: 12, 
+                                                fontWeight: 600, 
+                                                color: '#e2e8f0',
+                                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                                cursor: 'text',
+                                                padding: '4px 6px',
+                                                borderRadius: 4,
+                                                transition: 'background 0.1s',
+                                              }}
+                                              onMouseEnter={(e) => {
+                                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                              }}
+                                              onMouseLeave={(e) => {
+                                                e.currentTarget.style.background = 'transparent'
+                                              }}
+                                            >
+                                              {currentDef.name}
+                                            </span>
+                                          )}
                                         </div>
 
-                                        {/* Description Placeholder */}
-                                        <div style={{
-                                          fontSize: 10,
-                                          color: '#525252',
-                                          lineHeight: 1.4,
-                                        }}>
-                                          No description provided.
-                                        </div>
+                                        {/* Description (可编辑) */}
+                                        {isEditingDesc ? (
+                                          <input
+                                            type="text"
+                                            value={currentDef.description}
+                                            onChange={(e) => setToolsDefinitionEdits(prev => ({
+                                              ...prev,
+                                              [tool.backendId]: { ...currentDef, description: e.target.value }
+                                            }))}
+                                            onBlur={() => setEditingToolField(null)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') setEditingToolField(null)
+                                              if (e.key === 'Escape') {
+                                                setToolsDefinitionEdits(prev => {
+                                                  const newEdits = { ...prev }
+                                                  delete newEdits[tool.backendId]
+                                                  return newEdits
+                                                })
+                                                setEditingToolField(null)
+                                              }
+                                            }}
+                                            autoFocus
+                                            style={{
+                                              width: '100%',
+                                              fontSize: 10,
+                                              color: '#9ca3af',
+                                              lineHeight: 1.4,
+                                              background: 'rgba(0,0,0,0.3)',
+                                              border: '1px solid rgba(255,255,255,0.1)',
+                                              borderRadius: 4,
+                                              padding: '4px 6px',
+                                              outline: 'none',
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        ) : (
+                                          <div 
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setEditingToolField({ toolId: toolFieldId, field: 'description' })
+                                            }}
+                                            style={{
+                                              fontSize: 10,
+                                              color: currentDef.description ? '#9ca3af' : '#525252',
+                                              lineHeight: 1.4,
+                                              cursor: 'text',
+                                              padding: '4px 6px',
+                                              borderRadius: 4,
+                                              transition: 'background 0.1s',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              e.currentTarget.style.background = 'transparent'
+                                            }}
+                                          >
+                                            {currentDef.description || 'Click to add description'}
+                                          </div>
+                                        )}
                                         
                                         {/* Path (Muted) */}
                                         <div style={{ 
@@ -799,6 +895,30 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                     ) : (
                       // 未发布状态
                       <>
+                        {/* Name 输入框 */}
+                        <div style={{ marginBottom: 12 }}>
+                          <label style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase', marginBottom: 4, display: 'block' }}>
+                            Instance Name *
+                          </label>
+                          <input
+                            type="text"
+                            value={mcpInstanceName}
+                            onChange={(e) => setMcpInstanceName(e.target.value)}
+                            placeholder="e.g., My Knowledge Base"
+                            style={{
+                              width: '100%',
+                              height: 28,
+                              background: 'rgba(0,0,0,0.3)',
+                              border: '1px solid rgba(255, 255, 255, 0.1)',
+                              borderRadius: 4,
+                              padding: '0 8px',
+                              fontSize: 11,
+                              color: '#fff',
+                              outline: 'none',
+                            }}
+                          />
+                        </div>
+
                         {publishError && (
                           <div style={{
                             padding: '6px 8px',
@@ -813,17 +933,17 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                         )}
                         <button
                           onClick={handlePublishMcp}
-                          disabled={accessPoints.length === 0 || isPublishing}
+                          disabled={accessPoints.length === 0 || isPublishing || !mcpInstanceName.trim()}
                           style={{
                             width: '100%',
                             height: 32,
-                            background: accessPoints.length === 0 ? 'rgba(255,167,61,0.2)' : '#FFA73D',
+                            background: (accessPoints.length === 0 || !mcpInstanceName.trim()) ? 'rgba(255,167,61,0.2)' : '#FFA73D',
                             border: 'none',
                             borderRadius: 6,
-                            color: accessPoints.length === 0 ? '#9ca3af' : '#000',
+                            color: (accessPoints.length === 0 || !mcpInstanceName.trim()) ? '#9ca3af' : '#000',
                             fontSize: 11,
                             fontWeight: 600,
-                            cursor: accessPoints.length === 0 ? 'not-allowed' : 'pointer',
+                            cursor: (accessPoints.length === 0 || !mcpInstanceName.trim()) ? 'not-allowed' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',

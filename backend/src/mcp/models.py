@@ -9,6 +9,10 @@ class McpInstance(BaseModel):
     user_id: str
     project_id: int
     table_id: int
+    name: Optional[str] = Field(
+        default=None,
+        description="MCP实例名称"
+    )
     json_pointer: str = Field(
         default="",
         alias="json_path",

@@ -33,9 +33,10 @@ class McpCreate(BaseModel):
     创建 MCP 实例请求模型
     """
 
+    name: str = Field(..., description="MCP实例名称（必填）")
     project_id: int = Field(..., description="项目ID")
     table_id: int = Field(
-        ..., description="TableID, 对应前端“Table”的概念, 表示一整个JSON对象."
+        ..., description="TableID, 对应前端'Table'的概念, 表示一整个JSON对象."
     )
     json_pointer: str = Field(
         default="",
@@ -112,12 +113,13 @@ class McpUpdate(BaseModel):
     更新 MCP 实例请求模型
     """
 
+    name: Optional[str] = Field(None, description="MCP实例名称（可选）")
     status: Optional[int] = Field(None, description="实例状态，0表示关闭，1表示开启")
     json_pointer: Optional[str] = Field(
         None, description="JSON指针路径，表示该MCP实例对应的数据路径"
     )
     tools_definition: Optional[Dict[ToolTypeKey, McpToolsDefinition]] = Field(
-        ...,
+        None,
         description="🔧工具定义配置, 支持用户自定义工具名字,工具描述模板,工具描述参数. ⚠️重要: 目前仅支持'get', 'create', 'update', 'delete'这四个key. 如果不提供, 将沿用默认的工具配置.",
         examples=[
             {
@@ -137,13 +139,13 @@ class McpUpdate(BaseModel):
             }
         ],
     )
-    register_tools: List[ToolTypeKey] = Field(
-        default=["query", "create", "update", "delete"],
+    register_tools: Optional[List[ToolTypeKey]] = Field(
+        None,
         description="🔧工具注册列表. 默认注册基础工具: ['query', 'create', 'update', 'delete']. 可以只选择部分工具进行注册。注意：'get'已改为'query'（仍兼容'get'）；'preview'和'select'工具只有在设置了preview_keys时才会自动注册。",
         examples=[["query", "create"], ["query", "update", "delete"]],
     )
     preview_keys: Optional[List[str]] = Field(
-        default=None,
+        None,
         description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_tables两个工具。preview_data工具会只返回指定字段的轻量级数据，select_tables工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
         examples=[["id", "name", "title"], ["user_id", "username"]],
     )
@@ -199,6 +201,7 @@ class McpTokenPayload(BaseModel):
 
 
 class McpStatusResponse(BaseModel):
+    name: Optional[str] = Field(None, description="MCP实例名称")
     status: int = Field(..., description="实例状态，0表示关闭，1表示开启")
     port: int = Field(..., description="端口信息")
     docker_info: Dict[Any, Any] = Field(

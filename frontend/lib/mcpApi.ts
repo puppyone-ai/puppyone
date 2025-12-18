@@ -34,9 +34,11 @@ export interface McpToolDefinition {
 export interface McpInstance {
   mcp_instance_id: string
   api_key: string
+  url?: string  // MCP 服务的完整 URL（从 POST /api/v1/mcp 响应获取）
   user_id: string  // UUID 字符串格式
   project_id: number
   table_id: number
+  name: string | null
   json_pointer: string
   status: number  // 0=关闭, 1=开启
   port: number
@@ -51,6 +53,7 @@ export interface McpCreateRequest {
   user_id: string  // UUID 字符串格式
   project_id: number
   table_id: number
+  name: string  // 必填
   json_pointer?: string
   tools_definition: Record<McpToolType, McpToolDefinition>
   register_tools?: McpToolType[]
@@ -65,6 +68,7 @@ export interface McpCreateResponse {
 
 // 更新 MCP 实例请求
 export interface McpUpdateRequest {
+  name?: string
   status?: number
   json_pointer?: string
   tools_definition?: Record<McpToolType, McpToolDefinition>
@@ -74,6 +78,7 @@ export interface McpUpdateRequest {
 
 // MCP 实例状态响应
 export interface McpStatusResponse {
+  name: string | null
   status: number
   port: number
   docker_info: Record<string, any>
