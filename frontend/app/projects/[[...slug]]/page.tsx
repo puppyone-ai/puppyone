@@ -369,26 +369,26 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
               {/* Agent Sidebar - Right side of Editor */}
               {isAgentPanelOpen && (
                 <div style={{
-                  width: 268, // 260 + 8 左侧间距补偿
+                  width: 280, // 匹配 ImportMenu 宽度
                   display: 'flex',
                   flexDirection: 'column',
-                  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-                  padding: 8, // 四周都有 8px 间距，呈现卡片感
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                  padding: 8,
                 }}>
                   <div style={{
                     flex: 1,
                     display: 'flex',
                     flexDirection: 'column',
-                    background: '#1a1a1e',
-                    borderRadius: 8,
-                    border: '1px solid #333',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                    background: '#161618',
+                    borderRadius: 10,
+                    border: '1px solid #2a2a2a',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
                     overflow: 'hidden',
                   }}>
                     {/* Header - 只有关闭按钮 */}
                     <div style={{
-                      padding: '6px 8px',
-                      borderBottom: '1px solid #2a2a2e',
+                      padding: '10px 12px',
+                      borderBottom: '1px solid #2a2a2a',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'flex-end',
@@ -425,28 +425,28 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                   </div>
                   
                   {/* Content - 按 Path 聚合，带颜色编码 */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
                     {accessPoints.length === 0 ? (
                       <div style={{ 
-                        padding: '24px 12px',
+                        padding: '20px 16px',
                         textAlign: 'center',
                       }}>
                         <div style={{ 
-                          width: 40, 
-                          height: 40, 
-                          margin: '0 auto 12px',
-                          background: 'rgba(255,255,255,0.03)',
-                          borderRadius: 10,
+                          width: 36, 
+                          height: 36, 
+                          margin: '0 auto 10px',
+                          background: 'rgba(255,255,255,0.02)',
+                          borderRadius: 8,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                         }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3f3f46" strokeWidth="1.5">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#525252" strokeWidth="1.5">
                             <path d="M12 5v14M5 12h14" strokeLinecap="round"/>
                           </svg>
                         </div>
-                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>No tools configured</div>
-                        <div style={{ fontSize: 10, color: '#3f3f46' }}>
+                        <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 4 }}>No tools configured</div>
+                        <div style={{ fontSize: 11, color: '#525252' }}>
                           Click the 🐾 icon on JSON nodes to expose capabilities
                         </div>
                       </div>
@@ -552,13 +552,21 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                     alignItems: 'center',
                                     gap: 6,
                                     marginBottom: isCollapsed ? 0 : 8,
-                                    padding: '4px 2px',
+                                    padding: '6px 8px',
                                     cursor: 'pointer',
-                                    borderRadius: 4,
-                                    transition: 'background 0.15s',
+                                    borderRadius: 6,
+                                    background: 'rgba(255,255,255,0.02)',
+                                    border: '1px solid transparent',
+                                    transition: 'all 0.15s',
                                   }}
-                                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
-                                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                                  onMouseEnter={(e) => { 
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+                                  }}
+                                  onMouseLeave={(e) => { 
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
+                                    e.currentTarget.style.borderColor = 'transparent'
+                                  }}
                                 >
                                   {/* 展开/收起箭头 */}
                                   <svg 
@@ -576,8 +584,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                     <path d="M3 1.5L7 5L3 8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                                   </svg>
                                   <span style={{ 
-                                    fontSize: 11, 
-                                    color: '#71717a',
+                                    fontSize: 12, 
+                                    color: '#9ca3af',
+                                    fontWeight: 500,
                                     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
@@ -586,14 +595,20 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                   }} title={displayPath}>
                                     {displayPath}
                                   </span>
-                                  <span style={{ fontSize: 10, color: '#3f3f46' }}>
+                                  <span style={{ 
+                                    fontSize: 10, 
+                                    color: '#525252',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    padding: '2px 6px',
+                                    borderRadius: 4,
+                                  }}>
                                     {enabledTools.length}
                                   </span>
                                 </div>
                                 
                                 {/* Tools 卡片列表 - 可折叠 */}
                                 {!isCollapsed && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginLeft: 10 }}>
                                   {enabledTools.map((tool) => {
                                     const colors = TOOL_COLORS[tool.backendId] || TOOL_COLORS.query_data
                                     const editKey = `${ap.path}::${tool.backendId}`
@@ -613,20 +628,20 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                       <div 
                                         key={tool.backendId}
                                         style={{
-                                          background: 'rgba(255,255,255,0.02)',
-                                          border: '1px solid rgba(255,255,255,0.06)',
+                                          background: 'rgba(255,255,255,0.015)',
+                                          border: '1px solid #2a2a2a',
                                           borderRadius: 8,
                                           overflow: 'hidden',
                                           display: 'flex',
                                           transition: 'all 0.15s',
                                         }}
                                         onMouseEnter={(e) => {
-                                          e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                                          e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                                          e.currentTarget.style.borderColor = '#333'
                                         }}
                                         onMouseLeave={(e) => {
-                                          e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
-                                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+                                          e.currentTarget.style.background = 'rgba(255,255,255,0.015)'
+                                          e.currentTarget.style.borderColor = '#2a2a2a'
                                         }}
                                       >
                                         {/* 左侧颜色条 */}
@@ -637,20 +652,20 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                         }} />
                                         
                                         {/* 内容区 */}
-                                        <div style={{ flex: 1, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        <div style={{ flex: 1, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                                           {/* 顶部: Tool 图标 + 类型标签 + 删除按钮 */}
                                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                               {/* Tool 图标 */}
                                               <span style={{ color: colors.text, display: 'flex', alignItems: 'center' }}>
                                                 {TOOL_ICONS[tool.backendId]}
                                               </span>
                                               <span style={{
-                                                fontSize: 10,
-                                                fontWeight: 600,
+                                                fontSize: 11,
+                                                fontWeight: 500,
                                                 color: colors.text,
                                                 textTransform: 'uppercase',
-                                                letterSpacing: '0.3px',
+                                                letterSpacing: '0.4px',
                                               }}>
                                                 {tool.label}
                                               </span>
@@ -709,7 +724,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                           
                                           {/* TOOL NAME 字段 */}
                                           <div>
-                                            <div style={{ fontSize: 9, color: '#525252', marginBottom: 4, fontWeight: 500, letterSpacing: '0.3px' }}>TOOL NAME</div>
+                                            <div style={{ fontSize: 10, color: '#525252', marginBottom: 4, fontWeight: 500, letterSpacing: '0.4px' }}>TOOL NAME</div>
                                             {isEditingName ? (
                                               <input
                                                 type="text"
@@ -733,14 +748,15 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                                 autoFocus
                                                 style={{
                                                   width: '100%',
-                                                  fontSize: 12,
+                                                  boxSizing: 'border-box',
+                                                  fontSize: 13,
                                                   fontWeight: 500,
                                                   color: '#e2e8f0',
                                                   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                                  background: 'rgba(0,0,0,0.3)',
-                                                  border: '1px solid rgba(255,255,255,0.15)',
-                                                  borderRadius: 4,
-                                                  padding: '6px 8px',
+                                                  background: 'rgba(0,0,0,0.4)',
+                                                  border: '1px solid #404040',
+                                                  borderRadius: 6,
+                                                  padding: '6px 10px',
                                                   outline: 'none',
                                                 }}
                                                 onClick={(e) => e.stopPropagation()}
@@ -755,25 +771,31 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                                   display: 'flex',
                                                   alignItems: 'center',
                                                   gap: 6,
-                                                  fontSize: 12, 
+                                                  fontSize: 13, 
                                                   fontWeight: 500, 
-                                                  color: '#d4d4d8',
+                                                  color: '#e2e8f0',
                                                   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                                                   cursor: 'text',
-                                                  padding: '6px 8px',
-                                                  background: 'rgba(0,0,0,0.2)',
-                                                  borderRadius: 4,
+                                                  padding: '6px 10px',
+                                                  background: 'rgba(0,0,0,0.25)',
+                                                  borderRadius: 6,
                                                   border: '1px solid transparent',
-                                                  transition: 'border-color 0.15s',
+                                                  transition: 'all 0.15s',
                                                 }}
-                                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
-                                                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+                                                onMouseEnter={(e) => { 
+                                                  e.currentTarget.style.borderColor = '#333'
+                                                  e.currentTarget.style.background = 'rgba(0,0,0,0.35)'
+                                                }}
+                                                onMouseLeave={(e) => { 
+                                                  e.currentTarget.style.borderColor = 'transparent'
+                                                  e.currentTarget.style.background = 'rgba(0,0,0,0.25)'
+                                                }}
                                                 title="Click to edit"
                                               >
                                                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                   {currentDef.name}
                                                 </span>
-                                                <svg width="10" height="10" viewBox="0 0 14 14" fill="none" style={{ color: '#3f3f46', flexShrink: 0 }}>
+                                                <svg width="10" height="10" viewBox="0 0 14 14" fill="none" style={{ color: '#525252', flexShrink: 0 }}>
                                                   <path d="M10 2l2 2-7 7H3v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
                                                 </svg>
                                               </div>
@@ -782,7 +804,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
 
                                           {/* TOOL DESCRIPTION 字段 */}
                                           <div>
-                                            <div style={{ fontSize: 9, color: '#525252', marginBottom: 4, fontWeight: 500, letterSpacing: '0.3px' }}>TOOL DESCRIPTION</div>
+                                            <div style={{ fontSize: 10, color: '#525252', marginBottom: 4, fontWeight: 500, letterSpacing: '0.4px' }}>TOOL DESCRIPTION</div>
                                             {isEditingDesc ? (
                                               <input
                                                 type="text"
@@ -806,12 +828,13 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                                 autoFocus
                                                 style={{
                                                   width: '100%',
-                                                  fontSize: 11,
+                                                  boxSizing: 'border-box',
+                                                  fontSize: 12,
                                                   color: '#9ca3af',
-                                                  background: 'rgba(0,0,0,0.3)',
-                                                  border: '1px solid rgba(255,255,255,0.15)',
-                                                  borderRadius: 4,
-                                                  padding: '6px 8px',
+                                                  background: 'rgba(0,0,0,0.4)',
+                                                  border: '1px solid #404040',
+                                                  borderRadius: 6,
+                                                  padding: '6px 10px',
                                                   outline: 'none',
                                                 }}
                                                 onClick={(e) => e.stopPropagation()}
@@ -826,24 +849,30 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                                   display: 'flex',
                                                   alignItems: 'center',
                                                   gap: 6,
-                                                  fontSize: 11,
-                                                  color: currentDef.description ? '#71717a' : '#3f3f46',
+                                                  fontSize: 12,
+                                                  color: currentDef.description ? '#9ca3af' : '#525252',
                                                   cursor: 'text',
-                                                  padding: '6px 8px',
-                                                  background: 'rgba(0,0,0,0.2)',
-                                                  borderRadius: 4,
+                                                  padding: '6px 10px',
+                                                  background: 'rgba(0,0,0,0.25)',
+                                                  borderRadius: 6,
                                                   border: '1px solid transparent',
-                                                  transition: 'border-color 0.15s',
+                                                  transition: 'all 0.15s',
                                                   lineHeight: 1.4,
                                                 }}
-                                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
-                                                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+                                                onMouseEnter={(e) => { 
+                                                  e.currentTarget.style.borderColor = '#333'
+                                                  e.currentTarget.style.background = 'rgba(0,0,0,0.35)'
+                                                }}
+                                                onMouseLeave={(e) => { 
+                                                  e.currentTarget.style.borderColor = 'transparent'
+                                                  e.currentTarget.style.background = 'rgba(0,0,0,0.25)'
+                                                }}
                                                 title="Click to edit"
                                               >
                                                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                   {currentDef.description || 'Add description...'}
                                                 </span>
-                                                <svg width="10" height="10" viewBox="0 0 14 14" fill="none" style={{ color: '#3f3f46', flexShrink: 0 }}>
+                                                <svg width="10" height="10" viewBox="0 0 14 14" fill="none" style={{ color: '#525252', flexShrink: 0 }}>
                                                   <path d="M10 2l2 2-7 7H3v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
                                                 </svg>
                                               </div>
@@ -866,15 +895,15 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                   {/* Footer - 低调的引导链接 */}
                   {accessPoints.length > 0 && (
                     <div style={{ 
-                      borderTop: '1px solid rgba(255,255,255,0.04)', 
-                      padding: '10px 12px',
+                      borderTop: '1px solid #2a2a2a', 
+                      padding: '10px 14px',
                       flexShrink: 0,
                       display: 'flex',
                       justifyContent: 'center',
                     }}>
                       <span 
                         style={{ 
-                          fontSize: 10, 
+                          fontSize: 11, 
                           color: '#525252',
                           cursor: 'pointer',
                           display: 'flex',
@@ -882,7 +911,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                           gap: 4,
                           transition: 'color 0.15s',
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = '#71717a' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = '#9ca3af' }}
                         onMouseLeave={(e) => { e.currentTarget.style.color = '#525252' }}
                         onClick={() => handleUtilityNavClick('mcp')}
                       >
