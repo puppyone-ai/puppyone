@@ -1244,7 +1244,7 @@ const VirtualRow = React.memo(function VirtualRow({
             }}>Agent is allowed to</div>
           </div>
           
-          {/* 6 种 MCP 工具 - 按后端定义，使用 SVG 图标 */}
+          {/* 7 种 MCP 工具 - 按后端定义，使用 SVG 图标 */}
           {[
             { 
               id: 'query_data', 
@@ -1253,6 +1253,17 @@ const VirtualRow = React.memo(function VirtualRow({
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.2"/>
                   <path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                </svg>
+              )
+            },
+            { 
+              id: 'get_all_data', 
+              label: 'Get All', 
+              icon: (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <rect x="2" y="2" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
+                  <rect x="2" y="6" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
+                  <rect x="2" y="10" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
                 </svg>
               )
             },
