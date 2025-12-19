@@ -55,9 +55,9 @@ class McpCreate(BaseModel):
         ],
     )
     register_tools: List[ToolTypeKey] = Field(
-        default=["query", "create", "update", "delete"],
-        description="🔧工具注册列表. 默认注册基础工具: ['query', 'create', 'update', 'delete']. 可以只选择部分工具进行注册。注意：'get'已改为'query'（仍兼容'get'）；'preview'和'select'工具只有在设置了preview_keys时才会自动注册。",
-        examples=[["query", "create"], ["query", "update", "delete"]],
+        default=["get_data_schema", "create", "update", "delete","get_all_data","query_data"],
+        description="🔧工具注册列表. 默认注册基础工具: ['get_data_schema', 'create', 'update', 'delete','get_all_data','query_data']. 可以只选择部分工具进行注册。如果设置了preview_keys, 会自动注册preview_data和select_data两个工具。",
+        examples=[["get_data_schema", "create"], ["get_data_schema", "update", "delete"]],
     )
     preview_keys: Optional[List[str]] = Field(
         default=None,
@@ -68,11 +68,12 @@ class McpCreate(BaseModel):
     @field_validator("tools_definition")
     @classmethod
     def validate_tools_definition_keys(cls, v):
-        """验证 tools_definition 的 key 只能是 get/query/create/update/delete/preview/select"""
+        """验证 tools_definition 的 key 只能是get_data_schema/get_all_data/query_data/create/update/delete/preview/select"""
         if v is not None:
             valid_keys = {
-                "get",
-                "query",
+                "get_data_schema",
+                "get_all_data",
+                "query_data",
                 "create",
                 "update",
                 "delete",
@@ -89,11 +90,12 @@ class McpCreate(BaseModel):
     @field_validator("register_tools")
     @classmethod
     def validate_register_tools(cls, v):
-        """验证 register_tools 的值只能是 get/query/create/update/delete/preview/select"""
+        """验证 register_tools 的值只能是 get_data_schema/get_all_data/query_data/create/update/delete/preview/select"""
         if v is not None:
             valid_keys = {
-                "get",
-                "query",
+                "get_data_schema",
+                "get_all_data",
+                "query_data",
                 "create",
                 "update",
                 "delete",
@@ -153,11 +155,12 @@ class McpUpdate(BaseModel):
     @field_validator("tools_definition")
     @classmethod
     def validate_tools_definition_keys(cls, v):
-        """验证 tools_definition 的 key 只能是 get/query/create/update/delete/preview/select"""
+        """验证 tools_definition 的 key 只能是 get_data_schema/get_all_data/query_data/create/update/delete/preview/select"""
         if v is not None:
             valid_keys = {
-                "get",
-                "query",
+                "get_data_schema",
+                "get_all_data",
+                "query_data",
                 "create",
                 "update",
                 "delete",
@@ -174,11 +177,12 @@ class McpUpdate(BaseModel):
     @field_validator("register_tools")
     @classmethod
     def validate_register_tools(cls, v):
-        """验证 register_tools 的值只能是 get/query/create/update/delete/preview/select"""
+        """验证 register_tools 的值只能是 get_data_schema/get_all_data/query_data/create/update/delete/preview/select"""
         if v is not None:
             valid_keys = {
-                "get",
-                "query",
+                "get_data_schema",
+                "get_all_data",
+                "query_data",
                 "create",
                 "update",
                 "delete",
