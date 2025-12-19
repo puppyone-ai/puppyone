@@ -1247,7 +1247,7 @@ const VirtualRow = React.memo(function VirtualRow({
           {/* 6 种 MCP 工具 - 按后端定义，使用 SVG 图标 */}
           {[
             { 
-              id: 'query', 
+              id: 'query_data', 
               label: 'Query', 
               icon: (
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

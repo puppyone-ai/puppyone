@@ -280,13 +280,13 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
         }, {} as McpToolPermissions)
       )
       
-      // 构建工具定义 - 使用用户编辑的或默认值
+      // 构建工具定义 - 只使用用户编辑的值，不生成默认值
       const tools_definition: Record<string, { name: string; description: string }> = {}
       allTools.forEach(toolType => {
         const edited = toolsDefinitionEdits[toolType]
-        tools_definition[toolType] = edited || {
-          name: `${toolType}_${activeTableId}`,
-          description: `${TOOL_INFO[toolType as keyof typeof TOOL_INFO]?.label || toolType} - ${activeBase?.name || 'Project'}`
+        // 只有用户显式编辑过的才添加
+        if (edited) {
+          tools_definition[toolType] = edited
         }
       })
 
@@ -480,7 +480,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                     {(() => {
                       // 使用简化的UI工具类型映射到实际的后端类型
                       const uiToolMapping = {
-                        query: 'query_data',
+                        query_data: 'query_data',
                         preview: 'preview',
                         select: 'select',
                         create: 'create',
@@ -524,7 +524,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                           // UI工具定义映射到后端类型
                           const TOOL_DEFS = [
                             {
-                              uiId: 'query' as const,
+                              uiId: 'query_data' as const,
                               backendId: 'query_data' as McpToolType,
                               label: 'Query',
                               icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.2"/><path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
