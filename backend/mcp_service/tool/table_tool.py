@@ -26,7 +26,7 @@ class TableToolImplementation:
                 return {"error": "获取数据结构失败"}
             return {"message": "获取数据结构成功", "data": data, "schema_only": True}
         except Exception as e:
-            return {"error": f"获取数据结构失败: {str(e)}"}
+            return {"error": "获取数据结构失败", "detail": str(e)}
 
     async def get_all_data(self, table_id: int, json_path: str = "") -> Dict[str, Any]:
         """获取挂载点全部数据"""
@@ -36,7 +36,7 @@ class TableToolImplementation:
                 return {"error": "获取数据失败"}
             return {"message": "获取数据成功", "data": data or {}}
         except Exception as e:
-            return {"error": f"获取数据失败: {str(e)}"}
+            return {"error": "获取数据失败", "detail": str(e)}
 
     async def query_data(self, table_id: int, json_path: str, query: str) -> Dict[str, Any]:
         """对挂载点数据做 JMESPath 查询"""
@@ -50,7 +50,7 @@ class TableToolImplementation:
                 return {"error": "JMESPath 查询失败"}
             return {"message": "JMESPath 查询成功", "data": data, "query": query}
         except Exception as e:
-            return {"error": f"JMESPath 查询失败: {str(e)}"}
+            return {"error": "JMESPath 查询失败", "detail": str(e)}
     
     async def create_element(
         self,

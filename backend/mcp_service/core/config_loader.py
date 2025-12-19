@@ -18,19 +18,29 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
     if cached:
         return cached
 
-    # 从 API_KEY 解析 table_id 和 json_path（挂载点）
+    # 从 API_KEY 解析 table_id/json_path（仅用于兜底与快速失败）
+    # 注意：MCP 实例的“真实配置”以主服务 internal/mcp-instance 返回为准，
+    # 否则当用户在数据库/主服务更新 json_path 后，旧 token payload 会导致一直走旧路径。
     try:
         parsed_table_id, parsed_json_path = parse_table_scope_from_api_key(api_key)
     except Exception:
-        return None
+        parsed_table_id, parsed_json_path = 0, ""
 
     # 从 internal API 获取 mcp_instance（用于有效性校验、工具配置）
     mcp_instance = await rpc_client.get_mcp_instance(api_key)
+
     if not mcp_instance:
         return None
 
-    # 表格元数据使用 token 里的 table_id（与“table_id 从 api_key 解析”要求一致）
-    table_metadata = await rpc_client.get_table_metadata(parsed_table_id)
+
+    # 以主服务返回为准（若缺失则回退到 token 解析结果）
+    effective_table_id = int(mcp_instance.table_id or parsed_table_id)
+    effective_json_path = (mcp_instance.json_path or "").strip()
+    if effective_json_path == "" and parsed_json_path is not None:
+        effective_json_path = str(parsed_json_path)
+
+    # 表格元数据也使用最终 table_id
+    table_metadata = await rpc_client.get_table_metadata(effective_table_id)
     if not table_metadata:
         return None
 
@@ -39,8 +49,8 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
             "api_key": mcp_instance.api_key,
             "user_id": mcp_instance.user_id,
             "project_id": mcp_instance.project_id,
-            "table_id": parsed_table_id,
-            "json_path": parsed_json_path,
+            "table_id": effective_table_id,
+            "json_path": effective_json_path,
             "status": mcp_instance.status,
             "register_tools": mcp_instance.register_tools
             or ALL_TOOLS_LIST,

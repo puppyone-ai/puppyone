@@ -13,9 +13,9 @@ class McpInstance(BaseModel):
         default=None,
         description="MCP实例名称"
     )
-    json_pointer: str = Field(
+    json_path: str = Field(
         default="",
-        alias="json_path",
+        alias="json_pointer",
         description="JSON指针路径，表示该MCP实例对应的数据路径，默认为空字符串表示根路径"
     )
     status: int = Field(

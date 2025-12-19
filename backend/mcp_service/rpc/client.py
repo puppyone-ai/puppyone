@@ -100,9 +100,17 @@ class InternalApiClient:
                 register_tools=data.get("register_tools"),
                 preview_keys=data.get("preview_keys")
             )
-        except httpx.HTTPError as e:
-            print(f"Error fetching MCP instance: {e}")
-            return None
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error fetching MCP instance: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"获取 MCP 实例失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error fetching MCP instance: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"获取 MCP 实例失败: {str(e)}") from e
     
     async def get_table_metadata(self, table_id: int) -> Optional[TableMetadata]:
         """
@@ -135,9 +143,17 @@ class InternalApiClient:
                 description=data.get("description"),
                 project_id=data["project_id"]
             )
-        except httpx.HTTPError as e:
-            print(f"Error fetching table metadata: {e}")
-            return None
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error fetching table metadata: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"获取表格元数据失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error fetching table metadata: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"获取表格元数据失败: {str(e)}") from e
     
     async def get_context_schema(self, table_id: int, json_path: str = "") -> Any:
         """获取挂载点结构（不包含值）"""
@@ -147,9 +163,17 @@ class InternalApiClient:
             response = await self._client.get(url, params=params)
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
-            print(f"Error fetching context schema: {e}")
-            return None
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error fetching context schema: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"获取数据结构失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error fetching context schema: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"获取数据结构失败: {str(e)}") from e
 
     async def get_context_data(self, table_id: int, json_path: str = "") -> Any:
         """获取挂载点全部数据"""
@@ -159,9 +183,17 @@ class InternalApiClient:
             response = await self._client.get(url, params=params)
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
-            print(f"Error fetching context data: {e}")
-            return None
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error fetching context data: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"获取数据失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error fetching context data: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"获取数据失败: {str(e)}") from e
 
     async def query_context_data(self, table_id: int, json_path: str, query: str) -> Any:
         """对挂载点数据做 JMESPath 查询"""
@@ -171,9 +203,17 @@ class InternalApiClient:
             response = await self._client.get(url, params=params)
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
-            print(f"Error querying context data: {e}")
-            return None
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error querying context data: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"JMESPath 查询失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error querying context data: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"JMESPath 查询失败: {str(e)}") from e
     
     async def create_table_data(
         self,
@@ -201,9 +241,17 @@ class InternalApiClient:
             response = await self._client.post(url, json=payload)
             response.raise_for_status()
             return True
-        except httpx.HTTPError as e:
-            print(f"Error creating table data: {e}")
-            return False
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error creating table data: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"创建元素失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error creating table data: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"创建元素失败: {str(e)}") from e
     
     async def update_table_data(
         self,
@@ -231,9 +279,17 @@ class InternalApiClient:
             response = await self._client.put(url, json=payload)
             response.raise_for_status()
             return True
-        except httpx.HTTPError as e:
-            print(f"Error updating table data: {e}")
-            return False
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error updating table data: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"更新元素失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error updating table data: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"更新元素失败: {str(e)}") from e
     
     async def delete_table_data(
         self,
@@ -261,9 +317,17 @@ class InternalApiClient:
             response = await self._client.request("DELETE", url, json=payload)
             response.raise_for_status()
             return True
-        except httpx.HTTPError as e:
-            print(f"Error deleting table data: {e}")
-            return False
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error deleting table data: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"删除元素失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error deleting table data: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"删除元素失败: {str(e)}") from e
 
 
 # 创建全局客户端实例
