@@ -12,8 +12,30 @@ interface ImportMenuProps {
   onCloseOtherMenus?: () => void
 }
 
+// 辅助函数：检查文件是否需要 ETL 处理
+function needsETL(file: File): boolean {
+  const etlExtensions = [
+    '.pdf', '.doc', '.docx', '.ppt', '.pptx',
+    '.jpg', '.jpeg', '.png', '.tiff', '.bmp'
+  ]
+  const fileName = file.name.toLowerCase()
+  return etlExtensions.some(ext => fileName.endsWith(ext))
+}
+
+// 辅助函数：获取文件类型
+function getFileType(file: File): string {
+  const fileName = file.name.toLowerCase()
+  const extension = fileName.substring(fileName.lastIndexOf('.') + 1)
+  return extension
+}
+
 // 辅助函数：检查文件是否为文本文件
 async function isTextFileType(file: File): Promise<boolean> {
+  // 如果需要 ETL，不是文本文件
+  if (needsETL(file)) {
+    return false
+  }
+
   const textFileExtensions = [
     '.txt', '.md', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.h',
     '.html', '.css', '.scss', '.less', '.xml', '.yaml', '.yml', '.toml', '.ini', '.cfg',
@@ -22,10 +44,11 @@ async function isTextFileType(file: File): Promise<boolean> {
   ]
 
   const binaryFileExtensions = [
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip', '.rar', '.tar', '.gz',
-    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.svg', '.webp', '.ico', '.mp3', '.mp4',
+    '.zip', '.rar', '.tar', '.gz',
+    '.gif', '.svg', '.webp', '.ico', '.mp3', '.mp4',
     '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm', '.exe', '.dll', '.so', '.dylib', '.bin',
-    '.iso', '.img', '.dmg', '.pkg', '.deb', '.rpm', '.msi', '.app', '.apk', '.ipa'
+    '.iso', '.img', '.dmg', '.pkg', '.deb', '.rpm', '.msi', '.app', '.apk', '.ipa',
+    '.xls', '.xlsx'  // Excel files not supported by ETL yet
   ]
 
   const fileName = file.name.toLowerCase()
@@ -186,12 +209,12 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
     setImportProgress(0)
 
     try {
-      onLog?.('info', 'Parsing folder structure...')
-      const folderStructure = await parseFolderStructure(files, (current, total) => {
+      onLog?.('info', 'Parsing folder structure and uploading files...')
+      const { structure: folderStructure, binaryFiles } = await parseFolderStructure(files, (current, total) => {
         setImportProgress((current / total) * 50)
       })
 
-      onLog?.('info', 'Uploading...')
+      onLog?.('info', 'Creating table...')
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${projectId}/import-folder`,
         {
@@ -203,6 +226,7 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
           body: JSON.stringify({
             table_name: finalTableName,
             folder_structure: folderStructure,
+            binary_files: binaryFiles,
           }),
         }
       )
@@ -213,7 +237,28 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
         onProjectsRefresh?.()
         setTableName('')
         setIsOpen(false)
-        onLog?.('success', `Imported successfully as "${finalTableName}"`)
+        
+        // 提供更详细的成功消息
+        if (binaryFiles.length > 0) {
+          onLog?.('success', `Table "${finalTableName}" created! ${binaryFiles.length} binary files are being processed in background.`)
+          
+          // 保存任务 ID 到 localStorage 用于后台轮询
+          if (data.data?.etl_task_ids && data.data.etl_task_ids.length > 0) {
+            const existingTasks = JSON.parse(localStorage.getItem('etl_pending_tasks') || '[]')
+            const newTasks = data.data.etl_task_ids.map((taskId: number) => ({
+              taskId,
+              projectId,
+              tableName: finalTableName,
+              timestamp: Date.now()
+            }))
+            localStorage.setItem('etl_pending_tasks', JSON.stringify([...existingTasks, ...newTasks]))
+            
+            // 触发通知器刷新
+            window.dispatchEvent(new CustomEvent('etl-tasks-updated'))
+          }
+        } else {
+          onLog?.('success', `Imported successfully as "${finalTableName}"`)
+        }
       } else {
         throw new Error(data.message || 'Import failed')
       }
@@ -228,8 +273,9 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
   const parseFolderStructure = async (
     files: FileList,
     onProgress?: (current: number, total: number) => void
-  ): Promise<Record<string, any>> => {
+  ): Promise<{ structure: Record<string, any>, binaryFiles: Array<any> }> => {
     const structure: Record<string, any> = {}
+    const binaryFiles: Array<any> = []
     const fileArray = Array.from(files)
     const totalFiles = fileArray.length
     let processedFiles = 0
@@ -256,31 +302,92 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
       }
 
       const fileName = pathParts[pathParts.length - 1]
+      const filePath = pathParts.join('/')
+
       try {
-        // 检查是否为文本文件
-        const isTextFile = await isTextFileType(file)
-        let content = null
+        // 检查是否需要 ETL 处理
+        if (needsETL(file)) {
+          // 上传到 S3
+          onLog?.('info', `Uploading ${fileName} to S3...`)
+          
+          const formData = new FormData()
+          formData.append('project_id', projectId || '')
+          formData.append('file', file)
 
-        if (isTextFile) {
-          content = await file.text()
-          // 清理无效的Unicode字符
-          content = sanitizeUnicodeContent(content)
-        }
+          const uploadResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/etl/upload`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session?.access_token}`
+              },
+              body: formData
+            }
+          )
 
-        current[fileName] = {
-          type: 'file',
-          content,
-          size: file.size,
-          lastModified: file.lastModified
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text()
+            throw new Error(`Failed to upload ${fileName}: ${errorText}`)
+          }
+
+          const uploadData = await uploadResponse.json()
+          // Backend returns { key, bucket, size, etag, content_type }
+          const s3Key = uploadData.key
+
+          if (!s3Key) {
+            console.error('Upload response:', uploadData)
+            throw new Error(`No S3 key returned for ${fileName}`)
+          }
+
+          console.log(`Uploaded ${fileName} to S3 key: ${s3Key}`)
+
+          // 记录二进制文件信息
+          binaryFiles.push({
+            path: filePath,
+            filename: fileName,
+            s3_key: s3Key,
+            file_type: getFileType(file)
+          })
+
+          // 在结构中标记为 pending
+          current[fileName] = {
+            type: 'file',
+            content: {
+              status: 'pending',
+              message: 'Parsing in background...'
+            },
+            size: file.size,
+            lastModified: file.lastModified,
+            needs_etl: true
+          }
+
+          onLog?.('success', `Uploaded ${fileName}`)
+        } else {
+          // 检查是否为文本文件
+          const isTextFile = await isTextFileType(file)
+          let content = null
+
+          if (isTextFile) {
+            content = await file.text()
+            // 清理无效的Unicode字符
+            content = sanitizeUnicodeContent(content)
+          }
+
+          current[fileName] = {
+            type: 'file',
+            content,
+            size: file.size,
+            lastModified: file.lastModified
+          }
         }
       } catch (error) {
-        console.error(`Failed to read file ${fileName}:`, error)
+        console.error(`Failed to process file ${fileName}:`, error)
         current[fileName] = {
           type: 'file',
           content: null,
           size: file.size,
           lastModified: file.lastModified,
-          error: 'Failed to read file content'
+          error: 'Failed to process file'
         }
       }
 
@@ -288,7 +395,7 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
       onProgress?.(processedFiles, totalFiles)
     }
 
-    return structure
+    return { structure, binaryFiles }
   }
 
   return (

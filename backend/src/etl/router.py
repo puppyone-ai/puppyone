@@ -22,6 +22,7 @@ from src.etl.tasks.models import ETLTask
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
 from src.etl.schemas import (
+    BatchETLTaskStatusResponse,
     ETLFileUploadResponse,
     ETLHealthResponse,
     ETLMountRequest,
@@ -89,6 +90,75 @@ async def submit_etl_task(
     except ETLError as e:
         logger.error(f"ETL error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tasks/batch", response_model=BatchETLTaskStatusResponse)
+async def get_batch_etl_tasks(
+    task_ids: str = Query(..., description="逗号分隔的任务ID列表，如：1,2,3"),
+    etl_service: ETLService = Depends(get_etl_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """
+    批量查询 ETL 任务状态。
+    
+    Args:
+        task_ids: 逗号分隔的任务ID列表
+        etl_service: ETL service dependency
+        current_user: Current user (from token)
+    
+    Returns:
+        BatchETLTaskStatusResponse with all task statuses
+    
+    Raises:
+        HTTPException: If task_ids format is invalid
+    """
+    try:
+        # Parse task IDs
+        id_list = [int(tid.strip()) for tid in task_ids.split(",") if tid.strip()]
+        
+        if not id_list:
+            raise HTTPException(status_code=400, detail="No valid task IDs provided")
+        
+        if len(id_list) > 100:
+            raise HTTPException(status_code=400, detail="Too many task IDs (max 100)")
+        
+        # Get task statuses
+        task_responses = []
+        for task_id in id_list:
+            try:
+                task = await etl_service.get_task_status_with_access_check(
+                    task_id=task_id,
+                    user_id=current_user.user_id
+                )
+                
+                task_responses.append(
+                    ETLTaskResponse(
+                        task_id=task.task_id,
+                        user_id=task.user_id,
+                        project_id=task.project_id,
+                        filename=task.filename,
+                        rule_id=task.rule_id,
+                        status=task.status,
+                        progress=task.progress,
+                        created_at=task.created_at,
+                        updated_at=task.updated_at,
+                        result=task.result.model_dump() if task.result else None,
+                        error=task.error,
+                        metadata=task.metadata,
+                    )
+                )
+            except Exception as e:
+                # If task not found or access denied, skip it
+                logger.warning(f"Failed to get task {task_id}: {e}")
+                continue
+        
+        return BatchETLTaskStatusResponse(
+            tasks=task_responses,
+            total=len(task_responses)
+        )
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid task_ids format: {str(e)}")
 
 
 @router.get("/tasks/{task_id}", response_model=ETLTaskResponse)
@@ -487,22 +557,40 @@ async def upload_etl_file(
         HTTPException: If upload fails or file size exceeds limit
     """
     try:
-        # Generate S3 key path
-        filename = file.filename
-        s3_key = f"users/{current_user.user_id}/raw/{project_id}/{filename}"
+        # Generate safe S3 key path
+        # Use UUID to avoid issues with special characters in filename
+        import uuid
+        import os
+        import base64
+        
+        original_filename = file.filename
+        # Get file extension
+        _, ext = os.path.splitext(original_filename)
+        # Generate safe filename using UUID
+        safe_filename = f"{uuid.uuid4()}{ext}"
+        s3_key = f"users/{current_user.user_id}/raw/{project_id}/{safe_filename}"
 
         # Read file content
         content = await file.read()
 
-        # Upload to S3
+        # Encode original filename to base64 for S3 metadata (ASCII only)
+        # S3 metadata can only contain ASCII characters
+        original_filename_b64 = base64.b64encode(original_filename.encode('utf-8')).decode('ascii')
+
+        # Upload to S3 with base64-encoded original filename in metadata
         result = await s3_service.upload_file(
             key=s3_key,
             content=content,
             content_type=file.content_type,
+            metadata={
+                "original_filename_b64": original_filename_b64,
+                "project_id": str(project_id),
+            }
         )
 
         logger.info(
-            f"File uploaded successfully to ETL: {s3_key} ({result.size} bytes)"
+            f"File uploaded successfully to ETL: {s3_key} "
+            f"(original: {original_filename}, {result.size} bytes)"
         )
 
         return ETLFileUploadResponse(

@@ -80,8 +80,28 @@ class ETLService:
         return RuleRepositorySupabase(supabase_client=supabase_client, user_id=user_id)
 
     async def start(self):
-        """Start ETL service workers."""
+        """Start ETL service workers and resume pending tasks."""
         await self.queue.start_workers()
+        
+        # Resume pending tasks from database
+        try:
+            pending_tasks = self.task_repository.list_tasks(status=ETLTaskStatus.PENDING)
+            if pending_tasks:
+                logger.info(f"Found {len(pending_tasks)} pending tasks, resuming...")
+                for task in pending_tasks:
+                    try:
+                        # Add to memory cache
+                        self.queue.tasks[task.task_id] = task
+                        # Add to queue (task already exists in DB, so don't call submit())
+                        await self.queue.queue.put(task.task_id)
+                        logger.info(f"Resumed task {task.task_id}: {task.filename}")
+                    except Exception as e:
+                        logger.error(f"Failed to resume task {task.task_id}: {e}")
+            else:
+                logger.info("No pending tasks to resume")
+        except Exception as e:
+            logger.error(f"Failed to resume pending tasks: {e}")
+        
         logger.info("ETL service started")
 
     async def stop(self):
@@ -151,13 +171,21 @@ class ETLService:
 
             # Step 1: Get S3 presigned URL for source file
             task.update_status(ETLTaskStatus.MINERU_PARSING, progress=10)
-            source_key = f"users/{task.user_id}/raw/{task.project_id}/{task.filename}"
+            
+            # Use s3_key from metadata if available (for files with special characters)
+            # Otherwise construct from filename (backward compatibility)
+            if "s3_key" in task.metadata:
+                source_key = task.metadata["s3_key"]
+                logger.info(f"Task {task.task_id}: Using s3_key from metadata: {source_key}")
+            else:
+                source_key = f"users/{task.user_id}/raw/{task.project_id}/{task.filename}"
+                logger.info(f"Task {task.task_id}: Constructed s3_key from filename: {source_key}")
 
             presigned_url = await self.s3_service.generate_presigned_download_url(
                 key=source_key,
                 expires_in=3600,  # 1 hour
             )
-            logger.info(f"Task {task.task_id}: Generated presigned URL for {source_key}")
+            logger.info(f"Task {task.task_id}: Generated presigned URL")
 
             # Step 2: Submit to MineRU for parsing
             task.update_status(ETLTaskStatus.MINERU_PARSING, progress=20)
@@ -198,7 +226,20 @@ class ETLService:
             task.update_status(ETLTaskStatus.LLM_PROCESSING, progress=80)
 
             # Step 5: Upload result to S3
-            output_key = f"users/{task.user_id}/processed/{task.project_id}/{task.filename}.json"
+            # Extract UUID from source s3_key to use for output filename (avoid non-ASCII chars)
+            source_s3_key = task.metadata.get("s3_key", "")
+            if source_s3_key:
+                # Extract UUID from path like "users/.../raw/2/uuid.pdf"
+                import os
+                source_basename = os.path.basename(source_s3_key)  # "uuid.pdf"
+                uuid_filename = os.path.splitext(source_basename)[0]  # "uuid"
+                output_filename = f"{uuid_filename}.json"
+            else:
+                # Fallback: generate new UUID if s3_key not found
+                import uuid
+                output_filename = f"{uuid.uuid4()}.json"
+            
+            output_key = f"users/{task.user_id}/processed/{task.project_id}/{output_filename}"
             output_json = json.dumps(
                 transformation_result.output,
                 indent=2,
@@ -206,6 +247,10 @@ class ETLService:
             )
             output_bytes = output_json.encode("utf-8")
 
+            # Base64 encode filename for S3 metadata (only ASCII allowed)
+            import base64
+            source_filename_b64 = base64.b64encode(task.filename.encode('utf-8')).decode('ascii')
+            
             upload_response = await self.s3_service.upload_file(
                 key=output_key,
                 content=output_bytes,
@@ -213,7 +258,7 @@ class ETLService:
                 metadata={
                     "task_id": str(task.task_id),
                     "rule_id": str(task.rule_id),
-                    "source_filename": task.filename,
+                    "source_filename_b64": source_filename_b64,
                 },
             )
 
@@ -237,6 +282,41 @@ class ETLService:
                 f"Task {task.task_id} completed successfully in "
                 f"{processing_time:.2f}s"
             )
+            
+            # Step 7: Call completion callback to update table data
+            try:
+                from src.etl.callbacks import handle_etl_task_completion
+                from src.supabase.tables.repository import TableRepository
+                from src.supabase.dependencies import get_supabase_client
+                
+                # Check if this task has table_id in metadata
+                if "table_id" in task.metadata:
+                    table_id = task.metadata["table_id"]
+                    logger.info(f"Task {task.task_id}: Calling completion callback for table {table_id}")
+                    
+                    # Initialize table repository
+                    supabase_client = get_supabase_client()
+                    table_repository = TableRepository(client=supabase_client)
+                    
+                    # Call callback
+                    success = await handle_etl_task_completion(
+                        task=task,
+                        s3_service=self.s3_service,
+                        table_repository=table_repository
+                    )
+                    
+                    if success:
+                        logger.info(f"Task {task.task_id}: Table {table_id} updated successfully")
+                    else:
+                        logger.warning(f"Task {task.task_id}: Failed to update table {table_id}")
+                else:
+                    logger.debug(f"Task {task.task_id}: No table_id in metadata, skipping callback")
+            except Exception as callback_error:
+                # Don't fail the task if callback fails
+                logger.error(
+                    f"Task {task.task_id}: Callback failed: {callback_error}",
+                    exc_info=True
+                )
 
         except Exception as e:
             logger.error(

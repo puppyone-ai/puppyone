@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { SupabaseAuthProvider } from './supabase/SupabaseAuthProvider';
+import { BackgroundTaskNotifier } from '../components/BackgroundTaskNotifier';
 
 export const metadata = {
   title: 'PuppyBase',
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body style={{margin: 0}}>
         <SupabaseAuthProvider>
           {children}
+          <BackgroundTaskNotifier />
         </SupabaseAuthProvider>
       </body>
     </html>

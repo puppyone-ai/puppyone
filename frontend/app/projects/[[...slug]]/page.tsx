@@ -11,6 +11,7 @@ import { ProjectsHeader, type EditorType } from '../../../components/ProjectsHea
 import { McpContentView } from '../../../components/McpContentView'
 import { EtlContentView } from '../../../components/EtlContentView'
 import { ConnectContentView } from '../../../components/ConnectContentView'
+import { ParsingContentView } from '../../../components/ParsingContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
 import { ImportMenu } from '../../../components/ImportMenu'
 import { 
@@ -21,7 +22,7 @@ import {
   TOOL_INFO 
 } from '../../../lib/mcpApi'
 
-type ActiveView = 'projects' | 'mcp' | 'etl' | 'connect' | 'test' | 'logs' | 'settings'
+type ActiveView = 'projects' | 'mcp' | 'etl' | 'connect' | 'parsing' | 'test' | 'logs' | 'settings'
 
 const utilityNav = [
   { id: 'mcp', label: 'MCP', path: 'mcp', isAvailable: true },
@@ -225,7 +226,10 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   }
 
   const handleUtilityNavClick = (viewId: string) => {
-    if (viewId === 'mcp') {
+    if (viewId === 'parsing') {
+      setActiveView('parsing')
+      window.history.pushState({}, '', '/parsing')
+    } else if (viewId === 'mcp') {
       setActiveView('mcp')
       window.history.pushState({}, '', '/mcp')
     } else if (viewId === 'etl') {
@@ -983,6 +987,8 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
           <EtlContentView onBack={handleBackToProjects} />
         ) : activeView === 'connect' ? (
           <ConnectContentView onBack={handleBackToProjects} />
+        ) : activeView === 'parsing' ? (
+          <ParsingContentView onBack={handleBackToProjects} />
         ) : null}
       </section>
 
