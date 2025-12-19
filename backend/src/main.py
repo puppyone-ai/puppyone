@@ -130,8 +130,8 @@ async def app_lifespan(app: FastAPI):
         mcp_duration = time.time() - mcp_init_start
         log_error(f"❌ MCP Server 健康检查失败 (耗时: {mcp_duration*1000:.2f}ms): {e}")
 
-    # 2. 初始化 ETL 服务（需要启用 ETL，且非 DEBUG 才启动）
-    if settings.etl_enabled and not settings.DEBUG:
+    # 2. 初始化 ETL 服务（需要启用 ETL）
+    if settings.etl_enabled:
         etl_init_start = time.time()
         try:
             log_info("📄 初始化 ETL 服务...")
@@ -148,11 +148,13 @@ async def app_lifespan(app: FastAPI):
             await etl_service.start()
             etl_duration = time.time() - etl_init_start
             log_info(f"✅ ETL 服务启动成功 (耗时: {etl_duration*1000:.2f}ms)")
+            if settings.DEBUG:
+                log_info("   ℹ️  DEBUG 模式下 ETL workers 已启动（用于开发测试）")
         except Exception as e:
             etl_duration = time.time() - etl_init_start
             log_error(f"❌ ETL 服务启动失败 (耗时: {etl_duration*1000:.2f}ms): {e}")
     else:
-        log_info("⏭️  ETL 服务已跳过（ENABLE_ETL 关闭或 DEBUG 模式）")
+        log_info("⏭️  ETL 服务已跳过（ENABLE_ETL 关闭）")
 
     # 输出总启动时间
     total_startup_time = time.time() - APP_START_TIME
@@ -166,8 +168,8 @@ async def app_lifespan(app: FastAPI):
     # 关闭时的清理逻辑
     log_info("ContextBase API 关闭中...")
     
-    # 停止 ETL 服务（需要启用 ETL，且非 DEBUG 才停止）
-    if settings.etl_enabled and not settings.DEBUG:
+    # 停止 ETL 服务（需要启用 ETL）
+    if settings.etl_enabled:
         try:
             from src.etl.dependencies import get_etl_service
             

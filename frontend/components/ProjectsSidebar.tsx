@@ -4,6 +4,72 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import type { ProjectInfo } from '../lib/projectsApi'
 import { ProjectManageDialog } from './ProjectManageDialog'
 import { TableManageDialog } from './TableManageDialog'
+import { useAuth } from '../app/supabase/SupabaseAuthProvider'
+import { batchGetETLTaskStatus } from '../lib/etlApi'
+
+// Parsing Tasks Badge Component
+function ParsingTasksBadge() {
+  const { session } = useAuth()
+  const [statusColor, setStatusColor] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!session) return
+
+    const checkStatus = async () => {
+      try {
+        const pendingTasksStr = localStorage.getItem('etl_pending_tasks')
+        if (!pendingTasksStr) {
+          setStatusColor(null)
+          return
+        }
+
+        const pendingTasks = JSON.parse(pendingTasksStr) as Array<{ taskId: number }>
+        if (pendingTasks.length === 0) {
+          setStatusColor(null)
+          return
+        }
+
+        const taskIds = pendingTasks.map(t => t.taskId)
+        const response = await batchGetETLTaskStatus(taskIds, session.access_token)
+
+        // Determine badge color based on task statuses
+        const hasCompleted = response.tasks.some(t => t.status === 'completed')
+        const hasFailed = response.tasks.some(t => t.status === 'failed')
+        const hasPending = response.tasks.some(t => t.status === 'pending' || t.status === 'mineru_parsing' || t.status === 'llm_processing')
+
+        if (hasFailed) {
+          setStatusColor('#EF4444') // Red
+        } else if (hasCompleted) {
+          setStatusColor('#10B981') // Green
+        } else if (hasPending) {
+          setStatusColor('#F59E0B') // Yellow
+        } else {
+          setStatusColor(null)
+        }
+      } catch (error) {
+        console.error('Failed to check task status:', error)
+      }
+    }
+
+    checkStatus()
+    const interval = setInterval(checkStatus, 3000)
+    
+    return () => clearInterval(interval)
+  }, [session])
+
+  if (!statusColor) return null
+
+  return (
+    <div style={{
+      width: 6,
+      height: 6,
+      borderRadius: '50%',
+      backgroundColor: statusColor,
+      marginLeft: 'auto',
+      flexShrink: 0,
+    }} />
+  )
+}
 
 type UtilityNavItem = {
   id: string
@@ -1255,6 +1321,20 @@ export function ProjectsSidebar({
           {expandedSections.has('try') && (
             <div className="section-content">
               <button 
+                className={`nav-item ${activeView === 'parsing' ? 'active' : ''}`}
+                onClick={() => onUtilityNavClick('parsing')}
+              >
+                <span className="nav-icon">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M2 3l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </span>
+                <span className="nav-label">Parsing Tasks</span>
+                <ParsingTasksBadge />
+              </button>
+              
+              <button 
                 className={`nav-item ${activeView === 'etl' ? 'active' : ''}`}
                 onClick={() => onUtilityNavClick('etl')}
               >
@@ -1349,6 +1429,18 @@ export function ProjectsSidebar({
               <path d="M5 7h2M9 4.5L7.5 6M9 9.5L7.5 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
                   </svg>
               </button>
+              
+          {/* Parsing Tasks Icon */}
+          <button
+            className={`collapsed-nav-btn ${activeView === 'parsing' ? 'active' : ''}`}
+            onClick={() => onUtilityNavClick('parsing')}
+            title="Parsing Tasks"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M2 3l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
               
           {/* ETL Icon */}
               <button 

@@ -116,3 +116,10 @@ class ETLFileUploadResponse(BaseModel):
     size: int = Field(..., description="File size in bytes")
     etag: str = Field(..., description="ETag hash")
     content_type: Optional[str] = Field(None, description="File content type")
+
+
+class BatchETLTaskStatusResponse(BaseModel):
+    """Response for batch ETL task status query."""
+
+    tasks: list[ETLTaskResponse] = Field(..., description="List of task statuses")
+    total: int = Field(..., description="Total number of tasks queried")
