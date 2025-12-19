@@ -385,49 +385,43 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                     boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                     overflow: 'hidden',
                   }}>
-                    {/* Header - 更低调的样式 */}
+                    {/* Header - 只有关闭按钮 */}
                     <div style={{
-                      padding: '8px 12px',
+                      padding: '6px 8px',
                       borderBottom: '1px solid #2a2a2e',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
+                      justifyContent: 'flex-end',
                       flexShrink: 0,
                     }}>
-                    <svg width="12" height="10" viewBox="0 0 33 26" fill="none" style={{ color: '#6b7280' }}>
-                      <ellipse cx="27.9463" cy="11.0849" rx="3.45608" ry="4.0321" transform="rotate(14 27.9463 11.0849)" fill="currentColor"/>
-                      <ellipse cx="11.5129" cy="4.75922" rx="3.45608" ry="4.3201" transform="rotate(-8 11.5129 4.75922)" fill="currentColor"/>
-                      <ellipse cx="20.7294" cy="4.7593" rx="3.45608" ry="4.3201" transform="rotate(8 20.7294 4.7593)" fill="currentColor"/>
-                      <ellipse cx="4.32887" cy="11.0848" rx="3.45608" ry="4.0321" transform="rotate(-14 4.32887 11.0848)" fill="currentColor"/>
-                      <path d="M15.4431 11.5849C15.9709 11.499 16.0109 11.4991 16.5387 11.585C17.4828 11.7388 17.9619 12.099 18.7308 12.656C20.3528 13.8309 20.0223 15.0304 21.4709 16.4048C22.2387 17.1332 23.2473 17.7479 23.9376 18.547C24.7716 19.5125 25.1949 20.2337 25.3076 21.4924C25.4028 22.5548 25.3449 23.2701 24.7596 24.1701C24.1857 25.0527 23.5885 25.4635 22.5675 25.7768C21.6486 26.0587 21.0619 25.8454 20.1014 25.7768C18.4688 25.66 17.6279 24.9515 15.9912 24.9734C14.4592 24.994 13.682 25.655 12.155 25.7768C11.1951 25.8533 10.6077 26.0587 9.68884 25.7768C8.66788 25.4635 8.07066 25.0527 7.49673 24.1701C6.91143 23.2701 6.85388 22.5546 6.94907 21.4922C7.06185 20.2335 7.57596 19.5812 8.31877 18.547C9.01428 17.5786 9.71266 17.2943 10.5109 16.4048C11.7247 15.0521 11.7621 13.7142 13.251 12.656C14.0251 12.1059 14.499 11.7387 15.4431 11.5849Z" fill="currentColor"/>
-                    </svg>
-                    <span style={{ fontSize: 11, fontWeight: 500, color: '#6b7280' }}>Agent Tools</span>
-                    {(() => {
-                      // 使用简化的UI工具类型映射到实际的后端类型
-                      const uiToolMapping = {
-                        query_data: 'query_data',
-                        get_all_data: 'get_all_data',
-                        preview: 'preview',
-                        select: 'select',
-                        create: 'create',
-                        update: 'update',
-                        delete: 'delete'
-                      } as const
-
-                      const toolIds = Object.keys(uiToolMapping) as Array<keyof typeof uiToolMapping>
-                      const count = toolIds.filter(id => {
-                        const backendType = uiToolMapping[id] as McpToolType
-                        return accessPoints.some(ap => ap.permissions[backendType])
-                      }).length
-
-                      return count > 0 && (
-                        <span style={{
-                          marginLeft: 'auto',
-                          fontSize: 10,
+                      <button
+                        onClick={() => setIsAgentPanelOpen(false)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          padding: 4,
+                          cursor: 'pointer',
                           color: '#525252',
-                        }}>{count} active</span>
-                      )
-                    })()}
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: 4,
+                          transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                          e.currentTarget.style.color = '#9ca3af'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.color = '#525252'
+                        }}
+                        title="Close panel"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                      </button>
                   </div>
                   
                   {/* Content - 按 Path 聚合，带颜色编码 */}
@@ -758,6 +752,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                                   setEditingToolField({ toolId: toolFieldId, field: 'name' })
                                                 }}
                                                 style={{ 
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: 6,
                                                   fontSize: 12, 
                                                   fontWeight: 500, 
                                                   color: '#d4d4d8',
@@ -771,9 +768,14 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                                 }}
                                                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
                                                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
-                                                title={currentDef.name}
+                                                title="Click to edit"
                                               >
-                                                {currentDef.name}
+                                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                  {currentDef.name}
+                                                </span>
+                                                <svg width="10" height="10" viewBox="0 0 14 14" fill="none" style={{ color: '#3f3f46', flexShrink: 0 }}>
+                                                  <path d="M10 2l2 2-7 7H3v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                                                </svg>
                                               </div>
                                             )}
                                           </div>
@@ -821,6 +823,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                                   setEditingToolField({ toolId: toolFieldId, field: 'description' })
                                                 }}
                                                 style={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: 6,
                                                   fontSize: 11,
                                                   color: currentDef.description ? '#71717a' : '#3f3f46',
                                                   cursor: 'text',
@@ -833,9 +838,14 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                                                 }}
                                                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
                                                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
-                                                title={currentDef.description || 'Click to edit'}
+                                                title="Click to edit"
                                               >
-                                                {currentDef.description || 'Click to edit...'}
+                                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                  {currentDef.description || 'Add description...'}
+                                                </span>
+                                                <svg width="10" height="10" viewBox="0 0 14 14" fill="none" style={{ color: '#3f3f46', flexShrink: 0 }}>
+                                                  <path d="M10 2l2 2-7 7H3v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                                                </svg>
                                               </div>
                                             )}
                                           </div>

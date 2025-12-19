@@ -104,17 +104,17 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
     ...vscDarkPlus,
     'code[class*="language-"]': {
       ...vscDarkPlus['code[class*="language-"]'],
-      background: '#1a1a1a',
+      background: 'rgba(0,0,0,0.3)',
       color: '#9ca3af',
-      fontFamily: "'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace",
-      fontSize: '10px',
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      fontSize: '11px',
     },
     'pre[class*="language-"]': {
       ...vscDarkPlus['pre[class*="language-"]'],
-      background: '#1a1a1a',
+      background: 'rgba(0,0,0,0.3)',
       color: '#9ca3af',
-      fontFamily: "'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace",
-      fontSize: '10px',
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      fontSize: '11px',
     },
   }
 
@@ -152,30 +152,35 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
           scrollbar-color: #374151 #0a0a0a;
         }
       `}</style>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {/* Name (可编辑) */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-          <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 500 }}>Instance Name</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ fontSize: 10, color: '#525252', fontWeight: 500, letterSpacing: '0.3px' }}>INSTANCE NAME</div>
           {!editingName && onUpdate && (
             <button
               onClick={() => setEditingName(true)}
               style={{
                 background: 'transparent',
-                border: '1px solid #374151',
-                borderRadius: 3,
-                color: '#6b7280',
+                border: 'none',
+                color: '#525252',
                 cursor: 'pointer',
-                padding: '2px 6px',
+                padding: 2,
                 fontSize: 9,
+                display: 'flex',
+                alignItems: 'center',
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#9ca3af' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = '#525252' }}
             >
-              Edit
+              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                <path d="M10 2l2 2-7 7H3v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+              </svg>
             </button>
           )}
         </div>
         {editingName ? (
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
             <input
               type="text"
               value={nameValue}
@@ -184,13 +189,13 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
               autoFocus
               style={{
                 flex: 1,
-                height: 28,
-                background: '#1f1f1f',
-                border: '1px solid #374151',
-                borderRadius: 4,
-                padding: '0 8px',
-                fontSize: 11,
-                color: '#fff',
+                height: 32,
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 6,
+                padding: '0 10px',
+                fontSize: 12,
+                color: '#e2e8f0',
                 outline: 'none',
               }}
             />
@@ -198,18 +203,18 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
               onClick={handleSaveName}
               disabled={savingName || !nameValue.trim()}
               style={{
-                height: 28,
-                padding: '0 12px',
+                height: 32,
+                padding: '0 14px',
                 background: '#34d399',
                 border: 'none',
-                borderRadius: 4,
+                borderRadius: 6,
                 color: '#000',
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: 600,
                 cursor: savingName ? 'wait' : 'pointer',
               }}
             >
-              {savingName ? 'Saving...' : 'Save'}
+              {savingName ? '...' : 'Save'}
             </button>
             <button
               onClick={() => {
@@ -217,13 +222,13 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 setNameValue(instance.name || 'Unnamed Instance')
               }}
               style={{
-                height: 28,
-                padding: '0 12px',
+                height: 32,
+                padding: '0 14px',
                 background: 'transparent',
-                border: '1px solid #374151',
-                borderRadius: 4,
+                border: '1px solid #333',
+                borderRadius: 6,
                 color: '#9ca3af',
-                fontSize: 10,
+                fontSize: 11,
                 cursor: 'pointer',
               }}
             >
@@ -232,12 +237,12 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
           </div>
         ) : (
           <div style={{
-            background: '#1f1f1f',
-            borderRadius: 4,
-            padding: '6px 8px',
-            border: '1px solid #374151',
-            fontSize: 12,
-            color: '#EDEDED',
+            background: 'rgba(0,0,0,0.2)',
+            borderRadius: 6,
+            padding: '8px 10px',
+            border: '1px solid transparent',
+            fontSize: 13,
+            color: '#e2e8f0',
             fontWeight: 500,
           }}>
             {nameValue}
@@ -248,8 +253,8 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
       {/* Registered Tools */}
       {instance.register_tools && instance.register_tools.length > 0 && (
         <div>
-          <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 500, marginBottom: 6 }}>
-            Registered Tools
+          <div style={{ fontSize: 10, color: '#525252', fontWeight: 500, marginBottom: 6, letterSpacing: '0.3px' }}>
+            REGISTERED TOOLS
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {instance.register_tools.map((toolType) => {
@@ -261,13 +266,13 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
               
               return (
                 <div key={toolType} style={{
-                  background: '#1f1f1f',
-                  border: '1px solid #374151',
-                  borderRadius: 4,
-                  padding: 8,
+                  background: 'rgba(0,0,0,0.2)',
+                  border: '1px solid transparent',
+                  borderRadius: 6,
+                  padding: '8px 10px',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', fontWeight: 600 }}>
+                    <div style={{ fontSize: 10, color: '#3b82f6', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.3px' }}>
                       {TOOL_INFO[toolType as McpToolType]?.label || toolType}
                     </div>
                     {!isEditing && onUpdate && (
@@ -276,13 +281,18 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: '#6b7280',
+                          color: '#525252',
                           cursor: 'pointer',
-                          padding: '2px 6px',
-                          fontSize: 9,
+                          padding: 2,
+                          display: 'flex',
+                          alignItems: 'center',
                         }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = '#9ca3af' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = '#525252' }}
                       >
-                        Edit
+                        <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                          <path d="M10 2l2 2-7 7H3v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                        </svg>
                       </button>
                     )}
                   </div>
@@ -299,15 +309,16 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                         placeholder="Tool name"
                         style={{
                           width: '100%',
-                          height: 24,
+                          height: 28,
+                          boxSizing: 'border-box',
                           background: 'rgba(0,0,0,0.3)',
-                          border: '1px solid rgba(255, 255, 255, 0.05)',
-                          borderRadius: 3,
-                          padding: '0 6px',
-                          fontSize: 10,
-                          color: '#fff',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: 4,
+                          padding: '0 8px',
+                          fontSize: 12,
+                          color: '#e2e8f0',
                           outline: 'none',
-                          marginBottom: 4,
+                          marginBottom: 6,
                         }}
                       />
                       <input
@@ -320,34 +331,35 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                         placeholder="Tool description"
                         style={{
                           width: '100%',
-                          height: 24,
+                          height: 28,
+                          boxSizing: 'border-box',
                           background: 'rgba(0,0,0,0.3)',
-                          border: '1px solid rgba(255, 255, 255, 0.05)',
-                          borderRadius: 3,
-                          padding: '0 6px',
-                          fontSize: 10,
-                          color: '#fff',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: 4,
+                          padding: '0 8px',
+                          fontSize: 12,
+                          color: '#9ca3af',
                           outline: 'none',
-                          marginBottom: 6,
+                          marginBottom: 8,
                         }}
                       />
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                         <button
                           onClick={() => handleSaveTool(toolType)}
                           disabled={isSaving}
                           style={{
-                            height: 24,
-                            padding: '0 10px',
+                            height: 26,
+                            padding: '0 12px',
                             background: '#34d399',
                             border: 'none',
-                            borderRadius: 3,
+                            borderRadius: 4,
                             color: '#000',
-                            fontSize: 9,
+                            fontSize: 11,
                             fontWeight: 600,
                             cursor: isSaving ? 'wait' : 'pointer',
                           }}
                         >
-                          {isSaving ? 'Saving...' : 'Save'}
+                          {isSaving ? '...' : 'Save'}
                         </button>
                         <button
                           onClick={() => {
@@ -358,13 +370,13 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                             }))
                           }}
                           style={{
-                            height: 24,
-                            padding: '0 10px',
+                            height: 26,
+                            padding: '0 12px',
                             background: 'transparent',
-                            border: '1px solid #374151',
-                            borderRadius: 3,
+                            border: '1px solid #333',
+                            borderRadius: 4,
                             color: '#9ca3af',
-                            fontSize: 9,
+                            fontSize: 11,
                             cursor: 'pointer',
                           }}
                         >
@@ -374,10 +386,10 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 10, color: '#EDEDED', marginBottom: 3, fontWeight: 500 }}>
+                      <div style={{ fontSize: 12, color: '#e2e8f0', marginBottom: 2, fontWeight: 500 }}>
                         {toolDef.name}
                       </div>
-                      <div style={{ fontSize: 9, color: '#9ca3af', lineHeight: 1.4 }}>
+                      <div style={{ fontSize: 11, color: '#71717a', lineHeight: 1.4 }}>
                         {toolDef.description}
                       </div>
                     </>
@@ -391,24 +403,24 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
 
       {/* URL */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-          <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 500 }}>URL</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ fontSize: 10, color: '#525252', fontWeight: 500, letterSpacing: '0.3px' }}>URL</div>
           <button
             onClick={() => copyToClipboard(mcpUrl, 'url')}
             style={{
               background: 'transparent',
-              border: '1px solid #374151',
-              borderRadius: 3,
-              color: copiedStates.url ? '#34d399' : '#6b7280',
+              border: 'none',
+              borderRadius: 4,
+              color: copiedStates.url ? '#34d399' : '#525252',
               cursor: 'pointer',
-              padding: '2px 4px',
+              padding: 2,
               transition: 'all 0.15s',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 18,
-              height: 18
             }}
+            onMouseEnter={(e) => { if (!copiedStates.url) e.currentTarget.style.color = '#9ca3af' }}
+            onMouseLeave={(e) => { if (!copiedStates.url) e.currentTarget.style.color = '#525252' }}
             title={copiedStates.url ? 'Copied!' : 'Copy'}
           >
             {copiedStates.url ? (
@@ -426,10 +438,10 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
         <div 
           className="custom-scrollbar"
           style={{
-            background: '#1f1f1f',
-            borderRadius: 4,
+            background: 'rgba(0,0,0,0.3)',
+            borderRadius: 6,
             overflow: 'auto',
-            border: '1px solid #374151',
+            border: '1px solid transparent',
             maxHeight: 80
           }}
         >
@@ -438,13 +450,13 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
             style={customTheme}
             customStyle={{
               margin: 0,
-              padding: '4px 6px',
-              fontSize: '9px',
-              fontFamily: "'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace",
-              background: '#1f1f1f',
+              padding: '8px 10px',
+              fontSize: '11px',
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              background: 'transparent',
               wordBreak: 'break-all',
               overflowWrap: 'break-word',
-              lineHeight: '1.3'
+              lineHeight: '1.4'
             }}
             wrapLines={true}
             wrapLongLines={true}
@@ -456,18 +468,20 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
 
       {/* MCP Config */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-          <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={() => setActiveTab('json')}
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: activeTab === 'json' ? '#3b82f6' : '#6b7280',
+                color: activeTab === 'json' ? '#3b82f6' : '#525252',
                 fontSize: 10,
                 cursor: 'pointer',
                 padding: 0,
                 fontWeight: activeTab === 'json' ? 600 : 400,
+                textTransform: 'uppercase',
+                letterSpacing: '0.3px',
                 transition: 'color 0.15s'
               }}
             >
@@ -478,11 +492,13 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: activeTab === 'yaml' ? '#3b82f6' : '#6b7280',
+                color: activeTab === 'yaml' ? '#3b82f6' : '#525252',
                 fontSize: 10,
                 cursor: 'pointer',
                 padding: 0,
                 fontWeight: activeTab === 'yaml' ? 600 : 400,
+                textTransform: 'uppercase',
+                letterSpacing: '0.3px',
                 transition: 'color 0.15s'
               }}
             >
@@ -493,18 +509,18 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
             onClick={() => copyToClipboard(configText, 'config')}
             style={{
               background: 'transparent',
-              border: '1px solid #374151',
-              borderRadius: 3,
-              color: copiedStates.config ? '#34d399' : '#6b7280',
+              border: 'none',
+              borderRadius: 4,
+              color: copiedStates.config ? '#34d399' : '#525252',
               cursor: 'pointer',
-              padding: '2px 4px',
+              padding: 2,
               transition: 'all 0.15s',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 18,
-              height: 18
             }}
+            onMouseEnter={(e) => { if (!copiedStates.config) e.currentTarget.style.color = '#9ca3af' }}
+            onMouseLeave={(e) => { if (!copiedStates.config) e.currentTarget.style.color = '#525252' }}
             title={copiedStates.config ? 'Copied!' : 'Copy'}
           >
             {copiedStates.config ? (
@@ -522,11 +538,11 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
         <div 
           className="custom-scrollbar"
           style={{
-            background: '#1f1f1f',
-            borderRadius: 4,
+            background: 'rgba(0,0,0,0.3)',
+            borderRadius: 6,
             overflow: 'auto',
-            maxHeight: 120,
-            border: '1px solid #374151'
+            maxHeight: 140,
+            border: '1px solid transparent'
           }}
         >
           <SyntaxHighlighter
@@ -534,11 +550,11 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
             style={customTheme}
             customStyle={{
               margin: 0,
-              padding: '4px 6px',
-              fontSize: '9px',
-              fontFamily: "'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace",
-              background: '#1f1f1f',
-              lineHeight: '1.3'
+              padding: '8px 10px',
+              fontSize: '11px',
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              background: 'transparent',
+              lineHeight: '1.4'
             }}
             wrapLines={true}
             wrapLongLines={true}
