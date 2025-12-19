@@ -13,13 +13,9 @@ import { EtlContentView } from '../../../components/EtlContentView'
 import { ConnectContentView } from '../../../components/ConnectContentView'
 import { ParsingContentView } from '../../../components/ParsingContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
-import { ImportMenu } from '../../../components/ImportMenu'
 import { 
   type McpToolPermissions, 
   type McpToolType,
-  createMcpInstance, 
-  permissionsToRegisterTools,
-  TOOL_INFO 
 } from '../../../lib/mcpApi'
 
 type ActiveView = 'projects' | 'mcp' | 'etl' | 'connect' | 'parsing' | 'test' | 'logs' | 'settings'
@@ -37,13 +33,6 @@ interface AccessPoint {
   id: string
   path: string
   permissions: McpToolPermissions
-}
-
-// 已发布的 MCP 实例信息
-interface PublishedMcpInstance {
-  apiKey: string
-  url: string
-  publishedAt: Date
 }
 
 export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: string[] }> }) {
@@ -72,14 +61,10 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   
   // Access Points 状态 - 用于存储已配置的 MCP 工具权限
   const [accessPoints, setAccessPoints] = useState<AccessPoint[]>([])
-  // 展开的 access point id
-  const [expandedAccessPointId, setExpandedAccessPointId] = useState<string | null>(null)
+  // 收起的 path 列表 (默认全部展开)
+  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set())
   
-  // 已发布的 MCP 实例
-  const [publishedInstance, setPublishedInstance] = useState<PublishedMcpInstance | null>(null)
-  const [isPublishing, setIsPublishing] = useState(false)
-  const [publishError, setPublishError] = useState<string | null>(null)
-  const [mcpInstanceName, setMcpInstanceName] = useState<string>('')
+  // Tool 定义编辑状态
   const [toolsDefinitionEdits, setToolsDefinitionEdits] = useState<Record<string, { name: string; description: string }>>({})
   const [editingToolField, setEditingToolField] = useState<{ toolId: string; field: 'name' | 'description' } | null>(null)
 
@@ -259,73 +244,6 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     return segments
   }, [activeBase, activeTable])
 
-  // 发布 MCP 实例
-  const handlePublishMcp = async () => {
-    if (!activeBaseId || !activeTableId || accessPoints.length === 0 || !mcpInstanceName.trim()) return
-    
-    setIsPublishing(true)
-    setPublishError(null)
-    
-    try {
-      // 合并所有 access points 的权限，选择第一个有效的 json_pointer
-      // 注意：后端目前只支持单个 json_pointer，如果有多个 access points 需要创建多个实例
-      // 这里简化处理，只取第一个 access point
-      const firstAp = accessPoints[0]
-      const allTools = permissionsToRegisterTools(
-        accessPoints.reduce((acc, ap) => {
-          Object.entries(ap.permissions).forEach(([key, value]) => {
-            if (value) acc[key as McpToolType] = true
-          })
-          return acc
-        }, {} as McpToolPermissions)
-      )
-      
-      // 构建工具定义 - 只使用用户编辑的值，不生成默认值
-      const tools_definition: Record<string, { name: string; description: string }> = {}
-      allTools.forEach(toolType => {
-        const edited = toolsDefinitionEdits[toolType]
-        // 只有用户显式编辑过的才添加
-        if (edited) {
-          tools_definition[toolType] = edited
-        }
-      })
-
-      const response = await createMcpInstance({
-        user_id: session?.user?.id || '', // 从 session 获取用户 UUID
-        project_id: Number(activeBaseId),
-        table_id: Number(activeTableId),
-        name: mcpInstanceName.trim(),
-        json_pointer: firstAp.path || '',
-        tools_definition,
-        register_tools: allTools,
-      })
-      
-      setPublishedInstance({
-        apiKey: response.api_key,
-        url: response.url,
-        publishedAt: new Date(),
-      })
-      
-      // 重置表单
-      setMcpInstanceName('')
-      setToolsDefinitionEdits({})
-    } catch (error: any) {
-      console.error('Failed to publish MCP instance:', error)
-      setPublishError(error.message || 'Failed to publish MCP instance')
-    } finally {
-      setIsPublishing(false)
-    }
-  }
-  
-  // 复制到剪贴板
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch (err) {
-      console.error('Failed to copy:', err)
-    }
-  }
-
   return (
     <main
       style={{
@@ -397,10 +315,17 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                     }))}
                     // 统一交互模型：右侧 Gutter 配置
                     onAccessPointChange={(path, permissions) => {
+                      const hasAnyPermission = Object.values(permissions).some(Boolean)
+                      
+                      // 🎯 只要 Sidebar 是收起的，配置新工具时就展开
+                      if (hasAnyPermission && !isAgentPanelOpen) {
+                        setIsAgentPanelOpen(true)
+                      }
+                      
                       // 如果该 path 已存在，更新权限；否则添加新的
                       setAccessPoints(prev => {
                         const existing = prev.find(ap => ap.path === path)
-                        const hasAnyPermission = Object.values(permissions).some(Boolean)
+                        
                         if (existing) {
                           // 如果没有任何权限了，则移除
                           if (!hasAnyPermission) {
@@ -505,278 +430,421 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                     })()}
                   </div>
                   
-                  {/* Content */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+                  {/* Content - 按 Path 聚合，带颜色编码 */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
                     {accessPoints.length === 0 ? (
                       <div style={{ 
-                        padding: '16px 8px',
+                        padding: '24px 12px',
                         textAlign: 'center',
-                        color: '#525252',
-                        fontSize: 11,
                       }}>
-                        <div style={{ marginBottom: 4 }}>No tools configured</div>
+                        <div style={{ 
+                          width: 40, 
+                          height: 40, 
+                          margin: '0 auto 12px',
+                          background: 'rgba(255,255,255,0.03)',
+                          borderRadius: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3f3f46" strokeWidth="1.5">
+                            <path d="M12 5v14M5 12h14" strokeLinecap="round"/>
+                          </svg>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>No tools configured</div>
                         <div style={{ fontSize: 10, color: '#3f3f46' }}>
-                          Click 🐾 on JSON elements
+                          Click the 🐾 icon on JSON nodes to expose capabilities
                         </div>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         {(() => {
-                          // UI工具定义映射到后端类型
+                          // 颜色编码定义
+                          const TOOL_COLORS: Record<string, { accent: string; bg: string; text: string }> = {
+                            query_data: { accent: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', text: '#60a5fa' },
+                            get_all_data: { accent: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', text: '#60a5fa' },
+                            preview: { accent: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', text: '#a78bfa' },
+                            select: { accent: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', text: '#a78bfa' },
+                            create: { accent: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', text: '#34d399' },
+                            update: { accent: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', text: '#fbbf24' },
+                            delete: { accent: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', text: '#f87171' },
+                          }
+
+                          // Tool 定义 - 使用 Agent 语言
+                          // Tool 图标定义 - 和菜单保持一致
+                          const TOOL_ICONS: Record<string, React.ReactNode> = {
+                            query_data: (
+                              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.2"/>
+                                <path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                              </svg>
+                            ),
+                            get_all_data: (
+                              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <rect x="2" y="2" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
+                                <rect x="2" y="6" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
+                                <rect x="2" y="10" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
+                              </svg>
+                            ),
+                            preview: (
+                              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                                <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
+                              </svg>
+                            ),
+                            select: (
+                              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2"/>
+                                <path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            ),
+                            create: (
+                              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <path d="M7 3v8M3 7h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                              </svg>
+                            ),
+                            update: (
+                              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <path d="M10 2l2 2-7 7H3v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                              </svg>
+                            ),
+                            delete: (
+                              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <path d="M2 4h10M5 4V2.5A.5.5 0 015.5 2h3a.5.5 0 01.5.5V4M11 4v7.5a1.5 1.5 0 01-1.5 1.5h-5A1.5 1.5 0 013 11.5V4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                              </svg>
+                            ),
+                          }
+                          
                           const TOOL_DEFS = [
-                            {
-                              uiId: 'query_data' as const,
-                              backendId: 'query_data' as McpToolType,
-                              label: 'Query',
-                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.2"/><path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-                            },
-                            {
-                              uiId: 'get_all_data' as const,
-                              backendId: 'get_all_data' as McpToolType,
-                              label: 'Get All',
-                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/><rect x="2" y="6" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/><rect x="2" y="10" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/></svg>
-                            },
-                            {
-                              uiId: 'preview' as const,
-                              backendId: 'preview' as McpToolType,
-                              label: 'Preview',
-                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/></svg>
-                            },
-                            {
-                              uiId: 'select' as const,
-                              backendId: 'select' as McpToolType,
-                              label: 'Select',
-                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2"/><path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                            },
-                            {
-                              uiId: 'create' as const,
-                              backendId: 'create' as McpToolType,
-                              label: 'Create',
-                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
-                            },
-                            {
-                              uiId: 'update' as const,
-                              backendId: 'update' as McpToolType,
-                              label: 'Update',
-                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10 2l2 2-7 7H3v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
-                            },
-                            {
-                              uiId: 'delete' as const,
-                              backendId: 'delete' as McpToolType,
-                              label: 'Delete',
-                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V2.5A.5.5 0 015.5 2h3a.5.5 0 01.5.5V4M11 4v7.5a1.5 1.5 0 01-1.5 1.5h-5A1.5 1.5 0 013 11.5V4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-                            },
+                            { backendId: 'query_data' as McpToolType, label: 'Query' },
+                            { backendId: 'get_all_data' as McpToolType, label: 'Get All' },
+                            { backendId: 'preview' as McpToolType, label: 'Preview' },
+                            { backendId: 'select' as McpToolType, label: 'Select' },
+                            { backendId: 'create' as McpToolType, label: 'Create' },
+                            { backendId: 'update' as McpToolType, label: 'Update' },
+                            { backendId: 'delete' as McpToolType, label: 'Delete' },
                           ]
 
-                          return TOOL_DEFS.map(tool => {
-                            const paths = accessPoints.filter(ap => ap.permissions[tool.backendId])
-                            if (paths.length === 0) return null
+                          // 按 Path 聚合渲染
+                          return accessPoints.map((ap, apIndex) => {
+                            const enabledTools = TOOL_DEFS.filter(tool => ap.permissions[tool.backendId])
+                            if (enabledTools.length === 0) return null
                             
+                            const pathSegments = ap.path ? ap.path.split('/').filter(Boolean) : []
+                            const displayPath = ap.path || '/'
+                            const lastSegment = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : 'root'
+                            const safeName = lastSegment.replace(/[^a-zA-Z0-9_]/g, '')
+
+                            const isCollapsed = collapsedPaths.has(ap.path)
+                            const toggleCollapse = () => {
+                              setCollapsedPaths(prev => {
+                                const next = new Set(prev)
+                                if (next.has(ap.path)) {
+                                  next.delete(ap.path)
+                                } else {
+                                  next.add(ap.path)
+                                }
+                                return next
+                              })
+                            }
+
                             return (
-                              <div key={tool.uiId} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {/* Section Title - 小字 */}
-                                <div style={{
-                                  fontSize: 10,
-                                  color: '#525252',
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.5px',
-                                  paddingLeft: 2,
-                                  fontWeight: 600,
-                                }}>{tool.label}</div>
+                              <div key={ap.id} style={{ marginBottom: 12 }}>
+                                {/* Path 标题 - 可点击展开/收起 */}
+                                <div 
+                                  onClick={toggleCollapse}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    marginBottom: isCollapsed ? 0 : 8,
+                                    padding: '4px 2px',
+                                    cursor: 'pointer',
+                                    borderRadius: 4,
+                                    transition: 'background 0.15s',
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                                >
+                                  {/* 展开/收起箭头 */}
+                                  <svg 
+                                    width="10" 
+                                    height="10" 
+                                    viewBox="0 0 10 10" 
+                                    fill="none" 
+                                    style={{ 
+                                      color: '#525252', 
+                                      flexShrink: 0,
+                                      transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
+                                      transition: 'transform 0.15s',
+                                    }}
+                                  >
+                                    <path d="M3 1.5L7 5L3 8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                  <span style={{ 
+                                    fontSize: 11, 
+                                    color: '#71717a',
+                                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    flex: 1,
+                                  }} title={displayPath}>
+                                    {displayPath}
+                                  </span>
+                                  <span style={{ fontSize: 10, color: '#3f3f46' }}>
+                                    {enabledTools.length}
+                                  </span>
+                                </div>
                                 
-                                {/* Tool Elements List */}
+                                {/* Tools 卡片列表 - 可折叠 */}
+                                {!isCollapsed && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                  {paths.map((ap, index) => {
-                                    // 模拟 Tool Name 生成
-                                    const pathSegments = ap.path ? ap.path.split('/').filter(Boolean) : []
-                                    const lastSegment = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : 'root'
-                                    // 简单的命名规则：tool_lastSegment (e.g. query_users)
-                                    // 移除非字母数字字符
-                                    const safeName = lastSegment.replace(/[^a-zA-Z0-9_]/g, '')
+                                  {enabledTools.map((tool) => {
+                                    const colors = TOOL_COLORS[tool.backendId] || TOOL_COLORS.query_data
+                                    const editKey = `${ap.path}::${tool.backendId}`
                                     const defaultToolName = `${tool.backendId}_${safeName}`
-                                    const defaultDescription = `${TOOL_INFO[tool.backendId as keyof typeof TOOL_INFO]?.label || tool.backendId} - ${activeBase?.name || 'Project'}`
+                                    const defaultDescription = `${tool.label} - ${activeBase?.name || 'Project'}`
                                     
-                                    const currentDef = toolsDefinitionEdits[tool.backendId] || {
+                                    const currentDef = toolsDefinitionEdits[editKey] || {
                                       name: defaultToolName,
                                       description: defaultDescription
                                     }
                                     
-                                    const toolFieldId = `${tool.backendId}-${ap.path}-${index}`
+                                    const toolFieldId = `${ap.path}::${tool.backendId}`
                                     const isEditingName = editingToolField?.toolId === toolFieldId && editingToolField?.field === 'name'
                                     const isEditingDesc = editingToolField?.toolId === toolFieldId && editingToolField?.field === 'description'
 
                                     return (
                                       <div 
-                                        key={`${ap.path}-${index}`}
+                                        key={tool.backendId}
                                         style={{
-                                          background: 'rgba(255,255,255,0.03)',
-                                          border: '1px solid rgba(255,255,255,0.05)',
+                                          background: 'rgba(255,255,255,0.02)',
+                                          border: '1px solid rgba(255,255,255,0.06)',
                                           borderRadius: 8,
-                                          padding: '10px',
+                                          overflow: 'hidden',
                                           display: 'flex',
-                                          flexDirection: 'column',
-                                          gap: 6,
-                                          transition: 'all 0.1s',
-                                          position: 'relative',
+                                          transition: 'all 0.15s',
                                         }}
                                         onMouseEnter={(e) => {
-                                          e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                                          e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
                                           e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
                                         }}
                                         onMouseLeave={(e) => {
-                                          e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'
+                                          e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
+                                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
                                         }}
                                       >
-                                        {/* Header: Logo + Tool Name (可编辑) */}
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                          <span style={{ color: '#9ca3af', display: 'flex', flexShrink: 0 }}>
-                                            {tool.icon}
-                                          </span>
-                                          {isEditingName ? (
-                                            <input
-                                              type="text"
-                                              value={currentDef.name}
-                                              onChange={(e) => setToolsDefinitionEdits(prev => ({
-                                                ...prev,
-                                                [tool.backendId]: { ...currentDef, name: e.target.value }
-                                              }))}
-                                              onBlur={() => setEditingToolField(null)}
-                                              onKeyDown={(e) => {
-                                                if (e.key === 'Enter') setEditingToolField(null)
-                                                if (e.key === 'Escape') {
-                                                  setToolsDefinitionEdits(prev => {
-                                                    const newEdits = { ...prev }
-                                                    delete newEdits[tool.backendId]
-                                                    return newEdits
-                                                  })
-                                                  setEditingToolField(null)
-                                                }
-                                              }}
-                                              autoFocus
-                                              style={{
-                                                flex: 1,
-                                                fontSize: 12,
+                                        {/* 左侧颜色条 */}
+                                        <div style={{
+                                          width: 3,
+                                          background: colors.accent,
+                                          flexShrink: 0,
+                                        }} />
+                                        
+                                        {/* 内容区 */}
+                                        <div style={{ flex: 1, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                          {/* 顶部: Tool 图标 + 类型标签 + 删除按钮 */}
+                                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                              {/* Tool 图标 */}
+                                              <span style={{ color: colors.text, display: 'flex', alignItems: 'center' }}>
+                                                {TOOL_ICONS[tool.backendId]}
+                                              </span>
+                                              <span style={{
+                                                fontSize: 10,
                                                 fontWeight: 600,
-                                                color: '#e2e8f0',
-                                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                                background: 'rgba(0,0,0,0.3)',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                borderRadius: 4,
-                                                padding: '4px 6px',
-                                                outline: 'none',
-                                              }}
-                                              onClick={(e) => e.stopPropagation()}
-                                            />
-                                          ) : (
-                                            <span 
+                                                color: colors.text,
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '0.3px',
+                                              }}>
+                                                {tool.label}
+                                              </span>
+                                            </div>
+                                            {/* 删除按钮 */}
+                                            <button
                                               onClick={(e) => {
                                                 e.stopPropagation()
-                                                setEditingToolField({ toolId: toolFieldId, field: 'name' })
+                                                // 更新该 path 的 permissions，关闭这个 tool
+                                                setAccessPoints(prev => {
+                                                  return prev.map(existingAp => {
+                                                    if (existingAp.path === ap.path) {
+                                                      const newPermissions = { ...existingAp.permissions, [tool.backendId]: false }
+                                                      // 如果没有任何权限了，返回 null 让后面 filter 掉
+                                                      const hasAny = Object.values(newPermissions).some(Boolean)
+                                                      if (!hasAny) return null as any
+                                                      return { ...existingAp, permissions: newPermissions }
+                                                    }
+                                                    return existingAp
+                                                  }).filter(Boolean)
+                                                })
+                                                // 清理编辑状态
+                                                setToolsDefinitionEdits(prev => {
+                                                  const newEdits = { ...prev }
+                                                  delete newEdits[editKey]
+                                                  return newEdits
+                                                })
                                               }}
-                                              style={{ 
-                                                flex: 1,
-                                                fontSize: 12, 
-                                                fontWeight: 600, 
-                                                color: '#e2e8f0',
-                                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                                cursor: 'text',
-                                                padding: '4px 6px',
+                                              style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                padding: 4,
+                                                cursor: 'pointer',
+                                                color: '#525252',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
                                                 borderRadius: 4,
-                                                transition: 'background 0.1s',
+                                                transition: 'all 0.15s',
                                               }}
                                               onMouseEnter={(e) => {
-                                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'
+                                                e.currentTarget.style.color = '#ef4444'
                                               }}
                                               onMouseLeave={(e) => {
                                                 e.currentTarget.style.background = 'transparent'
+                                                e.currentTarget.style.color = '#525252'
                                               }}
+                                              title="Remove this tool"
                                             >
-                                              {currentDef.name}
-                                            </span>
-                                          )}
-                                        </div>
-
-                                        {/* Description (可编辑) */}
-                                        {isEditingDesc ? (
-                                          <input
-                                            type="text"
-                                            value={currentDef.description}
-                                            onChange={(e) => setToolsDefinitionEdits(prev => ({
-                                              ...prev,
-                                              [tool.backendId]: { ...currentDef, description: e.target.value }
-                                            }))}
-                                            onBlur={() => setEditingToolField(null)}
-                                            onKeyDown={(e) => {
-                                              if (e.key === 'Enter') setEditingToolField(null)
-                                              if (e.key === 'Escape') {
-                                                setToolsDefinitionEdits(prev => {
-                                                  const newEdits = { ...prev }
-                                                  delete newEdits[tool.backendId]
-                                                  return newEdits
-                                                })
-                                                setEditingToolField(null)
-                                              }
-                                            }}
-                                            autoFocus
-                                            style={{
-                                              width: '100%',
-                                              fontSize: 10,
-                                              color: '#9ca3af',
-                                              lineHeight: 1.4,
-                                              background: 'rgba(0,0,0,0.3)',
-                                              border: '1px solid rgba(255,255,255,0.1)',
-                                              borderRadius: 4,
-                                              padding: '4px 6px',
-                                              outline: 'none',
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
-                                        ) : (
-                                          <div 
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              setEditingToolField({ toolId: toolFieldId, field: 'description' })
-                                            }}
-                                            style={{
-                                              fontSize: 10,
-                                              color: currentDef.description ? '#9ca3af' : '#525252',
-                                              lineHeight: 1.4,
-                                              cursor: 'text',
-                                              padding: '4px 6px',
-                                              borderRadius: 4,
-                                              transition: 'background 0.1s',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                              e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                                            }}
-                                            onMouseLeave={(e) => {
-                                              e.currentTarget.style.background = 'transparent'
-                                            }}
-                                          >
-                                            {currentDef.description || 'Click to add description'}
+                                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M18 6L6 18M6 6l12 12"/>
+                                              </svg>
+                                            </button>
                                           </div>
-                                        )}
-                                        
-                                        {/* Path (Muted) */}
-                                        <div style={{ 
-                                          fontSize: 10, 
-                                          color: '#525252',
-                                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                          overflow: 'hidden',
-                                          textOverflow: 'ellipsis',
-                                          whiteSpace: 'nowrap',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          gap: 4,
-                                        }}>
-                                          <span style={{ opacity: 0.7 }}>Target:</span>
-                                          <span style={{ color: '#6b7280' }}>{ap.path || '/'}</span>
+                                          
+                                          {/* TOOL NAME 字段 */}
+                                          <div>
+                                            <div style={{ fontSize: 9, color: '#525252', marginBottom: 4, fontWeight: 500, letterSpacing: '0.3px' }}>TOOL NAME</div>
+                                            {isEditingName ? (
+                                              <input
+                                                type="text"
+                                                value={currentDef.name}
+                                                onChange={(e) => setToolsDefinitionEdits(prev => ({
+                                                  ...prev,
+                                                  [editKey]: { ...currentDef, name: e.target.value }
+                                                }))}
+                                                onBlur={() => setEditingToolField(null)}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === 'Enter') setEditingToolField(null)
+                                                  if (e.key === 'Escape') {
+                                                    setToolsDefinitionEdits(prev => {
+                                                      const newEdits = { ...prev }
+                                                      delete newEdits[editKey]
+                                                      return newEdits
+                                                    })
+                                                    setEditingToolField(null)
+                                                  }
+                                                }}
+                                                autoFocus
+                                                style={{
+                                                  width: '100%',
+                                                  fontSize: 12,
+                                                  fontWeight: 500,
+                                                  color: '#e2e8f0',
+                                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                                  background: 'rgba(0,0,0,0.3)',
+                                                  border: '1px solid rgba(255,255,255,0.15)',
+                                                  borderRadius: 4,
+                                                  padding: '6px 8px',
+                                                  outline: 'none',
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                              />
+                                            ) : (
+                                              <div 
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  setEditingToolField({ toolId: toolFieldId, field: 'name' })
+                                                }}
+                                                style={{ 
+                                                  fontSize: 12, 
+                                                  fontWeight: 500, 
+                                                  color: '#d4d4d8',
+                                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                                  cursor: 'text',
+                                                  padding: '6px 8px',
+                                                  background: 'rgba(0,0,0,0.2)',
+                                                  borderRadius: 4,
+                                                  border: '1px solid transparent',
+                                                  transition: 'border-color 0.15s',
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+                                                title={currentDef.name}
+                                              >
+                                                {currentDef.name}
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* TOOL DESCRIPTION 字段 */}
+                                          <div>
+                                            <div style={{ fontSize: 9, color: '#525252', marginBottom: 4, fontWeight: 500, letterSpacing: '0.3px' }}>TOOL DESCRIPTION</div>
+                                            {isEditingDesc ? (
+                                              <input
+                                                type="text"
+                                                value={currentDef.description}
+                                                onChange={(e) => setToolsDefinitionEdits(prev => ({
+                                                  ...prev,
+                                                  [editKey]: { ...currentDef, description: e.target.value }
+                                                }))}
+                                                onBlur={() => setEditingToolField(null)}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === 'Enter') setEditingToolField(null)
+                                                  if (e.key === 'Escape') {
+                                                    setToolsDefinitionEdits(prev => {
+                                                      const newEdits = { ...prev }
+                                                      delete newEdits[editKey]
+                                                      return newEdits
+                                                    })
+                                                    setEditingToolField(null)
+                                                  }
+                                                }}
+                                                autoFocus
+                                                style={{
+                                                  width: '100%',
+                                                  fontSize: 11,
+                                                  color: '#9ca3af',
+                                                  background: 'rgba(0,0,0,0.3)',
+                                                  border: '1px solid rgba(255,255,255,0.15)',
+                                                  borderRadius: 4,
+                                                  padding: '6px 8px',
+                                                  outline: 'none',
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                              />
+                                            ) : (
+                                              <div 
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  setEditingToolField({ toolId: toolFieldId, field: 'description' })
+                                                }}
+                                                style={{
+                                                  fontSize: 11,
+                                                  color: currentDef.description ? '#71717a' : '#3f3f46',
+                                                  cursor: 'text',
+                                                  padding: '6px 8px',
+                                                  background: 'rgba(0,0,0,0.2)',
+                                                  borderRadius: 4,
+                                                  border: '1px solid transparent',
+                                                  transition: 'border-color 0.15s',
+                                                  lineHeight: 1.4,
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
+                                                title={currentDef.description || 'Click to edit'}
+                                              >
+                                                {currentDef.description || 'Click to edit...'}
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
                                       </div>
                                     )
                                   })}
                                 </div>
+                                )}
                               </div>
                             )
                           })
@@ -785,204 +853,33 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                     )}
                   </div>
                   
-                  {/* Footer - Publish Button and Published Instance */}
-                  <div style={{ 
-                    borderTop: '1px solid #333', 
-                    padding: 8,
-                    flexShrink: 0,
-                  }}>
-                    {publishedInstance ? (
-                      // 已发布状态
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: 6,
-                          padding: '6px 8px',
-                          background: 'rgba(52, 211, 153, 0.1)',
-                          borderRadius: 4,
-                        }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2">
-                            <path d="M20 6L9 17l-5-5"/>
-                          </svg>
-                          <span style={{ fontSize: 10, color: '#34d399', fontWeight: 500 }}>MCP Published</span>
-                          <button
-                            onClick={() => setPublishedInstance(null)}
-                            style={{
-                              marginLeft: 'auto',
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#6b7280',
-                              fontSize: 10,
-                              cursor: 'pointer',
-                              padding: '2px 6px',
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        
-                        {/* API Key */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase' }}>API Key</div>
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center',
-                            background: 'rgba(0,0,0,0.3)',
-                            borderRadius: 4,
-                            padding: '6px 8px',
-                          }}>
-                            <code style={{ 
-                              flex: 1, 
-                              fontSize: 9, 
-                              color: '#9ca3af',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              fontFamily: 'ui-monospace, monospace',
-                            }}>
-                              {publishedInstance.apiKey.slice(0, 32)}...
-                            </code>
-                            <button
-                              onClick={() => copyToClipboard(publishedInstance.apiKey)}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#6b7280',
-                                cursor: 'pointer',
-                                padding: 4,
-                                display: 'flex',
-                                alignItems: 'center',
-                              }}
-                              title="Copy API Key"
-                            >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="9" y="9" width="13" height="13" rx="2"/>
-                                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                        
-                        {/* URL */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase' }}>URL</div>
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center',
-                            background: 'rgba(0,0,0,0.3)',
-                            borderRadius: 4,
-                            padding: '6px 8px',
-                          }}>
-                            <code style={{ 
-                              flex: 1, 
-                              fontSize: 9, 
-                              color: '#9ca3af',
-                              fontFamily: 'ui-monospace, monospace',
-                            }}>
-                              {publishedInstance.url}
-                            </code>
-                            <button
-                              onClick={() => copyToClipboard(publishedInstance.url)}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#6b7280',
-                                cursor: 'pointer',
-                                padding: 4,
-                                display: 'flex',
-                                alignItems: 'center',
-                              }}
-                              title="Copy URL"
-                            >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="9" y="9" width="13" height="13" rx="2"/>
-                                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      // 未发布状态
-                      <>
-                        {/* Name 输入框 */}
-                        <div style={{ marginBottom: 12 }}>
-                          <label style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase', marginBottom: 4, display: 'block' }}>
-                            Instance Name *
-                          </label>
-                          <input
-                            type="text"
-                            value={mcpInstanceName}
-                            onChange={(e) => setMcpInstanceName(e.target.value)}
-                            placeholder="e.g., My Knowledge Base"
-                            style={{
-                              width: '100%',
-                              height: 28,
-                              background: 'rgba(0,0,0,0.3)',
-                              border: '1px solid rgba(255, 255, 255, 0.1)',
-                              borderRadius: 4,
-                              padding: '0 8px',
-                              fontSize: 11,
-                              color: '#fff',
-                              outline: 'none',
-                            }}
-                          />
-                        </div>
-
-                        {publishError && (
-                          <div style={{
-                            padding: '6px 8px',
-                            marginBottom: 8,
-                            background: 'rgba(239, 68, 68, 0.1)',
-                            borderRadius: 4,
-                            fontSize: 10,
-                            color: '#ef4444',
-                          }}>
-                            {publishError}
-                          </div>
-                        )}
-                        <button
-                          onClick={handlePublishMcp}
-                          disabled={accessPoints.length === 0 || isPublishing || !mcpInstanceName.trim()}
-                          style={{
-                            width: '100%',
-                            height: 32,
-                            background: (accessPoints.length === 0 || !mcpInstanceName.trim()) ? 'rgba(255,167,61,0.2)' : '#FFA73D',
-                            border: 'none',
-                            borderRadius: 6,
-                            color: (accessPoints.length === 0 || !mcpInstanceName.trim()) ? '#9ca3af' : '#000',
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: (accessPoints.length === 0 || !mcpInstanceName.trim()) ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                            transition: 'all 0.15s',
-                            opacity: isPublishing ? 0.7 : 1,
-                          }}
-                        >
-                          {isPublishing ? (
-                            <>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
-                                <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
-                                <path d="M12 2a10 10 0 0110 10" strokeLinecap="round"/>
-                              </svg>
-                              Publishing...
-                            </>
-                          ) : (
-                            <>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M12 19V5M5 12l7-7 7 7"/>
-                              </svg>
-                              Publish MCP
-                            </>
-                          )}
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  {/* Footer - 低调的引导链接 */}
+                  {accessPoints.length > 0 && (
+                    <div style={{ 
+                      borderTop: '1px solid rgba(255,255,255,0.04)', 
+                      padding: '10px 12px',
+                      flexShrink: 0,
+                      display: 'flex',
+                      justifyContent: 'center',
+                    }}>
+                      <span 
+                        style={{ 
+                          fontSize: 10, 
+                          color: '#525252',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          transition: 'color 0.15s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = '#71717a' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = '#525252' }}
+                        onClick={() => handleUtilityNavClick('mcp')}
+                      >
+                        Publish in MCP →
+                      </span>
+                    </div>
+                  )}
                   </div>
                 </div>
               )}
