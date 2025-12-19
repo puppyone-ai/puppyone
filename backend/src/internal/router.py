@@ -8,6 +8,7 @@ from src.common_schemas import ApiResponse
 from src.mcp.dependencies import get_mcp_instance_service
 from src.table.dependencies import get_table_service
 from src.config import settings
+from src.exceptions import AppException
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -53,10 +54,7 @@ async def get_mcp_instance(
         "user_id": instance.user_id,
         "project_id": instance.project_id,
         "table_id": instance.table_id,
-        # 统一命名：json_path 表示该 MCP 实例挂载到 table.data 的 JSON Pointer 路径
-        # 兼容旧字段：仍返回 json_pointer
-        "json_path": instance.json_pointer,
-        "json_pointer": instance.json_pointer,
+        "json_path": instance.json_path,
         "status": instance.status,
         "tools_definition": instance.tools_definition,
         "register_tools": instance.register_tools,
@@ -119,8 +117,11 @@ async def get_table_context_schema(
         return table_service.get_context_structure(
             table_id=table_id, json_pointer_path=json_path
         )
+    except AppException as e:
+        # 让 internal 调用方获得正确的 HTTP status（尤其是 404/400），便于排查 json_path 问题
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get(
@@ -140,9 +141,14 @@ async def get_table_context_data(
             return table_service.query_context_data_with_jmespath(
                 table_id=table_id, json_pointer_path=json_path, query=query
             )
-        return table_service.get_context_data(table_id=table_id, json_pointer_path=json_path)
+        return table_service.get_context_data(
+            table_id=table_id, json_pointer_path=json_path
+        )
+    except AppException as e:
+        # NotFoundException/BusinessException 等需要保留语义，否则 MCP 侧只会看到 500
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post(
@@ -165,8 +171,10 @@ async def create_table_context_data(
             elements=elements,
         )
         return {"message": "创建成功", "data": data}
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.put(
@@ -187,8 +195,10 @@ async def update_table_context_data(
             table_id=table_id, json_pointer_path=json_path, elements=elements
         )
         return {"message": "更新成功", "data": data}
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete(
@@ -209,8 +219,10 @@ async def delete_table_context_data(
             table_id=table_id, json_pointer_path=json_path, keys=keys
         )
         return {"message": "删除成功", "data": data}
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # @router.post(
