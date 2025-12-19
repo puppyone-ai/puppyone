@@ -3,12 +3,16 @@ MCP 实例管理 API
 负责 MCP 实例的创建、查询、更新和删除
 """
 
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from starlette.requests import ClientDisconnect
 from src.common_schemas import ApiResponse
-from src.mcp.schemas import McpCreate, McpStatusResponse, McpUpdate
+from src.mcp.schemas import McpCreate, McpStatusResponse, McpUpdate, McpToolsDefinition, ToolTypeKey
 from src.mcp.service import McpService
 from src.mcp.dependencies import (
     get_mcp_instance_service,
@@ -19,12 +23,77 @@ from src.mcp.models import McpInstance
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
 from src.exceptions import NotFoundException, ErrorCode
-from typing import Dict, Any, List
+from typing import Dict, Any, List, get_args
 import httpx
 import asyncio
 from src.config import settings
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
+
+
+@lru_cache(maxsize=1)
+def _get_default_tool_description_texts() -> dict[str, str]:
+    """
+    读取默认工具描述（仅用于 API 响应展示，不写入数据库）。
+
+    - key: ToolTypeKey（文件名去掉后缀）
+    - value: 工具描述文本（去除首尾空白）
+    """
+    desc_dir = Path(__file__).resolve().parent / "description"
+    texts: dict[str, str] = {}
+    for tool_key in get_args(ToolTypeKey):
+        p = desc_dir / f"{tool_key}.txt"
+        if not p.exists():
+            continue
+        try:
+            texts[tool_key] = p.read_text(encoding="utf-8").strip()
+        except Exception:
+            # 读取失败时不影响主流程（仅展示用途）
+            continue
+    return texts
+
+
+def _has_user_defined_tool_definition(tool_def: Any) -> bool:
+    """
+    判断某个工具是否已有“用户定义”的描述。
+    只要 description 为非空字符串，就认为用户已经定义了，保持原样。
+    """
+    if tool_def is None:
+        return False
+    if isinstance(tool_def, dict):
+        desc = tool_def.get("description")
+        return isinstance(desc, str) and bool(desc.strip())
+    desc = getattr(tool_def, "description", None)
+    return isinstance(desc, str) and bool(desc.strip())
+
+
+def _hydrate_tools_definition_for_list_response(instance: McpInstance) -> None:
+    """
+    仅用于 /mcp/list 的响应补全：
+    - 遍历当前实例“开启”的工具（register_tools；为空表示都开启）
+    - 若 tools_definition 缺失该工具，或缺失 description，则用默认描述补全
+    """
+    enabled_tools: list[str] = (
+        list(instance.register_tools) if instance.register_tools else list(get_args(ToolTypeKey))
+    )
+    if not enabled_tools:
+        return
+
+    default_texts = _get_default_tool_description_texts()
+    merged: dict[str, Any] = dict(instance.tools_definition or {})
+
+    for tool_key in enabled_tools:
+        existing = merged.get(tool_key)
+        if _has_user_defined_tool_definition(existing):
+            continue
+        default_desc = default_texts.get(tool_key, "")
+        if not default_desc:
+            continue
+        merged[tool_key] = McpToolsDefinition(name=tool_key, description=default_desc)
+
+    if merged:
+        instance.tools_definition = merged  # 只影响响应，不写入数据库
+
 
 # ============================================================
 # MCP实例管理接口
@@ -50,6 +119,9 @@ async def list_mcp_instances(
     获取用户的所有 MCP 实例
     """
     instances = await mcp_instance_service.get_user_mcp_instances(current_user.user_id)
+    # 仅用于展示：补全默认工具描述，不修改数据库字段
+    for inst in instances:
+        _hydrate_tools_definition_for_list_response(inst)
     return ApiResponse.success(data=instances, message="获取 MCP 实例列表成功")
 
 
