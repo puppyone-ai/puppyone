@@ -1,0 +1,18 @@
+获取数据的轻量级预览，只返回配置的关键字段。
+
+表格：{table_name}
+{table_description}
+
+适用条件：数据必须是 List[Dict] 类型
+
+使用场景：
+- 数据量较大时快速浏览
+- 只需查看关键字段时
+- 作为 select_data 的前置步骤
+
+工作流程：
+1. 调用 preview_data() 快速浏览关键字段
+2. 根据预览结果确定目标数据
+3. 调用 select_data(field, keys) 获取完整记录
+
+注意：如果数据不是 List[Dict] 类型，请使用 get_all_data 或 query_data
