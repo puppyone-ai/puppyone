@@ -481,6 +481,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                       // 使用简化的UI工具类型映射到实际的后端类型
                       const uiToolMapping = {
                         query_data: 'query_data',
+                        get_all_data: 'get_all_data',
                         preview: 'preview',
                         select: 'select',
                         create: 'create',
@@ -528,6 +529,12 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                               backendId: 'query_data' as McpToolType,
                               label: 'Query',
                               icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.2"/><path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                            },
+                            {
+                              uiId: 'get_all_data' as const,
+                              backendId: 'get_all_data' as McpToolType,
+                              label: 'Get All',
+                              icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/><rect x="2" y="6" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/><rect x="2" y="10" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/></svg>
                             },
                             {
                               uiId: 'preview' as const,
