@@ -11,8 +11,8 @@
   <img src="https://img.shields.io/badge/Docs-doc.puppyagent.com-D7F3FF?style=flat&logo=readthedocs&logoColor=white" alt="Docs" height="22" />
 </a>
 &nbsp;
-<a href="https://x.com/PuppyAgentTech" target="_blank">
-  <img src="https://img.shields.io/badge/X-@PuppyAgentTech-000000?style=flat&logo=x&logoColor=white" alt="X (Twitter)" height="22" />
+<a href="https://x.com/puppyone_ai" target="_blank">
+  <img src="https://img.shields.io/badge/X-@puppyone-000000?style=flat&logo=x&logoColor=white" alt="X (Twitter)" height="22" />
 </a>
 &nbsp;
 <a href="https://discord.gg/eRjwqZpjBT" target="_blank">
@@ -24,11 +24,9 @@
 </a>
 
 
-<br>
+**puppyone** is the #1 **Context Base for AI agents**.
 
-**puppyone** is the #1 **Context Base for AI agents** 
-
-a structured, agent-native context platform where all your agents collaborate seamlessly in real-time. It support: 1. data indexing
+A structured, agent-native context platform where all your agents collaborate seamlessly in real-time. It support: 1. data indexing
 
 
 <img src="assert/puppycontextintro.png" alt="Puppyone Introduction" width="100%" />

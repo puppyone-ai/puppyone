@@ -3,7 +3,7 @@
  * 用于管理 MCP 实例的创建、查询、更新和删除
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import { apiRequest } from './apiClient'
 
 // ============================================
 // 类型定义
@@ -88,51 +88,16 @@ export interface McpStatusResponse {
   preview_keys: string[] | null
 }
 
-// API 通用响应格式
-interface ApiResponse<T> {
-  code: number
-  message: string
-  data: T
-}
-
-// ============================================
-// API 请求封装
-// ============================================
-
-async function apiRequest<T>(
-  endpoint: string,
-  options?: RequestInit
-): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  })
-
-  const data: ApiResponse<T> = await response.json()
-
-  if (data.code !== 0) {
-    const error: any = new Error(data.message || 'API request failed')
-    error.response = response
-    error.data = data.data
-    error.code = data.code
-    throw error
-  }
-
-  return data.data
-}
-
 // ============================================
 // MCP API 函数
 // ============================================
 
 /**
  * 获取用户的所有 MCP 实例
+ * 注意: user_id 从 JWT token 中获取，无需传参
  */
-export async function getMcpInstances(userId: number): Promise<McpInstance[]> {
-  return apiRequest<McpInstance[]>(`/api/v1/mcp/list?user_id=${userId}`)
+export async function getMcpInstances(): Promise<McpInstance[]> {
+  return apiRequest<McpInstance[]>('/api/v1/mcp/list')
 }
 
 /**
@@ -233,4 +198,3 @@ export const TOOL_INFO: Record<McpToolType, { label: string; description: string
   update: { label: 'Update', description: '更新现有元素' },
   delete: { label: 'Delete', description: '删除元素' },
 }
-

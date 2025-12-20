@@ -2,7 +2,7 @@
  * Projects API 客户端
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import { apiRequest } from './apiClient'
 
 export type ProjectInfo = {
   id: string
@@ -22,38 +22,6 @@ export type TableData = {
   name: string
   rows: number
   data: Array<Record<string, any>>
-}
-
-interface ApiResponse<T> {
-  code: number
-  message: string
-  data: T
-}
-
-async function apiRequest<T>(
-  endpoint: string,
-  options?: RequestInit
-): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  })
-
-  const data: ApiResponse<T> = await response.json()
-
-  if (data.code !== 0) {
-    // 创建一个包含详细错误信息的错误对象
-    const error: any = new Error(data.message || 'API request failed')
-    error.response = response
-    error.data = data.data
-    error.code = data.code
-    throw error
-  }
-
-  return data.data
 }
 
 // 项目相关API
@@ -248,4 +216,3 @@ export async function updateTableData(
     data: tableData ?? [],
   }
 }
-
