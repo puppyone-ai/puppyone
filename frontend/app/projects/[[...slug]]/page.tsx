@@ -13,9 +13,13 @@ import { EtlContentView } from '../../../components/EtlContentView'
 import { ConnectContentView } from '../../../components/ConnectContentView'
 import { ParsingContentView } from '../../../components/ParsingContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
+import { AuthGuard } from '../../../components/AuthGuard'
 import { 
   type McpToolPermissions, 
   type McpToolType,
+  type McpToolDefinition,
+  createMcpInstance,
+  permissionsToRegisterTools,
 } from '../../../lib/mcpApi'
 
 type ActiveView = 'projects' | 'mcp' | 'etl' | 'connect' | 'parsing' | 'test' | 'logs' | 'settings'
@@ -67,56 +71,13 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   // Tool 定义编辑状态
   const [toolsDefinitionEdits, setToolsDefinitionEdits] = useState<Record<string, { name: string; description: string }>>({})
   const [editingToolField, setEditingToolField] = useState<{ toolId: string; field: 'name' | 'description' } | null>(null)
+  
+  // MCP 发布状态
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
+  const [publishedResult, setPublishedResult] = useState<{ api_key: string; url: string } | null>(null)
 
-  // 如果访问 /projects（slug 为空），重定向到第一个项目
-  useEffect(() => {
-    if (!slug || slug.length === 0) {
-      if (projects.length > 0 && !loading) {
-        router.replace(`/projects/${projects[0].id}`)
-      }
-    }
-  }, [slug, projects, loading, router])
-
-  // 如果正在加载或等待重定向，显示 loading
-  if (!slug || slug.length === 0) {
-    if (loading) {
-      return (
-        <div style={{
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#040404',
-          color: '#9ca3af',
-          fontSize: 14,
-        }}>
-          Loading projects...
-        </div>
-      )
-    }
-    if (projects.length === 0) {
-      return (
-        <div style={{
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'column',
-          gap: 12,
-          backgroundColor: '#040404',
-          color: '#9ca3af',
-          fontSize: 14,
-        }}>
-          <div>No projects found</div>
-          <div style={{ fontSize: 12, color: '#6b7280' }}>Create a project to get started</div>
-        </div>
-      )
-    }
-    // 等待重定向
-    return null
-  }
-
-  // Extract projectId and tableId from slug
+  // Extract projectId and tableId from slug (must be before any conditional returns)
   const [projectId, tableId] = slug || []
   const [activeBaseId, setActiveBaseId] = useState<string>(projectId || '')
   const [activeTableId, setActiveTableId] = useState<string>(tableId || '')
@@ -131,6 +92,15 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
       setActiveTableId(tableId)
     }
   }, [projectId, tableId])
+
+  // 如果访问 /projects（slug 为空），重定向到第一个项目
+  useEffect(() => {
+    if (!slug || slug.length === 0) {
+      if (projects.length > 0 && !loading) {
+        router.replace(`/projects/${projects[0].id}`)
+      }
+    }
+  }, [slug, projects, loading, router])
 
   // Listen for projects refresh event
   useEffect(() => {
@@ -177,6 +147,33 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   useEffect(() => {
     setCurrentTreePath(null)
   }, [activeTableId])
+
+  const pathSegments = useMemo(() => {
+    const segments = ['Context']
+    if (activeBase) segments.push(activeBase.name)
+    if (activeTable) segments.push(activeTable.name)
+    return segments
+  }, [activeBase, activeTable])
+
+  // 如果正在加载，显示 loading
+  if (loading) {
+    return (
+      <div style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#040404',
+        color: '#9ca3af',
+        fontSize: 14,
+      }}>
+        Loading projects...
+      </div>
+    )
+  }
+
+  // 判断是否需要显示空状态（没有 slug 且没有 projects）
+  const showEmptyState = (!slug || slug.length === 0) && projects.length === 0
 
   const userInitial =
     (session?.user?.email?.[0] || session?.user?.user_metadata?.name?.[0] || 'U').toUpperCase()
@@ -237,14 +234,71 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     }
   }
 
-  const pathSegments = useMemo(() => {
-    const segments = ['Context']
-    if (activeBase) segments.push(activeBase.name)
-    if (activeTable) segments.push(activeTable.name)
-    return segments
-  }, [activeBase, activeTable])
+  // 发布 MCP Server
+  const handlePublishMcp = async () => {
+    if (!activeBase || !activeTable || !session?.user?.id) return
+    if (accessPoints.length === 0) return
+
+    setIsPublishing(true)
+    setPublishError(null)
+    setPublishedResult(null)
+
+    try {
+      // 合并所有 path 的权限
+      const mergedPermissions: McpToolPermissions = {}
+      accessPoints.forEach(ap => {
+        Object.entries(ap.permissions).forEach(([key, value]) => {
+          if (value) {
+            mergedPermissions[key as keyof McpToolPermissions] = true
+          }
+        })
+      })
+
+      // 构建 tools_definition
+      const toolsDefinition: Record<string, McpToolDefinition> = {}
+      const registerTools = permissionsToRegisterTools(mergedPermissions)
+      
+      registerTools.forEach(toolType => {
+        // 查找用户自定义的名称和描述
+        const editKey = Object.keys(toolsDefinitionEdits).find(k => k.endsWith(`::${toolType}`))
+        const customDef = editKey ? toolsDefinitionEdits[editKey] : null
+        
+        toolsDefinition[toolType] = {
+          name: customDef?.name || `${toolType}_${activeTable.name}`,
+          description: customDef?.description || `${toolType} for ${activeTable.name}`,
+        }
+      })
+
+      // 生成默认名称
+      const instanceName = `${activeBase.name} - ${activeTable.name}`
+
+      const result = await createMcpInstance({
+        user_id: session.user.id,
+        project_id: parseInt(activeBase.id),
+        table_id: parseInt(activeTable.id),
+        name: instanceName,
+        json_pointer: '',
+        tools_definition: toolsDefinition,
+        register_tools: registerTools,
+      })
+
+      setPublishedResult(result)
+    } catch (error) {
+      console.error('Failed to publish MCP:', error)
+      setPublishError(error instanceof Error ? error.message : 'Failed to publish MCP server')
+    } finally {
+      setIsPublishing(false)
+    }
+  }
 
   return (
+    <AuthGuard>
+    <style>{`
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+    `}</style>
     <main
       style={{
         height: '100vh',
@@ -354,14 +408,31 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                   <div
                     style={{
                       flex: 1,
-                      display: 'grid',
-                      placeItems: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       color: '#6F7580',
                       fontSize: 13,
                       letterSpacing: 0.4,
+                      gap: 16,
                     }}
                   >
-                    Select a base to inspect its tables.
+                    {showEmptyState ? (
+                      <>
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.5 }}>
+                          <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                        </svg>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 15, color: '#9ca3af', marginBottom: 8 }}>No projects yet</div>
+                          <div style={{ fontSize: 12, color: '#6b7280' }}>
+                            Click <strong style={{ color: '#9ca3af' }}>+ Add context...</strong> in the left sidebar to create your first project
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div>Select a project to inspect its tables.</div>
+                    )}
                   </div>
                 )}
               </div>
@@ -892,31 +963,162 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                     )}
                   </div>
                   
-                  {/* Footer - 低调的引导链接 */}
+                  {/* Footer - 发布 MCP */}
                   {accessPoints.length > 0 && (
                     <div style={{ 
                       borderTop: '1px solid #2a2a2a', 
-                      padding: '10px 14px',
+                      padding: '12px',
                       flexShrink: 0,
-                      display: 'flex',
-                      justifyContent: 'center',
                     }}>
-                      <span 
-                        style={{ 
-                          fontSize: 11, 
-                          color: '#525252',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          transition: 'color 0.15s',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = '#9ca3af' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = '#525252' }}
-                        onClick={() => handleUtilityNavClick('mcp')}
-                      >
-                        Publish in MCP →
-                      </span>
+                      {/* 发布结果显示 */}
+                      {publishedResult && (
+                        <div style={{
+                          background: 'rgba(34, 197, 94, 0.1)',
+                          border: '1px solid rgba(34, 197, 94, 0.3)',
+                          borderRadius: 8,
+                          padding: '10px 12px',
+                          marginBottom: 10,
+                        }}>
+                          <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 500, marginBottom: 6 }}>
+                            ✓ Published Successfully
+                          </div>
+                          <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4 }}>API Key:</div>
+                          <div 
+                            style={{ 
+                              fontSize: 10, 
+                              color: '#e2e8f0', 
+                              fontFamily: 'monospace',
+                              background: 'rgba(0,0,0,0.3)',
+                              padding: '6px 8px',
+                              borderRadius: 4,
+                              wordBreak: 'break-all',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => {
+                              navigator.clipboard.writeText(publishedResult.api_key)
+                            }}
+                            title="Click to copy"
+                          >
+                            {publishedResult.api_key.slice(0, 50)}...
+                          </div>
+                          <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 8, marginBottom: 4 }}>URL:</div>
+                          <div 
+                            style={{ 
+                              fontSize: 10, 
+                              color: '#e2e8f0', 
+                              fontFamily: 'monospace',
+                              background: 'rgba(0,0,0,0.3)',
+                              padding: '6px 8px',
+                              borderRadius: 4,
+                              wordBreak: 'break-all',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => {
+                              navigator.clipboard.writeText(publishedResult.url)
+                            }}
+                            title="Click to copy"
+                          >
+                            {publishedResult.url}
+                          </div>
+                          <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                            <button
+                              onClick={() => setPublishedResult(null)}
+                              style={{
+                                flex: 1,
+                                padding: '6px 10px',
+                                fontSize: 11,
+                                color: '#9ca3af',
+                                background: 'transparent',
+                                border: '1px solid #333',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Dismiss
+                            </button>
+                            <button
+                              onClick={() => handleUtilityNavClick('mcp')}
+                              style={{
+                                flex: 1,
+                                padding: '6px 10px',
+                                fontSize: 11,
+                                color: '#e2e8f0',
+                                background: 'rgba(59, 130, 246, 0.2)',
+                                border: '1px solid rgba(59, 130, 246, 0.4)',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              View All →
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 错误显示 */}
+                      {publishError && (
+                        <div style={{
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          borderRadius: 8,
+                          padding: '10px 12px',
+                          marginBottom: 10,
+                          fontSize: 11,
+                          color: '#ef4444',
+                        }}>
+                          {publishError}
+                        </div>
+                      )}
+                      
+                      {/* 发布按钮 */}
+                      {!publishedResult && (
+                        <button
+                          onClick={handlePublishMcp}
+                          disabled={isPublishing}
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            fontSize: 12,
+                            fontWeight: 500,
+                            color: isPublishing ? '#525252' : '#e2e8f0',
+                            background: isPublishing ? 'rgba(255,255,255,0.05)' : 'rgba(59, 130, 246, 0.15)',
+                            border: `1px solid ${isPublishing ? '#333' : 'rgba(59, 130, 246, 0.4)'}`,
+                            borderRadius: 8,
+                            cursor: isPublishing ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
+                            transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isPublishing) {
+                              e.currentTarget.style.background = 'rgba(59, 130, 246, 0.25)'
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isPublishing) {
+                              e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)'
+                            }
+                          }}
+                        >
+                          {isPublishing ? (
+                            <>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                                <path d="M12 2v4m0 12v4m-7.07-14.07l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+                              </svg>
+                              Publishing...
+                            </>
+                          ) : (
+                            <>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 19V5M5 12l7-7 7 7"/>
+                              </svg>
+                              Publish as MCP Server
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   )}
                   </div>
@@ -943,6 +1145,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
         onChatWidthChange={setChatWidth}
       />
     </main>
+    </AuthGuard>
   )
 }
 

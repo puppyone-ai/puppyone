@@ -45,7 +45,7 @@ class TableRepository:
             # 确保不包含 id 和 created_at（这些由数据库自动生成）
             data.pop("id", None)
             data.pop("created_at", None)
-            response = self._client.table("table").insert(data).execute()
+            response = self._client.table("context_table").insert(data).execute()
             return TableResponse(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建表")
@@ -61,7 +61,7 @@ class TableRepository:
             表数据，如果不存在则返回 None
         """
         response = (
-            self._client.table("table")
+            self._client.table("context_table")
             .select("*")
             .eq("id", table_id)
             .execute()
@@ -89,7 +89,7 @@ class TableRepository:
         Returns:
             表列表
         """
-        query = self._client.table("table").select("*")
+        query = self._client.table("context_table").select("*")
 
         if project_id is not None:
             query = query.eq("project_id", project_id)
@@ -126,7 +126,7 @@ class TableRepository:
             data.pop("created_at", None)
 
             response = (
-                self._client.table("table")
+                self._client.table("context_table")
                 .update(data)
                 .eq("id", table_id)
                 .execute()
@@ -148,7 +148,7 @@ class TableRepository:
             是否删除成功
         """
         response = (
-            self._client.table("table")
+            self._client.table("context_table")
             .delete()
             .eq("id", table_id)
             .execute()

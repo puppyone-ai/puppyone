@@ -3,29 +3,20 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { McpInstanceInfo } from './McpInstanceInfo'
-
-interface McpInstance {
-  mcp_instance_id: string
-  api_key: string
-  user_id: string
-  project_id: number
-  table_id: number
-  name: string | null
-  json_pointer: string
-  status: number
-  port: number
-  docker_info: any
-  tools_definition: any
-  register_tools: any
-  preview_keys: any
-}
+import { 
+  getMcpInstances, 
+  deleteMcpInstance, 
+  updateMcpInstance,
+  type McpInstance 
+} from '../lib/mcpApi'
 
 type McpContentViewProps = {
   onBack: () => void
 }
 
 export function McpContentView({ onBack }: McpContentViewProps) {
-  const { userId } = useAuth()
+  const { session } = useAuth()
+  const userId = session?.user?.id
   const [instances, setInstances] = useState<McpInstance[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -37,13 +28,8 @@ export function McpContentView({ onBack }: McpContentViewProps) {
 
   const fetchInstances = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/mcp/list?user_id=${userId}`)
-      const data = await response.json()
-      if (data.code === 0) {
-        setInstances(data.data || [])
-      } else {
-        console.error('Failed to fetch instances:', data.message)
-      }
+      const data = await getMcpInstances()
+      setInstances(data || [])
     } catch (e) {
       console.error('Failed to fetch instances', e)
     } finally {
@@ -55,15 +41,8 @@ export function McpContentView({ onBack }: McpContentViewProps) {
     if (!confirm('Are you sure you want to delete this instance?')) return
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/mcp/${apiKey}`, {
-        method: 'DELETE',
-      })
-      const data = await response.json()
-      if (data.code === 0) {
-        setInstances(prev => prev.filter(i => i.api_key !== apiKey))
-      } else {
-        alert('Failed to delete: ' + data.message)
-      }
+      await deleteMcpInstance(apiKey)
+      setInstances(prev => prev.filter(i => i.api_key !== apiKey))
     } catch (e) {
       console.error('Failed to delete instance', e)
       alert('Error deleting instance')
@@ -73,19 +52,8 @@ export function McpContentView({ onBack }: McpContentViewProps) {
   const handleToggleStatus = async (instance: McpInstance) => {
     const newStatus = instance.status === 1 ? 0 : 1
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/mcp/${instance.api_key}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus }),
-      })
-      const data = await response.json()
-      if (data.code === 0) {
-        setInstances(prev => prev.map(i => i.api_key === instance.api_key ? { ...i, status: newStatus } : i))
-      } else {
-        alert('Failed to update status: ' + data.message)
-      }
+      await updateMcpInstance(instance.api_key, { status: newStatus })
+      setInstances(prev => prev.map(i => i.api_key === instance.api_key ? { ...i, status: newStatus } : i))
     } catch (e) {
       console.error('Failed to update status', e)
       alert('Error updating status')
@@ -213,7 +181,7 @@ export function McpContentView({ onBack }: McpContentViewProps) {
                     <div style={{ 
                       padding: '3px 10px', 
                       borderRadius: 20, 
-                      fontSize: 10,
+                      fontSize: 10, 
                       fontWeight: 500,
                       background: instance.status === 1 ? 'rgba(34,197,94,0.12)' : 'rgba(100,100,100,0.12)',
                       color: instance.status === 1 ? '#34d399' : '#525252',
@@ -225,10 +193,10 @@ export function McpContentView({ onBack }: McpContentViewProps) {
 
                   {/* Card Content */}
                   <div style={{ padding: 12, flex: 1 }}>
-                    <McpInstanceInfo 
-                      instance={instance}
-                      onUpdate={(updates) => handleUpdateInstance(instance.api_key, updates)}
-                    />
+                  <McpInstanceInfo 
+                    instance={instance}
+                    onUpdate={(updates) => handleUpdateInstance(instance.api_key, updates)}
+                  />
                   </div>
 
                   {/* Card Footer */}

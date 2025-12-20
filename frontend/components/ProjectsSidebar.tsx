@@ -1104,7 +1104,7 @@ export function ProjectsSidebar({
             <img 
               className="product-logo" 
               src="/puppybase.svg" 
-              alt="PuppyContext" 
+              alt="puppyone" 
               width={14} 
               height={14} 
             />
@@ -1117,8 +1117,8 @@ export function ProjectsSidebar({
         ) : (
           <>
         <div className="header-brand">
-              <img src="/puppybase.svg" alt="PuppyContext" width={14} height={14} />
-          <span className="header-title">PuppyContext</span>
+              <img src="/puppybase.svg" alt="puppyone" width={14} height={14} />
+          <span className="header-title">puppyone</span>
         </div>
             <div
               className="collapse-toggle-wrapper"
