@@ -424,14 +424,14 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                           <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                         </svg>
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 15, color: '#9ca3af', marginBottom: 8 }}>No projects yet</div>
+                          <div style={{ fontSize: 15, color: '#9ca3af', marginBottom: 8 }}>No context yet</div>
                           <div style={{ fontSize: 12, color: '#6b7280' }}>
-                            Click <strong style={{ color: '#9ca3af' }}>+ Add context...</strong> in the left sidebar to create your first project
+                            Click <strong style={{ color: '#9ca3af' }}>+ Add context...</strong> in the left sidebar to create your first context
                           </div>
                         </div>
                       </>
                     ) : (
-                      <div>Select a project to inspect its tables.</div>
+                      <div>Select a context to inspect its tables.</div>
                     )}
                   </div>
                 )}

@@ -630,24 +630,28 @@ export function ProjectsSidebar({
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 18px;
-          height: 18px;
+          width: 20px;
+          height: 20px;
           background: transparent;
-          border: none;
+          border: 1px solid transparent;
           border-radius: 4px;
           cursor: pointer;
           color: #5D6065;
           opacity: 0;
-          transition: opacity 0.15s, background 0.15s, color 0.15s;
+          transition: all 0.15s;
         }
 
         .section-header:hover .section-add-btn {
           opacity: 1;
+          color: #9ca3af;
+          background: rgba(255,255,255,0.05);
+          border-color: rgba(255,255,255,0.1);
         }
 
         .section-add-btn:hover {
-          background: #3E3E41;
-          color: #FFFFFF;
+          background: rgba(255,255,255,0.1) !important;
+          border-color: rgba(255,255,255,0.2) !important;
+          color: #EDEDED !important;
         }
 
         .section-content {
@@ -695,22 +699,35 @@ export function ProjectsSidebar({
           cursor: pointer;
         }
 
-        .folder-icon {
-          width: 14px;
-          height: 14px;
+        .folder-icon-wrapper {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 20px;
+          height: 20px;
+          border-radius: 4px;
+          background: rgba(59, 130, 246, 0.15);
+          color: #3b82f6;
+          margin-right: 2px;
           flex-shrink: 0;
-          color: #6D7177;
-          transition: color 0.2s;
         }
 
-        .project-row:hover .folder-icon {
-          color: #CDCDCD;
+        .folder-icon {
+          width: 12px;
+          height: 12px;
+          flex-shrink: 0;
+          color: currentColor;
+        }
+
+        .project-row:hover .folder-icon-wrapper {
+          background: rgba(59, 130, 246, 0.25);
+          color: #60a5fa;
         }
 
         .project-name {
           font-size: 13px;
           font-weight: 500;
-          color: #9B9B9B;
+          color: #E1E1E1;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -744,35 +761,39 @@ export function ProjectsSidebar({
           width: 20px;
           height: 20px;
           background: transparent;
-          border: none;
+          border: 1px solid transparent;
           border-radius: 4px;
           cursor: pointer;
           color: #5D6065;
           opacity: 0;
-          transition: opacity 0.15s, background 0.15s, color 0.15s;
+          transition: all 0.15s;
         }
 
         .project-row:hover .project-add-btn {
           opacity: 1;
+          color: #9ca3af;
+          background: rgba(255,255,255,0.05);
+          border-color: rgba(255,255,255,0.1);
         }
 
         .project-add-btn:hover {
-          background: #3E3E41;
-          color: #FFFFFF;
+          background: rgba(255,255,255,0.1) !important;
+          border-color: rgba(255,255,255,0.2) !important;
+          color: #EDEDED !important;
         }
 
         .tables-wrapper {
           display: flex;
           flex-direction: column;
           gap: 2px;
-          padding: 4px 0 8px 24px;
+          padding: 4px 0 8px 12px;
         }
 
         .table-btn {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 0 4px 0 0;
+          padding: 0 4px 0 12px;
           height: 28px;
           width: 100%;
           background: transparent;
@@ -1153,7 +1174,7 @@ export function ProjectsSidebar({
                 setShowAddMenu(!showAddMenu)
               }}
             >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <svg width="12" height="12" viewBox="0 0 10 10" fill="none">
                 <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
               </svg>
           </button>
@@ -1189,9 +1210,11 @@ export function ProjectsSidebar({
                             className="project-btn"
                 onClick={() => onBaseClick(project.id)}
                           >
-                            <svg className="folder-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                              <path d="M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z" stroke="currentColor" strokeWidth="1.2"/>
-                            </svg>
+                            <div className="folder-icon-wrapper">
+                              <svg className="folder-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <path d="M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z" stroke="currentColor" strokeWidth="1.2"/>
+                              </svg>
+                            </div>
                             <span className="project-name">{project.name}</span>
                             <svg className={`project-chevron ${isExpanded ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
                               <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>

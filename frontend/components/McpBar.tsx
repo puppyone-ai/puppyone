@@ -316,9 +316,9 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
         setSelectedFiles(null)
         setIsImportMenuOpen(false)
 
-        if (onLog) {
-          onLog('success', `Folder imported successfully! Table name: ${finalTableName}`)
-        }
+          if (onLog) {
+            onLog('success', `Folder imported successfully! Context name: ${finalTableName}`)
+          }
       } else {
         throw new Error(data.message || 'Import failed')
       }
@@ -449,7 +449,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
             e.currentTarget.style.borderColor = '#333'
           }}
         >
-          Import Folder as Table
+          Import Context
         </button>
         <button
           onClick={() => {
@@ -537,7 +537,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
           {/* Table Name */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 10, color: '#CDCDCD', fontWeight: 500 }}>
-              Table Name
+              Context Name
             </label>
             <input
               type="text"
