@@ -458,9 +458,6 @@ export function ProjectWorkspaceView({
                             selectedAccessPath={selectedAccessPath}
                             onAddAccessPoint={onAddAccessPoint}
                             configuredAccessPoints={configuredAccessPoints}
-                            pendingConfig={pendingConfig}
-                            onPendingConfigChange={onPendingConfigChange}
-                            onPendingConfigSave={onPendingConfigSave}
                             onAccessPointChange={onAccessPointChange}
                             onAccessPointRemove={onAccessPointRemove}
                             projectId={Number(projectId)}
