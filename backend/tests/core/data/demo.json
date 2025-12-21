@@ -1,0 +1,26 @@
+[
+  {
+    "department": {
+      "name": "Cardiology",
+      "doctors": [
+        {
+          "name": "Dr. Zhang",
+          "specialty": "Heart Failure",
+          "patients": [
+            {
+              "name": "Alice",
+              "condition": "Mild"
+            },
+            {
+              "name": "Bob",
+              "condition": "Severe"
+            }
+          ]
+        },
+        {
+          "new_field": "new_created_value"
+        }
+      ]
+    }
+  }
+]
