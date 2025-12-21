@@ -486,7 +486,7 @@ export function ProjectWorkspaceView({
                           fontSize: 13,
                         }}
                       >
-                        Select a table to view its data.
+                        Select a context to view its data.
                       </div>
                     )}
                   </div>
@@ -508,7 +508,7 @@ export function ProjectWorkspaceView({
               fontSize: 14,
             }}
           >
-            {project ? 'No tables available for this project.' : 'Loading project…'}
+            {project ? 'No contexts available for this project.' : 'Loading project…'}
           </div>
         )}
       </div>

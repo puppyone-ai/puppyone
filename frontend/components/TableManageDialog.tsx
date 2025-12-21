@@ -1,17 +1,53 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { ProjectInfo } from '../lib/projectsApi'
 import { createTable, updateTable, deleteTable } from '../lib/projectsApi'
 import { refreshProjects } from '../lib/hooks/useData'
+import { useAuth } from '../app/supabase/SupabaseAuthProvider'
+import { ImportModal } from './editors/tree/components/ImportModal'
+
+type StartOption = 'empty' | 'documents' | 'url' | 'connect'
 
 type TableManageDialogProps = {
   projectId: string
   tableId: string | null
   projects: ProjectInfo[]
   onClose: () => void
-  onProjectsChange?: (projects: ProjectInfo[]) => void  // 保留接口兼容
+  onProjectsChange?: (projects: ProjectInfo[]) => void
   deleteMode?: boolean
+}
+
+// Helper functions
+function needsETL(file: File): boolean {
+  const etlExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.tiff', '.bmp']
+  return etlExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+}
+
+function getFileType(file: File): string {
+  return file.name.toLowerCase().split('.').pop() || ''
+}
+
+async function isTextFileType(file: File): Promise<boolean> {
+  if (needsETL(file)) return false
+  const textExts = ['.txt', '.md', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.h', '.html', '.css', '.xml', '.yaml', '.yml', '.csv', '.sql', '.sh']
+  const binaryExts = ['.zip', '.rar', '.tar', '.gz', '.gif', '.svg', '.webp', '.mp3', '.mp4', '.exe', '.dll', '.xls', '.xlsx']
+  const fileName = file.name.toLowerCase()
+  if (binaryExts.some(ext => fileName.endsWith(ext))) return false
+  if (textExts.some(ext => fileName.endsWith(ext))) return true
+  const buffer = await file.slice(0, 1024).arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  if (bytes.includes(0)) return false
+  let printable = 0
+  for (let i = 0; i < Math.min(bytes.length, 512); i++) {
+    const b = bytes[i]
+    if ((b >= 32 && b <= 126) || b === 9 || b === 10 || b === 13) printable++
+  }
+  return printable / Math.min(bytes.length, 512) > 0.7
+}
+
+function sanitizeUnicode(s: string): string {
+  return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\uFFFE\uFFFF]/g, '').trim()
 }
 
 export function TableManageDialog({
@@ -21,6 +57,7 @@ export function TableManageDialog({
   onClose,
   deleteMode = false,
 }: TableManageDialogProps) {
+  const { session } = useAuth()
   const isEdit = tableId !== null
   const project = projects.find((p) => p.id === projectId)
   const table = isEdit && project ? project.tables.find((t) => t.id === tableId) : null
@@ -28,12 +65,148 @@ export function TableManageDialog({
   const [name, setName] = useState(table?.name || '')
   const [loading, setLoading] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(deleteMode)
+  const [startOption, setStartOption] = useState<StartOption>('empty')
+  const [isDragging, setIsDragging] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState(0)
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null)
+  const [importMessage, setImportMessage] = useState('')
+  const [urlInput, setUrlInput] = useState('')
+  const [showImportModal, setShowImportModal] = useState(false)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const dropzoneRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (table) {
       setName(table.name)
     }
   }, [table])
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.currentTarget === dropzoneRef.current) setIsDragging(false)
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      setSelectedFiles(files)
+      if (!name.trim()) {
+        // 优先使用文件夹名，否则使用第一个文件名
+        const firstFile = files[0]
+        if (firstFile.webkitRelativePath) {
+          const folderName = firstFile.webkitRelativePath.split('/')[0]
+          setName(folderName)
+        } else {
+          const fn = firstFile.name
+          setName(fn.substring(0, fn.lastIndexOf('.')) || fn)
+        }
+      }
+    }
+  }, [name])
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedFiles(e.target.files)
+      if (!name.trim()) {
+        // 优先使用文件夹名，否则使用第一个文件名
+        const firstFile = e.target.files[0]
+        if (firstFile.webkitRelativePath) {
+          // 从路径中提取文件夹名（第一个部分）
+          const folderName = firstFile.webkitRelativePath.split('/')[0]
+          setName(folderName)
+        } else {
+          // 单文件：使用文件名（去掉扩展名）
+          const fn = firstFile.name
+          setName(fn.substring(0, fn.lastIndexOf('.')) || fn)
+        }
+      }
+    }
+  }
+
+  const parseFolderStructure = async (files: FileList, onProgress?: (c: number, t: number) => void) => {
+    const structure: Record<string, any> = {}
+    const binaryFiles: Array<any> = []
+    const fileArray = Array.from(files)
+    let processed = 0
+
+    for (const file of fileArray) {
+      // 获取路径部分，跳过根文件夹名
+      const pathParts = file.webkitRelativePath 
+        ? file.webkitRelativePath.split('/').filter(Boolean).slice(1) // 跳过根文件夹
+        : [file.name] // 单文件直接用文件名
+      
+      if (pathParts.length === 0) {
+        processed++
+        onProgress?.(processed, fileArray.length)
+        continue
+      }
+
+      // 导航到正确的嵌套位置
+      let current = structure
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const folderName = pathParts[i]
+        if (!current[folderName] || typeof current[folderName] !== 'object') {
+          current[folderName] = {}
+        }
+        current = current[folderName]
+      }
+      
+      const fileName = pathParts[pathParts.length - 1]
+      const filePath = pathParts.join('/')
+
+      try {
+        if (needsETL(file)) {
+          // 需要 ETL 处理的文件（PDF、图片等）
+          setImportMessage(`Uploading ${fileName}...`)
+          const formData = new FormData()
+          formData.append('project_id', projectId || '')
+          formData.append('file', file)
+          const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/etl/upload`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${session?.access_token}` },
+            body: formData
+          })
+          if (!resp.ok) throw new Error(`Upload failed: ${await resp.text()}`)
+          const data = await resp.json()
+          if (!data.key) throw new Error('No S3 key')
+          binaryFiles.push({ path: filePath, filename: fileName, s3_key: data.key, file_type: getFileType(file) })
+          // ETL 文件用对象表示 pending 状态
+          current[fileName] = { status: 'pending', message: 'Processing...' }
+        } else {
+          // 文本文件直接存内容
+          const isText = await isTextFileType(file)
+          if (isText) {
+            current[fileName] = sanitizeUnicode(await file.text())
+          } else {
+            // 无法读取的二进制文件存 null
+            current[fileName] = null
+          }
+        }
+      } catch (err) {
+        current[fileName] = null
+      }
+      processed++
+      onProgress?.(processed, fileArray.length)
+    }
+    return { structure, binaryFiles }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,17 +216,47 @@ export function TableManageDialog({
       setLoading(true)
       if (isEdit && tableId) {
         await updateTable(projectId, tableId, name.trim())
+        await refreshProjects()
+        onClose()
+      } else if (startOption === 'documents' && selectedFiles && selectedFiles.length > 0) {
+        setIsImporting(true)
+        setImportProgress(0)
+        setImportMessage('Processing files...')
+        const finalName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_')
+        const { structure, binaryFiles } = await parseFolderStructure(selectedFiles, (c, t) => setImportProgress((c / t) * 50))
+        setImportMessage('Creating context...')
+        const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${projectId}/import-folder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ table_name: finalName, folder_structure: structure, binary_files: binaryFiles })
+        })
+        const data = await resp.json()
+        if (data.code === 0) {
+          setImportProgress(100)
+          if (binaryFiles.length > 0 && data.data?.etl_task_ids?.length > 0) {
+            const existing = JSON.parse(localStorage.getItem('etl_pending_tasks') || '[]')
+            const newTasks = data.data.etl_task_ids.map((id: number) => ({ taskId: id, projectId, tableName: finalName, timestamp: Date.now() }))
+            localStorage.setItem('etl_pending_tasks', JSON.stringify([...existing, ...newTasks]))
+            window.dispatchEvent(new CustomEvent('etl-tasks-updated'))
+          }
+          await refreshProjects()
+          onClose()
+        } else {
+          throw new Error(data.message || 'Import failed')
+        }
       } else {
         await createTable(projectId, name.trim(), [])
+        await refreshProjects()
+        onClose()
       }
-      // 使用 SWR 刷新项目列表
-      await refreshProjects()
-      onClose()
     } catch (error) {
       console.error('Failed to save table:', error)
       alert('Operation failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setLoading(false)
+      setIsImporting(false)
+      setImportProgress(0)
+      setImportMessage('')
     }
   }
 
@@ -94,26 +297,101 @@ export function TableManageDialog({
     >
       <div
         style={{
-          background: '#1a1a1a',
-          border: '1px solid rgba(46,46,46,0.85)',
-          borderRadius: 8,
-          padding: 24,
-          minWidth: 400,
-          maxWidth: 500,
+          background: '#202020',
+          border: '1px solid #333',
+          borderRadius: 12,
+          width: 640,
+          maxWidth: '90vw',
+          boxShadow: '0 24px 48px rgba(0,0,0,0.4), 0 12px 24px rgba(0,0,0,0.4)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          animation: 'dialog-fade-in 0.2s ease-out',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ margin: '0 0 20px 0', color: '#EDEDED', fontSize: 18 }}>
-          {isEdit ? 'Edit Table' : 'New Table'}
-        </h2>
-        <p style={{ margin: '0 0 20px 0', color: '#9FA4B1', fontSize: 12 }}>
-          Project: {project.name}
-        </p>
+        <style jsx>{`
+          @keyframes dialog-fade-in {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+          }
+          .option-card {
+            padding: 12px;
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            height: 100%;
+          }
+          .option-card:hover {
+            background: #2A2A2A;
+            border-color: #404040;
+            transform: translateY(-1px);
+          }
+          .option-card.active {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+          }
+          
+          .start-option {
+            padding: 14px 16px;
+            background: transparent;
+            border: 1px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+          }
+          .start-option:hover {
+            background: rgba(255,255,255,0.03);
+            border-color: #444;
+          }
+          .start-option.active {
+            border-color: #525252;
+            background: rgba(255,255,255,0.05);
+          }
+        `}</style>
+
+        {/* Header - Notion Style "Add to..." */}
+        <div style={{
+          padding: '14px 20px',
+          borderBottom: '1px solid #333',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: '#202020',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#888' }}>
+            <span>Add to</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#E1E1E1', fontWeight: 500, background: '#2A2A2A', padding: '2px 8px', borderRadius: 4 }}>
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                <path d="M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z" stroke="currentColor" strokeWidth="1.2"/>
+              </svg>
+              {project.name}
+            </div>
+          </div>
+          <button 
+            onClick={onClose}
+            style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', padding: 4, display: 'flex' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M11 3L3 11M3 3L11 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
 
         {showDeleteConfirm ? (
-          <div>
-            <p style={{ color: '#EDEDED', marginBottom: 20 }}>
-              Are you sure you want to delete table "{table?.name}"? This action cannot be undone.
+          <div style={{ padding: 32 }}>
+            <h3 style={{ color: '#EDEDED', margin: '0 0 12px', fontSize: 18 }}>Delete Context?</h3>
+            <p style={{ color: '#9FA4B1', marginBottom: 24, fontSize: 14, lineHeight: 1.5 }}>
+              Are you sure you want to delete context <strong style={{ color: '#EDEDED' }}>{table?.name}</strong>? 
+              <br/>This action cannot be undone and all data will be lost.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button
@@ -127,62 +405,354 @@ export function TableManageDialog({
                 disabled={loading}
                 style={buttonStyle(true, true)}
               >
-                {loading ? 'Deleting...' : 'Confirm Delete'}
+                {loading ? 'Deleting...' : 'Delete Context'}
               </button>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: 24 }}>
-              <label
-                style={{
-                  display: 'block',
-                  marginBottom: 8,
-                  color: '#9FA4B1',
-                  fontSize: 12,
-                }}
-              >
-                Table Name *
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter table name"
-                required
-                style={inputStyle}
-                autoFocus
-              />
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '24px 32px 32px' }}>
+              
+              {/* Data Source Selection */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 12, letterSpacing: '0.02em' }}>
+                  Start with
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                  
+                  {/* Option 1: Empty */}
+                  <div 
+                    className={`start-option ${startOption === 'empty' ? 'active' : ''}`}
+                    onClick={() => { setStartOption('empty'); setSelectedFiles(null); setName(''); setUrlInput(''); }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#777', marginTop: 2 }}>
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <line x1="12" y1="8" x2="12" y2="16" />
+                      <line x1="8" y1="12" x2="16" y2="12" />
+                    </svg>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#EDEDED' }}>Empty</div>
+                      <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>From scratch</div>
+                    </div>
+                  </div>
+
+                  {/* Option 2: Documents */}
+                  <div 
+                    className={`start-option ${startOption === 'documents' ? 'active' : ''}`}
+                    onClick={() => { setStartOption('documents'); setUrlInput(''); if (startOption === 'empty') setName(''); }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#777', marginTop: 2 }}>
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#EDEDED' }}>Files</div>
+                      <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>PDF, MD, CSV</div>
+                    </div>
+                  </div>
+
+                  {/* Option 3: URL/Web */}
+                  <div 
+                    className={`start-option ${startOption === 'url' ? 'active' : ''}`}
+                    onClick={() => { setStartOption('url'); setSelectedFiles(null); setName(''); }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#777', marginTop: 2 }}>
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#EDEDED' }}>Web</div>
+                      <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>Import URL</div>
+                    </div>
+                  </div>
+
+                  {/* Option 4: Connectors */}
+                  <div className="start-option" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#777', marginTop: 2 }}>
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#EDEDED' }}>Connect</div>
+                      <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>Notion, Linear</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic Content */}
+              {startOption === 'empty' && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Context Name</div>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter context name"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: '#1a1a1a',
+                      border: '1px solid #333',
+                      borderRadius: 6,
+                      fontSize: 14,
+                      color: '#EDEDED',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              {startOption === 'documents' && (
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    {...({ webkitdirectory: '', directory: '' } as any)}
+                    multiple
+                    onChange={handleFileSelect}
+                    style={{ display: 'none' }}
+                  />
+
+                  {isImporting ? (
+                    <div style={{ padding: '24px', textAlign: 'center', background: '#1a1a1a', borderRadius: 8, border: '1px solid #333' }}>
+                      <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 8 }}>{importMessage} {Math.round(importProgress)}%</div>
+                      <div style={{ height: 4, background: '#2a2a2a', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ width: `${importProgress}%`, height: '100%', background: '#34d399', transition: 'width 0.2s' }} />
+                      </div>
+                    </div>
+                  ) : selectedFiles && selectedFiles.length > 0 ? (
+                    <div style={{ padding: '16px', border: '1px solid #333', borderRadius: 8, background: '#1a1a1a' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <div style={{ fontSize: 13, color: '#9ca3af' }}>{selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected</div>
+                        <button type="button" onClick={() => { setSelectedFiles(null); setName(''); }} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', fontSize: 12 }}>Clear</button>
+                      </div>
+                      <div style={{ maxHeight: 140, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {Array.from(selectedFiles).slice(0, 5).map((file, i) => {
+                          const ext = file.name.split('.').pop()?.toLowerCase() || ''
+                          let c = '#9ca3af', bg = 'rgba(156,163,175,0.1)'
+                          if (ext === 'pdf') { c = '#ef4444'; bg = 'rgba(239,68,68,0.1)'; }
+                          else if (['doc','docx'].includes(ext)) { c = '#3b82f6'; bg = 'rgba(59,130,246,0.1)'; }
+                          else if (['csv','xls','xlsx'].includes(ext)) { c = '#22c55e'; bg = 'rgba(34,197,94,0.1)'; }
+                          else if (['jpg','jpeg','png'].includes(ext)) { c = '#a855f7'; bg = 'rgba(168,85,247,0.1)'; }
+                          return (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: '#252525', borderRadius: 6, border: '1px solid #333' }}>
+                              <div style={{ width: 28, height: 28, borderRadius: 5, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c, flexShrink: 0 }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13, color: '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>{file.name}</div>
+                                <div style={{ fontSize: 11, color: '#666' }}>{(file.size / 1024).toFixed(1)} KB</div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                        {selectedFiles.length > 5 && <div style={{ fontSize: 11, color: '#525252', textAlign: 'center', padding: 4 }}>+{selectedFiles.length - 5} more</div>}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      ref={dropzoneRef}
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        padding: '28px',
+                        border: '1px dashed',
+                        borderColor: isDragging ? '#3b82f6' : '#404040',
+                        borderRadius: 8,
+                        background: isDragging ? 'rgba(59,130,246,0.05)' : 'transparent',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isDragging ? '#3b82f6' : '#525252'} strokeWidth="1.5" style={{ margin: '0 auto 10px' }}>
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                      </svg>
+                      <div style={{ fontSize: 13, color: isDragging ? '#3b82f6' : '#9ca3af', marginBottom: 4 }}>Drop files or folder here</div>
+                      <div style={{ fontSize: 11, color: '#525252' }}>PDF, DOC, MD, CSV, TXT, JSON, Images</div>
+                    </div>
+                  )}
+
+                  {/* Name input after files selected */}
+                  {selectedFiles && selectedFiles.length > 0 && (
+                    <div style={{ marginTop: 20 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Context Name</div>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Q3 Financial Report"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: '#1a1a1a',
+                          border: '1px solid #333',
+                          borderRadius: 6,
+                          fontSize: 14,
+                          color: '#EDEDED',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {startOption === 'url' && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Website URL</div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 12px',
+                    background: '#1a1a1a',
+                    border: '1px solid #333',
+                    borderRadius: 6,
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="https://example.com/page"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && urlInput.trim()) {
+                          e.preventDefault()
+                          setShowImportModal(true)
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        background: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: 14,
+                        color: '#e2e8f0',
+                      }}
+                      autoFocus
+                    />
+                  </div>
+                  <div style={{ fontSize: 11, color: '#525252', marginTop: 8 }}>
+                    Paste a URL to import content from any webpage
+                  </div>
+
+                  {/* Context Name for URL */}
+                  {urlInput.trim() && (
+                    <div style={{ marginTop: 20 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Context Name</div>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Company Blog"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: '#1a1a1a',
+                          border: '1px solid #333',
+                          borderRadius: 6,
+                          fontSize: 14,
+                          color: '#EDEDED',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              {isEdit && (
+            {/* Footer */}
+            <div style={{ 
+              padding: '16px 20px', 
+              borderTop: '1px solid #333', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              background: '#202020' 
+            }}>
+              {isEdit ? (
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  style={buttonStyle(false, true)}
+                  style={{ ...buttonStyle(false, true), border: 'none', background: 'transparent', padding: 0 }}
                 >
-                  Delete
+                  Delete context
                 </button>
+              ) : (
+                <div /> /* Spacer */
               )}
-              <button
-                type="button"
-                onClick={onClose}
-                style={buttonStyle(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !name.trim()}
-                style={buttonStyle(true)}
-              >
-                {loading ? 'Saving...' : isEdit ? 'Save' : 'Create'}
-              </button>
+              
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={buttonStyle(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type={startOption === 'url' ? 'button' : 'submit'}
+                  onClick={startOption === 'url' && urlInput.trim() ? () => setShowImportModal(true) : undefined}
+                  disabled={
+                    loading || 
+                    isImporting || 
+                    (startOption === 'empty' && !name.trim()) ||
+                    (startOption === 'documents' && (!selectedFiles || selectedFiles.length === 0 || !name.trim())) ||
+                    (startOption === 'url' && !urlInput.trim())
+                  }
+                  style={buttonStyle(true)}
+                >
+                  {loading || isImporting 
+                    ? (isImporting ? 'Importing...' : 'Creating...') 
+                    : isEdit 
+                      ? 'Save Changes' 
+                      : startOption === 'documents' 
+                        ? 'Import & Create' 
+                        : startOption === 'url'
+                          ? 'Import from URL'
+                          : 'Create Context'}
+                </button>
+              </div>
             </div>
           </form>
         )}
       </div>
+
+      {/* Import Modal for URL import */}
+      {showImportModal && projectId && (
+        <ImportModal
+          visible={showImportModal}
+          projectId={Number(projectId)}
+          mode="create_table"
+          tableName={name || 'Imported Content'}
+          initialUrl={urlInput}
+          onClose={() => {
+            setShowImportModal(false)
+            setUrlInput('')
+          }}
+          onSuccess={() => {
+            setShowImportModal(false)
+            setUrlInput('')
+            refreshProjects()
+            onClose()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -190,30 +760,34 @@ export function TableManageDialog({
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '8px 12px',
-  background: '#0a0a0a',
-  border: '1px solid rgba(46,46,46,0.85)',
+  background: '#151515',
+  border: '1px solid #333',
   borderRadius: 6,
   color: '#EDEDED',
   fontSize: 13,
   fontFamily: 'inherit',
+  outline: 'none',
+  transition: 'border-color 0.15s',
 }
 
 const buttonStyle = (primary: boolean, danger = false): React.CSSProperties => ({
-  padding: '8px 16px',
+  height: '28px',
+  padding: '0 12px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   borderRadius: 6,
-  border: danger
-    ? '1px solid rgba(239,68,68,0.4)'
-    : primary
-    ? '1px solid rgba(138,43,226,0.4)'
-    : '1px solid rgba(46,46,46,0.85)',
+  border: '1px solid transparent',
   background: danger
     ? 'rgba(239,68,68,0.15)'
     : primary
-    ? 'rgba(138,43,226,0.22)'
-    : 'rgba(10,10,10,0.6)',
-  color: danger ? '#ef4444' : primary ? '#8A2BE2' : '#EDEDED',
+    ? '#EDEDED'
+    : 'rgba(255,255,255,0.05)',
+  color: danger ? '#ef4444' : primary ? '#1a1a1a' : '#EDEDED',
   fontSize: 13,
+  fontWeight: 500,
   cursor: 'pointer',
   fontFamily: 'inherit',
+  transition: 'all 0.15s',
 })
 

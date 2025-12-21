@@ -9,7 +9,7 @@ type ProjectManageDialogProps = {
   projectId: string | null
   projects: ProjectInfo[]
   onClose: () => void
-  onProjectsChange?: (projects: ProjectInfo[]) => void  // 保留接口兼容
+  onProjectsChange?: (projects: ProjectInfo[]) => void
   deleteMode?: boolean
 }
 
@@ -23,14 +23,14 @@ export function ProjectManageDialog({
   const project = isEdit ? projects.find((p) => p.id === projectId) : null
 
   const [name, setName] = useState(project?.name || '')
-  const [description, setDescription] = useState(project?.description || '')
+  // description 虽然不显示，但为了兼容后端 API，如果已有则保留，新建则为空
+  const [description] = useState(project?.description || '')
   const [loading, setLoading] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(deleteMode)
 
   useEffect(() => {
     if (project) {
       setName(project.name)
-      setDescription(project.description || '')
     }
   }, [project])
 
@@ -41,11 +41,10 @@ export function ProjectManageDialog({
     try {
       setLoading(true)
       if (isEdit && projectId) {
-        await updateProject(projectId, name.trim(), description.trim() || undefined)
+        await updateProject(projectId, name.trim(), description)
       } else {
-        await createProject(name.trim(), description.trim() || undefined)
+        await createProject(name.trim(), '')
       }
-      // 使用 SWR 刷新项目列表
       await refreshProjects()
       onClose()
     } catch (error) {
@@ -62,7 +61,6 @@ export function ProjectManageDialog({
     try {
       setLoading(true)
       await deleteProject(projectId)
-      // 使用 SWR 刷新项目列表
       await refreshProjects()
       onClose()
     } catch (error) {
@@ -89,25 +87,62 @@ export function ProjectManageDialog({
     >
       <div
         style={{
-          background: '#1a1a1a',
-          border: '1px solid rgba(46,46,46,0.85)',
-          borderRadius: 8,
-          padding: 24,
-          minWidth: 400,
-          maxWidth: 500,
+          background: '#202020',
+          border: '1px solid #333',
+          borderRadius: 12,
+          width: 480,
+          maxWidth: '90vw',
+          boxShadow: '0 24px 48px rgba(0,0,0,0.4), 0 12px 24px rgba(0,0,0,0.4)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          animation: 'dialog-fade-in 0.2s ease-out',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ margin: '0 0 20px 0', color: '#EDEDED', fontSize: 18 }}>
-          {isEdit ? 'Edit Project' : 'New Project'}
-        </h2>
+        <style jsx>{`
+          @keyframes dialog-fade-in {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+          }
+        `}</style>
+
+        {/* Header */}
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>
+            {showDeleteConfirm ? 'Delete Folder' : (isEdit ? 'Edit Folder' : 'New Folder')}
+          </div>
+          {!showDeleteConfirm && (
+            <button 
+              onClick={onClose}
+              style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', padding: 4 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
+        </div>
 
         {showDeleteConfirm ? (
           <div>
-            <p style={{ color: '#EDEDED', marginBottom: 20 }}>
-              Are you sure you want to delete project "{project?.name}"? This action cannot be undone.
-            </p>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+            <div style={{ padding: '24px' }}>
+              <p style={{ color: '#EDEDED', marginBottom: 8, fontSize: 14 }}>
+                Are you sure you want to delete folder "{project?.name}"?
+              </p>
+              <p style={{ color: '#9ca3af', fontSize: 13, lineHeight: '1.5' }}>
+                This will permanently delete the folder and all contexts inside it. This action cannot be undone.
+              </p>
+            </div>
+            <div style={{ 
+              padding: '16px 20px', 
+              background: '#202020', 
+              borderTop: '1px solid #333',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 12
+            }}>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 style={buttonStyle(false)}
@@ -117,80 +152,77 @@ export function ProjectManageDialog({
               <button
                 onClick={handleDelete}
                 disabled={loading}
-                style={buttonStyle(true, true)}
+                style={{
+                  ...buttonStyle(true),
+                  background: 'rgba(239,68,68,0.1)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239,68,68,0.2)'
+                }}
               >
-                {loading ? 'Deleting...' : 'Confirm Delete'}
+                {loading ? 'Deleting...' : 'Delete Folder'}
               </button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: 'block',
-                  marginBottom: 8,
-                  color: '#9FA4B1',
-                  fontSize: 12,
-                }}
-              >
-                Project Name *
-              </label>
+            <div style={{ padding: '24px 32px 32px' }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Folder Name</div>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Enter project name"
-                required
-                style={inputStyle}
+                placeholder="Enter folder name"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: '#1a1a1a',
+                  border: '1px solid #333',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  color: '#EDEDED',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
                 autoFocus
               />
             </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label
-                style={{
-                  display: 'block',
-                  marginBottom: 8,
-                  color: '#9FA4B1',
-                  fontSize: 12,
-                }}
-              >
-                Description (optional)
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter project description"
-                rows={3}
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              {isEdit && (
+            <div style={{ 
+              padding: '16px 20px', 
+              background: '#202020', 
+              borderTop: '1px solid #333',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              {isEdit ? (
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  style={buttonStyle(false, true)}
+                  style={{ ...buttonStyle(false), color: '#ef4444', border: 'none', background: 'transparent', padding: 0 }}
                 >
-                  Delete
+                  Delete folder
                 </button>
+              ) : (
+                <div />
               )}
-              <button
-                type="button"
-                onClick={onClose}
-                style={buttonStyle(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !name.trim()}
-                style={buttonStyle(true)}
-              >
-                {loading ? 'Saving...' : isEdit ? 'Save' : 'Create'}
-              </button>
+              
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={buttonStyle(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !name.trim()}
+                  style={buttonStyle(true)}
+                >
+                  {loading ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Folder'}
+                </button>
+              </div>
             </div>
           </form>
         )}
@@ -199,33 +231,15 @@ export function ProjectManageDialog({
   )
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  background: '#0a0a0a',
-  border: '1px solid rgba(46,46,46,0.85)',
-  borderRadius: 6,
-  color: '#EDEDED',
-  fontSize: 13,
-  fontFamily: 'inherit',
-}
-
-const buttonStyle = (primary: boolean, danger = false): React.CSSProperties => ({
+const buttonStyle = (primary: boolean): React.CSSProperties => ({
   padding: '8px 16px',
   borderRadius: 6,
-  border: danger
-    ? '1px solid rgba(239,68,68,0.4)'
-    : primary
-    ? '1px solid rgba(138,43,226,0.4)'
-    : '1px solid rgba(46,46,46,0.85)',
-  background: danger
-    ? 'rgba(239,68,68,0.15)'
-    : primary
-    ? 'rgba(138,43,226,0.22)'
-    : 'rgba(10,10,10,0.6)',
-  color: danger ? '#ef4444' : primary ? '#8A2BE2' : '#EDEDED',
+  border: primary ? '1px solid rgba(255,255,255,0.1)' : '1px solid #333',
+  background: primary ? '#EDEDED' : 'transparent',
+  color: primary ? '#1a1a1a' : '#EDEDED',
   fontSize: 13,
+  fontWeight: 500,
   cursor: 'pointer',
+  transition: 'all 0.1s',
   fontFamily: 'inherit',
 })
-

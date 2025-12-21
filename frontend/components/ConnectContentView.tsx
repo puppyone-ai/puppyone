@@ -13,29 +13,6 @@ type ConnectContentViewProps = {
 // SaaS Platform definitions
 const saasPlat = [
   {
-    id: 'generic',
-    name: 'Generic URL',
-    description: 'JSON APIs, HTML tables, public pages',
-    status: 'supported' as const,
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10"/>
-        <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'github',
-    name: 'GitHub',
-    description: 'Repos, issues, pull requests',
-    status: 'coming-soon' as const,
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
-      </svg>
-    ),
-  },
-  {
     id: 'notion',
     name: 'Notion',
     description: 'Databases, pages, wikis',
@@ -48,7 +25,7 @@ const saasPlat = [
     ),
   },
   {
-    id: 'linear',
+    id: 'github',
     name: 'Linear',
     description: 'Issues, projects, roadmaps',
     status: 'coming-soon' as const,
@@ -102,10 +79,14 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const [isImporting, setIsImporting] = useState(false)
   const [importSuccess, setImportSuccess] = useState(false)
 
+  // Panel expansion state
+  const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null)
+
   // Check Notion status on mount
-  useEffect(() => {
-    checkNotionStatus()
-  }, [])
+  // TODO: Re-enable when Notion OAuth is properly configured
+  // useEffect(() => {
+  //   checkNotionStatus()
+  // }, [])
 
   // Check URL params for OAuth callback
   useEffect(() => {
@@ -333,19 +314,28 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
             }}>
               {saasPlat.map((platform) => {
                 const isConnected = platform.id === 'notion' && notionStatus?.connected
+                const isExpanded = expandedPlatform === platform.id
+                const isClickable = platform.status === 'supported'
 
                 return (
                   <div
                     key={platform.id}
+                    onClick={() => {
+                      if (isClickable) {
+                        setExpandedPlatform(isExpanded ? null : platform.id)
+                      }
+                    }}
                     style={{
-                      background: '#1a1a1a',
-                      border: `1px solid ${platform.status === 'supported' ? '#3a3a3a' : '#2a2a2a'}`,
+                      background: isExpanded ? '#1f1f1f' : '#1a1a1a',
+                      border: `1px solid ${isExpanded ? '#404040' : platform.status === 'supported' ? '#3a3a3a' : '#2a2a2a'}`,
                       borderRadius: 6,
                       padding: 12,
                       display: 'flex',
                       alignItems: 'center',
                       gap: 10,
                       position: 'relative',
+                      cursor: isClickable ? 'pointer' : 'default',
+                      transition: 'all 0.15s',
                     }}
                   >
                     <div style={{
@@ -372,78 +362,21 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                       </div>
                     </div>
 
-                    {/* Notion auth button */}
-                    {platform.id === 'notion' && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                      }}>
-                        {isConnected ? (
-                          <>
-                            <div style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: '50%',
-                              background: '#10b981',
-                            }} />
-                            <span style={{
-                              fontSize: 10,
-                              color: '#10b981',
-                            }}>
-                              {notionStatus?.workspace_name || 'Connected'}
-                            </span>
-                            <button
-                              onClick={handleNotionDisconnect}
-                              style={{
-                                background: 'transparent',
-                                border: '1px solid #3a3a3a',
-                                borderRadius: 4,
-                                padding: '2px 6px',
-                                fontSize: 9,
-                                color: '#8B8B8B',
-                                cursor: 'pointer',
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.borderColor = '#5a5a5a'
-                                e.currentTarget.style.color = '#CDCDCD'
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.borderColor = '#3a3a3a'
-                                e.currentTarget.style.color = '#8B8B8B'
-                              }}
-                            >
-                              Disconnect
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={handleNotionConnect}
-                            disabled={isLoadingNotion}
-                            style={{
-                              background: isLoadingNotion ? '#1a1a1a' : '#2a2a2a',
-                              border: '1px solid #3a3a3a',
-                              borderRadius: 4,
-                              padding: '2px 8px',
-                              fontSize: 9,
-                              color: isLoadingNotion ? '#5D6065' : '#CDCDCD',
-                              cursor: isLoadingNotion ? 'not-allowed' : 'pointer',
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isLoadingNotion) {
-                                e.currentTarget.style.background = '#353535'
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isLoadingNotion) {
-                                e.currentTarget.style.background = '#2a2a2a'
-                              }
-                            }}
-                          >
-                            {isLoadingNotion ? '...' : 'Connect'}
-                          </button>
-                        )}
-                      </div>
+                    {/* Expand/collapse indicator for supported platforms */}
+                    {isClickable && (
+                      <svg 
+                        width="12" 
+                        height="12" 
+                        viewBox="0 0 12 12" 
+                        fill="none"
+                        style={{
+                          color: '#5D6065',
+                          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.15s',
+                        }}
+                      >
+                        <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                     )}
                   </div>
                 )
@@ -451,24 +384,28 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
             </div>
           </div>
 
-          {/* URL Input Section */}
-          <div style={{
-            background: '#111111',
-            border: '1px solid #2a2a2a',
-            borderRadius: 8,
-            padding: 20,
-            marginBottom: 16,
-          }}>
+          {/* Notion URL Input Panel - shown when Notion card is expanded */}
+          {expandedPlatform === 'notion' && (
             <div style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#8B8B8B',
-              marginBottom: 12,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
+              background: '#111111',
+              border: '1px solid #2a2a2a',
+              borderRadius: 8,
+              padding: 20,
+              marginBottom: 16,
+              marginTop: -8,
+              borderTopLeftRadius: 0,
+              borderTopRightRadius: 0,
             }}>
-              Data Source URL
-            </div>
+              <div style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#8B8B8B',
+                marginBottom: 12,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}>
+                Notion URL
+              </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
               <input
@@ -480,7 +417,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                     handleParse()
                   }
                 }}
-                placeholder="https://api.example.com/data.json or https://yourworkspace.notion.so/..."
+                placeholder="https://yourworkspace.notion.so/page-id..."
                 disabled={isLoading || isImporting}
                 style={{
                   flex: 1,
@@ -531,9 +468,8 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               color: '#5D6065',
               marginTop: 10,
             }}>
-              Supports: JSON APIs, HTML tables, public pages, and authenticated Notion content
+              Paste a Notion page URL to import its content
             </div>
-          </div>
 
           {/* Notion Auth Modal */}
           {showNotionAuth && (
@@ -886,6 +822,8 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               }}>
                 Data has been imported to your project
               </div>
+            </div>
+          )}
             </div>
           )}
         </div>

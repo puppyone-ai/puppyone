@@ -9,9 +9,7 @@ import { ProjectWorkspaceView } from '../../../components/ProjectWorkspaceView'
 import { ProjectsSidebar } from '../../../components/ProjectsSidebar'
 import { ProjectsHeader, type EditorType } from '../../../components/ProjectsHeader'
 import { McpContentView } from '../../../components/McpContentView'
-import { EtlContentView } from '../../../components/EtlContentView'
 import { ConnectContentView } from '../../../components/ConnectContentView'
-import { ParsingContentView } from '../../../components/ParsingContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
 import { AuthGuard } from '../../../components/AuthGuard'
 import { 
@@ -22,11 +20,10 @@ import {
   permissionsToRegisterTools,
 } from '../../../lib/mcpApi'
 
-type ActiveView = 'projects' | 'mcp' | 'etl' | 'connect' | 'parsing' | 'test' | 'logs' | 'settings'
+type ActiveView = 'projects' | 'mcp' | 'connect' | 'test' | 'logs' | 'settings'
 
 const utilityNav = [
   { id: 'mcp', label: 'MCP', path: 'mcp', isAvailable: true },
-  { id: 'etl', label: 'ETL Strategies', path: 'etl', isAvailable: true },
   { id: 'test', label: 'Test', path: 'test', isAvailable: false },
   { id: 'logs', label: 'Logs', path: 'logs', isAvailable: false },
   { id: 'settings', label: 'Settings', path: 'settings', isAvailable: false },
@@ -208,15 +205,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   }
 
   const handleUtilityNavClick = (viewId: string) => {
-    if (viewId === 'parsing') {
-      setActiveView('parsing')
-      window.history.pushState({}, '', '/parsing')
-    } else if (viewId === 'mcp') {
+    if (viewId === 'mcp') {
       setActiveView('mcp')
       window.history.pushState({}, '', '/mcp')
-    } else if (viewId === 'etl') {
-      setActiveView('etl')
-      window.history.pushState({}, '', '/etl')
     } else if (viewId === 'connect') {
       setActiveView('connect')
       window.history.pushState({}, '', '/connect')
@@ -424,14 +415,14 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                           <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                         </svg>
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 15, color: '#9ca3af', marginBottom: 8 }}>No projects yet</div>
+                          <div style={{ fontSize: 15, color: '#9ca3af', marginBottom: 8 }}>No context yet</div>
                           <div style={{ fontSize: 12, color: '#6b7280' }}>
-                            Click <strong style={{ color: '#9ca3af' }}>+ Add context...</strong> in the left sidebar to create your first project
+                            Click <strong style={{ color: '#9ca3af' }}>+ Add context...</strong> in the left sidebar to create your first context
                           </div>
                         </div>
                       </>
                     ) : (
-                      <div>Select a project to inspect its tables.</div>
+                      <div>Select a context to inspect its tables.</div>
                     )}
                   </div>
                 )}
@@ -1128,12 +1119,8 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
           </>
         ) : activeView === 'mcp' ? (
           <McpContentView onBack={handleBackToProjects} />
-        ) : activeView === 'etl' ? (
-          <EtlContentView onBack={handleBackToProjects} />
         ) : activeView === 'connect' ? (
           <ConnectContentView onBack={handleBackToProjects} />
-        ) : activeView === 'parsing' ? (
-          <ParsingContentView onBack={handleBackToProjects} />
         ) : null}
       </section>
 

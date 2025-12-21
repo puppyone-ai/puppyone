@@ -144,7 +144,7 @@ export function McpContentView({ onBack }: McpContentViewProps) {
             </div>
             <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 6 }}>No MCP instances</div>
             <div style={{ fontSize: 12, color: '#525252' }}>
-              Create one from a project's Tools panel
+              Create one from a context's Tools panel
             </div>
           </div>
         ) : (
