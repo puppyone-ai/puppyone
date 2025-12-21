@@ -192,8 +192,8 @@ export function RightAccessControl({
         style={{
           marginLeft: 8,
           marginRight: 0,
-          width: 28,
-          height: 28,
+          width: 26,
+          height: 26,
           flexShrink: 0,
           display: 'flex',
           alignItems: 'center',
@@ -209,11 +209,11 @@ export function RightAccessControl({
             : 'rgba(255, 255, 255, 0.1)',
         }}
         onMouseEnter={(e) => {
-          e.stopPropagation() // 防止触发父行的 hover 逻辑
+          // e.stopPropagation() // 移除此行，允许冒泡以触发 VirtualRow 的 onMouseEnter/Leave
           setGutterHovered(true)
         }}
         onMouseLeave={(e) => {
-          e.stopPropagation()
+          // e.stopPropagation() // 移除此行，确保 VirtualRow 能收到 onMouseLeave 并清除 hovered 状态
           setGutterHovered(false)
         }}
         onClick={(e) => {
@@ -261,8 +261,8 @@ export function RightAccessControl({
           ref={popoverRef}
           style={{
             position: 'fixed',
-            top: popoverPosition.top + 28 + 4, // 按钮高度(28) + 间隙(4) -> 出现在正下方
-            left: popoverPosition.left + 28, // 按钮宽度(28) -> 这是一个基准点
+            top: popoverPosition.top + 26 + 4, // 按钮高度(26) + 间隙(4) -> 出现在正下方
+            left: popoverPosition.left + 26, // 按钮宽度(26) -> 这是一个基准点
             transform: 'translateX(-100%)', // 向左延伸，实现右边缘对齐
             minWidth: 160,
             background: '#1a1a1e',

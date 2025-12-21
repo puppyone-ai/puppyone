@@ -26,6 +26,8 @@ const MENU_WIDTH = 22           // 悬浮菜单按钮宽度
 const MENU_GAP = 4              // 菜单按钮与 Value 的间距
 const LINE_END_GAP = 2          // 水平分支线末端与 Key 的间距
 const LINE_COLOR = '#3a3f47'    // 连接线颜色
+const CORNER_RADIUS = 6         // 圆角半径 (Reddit 风格)
+const CONTAINER_GAP = 4         // 容器边界间距（顶部 & 底部统一）
 
 // 布局基准（从根节点图标推导，保证所有值为正数）
 const BASE_INDENT = ROOT_ICON_WIDTH / 2  // = 9px
@@ -235,6 +237,9 @@ depth=3 节点 "id ─── msg_003" 的完整布局:
 
 以 `history` 数组展开后的第 3 项 (depth=2, 非最后) 为例：
 
+**注意**：现在使用 Reddit 风格的圆角连接线（`CORNER_RADIUS = 6px`），
+分支线的拐角处不再是直角，而是平滑的弧度。
+
 ```
        8        108       208
        │         │         │
@@ -242,18 +247,21 @@ depth=3 节点 "id ─── msg_003" 的完整布局:
        │         │         │
        │         │         │
        │         │         ├────── 3 ────── {6}
+       │         │         │       ↑
+       │         │         │       圆角弧度（二次贝塞尔曲线）
        │         │         │
        │         │         │  ← 这条竖线会继续向下延伸
        │         │         │    因为 3 不是 history 的最后一个元素
        │         │         │
-       │         │         ├────── 4 ────── {6}  ← 最后一个，用 └
-       │         │         │
+       │         │         ╰────── 4 ────── {6}  ← 最后一个，用圆角 ╰
+       │         │         
+       │         │               ↑ 最后一个子元素增加底部间距 (10px)
        │         │
        │         │  ← d=1 的竖线继续向下，因为 last_used 还在后面
        │         │
-       │         └──────── last_used ────── "Dec.12.2025"
+       │         ╰──────── last_used ────── "Dec.12.2025"
        │
-       └  ← d=0 的竖线到这里结束，因为 mails 是根下唯一的子节点
+       ╰  ← d=0 的竖线到这里结束，因为 mails 是根下唯一的子节点
 ```
 
 **连接线渲染规则**：
@@ -461,16 +469,29 @@ const hh = ROW_HEIGHT / 2  // = 14px
       x2={branchX + BRANCH_WIDTH - 2} y2={hh} />
 ```
 
-**两种形态**：
+**两种形态**（使用 Reddit 风格圆角）：
 
 ```
-isLast = false (├─)          isLast = true (└─)
+isLast = false (├─)          isLast = true (╰─)
                               
      │                             │
      │                             │
-     ├───────                      └───────
-     │                             
-     │ ← 继续向下                    ← 结束
+     ├───────                      ╰───────
+     │    ↑                              ↑
+     │  圆角弧度                       圆角弧度
+     │ ← 继续向下                    ← 结束 + 底部间距
+```
+
+**圆角实现**：使用 SVG 二次贝塞尔曲线 (Quadratic Bezier)：
+
+```typescript
+// 圆角 + 水平线路径
+const cornerPath = `
+  M ${branchX} ${halfHeight - CORNER_RADIUS}       // 起点：竖线底部
+  Q ${branchX} ${halfHeight}                        // 控制点：原始拐角位置
+    ${branchX + CORNER_RADIUS} ${halfHeight}        // 终点：水平线起点
+  L ${branchX + BRANCH_WIDTH - LINE_END_GAP} ${halfHeight}  // 水平线
+`
 ```
 
 ---
@@ -586,6 +607,8 @@ depth=3  │  │  │  id ──────────── "msg_001"
 | `-1` | 根节点 contentLeft | 让图标中心对齐到 x=8 |
 | `-2` | 水平分支线末端 | 与 Key 区域的间距 |
 | `4` | 菜单按钮定位 | 按钮与 Value 的间距 |
+| `6` | CORNER_RADIUS | Reddit 风格圆角半径 |
+| `4` | CONTAINER_GAP | 容器边界间距（顶部 & 底部） |
 
 ### 可选的改进方案
 
@@ -596,6 +619,8 @@ const VALUE_GAP = 12            // Value 到下一层的间距
 const ROOT_OFFSET = -1          // 根节点图标对齐偏移
 const LINE_END_GAP = 2          // 水平线末端间距
 const MENU_GAP = 4              // 菜单按钮间距
+const CORNER_RADIUS = 6         // Reddit 风格圆角半径
+const CONTAINER_GAP = 8         // 容器边界间距（顶部 & 底部）
 
 // 辅助函数
 const getVerticalLineX = (depth: number) => BASE_INDENT + depth * LEVEL_WIDTH
@@ -622,6 +647,95 @@ const getValueStart = (depth: number) => getContentLeft(depth) + KEY_WIDTH + SEP
 | 支持多行内容 | SVG height: 100%，行 minHeight 而非固定高度 |
 | 虚拟滚动兼容 | 每行独立计算，不依赖 DOM 结构 |
 | 根节点对齐 | contentLeft = -1 让图标中心对齐 |
+| Reddit 风格圆角 | 二次贝塞尔曲线 (Q命令)，半径 6px |
+| 容器边界间距 | 容器节点顶部 8px + 最后子节点底部 8px |
+
+---
+
+## 视觉优化：Reddit 风格连接线
+
+### 圆角连接线
+
+传统的树形图使用直角连接线（├─ 和 └─），但这看起来比较生硬。
+我们采用 Reddit 评论区的设计风格，使用圆角连接线让界面更有人情味。
+
+**对比效果**：
+
+```
+传统直角                Reddit 风格圆角
+                        
+   │                       │
+   │                       │
+   ├── item1               ├── item1
+   │                       │
+   └── item2               ╰── item2
+   ↑                       ↑
+ 生硬                    柔和
+```
+
+### 容器边界间距
+
+为了帮助用户区分不同容器（Object/Array）的层级边界，
+我们采用**双向间距**策略：
+
+**核心规则**：
+
+```typescript
+// 1. 顶部间距：容器节点始终有
+const extraTopPadding = node.isExpandable ? CONTAINER_GAP : 0
+
+// 2. 底部间距：容器节点始终有，OR 最后一个子节点
+const shouldAddBottomGap = node.isExpandable || node.isLast
+```
+
+**设计原理**：
+- **容器节点**：始终有上下 4px 间距，不论展开/收起状态
+- **非容器的最后一个子节点**：有底部 4px，标记父容器结束
+- 逻辑简洁统一，视觉节奏和谐
+
+**对齐机制**：
+
+当容器有 `paddingTop` 时，分支线和 Handle 都要跟着偏移：
+
+```typescript
+// 分支线的 Y 位置 = paddingTop + 内容区中心
+const branchY = topOffset + ROW_HEIGHT / 2
+
+// Handle 也要下移
+styles.menuHandle = { top: topOffset, ... }
+```
+
+**效果示例**：
+
+```
+mails ────────────────── {3}        ← 容器：+4px 顶部 & 底部 ✓
+  │
+  ├── account ─────── "user@example.com"
+  │
+  │   ↑ 4px 顶部
+  ├── history ─────── [3]           ← 容器：+4px 顶部 & 底部 ✓
+  │     │             ↓ 4px 底部
+  │     │   ↑ 4px 顶部
+  │     ├── 0 ─────── {6}           ← 容器：+4px 顶部 & 底部 ✓
+  │     │     │       ↓ 4px 底部
+  │     │     ├── id ─── "msg_001"
+  │     │     │
+  │     │     ╰── from ─── "..."    ← isLast：+4px 底部 ✓
+  │     │
+  │     │   ↑ 4px 顶部
+  │     ╰── 2 ─────── {6}           ← 容器 + isLast：+4px 顶部 & 底部 ✓
+  │           │       ↓ 4px 底部
+  │           ├── id ─── "msg_003"
+  │           │
+  │           ╰── from ─── "..."    ← isLast：+4px 底部 ✓
+  │
+  ╰── last_used ───── "Dec.12.2025" ← isLast：+4px 底部 ✓
+```
+
+这种设计的优点：
+1. **简洁**：规则只有两条，容易理解
+2. **统一**：容器节点始终有固定的视觉边界
+3. **和谐**：不论展开/收起，间距保持一致
 
 ### 扩展性
 

@@ -280,25 +280,26 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
     const totalFiles = fileArray.length
     let processedFiles = 0
 
-    let rootFolderName = 'root'
-    if (fileArray.length > 0 && fileArray[0].webkitRelativePath) {
-      const firstPathParts = fileArray[0].webkitRelativePath.split('/').filter(Boolean)
-      if (firstPathParts.length > 0) {
-        rootFolderName = firstPathParts[0]
-      }
-    }
-
-    structure[rootFolderName] = { type: 'folder', children: {} }
-
     for (const file of fileArray) {
-      const pathParts = file.webkitRelativePath.split('/').filter(Boolean)
-      let current = structure[rootFolderName].children
+      // 获取路径部分，跳过根文件夹名
+      const pathParts = file.webkitRelativePath 
+        ? file.webkitRelativePath.split('/').filter(Boolean).slice(1) // 跳过根文件夹
+        : [file.name] // 单文件直接用文件名
+      
+      if (pathParts.length === 0) {
+        processedFiles++
+        onProgress?.(processedFiles, totalFiles)
+        continue
+      }
 
-      for (let i = 1; i < pathParts.length - 1; i++) {
-        if (!current[pathParts[i]]) {
-          current[pathParts[i]] = { type: 'folder', children: {} }
+      // 导航到正确的嵌套位置
+      let current = structure
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const folderName = pathParts[i]
+        if (!current[folderName] || typeof current[folderName] !== 'object') {
+          current[folderName] = {}
         }
-        current = current[pathParts[i]].children
+        current = current[folderName]
       }
 
       const fileName = pathParts[pathParts.length - 1]
@@ -331,7 +332,6 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
           }
 
           const uploadData = await uploadResponse.json()
-          // Backend returns { key, bucket, size, etag, content_type }
           const s3Key = uploadData.key
 
           if (!s3Key) {
@@ -349,46 +349,24 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
             file_type: getFileType(file)
           })
 
-          // 在结构中标记为 pending
-          current[fileName] = {
-            type: 'file',
-            content: {
-              status: 'pending',
-              message: 'Parsing in background...'
-            },
-            size: file.size,
-            lastModified: file.lastModified,
-            needs_etl: true
-          }
+          // ETL 文件用对象表示 pending 状态
+          current[fileName] = { status: 'pending', message: 'Processing...' }
 
           onLog?.('success', `Uploaded ${fileName}`)
         } else {
-          // 检查是否为文本文件
+          // 文本文件直接存内容
           const isTextFile = await isTextFileType(file)
-          let content = null
-
           if (isTextFile) {
-            content = await file.text()
-            // 清理无效的Unicode字符
-            content = sanitizeUnicodeContent(content)
-          }
-
-          current[fileName] = {
-            type: 'file',
-            content,
-            size: file.size,
-            lastModified: file.lastModified
+            let content = await file.text()
+            current[fileName] = sanitizeUnicodeContent(content)
+          } else {
+            // 无法读取的二进制文件存 null
+            current[fileName] = null
           }
         }
       } catch (error) {
         console.error(`Failed to process file ${fileName}:`, error)
-        current[fileName] = {
-          type: 'file',
-          content: null,
-          size: file.size,
-          lastModified: file.lastModified,
-          error: 'Failed to process file'
-        }
+        current[fileName] = null
       }
 
       processedFiles++

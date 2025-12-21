@@ -184,33 +184,26 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
     const totalFiles = fileArray.length
     let processedFiles = 0
 
-    // Get root folder name (extracted from first file's path)
-    let rootFolderName = 'root'
-    if (fileArray.length > 0 && fileArray[0].webkitRelativePath) {
-      const firstPathParts = fileArray[0].webkitRelativePath.split('/').filter(Boolean)
-      if (firstPathParts.length > 0) {
-        rootFolderName = firstPathParts[0]
-      }
-    }
-
-    structure[rootFolderName] = {
-      type: 'folder',
-      children: {}
-    }
-
     for (const file of fileArray) {
-      const pathParts = file.webkitRelativePath.split('/').filter(Boolean)
-      let current = structure[rootFolderName].children
+      // 获取路径部分，跳过根文件夹名
+      const pathParts = file.webkitRelativePath 
+        ? file.webkitRelativePath.split('/').filter(Boolean).slice(1) // 跳过根文件夹
+        : [file.name] // 单文件直接用文件名
+      
+      if (pathParts.length === 0) {
+        processedFiles++
+        onProgress?.(processedFiles, totalFiles)
+        continue
+      }
 
-      // Build nested structure
-      for (let i = 1; i < pathParts.length - 1; i++) {
-        if (!current[pathParts[i]]) {
-          current[pathParts[i]] = {
-            type: 'folder',
-            children: {}
-          }
+      // 导航到正确的嵌套位置
+      let current = structure
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const folderName = pathParts[i]
+        if (!current[folderName] || typeof current[folderName] !== 'object') {
+          current[folderName] = {}
         }
-        current = current[pathParts[i]].children
+        current = current[folderName]
       }
 
       // Add file
@@ -218,29 +211,15 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
       try {
         // 检查是否为文本文件
         const isTextFile = await isTextFileType(file)
-        let content = null
-
         if (isTextFile) {
-          content = await file.text()
-          // 清理无效的Unicode字符
-          content = sanitizeUnicodeContent(content)
-        }
-
-        current[fileName] = {
-          type: 'file',
-          content,
-          size: file.size,
-          lastModified: file.lastModified
+          let content = await file.text()
+          current[fileName] = sanitizeUnicodeContent(content)
+        } else {
+          current[fileName] = null
         }
       } catch (error) {
         console.error(`Failed to read file ${fileName}:`, error)
-        current[fileName] = {
-          type: 'file',
-          content: null,
-          size: file.size,
-          lastModified: file.lastModified,
-          error: 'Failed to read file content'
-        }
+        current[fileName] = null
       }
 
       processedFiles++

@@ -184,11 +184,38 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
     }
   }, [])
 
+  const [showImportSubmenu, setShowImportSubmenu] = useState(false)
+  const showImportTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const hideImportTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // 延迟显示/隐藏 Import 子菜单
+  const handleImportHover = useCallback((show: boolean) => {
+    if (show) {
+      if (hideImportTimerRef.current) {
+        clearTimeout(hideImportTimerRef.current)
+        hideImportTimerRef.current = null
+      }
+      showImportTimerRef.current = setTimeout(() => {
+        setShowImportSubmenu(true)
+      }, 150)
+    } else {
+      if (showImportTimerRef.current) {
+        clearTimeout(showImportTimerRef.current)
+        showImportTimerRef.current = null
+      }
+      hideImportTimerRef.current = setTimeout(() => {
+        setShowImportSubmenu(false)
+      }, 100)
+    }
+  }, [])
+
   // 清理定时器
   useEffect(() => {
     return () => {
       if (showTimerRef.current) clearTimeout(showTimerRef.current)
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+      if (showImportTimerRef.current) clearTimeout(showImportTimerRef.current)
+      if (hideImportTimerRef.current) clearTimeout(hideImportTimerRef.current)
     }
   }, [])
 
@@ -211,7 +238,47 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
 
   if (!state.visible) return null
 
-  // Turn into 子菜单
+  // Import 子菜单
+  const ImportSubmenu = () => (
+    <div 
+      style={{
+        position: 'absolute',
+        left: '100%',
+        top: 0,
+        marginLeft: 4,
+        background: '#1a1a1e',
+        border: '1px solid #333',
+        borderRadius: 8,
+        padding: 4,
+        minWidth: 140,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+      }}
+      onMouseEnter={() => handleImportHover(true)}
+      onMouseLeave={() => handleImportHover(false)}
+    >
+      <MenuItem 
+        onClick={() => onAction('import-url')} 
+        icon={
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 2v8M11 6L7 2 3 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 12h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+        } 
+        label="From URL..." 
+      />
+      <MenuItem 
+        onClick={() => onAction('import-file')} 
+        icon={
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 1H3a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5L9 1z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M9 1v4h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        } 
+        label="From File..." 
+      />
+    </div>
+  )
+
   const TurnIntoSubmenu = () => (
     <div 
       style={{
@@ -276,37 +343,48 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
         </>
       )}
 
-      {/* 数据操作 */}
+      {/* Copy 操作 */}
       <MenuItem 
-        onClick={() => onAction('import-from-url')} 
-        icon={
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M7 2v8M11 6L7 2 3 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 12h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          </svg>
-        } 
-        label="Import from URL" 
-      />
-      <MenuItem 
-        onClick={() => onAction('upload')} 
-        icon={
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M7 10V3M7 3L4 6M7 3l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 10v1.5A1.5 1.5 0 003.5 13h7a1.5 1.5 0 001.5-1.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          </svg>
-        } 
-        label="Upload" 
-      />
-      <MenuItem 
-        onClick={() => onAction('copy-path')} 
+        onClick={() => onAction('copy-value')} 
         icon={
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M4 4H2.5A1.5 1.5 0 001 5.5v6A1.5 1.5 0 002.5 13h6a1.5 1.5 0 001.5-1.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
             <rect x="5" y="1" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
           </svg>
         } 
+        label="Copy value" 
+      />
+
+      <MenuItem 
+        onClick={() => onAction('copy-path')} 
+        icon={
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1v12M1 4l6-3M1 4l6 3M13 4l-6-3M13 4l-6 3M1 10l6-3M1 10l6 3M13 10l-6-3M13 10l-6 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        } 
         label="Copy path" 
       />
+
+      <div style={styles.menuDivider} />
+
+      {/* 数据操作 - Import Submenu */}
+      <div 
+        style={{ position: 'relative' }}
+        onMouseEnter={() => handleImportHover(true)}
+        onMouseLeave={() => handleImportHover(false)}
+      >
+        <MenuItem 
+          icon={
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 10V3M7 3L4 6M7 3l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M2 10v1.5A1.5 1.5 0 003.5 13h7a1.5 1.5 0 001.5-1.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+          } 
+          label="Import Data" 
+          hasSubmenu 
+        />
+        {showImportSubmenu && <ImportSubmenu />}
+      </div>
 
       <div style={styles.menuDivider} />
 
@@ -348,6 +426,20 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
       <div style={styles.menuDivider} />
 
       <MenuItem 
+        onClick={() => onAction('clear-value')} 
+        icon={
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 7m-5 0a5 5 0 1 0 10 0a5 5 0 1 0 -10 0" stroke="currentColor" strokeWidth="1.2"/>
+            <path d="M4 7l6 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+        } 
+        label="Clear Value" 
+        destructive 
+      />
+
+      <div style={styles.menuDivider} />
+
+      <MenuItem 
         onClick={() => onAction('delete')} 
         icon={
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -355,7 +447,7 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
             <path d="M5.5 7v4M8.5 7v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
           </svg>
         } 
-        label="Delete" 
+        label="Delete Node" 
         destructive 
       />
     </div>

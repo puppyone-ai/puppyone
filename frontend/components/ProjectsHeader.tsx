@@ -2,7 +2,6 @@
 
 import type { CSSProperties } from 'react'
 import { useState, useEffect, useRef } from 'react'
-import { ImportMenu } from './ImportMenu'
 
 export type EditorType = 'treeline-virtual' | 'monaco'
 
@@ -123,14 +122,6 @@ export function ProjectsHeader({
         gap: 8,
         marginLeft: 'auto',
       }}>
-        {/* Sync Button */}
-        {projectId && (
-          <ImportMenu
-            projectId={projectId}
-            onProjectsRefresh={onProjectsRefresh}
-          />
-        )}
-        
         {/* Agent Dashboard Button + Dropdown */}
         <div ref={agentPanelRef} style={{ position: 'relative' }}>
           <button
@@ -176,6 +167,8 @@ export function ProjectsHeader({
             }} />
             
             {/* Chat Toggle Block - 28x28 to match left sidebar toggle */}
+            {/* TODO: Re-enable when chat feature is ready */}
+            {false && (
             <div
               onClick={() => onChatOpenChange?.(true)}
               style={{
@@ -213,6 +206,7 @@ export function ProjectsHeader({
                 <line x1="15" y1="3" x2="15" y2="21"/>
               </svg>
             </div>
+            )}
           </>
         ) : (
           /* Right padding when chat is open */

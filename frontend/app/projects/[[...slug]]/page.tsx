@@ -9,9 +9,7 @@ import { ProjectWorkspaceView } from '../../../components/ProjectWorkspaceView'
 import { ProjectsSidebar } from '../../../components/ProjectsSidebar'
 import { ProjectsHeader, type EditorType } from '../../../components/ProjectsHeader'
 import { McpContentView } from '../../../components/McpContentView'
-import { EtlContentView } from '../../../components/EtlContentView'
 import { ConnectContentView } from '../../../components/ConnectContentView'
-import { ParsingContentView } from '../../../components/ParsingContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
 import { AuthGuard } from '../../../components/AuthGuard'
 import { 
@@ -22,11 +20,10 @@ import {
   permissionsToRegisterTools,
 } from '../../../lib/mcpApi'
 
-type ActiveView = 'projects' | 'mcp' | 'etl' | 'connect' | 'parsing' | 'test' | 'logs' | 'settings'
+type ActiveView = 'projects' | 'mcp' | 'connect' | 'test' | 'logs' | 'settings'
 
 const utilityNav = [
   { id: 'mcp', label: 'MCP', path: 'mcp', isAvailable: true },
-  { id: 'etl', label: 'ETL Strategies', path: 'etl', isAvailable: true },
   { id: 'test', label: 'Test', path: 'test', isAvailable: false },
   { id: 'logs', label: 'Logs', path: 'logs', isAvailable: false },
   { id: 'settings', label: 'Settings', path: 'settings', isAvailable: false },
@@ -208,15 +205,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   }
 
   const handleUtilityNavClick = (viewId: string) => {
-    if (viewId === 'parsing') {
-      setActiveView('parsing')
-      window.history.pushState({}, '', '/parsing')
-    } else if (viewId === 'mcp') {
+    if (viewId === 'mcp') {
       setActiveView('mcp')
       window.history.pushState({}, '', '/mcp')
-    } else if (viewId === 'etl') {
-      setActiveView('etl')
-      window.history.pushState({}, '', '/etl')
     } else if (viewId === 'connect') {
       setActiveView('connect')
       window.history.pushState({}, '', '/connect')
@@ -1128,12 +1119,8 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
           </>
         ) : activeView === 'mcp' ? (
           <McpContentView onBack={handleBackToProjects} />
-        ) : activeView === 'etl' ? (
-          <EtlContentView onBack={handleBackToProjects} />
         ) : activeView === 'connect' ? (
           <ConnectContentView onBack={handleBackToProjects} />
-        ) : activeView === 'parsing' ? (
-          <ParsingContentView onBack={handleBackToProjects} />
         ) : null}
       </section>
 
