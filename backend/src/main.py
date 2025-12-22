@@ -20,6 +20,10 @@ dotenv_start = time.time()
 load_dotenv()
 dotenv_duration = time.time() - dotenv_start
 
+# 初始化 Loguru + 拦截标准 logging（含 uvicorn.*）
+from src.utils.logging_setup import setup_logging
+setup_logging()
+
 # 记录各模块导入时间
 config_start = time.time()
 from src.config import settings
@@ -207,6 +211,10 @@ def create_app() -> FastAPI:
     )
     cors_duration = time.time() - cors_start
 
+    # Request context + access log（X-Request-Id / latency / status_code）
+    from src.utils.middleware import RequestContextMiddleware
+    app.add_middleware(RequestContextMiddleware)
+
     # 注册路由
     router_register_start = time.time()
     app.include_router(table_router, prefix="/api/v1", tags=["tables"])
@@ -230,14 +238,14 @@ def create_app() -> FastAPI:
 
     app_create_duration = time.time() - app_create_start
     
-    # 使用 print 输出，因为此时 logger 可能还未完全初始化
-    print(f"⚙️  FastAPI 应用创建耗时统计:")
-    print(f"  ├─ FastAPI 实例化: {fastapi_duration*1000:.2f}ms")
-    print(f"  ├─ CORS 中间件配置: {cors_duration*1000:.2f}ms")
-    print(f"  ├─ 路由注册: {router_register_duration*1000:.2f}ms")
-    print(f"  └─ 异常处理器注册: {exception_handler_duration*1000:.2f}ms")
-    print(f"📦 应用创建总耗时: {app_create_duration*1000:.2f}ms")
-    print("")
+    # 统一用日志输出（已在文件顶部 setup_logging）
+    log_info("⚙️  FastAPI 应用创建耗时统计:")
+    log_info(f"  ├─ FastAPI 实例化: {fastapi_duration*1000:.2f}ms")
+    log_info(f"  ├─ CORS 中间件配置: {cors_duration*1000:.2f}ms")
+    log_info(f"  ├─ 路由注册: {router_register_duration*1000:.2f}ms")
+    log_info(f"  └─ 异常处理器注册: {exception_handler_duration*1000:.2f}ms")
+    log_info(f"📦 应用创建总耗时: {app_create_duration*1000:.2f}ms")
+    log_info("")
 
     return app
 
@@ -271,4 +279,5 @@ async def health_check(
     }
 
 
-# 启动命令: uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info
+# 启动命令示例:
+# uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info --no-access-log

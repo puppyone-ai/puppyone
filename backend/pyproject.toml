@@ -25,6 +25,7 @@ dependencies = [
     "pytest-asyncio>=1.3.0",
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.20",
+    "loguru>=0.7.2",
     "supabase>=2.25.0",
     "uvicorn>=0.38.0",
 ]

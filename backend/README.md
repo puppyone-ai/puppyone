@@ -425,6 +425,28 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log_level info
 
 ```
 
+### Logging（Loguru + JSON）
+
+后端已将标准库 `logging`（包括 `uvicorn.*`）统一转发到 **Loguru**，并默认输出：
+- 控制台（JSON）
+- 文件（JSON，滚动与保留）
+
+推荐启动时关闭 uvicorn 自带 access log（我们已在中间件里输出统一的 access 日志）：
+
+```bash
+uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info --no-access-log
+```
+
+可配置环境变量：
+- `LOG_LEVEL`: 默认 `INFO`
+- `LOG_DIR`: 默认 `./logs`
+- `LOG_FILE_NAME`: 默认 `app.log`
+- `LOG_ROTATION`: 默认 `100 MB`
+- `LOG_RETENTION`: 默认 `14 days`
+- `LOG_JSON_CONSOLE`: 默认“本地终端为 `0`（彩色文本），非终端为 `1`（JSON）”，可手动强制
+- `LOG_JSON_FILE`: 默认 `1`
+- `DISABLE_UVICORN_ACCESS_LOG`: 默认 `1`
+
 ### MCP Config Example
 
 Here is a example of the MCP config, you can use it in Cursor or other MCP clients.
