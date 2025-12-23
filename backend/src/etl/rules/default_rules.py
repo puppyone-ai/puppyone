@@ -12,49 +12,14 @@ from src.etl.rules.repository_supabase import RuleRepositorySupabase
 logger = logging.getLogger(__name__)
 
 
-# 默认文档解析规则的配置
-DEFAULT_DOCUMENT_PARSER_NAME = "default_document_parser"
-DEFAULT_DOCUMENT_PARSER_DESCRIPTION = (
-    "通用文档解析规则，适用于 PDF、DOC、DOCX、PPT、PPTX 以及图片等二进制文件。"
-    "提取文档的标题、内容和元数据。"
+# 全局默认规则：默认跳过 LLM，仅产出 markdown 指针 + 必要元信息
+GLOBAL_DEFAULT_RULE_NAME = "global_default_etl_rule"
+GLOBAL_DEFAULT_RULE_DESCRIPTION = (
+    "系统内置的全局默认 ETL 规则（默认跳过 LLM），用于返回 OCR markdown 指针与元信息的稳定 JSON 包装。"
 )
 
-DEFAULT_DOCUMENT_PARSER_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "title": {
-            "type": "string",
-            "description": "文档的标题或主题"
-        },
-        "content": {
-            "type": "string",
-            "description": "文档的主要文本内容，保持原始结构和格式"
-        },
-        "metadata": {
-            "type": "object",
-            "description": "文档的元数据信息",
-            "properties": {
-                "page_count": {"type": "integer", "description": "页数（如果适用）"},
-                "author": {"type": "string", "description": "作者（如果可获取）"},
-                "created_date": {"type": "string", "description": "创建日期（如果可获取）"},
-                "file_type": {"type": "string", "description": "文件类型"}
-            }
-        }
-    },
-    "required": ["content"]
-}
-
-DEFAULT_DOCUMENT_PARSER_SYSTEM_PROMPT = """你是一个专业的文档解析助手。请从提供的 Markdown 格式文档中提取结构化信息。
-
-要求：
-1. 提取文档的标题（通常是第一个标题或文档开头的主要标题）
-2. 提取文档的完整文本内容，保持原有的结构和格式
-3. 如果文档中包含元数据信息（如作者、日期、页数等），请提取到 metadata 字段中
-4. 保持内容的完整性，不要遗漏重要信息
-5. 如果文档是图片扫描件，请尽可能识别其中的文字内容
-
-输出格式必须严格遵循提供的 JSON Schema。
-"""
+# 在 skip 模式下 json_schema 会被忽略；为了兼容存储与校验，这里给一个最小 schema
+GLOBAL_DEFAULT_RULE_SCHEMA = {"type": "object"}
 
 
 def get_or_create_default_rule(
@@ -75,18 +40,20 @@ def get_or_create_default_rule(
     existing_rules = rule_repository.list_rules(limit=100)
     
     for rule in existing_rules:
-        if rule.name == DEFAULT_DOCUMENT_PARSER_NAME:
-            logger.info(f"Found existing default rule: {rule.rule_id}")
+        if rule.name == GLOBAL_DEFAULT_RULE_NAME:
+            logger.info(f"Found existing global default rule: {rule.rule_id}")
             return rule
     
     # 如果不存在，创建新规则
-    logger.info("Creating default document parser rule...")
+    logger.info("Creating global default ETL rule (skip-llm)...")
     
     rule_request = RuleCreateRequest(
-        name=DEFAULT_DOCUMENT_PARSER_NAME,
-        description=DEFAULT_DOCUMENT_PARSER_DESCRIPTION,
-        json_schema=DEFAULT_DOCUMENT_PARSER_SCHEMA,
-        system_prompt=DEFAULT_DOCUMENT_PARSER_SYSTEM_PROMPT,
+        name=GLOBAL_DEFAULT_RULE_NAME,
+        description=GLOBAL_DEFAULT_RULE_DESCRIPTION,
+        json_schema=GLOBAL_DEFAULT_RULE_SCHEMA,
+        system_prompt=None,
+        postprocess_mode="skip",
+        postprocess_strategy=None,
     )
     
     rule = rule_repository.create_rule(rule_request)

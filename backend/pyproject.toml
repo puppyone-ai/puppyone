@@ -28,6 +28,7 @@ dependencies = [
     "loguru>=0.7.2",
     "supabase>=2.25.0",
     "uvicorn>=0.38.0",
+    "arq>=0.26.3",
 ]
 
 [tool.pytest.ini_options]

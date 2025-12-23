@@ -9,6 +9,7 @@ import logging
 from typing import Annotated, Optional
 
 import asyncio
+import base64
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from src.etl.config import etl_config
@@ -32,6 +33,9 @@ from src.etl.schemas import (
     ETLRuleResponse,
     ETLSubmitRequest,
     ETLSubmitResponse,
+    ETLCancelResponse,
+    ETLRetryRequest,
+    ETLRetryResponse,
     ETLTaskListResponse,
     ETLTaskResponse,
 )
@@ -52,6 +56,7 @@ async def submit_etl_task(
     request: ETLSubmitRequest,
     etl_service: Annotated[ETLService, Depends(get_etl_service)],
     current_user: CurrentUser = Depends(get_current_user),
+    s3_service: Annotated[S3Service, Depends(get_s3_service)] = None,
 ):
     """
     Submit an ETL task for processing.
@@ -68,11 +73,98 @@ async def submit_etl_task(
         HTTPException: If rule not found or submission fails
     """
     try:
+        project_id = request.project_id
+        filename = request.filename
+
+        # If s3_key is provided, treat it as the first priority input and
+        # try to infer missing fields from S3 object metadata written by /etl/upload.
+        if request.s3_key:
+            # Basic access check: only allow submitting tasks for user's own raw uploads
+            expected_prefix = f"users/{current_user.user_id}/raw/"
+            if not request.s3_key.startswith(expected_prefix):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Invalid s3_key: not under current user's raw prefix",
+                )
+
+            try:
+                s3_meta = await s3_service.get_file_metadata(request.s3_key)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to fetch S3 metadata for submit: {request.s3_key}: {e}",
+                    exc_info=True,
+                )
+                s3_meta = None
+
+            derived_project_id: Optional[int] = None
+            derived_filename: Optional[str] = None
+
+            if s3_meta and s3_meta.metadata:
+                meta = s3_meta.metadata
+                if meta.get("project_id"):
+                    try:
+                        derived_project_id = int(meta["project_id"])
+                    except Exception:
+                        logger.warning(
+                            f"Invalid project_id metadata on {request.s3_key}: {meta.get('project_id')}"
+                        )
+
+                if meta.get("original_filename_b64"):
+                    try:
+                        derived_filename = base64.b64decode(
+                            meta["original_filename_b64"].encode("ascii")
+                        ).decode("utf-8")
+                    except Exception:
+                        logger.warning(
+                            f"Invalid original_filename_b64 metadata on {request.s3_key}",
+                            exc_info=True,
+                        )
+
+            # s3_key is first priority: if metadata exists, it wins.
+            if derived_project_id is not None:
+                if project_id is not None and project_id != derived_project_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="project_id does not match s3_key metadata",
+                    )
+                project_id = derived_project_id
+
+            if derived_filename is not None:
+                if filename is not None and filename != derived_filename:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="filename does not match s3_key metadata",
+                    )
+                filename = derived_filename
+
+            # Fallbacks when metadata is missing
+            if filename is None:
+                filename = request.s3_key.split("/")[-1] or None
+
+        # Backward compatible requirements:
+        # - If no s3_key, project_id and filename must be provided.
+        # - If s3_key, they may be inferred, but must be resolved by here.
+        if project_id is None or filename is None:
+            missing = []
+            if project_id is None:
+                missing.append("project_id")
+            if filename is None:
+                missing.append("filename")
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "ValidationError",
+                    "message": f"Missing required fields: {', '.join(missing)}",
+                    "hint": "Provide project_id/filename, or provide s3_key with corresponding metadata",
+                },
+            )
+
         task = await etl_service.submit_etl_task(
             user_id=current_user.user_id,
-            project_id=request.project_id,
-            filename=request.filename,
+            project_id=project_id,
+            filename=filename,
             rule_id=request.rule_id,
+            s3_key=request.s3_key,
         )
 
         logger.info(f"ETL task submitted: {task.task_id}")
@@ -89,6 +181,63 @@ async def submit_etl_task(
 
     except ETLError as e:
         logger.error(f"ETL error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tasks/{task_id}/cancel", response_model=ETLCancelResponse)
+async def cancel_etl_task(
+    task_id: int,
+    etl_service: Annotated[ETLService, Depends(get_etl_service)],
+    current_user: CurrentUser = Depends(get_current_user),
+    force: bool = Query(
+        False,
+        description="Force cancel even if task is running. Use with caution: it marks task as cancelled but cannot interrupt external providers immediately.",
+    ),
+):
+    """
+    Cancel a queued/pending ETL task. Running tasks cannot be cancelled.
+    """
+    try:
+        task = await etl_service.cancel_task(
+            task_id=task_id, user_id=current_user.user_id, force=force
+        )
+        return ETLCancelResponse(
+            task_id=task.task_id,
+            status=task.status,
+            message="Task cancelled successfully",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        logger.error(f"Cancel task failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tasks/{task_id}/retry", response_model=ETLRetryResponse)
+async def retry_etl_task(
+    task_id: int,
+    request: ETLRetryRequest,
+    etl_service: Annotated[ETLService, Depends(get_etl_service)],
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Retry an ETL task from a given stage: mineru|postprocess.
+    """
+    try:
+        task = await etl_service.retry_task(
+            task_id=task_id,
+            user_id=current_user.user_id,
+            from_stage=request.from_stage,
+        )
+        return ETLRetryResponse(
+            task_id=task.task_id,
+            status=task.status,
+            message="Task retried successfully",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        logger.error(f"Retry task failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -277,6 +426,15 @@ async def list_etl_rules(
     Returns:
         ETLRuleListResponse with rule list
     """
+    # Ensure global default rule is discoverable
+    try:
+        from src.etl.rules.default_rules import get_or_create_default_rule
+
+        get_or_create_default_rule(rule_repository)
+    except Exception as e:
+        # Non-fatal: listing still works even if default rule creation fails
+        logger.warning(f"Failed to ensure global default rule: {e}")
+
     rules = rule_repository.list_rules(limit=limit, offset=offset)
     total = rule_repository.count_rules()
 
@@ -287,6 +445,8 @@ async def list_etl_rules(
             description=rule.description,
             json_schema=rule.json_schema,
             system_prompt=rule.system_prompt,
+            postprocess_mode=getattr(rule, "postprocess_mode", None),
+            postprocess_strategy=getattr(rule, "postprocess_strategy", None),
             created_at=rule.created_at,
             updated_at=rule.updated_at,
         )
@@ -322,6 +482,8 @@ async def create_etl_rule(
             description=request.description,
             json_schema=request.json_schema,
             system_prompt=request.system_prompt,
+            postprocess_mode=request.postprocess_mode or "llm",
+            postprocess_strategy=request.postprocess_strategy,
         )
 
         rule = rule_repository.create_rule(rule_create)
@@ -334,6 +496,8 @@ async def create_etl_rule(
             description=rule.description,
             json_schema=rule.json_schema,
             system_prompt=rule.system_prompt,
+            postprocess_mode=getattr(rule, "postprocess_mode", None),
+            postprocess_strategy=getattr(rule, "postprocess_strategy", None),
             created_at=rule.created_at,
             updated_at=rule.updated_at,
         )
@@ -373,6 +537,8 @@ async def get_etl_rule(
         description=rule.description,
         json_schema=rule.json_schema,
         system_prompt=rule.system_prompt,
+        postprocess_mode=getattr(rule, "postprocess_mode", None),
+        postprocess_strategy=getattr(rule, "postprocess_strategy", None),
         created_at=rule.created_at,
         updated_at=rule.updated_at,
     )

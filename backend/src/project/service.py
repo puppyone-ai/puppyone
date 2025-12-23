@@ -259,6 +259,7 @@ class ProjectService:
                             project_id=int(project_id),
                             filename=filename,
                             rule_id=default_rule_id,
+                            s3_key=s3_key,
                         )
 
                         # Add metadata for callback and S3 access
@@ -266,10 +267,8 @@ class ProjectService:
                         task.metadata["file_path"] = file_path
                         task.metadata["s3_key"] = s3_key  # Store actual S3 key for file access
                         
-                        # Update task in repository
-                        from src.etl.dependencies import get_etl_service
-                        etl_service_instance = get_etl_service()
-                        etl_service_instance.queue.task_repository.update_task(task)
+                        # Persist metadata updates to repository
+                        etl_service.task_repository.update_task(task)
 
                         etl_task_ids.append(task.task_id)
                         logger.info(

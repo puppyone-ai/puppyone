@@ -18,6 +18,7 @@ class ETLTaskStatus(str, Enum):
     LLM_PROCESSING = "llm_processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class ETLTaskResult(BaseModel):
@@ -57,6 +58,13 @@ class ETLTask(BaseModel):
         self.status = ETLTaskStatus.FAILED
         self.error = error
         self.progress = 0
+        self.updated_at = datetime.utcnow()
+
+    def mark_cancelled(self, reason: str | None = None):
+        """Mark task as cancelled."""
+        self.status = ETLTaskStatus.CANCELLED
+        if reason:
+            self.error = reason
         self.updated_at = datetime.utcnow()
 
     def mark_completed(self, result: ETLTaskResult):

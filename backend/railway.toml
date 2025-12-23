@@ -2,7 +2,10 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "sh -c 'uvicorn ${APP_MODULE:-src.main}:app --host 0.0.0.0 --port ${PORT} --no-access-log'"
+# One repo, multiple Railway services:
+# - API service: SERVICE_ROLE=api (default), optionally set APP_MODULE=src.main or mcp_service.server
+# - ETL worker service: SERVICE_ROLE=worker
+startCommand = "sh -c 'if [ \"${SERVICE_ROLE:-api}\" = \"worker\" ]; then arq src.etl.jobs.worker.WorkerSettings; else uvicorn ${APP_MODULE:-src.main}:app --host 0.0.0.0 --port ${PORT} --no-access-log; fi'"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 

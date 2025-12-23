@@ -1,0 +1,379 @@
+"""
+ETL ARQ Jobs
+
+OCR job enqueues postprocess job on success.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+import time
+from datetime import datetime, UTC
+from pathlib import Path
+
+from src.etl.config import etl_config
+from src.etl.exceptions import ETLTransformationError
+from src.etl.mineru.schemas import MineRUModelVersion
+from src.etl.rules.engine import RuleEngine
+from src.etl.rules.repository_supabase import RuleRepositorySupabase
+from src.etl.state.models import ETLPhase, ETLRuntimeState
+from src.etl.state.repository import ETLStateRepositoryRedis
+from src.etl.tasks.models import ETLTaskResult, ETLTaskStatus
+from src.supabase.dependencies import get_supabase_client
+
+logger = logging.getLogger(__name__)
+
+
+def _artifact_markdown_key(task_id: int, user_id: str, project_id: int) -> str:
+    # Avoid using filename here (can have special chars). Use deterministic keys.
+    return f"users/{user_id}/etl_artifacts/{project_id}/{task_id}/mineru.md"
+
+
+def _output_json_key(task_id: int, user_id: str, project_id: int) -> str:
+    return f"users/{user_id}/processed/{project_id}/{task_id}.json"
+
+
+def _chunk_text(text: str, chunk_size: int, max_chunks: int) -> list[str]:
+    if chunk_size <= 0:
+        return [text]
+    chunks: list[str] = []
+    for i in range(0, len(text), chunk_size):
+        if len(chunks) >= max_chunks:
+            break
+        chunks.append(text[i : i + chunk_size])
+    return chunks
+
+
+async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
+    """
+    OCR stage: MineRU parse -> upload markdown artifact -> enqueue postprocess job.
+    """
+    repo = ctx["task_repository"]
+    s3 = ctx["s3_service"]
+    mineru = ctx["mineru_client"]
+    state_repo: ETLStateRepositoryRedis = ctx["state_repo"]
+    queue_name: str = ctx["arq_queue_name"]
+
+    task = repo.get_task(task_id)
+    if not task:
+        logger.warning(f"etl_ocr_job: task not found: {task_id}")
+        return {"ok": False, "error": "task_not_found"}
+
+    # Respect DB-level cancellation as a safety net (e.g. Redis state expired)
+    if task.status == ETLTaskStatus.CANCELLED:
+        logger.info(f"etl_ocr_job: task cancelled in DB, skip: {task_id}")
+        return {"ok": True, "skipped": "cancelled"}
+
+    # Runtime state init or load
+    state = await state_repo.get(task_id)
+    if state is None:
+        state = ETLRuntimeState(
+            task_id=task_id,
+            user_id=task.user_id,
+            project_id=task.project_id,
+            filename=task.filename,
+            rule_id=task.rule_id,
+        )
+
+    if state.status == ETLTaskStatus.CANCELLED:
+        logger.info(f"etl_ocr_job: task cancelled, skip: {task_id}")
+        return {"ok": True, "skipped": "cancelled"}
+
+    state.phase = ETLPhase.OCR
+    state.status = ETLTaskStatus.MINERU_PARSING
+    state.progress = max(state.progress, 10)
+    state.attempt_ocr += 1
+    state.touch()
+    await state_repo.set(state)
+
+    started_at = time.time()
+    try:
+        # Resolve source S3 key
+        if "s3_key" in task.metadata:
+            source_key = task.metadata["s3_key"]
+        else:
+            source_key = f"users/{task.user_id}/raw/{task.project_id}/{task.filename}"
+
+        presigned_url = await s3.generate_presigned_download_url(source_key, expires_in=3600)
+
+        parsed = await mineru.parse_document(
+            file_url=presigned_url,
+            model_version=MineRUModelVersion.VLM,
+            data_id=str(task_id),
+        )
+
+        # If user cancelled while we were waiting on provider, honor cancellation and avoid overwriting terminal state.
+        latest = await state_repo.get(task_id)
+        if (latest and latest.status == ETLTaskStatus.CANCELLED) or task.status == ETLTaskStatus.CANCELLED:
+            logger.info(f"etl_ocr_job: cancelled during provider wait, skip: {task_id}")
+            return {"ok": True, "skipped": "cancelled"}
+
+        state.provider_task_id = parsed.task_id
+        state.progress = max(state.progress, 40)
+        await state_repo.set(state)
+
+        # Upload markdown artifact to S3
+        md_key = _artifact_markdown_key(task_id, task.user_id, task.project_id)
+        await s3.upload_file(
+            key=md_key,
+            content=parsed.markdown_content.encode("utf-8"),
+            content_type="text/markdown",
+            metadata={"task_id": str(task_id), "provider_task_id": parsed.task_id},
+        )
+        state.artifact_mineru_markdown_key = md_key
+        state.progress = max(state.progress, 55)
+        await state_repo.set(state)
+
+        latest = await state_repo.get(task_id)
+        if (latest and latest.status == ETLTaskStatus.CANCELLED) or task.status == ETLTaskStatus.CANCELLED:
+            logger.info(f"etl_ocr_job: cancelled before enqueue postprocess, skip: {task_id}")
+            return {"ok": True, "skipped": "cancelled"}
+
+        # Enqueue postprocess
+        job = await ctx["redis"].enqueue_job("etl_postprocess_job", task_id, _queue_name=queue_name)
+        state.arq_job_id_postprocess = job.job_id
+        state.phase = ETLPhase.POSTPROCESS
+        state.status = ETLTaskStatus.LLM_PROCESSING
+        state.progress = max(state.progress, 60)
+        await state_repo.set(state)
+
+        elapsed = time.time() - started_at
+        return {"ok": True, "stage": "ocr", "seconds": elapsed, "markdown_key": md_key}
+
+    except asyncio.CancelledError:
+        # ARQ enforces WorkerSettings.job_timeout via asyncio.wait_for which cancels the job task.
+        # On Python 3.12, asyncio.CancelledError inherits BaseException, so a plain `except Exception`
+        # won't run and the runtime state would stay stuck at MINERU_PARSING.
+        state.status = ETLTaskStatus.FAILED
+        state.error_stage = "timeout"
+        state.error_message = f"ETL OCR job timed out (>{etl_config.etl_task_timeout}s)"
+        state.progress = 0
+        await state_repo.set_terminal(state)
+
+        task.status = ETLTaskStatus.FAILED
+        task.error = state.error_message
+        task.metadata.update(
+            {"error_stage": "timeout", "provider_task_id": state.provider_task_id}
+        )
+        repo.update_task(task)
+        logger.error(f"etl_ocr_job timeout task_id={task_id}")
+        return {"ok": False, "stage": "ocr", "error": state.error_message}
+
+    except Exception as e:
+        state.status = ETLTaskStatus.FAILED
+        state.error_stage = "mineru"
+        state.error_message = str(e)
+        state.progress = 0
+        await state_repo.set_terminal(state)
+
+        # Persist terminal state to DB
+        task.status = ETLTaskStatus.FAILED
+        task.error = str(e)
+        task.metadata.update(
+            {
+                "error_stage": "mineru",
+                "provider_task_id": state.provider_task_id,
+            }
+        )
+        repo.update_task(task)
+        logger.error(f"etl_ocr_job failed task_id={task_id}: {e}", exc_info=True)
+        return {"ok": False, "stage": "ocr", "error": str(e)}
+
+
+async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
+    """
+    Postprocess stage: load markdown artifact -> apply rule (LLM) -> upload JSON -> persist terminal state.
+    """
+    repo = ctx["task_repository"]
+    s3 = ctx["s3_service"]
+    llm = ctx["llm_service"]
+    state_repo: ETLStateRepositoryRedis = ctx["state_repo"]
+
+    task = repo.get_task(task_id)
+    if not task:
+        logger.warning(f"etl_postprocess_job: task not found: {task_id}")
+        return {"ok": False, "error": "task_not_found"}
+
+    # Respect DB-level cancellation as a safety net (e.g. Redis state expired)
+    if task.status == ETLTaskStatus.CANCELLED:
+        logger.info(f"etl_postprocess_job: task cancelled in DB, skip: {task_id}")
+        return {"ok": True, "skipped": "cancelled"}
+
+    state = await state_repo.get(task_id)
+    if state and state.status == ETLTaskStatus.CANCELLED:
+        logger.info(f"etl_postprocess_job: task cancelled, skip: {task_id}")
+        return {"ok": True, "skipped": "cancelled"}
+
+    # Ensure state exists
+    if state is None:
+        state = ETLRuntimeState(
+            task_id=task_id,
+            user_id=task.user_id,
+            project_id=task.project_id,
+            filename=task.filename,
+            rule_id=task.rule_id,
+            status=ETLTaskStatus.LLM_PROCESSING,
+            phase=ETLPhase.POSTPROCESS,
+            progress=60,
+        )
+
+    state.phase = ETLPhase.POSTPROCESS
+    state.status = ETLTaskStatus.LLM_PROCESSING
+    state.progress = max(state.progress, 60)
+    state.attempt_postprocess += 1
+    state.touch()
+    await state_repo.set(state)
+
+    started_at = time.time()
+    try:
+        md_key = state.artifact_mineru_markdown_key or task.metadata.get("artifact_mineru_markdown_key")
+        if not md_key:
+            raise RuntimeError("Missing markdown artifact key for postprocess")
+
+        markdown_bytes = await s3.download_file(md_key)
+        markdown = markdown_bytes.decode("utf-8")
+
+        # Load rule (per-user)
+        supabase_client = get_supabase_client()
+        rule_repo = RuleRepositorySupabase(supabase_client=supabase_client, user_id=task.user_id)
+        rule = rule_repo.get_rule(str(task.rule_id))
+        if not rule:
+            raise RuntimeError(f"Rule not found: {task.rule_id}")
+
+        # postprocess_mode=skip: no LLM calls, only wrap markdown pointer and metadata
+        if getattr(rule, "postprocess_mode", "llm") == "skip":
+            # BREAKING: default skip-mode output should expose markdown content directly for mounting,
+            # and MUST NOT leak internal metadata (task_id/user_id/project_id/S3 keys).
+            base_name = Path(task.filename).stem
+            output_obj = {
+                base_name: {
+                    "filename": task.filename,
+                    "content": markdown,
+                }
+            }
+        else:
+            # Strategy selection
+            strategy = getattr(rule, "postprocess_strategy", None)
+            if not strategy:
+                if len(markdown) > etl_config.etl_postprocess_chunk_threshold_chars:
+                    strategy = "chunked-summarize"
+                else:
+                    strategy = "direct-json"
+
+            input_text = markdown
+            if strategy == "chunked-summarize":
+                chunks = _chunk_text(
+                    markdown,
+                    chunk_size=etl_config.etl_postprocess_chunk_size_chars,
+                    max_chunks=etl_config.etl_postprocess_max_chunks,
+                )
+                summaries: list[str] = []
+                for idx, ch in enumerate(chunks, start=1):
+                    resp = await llm.call_text_model(
+                        prompt=(
+                            "请将以下文档分块内容总结为要点（保留关键字段名/数值/表格信息），输出纯文本。\n\n"
+                            f"分块 {idx}/{len(chunks)}:\n{ch}"
+                        ),
+                        system_prompt="你是一个严谨的文档摘要助手。",
+                        response_format="text",
+                    )
+                    summaries.append(resp.content)
+                input_text = "\n\n".join(
+                    [f"## Chunk {i+1} Summary\n{t}" for i, t in enumerate(summaries)]
+                )
+
+            engine = RuleEngine(llm)
+            transform = await engine.apply_rule(markdown_content=input_text, rule=rule)
+            if not transform.success:
+                raise ETLTransformationError(transform.error or "Unknown error", str(task.rule_id))
+            output_obj = transform.output
+
+        latest = await state_repo.get(task_id)
+        if (latest and latest.status == ETLTaskStatus.CANCELLED) or task.status == ETLTaskStatus.CANCELLED:
+            logger.info(f"etl_postprocess_job: cancelled before upload, skip: {task_id}")
+            return {"ok": True, "skipped": "cancelled"}
+
+        output_key = _output_json_key(task_id, task.user_id, task.project_id)
+        output_json = json.dumps(output_obj, indent=2, ensure_ascii=False).encode("utf-8")
+        await s3.upload_file(
+            key=output_key,
+            content=output_json,
+            content_type="application/json",
+            metadata={"task_id": str(task_id), "rule_id": str(task.rule_id)},
+        )
+
+        processing_time = time.time() - started_at
+        result = ETLTaskResult(
+            output_path=output_key,
+            output_size=len(output_json),
+            processing_time=processing_time,
+            mineru_task_id=state.provider_task_id,
+        )
+
+        # Persist terminal state to DB
+        task.mark_completed(result)
+        repo.update_task(task)
+
+        state.status = ETLTaskStatus.COMPLETED
+        state.phase = ETLPhase.FINALIZE
+        state.progress = 100
+        state.error_message = None
+        state.error_stage = None
+        state.updated_at = datetime.now(UTC)
+        await state_repo.set_terminal(state)
+
+        return {"ok": True, "stage": "postprocess", "output_key": output_key}
+
+    except asyncio.CancelledError:
+        # Same reason as OCR job: avoid leaving Redis runtime state stuck in LLM_PROCESSING.
+        md_key = state.artifact_mineru_markdown_key or task.metadata.get(
+            "artifact_mineru_markdown_key"
+        )
+        if md_key:
+            task.metadata["artifact_mineru_markdown_key"] = md_key
+        if state.provider_task_id:
+            task.metadata["provider_task_id"] = state.provider_task_id
+        task.metadata["error_stage"] = "timeout"
+
+        err = f"ETL postprocess job timed out (>{etl_config.etl_task_timeout}s)"
+        task.status = ETLTaskStatus.FAILED
+        task.error = err
+        repo.update_task(task)
+
+        state.status = ETLTaskStatus.FAILED
+        state.error_stage = "timeout"
+        state.error_message = err
+        state.progress = 0
+        state.updated_at = datetime.now(UTC)
+        await state_repo.set_terminal(state)
+
+        logger.error(f"etl_postprocess_job timeout task_id={task_id}")
+        return {"ok": False, "stage": "postprocess", "error": err}
+
+    except Exception as e:
+        # Persist minimal retry pointer if OCR succeeded
+        md_key = state.artifact_mineru_markdown_key or task.metadata.get("artifact_mineru_markdown_key")
+        if md_key:
+            task.metadata["artifact_mineru_markdown_key"] = md_key
+        if state.provider_task_id:
+            task.metadata["provider_task_id"] = state.provider_task_id
+        task.metadata["error_stage"] = "postprocess"
+
+        task.status = ETLTaskStatus.FAILED
+        task.error = str(e)
+        repo.update_task(task)
+
+        state.status = ETLTaskStatus.FAILED
+        state.error_stage = "postprocess"
+        state.error_message = str(e)
+        state.progress = 0
+        state.updated_at = datetime.now(UTC)
+        await state_repo.set_terminal(state)
+
+        logger.error(f"etl_postprocess_job failed task_id={task_id}: {e}", exc_info=True)
+        return {"ok": False, "stage": "postprocess", "error": str(e)}
+
+

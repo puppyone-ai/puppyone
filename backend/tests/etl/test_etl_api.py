@@ -16,11 +16,24 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.etl.dependencies import get_etl_service, get_rule_repository
+from src.auth.dependencies import get_current_user
+from src.auth.models import CurrentUser
+from src.exception_handler import (
+    app_exception_handler,
+    generic_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+)
+from src.etl.dependencies import get_etl_service
+from src.etl.rules.dependencies import get_rule_repository
 from src.etl.exceptions import RuleNotFoundError
 from src.etl.router import router
 from src.etl.rules.schemas import ETLRule
 from src.etl.tasks.models import ETLTask, ETLTaskResult, ETLTaskStatus
+from src.exceptions import AppException
+from src.exceptions import NotFoundException
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 # ============= Fixtures =============
@@ -31,14 +44,29 @@ def app():
     """创建测试用的FastAPI应用"""
     test_app = FastAPI()
     test_app.include_router(router)
+    # Add the same exception handlers as production app
+    test_app.add_exception_handler(AppException, app_exception_handler)  # type: ignore
+    test_app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore
+    test_app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore
+    test_app.add_exception_handler(Exception, generic_exception_handler)  # type: ignore
     return test_app
 
 
 @pytest.fixture
 def client(app, mock_etl_service, mock_rule_repository):
     """创建测试客户端并覆盖依赖"""
-    app.dependency_overrides[get_etl_service] = lambda: mock_etl_service
-    app.dependency_overrides[get_rule_repository] = lambda: mock_rule_repository
+    async def _override_etl_service():
+        return mock_etl_service
+
+    def _override_rule_repo():
+        return mock_rule_repository
+
+    def _override_current_user():
+        return CurrentUser(user_id="user123", email="user@example.com", role="authenticated")
+
+    app.dependency_overrides[get_etl_service] = _override_etl_service
+    app.dependency_overrides[get_rule_repository] = _override_rule_repo
+    app.dependency_overrides[get_current_user] = _override_current_user
     
     with TestClient(app) as test_client:
         yield test_client
@@ -53,7 +81,10 @@ def mock_etl_service():
     service = Mock()
     service.submit_etl_task = AsyncMock()
     service.get_task_status = AsyncMock()
+    service.get_task_status_with_access_check = AsyncMock()
     service.list_tasks = AsyncMock()
+    service.cancel_task = AsyncMock()
+    service.retry_task = AsyncMock()
     service.get_queue_size = Mock(return_value=5)
     service.get_task_count = Mock(return_value=10)
     return service
@@ -76,7 +107,7 @@ def sample_rule():
     """示例规则"""
     now = datetime.now(UTC)
     return ETLRule(
-        rule_id="test-rule-001",
+        rule_id="1",
         name="测试规则",
         description="测试用规则",
         json_schema={"type": "object", "properties": {"title": {"type": "string"}}},
@@ -90,11 +121,11 @@ def sample_rule():
 def sample_task():
     """示例任务"""
     return ETLTask(
-        task_id="test-task-001",
+        task_id=1,
         user_id="user123",
-        project_id="project456",
+        project_id=456,
         filename="test.pdf",
-        rule_id="rule789",
+        rule_id=789,
         status=ETLTaskStatus.PENDING
     )
 
@@ -107,27 +138,27 @@ def test_submit_etl_task_success(client, mock_etl_service, sample_task):
     mock_etl_service.submit_etl_task.return_value = sample_task
     
     response = client.post(
-        "/api/v1/etl/submit",
+        "/etl/submit",
         json={
-            "user_id": "user123",
-            "project_id": "project456",
+            "project_id": 456,
             "filename": "test.pdf",
-            "rule_id": "rule789"
+            "rule_id": 789
         }
     )
     
     assert response.status_code == 200
     data = response.json()
-    assert data["task_id"] == "test-task-001"
+    assert data["task_id"] == 1
     assert data["status"] == "pending"
     assert "message" in data
     
     # 验证服务被调用
     mock_etl_service.submit_etl_task.assert_called_once_with(
         user_id="user123",
-        project_id="project456",
+        project_id=456,
         filename="test.pdf",
-        rule_id="rule789"
+        rule_id=789,
+        s3_key=None,
     )
 
 
@@ -136,25 +167,23 @@ def test_submit_etl_task_rule_not_found(client, mock_etl_service):
     mock_etl_service.submit_etl_task.side_effect = RuleNotFoundError("rule-not-exist")
     
     response = client.post(
-        "/api/v1/etl/submit",
+        "/etl/submit",
         json={
-            "user_id": "user123",
-            "project_id": "project456",
+            "project_id": 456,
             "filename": "test.pdf",
-            "rule_id": "rule-not-exist"
+            "rule_id": 999999
         }
     )
     
     assert response.status_code == 404
-    assert "detail" in response.json()
+    assert "message" in response.json()
 
 
 def test_submit_etl_task_missing_fields(client, mock_etl_service):
     """测试提交任务时缺少必需字段"""
     response = client.post(
-        "/api/v1/etl/submit",
+        "/etl/submit",
         json={
-            "user_id": "user123",
             # 缺少其他字段
         }
     )
@@ -165,9 +194,8 @@ def test_submit_etl_task_missing_fields(client, mock_etl_service):
 def test_submit_etl_task_invalid_types(client, mock_etl_service):
     """测试提交任务时字段类型错误"""
     response = client.post(
-        "/api/v1/etl/submit",
+        "/etl/submit",
         json={
-            "user_id": 123,  # 应该是字符串
             "project_id": "project456",
             "filename": "test.pdf",
             "rule_id": "rule789"
@@ -182,13 +210,13 @@ def test_submit_etl_task_invalid_types(client, mock_etl_service):
 
 def test_get_task_status_success(client, mock_etl_service, sample_task):
     """测试成功查询任务状态"""
-    mock_etl_service.get_task_status.return_value = sample_task
+    mock_etl_service.get_task_status_with_access_check.return_value = sample_task
     
-    response = client.get("/api/v1/etl/tasks/test-task-001")
+    response = client.get("/etl/tasks/1")
     
     assert response.status_code == 200
     data = response.json()
-    assert data["task_id"] == "test-task-001"
+    assert data["task_id"] == 1
     assert data["user_id"] == "user123"
     assert data["status"] == "pending"
 
@@ -203,9 +231,9 @@ def test_get_task_status_completed(client, mock_etl_service, sample_task):
         mineru_task_id="mineru-123"
     )
     
-    mock_etl_service.get_task_status.return_value = sample_task
+    mock_etl_service.get_task_status_with_access_check.return_value = sample_task
     
-    response = client.get("/api/v1/etl/tasks/test-task-001")
+    response = client.get("/etl/tasks/1")
     
     assert response.status_code == 200
     data = response.json()
@@ -217,9 +245,9 @@ def test_get_task_status_completed(client, mock_etl_service, sample_task):
 
 def test_get_task_status_not_found(client, mock_etl_service):
     """测试查询不存在的任务"""
-    mock_etl_service.get_task_status.return_value = None
+    mock_etl_service.get_task_status_with_access_check.side_effect = NotFoundException("ETL task not found")
     
-    response = client.get("/api/v1/etl/tasks/nonexistent")
+    response = client.get("/etl/tasks/999999")
     
     assert response.status_code == 404
 
@@ -229,9 +257,9 @@ def test_get_task_status_failed(client, mock_etl_service, sample_task):
     sample_task.status = ETLTaskStatus.FAILED
     sample_task.error = "解析失败：文件格式不支持"
     
-    mock_etl_service.get_task_status.return_value = sample_task
+    mock_etl_service.get_task_status_with_access_check.return_value = sample_task
     
-    response = client.get("/api/v1/etl/tasks/test-task-001")
+    response = client.get("/etl/tasks/1")
     
     assert response.status_code == 200
     data = response.json()
@@ -246,7 +274,7 @@ def test_list_tasks_empty(client, mock_etl_service):
     """测试列出空任务列表"""
     mock_etl_service.list_tasks.return_value = []
     
-    response = client.get("/api/v1/etl/tasks")
+    response = client.get("/etl/tasks")
     
     assert response.status_code == 200
     data = response.json()
@@ -258,18 +286,18 @@ def test_list_tasks_success(client, mock_etl_service):
     """测试成功列出任务"""
     tasks = [
         ETLTask(
-            task_id=f"task-{i}",
+            task_id=i + 1,
             user_id="user123",
-            project_id="project456",
+            project_id=456,
             filename=f"file{i}.pdf",
-            rule_id="rule789"
+            rule_id=789
         )
         for i in range(3)
     ]
     
     mock_etl_service.list_tasks.return_value = tasks
     
-    response = client.get("/api/v1/etl/tasks")
+    response = client.get("/etl/tasks")
     
     assert response.status_code == 200
     data = response.json()
@@ -282,10 +310,9 @@ def test_list_tasks_with_filters(client, mock_etl_service):
     mock_etl_service.list_tasks.return_value = []
     
     response = client.get(
-        "/api/v1/etl/tasks",
+        "/etl/tasks",
         params={
-            "user_id": "user123",
-            "project_id": "project456",
+            "project_id": 456,
             "status": "completed"
         }
     )
@@ -295,8 +322,8 @@ def test_list_tasks_with_filters(client, mock_etl_service):
     # 验证服务被正确调用
     mock_etl_service.list_tasks.assert_called_once_with(
         user_id="user123",
-        project_id="project456",
-        status="completed"
+        project_id=456,
+        status=ETLTaskStatus.COMPLETED
     )
 
 
@@ -304,11 +331,11 @@ def test_list_tasks_pagination(client, mock_etl_service):
     """测试任务列表分页"""
     tasks = [
         ETLTask(
-            task_id=f"task-{i}",
+            task_id=i + 1,
             user_id="user123",
-            project_id="project456",
+            project_id=456,
             filename=f"file{i}.pdf",
-            rule_id="rule789"
+            rule_id=789
         )
         for i in range(10)
     ]
@@ -316,7 +343,7 @@ def test_list_tasks_pagination(client, mock_etl_service):
     mock_etl_service.list_tasks.return_value = tasks
     
     # 获取第一页
-    response = client.get("/api/v1/etl/tasks?limit=5&offset=0")
+    response = client.get("/etl/tasks?limit=5&offset=0")
     data = response.json()
     assert len(data["tasks"]) == 5
     assert data["limit"] == 5
@@ -324,7 +351,7 @@ def test_list_tasks_pagination(client, mock_etl_service):
     assert data["total"] == 10
     
     # 获取第二页
-    response = client.get("/api/v1/etl/tasks?limit=5&offset=5")
+    response = client.get("/etl/tasks?limit=5&offset=5")
     data = response.json()
     assert len(data["tasks"]) == 5
 
@@ -332,15 +359,15 @@ def test_list_tasks_pagination(client, mock_etl_service):
 def test_list_tasks_invalid_pagination(client, mock_etl_service):
     """测试无效的分页参数"""
     # 负数limit
-    response = client.get("/api/v1/etl/tasks?limit=-1")
+    response = client.get("/etl/tasks?limit=-1")
     assert response.status_code == 422
     
     # 超大limit
-    response = client.get("/api/v1/etl/tasks?limit=1000")
+    response = client.get("/etl/tasks?limit=1000")
     assert response.status_code == 422
     
     # 负数offset
-    response = client.get("/api/v1/etl/tasks?offset=-1")
+    response = client.get("/etl/tasks?offset=-1")
     assert response.status_code == 422
 
 
@@ -352,7 +379,7 @@ def test_create_rule_success(client, mock_rule_repository, sample_rule):
     mock_rule_repository.create_rule.return_value = sample_rule
     
     response = client.post(
-        "/api/v1/etl/rules",
+        "/etl/rules",
         json={
             "name": "测试规则",
             "description": "测试用规则",
@@ -363,14 +390,14 @@ def test_create_rule_success(client, mock_rule_repository, sample_rule):
     
     assert response.status_code == 201
     data = response.json()
-    assert data["rule_id"] == "test-rule-001"
+    assert data["rule_id"] == 1
     assert data["name"] == "测试规则"
 
 
 def test_create_rule_missing_fields(client, mock_rule_repository):
     """测试创建规则时缺少必需字段"""
     response = client.post(
-        "/api/v1/etl/rules",
+        "/etl/rules",
         json={
             "name": "测试规则"
             # 缺少其他字段
@@ -383,7 +410,7 @@ def test_create_rule_missing_fields(client, mock_rule_repository):
 def test_create_rule_invalid_json_schema(client, mock_rule_repository):
     """测试创建规则时JSON Schema无效"""
     response = client.post(
-        "/api/v1/etl/rules",
+        "/etl/rules",
         json={
             "name": "测试规则",
             "description": "测试",
@@ -403,11 +430,11 @@ def test_get_rule_success(client, mock_rule_repository, sample_rule):
     """测试成功查询规则"""
     mock_rule_repository.get_rule.return_value = sample_rule
     
-    response = client.get("/api/v1/etl/rules/test-rule-001")
+    response = client.get("/etl/rules/1")
     
     assert response.status_code == 200
     data = response.json()
-    assert data["rule_id"] == "test-rule-001"
+    assert data["rule_id"] == 1
     assert data["name"] == "测试规则"
 
 
@@ -415,7 +442,7 @@ def test_get_rule_not_found(client, mock_rule_repository):
     """测试查询不存在的规则"""
     mock_rule_repository.get_rule.return_value = None
     
-    response = client.get("/api/v1/etl/rules/nonexistent")
+    response = client.get("/etl/rules/999999")
     
     assert response.status_code == 404
 
@@ -428,7 +455,7 @@ def test_list_rules_empty(client, mock_rule_repository):
     mock_rule_repository.list_rules.return_value = []
     mock_rule_repository.count_rules.return_value = 0
     
-    response = client.get("/api/v1/etl/rules")
+    response = client.get("/etl/rules")
     
     assert response.status_code == 200
     data = response.json()
@@ -441,7 +468,7 @@ def test_list_rules_success(client, mock_rule_repository):
     now = datetime.now(UTC)
     rules = [
         ETLRule(
-            rule_id=f"rule-{i}",
+            rule_id=str(i + 1),
             name=f"规则{i}",
             description=f"描述{i}",
             json_schema={"type": "object"},
@@ -454,7 +481,7 @@ def test_list_rules_success(client, mock_rule_repository):
     mock_rule_repository.list_rules.return_value = rules
     mock_rule_repository.count_rules.return_value = 3
     
-    response = client.get("/api/v1/etl/rules")
+    response = client.get("/etl/rules")
     
     assert response.status_code == 200
     data = response.json()
@@ -467,7 +494,7 @@ def test_list_rules_pagination(client, mock_rule_repository):
     now = datetime.now(UTC)
     rules = [
         ETLRule(
-            rule_id=f"rule-{i}",
+            rule_id=str(i + 1),
             name=f"规则{i}",
             description=f"描述{i}",
             json_schema={"type": "object"},
@@ -480,7 +507,7 @@ def test_list_rules_pagination(client, mock_rule_repository):
     mock_rule_repository.list_rules.return_value = rules[:2]
     mock_rule_repository.count_rules.return_value = 5
     
-    response = client.get("/api/v1/etl/rules?limit=2&offset=0")
+    response = client.get("/etl/rules?limit=2&offset=0")
     
     assert response.status_code == 200
     data = response.json()
@@ -490,7 +517,10 @@ def test_list_rules_pagination(client, mock_rule_repository):
     assert data["offset"] == 0
     
     # 验证仓库被正确调用
-    mock_rule_repository.list_rules.assert_called_once_with(limit=2, offset=0)
+    # 由于接口会先确保全局默认规则存在（可能触发一次 list_rules），这里仅断言分页调用存在即可
+    assert any(
+        call.kwargs == {"limit": 2, "offset": 0} for call in mock_rule_repository.list_rules.call_args_list
+    )
 
 
 # ============= 删除规则测试 =============
@@ -500,19 +530,19 @@ def test_delete_rule_success(client, mock_rule_repository):
     """测试成功删除规则"""
     mock_rule_repository.delete_rule.return_value = True
     
-    response = client.delete("/api/v1/etl/rules/test-rule-001")
+    response = client.delete("/etl/rules/1")
     
     assert response.status_code == 204
     
     # 验证仓库被调用
-    mock_rule_repository.delete_rule.assert_called_once_with("test-rule-001")
+    mock_rule_repository.delete_rule.assert_called_once_with("1")
 
 
 def test_delete_rule_not_found(client, mock_rule_repository):
     """测试删除不存在的规则"""
     mock_rule_repository.delete_rule.return_value = False
     
-    response = client.delete("/api/v1/etl/rules/nonexistent")
+    response = client.delete("/etl/rules/999999")
     
     assert response.status_code == 404
 
@@ -522,7 +552,7 @@ def test_delete_rule_not_found(client, mock_rule_repository):
 
 def test_health_check(client, mock_etl_service):
     """测试健康检查端点"""
-    response = client.get("/api/v1/etl/health")
+    response = client.get("/etl/health")
     
     assert response.status_code == 200
     data = response.json()
@@ -541,7 +571,7 @@ def test_complete_workflow(client, mock_etl_service, mock_rule_repository, sampl
     mock_rule_repository.create_rule.return_value = sample_rule
     
     response = client.post(
-        "/api/v1/etl/rules",
+        "/etl/rules",
         json={
             "name": "测试规则",
             "description": "测试",
@@ -556,21 +586,20 @@ def test_complete_workflow(client, mock_etl_service, mock_rule_repository, sampl
     mock_etl_service.submit_etl_task.return_value = sample_task
     
     response = client.post(
-        "/api/v1/etl/submit",
+        "/etl/submit",
         json={
-            "user_id": "user123",
-            "project_id": "project456",
+            "project_id": 456,
             "filename": "test.pdf",
-            "rule_id": rule_id
+            "rule_id": rule_id,
         }
     )
     assert response.status_code == 200
     task_id = response.json()["task_id"]
     
     # 3. 查询任务状态
-    mock_etl_service.get_task_status.return_value = sample_task
+    mock_etl_service.get_task_status_with_access_check.return_value = sample_task
     
-    response = client.get(f"/api/v1/etl/tasks/{task_id}")
+    response = client.get(f"/etl/tasks/{task_id}")
     assert response.status_code == 200
     assert response.json()["status"] == "pending"
 

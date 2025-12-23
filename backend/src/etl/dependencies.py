@@ -6,35 +6,23 @@ FastAPI dependency injection for ETL service.
 
 from fastapi import Depends, Path
 
-from src.etl.config import etl_config
-from src.etl.mineru.client import MineRUClient
+from arq.connections import create_pool, RedisSettings
+
+from src.etl.arq_client import ETLArqClient
 from src.etl.service import ETLService
+from src.etl.state.repository import ETLStateRepositoryRedis
 from src.etl.tasks.models import ETLTask
 from src.etl.tasks.repository import ETLTaskRepositoryBase, ETLTaskRepositorySupabase
-from src.llm.dependencies import get_llm_service
-from src.s3.dependencies import get_s3_service
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
 
 
-# 使用全局变量存储单例，而不是 lru_cache
-# 这样可以避免 reload 时的缓存问题
-_mineru_client = None
+# 使用全局变量存储单例
 _etl_task_repository = None
 _etl_service = None
-
-
-def get_mineru_client() -> MineRUClient:
-    """
-    Get MineRU client instance (singleton).
-
-    Returns:
-        MineRUClient instance
-    """
-    global _mineru_client
-    if _mineru_client is None:
-        _mineru_client = MineRUClient()
-    return _mineru_client
+_etl_arq_client = None
+_etl_arq_pool = None
+_etl_state_repo = None
 
 
 def get_etl_task_repository() -> ETLTaskRepositoryBase:
@@ -50,20 +38,42 @@ def get_etl_task_repository() -> ETLTaskRepositoryBase:
     return _etl_task_repository
 
 
-def get_etl_service() -> ETLService:
-    """
-    Get ETL service instance (singleton).
+def get_etl_arq_client() -> ETLArqClient:
+    global _etl_arq_client
+    if _etl_arq_client is None:
+        _etl_arq_client = ETLArqClient()
+    return _etl_arq_client
 
-    Returns:
-        ETLService instance
+
+async def get_etl_arq_pool():
+    global _etl_arq_pool
+    if _etl_arq_pool is None:
+        client = get_etl_arq_client()
+        settings = RedisSettings.from_dsn(client.redis_url)
+        _etl_arq_pool = await create_pool(settings)
+    return _etl_arq_pool
+
+
+async def get_etl_state_repo() -> ETLStateRepositoryRedis:
+    global _etl_state_repo
+    if _etl_state_repo is None:
+        pool = await get_etl_arq_pool()
+        _etl_state_repo = ETLStateRepositoryRedis(pool)
+    return _etl_state_repo
+
+
+async def get_etl_service() -> ETLService:
+    """
+    Get ETL service instance (singleton, async deps ready).
     """
     global _etl_service
     if _etl_service is None:
+        arq_client = get_etl_arq_client()
+        state_repo = await get_etl_state_repo()
         _etl_service = ETLService(
-            s3_service=get_s3_service(),
-            llm_service=get_llm_service(),
-            mineru_client=get_mineru_client(),
             task_repository=get_etl_task_repository(),
+            arq_client=arq_client,
+            state_repo=state_repo,
         )
     return _etl_service
 

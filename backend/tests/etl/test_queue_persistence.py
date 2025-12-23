@@ -7,6 +7,7 @@
 - 内存和数据库数据一致性
 """
 
+import os
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -15,6 +16,10 @@ from src.etl.tasks.models import ETLTask, ETLTaskStatus, ETLTaskResult
 from src.etl.tasks.queue import ETLQueue
 from src.etl.tasks.repository import ETLTaskRepositorySupabase
 
+
+# 需要真实 Supabase 环境变量；未配置时跳过，避免本地/CI 失败
+if not os.getenv("SUPABASE_URL") or not os.getenv("SUPABASE_KEY"):
+    pytest.skip("Skip Supabase-dependent tests (SUPABASE_URL/KEY not set)", allow_module_level=True)
 
 # ============= Fixtures =============
 
