@@ -71,6 +71,8 @@ type ProjectWorkspaceViewProps = {
   // 统一交互模型：右侧 Gutter 配置 Agent 权限
   onAccessPointChange?: (path: string, permissions: McpToolPermissions) => void
   onAccessPointRemove?: (path: string) => void
+  // 打开长文本文档编辑器
+  onOpenDocument?: (path: string, value: string) => void
 }
 
 export function ProjectWorkspaceView({
@@ -94,6 +96,7 @@ export function ProjectWorkspaceView({
   onCancelSelection,
   onAccessPointChange,
   onAccessPointRemove,
+  onOpenDocument,
 }: ProjectWorkspaceViewProps) {
   const { session, isAuthReady } = useAuth()
   const router = useRouter()
@@ -463,6 +466,7 @@ export function ProjectWorkspaceView({
                             projectId={Number(projectId)}
                             tableId={resolvedActiveTableId ? Number(resolvedActiveTableId) : undefined}
                             onImportSuccess={refreshTableData}
+                            onOpenDocument={onOpenDocument}
                           />
                         )}
                         {editorType === 'monaco' && (
