@@ -9,7 +9,13 @@ import uuid
 from datetime import datetime, UTC
 from typing import Optional
 
-from src.etl.rules.schemas import ETLRule, RuleCreateRequest, RuleUpdateRequest
+from src.etl.rules.schemas import (
+    ETLRule,
+    RuleCreateRequest,
+    RuleUpdateRequest,
+    build_rule_payload,
+    parse_rule_payload,
+)
 from src.supabase.exceptions import handle_supabase_error, SupabaseNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -66,15 +72,21 @@ class RuleRepositorySupabase:
         Raises:
             SupabaseException: 数据库操作失败时
         """
-        # 生成唯一规则 ID
-        rule_id = str(uuid.uuid4())
+        # 生成唯一规则 ID（历史遗留：Supabase 使用 bigint 主键，这里仅用于追踪/兼容）
+        _ = str(uuid.uuid4())
         now = datetime.now(UTC)
+
+        payload = build_rule_payload(
+            json_schema=request.json_schema,
+            postprocess_mode=request.postprocess_mode,
+            postprocess_strategy=request.postprocess_strategy,
+        )
 
         # 准备插入数据
         insert_data = {
             "name": request.name,
             "description": request.description,
-            "json_schema": request.json_schema,
+            "json_schema": payload,
             "system_prompt": request.system_prompt or "",
             "user_id": self.user_id,
             "created_at": now.isoformat(),
@@ -94,12 +106,15 @@ class RuleRepositorySupabase:
 
             # 获取插入的记录
             row = response.data[0]
-            
+            mode, strategy, schema = parse_rule_payload(row["json_schema"])
+
             rule = ETLRule(
                 rule_id=str(row["id"]),
                 name=row["name"],
                 description=row["description"],
-                json_schema=row["json_schema"],
+                json_schema=schema,
+                postprocess_mode=mode,
+                postprocess_strategy=strategy,
                 system_prompt=row["system_prompt"],
                 created_at=_parse_timestamp(row.get("created_at")),
                 updated_at=_parse_timestamp(row.get("updated_at"), row.get("created_at")),
@@ -142,13 +157,16 @@ class RuleRepositorySupabase:
                 return None
 
             row = response.data[0]
+            mode, strategy, schema = parse_rule_payload(row["json_schema"])
             
             # 从数据库记录构建 ETLRule
             rule = ETLRule(
                 rule_id=str(row["id"]),
                 name=row.get("name", ""),
                 description=row["description"],
-                json_schema=row["json_schema"],
+                json_schema=schema,
+                postprocess_mode=mode,
+                postprocess_strategy=strategy,
                 system_prompt=row["system_prompt"] or None,
                 created_at=_parse_timestamp(row.get("created_at")),
                 updated_at=_parse_timestamp(row.get("updated_at"), row.get("created_at")),
@@ -180,15 +198,30 @@ class RuleRepositorySupabase:
             return None
 
         # 准备更新数据
-        update_data = {}
+        update_data: dict = {}
         if request.name is not None:
             update_data["name"] = request.name
         if request.description is not None:
             update_data["description"] = request.description
-        if request.json_schema is not None:
-            update_data["json_schema"] = request.json_schema
         if request.system_prompt is not None:
             update_data["system_prompt"] = request.system_prompt
+
+        # Handle json_schema + postprocess config as a single payload
+        if (
+            request.json_schema is not None
+            or request.postprocess_mode is not None
+            or request.postprocess_strategy is not None
+        ):
+            # Load existing payload to merge
+            mode, strategy, schema = parse_rule_payload(existing_rule.json_schema)
+            next_mode = request.postprocess_mode or mode
+            next_strategy = request.postprocess_strategy if request.postprocess_strategy is not None else strategy
+            next_schema = request.json_schema if request.json_schema is not None else schema
+            update_data["json_schema"] = build_rule_payload(
+                json_schema=next_schema,
+                postprocess_mode=next_mode,
+                postprocess_strategy=next_strategy,
+            )
 
         if not update_data:
             # 没有需要更新的字段
@@ -214,13 +247,16 @@ class RuleRepositorySupabase:
                 return None
 
             row = response.data[0]
+            mode, strategy, schema = parse_rule_payload(row["json_schema"])
 
             # 构建更新后的 ETLRule
             rule = ETLRule(
                 rule_id=str(row["id"]),
                 name=row["name"],
                 description=row["description"],
-                json_schema=row["json_schema"],
+                json_schema=schema,
+                postprocess_mode=mode,
+                postprocess_strategy=strategy,
                 system_prompt=row["system_prompt"] or None,
                 created_at=_parse_timestamp(row.get("created_at")),
                 updated_at=_parse_timestamp(row.get("updated_at"), row.get("created_at")),
@@ -296,11 +332,14 @@ class RuleRepositorySupabase:
 
             rules = []
             for row in response.data:
+                mode, strategy, schema = parse_rule_payload(row["json_schema"])
                 rule = ETLRule(
                     rule_id=str(row["id"]),
                     name=row.get("name", ""),
                     description=row["description"],
-                    json_schema=row["json_schema"],
+                    json_schema=schema,
+                    postprocess_mode=mode,
+                    postprocess_strategy=strategy,
                     system_prompt=row["system_prompt"] or None,
                     created_at=_parse_timestamp(row.get("created_at")),
                     updated_at=_parse_timestamp(row.get("updated_at"), row.get("created_at")),

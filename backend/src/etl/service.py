@@ -1,29 +1,31 @@
 """
 ETL Service
 
-Core ETL service for processing documents through MineRU and LLM transformation.
+ETL control-plane service (API-side).
+
+Execution happens in ARQ workers; API process is responsible for:
+- creating task records (Supabase)
+- maintaining runtime state (Redis)
+- enqueueing jobs (ARQ)
+- aggregating status (Redis first, fallback Supabase)
 """
 
-import json
+from __future__ import annotations
+
 import logging
-import time
+from datetime import datetime, UTC
 from typing import Optional
 
+from src.etl.arq_client import ETLArqClient
 from src.etl.config import etl_config
-from src.etl.exceptions import (
-    ETLTransformationError,
-    RuleNotFoundError,
-)
+from src.etl.exceptions import RuleNotFoundError
+from src.etl.rules.default_rules import get_default_rule_id
 from src.exceptions import NotFoundException, ErrorCode
-from src.etl.mineru.client import MineRUClient
-from src.etl.mineru.schemas import MineRUModelVersion
-from src.etl.rules.engine import RuleEngine
 from src.etl.rules.repository_supabase import RuleRepositorySupabase
-from src.etl.tasks.models import ETLTask, ETLTaskResult, ETLTaskStatus
-from src.etl.tasks.queue import ETLQueue
+from src.etl.state.models import ETLPhase, ETLRuntimeState
+from src.etl.state.repository import ETLStateRepositoryRedis
+from src.etl.tasks.models import ETLTask, ETLTaskStatus
 from src.etl.tasks.repository import ETLTaskRepositoryBase
-from src.llm.service import LLMService
-from src.s3.service import S3Service
 from src.supabase.dependencies import get_supabase_client
 
 logger = logging.getLogger(__name__)
@@ -34,35 +36,21 @@ class ETLService:
 
     def __init__(
         self,
-        s3_service: S3Service,
-        llm_service: LLMService,
-        mineru_client: MineRUClient,
         task_repository: ETLTaskRepositoryBase,
+        arq_client: ETLArqClient,
+        state_repo: ETLStateRepositoryRedis,
     ):
         """
         Initialize ETL service.
 
         Args:
-            s3_service: S3 service for file operations
-            llm_service: LLM service for transformations
-            mineru_client: MineRU client for document parsing
-            task_repository: Repository for ETL tasks
+            task_repository: Repository for ETL tasks (Supabase)
+            arq_client: ARQ client for enqueueing jobs
+            state_repo: Redis runtime state repository
         """
-        self.s3_service = s3_service
-        self.llm_service = llm_service
-        self.mineru_client = mineru_client
         self.task_repository = task_repository
-        self.rule_engine = RuleEngine(llm_service)
-
-        # Initialize task queue
-        self.queue = ETLQueue(
-            task_repository=task_repository,
-            max_size=etl_config.etl_queue_size,
-            worker_count=etl_config.etl_worker_count,
-        )
-
-        # Set executor for task processing
-        self.queue.set_executor(self._execute_etl_task)
+        self.arq_client = arq_client
+        self.state_repo = state_repo
 
         logger.info("ETLService initialized")
 
@@ -80,41 +68,21 @@ class ETLService:
         return RuleRepositorySupabase(supabase_client=supabase_client, user_id=user_id)
 
     async def start(self):
-        """Start ETL service workers and resume pending tasks."""
-        await self.queue.start_workers()
-        
-        # Resume pending tasks from database
-        try:
-            pending_tasks = self.task_repository.list_tasks(status=ETLTaskStatus.PENDING)
-            if pending_tasks:
-                logger.info(f"Found {len(pending_tasks)} pending tasks, resuming...")
-                for task in pending_tasks:
-                    try:
-                        # Add to memory cache
-                        self.queue.tasks[task.task_id] = task
-                        # Add to queue (task already exists in DB, so don't call submit())
-                        await self.queue.queue.put(task.task_id)
-                        logger.info(f"Resumed task {task.task_id}: {task.filename}")
-                    except Exception as e:
-                        logger.error(f"Failed to resume task {task.task_id}: {e}")
-            else:
-                logger.info("No pending tasks to resume")
-        except Exception as e:
-            logger.error(f"Failed to resume pending tasks: {e}")
-        
-        logger.info("ETL service started")
+        """Warm up control-plane dependencies."""
+        await self.arq_client.get_pool()
+        logger.info("ETL service started (control-plane)")
 
     async def stop(self):
-        """Stop ETL service workers gracefully."""
-        await self.queue.stop_workers()
-        logger.info("ETL service stopped")
+        """No-op in API process (worker is separate)."""
+        logger.info("ETL service stopped (control-plane)")
 
     async def submit_etl_task(
         self,
         user_id: str,
         project_id: int,
         filename: str,
-        rule_id: int,
+        rule_id: int | None,
+        s3_key: str | None = None,
     ) -> ETLTask:
         """
         Submit an ETL task to the queue.
@@ -131,6 +99,11 @@ class ETLService:
         Raises:
             RuleNotFoundError: If rule doesn't exist
         """
+        # Determine rule: use global default if omitted
+        if rule_id is None:
+            rule_repository = self._get_rule_repository(user_id)
+            rule_id = get_default_rule_id(rule_repository)
+
         # Validate rule exists (using user's rule repository)
         rule_repository = self._get_rule_repository(user_id)
         rule = rule_repository.get_rule(str(rule_id))
@@ -144,11 +117,30 @@ class ETLService:
             user_id=user_id,
             project_id=project_id,
             filename=filename,
-            rule_id=rule_id,
+            rule_id=int(rule_id),
         )
 
-        # Submit to queue (this will create in DB and assign ID)
-        task_with_id = await self.queue.submit(task)
+        if s3_key:
+            task.metadata["s3_key"] = s3_key
+
+        # Create in DB to assign task_id
+        task_with_id = self.task_repository.create_task(task)
+
+        # Init runtime state and enqueue OCR job
+        job_id = await self.arq_client.enqueue_ocr(task_with_id.task_id)
+        state = ETLRuntimeState(
+            task_id=task_with_id.task_id,
+            user_id=task_with_id.user_id,
+            project_id=task_with_id.project_id,
+            filename=task_with_id.filename,
+            rule_id=task_with_id.rule_id,
+            status=ETLTaskStatus.PENDING,
+            phase=ETLPhase.OCR,
+            progress=0,
+            arq_job_id_ocr=job_id,
+            metadata=task_with_id.metadata,
+        )
+        await self.state_repo.set(state)
 
         logger.info(
             f"ETL task submitted: task_id={task_with_id.task_id}, "
@@ -156,174 +148,6 @@ class ETLService:
         )
 
         return task_with_id
-
-    async def _execute_etl_task(self, task: ETLTask):
-        """
-        Execute an ETL task (called by queue worker).
-
-        Args:
-            task: ETL task to execute
-        """
-        start_time = time.time()
-
-        try:
-            logger.info(f"Starting ETL task {task.task_id}")
-
-            # Step 1: Get S3 presigned URL for source file
-            task.update_status(ETLTaskStatus.MINERU_PARSING, progress=10)
-            
-            # Use s3_key from metadata if available (for files with special characters)
-            # Otherwise construct from filename (backward compatibility)
-            if "s3_key" in task.metadata:
-                source_key = task.metadata["s3_key"]
-                logger.info(f"Task {task.task_id}: Using s3_key from metadata: {source_key}")
-            else:
-                source_key = f"users/{task.user_id}/raw/{task.project_id}/{task.filename}"
-                logger.info(f"Task {task.task_id}: Constructed s3_key from filename: {source_key}")
-
-            presigned_url = await self.s3_service.generate_presigned_download_url(
-                key=source_key,
-                expires_in=3600,  # 1 hour
-            )
-            logger.info(f"Task {task.task_id}: Generated presigned URL")
-
-            # Step 2: Submit to MineRU for parsing
-            task.update_status(ETLTaskStatus.MINERU_PARSING, progress=20)
-            parsed_result = await self.mineru_client.parse_document(
-                file_url=presigned_url,
-                model_version=MineRUModelVersion.VLM,
-                data_id=str(task.task_id),
-            )
-
-            logger.info(
-                f"Task {task.task_id}: MineRU parsing completed, "
-                f"task_id={parsed_result.task_id}"
-            )
-            task.metadata["mineru_task_id"] = parsed_result.task_id
-
-            # Step 3: Load ETL rule
-            task.update_status(ETLTaskStatus.LLM_PROCESSING, progress=60)
-            rule_repository = self._get_rule_repository(task.user_id)
-            rule = rule_repository.get_rule(str(task.rule_id))
-            if not rule:
-                raise RuleNotFoundError(str(task.rule_id))
-
-            logger.info(f"Task {task.task_id}: Applying rule '{rule.name}'")
-
-            # Step 4: Apply transformation rule
-            transformation_result = await self.rule_engine.apply_rule(
-                markdown_content=parsed_result.markdown_content,
-                rule=rule,
-            )
-
-            if not transformation_result.success:
-                raise ETLTransformationError(
-                    transformation_result.error or "Unknown error",
-                    task.rule_id,
-                )
-
-            logger.info(f"Task {task.task_id}: Transformation successful")
-            task.update_status(ETLTaskStatus.LLM_PROCESSING, progress=80)
-
-            # Step 5: Upload result to S3
-            # Extract UUID from source s3_key to use for output filename (avoid non-ASCII chars)
-            source_s3_key = task.metadata.get("s3_key", "")
-            if source_s3_key:
-                # Extract UUID from path like "users/.../raw/2/uuid.pdf"
-                import os
-                source_basename = os.path.basename(source_s3_key)  # "uuid.pdf"
-                uuid_filename = os.path.splitext(source_basename)[0]  # "uuid"
-                output_filename = f"{uuid_filename}.json"
-            else:
-                # Fallback: generate new UUID if s3_key not found
-                import uuid
-                output_filename = f"{uuid.uuid4()}.json"
-            
-            output_key = f"users/{task.user_id}/processed/{task.project_id}/{output_filename}"
-            output_json = json.dumps(
-                transformation_result.output,
-                indent=2,
-                ensure_ascii=False,
-            )
-            output_bytes = output_json.encode("utf-8")
-
-            # Base64 encode filename for S3 metadata (only ASCII allowed)
-            import base64
-            source_filename_b64 = base64.b64encode(task.filename.encode('utf-8')).decode('ascii')
-            
-            upload_response = await self.s3_service.upload_file(
-                key=output_key,
-                content=output_bytes,
-                content_type="application/json",
-                metadata={
-                    "task_id": str(task.task_id),
-                    "rule_id": str(task.rule_id),
-                    "source_filename_b64": source_filename_b64,
-                },
-            )
-
-            logger.info(
-                f"Task {task.task_id}: Uploaded result to {output_key}, "
-                f"size={len(output_bytes)} bytes"
-            )
-
-            # Step 6: Mark task as completed
-            processing_time = time.time() - start_time
-            result = ETLTaskResult(
-                output_path=output_key,
-                output_size=len(output_bytes),
-                processing_time=processing_time,
-                mineru_task_id=parsed_result.task_id,
-            )
-
-            task.mark_completed(result)
-
-            logger.info(
-                f"Task {task.task_id} completed successfully in "
-                f"{processing_time:.2f}s"
-            )
-            
-            # Step 7: Call completion callback to update table data
-            try:
-                from src.etl.callbacks import handle_etl_task_completion
-                from src.supabase.tables.repository import TableRepository
-                from src.supabase.dependencies import get_supabase_client
-                
-                # Check if this task has table_id in metadata
-                if "table_id" in task.metadata:
-                    table_id = task.metadata["table_id"]
-                    logger.info(f"Task {task.task_id}: Calling completion callback for table {table_id}")
-                    
-                    # Initialize table repository
-                    supabase_client = get_supabase_client()
-                    table_repository = TableRepository(client=supabase_client)
-                    
-                    # Call callback
-                    success = await handle_etl_task_completion(
-                        task=task,
-                        s3_service=self.s3_service,
-                        table_repository=table_repository
-                    )
-                    
-                    if success:
-                        logger.info(f"Task {task.task_id}: Table {table_id} updated successfully")
-                    else:
-                        logger.warning(f"Task {task.task_id}: Failed to update table {table_id}")
-                else:
-                    logger.debug(f"Task {task.task_id}: No table_id in metadata, skipping callback")
-            except Exception as callback_error:
-                # Don't fail the task if callback fails
-                logger.error(
-                    f"Task {task.task_id}: Callback failed: {callback_error}",
-                    exc_info=True
-                )
-
-        except Exception as e:
-            logger.error(
-                f"Task {task.task_id} failed: {e}",
-                exc_info=True,
-            )
-            task.mark_failed(str(e))
 
     async def get_task_status(self, task_id: int) -> Optional[ETLTask]:
         """
@@ -335,7 +159,62 @@ class ETLService:
         Returns:
             ETLTask if found, None otherwise
         """
-        return self.queue.get_task(task_id)
+        state = await self.state_repo.get(task_id)
+        if state is not None:
+            # Reconcile "stuck running" tasks (e.g. worker crash/timeout before state could be finalized).
+            # If the runtime state hasn't been updated for longer than job_timeout + buffer, mark it failed.
+            if state.status in (ETLTaskStatus.MINERU_PARSING, ETLTaskStatus.LLM_PROCESSING):
+                age_s = (datetime.now(UTC) - state.updated_at).total_seconds()
+                if age_s > (etl_config.etl_task_timeout + 30):
+                    err = f"Runtime state stale for {int(age_s)}s (timeout={etl_config.etl_task_timeout}s)"
+                    try:
+                        # Best-effort: mark Redis terminal state
+                        state.status = ETLTaskStatus.FAILED
+                        state.phase = ETLPhase.FINALIZE
+                        state.progress = 0
+                        state.error_stage = "stale"
+                        state.error_message = err
+                        await self.state_repo.set_terminal(state)
+                    except Exception:
+                        logger.warning(
+                            f"Failed to set stale terminal state for task_id={task_id}",
+                            exc_info=True,
+                        )
+
+                    try:
+                        # Best-effort: mark DB terminal state
+                        task = self.task_repository.get_task(task_id)
+                        if task:
+                            task.status = ETLTaskStatus.FAILED
+                            task.error = err
+                            task.metadata["error_stage"] = "stale"
+                            self.task_repository.update_task(task)
+                            return task
+                    except Exception:
+                        logger.warning(
+                            f"Failed to persist stale failure for task_id={task_id}",
+                            exc_info=True,
+                        )
+
+            # Terminal state details should come from DB for result payload stability
+            if state.status in (ETLTaskStatus.COMPLETED, ETLTaskStatus.FAILED, ETLTaskStatus.CANCELLED):
+                return self.task_repository.get_task(task_id)
+
+            return ETLTask(
+                task_id=state.task_id,
+                user_id=state.user_id,
+                project_id=state.project_id,
+                filename=state.filename,
+                rule_id=state.rule_id,
+                status=state.status,
+                progress=state.progress,
+                created_at=state.created_at.replace(tzinfo=None),
+                updated_at=state.updated_at.replace(tzinfo=None),
+                error=state.error_message,
+                metadata=state.metadata,
+            )
+
+        return self.task_repository.get_task(task_id)
 
     async def get_task_status_with_access_check(
         self, task_id: int, user_id: str
@@ -384,13 +263,147 @@ class ETLService:
         Returns:
             List of matching tasks
         """
-        return self.queue.list_tasks(user_id, project_id, status)
+        tasks = self.task_repository.list_tasks(user_id=user_id, project_id=project_id, status=status, limit=100, offset=0)
+
+        for t in tasks:
+            if t.task_id is None:
+                continue
+            st = await self.state_repo.get(t.task_id)
+            if not st:
+                continue
+            if st.status in (ETLTaskStatus.PENDING, ETLTaskStatus.MINERU_PARSING, ETLTaskStatus.LLM_PROCESSING):
+                t.status = st.status
+                t.progress = st.progress
+                t.error = st.error_message or t.error
+                merged = dict(t.metadata or {})
+                merged.update(st.metadata or {})
+                t.metadata = merged
+
+        return tasks
+
+    async def cancel_task(self, task_id: int, user_id: str, *, force: bool = False) -> ETLTask:
+        """
+        Cancel a queued/pending task.
+
+        By default, only allowed when Redis runtime state is still `pending` (i.e. not started).
+        When force=True, allow cancelling running tasks by marking terminal CANCELLED state.
+        Note: this cannot interrupt external providers immediately; it is a control-plane cancellation.
+        """
+        task = self.task_repository.get_task(task_id)
+        if not task or task.user_id != user_id:
+            raise NotFoundException(
+                f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        if not force:
+            # Only allow cancelling pending in DB as well
+            if task.status != ETLTaskStatus.PENDING:
+                raise ValueError(f"Task not cancellable in status={task.status.value}")
+        else:
+            if task.status in (ETLTaskStatus.COMPLETED, ETLTaskStatus.FAILED, ETLTaskStatus.CANCELLED):
+                raise ValueError(f"Task not cancellable in status={task.status.value}")
+
+        state = await self.state_repo.get(task_id)
+        if state is None:
+            # Redis state may have expired; create a minimal terminal state so worker jobs can honor cancellation
+            state = ETLRuntimeState(
+                task_id=task_id,
+                user_id=task.user_id,
+                project_id=task.project_id,
+                filename=task.filename,
+                rule_id=task.rule_id,
+                status=ETLTaskStatus.CANCELLED,
+                phase=ETLPhase.FINALIZE,
+                progress=0,
+                error_message="Cancelled by user",
+                metadata=task.metadata,
+            )
+        else:
+            if state.user_id != user_id:
+                raise NotFoundException(
+                    f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
+                )
+            if not force and state.status != ETLTaskStatus.PENDING:
+                raise ValueError(f"Task not cancellable in status={state.status.value}")
+            if state.status in (ETLTaskStatus.COMPLETED, ETLTaskStatus.FAILED, ETLTaskStatus.CANCELLED):
+                raise ValueError(f"Task not cancellable in status={state.status.value}")
+            state.status = ETLTaskStatus.CANCELLED
+            state.phase = ETLPhase.FINALIZE
+            state.progress = 0
+            state.error_message = "Cancelled by user"
+
+        await self.state_repo.set_terminal(state)
+
+        task.mark_cancelled("Cancelled by user")
+        self.task_repository.update_task(task)
+        return task
+
+    async def retry_task(self, task_id: int, user_id: str, from_stage: str) -> ETLTask:
+        """
+        Retry from a given stage: "mineru" or "postprocess".
+        """
+        task = self.task_repository.get_task(task_id)
+        if not task or task.user_id != user_id:
+            raise NotFoundException(
+                f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        state = await self.state_repo.get(task_id)
+        if state is None:
+            state = ETLRuntimeState(
+                task_id=task_id,
+                user_id=task.user_id,
+                project_id=task.project_id,
+                filename=task.filename,
+                rule_id=task.rule_id,
+                status=ETLTaskStatus.PENDING,
+                phase=ETLPhase.OCR,
+                progress=0,
+                metadata=task.metadata,
+            )
+
+        if state.status in (ETLTaskStatus.MINERU_PARSING, ETLTaskStatus.LLM_PROCESSING):
+            raise ValueError(f"Task is running (status={state.status.value})")
+
+        if from_stage == "postprocess":
+            md_key = state.artifact_mineru_markdown_key or task.metadata.get("artifact_mineru_markdown_key")
+            if not md_key:
+                raise ValueError("Cannot retry postprocess: missing markdown artifact pointer")
+            job_id = await self.arq_client.enqueue_postprocess(task_id)
+            state.phase = ETLPhase.POSTPROCESS
+            state.status = ETLTaskStatus.LLM_PROCESSING
+            state.progress = 60
+            state.arq_job_id_postprocess = job_id
+            state.error_message = None
+            state.error_stage = None
+            state.artifact_mineru_markdown_key = md_key
+            await self.state_repo.set(state)
+        elif from_stage == "mineru":
+            job_id = await self.arq_client.enqueue_ocr(task_id)
+            state.phase = ETLPhase.OCR
+            state.status = ETLTaskStatus.PENDING
+            state.progress = 0
+            state.arq_job_id_ocr = job_id
+            state.arq_job_id_postprocess = None
+            state.artifact_mineru_markdown_key = None
+            state.provider_task_id = None
+            state.error_message = None
+            state.error_stage = None
+            await self.state_repo.set(state)
+        else:
+            raise ValueError("from_stage must be 'mineru' or 'postprocess'")
+
+        # Mark DB status back to pending for visibility (best effort)
+        task.status = ETLTaskStatus.PENDING
+        task.error = None
+        self.task_repository.update_task(task)
+        return task
 
     def get_queue_size(self) -> int:
-        """Get current queue size."""
-        return self.queue.queue_size()
+        """Queue is managed by ARQ; API does not track it."""
+        return 0
 
     def get_task_count(self) -> int:
-        """Get total number of tasks."""
-        return self.queue.task_count()
+        """Task count is stored in DB; API does not track it."""
+        return 0
 

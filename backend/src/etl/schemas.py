@@ -15,9 +15,22 @@ from src.etl.tasks.models import ETLTaskStatus
 class ETLSubmitRequest(BaseModel):
     """Request to submit an ETL task."""
 
-    project_id: int = Field(..., description="Project ID")
-    filename: str = Field(..., description="Source filename")
-    rule_id: int = Field(..., description="Rule ID to apply")
+    project_id: Optional[int] = Field(
+        default=None,
+        description="Project ID (required unless s3_key is provided and contains project_id metadata)",
+    )
+    filename: Optional[str] = Field(
+        default=None,
+        description="Source filename (required unless s3_key is provided and contains original_filename_b64 metadata)",
+    )
+    rule_id: Optional[int] = Field(
+        default=None,
+        description="Rule ID to apply. If omitted, use global default rule",
+    )
+    s3_key: Optional[str] = Field(
+        default=None,
+        description="Optional S3 key for the uploaded raw file (preferred over filename-derived key)",
+    )
 
 
 class ETLSubmitResponse(BaseModel):
@@ -59,8 +72,10 @@ class ETLRuleCreateRequest(BaseModel):
 
     name: str = Field(..., description="Rule name")
     description: str = Field(..., description="Rule description")
-    json_schema: dict[str, Any] = Field(..., description="JSON Schema for output")
+    json_schema: Optional[dict[str, Any]] = Field(None, description="JSON Schema for output (required for llm)")
     system_prompt: Optional[str] = Field(None, description="Optional system prompt")
+    postprocess_mode: Optional[str] = Field(default=None, description="llm|skip")
+    postprocess_strategy: Optional[str] = Field(default=None, description="Postprocess strategy (optional)")
 
 
 class ETLRuleResponse(BaseModel):
@@ -71,6 +86,8 @@ class ETLRuleResponse(BaseModel):
     description: str
     json_schema: dict[str, Any]
     system_prompt: Optional[str]
+    postprocess_mode: Optional[str] = None
+    postprocess_strategy: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -123,3 +140,25 @@ class BatchETLTaskStatusResponse(BaseModel):
 
     tasks: list[ETLTaskResponse] = Field(..., description="List of task statuses")
     total: int = Field(..., description="Total number of tasks queried")
+
+
+class ETLCancelResponse(BaseModel):
+    """Response for task cancellation."""
+
+    task_id: int
+    status: ETLTaskStatus
+    message: str
+
+
+class ETLRetryRequest(BaseModel):
+    """Request to retry an ETL task from a given stage."""
+
+    from_stage: str = Field(..., description="Retry stage: mineru|postprocess")
+
+
+class ETLRetryResponse(BaseModel):
+    """Response for task retry."""
+
+    task_id: int
+    status: ETLTaskStatus
+    message: str

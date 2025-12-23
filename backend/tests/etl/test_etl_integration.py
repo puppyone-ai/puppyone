@@ -60,21 +60,25 @@ from pathlib import Path
 import pytest
 from moto import mock_aws
 
-from src.etl.dependencies import get_etl_service, get_rule_repository
-from src.etl.mineru.client import MineRUClient
-from src.etl.rules.repository import RuleRepository
-from src.etl.rules.schemas import RuleCreateRequest
-from src.etl.service import ETLService
-from src.etl.tasks.models import ETLTaskStatus
-from src.llm.service import LLMService
-from src.s3.service import S3Service
-
 # 测试文件路径
 TEST_PDF_PATH = Path(__file__).parent / "artifact" / "test_pdf.pdf"
 
 # 检查是否配置了必需的 API Keys
 MINERU_API_KEY = os.getenv("MINERU_API_KEY")
 SKIP_INTEGRATION_TEST = not MINERU_API_KEY
+
+# 这是一份需要真实外部依赖的端到端测试。
+# 默认（未配置 MINERU_API_KEY）直接跳过，避免在 CI/本地未配置环境下导入/运行失败。
+if SKIP_INTEGRATION_TEST:
+    pytest.skip("Skip ETL integration test (MINERU_API_KEY not set)", allow_module_level=True)
+
+from src.etl.dependencies import get_etl_service  # noqa: E402
+from src.etl.mineru.client import MineRUClient  # noqa: E402
+from src.etl.rules.schemas import RuleCreateRequest  # noqa: E402
+from src.etl.service import ETLService  # noqa: E402
+from src.etl.tasks.models import ETLTaskStatus  # noqa: E402
+from src.llm.service import LLMService  # noqa: E402
+from src.s3.service import S3Service  # noqa: E402
 
 
 # ============= Fixtures =============

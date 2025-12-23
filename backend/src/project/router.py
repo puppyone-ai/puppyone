@@ -192,7 +192,7 @@ async def import_folder_as_table(
         from src.etl.rules.repository_supabase import RuleRepositorySupabase
         from src.supabase.dependencies import get_supabase_client
         
-        etl_service = get_etl_service()
+        etl_service = await get_etl_service()
         supabase_client = get_supabase_client()
         rule_repository = RuleRepositorySupabase(
             supabase_client=supabase_client,

@@ -142,13 +142,13 @@ async def app_lifespan(app: FastAPI):
             from src.etl.dependencies import get_etl_service
             from pathlib import Path
 
-            etl_service = get_etl_service()
+            etl_service = await get_etl_service()
             
             # 创建必要的目录
             Path(".mineru_cache").mkdir(parents=True, exist_ok=True)
             Path(".etl_rules").mkdir(parents=True, exist_ok=True)
             
-            # 启动 ETL workers
+            # 启动 ETL 控制面（worker 由独立进程启动）
             await etl_service.start()
             etl_duration = time.time() - etl_init_start
             log_info(f"✅ ETL 服务启动成功 (耗时: {etl_duration*1000:.2f}ms)")
@@ -177,7 +177,7 @@ async def app_lifespan(app: FastAPI):
         try:
             from src.etl.dependencies import get_etl_service
             
-            etl_service = get_etl_service()
+            etl_service = await get_etl_service()
             await etl_service.stop()
             log_info("ETL service stopped successfully")
         except Exception as e:

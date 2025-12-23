@@ -4,19 +4,24 @@ ETL Rule Repository Supabase 实现测试
 测试 Supabase 存储的 ETL 规则仓库。
 """
 
+import os
 import pytest
 from datetime import datetime, UTC
 
 from src.etl.rules.repository_supabase import RuleRepositorySupabase
 from src.etl.rules.schemas import RuleCreateRequest, RuleUpdateRequest
 from src.supabase.exceptions import SupabaseException
+from src.supabase.dependencies import get_supabase_client
 
+
+if not os.getenv("SUPABASE_URL") or not os.getenv("SUPABASE_KEY"):
+    pytest.skip("Skip Supabase-dependent tests (SUPABASE_URL/KEY not set)", allow_module_level=True)
 
 @pytest.fixture
 def repository():
     """创建测试用的 Repository 实例"""
     # 使用测试用户 ID
-    return RuleRepositorySupabase(user_id=1)
+    return RuleRepositorySupabase(supabase_client=get_supabase_client(), user_id="1")
 
 
 @pytest.fixture
