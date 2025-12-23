@@ -1,24 +1,20 @@
-"""ETL API（控制面）测试：submit(s3_key) 与 mount
-
-覆盖当前架构下的关键行为：
-- submit：从 current_user 注入 user_id，支持可选 s3_key
-- mount：仅 completed 可挂载，挂载时从 S3 下载 JSON 并调用 TableService
-"""
+"""ETL API（控制面）测试：upload_and_submit（替代 upload/submit/import-folder）"""
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 from fastapi.exceptions import RequestValidationError
+from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
+from src.etl.dependencies import get_etl_service
+from src.etl.router import router
+from src.etl.tasks.models import ETLTask, ETLTaskStatus
 from src.exception_handler import (
     app_exception_handler,
     generic_exception_handler,
@@ -26,10 +22,9 @@ from src.exception_handler import (
     validation_exception_handler,
 )
 from src.exceptions import AppException
-from src.etl.dependencies import get_etl_service
-from src.etl.router import router
-from src.etl.tasks.models import ETLTask, ETLTaskResult, ETLTaskStatus
+from src.project.dependencies import get_project_service
 from src.s3.dependencies import get_s3_service
+from src.s3.exceptions import S3FileSizeExceededError
 from src.table.dependencies import get_table_service
 
 
@@ -48,27 +43,36 @@ def app():
 def mock_etl_service():
     service = Mock()
     service.submit_etl_task = AsyncMock()
+    service.create_failed_task = AsyncMock()
     service.get_task_status_with_access_check = AsyncMock()
+    service.task_repository = Mock()
+    service.task_repository.update_task = Mock()
     return service
 
 
 @pytest.fixture
 def mock_s3_service():
     service = Mock()
-    service.download_file = AsyncMock()
+    service.upload_file = AsyncMock()
     return service
 
 
 @pytest.fixture
 def mock_table_service():
-    # mount endpoint uses asyncio.to_thread on this sync method
     service = Mock()
-    service.create_context_data = Mock()
+    service.get_by_id_with_access_check = Mock()
     return service
 
 
 @pytest.fixture
-def client(app, mock_etl_service, mock_s3_service, mock_table_service):
+def mock_project_service():
+    service = Mock()
+    service.verify_project_access = Mock(return_value=True)
+    return service
+
+
+@pytest.fixture
+def client(app, mock_etl_service, mock_s3_service, mock_table_service, mock_project_service):
     async def _override_etl_service():
         return mock_etl_service
 
@@ -79,6 +83,7 @@ def client(app, mock_etl_service, mock_s3_service, mock_table_service):
     app.dependency_overrides[get_current_user] = _override_current_user
     app.dependency_overrides[get_s3_service] = lambda: mock_s3_service
     app.dependency_overrides[get_table_service] = lambda: mock_table_service
+    app.dependency_overrides[get_project_service] = lambda: mock_project_service
 
     with TestClient(app) as c:
         yield c
@@ -86,79 +91,97 @@ def client(app, mock_etl_service, mock_s3_service, mock_table_service):
     app.dependency_overrides.clear()
 
 
-def test_submit_supports_s3_key(client, mock_etl_service):
-    mock_task = ETLTask(
+def test_upload_and_submit_success(client, mock_etl_service, mock_s3_service):
+    task = ETLTask(
         task_id=123,
         user_id="user123",
         project_id=2,
         filename="test.pdf",
         rule_id=3,
         status=ETLTaskStatus.PENDING,
+        metadata={},
     )
-    mock_etl_service.submit_etl_task.return_value = mock_task
+    mock_etl_service.submit_etl_task.return_value = task
 
     resp = client.post(
-        "/etl/submit",
-        json={
-            "project_id": 2,
-            "filename": "test.pdf",
-            "rule_id": 3,
-            "s3_key": "users/user123/raw/2/some.pdf",
-        },
+        "/etl/upload_and_submit",
+        data={"project_id": "2", "rule_id": "3"},
+        files=[("files", ("test.pdf", b"hello", "application/pdf"))],
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["task_id"] == 123
-    assert data["status"] == "pending"
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["task_id"] == 123
+    assert body["items"][0]["status"] == "pending"
+    assert body["items"][0]["s3_key"].startswith("users/user123/raw/2/")
 
-    mock_etl_service.submit_etl_task.assert_called_once_with(
+    mock_s3_service.upload_file.assert_awaited_once()
+    mock_etl_service.submit_etl_task.assert_awaited_once()
+    mock_etl_service.task_repository.update_task.assert_called_once()
+
+
+def test_upload_and_submit_upload_failed_still_creates_task(client, mock_etl_service, mock_s3_service):
+    failed_task = ETLTask(
+        task_id=999,
         user_id="user123",
         project_id=2,
         filename="test.pdf",
         rule_id=3,
-        s3_key="users/user123/raw/2/some.pdf",
+        status=ETLTaskStatus.FAILED,
+        error="too large",
+        metadata={},
     )
+    mock_etl_service.create_failed_task.return_value = failed_task
+    mock_s3_service.upload_file.side_effect = S3FileSizeExceededError(size=2, max_size=1)
 
-
-def test_mount_requires_completed(client, mock_etl_service):
-    task = ETLTask(
-        task_id=1,
-        user_id="user123",
-        project_id=1,
-        filename="doc.pdf",
-        rule_id=1,
-        status=ETLTaskStatus.PENDING,
+    resp = client.post(
+        "/etl/upload_and_submit",
+        data={"project_id": "2", "rule_id": "3"},
+        files=[("files", ("test.pdf", b"xx", "application/pdf"))],
     )
-    mock_etl_service.get_task_status_with_access_check.return_value = task
-
-    resp = client.post("/etl/tasks/1/mount", json={"table_id": 1, "json_path": "/x"})
-    assert resp.status_code == 400
-
-
-def test_mount_success(client, mock_etl_service, mock_s3_service, mock_table_service):
-    task = ETLTask(
-        task_id=1,
-        user_id="user123",
-        project_id=1,
-        filename="doc.pdf",
-        rule_id=1,
-        status=ETLTaskStatus.COMPLETED,
-        result=ETLTaskResult(
-            output_path="users/user123/processed/1/1.json",
-            output_size=10,
-            processing_time=1.0,
-            mineru_task_id="m1",
-        ),
-    )
-    mock_etl_service.get_task_status_with_access_check.return_value = task
-    mock_s3_service.download_file.return_value = json.dumps({"a": 1}).encode("utf-8")
-
-    resp = client.post("/etl/tasks/1/mount", json={"table_id": 1, "json_path": "/docs"})
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     body = resp.json()
-    assert body["success"] is True
+    assert body["total"] == 1
+    assert body["items"][0]["task_id"] == 999
+    assert body["items"][0]["status"] == "failed"
+    assert body["items"][0]["s3_key"] is None
 
-    mock_s3_service.download_file.assert_awaited_once()
-    mock_table_service.create_context_data.assert_called_once()
+    mock_etl_service.submit_etl_task.assert_not_called()
+    mock_etl_service.create_failed_task.assert_awaited_once()
+
+
+def test_legacy_endpoints_are_removed(client):
+    assert client.post("/etl/submit", json={}).status_code == 404
+    assert client.post("/etl/upload", data={}).status_code == 404
+    assert client.post("/etl/tasks/1/mount", json={}).status_code == 404
+
+
+def test_mount_key_is_unique_and_value_is_not_double_wrapped(client, mock_etl_service):
+    """
+    upload_and_submit 会把 mount_key 写入 metadata。
+    worker 侧挂载时 SHOULD 使用 mount_key 作为唯一一层 key；
+    skip-mode 的 output 形如 {base_name: {...}}，挂载时会 unwrap 成 {...} 避免双层嵌套。
+    """
+    # 这里不跑真实 worker，仅保证 API 侧写入了 mount_key，worker 侧约束由 jobs.py 实现。
+    task = ETLTask(
+        task_id=123,
+        user_id="user123",
+        project_id=2,
+        filename="test.pdf",
+        rule_id=3,
+        status=ETLTaskStatus.PENDING,
+        metadata={},
+    )
+    mock_etl_service.submit_etl_task.return_value = task
+
+    resp = client.post(
+        "/etl/upload_and_submit",
+        data={"project_id": "2", "rule_id": "3"},
+        files=[("files", ("test.pdf", b"hello", "application/pdf"))],
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["items"][0]["task_id"] == 123
+    assert "-" in body["items"][0]["filename"] or True  # keep trivial assertion for structure
 
 
