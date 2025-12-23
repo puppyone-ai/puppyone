@@ -413,6 +413,28 @@ curl http://localhost:9090/api/v1/etl/tasks/{task_id}
 
 查看 `/docs` 获取完整的 API 文档和交互式测试界面。
 
+#### 端到端测试：上传文件夹 + 自动触发 ETL（不依赖 Swagger UI）
+
+`/api/v1/projects/{project_id}/import-folder` 需要 `folder_structure + binary_files(s3_key...)`，在 Swagger UI 里做整条链路通常不方便（尤其是需要先上传文件拿 `s3_key`）。
+
+后端提供了一个脚本可以一键跑通：
+- 扫描本地目录
+- 对二进制文件调用 `/api/v1/etl/upload` 获取 `s3_key`
+- 调用 `/api/v1/projects/{project_id}/import-folder`
+- 可选轮询 `/api/v1/etl/tasks/batch` 等待任务完成
+
+示例：
+
+```bash
+export CONTEXTBASE_TOKEN="你的JWT"
+uv run python scripts/e2e_import_folder.py \
+  --api-base http://localhost:9090/api/v1 \
+  --project-id 123 \
+  --dir ./sample_docs \
+  --table-name "sample_docs" \
+  --wait
+```
+
 
 
 ### Usage

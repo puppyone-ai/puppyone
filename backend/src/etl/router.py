@@ -4,17 +4,19 @@ ETL API Router
 FastAPI routes for ETL operations.
 """
 
-import json
+import base64
+import hashlib
 import logging
+import os
+import uuid
+from pathlib import Path
 from typing import Annotated, Optional
 
-import asyncio
-import base64
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from src.etl.config import etl_config
 from src.etl.dependencies import get_etl_service, get_verified_etl_task
-from src.etl.exceptions import ETLError, RuleNotFoundError
+from src.etl.exceptions import RuleNotFoundError
 from src.s3.exceptions import S3Error, S3FileSizeExceededError
 from src.etl.rules.dependencies import get_rule_repository
 from src.etl.rules.repository_supabase import RuleRepositorySupabase
@@ -22,22 +24,21 @@ from src.etl.rules.schemas import RuleCreateRequest
 from src.etl.tasks.models import ETLTask
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
+from src.project.dependencies import get_project_service
+from src.project.service import ProjectService
 from src.etl.schemas import (
     BatchETLTaskStatusResponse,
-    ETLFileUploadResponse,
     ETLHealthResponse,
-    ETLMountRequest,
-    ETLMountResponse,
     ETLRuleCreateRequest,
     ETLRuleListResponse,
     ETLRuleResponse,
-    ETLSubmitRequest,
-    ETLSubmitResponse,
     ETLCancelResponse,
     ETLRetryRequest,
     ETLRetryResponse,
     ETLTaskListResponse,
     ETLTaskResponse,
+    UploadAndSubmitItem,
+    UploadAndSubmitResponse,
 )
 from src.etl.service import ETLService
 from src.etl.tasks.models import ETLTaskStatus
@@ -51,137 +52,179 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/etl", tags=["etl"])
 
 
-@router.post("/submit", response_model=ETLSubmitResponse)
-async def submit_etl_task(
-    request: ETLSubmitRequest,
-    etl_service: Annotated[ETLService, Depends(get_etl_service)],
-    current_user: CurrentUser = Depends(get_current_user),
+@router.post("/upload_and_submit", response_model=UploadAndSubmitResponse, status_code=201)
+async def upload_and_submit(
+    project_id: int = Form(..., description="Project ID"),
+    files: list[UploadFile] = File(..., description="Files to upload (single or multiple)"),
+    rule_id: Optional[int] = Form(None, description="Optional ETL rule id"),
+    table_id: Optional[int] = Form(None, description="Optional target table id to mount results"),
+    json_path: Optional[str] = Form(None, description="Optional JSON Pointer mount path (default: root)"),
+    etl_service: Annotated[ETLService, Depends(get_etl_service)] = None,
     s3_service: Annotated[S3Service, Depends(get_s3_service)] = None,
+    table_service: Annotated[TableService, Depends(get_table_service)] = None,
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Submit an ETL task for processing.
+    Upload raw files and submit ETL tasks in one call.
 
-    Args:
-        request: ETL task submission request
-        etl_service: ETL service dependency
-        current_user: Current user (from token)
-
-    Returns:
-        ETLSubmitResponse with task ID and status
-
-    Raises:
-        HTTPException: If rule not found or submission fails
+    - This endpoint replaces legacy /etl/upload, /etl/submit, and project import-folder.
+    - If upload fails, the system still creates a pollable task_id with status=failed.
     """
-    try:
-        project_id = request.project_id
-        filename = request.filename
+    # Access checks
+    if not project_service.verify_project_access(project_id, current_user.user_id):
+        raise HTTPException(status_code=404, detail="Project not found")
 
-        # If s3_key is provided, treat it as the first priority input and
-        # try to infer missing fields from S3 object metadata written by /etl/upload.
-        if request.s3_key:
-            # Basic access check: only allow submitting tasks for user's own raw uploads
-            expected_prefix = f"users/{current_user.user_id}/raw/"
-            if not request.s3_key.startswith(expected_prefix):
-                raise HTTPException(
-                    status_code=403,
-                    detail="Invalid s3_key: not under current user's raw prefix",
-                )
+    if table_id is not None:
+        # Ensure target table exists and belongs to current user (404 on not found / no access)
+        table_service.get_by_id_with_access_check(table_id, current_user.user_id)
 
-            try:
-                s3_meta = await s3_service.get_file_metadata(request.s3_key)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to fetch S3 metadata for submit: {request.s3_key}: {e}",
-                    exc_info=True,
-                )
-                s3_meta = None
+    mount_json_path = json_path or ""
+    items: list[UploadAndSubmitItem] = []
 
-            derived_project_id: Optional[int] = None
-            derived_filename: Optional[str] = None
+    for f in files:
+        original_filename = f.filename or "file"
+        original_basename = Path(original_filename).name
 
-            if s3_meta and s3_meta.metadata:
-                meta = s3_meta.metadata
-                if meta.get("project_id"):
-                    try:
-                        derived_project_id = int(meta["project_id"])
-                    except Exception:
-                        logger.warning(
-                            f"Invalid project_id metadata on {request.s3_key}: {meta.get('project_id')}"
-                        )
+        # Generate safe S3 key (avoid special chars / paths in filename)
+        _, ext = os.path.splitext(original_basename)
+        safe_filename = f"{uuid.uuid4()}{ext}"
+        s3_key = f"users/{current_user.user_id}/raw/{project_id}/{safe_filename}"
 
-                if meta.get("original_filename_b64"):
-                    try:
-                        derived_filename = base64.b64decode(
-                            meta["original_filename_b64"].encode("ascii")
-                        ).decode("utf-8")
-                    except Exception:
-                        logger.warning(
-                            f"Invalid original_filename_b64 metadata on {request.s3_key}",
-                            exc_info=True,
-                        )
-
-            # s3_key is first priority: if metadata exists, it wins.
-            if derived_project_id is not None:
-                if project_id is not None and project_id != derived_project_id:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="project_id does not match s3_key metadata",
-                    )
-                project_id = derived_project_id
-
-            if derived_filename is not None:
-                if filename is not None and filename != derived_filename:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="filename does not match s3_key metadata",
-                    )
-                filename = derived_filename
-
-            # Fallbacks when metadata is missing
-            if filename is None:
-                filename = request.s3_key.split("/")[-1] or None
-
-        # Backward compatible requirements:
-        # - If no s3_key, project_id and filename must be provided.
-        # - If s3_key, they may be inferred, but must be resolved by here.
-        if project_id is None or filename is None:
-            missing = []
-            if project_id is None:
-                missing.append("project_id")
-            if filename is None:
-                missing.append("filename")
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": "ValidationError",
-                    "message": f"Missing required fields: {', '.join(missing)}",
-                    "hint": "Provide project_id/filename, or provide s3_key with corresponding metadata",
+        # Upload first; even if upload fails we must create a failed task_id
+        try:
+            content = await f.read()
+            original_filename_b64 = base64.b64encode(
+                original_filename.encode("utf-8")
+            ).decode("ascii")
+            await s3_service.upload_file(
+                key=s3_key,
+                content=content,
+                content_type=f.content_type,
+                metadata={
+                    "original_filename_b64": original_filename_b64,
+                    "project_id": str(project_id),
                 },
             )
+        except S3FileSizeExceededError as e:
+            task = await etl_service.create_failed_task(
+                user_id=current_user.user_id,
+                project_id=project_id,
+                filename=original_filename,
+                rule_id=rule_id,
+                error=str(e),
+                metadata={
+                    "error_stage": "upload",
+                    "max_size": getattr(e, "max_size", None),
+                    "filename": original_filename,
+                },
+            )
+            items.append(
+                UploadAndSubmitItem(
+                    filename=original_filename,
+                    task_id=task.task_id or 0,
+                    status=ETLTaskStatus.FAILED,
+                    s3_key=None,
+                    error=str(e),
+                )
+            )
+            continue
+        except S3Error as e:
+            task = await etl_service.create_failed_task(
+                user_id=current_user.user_id,
+                project_id=project_id,
+                filename=original_filename,
+                rule_id=rule_id,
+                error=str(e),
+                metadata={"error_stage": "upload", "filename": original_filename},
+            )
+            items.append(
+                UploadAndSubmitItem(
+                    filename=original_filename,
+                    task_id=task.task_id or 0,
+                    status=ETLTaskStatus.FAILED,
+                    s3_key=None,
+                    error=str(e),
+                )
+            )
+            continue
+        except Exception as e:
+            task = await etl_service.create_failed_task(
+                user_id=current_user.user_id,
+                project_id=project_id,
+                filename=original_filename,
+                rule_id=rule_id,
+                error=f"Upload failed: {e}",
+                metadata={"error_stage": "upload", "filename": original_filename},
+            )
+            items.append(
+                UploadAndSubmitItem(
+                    filename=original_filename,
+                    task_id=task.task_id or 0,
+                    status=ETLTaskStatus.FAILED,
+                    s3_key=None,
+                    error=f"Upload failed: {e}",
+                )
+            )
+            continue
 
-        task = await etl_service.submit_etl_task(
-            user_id=current_user.user_id,
-            project_id=project_id,
-            filename=filename,
-            rule_id=request.rule_id,
-            s3_key=request.s3_key,
+        # Submit task
+        try:
+            task = await etl_service.submit_etl_task(
+                user_id=current_user.user_id,
+                project_id=project_id,
+                filename=original_filename,
+                rule_id=rule_id,
+                s3_key=s3_key,
+            )
+        except RuleNotFoundError as e:
+            # Treat as failed (pollable), since upload already succeeded
+            task = await etl_service.create_failed_task(
+                user_id=current_user.user_id,
+                project_id=project_id,
+                filename=original_filename,
+                rule_id=rule_id,
+                error=str(e),
+                metadata={"error_stage": "submit", "s3_key": s3_key},
+            )
+            items.append(
+                UploadAndSubmitItem(
+                    filename=original_filename,
+                    task_id=task.task_id or 0,
+                    status=ETLTaskStatus.FAILED,
+                    s3_key=s3_key,
+                    error=str(e),
+                )
+            )
+            continue
+
+        # Persist mount plan into task.metadata (worker will execute it)
+        suffix = hashlib.sha1(s3_key.encode("utf-8")).hexdigest()
+        mount_key = f"{original_basename}-{suffix[:8]}"
+
+        task.metadata["mount_key"] = mount_key
+        task.metadata["mount_json_path"] = mount_json_path
+        if table_id is not None:
+            task.metadata["mount_table_id"] = int(table_id)
+        else:
+            task.metadata["auto_table_name"] = suffix[:10]
+            task.metadata["auto_create_table"] = True
+
+        # Ensure s3_key is persisted (submit already sets it, but keep explicit)
+        task.metadata["s3_key"] = s3_key
+        etl_service.task_repository.update_task(task)
+
+        items.append(
+            UploadAndSubmitItem(
+                filename=original_filename,
+                task_id=task.task_id or 0,
+                status=task.status,
+                s3_key=s3_key,
+                error=None,
+            )
         )
 
-        logger.info(f"ETL task submitted: {task.task_id}")
-
-        return ETLSubmitResponse(
-            task_id=task.task_id,
-            status=task.status,
-            message="Task submitted successfully",
-        )
-
-    except RuleNotFoundError as e:
-        logger.error(f"Rule not found: {e.rule_id}")
-        raise HTTPException(status_code=404, detail=str(e))
-
-    except ETLError as e:
-        logger.error(f"ETL error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return UploadAndSubmitResponse(items=items, total=len(items))
 
 
 @router.post("/tasks/{task_id}/cancel", response_model=ETLCancelResponse)
@@ -568,114 +611,6 @@ async def delete_etl_rule(
     logger.info(f"ETL rule deleted: {rule_id}")
 
 
-@router.post("/tasks/{task_id}/mount", response_model=ETLMountResponse)
-async def mount_etl_result(
-    task: ETLTask = Depends(get_verified_etl_task),
-    request: ETLMountRequest = ...,
-    s3_service: Annotated[S3Service, Depends(get_s3_service)] = None,
-    table_service: Annotated[TableService, Depends(get_table_service)] = None,
-):
-    """
-    Mount ETL result JSON to a table.
-
-    Args:
-        task: Verified ETL task (from dependency injection)
-        request: Mount request with table_id and json_path
-        s3_service: S3 service dependency
-        table_service: Table service dependency
-
-    Returns:
-        ETLMountResponse with mount status
-
-    Raises:
-        HTTPException: If task not found, not completed, or mount fails
-    """
-    try:
-
-        # Check task status
-        if task.status != ETLTaskStatus.COMPLETED:
-            logger.warning(
-                f"Task {task.task_id} not completed (status: {task.status.value})"
-            )
-            raise HTTPException(
-                status_code=400,
-                detail=f"Task not completed. Current status: {task.status.value}",
-            )
-
-        # Get result path
-        if not task.result or not task.result.output_path:
-            logger.error(f"Task {task.task_id} has no result path")
-            raise HTTPException(status_code=500, detail="Task result not found")
-
-        output_path = task.result.output_path
-
-        # Download result from S3
-        logger.info(f"Downloading result from S3: {output_path}")
-        download_content = await s3_service.download_file(output_path)
-
-        if not download_content:
-            logger.error(f"Failed to download result from S3: {output_path}")
-            raise HTTPException(
-                status_code=500, detail="Failed to download result from S3"
-            )
-
-        # Parse JSON
-        try:
-            result_json = json.loads(download_content.decode("utf-8"))
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse result JSON: {e}")
-            raise HTTPException(status_code=500, detail="Invalid JSON in result")
-
-        # Extract filename without extension as key
-        import os
-
-        filename_without_ext = os.path.splitext(task.filename)[0]
-
-        # Mount to table
-        logger.info(
-            f"Mounting result to table {request.table_id} at path {request.json_path}"
-        )
-
-        # Prepare elements for create_context_data
-        elements = [
-            {
-                "key": filename_without_ext,
-                "content": result_json
-            }
-        ]
-
-        # create_context_data is a sync method, so offload to thread
-        await asyncio.to_thread(
-            table_service.create_context_data,
-            table_id=request.table_id,
-            mounted_json_pointer_path=request.json_path,
-            elements=elements,
-        )
-
-
-        mounted_path = (
-            f"{request.json_path}/{filename_without_ext}"
-            if request.json_path
-            else filename_without_ext
-        )
-
-        logger.info(
-            f"Successfully mounted task {task.task_id} result to table {request.table_id}"
-        )
-
-        return ETLMountResponse(
-            success=True,
-            message="Result mounted successfully",
-            mounted_path=mounted_path,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error mounting result: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/health", response_model=ETLHealthResponse)
 async def get_etl_health(
     etl_service: Annotated[ETLService, Depends(get_etl_service)],
@@ -695,106 +630,3 @@ async def get_etl_health(
         task_count=etl_service.get_task_count(),
         worker_count=etl_config.etl_worker_count,
     )
-
-
-@router.post("/upload", response_model=ETLFileUploadResponse, status_code=201)
-async def upload_etl_file(
-    project_id: int = Form(..., description="Project ID"),
-    file: UploadFile = File(..., description="File to upload"),
-    current_user: CurrentUser = Depends(get_current_user),
-    s3_service: Annotated[S3Service, Depends(get_s3_service)] = None,
-):
-    """
-    Upload a file to S3 for ETL processing.
-
-    The file will be automatically uploaded to the path:
-    `/users/{user_id}/raw/{project_id}/{filename}`
-
-    Args:
-        project_id: Project ID
-        file: File to upload
-        current_user: Current user (from token)
-        s3_service: S3 service dependency
-
-    Returns:
-        ETLFileUploadResponse with upload details
-
-    Raises:
-        HTTPException: If upload fails or file size exceeds limit
-    """
-    try:
-        # Generate safe S3 key path
-        # Use UUID to avoid issues with special characters in filename
-        import uuid
-        import os
-        import base64
-        
-        original_filename = file.filename
-        # Get file extension
-        _, ext = os.path.splitext(original_filename)
-        # Generate safe filename using UUID
-        safe_filename = f"{uuid.uuid4()}{ext}"
-        s3_key = f"users/{current_user.user_id}/raw/{project_id}/{safe_filename}"
-
-        # Read file content
-        content = await file.read()
-
-        # Encode original filename to base64 for S3 metadata (ASCII only)
-        # S3 metadata can only contain ASCII characters
-        original_filename_b64 = base64.b64encode(original_filename.encode('utf-8')).decode('ascii')
-
-        # Upload to S3 with base64-encoded original filename in metadata
-        result = await s3_service.upload_file(
-            key=s3_key,
-            content=content,
-            content_type=file.content_type,
-            metadata={
-                "original_filename_b64": original_filename_b64,
-                "project_id": str(project_id),
-            }
-        )
-
-        logger.info(
-            f"File uploaded successfully to ETL: {s3_key} "
-            f"(original: {original_filename}, {result.size} bytes)"
-        )
-
-        return ETLFileUploadResponse(
-            key=result.key,
-            bucket=result.bucket,
-            size=result.size,
-            etag=result.etag,
-            content_type=result.content_type,
-        )
-
-    except S3FileSizeExceededError as e:
-        logger.error(f"File size exceeded: {e}")
-        raise HTTPException(
-            status_code=413,
-            detail={
-                "error": "PayloadTooLarge",
-                "message": str(e),
-                "max_size": e.max_size,
-                "suggestion": "Please use multipart upload or presigned URL for large files",
-            },
-        )
-
-    except S3Error as e:
-        logger.error(f"S3 error during ETL file upload: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "S3Error",
-                "message": f"Failed to upload file to S3: {str(e)}",
-            },
-        )
-
-    except Exception as e:
-        logger.error(f"Unexpected error during ETL file upload: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "InternalServerError",
-                "message": f"An unexpected error occurred: {str(e)}",
-            },
-        )

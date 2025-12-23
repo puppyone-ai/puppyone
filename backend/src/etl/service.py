@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, UTC
-from typing import Optional
+from typing import Optional, Any
 
 from src.etl.arq_client import ETLArqClient
 from src.etl.config import etl_config
@@ -147,6 +147,50 @@ class ETLService:
             f"user_id={user_id}, filename={filename}, rule_id={rule_id}"
         )
 
+        return task_with_id
+
+    async def create_failed_task(
+        self,
+        *,
+        user_id: str,
+        project_id: int,
+        filename: str,
+        rule_id: int | None,
+        error: str,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> ETLTask:
+        """
+        Create a failed ETL task record for cases where we want a pollable task_id
+        but the pipeline cannot be started (e.g. upload failed).
+        """
+        # Determine rule: use global default if omitted
+        if rule_id is None:
+            rule_repository = self._get_rule_repository(user_id)
+            rule_id = get_default_rule_id(rule_repository)
+
+        # Validate rule exists (using user's rule repository)
+        rule_repository = self._get_rule_repository(user_id)
+        rule = rule_repository.get_rule(str(rule_id))
+        if not rule:
+            logger.error(f"Rule not found: {rule_id}")
+            raise RuleNotFoundError(str(rule_id))
+
+        task = ETLTask(
+            task_id=None,
+            user_id=user_id,
+            project_id=project_id,
+            filename=filename,
+            rule_id=int(rule_id),
+            status=ETLTaskStatus.FAILED,
+            progress=0,
+            error=error,
+            metadata=metadata or {},
+        )
+
+        task_with_id = self.task_repository.create_task(task)
+        logger.info(
+            f"Created failed ETL task: task_id={task_with_id.task_id}, user_id={user_id}, error={error}"
+        )
         return task_with_id
 
     async def get_task_status(self, task_id: int) -> Optional[ETLTask]:

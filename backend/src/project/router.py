@@ -4,7 +4,7 @@ Project Router
 提供项目 CRUD 的 REST API 接口。
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 from typing import List
 
 from src.project.service import ProjectService
@@ -15,10 +15,7 @@ from src.project.schemas import (
     ProjectCreate,
     ProjectUpdate,
     TableInfo,
-    FolderImportRequest,
-    FolderImportResponse,
     TableOut,
-    BinaryFileInfo,
 )
 from src.supabase.dependencies import get_supabase_repository
 from src.auth.models import CurrentUser
@@ -169,58 +166,4 @@ def delete_project(
     # 删除项目
     project_service.delete(project.id)
     return ApiResponse.success(message="项目删除成功")
-
-
-@router.post("/{project_id}/import-folder", response_model=ApiResponse[FolderImportResponse], status_code=status.HTTP_201_CREATED)
-async def import_folder_as_table(
-    project_id: str,
-    payload: FolderImportRequest,
-    project_service: ProjectService = Depends(get_project_service),
-    current_user = Depends(get_current_user),
-):
-    """
-    导入文件夹结构作为表，支持二进制文件的 ETL 处理。
-    
-    如果 payload 中包含 binary_files，将自动提交 ETL 任务进行解析。
-    """
-    # Import ETL dependencies only if needed
-    etl_service = None
-    rule_repository = None
-    
-    if payload.binary_files:
-        from src.etl.dependencies import get_etl_service
-        from src.etl.rules.repository_supabase import RuleRepositorySupabase
-        from src.supabase.dependencies import get_supabase_client
-        
-        etl_service = await get_etl_service()
-        supabase_client = get_supabase_client()
-        rule_repository = RuleRepositorySupabase(
-            supabase_client=supabase_client,
-            user_id=current_user.user_id
-        )
-    
-    # Call service method
-    result = await project_service.import_folder_as_table(
-        project_id=project_id,
-        table_name=payload.table_name,
-        folder_structure=payload.folder_structure,
-        binary_files=[bf.model_dump() for bf in payload.binary_files] if payload.binary_files else None,
-        user_id=current_user.user_id if payload.binary_files else None,
-        etl_service=etl_service,
-        rule_repository=rule_repository,
-    )
-
-    message = "文件夹导入成功"
-    if result.binary_file_count > 0:
-        message += f"，{result.binary_file_count} 个二进制文件正在后台解析"
-
-    return ApiResponse.success(
-        data=FolderImportResponse(
-            table_id=str(result.table_id),
-            table_name=result.table_name,
-            etl_task_ids=result.etl_task_ids,
-            binary_file_count=result.binary_file_count
-        ),
-        message=message
-    )
 

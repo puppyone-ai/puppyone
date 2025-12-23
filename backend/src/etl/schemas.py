@@ -12,33 +12,23 @@ from pydantic import BaseModel, Field
 from src.etl.tasks.models import ETLTaskStatus
 
 
-class ETLSubmitRequest(BaseModel):
-    """Request to submit an ETL task."""
+class UploadAndSubmitItem(BaseModel):
+    """Per-file result for upload_and_submit."""
 
-    project_id: Optional[int] = Field(
-        default=None,
-        description="Project ID (required unless s3_key is provided and contains project_id metadata)",
-    )
-    filename: Optional[str] = Field(
-        default=None,
-        description="Source filename (required unless s3_key is provided and contains original_filename_b64 metadata)",
-    )
-    rule_id: Optional[int] = Field(
-        default=None,
-        description="Rule ID to apply. If omitted, use global default rule",
-    )
-    s3_key: Optional[str] = Field(
-        default=None,
-        description="Optional S3 key for the uploaded raw file (preferred over filename-derived key)",
-    )
-
-
-class ETLSubmitResponse(BaseModel):
-    """Response for ETL task submission."""
-
-    task_id: int = Field(..., description="Created task ID")
+    filename: str = Field(..., description="Original filename")
+    task_id: int = Field(..., description="ETL task ID (created even if upload failed)")
     status: ETLTaskStatus = Field(..., description="Initial task status")
-    message: str = Field(..., description="Status message")
+    s3_key: Optional[str] = Field(
+        default=None, description="Uploaded raw S3 key (None if upload failed)"
+    )
+    error: Optional[str] = Field(default=None, description="Error message if failed")
+
+
+class UploadAndSubmitResponse(BaseModel):
+    """Response for upload_and_submit."""
+
+    items: list[UploadAndSubmitItem] = Field(default_factory=list)
+    total: int = Field(..., description="Total items returned")
 
 
 class ETLTaskResponse(BaseModel):
@@ -108,31 +98,6 @@ class ETLHealthResponse(BaseModel):
     queue_size: int
     task_count: int
     worker_count: int
-
-
-class ETLMountRequest(BaseModel):
-    """Request to mount ETL result to table."""
-
-    table_id: int = Field(..., description="Table ID to mount to")
-    json_path: str = Field(..., description="JSON path in table data structure")
-
-
-class ETLMountResponse(BaseModel):
-    """Response for ETL result mount."""
-
-    success: bool = Field(..., description="Whether mount was successful")
-    message: str = Field(..., description="Status message")
-    mounted_path: str = Field(..., description="Path where result was mounted")
-
-
-class ETLFileUploadResponse(BaseModel):
-    """Response for ETL file upload."""
-
-    key: str = Field(..., description="S3 object key")
-    bucket: str = Field(..., description="S3 bucket name")
-    size: int = Field(..., description="File size in bytes")
-    etag: str = Field(..., description="ETag hash")
-    content_type: Optional[str] = Field(None, description="File content type")
 
 
 class BatchETLTaskStatusResponse(BaseModel):
