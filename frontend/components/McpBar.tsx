@@ -265,23 +265,23 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
         onLog('info', 'Creating table...')
       }
       await createTable(selectedProject, finalTableName, folderStructure)
-      setImportProgress(100)
+        setImportProgress(100)
 
-      // Trigger refresh
-      if (onProjectsRefresh) {
-        onProjectsRefresh()
-      } else {
-        window.dispatchEvent(new CustomEvent('projects-refresh'))
-      }
+        // Trigger refresh
+        if (onProjectsRefresh) {
+          onProjectsRefresh()
+        } else {
+          window.dispatchEvent(new CustomEvent('projects-refresh'))
+        }
 
-      // Reset form
-      setSelectedProject('')
-      setTableName('')
-      setSelectedFiles(null)
-      setIsImportMenuOpen(false)
+        // Reset form
+        setSelectedProject('')
+        setTableName('')
+        setSelectedFiles(null)
+        setIsImportMenuOpen(false)
 
-      if (onLog) {
-        onLog('success', `Folder imported successfully! Context name: ${finalTableName}`)
+          if (onLog) {
+            onLog('success', `Folder imported successfully! Context name: ${finalTableName}`)
       }
     } catch (error) {
       console.error('Import error:', error)

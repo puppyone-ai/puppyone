@@ -355,7 +355,8 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
       try {
         // 检查是否需要 ETL 处理
         if (needsETL(file)) {
-          // 使用 null 作为干净的占位符
+          // 用 null 作为占位符，保持文件结构
+          // 配合 pending task 列表，在 JSON 编辑器中显示 loading 状态
           current[fileName] = null
           etlFiles.push(file)
           onLog?.('info', `Found ${fileName} for processing...`)

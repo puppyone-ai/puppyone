@@ -1254,11 +1254,11 @@ export function ProjectsSidebar({
                                       <circle cx="7" cy="7" r="5" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeDasharray="24 8"/>
                                     </svg>
                                   ) : (
-                                    <svg className="table-icon-svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                      <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-                                      <line x1="1.5" y1="5" x2="12.5" y2="5" stroke="currentColor" strokeWidth="1.2"/>
-                                      <line x1="5.5" y1="5" x2="5.5" y2="12.5" stroke="currentColor" strokeWidth="1.2"/>
-                                    </svg>
+                                  <svg className="table-icon-svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                                    <line x1="1.5" y1="5" x2="12.5" y2="5" stroke="currentColor" strokeWidth="1.2"/>
+                                    <line x1="5.5" y1="5" x2="5.5" y2="12.5" stroke="currentColor" strokeWidth="1.2"/>
+                                  </svg>
                                   )}
                                   <span className="table-name">{table.name}</span>
                                 </button>

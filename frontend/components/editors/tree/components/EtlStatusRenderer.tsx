@@ -19,12 +19,12 @@ interface PendingTaskRendererProps {
 // ============================================
 
 /**
- * 从 localStorage 获取所有 pending tasks
+ * 从 sessionStorage 获取所有 pending tasks
  */
 export function getAllPendingTasks(): PendingTask[] {
   if (typeof window === 'undefined') return []
   try {
-    const stored = localStorage.getItem('etl_pending_tasks')
+    const stored = sessionStorage.getItem('etl_pending_tasks')
     return stored ? JSON.parse(stored) : []
   } catch {
     return []

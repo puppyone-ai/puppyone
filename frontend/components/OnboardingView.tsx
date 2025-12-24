@@ -31,10 +31,7 @@ export function OnboardingView({ onStart, isLoading = false, userName }: Onboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && !isLoading && isReady) {
-        setIsPressed(true)
-        setTimeout(() => {
-          onStart()
-        }, 150)
+        onStart()
       }
     }
     window.addEventListener('keydown', handleKeyDown)

@@ -186,7 +186,8 @@ export function TableManageDialog({
       try {
         if (needsETL(file)) {
           // 需要 ETL 处理的文件（PDF、图片等）
-          // 使用 null 作为干净的占位符
+          // 用 null 作为占位符，保持文件结构
+          // 配合 pending task 列表，在 JSON 编辑器中显示 loading 状态
           current[fileName] = null
           etlFiles.push(file)
           setImportMessage(`Found ${fileName} for processing...`)
