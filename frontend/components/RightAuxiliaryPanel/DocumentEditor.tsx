@@ -9,9 +9,11 @@ interface DocumentEditorProps {
   value: string
   onSave: (newValue: string) => void
   onClose: () => void
+  isFullScreen?: boolean
+  onToggleFullScreen?: () => void
 }
 
-export function DocumentEditor({ path, value, onSave, onClose }: DocumentEditorProps) {
+export function DocumentEditor({ path, value, onSave, onClose, isFullScreen = false, onToggleFullScreen }: DocumentEditorProps) {
   const [mode, setMode] = useState<'preview' | 'raw'>('preview')
   const [editedValue, setEditedValue] = useState(value)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -47,7 +49,7 @@ export function DocumentEditor({ path, value, onSave, onClose }: DocumentEditorP
       overflow: 'hidden',
       height: '100%',
     }}>
-      {/* Header - 模式切换 (左) + 字数/关闭 (右) */}
+      {/* Header - 收起/模式切换 (左) + 字数 (右) */}
       <div style={{
         padding: '10px 12px',
         borderBottom: '1px solid #2a2a2a',
@@ -56,13 +58,69 @@ export function DocumentEditor({ path, value, onSave, onClose }: DocumentEditorP
         justifyContent: 'space-between',
         flexShrink: 0,
       }}>
-        {/* 左侧：Preview / Raw 切换 */}
-        <div style={{ 
-          display: 'flex', 
-          background: 'rgba(255,255,255,0.05)',
-          borderRadius: 6,
-          padding: 2,
-        }}>
+        {/* 左侧：收起按钮 + 全屏按钮 + Preview / Raw 切换 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* 收起按钮 (Notion 风格) */}
+          <button 
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#6b7280',
+              cursor: 'pointer',
+              padding: 4,
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = '#e2e8f0'}
+            onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}
+            title="Collapse sidebar"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M13 17l5-5-5-5M6 17l5-5-5-5" />
+            </svg>
+          </button>
+
+          {/* 全屏按钮 (Toggle) */}
+          <button 
+            onClick={onToggleFullScreen}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#6b7280',
+              cursor: 'pointer',
+              padding: 4,
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = '#e2e8f0'}
+            onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}
+            title={isFullScreen ? "Exit full screen" : "Open full screen"}
+          >
+            {isFullScreen ? (
+              // 退出全屏图标
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+              </svg>
+            ) : (
+              // 进入全屏图标 (Open as page / Fullscreen)
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            )}
+          </button>
+
+          {/* Preview / Raw 切换 */}
+          <div style={{ 
+            display: 'flex', 
+            background: 'rgba(255,255,255,0.05)',
+            borderRadius: 6,
+            padding: 2,
+          }}>
           <button
             onClick={() => handleModeChange('preview')}
             style={{
@@ -107,41 +165,13 @@ export function DocumentEditor({ path, value, onSave, onClose }: DocumentEditorP
             )}
           </button>
         </div>
+      </div>
         
-        {/* 右侧：字数 + 关闭按钮 */}
+        {/* 右侧：字数统计 (关闭按钮已移至左侧) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 10, color: '#525252' }}>
+          <span style={{ fontSize: 10, color: '#525252', fontFamily: 'monospace' }}>
             {editedValue.length.toLocaleString()} chars
           </span>
-          
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: 4,
-              cursor: 'pointer',
-              color: '#525252',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 4,
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-              e.currentTarget.style.color = '#9ca3af'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.color = '#525252'
-            }}
-            title="Close panel"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
         </div>
       </div>
 

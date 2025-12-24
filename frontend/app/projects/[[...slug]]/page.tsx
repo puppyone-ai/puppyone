@@ -66,6 +66,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   // 右侧辅助面板状态（互斥复用）
   const [rightPanelContent, setRightPanelContent] = useState<RightPanelContent>('NONE')
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null)
+  const [isEditorFullScreen, setIsEditorFullScreen] = useState(false)
   
   // 兼容：isAgentPanelOpen 现在等价于 rightPanelContent === 'TOOLS'
   const isAgentPanelOpen = rightPanelContent === 'TOOLS'
@@ -395,7 +396,8 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
               onChatOpenChange={setIsChatOpen}
             />
             <div style={{ flex: 1, display: 'flex', minHeight: 0, background: '#050607' }}>
-              {/* Main Editor Area */}
+              {/* Main Editor Area - 全屏编辑时隐藏 */}
+              {!(isEditorFullScreen && rightPanelContent === 'EDITOR') && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 {activeBase ? (
                   <ProjectWorkspaceView
@@ -486,11 +488,15 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                   </div>
                 )}
               </div>
+              )}
 
               {/* Right Auxiliary Panel - Tools / Document Editor */}
               <RightAuxiliaryPanel
                 content={rightPanelContent}
-                onClose={() => setRightPanelContent('NONE')}
+                onClose={() => {
+                  setRightPanelContent('NONE')
+                  setIsEditorFullScreen(false)
+                }}
                 accessPoints={accessPoints}
                 setAccessPoints={setAccessPoints}
                 activeBaseName={activeBase?.name}
@@ -506,7 +512,10 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                   console.log('Save document:', path, newValue)
                   setEditorTarget(null)
                   setRightPanelContent('NONE')
+                  setIsEditorFullScreen(false)
                 }}
+                isEditorFullScreen={isEditorFullScreen}
+                onToggleEditorFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
               />
             </div>
           </>

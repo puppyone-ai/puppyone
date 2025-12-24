@@ -4,6 +4,9 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { ImportModal } from './editors/tree/components/ImportModal'
+import { uploadAndSubmit } from '../lib/etlApi'
+import { addPendingTasks, replacePlaceholderTasks, removeFailedPlaceholders, removeAllPlaceholdersForTable } from './BackgroundTaskNotifier'
+import { createTable } from '../lib/projectsApi'
 
 interface ImportMenuProps {
   projectId?: string
@@ -206,76 +209,121 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
       : `context_${Date.now()}`
 
     setIsImporting(true)
-    setImportProgress(0)
 
     try {
-      onLog?.('info', 'Parsing folder structure and uploading files...')
-      const { structure: folderStructure, binaryFiles } = await parseFolderStructure(files, (current, total) => {
-        setImportProgress((current / total) * 50)
-      })
+      onLog?.('info', 'Preparing files...')
+      
+      // 1. 解析文件结构，收集需要 ETL 的文件（这步很快）
+      const { structure: folderStructure, etlFiles } = await parseFolderStructure(files)
 
+      // 2. 创建 Table（包含文本文件内容和 ETL 文件的 null 占位符）
       onLog?.('info', 'Creating table...')
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${projectId}/import-folder`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`
-          },
-          body: JSON.stringify({
-            table_name: finalTableName,
-            folder_structure: folderStructure,
-            binary_files: binaryFiles,
-          }),
-        }
-      )
-
-      const data = await response.json()
-      if (data.code === 0) {
-        setImportProgress(100)
-        onProjectsRefresh?.()
-        setTableName('')
-        setIsOpen(false)
-        
-        // 提供更详细的成功消息
-        if (binaryFiles.length > 0) {
-          onLog?.('success', `Table "${finalTableName}" created! ${binaryFiles.length} binary files are being processed in background.`)
-          
-          // 保存任务 ID 到 localStorage 用于后台轮询
-          if (data.data?.etl_task_ids && data.data.etl_task_ids.length > 0) {
-            const existingTasks = JSON.parse(localStorage.getItem('etl_pending_tasks') || '[]')
-            const newTasks = data.data.etl_task_ids.map((taskId: number) => ({
-              taskId,
-              projectId,
-              tableName: finalTableName,
-              timestamp: Date.now()
-            }))
-            localStorage.setItem('etl_pending_tasks', JSON.stringify([...existingTasks, ...newTasks]))
-            
-            // 触发通知器刷新
-            window.dispatchEvent(new CustomEvent('etl-tasks-updated'))
-          }
-        } else {
-          onLog?.('success', `Imported successfully as "${finalTableName}"`)
-        }
-      } else {
-        throw new Error(data.message || 'Import failed')
+      const newTable = await createTable(projectId, finalTableName, folderStructure)
+      const newTableId = newTable.id
+      
+      // 3. 如果有 ETL 文件，先预先添加"准备上传"状态的任务
+      //    这样侧边栏能立即显示转圈样式
+      if (etlFiles.length > 0) {
+        const placeholderTasks = etlFiles.map((file, index) => ({
+          taskId: -(Date.now() + index),  // 负数临时 ID，后面会被替换
+          projectId: projectId,
+          tableId: String(newTableId),
+          tableName: finalTableName,
+          filename: file.name,
+          status: 'pending' as const
+        }))
+        addPendingTasks(placeholderTasks)
       }
+      
+      // 4. 立即关闭菜单，刷新项目列表
+      onLog?.('success', `Table "${finalTableName}" created!`)
+      onProjectsRefresh?.()
+      setTableName('')
+      setIsOpen(false)
+      setIsImporting(false)
+      
+      // 5. 后台上传 ETL 文件（菜单已关闭，用户可以继续其他操作）
+      if (etlFiles.length > 0 && session?.access_token && newTableId) {
+        // 创建文件名映射：后端返回的 filename -> 前端的 file.name
+        const filenameMap = new Map<string, string>()
+        etlFiles.forEach(f => {
+          filenameMap.set(f.name, f.name)
+          if (f.webkitRelativePath) {
+            filenameMap.set(f.webkitRelativePath, f.name)
+          }
+        })
+        
+        // 使用 setTimeout 确保菜单已关闭
+        setTimeout(async () => {
+          try {
+            const response = await uploadAndSubmit(
+              {
+                projectId: Number(projectId),
+                files: etlFiles,
+                tableId: Number(newTableId),
+                jsonPath: ''  // 挂载到根路径
+              },
+              session.access_token
+            )
+            
+            // 用真正的任务 ID 替换临时占位任务
+            // 使用文件名映射确保和 JSON key 匹配
+            const realTasks = response.items
+              .filter(item => item.status !== 'failed')
+              .map(item => ({
+                taskId: item.task_id,
+                projectId: projectId,
+                tableId: String(newTableId),
+                tableName: finalTableName,
+                // 使用映射找到正确的前端文件名，fallback 到后端返回的
+                filename: filenameMap.get(item.filename) || item.filename,
+                status: 'pending' as const
+              }))
+            
+            // 移除临时任务，添加真正的任务
+            if (realTasks.length > 0) {
+              replacePlaceholderTasks(String(newTableId), realTasks)
+            }
+            
+            // 报告失败的文件
+            const failedFiles = response.items.filter(item => item.status === 'failed')
+            if (failedFiles.length > 0) {
+              console.warn('Some files failed to upload:', failedFiles)
+              onLog?.('warning', `${failedFiles.length} file(s) failed to upload`)
+              // 移除失败文件的占位任务
+              const failedFileNames = failedFiles.map(f => filenameMap.get(f.filename) || f.filename)
+              removeFailedPlaceholders(String(newTableId), failedFileNames)
+            }
+          } catch (etlError) {
+            console.error('ETL upload failed:', etlError)
+            onLog?.('warning', `ETL upload failed: ${etlError instanceof Error ? etlError.message : 'Unknown error'}`)
+            // 上传完全失败，移除所有占位任务
+            removeAllPlaceholdersForTable(String(newTableId))
+          }
+        }, 100)
+      }
+      
+      return // 提前返回
     } catch (error) {
       onLog?.('error', `Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
       setIsImporting(false)
-      setImportProgress(0)
     }
   }
 
+  /**
+   * 解析文件列表，构建文件夹结构
+   * 
+   * 新架构：
+   * - ETL 文件使用 null 作为占位符（而非 { status: 'pending' }）
+   * - ETL 文件会收集起来，统一通过 upload_and_submit 提交
+   * - 文本文件直接读取内容
+   */
   const parseFolderStructure = async (
     files: FileList,
     onProgress?: (current: number, total: number) => void
-  ): Promise<{ structure: Record<string, any>, binaryFiles: Array<any> }> => {
+  ): Promise<{ structure: Record<string, any>, etlFiles: File[] }> => {
     const structure: Record<string, any> = {}
-    const binaryFiles: Array<any> = []
+    const etlFiles: File[] = []
     const fileArray = Array.from(files)
     const totalFiles = fileArray.length
     let processedFiles = 0
@@ -303,56 +351,14 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
       }
 
       const fileName = pathParts[pathParts.length - 1]
-      const filePath = pathParts.join('/')
 
       try {
         // 检查是否需要 ETL 处理
         if (needsETL(file)) {
-          // 上传到 S3
-          onLog?.('info', `Uploading ${fileName} to S3...`)
-          
-          const formData = new FormData()
-          formData.append('project_id', projectId || '')
-          formData.append('file', file)
-
-          const uploadResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/etl/upload`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${session?.access_token}`
-              },
-              body: formData
-            }
-          )
-
-          if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text()
-            throw new Error(`Failed to upload ${fileName}: ${errorText}`)
-          }
-
-          const uploadData = await uploadResponse.json()
-          const s3Key = uploadData.key
-
-          if (!s3Key) {
-            console.error('Upload response:', uploadData)
-            throw new Error(`No S3 key returned for ${fileName}`)
-          }
-
-          console.log(`Uploaded ${fileName} to S3 key: ${s3Key}`)
-
-          // 记录二进制文件信息
-          binaryFiles.push({
-            path: filePath,
-            filename: fileName,
-            s3_key: s3Key,
-            file_type: getFileType(file)
-          })
-
-          // ETL 文件用对象表示 pending 状态
-          current[fileName] = { status: 'pending', message: 'Processing...' }
-
-          onLog?.('success', `Uploaded ${fileName}`)
+          // 使用 null 作为干净的占位符
+          current[fileName] = null
+          etlFiles.push(file)
+          onLog?.('info', `Found ${fileName} for processing...`)
         } else {
           // 文本文件直接存内容
           const isTextFile = await isTextFileType(file)
@@ -373,7 +379,7 @@ export function ImportMenu({ projectId, onProjectsRefresh, onLog, onCloseOtherMe
       onProgress?.(processedFiles, totalFiles)
     }
 
-    return { structure, binaryFiles }
+    return { structure, etlFiles }
   }
 
   return (
