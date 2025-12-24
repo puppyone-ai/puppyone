@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
+    "framer-motion": "^11.15.0",
     "@monaco-editor/react": "^4.7.0",
     "@supabase/supabase-js": "^2.46.1",
     "@tanstack/react-virtual": "^3.13.12",
