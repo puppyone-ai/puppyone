@@ -5,25 +5,29 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-// Token 获取函数，由 AuthProvider 设置
-let getTokenFn: (() => Promise<string | null>) | null = null
+// 用 Promise 等待 AuthProvider 设置 token getter
+// 这样所有 API 请求都会等待 auth 准备好，不会出现 401
+let resolveTokenGetter: ((fn: () => Promise<string | null>) => void) | null = null
+const tokenGetterPromise = new Promise<() => Promise<string | null>>((resolve) => {
+  resolveTokenGetter = resolve
+})
 
 /**
  * 设置 token 获取函数（由 AuthProvider 调用）
  */
 export function setTokenGetter(fn: () => Promise<string | null>) {
-  getTokenFn = fn
+  if (resolveTokenGetter) {
+    resolveTokenGetter(fn)
+    resolveTokenGetter = null
+  }
 }
 
 /**
- * 获取当前 access token
+ * 获取当前 access token（自动等待 auth 准备好）
  */
 async function getAuthToken(): Promise<string | null> {
-  if (!getTokenFn) {
-    console.warn('Token getter not set')
-    return null
-  }
-  return getTokenFn()
+  const getToken = await tokenGetterPromise
+  return getToken()
 }
 
 interface ApiResponse<T> {

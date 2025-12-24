@@ -12,12 +12,14 @@ type JsonArray = JsonValue[]
 
 export interface ValueRendererProps {
   value: JsonValue
+  path?: string  // 当前节点的路径（用于打开文档编辑器）
   isExpanded: boolean
   isExpandable: boolean
   isSelectingAccessPoint?: boolean
   onChange: (newValue: JsonValue) => void
   onToggle: () => void
   onSelect: () => void
+  onOpenDocument?: (path: string, value: string) => void  // 打开长文本编辑器
 }
 
 // ============================================
@@ -36,7 +38,7 @@ function getTypeInfo(value: JsonValue): { type: string; color: string } {
 // ============================================
 // Constants
 // ============================================
-const PREVIEW_CHARS = 250
+const COLLAPSE_THRESHOLD = 50  // 超过这个长度或包含换行符时，默认折叠为单行胶囊
 
 // ============================================
 // Sub-components
@@ -45,16 +47,19 @@ const PREVIEW_CHARS = 250
 // 基础类型值渲染器
 function PrimitiveValueEditor({
   value,
+  path,
   isSelectingAccessPoint,
   onChange,
   onSelect,
+  onOpenDocument,
 }: {
   value: JsonValue
+  path?: string
   isSelectingAccessPoint?: boolean
   onChange: (newValue: JsonValue) => void
   onSelect: () => void
+  onOpenDocument?: (path: string, value: string) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
   const editableRef = useRef<HTMLDivElement>(null)
   const typeInfo = getTypeInfo(value)
 
@@ -105,15 +110,93 @@ function PrimitiveValueEditor({
     return <EtlStatusRenderer value={value} />
   }
 
-  // 字符串类型
+  // 字符串类型 - 简化版：短文本可编辑，长文本只显示字数
   if (typeof value === 'string') {
     const str = value
-    const processedStr = str.replace(/\\n/g, '\n')
-    const isLong = processedStr.length > PREVIEW_CHARS
-    const displayContent = (expanded || !isLong) ? processedStr : processedStr.slice(0, PREVIEW_CHARS)
-    
+    const hasNewline = str.includes('\n')
+    const isLong = str.length > COLLAPSE_THRESHOLD || hasNewline
+
+    // 长文本：只显示字数，点击打开文档编辑器
+    if (isLong) {
+      const handleOpenDoc = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (onOpenDocument && path) {
+          onOpenDocument(path, str)
+        } else {
+          onSelect()
+        }
+      }
+      
+      return (
+        <div 
+          onClick={handleOpenDoc}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '0 4px',
+            margin: '0 -4px',
+            borderRadius: 4,
+            cursor: 'pointer',
+            background: 'transparent',
+            border: '1px solid transparent',
+            width: '100%',
+            overflow: 'hidden',
+            height: 28,
+            userSelect: 'none',
+            transition: 'background 0.1s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          {/* 图标 */}
+          <div style={{ display: 'flex', alignItems: 'center', color: '#6b7280', flexShrink: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          {/* 字数统计 */}
+          <span style={{ 
+            fontSize: 14,
+            color: '#6b7280',
+            whiteSpace: 'nowrap',
+            lineHeight: '28px',
+          }}>
+            {str.length.toLocaleString()} chars
+          </span>
+        </div>
+      )
+    }
+
+    // 短文本：可原地编辑
     return (
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div 
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '0 4px',
+          margin: '0 -4px',
+          width: '100%',
+          overflow: 'hidden',
+          height: 28,
+        }}
+      >
+        {/* 图标 */}
+        <div style={{ display: 'flex', alignItems: 'center', color: '#6b7280', flexShrink: 0 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+        </div>
+        {/* 可编辑内容 */}
         <div
           ref={editableRef}
           contentEditable={!isSelectingAccessPoint}
@@ -124,23 +207,23 @@ function PrimitiveValueEditor({
           style={{
             color: typeInfo.color,
             fontSize: 14,
-            lineHeight: 1.5,
-            padding: '3.5px 0',
-            margin: '0',
+            flex: 1,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineHeight: '28px',
             borderRadius: 3,
             outline: 'none',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
             cursor: isSelectingAccessPoint ? 'pointer' : 'text',
             transition: 'background 0.15s',
             pointerEvents: isSelectingAccessPoint ? 'none' : 'auto',
           }}
           onFocus={(e) => {
-            e.currentTarget.style.background = 'transparent' 
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)'
           }}
           onMouseEnter={(e) => {
             if (document.activeElement !== e.currentTarget) {
-              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'
             }
           }}
           onMouseLeave={(e) => {
@@ -149,56 +232,8 @@ function PrimitiveValueEditor({
             }
           }}
         >
-          {displayContent}
+          {str}
         </div>
-        {isLong && !expanded && !isSelectingAccessPoint && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setExpanded(true) }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              marginTop: 6,
-              padding: '3px 10px',
-              background: 'transparent',
-              border: '1px solid #3a3f47',
-              borderRadius: 4,
-              color: '#9ca3af',
-              fontSize: 11,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            {`Expand (${processedStr.length} chars)`}
-          </button>
-        )}
-        {isLong && expanded && !isSelectingAccessPoint && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setExpanded(false) }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              marginTop: 6,
-              padding: '3px 10px',
-              background: 'transparent',
-              border: '1px solid #3a3f47',
-              borderRadius: 4,
-              color: '#9ca3af',
-              fontSize: 11,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M2 6.5L5 3.5L8 6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Collapse
-          </button>
-        )}
       </div>
     )
   }
@@ -260,6 +295,9 @@ function ExpandableToggle({
     : Object.keys(value as object).length
   const isArr = Array.isArray(value)
   
+  // 颜色调整：使用更低调的灰绿色/灰黄色
+  const iconColor = isArr ? '#d97706' : '#059669' // 降低亮度和饱和度 (amber-600 / emerald-600)
+  
   return (
     <span
       onClick={isSelectingAccessPoint ? undefined : (e) => { e.stopPropagation(); onToggle() }}
@@ -275,12 +313,14 @@ function ExpandableToggle({
       }}
     >
       <div 
-        style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: -6 }}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: -6, position: 'relative' }}
         onMouseEnter={() => setIconHovered(true)}
         onMouseLeave={() => setIconHovered(false)}
       >
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ color: isArr ? '#fbbf24' : '#34d399' }}>
+        {/* 图标尺寸 18px，保持清晰可辨识 */}
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ color: iconColor, opacity: 0.85 }}>
           {iconHovered ? (
+            // Hover 状态：显示展开/收起箭头
             isExpanded ? (
               <path d="M5 7L9 12L13 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             ) : (
@@ -288,51 +328,46 @@ function ExpandableToggle({
             )
           ) : (
             isArr ? (
+              // Array (List) 图标
               !isExpanded ? (
-                <rect x="5" y="5" width="8" height="8" rx="1" fill="currentColor" />
-              ) : (
+                // 收起态：三条横线（暗示里面有内容）
                 <>
-                  <path d="M3 4h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <path d="M3 9h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <path d="M3 14h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M4 5h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M4 9h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M4 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </>
+              ) : (
+                // 展开态：空心圆角矩形（内容已展开）
+                <rect x="4" y="4" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" />
               )
             ) : (
+              // Object (Dictionary) 图标
               !isExpanded ? (
-                <path d="M9 4L13.33 6.5V11.5L9 14L4.67 11.5V6.5L9 4Z" fill="currentColor" />
-              ) : (
+                // 收起态：立体盒子（暗示里面有内容）
                 <>
-                  <path 
-                    d="M9 1.5L15.5 5.25V12.75L9 16.5L2.5 12.75V5.25L9 1.5Z" 
-                    stroke="currentColor" 
-                    strokeWidth="1.5" 
-                    strokeLinejoin="round"
-                  />
-                  <path 
-                    d="M9 16V9M9 9L15.5 5.25M9 9L2.5 5.25" 
-                    stroke="currentColor" 
-                    strokeLinecap="round"
-                  />
+                  <path d="M9 3L14 5.5V12.5L9 15L4 12.5V5.5L9 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                  <path d="M9 15V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M9 9L14 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M9 9L4 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </>
+              ) : (
+                // 展开态：空心六边形（内容已展开）
+                <path d="M9 3L14 5.5V12.5L9 15L4 12.5V5.5L9 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
               )
             )
           )}
         </svg>
-        <span style={{ 
-          fontSize: 10,
-          fontWeight: 700,
-          color: '#000000',
-          background: '#4b5563',
-          padding: '0 4px',
-          borderRadius: 99,
-          fontFamily: "'JetBrains Mono', monospace",
-          marginLeft: 4,
-          height: 14,
-          minWidth: 14,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>{count}</span>
+        {/* 数字：只在收起态显示，紧贴图标右侧 */}
+        {!isExpanded && (
+          <span style={{
+            fontSize: 10,
+            fontWeight: 500,
+            color: iconColor,
+            fontFamily: "'JetBrains Mono', monospace",
+            marginLeft: 2,
+            opacity: 0.7,
+          }}>{count}</span>
+        )}
       </div>
     </span>
   )
@@ -343,12 +378,14 @@ function ExpandableToggle({
 // ============================================
 export function ValueRenderer({
   value,
+  path,
   isExpanded,
   isExpandable,
   isSelectingAccessPoint,
   onChange,
   onToggle,
   onSelect,
+  onOpenDocument,
 }: ValueRendererProps) {
   if (isExpandable) {
     return (
@@ -364,9 +401,11 @@ export function ValueRenderer({
   return (
     <PrimitiveValueEditor
       value={value}
+      path={path}
       isSelectingAccessPoint={isSelectingAccessPoint}
       onChange={onChange}
       onSelect={onSelect}
+      onOpenDocument={onOpenDocument}
     />
   )
 }

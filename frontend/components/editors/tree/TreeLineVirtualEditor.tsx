@@ -66,6 +66,8 @@ interface TreeLineVirtualEditorProps {
   tableId?: number
   // 导入成功后的回调，用于刷新table数据
   onImportSuccess?: () => void
+  // 打开长文本文档编辑器
+  onOpenDocument?: (path: string, value: string) => void
 }
 
 // ============================================
@@ -418,6 +420,7 @@ interface VirtualRowProps {
   lockedPopoverPath?: string | null
   onPopoverOpenChange?: (path: string | null) => void
   isContextMenuOpen?: boolean
+  onOpenDocument?: (path: string, value: string) => void
 }
 
 const VirtualRow = React.memo(function VirtualRow({
@@ -437,6 +440,7 @@ const VirtualRow = React.memo(function VirtualRow({
   lockedPopoverPath,
   onPopoverOpenChange,
   isContextMenuOpen,
+  onOpenDocument,
 }: VirtualRowProps) {
   // 当前行是否是打开 popover 的行
   const isPopoverOwner = lockedPopoverPath === node.path
@@ -677,12 +681,14 @@ const VirtualRow = React.memo(function VirtualRow({
           >
             <ValueRenderer
               value={node.value}
+              path={node.path}
               isExpanded={node.isExpanded}
               isExpandable={node.isExpandable}
               isSelectingAccessPoint={isSelectingAccessPoint}
               onChange={(v) => onValueChange(node.path, v)}
               onToggle={() => onToggle(node.path)}
               onSelect={() => onSelect(node.path)}
+              onOpenDocument={onOpenDocument}
             />
           </div>
         </div>
@@ -746,6 +752,7 @@ export function TreeLineVirtualEditor({
   projectId,
   tableId,
   onImportSuccess,
+  onOpenDocument,
 }: TreeLineVirtualEditorProps) {
   // 创建 path -> permissions 的快速查找表
   const configuredAccessMap = useMemo(() => {
@@ -1026,6 +1033,7 @@ export function TreeLineVirtualEditor({
                   lockedPopoverPath={lockedPopoverPath}
                   onPopoverOpenChange={setLockedPopoverPath}
                   isContextMenuOpen={contextMenu.visible && contextMenu.path === node.path}
+                  onOpenDocument={onOpenDocument}
                 />
               </div>
             )
