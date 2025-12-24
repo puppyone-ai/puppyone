@@ -97,7 +97,7 @@ export async function getTable(
 export async function createTable(
   projectId: string,
   name: string,
-  data?: Array<Record<string, any>>
+  data?: Record<string, any> | Array<Record<string, any>>
 ): Promise<TableData> {
   const result = await apiRequest<{
     id: number
@@ -112,7 +112,7 @@ export async function createTable(
       project_id: Number(projectId),
       name, 
       description: '',
-      data: data || [] 
+      data: data ?? {} 
     }),
   })
   

@@ -1,7 +1,10 @@
 'use client'
 
-import React, { useState, useCallback, useRef } from 'react'
-import { EtlStatusRenderer, isEtlStatusValue } from './EtlStatusRenderer'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
+import { 
+  PendingTaskRenderer,
+  isPendingNullValue 
+} from './EtlStatusRenderer'
 
 // ============================================
 // Types
@@ -13,6 +16,8 @@ type JsonArray = JsonValue[]
 export interface ValueRendererProps {
   value: JsonValue
   path?: string  // 当前节点的路径（用于打开文档编辑器）
+  nodeKey?: string  // 当前节点的 key（用于检测 pending task）
+  tableId?: string  // 当前 table 的 ID（用于精确匹配 pending task）
   isExpanded: boolean
   isExpandable: boolean
   isSelectingAccessPoint?: boolean
@@ -48,6 +53,8 @@ const COLLAPSE_THRESHOLD = 50  // 超过这个长度或包含换行符时，默�
 function PrimitiveValueEditor({
   value,
   path,
+  nodeKey,
+  tableId,
   isSelectingAccessPoint,
   onChange,
   onSelect,
@@ -55,6 +62,8 @@ function PrimitiveValueEditor({
 }: {
   value: JsonValue
   path?: string
+  nodeKey?: string
+  tableId?: string
   isSelectingAccessPoint?: boolean
   onChange: (newValue: JsonValue) => void
   onSelect: () => void
@@ -62,6 +71,14 @@ function PrimitiveValueEditor({
 }) {
   const editableRef = useRef<HTMLDivElement>(null)
   const typeInfo = getTypeInfo(value)
+  
+  // 监听任务状态变化，触发重新渲染
+  const [, forceUpdate] = useState(0)
+  useEffect(() => {
+    const handleTaskUpdate = () => forceUpdate(n => n + 1)
+    window.addEventListener('etl-tasks-updated', handleTaskUpdate)
+    return () => window.removeEventListener('etl-tasks-updated', handleTaskUpdate)
+  }, [])
 
   // 处理 contentEditable 保存
   const handleContentEditableBlur = useCallback(() => {
@@ -105,9 +122,13 @@ function PrimitiveValueEditor({
     onSelect()
   }
 
-  // 特殊处理：ETL 处理状态对象
-  if (isEtlStatusValue(value)) {
-    return <EtlStatusRenderer value={value} />
+  // null 值 + pending task 检测
+  // 如果值为 null 且对应一个正在处理的 ETL 任务，显示处理中状态
+  if (value === null && nodeKey) {
+    const pendingTask = isPendingNullValue(value, nodeKey, tableId)
+    if (pendingTask) {
+      return <PendingTaskRenderer task={pendingTask} filename={nodeKey} />
+    }
   }
 
   // 字符串类型 - 简化版：短文本可编辑，长文本只显示字数
@@ -379,6 +400,8 @@ function ExpandableToggle({
 export function ValueRenderer({
   value,
   path,
+  nodeKey,
+  tableId,
   isExpanded,
   isExpandable,
   isSelectingAccessPoint,
@@ -402,6 +425,8 @@ export function ValueRenderer({
     <PrimitiveValueEditor
       value={value}
       path={path}
+      nodeKey={nodeKey}
+      tableId={tableId}
       isSelectingAccessPoint={isSelectingAccessPoint}
       onChange={onChange}
       onSelect={onSelect}

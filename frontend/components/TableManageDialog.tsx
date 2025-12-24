@@ -6,6 +6,8 @@ import { createTable, updateTable, deleteTable } from '../lib/projectsApi'
 import { refreshProjects } from '../lib/hooks/useData'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { ImportModal } from './editors/tree/components/ImportModal'
+import { uploadAndSubmit } from '../lib/etlApi'
+import { addPendingTasks, replacePlaceholderTasks, removeFailedPlaceholders, removeAllPlaceholdersForTable } from './BackgroundTaskNotifier'
 
 type StartOption = 'empty' | 'documents' | 'url' | 'connect'
 
@@ -19,15 +21,14 @@ type TableManageDialogProps = {
 }
 
 // Helper functions
+
+/** 判断文件是否需要 ETL 处理（PDF、图片、Office 文档等） */
 function needsETL(file: File): boolean {
   const etlExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.tiff', '.bmp']
   return etlExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
 }
 
-function getFileType(file: File): string {
-  return file.name.toLowerCase().split('.').pop() || ''
-}
-
+/** 判断文件是否为文本类型（可以直接读取内容） */
 async function isTextFileType(file: File): Promise<boolean> {
   if (needsETL(file)) return false
   const textExts = ['.txt', '.md', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.h', '.html', '.css', '.xml', '.yaml', '.yml', '.csv', '.sql', '.sh']
@@ -46,6 +47,7 @@ async function isTextFileType(file: File): Promise<boolean> {
   return printable / Math.min(bytes.length, 512) > 0.7
 }
 
+/** 清理 Unicode 字符串中的非法字符 */
 function sanitizeUnicode(s: string): string {
   return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\uFFFE\uFFFF]/g, '').trim()
 }
@@ -140,9 +142,20 @@ export function TableManageDialog({
     }
   }
 
-  const parseFolderStructure = async (files: FileList, onProgress?: (c: number, t: number) => void) => {
+  /**
+   * 解析文件列表，构建文件夹结构
+   * 
+   * 新架构：
+   * - ETL 文件使用 null 作为占位符（而非 { status: 'pending' }）
+   * - ETL 文件会收集起来，统一通过 upload_and_submit 提交
+   * - 文本文件直接读取内容
+   */
+  const parseFolderStructure = async (
+    files: FileList, 
+    onProgress?: (c: number, t: number) => void
+  ): Promise<{ structure: Record<string, any>; etlFiles: File[] }> => {
     const structure: Record<string, any> = {}
-    const binaryFiles: Array<any> = []
+    const etlFiles: File[] = []
     const fileArray = Array.from(files)
     let processed = 0
 
@@ -169,26 +182,15 @@ export function TableManageDialog({
       }
       
       const fileName = pathParts[pathParts.length - 1]
-      const filePath = pathParts.join('/')
 
       try {
         if (needsETL(file)) {
           // 需要 ETL 处理的文件（PDF、图片等）
-          setImportMessage(`Uploading ${fileName}...`)
-          const formData = new FormData()
-          formData.append('project_id', projectId || '')
-          formData.append('file', file)
-          const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/etl/upload`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${session?.access_token}` },
-            body: formData
-          })
-          if (!resp.ok) throw new Error(`Upload failed: ${await resp.text()}`)
-          const data = await resp.json()
-          if (!data.key) throw new Error('No S3 key')
-          binaryFiles.push({ path: filePath, filename: fileName, s3_key: data.key, file_type: getFileType(file) })
-          // ETL 文件用对象表示 pending 状态
-          current[fileName] = { status: 'pending', message: 'Processing...' }
+          // 用 null 作为占位符，保持文件结构
+          // 配合 pending task 列表，在 JSON 编辑器中显示 loading 状态
+          current[fileName] = null
+          etlFiles.push(file)
+          setImportMessage(`Found ${fileName} for processing...`)
         } else {
           // 文本文件直接存内容
           const isText = await isTextFileType(file)
@@ -205,7 +207,7 @@ export function TableManageDialog({
       processed++
       onProgress?.(processed, fileArray.length)
     }
-    return { structure, binaryFiles }
+    return { structure, etlFiles }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -215,36 +217,106 @@ export function TableManageDialog({
     try {
       setLoading(true)
       if (isEdit && tableId) {
+        // 编辑模式：只更新名称
         await updateTable(projectId, tableId, name.trim())
         await refreshProjects()
         onClose()
       } else if (startOption === 'documents' && selectedFiles && selectedFiles.length > 0) {
-        setIsImporting(true)
-        setImportProgress(0)
-        setImportMessage('Processing files...')
+        // 文档导入模式 - "提交即走"设计
+        setImportMessage('Preparing files...')
+        
         const finalName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_')
-        const { structure, binaryFiles } = await parseFolderStructure(selectedFiles, (c, t) => setImportProgress((c / t) * 50))
+        
+        // 1. 解析文件结构，收集需要 ETL 的文件（这步很快）
+        const { structure, etlFiles } = await parseFolderStructure(selectedFiles)
+        
+        // 2. 创建 Table（包含文本文件内容和 ETL 文件的 null 占位符）
         setImportMessage('Creating context...')
-        const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${projectId}/import-folder`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-          body: JSON.stringify({ table_name: finalName, folder_structure: structure, binary_files: binaryFiles })
-        })
-        const data = await resp.json()
-        if (data.code === 0) {
-          setImportProgress(100)
-          if (binaryFiles.length > 0 && data.data?.etl_task_ids?.length > 0) {
-            const existing = JSON.parse(localStorage.getItem('etl_pending_tasks') || '[]')
-            const newTasks = data.data.etl_task_ids.map((id: number) => ({ taskId: id, projectId, tableName: finalName, timestamp: Date.now() }))
-            localStorage.setItem('etl_pending_tasks', JSON.stringify([...existing, ...newTasks]))
-            window.dispatchEvent(new CustomEvent('etl-tasks-updated'))
-          }
-          await refreshProjects()
-          onClose()
-        } else {
-          throw new Error(data.message || 'Import failed')
+        const newTable = await createTable(projectId, finalName, structure)
+        const newTableId = newTable.id
+        
+        // 3. 如果有 ETL 文件，先预先添加"准备上传"状态的任务
+        //    这样侧边栏能立即显示转圈样式
+        if (etlFiles.length > 0) {
+          const placeholderTasks = etlFiles.map((file, index) => ({
+            taskId: -(Date.now() + index),  // 负数临时 ID，后面会被替换
+            projectId: projectId,
+            tableId: String(newTableId),
+            tableName: finalName,
+            filename: file.name,
+            status: 'pending' as const
+          }))
+          addPendingTasks(placeholderTasks)
         }
+        
+        // 4. 立即关闭弹窗，刷新项目列表
+        await refreshProjects()
+        onClose()
+        
+        // 5. 后台上传 ETL 文件（弹窗已关闭，用户可以继续其他操作）
+        if (etlFiles.length > 0 && session?.access_token && newTableId) {
+          // 创建文件名映射：后端返回的 filename -> 前端的 file.name
+          // 这样即使后端返回的文件名格式不同，也能正确匹配
+          const filenameMap = new Map<string, string>()
+          etlFiles.forEach(f => {
+            // 后端可能返回完整路径或只是文件名，都映射到前端的 file.name
+            filenameMap.set(f.name, f.name)
+            if (f.webkitRelativePath) {
+              filenameMap.set(f.webkitRelativePath, f.name)
+            }
+          })
+          
+          // 使用 setTimeout 确保弹窗已关闭
+          setTimeout(async () => {
+            try {
+              const response = await uploadAndSubmit(
+                {
+                  projectId: Number(projectId),
+                  files: etlFiles,
+                  tableId: Number(newTableId),
+                  jsonPath: ''  // 挂载到根路径
+                },
+                session.access_token
+              )
+              
+              // 用真正的任务 ID 替换临时占位任务
+              // 使用文件名映射确保和 JSON key 匹配
+              const realTasks = response.items
+                .filter(item => item.status !== 'failed')
+                .map(item => ({
+                  taskId: item.task_id,
+                  projectId: projectId,
+                  tableId: String(newTableId),
+                  tableName: finalName,
+                  // 使用映射找到正确的前端文件名，fallback 到后端返回的
+                  filename: filenameMap.get(item.filename) || item.filename,
+                  status: 'pending' as const
+                }))
+              
+              // 移除临时任务，添加真正的任务
+              if (realTasks.length > 0) {
+                replacePlaceholderTasks(String(newTableId), realTasks)
+              }
+              
+              // 报告失败的文件
+              const failedFiles = response.items.filter(item => item.status === 'failed')
+              if (failedFiles.length > 0) {
+                console.warn('Some files failed to upload:', failedFiles)
+                // 移除失败文件的占位任务
+                const failedFileNames = failedFiles.map(f => filenameMap.get(f.filename) || f.filename)
+                removeFailedPlaceholders(String(newTableId), failedFileNames)
+              }
+            } catch (etlError) {
+              console.error('ETL upload failed:', etlError)
+              // 上传完全失败，移除所有占位任务
+              removeAllPlaceholdersForTable(String(newTableId))
+            }
+          }, 100)
+        }
+        
+        return // 提前返回，不执行 finally 中的重置
       } else {
+        // 空表模式
         await createTable(projectId, name.trim(), [])
         await refreshProjects()
         onClose()

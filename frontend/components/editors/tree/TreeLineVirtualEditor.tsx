@@ -407,6 +407,7 @@ interface VirtualRowProps {
   node: FlatNode
   isSelected: boolean
   keyWidths: number[]  // 动态 key 宽度数组
+  tableId?: number     // 用于检测 pending task
   onToggle: (path: string) => void
   onSelect: (path: string) => void
   onValueChange: (path: string, value: JsonValue) => void
@@ -427,6 +428,7 @@ const VirtualRow = React.memo(function VirtualRow({
   node,
   isSelected,
   keyWidths,
+  tableId,
   onToggle,
   onSelect,
   onValueChange,
@@ -682,6 +684,8 @@ const VirtualRow = React.memo(function VirtualRow({
             <ValueRenderer
               value={node.value}
               path={node.path}
+              nodeKey={String(node.key)}
+              tableId={tableId !== undefined ? String(tableId) : undefined}
               isExpanded={node.isExpanded}
               isExpandable={node.isExpandable}
               isSelectingAccessPoint={isSelectingAccessPoint}
@@ -1020,6 +1024,7 @@ export function TreeLineVirtualEditor({
                   node={node}
                   isSelected={selectedPath === node.path}
                   keyWidths={keyWidths}
+                  tableId={tableId}
                   onToggle={handleToggle}
                   onSelect={handleSelect}
                   onValueChange={handleValueChange}

@@ -39,6 +39,10 @@ interface RightAuxiliaryPanelProps {
   // 文档编辑器相关
   editorTarget: EditorTarget | null
   onEditorSave: (path: string, newValue: string) => void
+  
+  // 全屏状态
+  isEditorFullScreen?: boolean
+  onToggleEditorFullScreen?: () => void
 }
 
 const MIN_WIDTH = 300
@@ -61,6 +65,9 @@ export function RightAuxiliaryPanel({
   // Editor props
   editorTarget,
   onEditorSave,
+  // Fullscreen props
+  isEditorFullScreen = false,
+  onToggleEditorFullScreen,
 }: RightAuxiliaryPanelProps) {
   const [width, setWidth] = useState(DEFAULT_WIDTH)
   const [isResizing, setIsResizing] = useState(false)
@@ -99,20 +106,55 @@ export function RightAuxiliaryPanel({
     }
   }, [isResizing])
 
-  if (content === 'NONE') {
-    return null
+  // 全屏模式：占据全部空间
+  if (isEditorFullScreen && content === 'EDITOR') {
+    return (
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: '#161618',
+        overflow: 'hidden',
+        // 全屏时的淡入动画
+        animation: 'fadeIn 0.2s ease',
+      }}>
+        <style>{`
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}</style>
+        {editorTarget && (
+          <DocumentEditor
+            path={editorTarget.path}
+            value={editorTarget.value}
+            onSave={(newValue) => onEditorSave(editorTarget.path, newValue)}
+            onClose={onClose}
+            isFullScreen={isEditorFullScreen}
+            onToggleFullScreen={onToggleEditorFullScreen}
+          />
+        )}
+      </div>
+    )
   }
+
+  // 面板是否应该显示
+  const isVisible = content !== 'NONE'
 
   return (
     <div style={{
-      width: width,
+      width: isVisible ? width : 0,
       display: 'flex',
-      flexDirection: 'row', // 改为 row 以放置 ResizeHandle
+      flexDirection: 'row',
       height: '100%',
-      borderLeft: '1px solid #2a2a2a', // 左侧分割线
+      borderLeft: isVisible ? '1px solid #2a2a2a' : 'none',
       background: '#161618',
       position: 'relative',
-      flexShrink: 0, // 防止被压缩
+      flexShrink: 0,
+      overflow: 'hidden',
+      // 滑动动画 - 和左侧 Sidebar 保持一致
+      transition: isResizing ? 'none' : 'width 0.2s ease, border 0.2s ease',
     }}>
       {/* Resize Handle */}
       <div
@@ -136,7 +178,15 @@ export function RightAuxiliaryPanel({
       />
 
       {/* Content Container */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        overflow: 'hidden',
+        // 内容淡入动画
+        opacity: isVisible ? 1 : 0,
+        transition: 'opacity 0.15s ease',
+      }}>
         {content === 'TOOLS' && (
           <ToolsPanel
             accessPoints={accessPoints}
@@ -158,6 +208,8 @@ export function RightAuxiliaryPanel({
             value={editorTarget.value}
             onSave={(newValue) => onEditorSave(editorTarget.path, newValue)}
             onClose={onClose}
+            isFullScreen={isEditorFullScreen}
+            onToggleFullScreen={onToggleEditorFullScreen}
           />
         )}
       </div>

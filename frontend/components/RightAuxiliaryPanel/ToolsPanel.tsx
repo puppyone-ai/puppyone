@@ -120,41 +120,34 @@ export function ToolsPanel({
       overflow: 'hidden',
       height: '100%',
     }}>
-      {/* Header - 只有关闭按钮 */}
+      {/* Header - 收起按钮 (左) */}
       <div style={{
         padding: '10px 12px',
         borderBottom: '1px solid #2a2a2a',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-end',
+        justifyContent: 'space-between',
         flexShrink: 0,
       }}>
-        <button
+        {/* 左侧：收起按钮 (Notion 风格) */}
+        <button 
           onClick={onClose}
           style={{
             background: 'transparent',
             border: 'none',
-            padding: 4,
+            color: '#6b7280',
             cursor: 'pointer',
-            color: '#525252',
+            padding: 4,
+            borderRadius: 4,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: 4,
-            transition: 'all 0.15s',
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-            e.currentTarget.style.color = '#9ca3af'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = '#525252'
-          }}
-          title="Close panel"
+          onMouseEnter={e => e.currentTarget.style.color = '#e2e8f0'}
+          onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 6L6 18M6 6l12 12"/>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 17l5-5-5-5M6 17l5-5-5-5" />
           </svg>
         </button>
       </div>

@@ -5,6 +5,7 @@ import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { McpInstanceInfo } from './McpInstanceInfo'
 import { treePathToJsonPointer } from '../lib/jsonPointer'
 import { McpInstance } from '../lib/mcpApi'
+import { createTable } from '../lib/projectsApi'
 
 interface McpBarProps {
   projectId?: string
@@ -259,27 +260,11 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
         setImportProgress((current / total) * 50) // Parse phase is 50% of progress
       })
 
-      // Send to backend
+      // Create table using the API
       if (onLog) {
-        onLog('info', 'Uploading to server...')
+        onLog('info', 'Creating table...')
       }
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${selectedProject}/import-folder`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`
-          },
-          body: JSON.stringify({
-            table_name: finalTableName,
-            folder_structure: folderStructure,
-          }),
-        }
-      )
-
-      const data = await response.json()
-      if (data.code === 0) {
+      await createTable(selectedProject, finalTableName, folderStructure)
         setImportProgress(100)
 
         // Trigger refresh
@@ -297,9 +282,6 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(({ pro
 
           if (onLog) {
             onLog('success', `Folder imported successfully! Context name: ${finalTableName}`)
-          }
-      } else {
-        throw new Error(data.message || 'Import failed')
       }
     } catch (error) {
       console.error('Import error:', error)

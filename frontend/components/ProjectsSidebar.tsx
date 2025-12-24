@@ -5,6 +5,7 @@ import type { ProjectInfo } from '../lib/projectsApi'
 import { ProjectManageDialog } from './ProjectManageDialog'
 import { TableManageDialog } from './TableManageDialog'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
+import { getProcessingTableIds } from './BackgroundTaskNotifier'
 
 type UtilityNavItem = {
   id: string
@@ -67,6 +68,32 @@ export function ProjectsSidebar({
   const [expandedSections, setExpandedSections] = useState<Set<SectionId>>(new Set(['contexts', 'mcp', 'try']))
   const [isResizing, setIsResizing] = useState(false)
   const sidebarRef = useRef<HTMLElement>(null)
+  
+  // 追踪正在处理中的 Table
+  const [processingTableIds, setProcessingTableIds] = useState<Set<string>>(new Set())
+  
+  // 监听任务状态变化，更新处理中的 Table 列表
+  useEffect(() => {
+    const updateProcessingTables = () => {
+      // 使用 getProcessingTableIds 获取正在处理中（非终态）的 Table ID
+      const tableIds = getProcessingTableIds()
+      setProcessingTableIds(tableIds)
+    }
+    
+    updateProcessingTables()
+    
+    window.addEventListener('etl-tasks-updated', updateProcessingTables)
+    window.addEventListener('storage', updateProcessingTables)
+    
+    // 定期刷新
+    const interval = setInterval(updateProcessingTables, 3000)
+    
+    return () => {
+      window.removeEventListener('etl-tasks-updated', updateProcessingTables)
+      window.removeEventListener('storage', updateProcessingTables)
+      clearInterval(interval)
+    }
+  }, [])
 
   // Handle resize
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -797,6 +824,26 @@ export function ProjectsSidebar({
         .table-wrapper.active .table-icon-svg {
           color: #CDCDCD;
         }
+        
+        .table-processing-indicator {
+          width: 14px;
+          height: 14px;
+          flex-shrink: 0;
+          animation: sidebar-spin 1s linear infinite;
+        }
+        
+        @keyframes sidebar-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        
+        .table-wrapper.processing .table-name {
+          color: #60a5fa;
+        }
+        
+        .table-wrapper.processing:hover .table-name {
+          color: #93c5fd;
+        }
 
         .table-name {
           font-size: 13px;
@@ -1191,20 +1238,28 @@ export function ProjectsSidebar({
 
               {isExpanded && (
                           <div className="tables-wrapper">
-                            {project.tables.map((table) => (
+                            {project.tables.map((table) => {
+                              const isProcessing = processingTableIds.has(table.id)
+                              return (
                               <div
                                 key={table.id}
-                                className={`table-wrapper ${activeView === 'projects' && table.id === activeTableId ? 'active' : ''} ${contextMenu?.type === 'table' && contextMenu.id === table.id ? 'menu-open' : ''}`}
+                                className={`table-wrapper ${activeView === 'projects' && table.id === activeTableId ? 'active' : ''} ${contextMenu?.type === 'table' && contextMenu.id === table.id ? 'menu-open' : ''} ${isProcessing ? 'processing' : ''}`}
                               >
                                 <button
                                   className="table-btn"
                                   onClick={() => onTableClick(project.id, table.id)}
                                 >
+                                  {isProcessing ? (
+                                    <svg className="table-processing-indicator" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                      <circle cx="7" cy="7" r="5" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeDasharray="24 8"/>
+                                    </svg>
+                                  ) : (
                                   <svg className="table-icon-svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
                                     <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
                                     <line x1="1.5" y1="5" x2="12.5" y2="5" stroke="currentColor" strokeWidth="1.2"/>
                                     <line x1="5.5" y1="5" x2="5.5" y2="12.5" stroke="currentColor" strokeWidth="1.2"/>
                                   </svg>
+                                  )}
                                   <span className="table-name">{table.name}</span>
                                 </button>
                                 <button
@@ -1229,7 +1284,8 @@ export function ProjectsSidebar({
                                   </svg>
                                 </button>
                               </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         )}
                       </div>
