@@ -313,7 +313,7 @@ function ExpandableToggle({
       }}
     >
       <div 
-        style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: -6 }}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: -6, position: 'relative' }}
         onMouseEnter={() => setIconHovered(true)}
         onMouseLeave={() => setIconHovered(false)}
       >
@@ -357,22 +357,17 @@ function ExpandableToggle({
             )
           )}
         </svg>
-        <span style={{ 
-          fontSize: 10,
-          fontWeight: 600, // 稍微降低字重
-          color: '#000000',
-          background: '#525252', // 更深的灰色背景
-          padding: '0 4px',
-          borderRadius: 4, // 稍微方一点的圆角
-          fontFamily: "'JetBrains Mono', monospace",
-          marginLeft: 2,
-          height: 14,
-          minWidth: 14,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: 0.8, // 整体降低不透明度
-        }}>{count}</span>
+        {/* 数字：只在收起态显示，紧贴图标右侧 */}
+        {!isExpanded && (
+          <span style={{
+            fontSize: 10,
+            fontWeight: 500,
+            color: iconColor,
+            fontFamily: "'JetBrains Mono', monospace",
+            marginLeft: 2,
+            opacity: 0.7,
+          }}>{count}</span>
+        )}
       </div>
     </span>
   )
