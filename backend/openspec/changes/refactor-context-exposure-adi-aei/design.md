@@ -1,40 +1,122 @@
 ## Context
 系统当前以 `mcp_instance` 为核心实体：`api_key` 既是鉴权凭据又隐含了 `table_id + json_path` 的数据作用域，MCP Server（`mcp_service`）基于该作用域动态返回 tools 并调用 Internal API 操作 `table.data`。
 
-这个设计的问题不是“工具实现在哪里”，而是“数据操作”和“对外暴露”被绑定为同一个实体，导致：
-- 新增暴露渠道（API/CLI/skills）会复制一套“工具到数据”的映射与鉴权/治理逻辑
+这个设计的问题不是"工具实现在哪里"，而是"数据操作"和"对外暴露"被绑定为同一个实体，导致：
+- 新增暴露渠道（API/CLI/skills）会复制一套"工具到数据"的映射与鉴权/治理逻辑
 - 一个入口无法聚合多个 Context 的操作（跨表/跨挂载点）
+
+## Architecture Overview（整体架构）
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│                                  暴露层（对外服务）                                   │
+│                                                                                      │
+│          MCP Server          │          REST API          │      Sandbox(对外)       │
+│                                                                                      │
+└──────────────────────────────────────────────┬───────────────────────────────────────┘
+                                               │
+                                               ▼
+┌──────────────────────────────────────────────────────────────────┐  ┌────────────────────────────────┐
+│                            Tools 层                              │  │                                │
+│                                                                  │  │        对内 Sandbox            │
+│  ┌─────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌──────┐ ┌──────┐  │  │         （独立）               │
+│  │  query  │ │ update │ │ create │ │ delete │ │ move │ │ copy │  │  │                                │
+│  └─────────┘ └────────┘ └────────┘ └────────┘ └──────┘ └──────┘  │  │  - 内部 agent 使用             │
+│                                                                  │  │  - 有人守着监督                │
+│  ┌─────────┐ ┌─────────┐ ┌───────────────┐ ┌───────────────┐     │  │  - 可验证操作是否违规          │
+│  │ get_all │ │ preview │ │ custom_tool_1 │ │ custom_tool_2 │ ... │  │  - 直接操作 Context            │
+│  └─────────┘ └─────────┘ └───────────────┘ └───────────────┘     │  │                                │
+│                                                                  │  │  ⚠️ 完全隔离                   │
+│   ↑ 预制 Tools                  ↑ 用户自定义 Tools                │  │  无法被暴露层访问              │
+│                                                                  │  │                                │
+└──────────────────────────────────┬───────────────────────────────┘  └───────────────┬────────────────┘
+                                   │                                                  │
+                                   ▼                                                  ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                      │
+│                                        数据层（Context）                                              │
+│                                        JSON / 树形结构                                                │
+│                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 三层架构
+
+| 层级 | 说明 | 数据模型 |
+|------|------|----------|
+| **暴露层** | 对外提供服务的入口（MCP / API / Sandbox对外） | `aei` 表 |
+| **Tools 层** | 对数据的操作封装（query / update / create 等） | `adi` 表 |
+| **数据层** | 底层数据存储（JSON / 树形结构） | `table.data` |
+
+> **对内 Sandbox** 是独立模块，直接访问数据层，不经过 Tools 层，与暴露层完全隔离。
+
+### 两条独立路径
+
+| 路径 | 流程 | 特点 |
+|------|------|------|
+| **对外分发** | 暴露层 → Tools 层 → 数据层 | 有权限控制、审计、并发处理 |
+| **对内 Sandbox** | Sandbox → 数据层 | 直接访问，有人监督 |
+
+### 层级间的绑定关系
+
+```
+暴露层（aei）
+  │
+  ├── Binding 1 ──→ Tool 1 (query)   ──→ 数据 A
+  ├── Binding 2 ──→ Tool 2 (update)  ──→ 数据 A  
+  └── Binding 3 ──→ Tool 3 (query)   ──→ 数据 B
+```
+
+- 一个**暴露入口**可以绑定多个 **Tools**
+- 每个 **Tool** 操作一个**数据节点**
+- **Binding** 定义了工具名、描述、输入参数等
 
 ## Goals / Non-Goals
 - **Goals**
-  - 抽象 ADI 与 AEI 两层，并在阶段 1 仅落地 AEI=MCP
-  - 支持一个 AEI(MCP) 聚合多个 ADI，并把它们注册为 MCP tools
+  - 把 Tools 层和暴露层解耦，阶段 1 先落地暴露层的 MCP 类型
+  - 支持一个暴露入口绑定多个 Tools，注册为 MCP tools
   - 给出清晰的兼容/迁移路径：现有 MCP 体验不被破坏，同时允许新能力并行上线
 - **Non-Goals（阶段 1）**
-  - 不实现除 MCP 之外的 AEI（API/CLI/skills 留到后续阶段）
+  - 不实现 MCP 之外的暴露类型（API/CLI/skills 留到后续阶段）
+  - 不实现对内 Sandbox（留到后续阶段）
   - 不一次性清理/替换所有旧概念（例如旧 `mcp_instance` 的完全消失）
 
-## Key Concepts
-### Context（被分发的数据）
-Context = `table.data` 中由 `json_path`（JSON Pointer）定位的子树。
+## Key Concepts（术语对照）
 
-### ADI（Agent Data Interface）
-ADI 是“对某个 Context 的一种操作”的独立实体（与 MCP 解耦）。
-- 典型操作：`get_schema` / `get_all` / `query` / `create` / `update` / `delete` / `preview` / `select`
-- 目标 Context：`table_id + json_path`
-- 权限边界：ADI 归属某个 user（及其 project/table），AEI 只能绑定自己有权访问的 ADI
+| 功能性名词 | 技术术语 | 数据模型 | 定义 |
+|-----------|---------|---------|------|
+| **数据层 / 数据节点** | Context | `table.data` + `json_path` | 被操作的 JSON 子树 |
+| **Tools 层 / Tool** | ADI (Agent Data Interface) | `adi` 表 | 对数据的一种操作封装 |
+| **暴露层 / 暴露入口** | AEI (Agent Exposure Interface) | `aei` 表 | 把 Tools 对外暴露的接口 |
+| **绑定** | Binding | `aei_binding` 表 | 暴露入口与 Tool 的关联关系 |
 
-### AEI（Agent Exposure Interface）
-AEI 是“把一组 ADI 对外暴露”的接口抽象。
-- 阶段 1：仅实现 AEI 类型 `mcp`
-- 一个 AEI 实例拥有自己的 `api_key`（用于访问该暴露入口）
+### 预制 Tools
 
-### Bundle（组合发布）
-Bundle 是 AEI 与 ADI 的高效对接方式：一个 AEI(MCP) 可以绑定多个 ADI，并为每个绑定生成 1 个 MCP tool。
+| Tool 名 | 类型 | 说明 |
+|---------|------|------|
+| `query` | 读 | 使用 JMESPath 查询数据 |
+| `get_all` | 读 | 获取全部数据 |
+| `get_schema` | 读 | 获取数据结构 |
+| `preview` | 读 | 预览数据 |
+| `create` | 写 | 创建新条目 |
+| `update` | 写 | 更新条目 |
+| `delete` | 写 | 删除条目 |
+| `move` | 写 | 移动节点 |
+| `copy` | 写 | 复制节点 |
+
+> 用户也可以定义自己的 Tools。
+
+### 设计原则
+
+1. **Tools 之间解耦**：各个 Tool 之间保持独立结构，修改单个 Tool 不影响其他 Tool 和整体架构。
+2. **Tool 是核心实体**：Tool 运行在沙盒环境中，是最底层的执行单元；MCP Server / REST API 等只是对 Tool 的包装和暴露方式。
+
+------------------------------------------------以上为已确认-------------------------------------------------
+
 
 ## Decisions
 ### Decision: 采用“并行引入”的兼容策略
-- **做法**：阶段 1 引入 ADI/AEI/Bundle 新数据模型与配置端点；现有 `mcp_instance` 与 proxy 不变；新增 v2 MCP exposure（AEI=MCP bundle）使用同一 proxy 入口或新增入口（待确认）。
+- **做法**：阶段 1 引入 ADI/AEI/Binding 新数据模型与配置端点；现有 `mcp_instance` 与 proxy 不变；新增 v2 AEI(MCP) 使用独立入口。
 - **原因**：最小化对现有使用方与已存在脚本/前端的破坏；允许逐步迁移。
 
 ### Decision: v2 的 api_key 鉴权边界=bindings（不再耦合 table/json_path）
@@ -43,7 +125,7 @@ Bundle 是 AEI 与 ADI 的高效对接方式：一个 AEI(MCP) 可以绑定多�
 
 ### Decision: 工具路由由“tool -> ADI”绑定显式描述
 对 MCP tools 的本质需求是：工具名（可自定义）+ 输入 schema + 描述 + 执行逻辑指向哪个 ADI。
-因此 Bundle 需要显式保存 tool 绑定信息，而不是隐式依赖 “单一 table_id/json_path”。
+因此 Binding 需要显式保存 tool 绑定信息，而不是隐式依赖 "单一 table_id/json_path"。
 
 ### Decision: 绑定粒度（Confirmed）
 - **ADI 粒度**：一种操作 = 一个 ADI 实体（Confirmed）
@@ -119,8 +201,8 @@ Bundle 是 AEI 与 ADI 的高效对接方式：一个 AEI(MCP) 可以绑定多�
 
 
 ## Migration Plan（阶段 1）
-- 先引入 ADI/AEI/Bundle 与 internal config v2，不改动现有 `mcp_instance` 逻辑
-- 新增“创建 MCP bundle exposure”的入口：允许用户把多个 Context 的操作组合到一个 MCP api_key 下
+- 先引入 ADI/AEI/Binding 与 internal config v2，不改动现有 `mcp_instance` 逻辑
+- 新增"创建 AEI(MCP)"的入口：允许用户把多个 Context 的操作组合到一个 MCP api_key 下
 - MCP Server 侧优先使用 v2 config；若 v2 不存在则回落到旧 `internal/mcp-instance`（兼容老实例）
 
 ## Risks / Trade-offs
