@@ -426,7 +426,7 @@ export function ProjectWorkspaceView({
         {project && project.tables.length > 0 ? (
           <>
             <section style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#050607' }}>
-              <div style={{ flex: 1, padding: 24, display: 'flex', gap: 24, overflow: 'hidden' }}>
+              <div style={{ flex: 1, display: 'flex', gap: 24, overflow: 'hidden' }}>
                 <div
                   style={{
                     flex: 1,

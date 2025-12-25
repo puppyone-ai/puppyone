@@ -440,8 +440,25 @@ export function TableManageDialog({
           background: '#202020',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#888' }}>
-            <span>Add to</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#E1E1E1', fontWeight: 500, background: '#2A2A2A', padding: '2px 8px', borderRadius: 4 }}>
+            <span>Add new context</span>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              background: '#2A2A2A', 
+              borderRadius: 4, 
+              width: 20, 
+              height: 20, 
+              color: '#E1E1E1' 
+            }}>
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                <line x1="1.5" y1="5" x2="12.5" y2="5" stroke="currentColor" strokeWidth="1.2"/>
+                <line x1="5.5" y1="5" x2="5.5" y2="12.5" stroke="currentColor" strokeWidth="1.2"/>
+              </svg>
+            </div>
+            <span>to project</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#E1E1E1', fontWeight: 500, background: '#2A2A2A', padding: '2px 8px', borderRadius: 4, marginLeft: 2 }}>
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
                 <path d="M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z" stroke="currentColor" strokeWidth="1.2"/>
               </svg>
@@ -488,7 +505,7 @@ export function TableManageDialog({
               {/* Data Source Selection */}
               <div style={{ marginBottom: 24 }}>
                 <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 12, letterSpacing: '0.02em' }}>
-                  Start with
+                  Create a new context from
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
                   
@@ -503,8 +520,8 @@ export function TableManageDialog({
                       <line x1="8" y1="12" x2="16" y2="12" />
                     </svg>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: '#EDEDED' }}>Empty</div>
-                      <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>From scratch</div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#EDEDED' }}>Blank</div>
+                      <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>Start fresh</div>
                     </div>
                   </div>
 
@@ -556,7 +573,7 @@ export function TableManageDialog({
               {/* Dynamic Content */}
               {startOption === 'empty' && (
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Context Name</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Set the new context name to</div>
                   <input
                     type="text"
                     value={name}
@@ -655,7 +672,7 @@ export function TableManageDialog({
                   {/* Name input after files selected */}
                   {selectedFiles && selectedFiles.length > 0 && (
                     <div style={{ marginTop: 20 }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Context Name</div>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Set the new context name to</div>
                       <input
                         type="text"
                         value={name}
@@ -724,7 +741,7 @@ export function TableManageDialog({
                   {/* Context Name for URL */}
                   {urlInput.trim() && (
                     <div style={{ marginTop: 20 }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Context Name</div>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Set the new context name to</div>
                       <input
                         type="text"
                         value={name}

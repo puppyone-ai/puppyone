@@ -110,7 +110,7 @@ export function ProjectManageDialog({
         {/* Header */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>
-            {showDeleteConfirm ? 'Delete Folder' : (isEdit ? 'Edit Folder' : 'New Folder')}
+            {showDeleteConfirm ? 'Delete Project' : (isEdit ? 'Edit Project' : 'New Project')}
           </div>
           {!showDeleteConfirm && (
             <button 
@@ -129,13 +129,13 @@ export function ProjectManageDialog({
           <div>
             <div style={{ padding: '24px' }}>
               <p style={{ color: '#EDEDED', marginBottom: 8, fontSize: 14 }}>
-                Are you sure you want to delete folder "{project?.name}"?
+                Are you sure you want to delete project "{project?.name}"?
               </p>
               <p style={{ color: '#9ca3af', fontSize: 13, lineHeight: '1.5' }}>
-                This will permanently delete the folder and all contexts inside it. This action cannot be undone.
+                This will permanently delete the project and all contexts inside it. This action cannot be undone.
               </p>
             </div>
-            <div style={{ 
+            <div style={{  
               padding: '16px 20px', 
               background: '#202020', 
               borderTop: '1px solid #333',
@@ -159,19 +159,19 @@ export function ProjectManageDialog({
                   border: '1px solid rgba(239,68,68,0.2)'
                 }}
               >
-                {loading ? 'Deleting...' : 'Delete Folder'}
+                {loading ? 'Deleting...' : 'Delete Project'}
               </button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <div style={{ padding: '24px 32px 32px' }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Folder Name</div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Project Name</div>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Enter folder name"
+                placeholder="Enter project name"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -201,7 +201,7 @@ export function ProjectManageDialog({
                   onClick={() => setShowDeleteConfirm(true)}
                   style={{ ...buttonStyle(false), color: '#ef4444', border: 'none', background: 'transparent', padding: 0 }}
                 >
-                  Delete folder
+                  Delete project
                 </button>
               ) : (
                 <div />
@@ -220,7 +220,7 @@ export function ProjectManageDialog({
                   disabled={loading || !name.trim()}
                   style={buttonStyle(true)}
                 >
-                  {loading ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Folder'}
+                  {loading ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Project'}
                 </button>
               </div>
             </div>
