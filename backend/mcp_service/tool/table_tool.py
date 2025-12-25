@@ -17,6 +17,43 @@ class TableToolImplementation:
             rpc_client: RPC客户端
         """
         self.rpc_client = rpc_client
+
+    def _summarize_schema(self, schema: Any, json_path: str) -> Dict[str, Any]:
+        """
+        给 get_data_schema 补充一份轻量 meta，帮助调用方快速判断根节点类型（object/array/scalar），
+        避免把 object 误当成 array 去写 `[?...]` 过滤而报错。
+        """
+        meta: Dict[str, Any] = {"json_path": json_path}
+
+        if isinstance(schema, dict):
+            keys = list(schema.keys())
+            meta.update(
+                {
+                    "root_type": "object",
+                    "object_key_count": len(keys),
+                    "object_keys_preview": keys[:20],
+                    "object_keys_truncated": len(keys) > 20,
+                }
+            )
+            return meta
+
+        if isinstance(schema, list):
+            meta.update(
+                {
+                    "root_type": "array",
+                    "array_length_in_schema": len(schema),
+                    # 约定：schema 用首元素作为模板（见 TableService._extract_structure），这里直接透出
+                    "array_item_schema": schema[0] if len(schema) > 0 else None,
+                }
+            )
+            return meta
+
+        # 基本类型（schema 会是 "<str>" / "<int>" 等字符串）
+        if isinstance(schema, str) and schema.startswith("<") and schema.endswith(">"):
+            meta.update({"root_type": "scalar", "scalar_type": schema.strip("<>")})
+        else:
+            meta.update({"root_type": "scalar", "scalar_type": type(schema).__name__})
+        return meta
     
     async def get_data_schema(self, table_id: int, json_path: str = "") -> Dict[str, Any]:
         """获取挂载点数据结构（不含实际值）"""
@@ -24,7 +61,13 @@ class TableToolImplementation:
             data = await self.rpc_client.get_context_schema(table_id=table_id, json_path=json_path)
             if data is None:
                 return {"error": "获取数据结构失败"}
-            return {"message": "获取数据结构成功", "data": data, "schema_only": True}
+            return {
+                "message": "获取数据结构成功",
+                "data": data,
+                "schema_only": True,
+                # 非破坏性增强：补充 meta 信息，便于调用方快速写出正确的 JMESPath
+                "meta": self._summarize_schema(data, json_path=json_path),
+            }
         except Exception as e:
             return {"error": "获取数据结构失败", "detail": str(e)}
 
