@@ -159,7 +159,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   }, [activeTableId])
 
   const pathSegments = useMemo(() => {
-    const segments = ['Context']
+    const segments = ['Projects']
     if (activeBase) segments.push(activeBase.name)
     if (activeTable) segments.push(activeTable.name)
     return segments

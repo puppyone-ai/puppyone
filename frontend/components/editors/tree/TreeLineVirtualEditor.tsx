@@ -247,7 +247,7 @@ const styles = {
   overflow: 'auto',
   scrollbarGutter: 'stable',  // 预留滚动条空间，避免切换时布局抖动
   paddingLeft: 24,
-  paddingTop: 8,  // 减少顶部间距，因为有了 resize bar
+  paddingTop: 0,  // 无顶部间距，由 resize bar 提供
   paddingRight: 8,
 } as CSSProperties,
 

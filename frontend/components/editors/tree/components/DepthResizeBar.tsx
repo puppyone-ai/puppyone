@@ -34,8 +34,6 @@ export const DepthResizeBar = React.memo(function DepthResizeBar({
   onKeyWidthChange,
 }: DepthResizeBarProps) {
   const [draggingDepth, setDraggingDepth] = useState<number | null>(null)
-  const [hoveredDepth, setHoveredDepth] = useState<number | null>(null)
-  const [isBarHovered, setIsBarHovered] = useState(false)
   const dragStartX = useRef(0)
   const dragStartKeyWidth = useRef(0)
 
@@ -61,8 +59,6 @@ export const DepthResizeBar = React.memo(function DepthResizeBar({
 
     const handleMouseUp = () => {
       setDraggingDepth(null)
-      setHoveredDepth(null)
-      setIsBarHovered(false)  // 拖拽结束后重置 hover 状态
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -83,73 +79,93 @@ export const DepthResizeBar = React.memo(function DepthResizeBar({
     dragStartKeyWidth.current = keyWidths[depth - 1] ?? DEFAULT_KEY_WIDTH
   }, [keyWidths])
 
-  // 是否显示分隔线（hover 或正在拖拽时显示）
-  const isVisible = isBarHovered || draggingDepth !== null
-  
   // 计算实际要渲染的把手数量（确保至少为 0）
   const handleCount = Math.max(0, maxDepth + 2)
+  
+  // 拖拽时强制显示
+  const isDragging = draggingDepth !== null
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        height: 20,  // 增加触发区域高度
-        marginLeft: 24,
-        marginRight: 8,
-        borderBottom: `1px solid ${isVisible ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.04)'}`,
-        transition: 'border-color 0.15s ease',
-      }}
-      onMouseEnter={() => setIsBarHovered(true)}
-      onMouseLeave={() => !draggingDepth && setIsBarHovered(false)}
-    >
-      {/* 渲染每个深度的小方块把手 */}
-      {/* 需要渲染到 maxDepth + 2，因为 depth N 的把手控制 keyWidths[N-1] */}
-      {/* 所以要调整 keyWidths[maxDepth]，需要 depth maxDepth + 1 的把手 */}
-      {Array.from({ length: handleCount }, (_, depth) => {
-        const x = getDepthX(depth)
-        const isActive = draggingDepth === depth || hoveredDepth === depth
-        const canDrag = depth > 0
+    <>
+      <style jsx>{`
+        .resize-bar {
+          position: relative;
+          height: 45px;
+          margin-left: 24px;
+          margin-right: 8px;
+          display: flex;
+          align-items: center;
+        }
+        .resize-bar .center-line {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 50%;
+          height: 1px;
+          background: rgba(255, 255, 255, 0.08);
+          transition: background 0.15s ease;
+        }
+        .resize-bar:hover .center-line,
+        .resize-bar.dragging .center-line {
+          background: rgba(255, 255, 255, 0.2);
+        }
+        .resize-bar .handle {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 20px;
+          height: 40px;
+          cursor: col-resize;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1;
+          opacity: 0;
+          transition: opacity 0.15s ease;
+        }
+        .resize-bar:hover .handle,
+        .resize-bar.dragging .handle {
+          opacity: 1;
+        }
+        .resize-bar .handle.active {
+          z-index: 10;
+        }
+        .resize-bar .handle .line {
+          width: 2px;
+          height: 12px;
+          background: #6b7280;
+          border-radius: 1px;
+        }
+        .resize-bar .handle:hover .line,
+        .resize-bar .handle.active .line {
+          background: #60a5fa;
+        }
+      `}</style>
+      <div className={`resize-bar ${isDragging ? 'dragging' : ''}`}>
+        {/* 中心横线 */}
+        <div className="center-line" />
+        
+        {/* 渲染每个深度的竖线把手 */}
+        {Array.from({ length: handleCount }, (_, depth) => {
+          const x = getDepthX(depth)
+          const isActive = draggingDepth === depth
+          const canDrag = depth > 0
 
-        // 只显示可拖拽的把手（depth > 0）
-        if (!canDrag) return null
+          // 只显示可拖拽的把手（depth > 0）
+          if (!canDrag) return null
 
-        return (
-          <div
-            key={depth}
-            style={{
-              position: 'absolute',
-              left: x - 6,
-              bottom: -5,  // 放在横线上
-              width: 12,
-              height: 10,
-              cursor: 'col-resize',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: isActive ? 10 : 1,
-              // 默认隐藏，hover 时显示
-              opacity: isVisible ? 1 : 0,
-              transition: 'opacity 0.15s ease',
-            }}
-            onMouseEnter={() => setHoveredDepth(depth)}
-            onMouseLeave={() => setHoveredDepth(null)}
-            onMouseDown={(e) => handleMouseDown(e, depth)}
-          >
-            {/* 小方块把手 */}
+          return (
             <div
-              style={{
-                width: isActive ? 10 : 8,
-                height: isActive ? 10 : 8,
-                background: isActive ? '#60a5fa' : '#4b5563',
-                borderRadius: 2,
-                transition: 'all 0.1s',
-                boxShadow: isActive ? '0 0 6px rgba(96, 165, 250, 0.5)' : 'none',
-              }}
-            />
-          </div>
-        )
-      })}
-    </div>
+              key={depth}
+              className={`handle ${isActive ? 'active' : ''}`}
+              style={{ left: x - 10 }}
+              onMouseDown={(e) => handleMouseDown(e, depth)}
+            >
+              <div className="line" />
+            </div>
+          )
+        })}
+      </div>
+    </>
   )
 })
-

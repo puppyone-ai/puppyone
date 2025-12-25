@@ -591,8 +591,8 @@ export function ProjectsSidebar({
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 20px;
-          height: 20px;
+          width: 26px;
+          height: 26px;
           background: transparent;
           border: 1px solid transparent;
           border-radius: 4px;
@@ -1147,7 +1147,7 @@ export function ProjectsSidebar({
         {/* Section: Contexts */}
         <div className="section">
           <div className="section-header" onClick={() => toggleSection('contexts')}>
-            <span className="section-title">Contexts</span>
+            <span className="section-title">Projects</span>
             <svg className={`section-chevron ${expandedSections.has('contexts') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
               <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -1157,9 +1157,9 @@ export function ProjectsSidebar({
                 e.stopPropagation()
                 handleCreateProject()
               }}
-              title="New Folder"
+              title="New Project"
             >
-              <svg width="12" height="12" viewBox="0 0 10 10" fill="none">
+              <svg width="14" height="14" viewBox="0 0 10 10" fill="none">
                 <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
               </svg>
           </button>
@@ -1178,7 +1178,7 @@ export function ProjectsSidebar({
                       <path d="M7 3v8M3 7h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
                     </svg>
                   </span>
-                  <span className="nav-label" style={{ color: '#6D7177' }}>Add context...</span>
+                  <span className="nav-label" style={{ color: '#6D7177' }}>New Project</span>
                 </button>
         ) : (
                 <div className="projects-list">
@@ -1228,7 +1228,7 @@ export function ProjectsSidebar({
                   e.stopPropagation()
                   handleCreateTable(project.id)
                 }}
-                title="Add table"
+                title="New Context"
               >
                 <svg width="14" height="14" viewBox="0 0 10 10" fill="none">
                   <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
@@ -1374,7 +1374,7 @@ export function ProjectsSidebar({
             {/* Popover showing all contexts */}
             <div className="collapsed-nav-popover">
               {projects.length === 0 ? (
-                <div className="popover-empty">No contexts yet</div>
+                <div className="popover-empty">No projects yet</div>
               ) : (
                 projects.map((project) => (
                   <div key={project.id} className="popover-section">
