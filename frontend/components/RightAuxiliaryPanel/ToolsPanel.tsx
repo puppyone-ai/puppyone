@@ -25,10 +25,11 @@ interface ToolsPanelProps {
 
 // 颜色编码定义
 const TOOL_COLORS: Record<string, { accent: string; bg: string; text: string }> = {
+  get_data_schema: { accent: '#06b6d4', bg: 'rgba(6, 182, 212, 0.1)', text: '#67e8f9' },
   query_data: { accent: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', text: '#60a5fa' },
   get_all_data: { accent: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', text: '#60a5fa' },
-  preview: { accent: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', text: '#a78bfa' },
-  select: { accent: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', text: '#a78bfa' },
+  // preview: { accent: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', text: '#a78bfa' },
+  // select: { accent: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', text: '#a78bfa' },
   create: { accent: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', text: '#34d399' },
   update: { accent: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', text: '#fbbf24' },
   delete: { accent: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', text: '#f87171' },
@@ -36,6 +37,13 @@ const TOOL_COLORS: Record<string, { accent: string; bg: string; text: string }> 
 
 // Tool 图标定义
 const TOOL_ICONS: Record<string, React.ReactNode> = {
+  get_data_schema: (
+    <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+      <path d="M5.2 3.2c-1.2.6-2 1.8-2 3.8s.8 3.2 2 3.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M8.8 3.2c1.2.6 2 1.8 2 3.8s-.8 3.2-2 3.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M6.2 5.4h1.6M6.2 7h1.6M6.2 8.6h1.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
   query_data: (
     <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
       <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.2"/>
@@ -49,18 +57,18 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
       <rect x="2" y="10" width="10" height="2" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
     </svg>
   ),
-  preview: (
-    <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-      <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
-      <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
-    </svg>
-  ),
-  select: (
-    <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-      <rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2"/>
-      <path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  ),
+  // preview: (
+  //   <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+  //     <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+  //     <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
+  //   </svg>
+  // ),
+  // select: (
+  //   <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+  //     <rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2"/>
+  //     <path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+  //   </svg>
+  // ),
   create: (
     <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
       <path d="M7 3v8M3 7h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
@@ -79,10 +87,11 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
 }
 
 const TOOL_DEFS = [
+  { backendId: 'get_data_schema' as McpToolType, label: 'Get Schema' },
   { backendId: 'query_data' as McpToolType, label: 'Query' },
   { backendId: 'get_all_data' as McpToolType, label: 'Get All' },
-  { backendId: 'preview' as McpToolType, label: 'Preview' },
-  { backendId: 'select' as McpToolType, label: 'Select' },
+  // { backendId: 'preview' as McpToolType, label: 'Preview' },
+  // { backendId: 'select' as McpToolType, label: 'Select' },
   { backendId: 'create' as McpToolType, label: 'Create' },
   { backendId: 'update' as McpToolType, label: 'Update' },
   { backendId: 'delete' as McpToolType, label: 'Delete' },

@@ -8,8 +8,8 @@ export interface McpToolPermissions {
   get_data_schema?: boolean
   get_all_data?: boolean
   query_data?: boolean
-  preview?: boolean
-  select?: boolean
+  // preview?: boolean
+  // select?: boolean
   create?: boolean
   update?: boolean
   delete?: boolean
@@ -17,6 +17,17 @@ export interface McpToolPermissions {
 
 // MCP 工具定义 - 包含图标和标签
 const MCP_TOOLS = [
+  { 
+    id: 'get_data_schema', 
+    label: 'Get Schema', 
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M5.2 3.2c-1.2.6-2 1.8-2 3.8s.8 3.2 2 3.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        <path d="M8.8 3.2c1.2.6 2 1.8 2 3.8s-.8 3.2-2 3.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        <path d="M6.2 5.4h1.6M6.2 7h1.6M6.2 8.6h1.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>
+    )
+  },
   { 
     id: 'query_data', 
     label: 'Query', 
@@ -38,26 +49,26 @@ const MCP_TOOLS = [
       </svg>
     )
   },
-  { 
-    id: 'preview', 
-    label: 'Preview', 
-    icon: (
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-        <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
-        <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
-      </svg>
-    )
-  },
-  { 
-    id: 'select', 
-    label: 'Select', 
-    icon: (
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-        <rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2"/>
-        <path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    )
-  },
+  // { 
+  //   id: 'preview', 
+  //   label: 'Preview', 
+  //   icon: (
+  //     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+  //       <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+  //       <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
+  //     </svg>
+  //   )
+  // },
+  // { 
+  //   id: 'select', 
+  //   label: 'Select', 
+  //   icon: (
+  //     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+  //       <rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2"/>
+  //       <path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+  //     </svg>
+  //   )
+  // },
   { 
     id: 'create', 
     label: 'Create', 
