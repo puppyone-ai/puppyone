@@ -69,7 +69,7 @@ class TableToolImplementation:
                 "meta": self._summarize_schema(data, json_path=json_path),
             }
         except Exception as e:
-            return {"error": "获取数据结构失败", "detail": str(e)}
+            return {"error": "获取数据结构失败", "detail": str(e)[:200]}
 
     async def get_all_data(self, table_id: int, json_path: str = "") -> Dict[str, Any]:
         """获取挂载点全部数据"""
@@ -79,7 +79,7 @@ class TableToolImplementation:
                 return {"error": "获取数据失败"}
             return {"message": "获取数据成功", "data": data or {}}
         except Exception as e:
-            return {"error": "获取数据失败", "detail": str(e)}
+            return {"error": "获取数据失败", "detail": str(e)[:200]}
 
     async def query_data(self, table_id: int, json_path: str, query: str) -> Dict[str, Any]:
         """对挂载点数据做 JMESPath 查询"""
@@ -93,7 +93,7 @@ class TableToolImplementation:
                 return {"error": "JMESPath 查询失败"}
             return {"message": "JMESPath 查询成功", "data": data, "query": query}
         except Exception as e:
-            return {"error": "JMESPath 查询失败", "detail": str(e)}
+            return {"error": "JMESPath 查询失败", "detail": str(e)[:200]}
     
     async def create_element(
         self,
@@ -155,7 +155,7 @@ class TableToolImplementation:
                 "total_failed": len(failed_keys)
             }
         except Exception as e:
-            return {"error": f"创建元素失败: {str(e)}"}
+            return {"error": f"创建元素失败: {str(e)[:200]}"}
     
     async def update_element(
         self,
@@ -217,7 +217,7 @@ class TableToolImplementation:
                 "total_failed": len(failed_keys)
             }
         except Exception as e:
-            return {"error": f"更新元素失败: {str(e)}"}
+            return {"error": f"更新元素失败: {str(e)[:200]}"}
     
     async def delete_element(
         self,
@@ -266,7 +266,7 @@ class TableToolImplementation:
                 "total_invalid": len(invalid_keys)
             }
         except Exception as e:
-            return {"error": f"删除元素失败: {str(e)}"}
+            return {"error": f"删除元素失败: {str(e)[:200]}"}
     
     async def preview_data(
         self,
@@ -327,7 +327,7 @@ class TableToolImplementation:
                 "total_count": len(filtered_data)
             }
         except Exception as e:
-            return {"error": f"预览数据失败: {str(e)}"}
+            return {"error": f"预览数据失败: {str(e)[:200]}"}
     
     async def select_tables(
         self,
@@ -391,4 +391,4 @@ class TableToolImplementation:
                 "matched_count": len(selected_data)
             }
         except Exception as e:
-            return {"error": f"选择数据失败: {str(e)}"}
+            return {"error": f"选择数据失败: {str(e)[:200]}"}
