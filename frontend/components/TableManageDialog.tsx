@@ -8,6 +8,7 @@ import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { ImportModal } from './editors/tree/components/ImportModal'
 import { uploadAndSubmit } from '../lib/etlApi'
 import { addPendingTasks, replacePlaceholderTasks, removeFailedPlaceholders, removeAllPlaceholdersForTable } from './BackgroundTaskNotifier'
+import { parseUrl, importData, type ParseUrlResponse } from '../lib/connectApi'
 
 type StartOption = 'empty' | 'documents' | 'url' | 'connect'
 
@@ -75,9 +76,50 @@ export function TableManageDialog({
   const [importMessage, setImportMessage] = useState('')
   const [urlInput, setUrlInput] = useState('')
   const [showImportModal, setShowImportModal] = useState(false)
+  const [connectUrlInput, setConnectUrlInput] = useState('')
+  const [connectParseResult, setConnectParseResult] = useState<ParseUrlResponse | null>(null)
+  const [connectLoading, setConnectLoading] = useState(false)
+  const [connectError, setConnectError] = useState<string | null>(null)
+  const [connectNeedsAuth, setConnectNeedsAuth] = useState(false)
+  const [connectImporting, setConnectImporting] = useState(false)
+  const connectStatusMeta = (() => {
+    if (connectNeedsAuth) {
+      return { label: 'Authorization required', color: '#ef4444' }
+    }
+    if (connectImporting) {
+      return { label: 'Importing...', color: '#22c55e' }
+    }
+    if (connectParseResult) {
+      return {
+        label: `Ready to import • ${connectParseResult.total_items} items`,
+        color: '#22c55e',
+      }
+    }
+    if (connectLoading) {
+      return { label: 'Parsing...', color: '#3b82f6' }
+    }
+    if (connectError) {
+      return { label: 'Parsing failed', color: '#ef4444' }
+    }
+    if (connectUrlInput.trim()) {
+      return { label: 'Click Parse to continue', color: '#eab308' }
+    }
+    return { label: 'Waiting for connector URL', color: '#595959' }
+  })()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropzoneRef = useRef<HTMLDivElement>(null)
+
+  const resetConnectState = useCallback(() => {
+    setConnectUrlInput('')
+    setConnectParseResult(null)
+    setConnectError(null)
+    setConnectNeedsAuth(false)
+    setConnectLoading(false)
+    setConnectImporting(false)
+  }, [])
+
+  const isNotionUrl = (value: string) => value.includes('notion.so') || value.includes('notion.site')
 
   useEffect(() => {
     if (table) {
@@ -141,6 +183,61 @@ export function TableManageDialog({
       }
     }
   }
+
+  const handleConnectParse = useCallback(async () => {
+    if (!connectUrlInput.trim()) {
+      return
+    }
+
+    setConnectLoading(true)
+    setConnectError(null)
+    setConnectNeedsAuth(false)
+    setConnectParseResult(null)
+
+    try {
+      const result = await parseUrl(connectUrlInput.trim())
+      setConnectParseResult(result)
+      if (!name.trim()) {
+        setName(result.title || 'Imported Data')
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to parse URL'
+      setConnectError(message)
+      const lower = message.toLowerCase()
+      if (lower.includes('auth') || lower.includes('401') || isNotionUrl(connectUrlInput)) {
+        setConnectNeedsAuth(true)
+      }
+    } finally {
+      setConnectLoading(false)
+    }
+  }, [connectUrlInput, name])
+
+  const handleConnectImport = useCallback(async () => {
+    if (!connectParseResult) {
+      return
+    }
+
+    try {
+      setConnectImporting(true)
+      setConnectError(null)
+
+      await importData({
+        url: connectParseResult.url,
+        project_id: Number(projectId),
+        table_id: undefined,
+        table_name: name.trim() || connectParseResult.title || 'Imported Data',
+        table_description: `Imported from ${connectParseResult.source_type}`,
+      })
+
+      await refreshProjects()
+      resetConnectState()
+      onClose()
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : 'Failed to import data')
+    } finally {
+      setConnectImporting(false)
+    }
+  }, [connectParseResult, name, projectId, onClose, resetConnectState])
 
   /**
    * 解析文件列表，构建文件夹结构
@@ -512,7 +609,13 @@ export function TableManageDialog({
                   {/* Option 1: Empty */}
                   <div 
                     className={`start-option ${startOption === 'empty' ? 'active' : ''}`}
-                    onClick={() => { setStartOption('empty'); setSelectedFiles(null); setName(''); setUrlInput(''); }}
+                    onClick={() => { 
+                      setStartOption('empty'); 
+                      setSelectedFiles(null); 
+                      setName(''); 
+                      setUrlInput(''); 
+                      resetConnectState()
+                    }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#777', marginTop: 2 }}>
                       <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -528,7 +631,12 @@ export function TableManageDialog({
                   {/* Option 2: Documents */}
                   <div 
                     className={`start-option ${startOption === 'documents' ? 'active' : ''}`}
-                    onClick={() => { setStartOption('documents'); setUrlInput(''); if (startOption === 'empty') setName(''); }}
+                    onClick={() => { 
+                      setStartOption('documents'); 
+                      setUrlInput(''); 
+                      resetConnectState()
+                      if (startOption === 'empty') setName(''); 
+                    }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#777', marginTop: 2 }}>
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -543,7 +651,12 @@ export function TableManageDialog({
                   {/* Option 3: URL/Web */}
                   <div 
                     className={`start-option ${startOption === 'url' ? 'active' : ''}`}
-                    onClick={() => { setStartOption('url'); setSelectedFiles(null); setName(''); }}
+                    onClick={() => { 
+                      setStartOption('url'); 
+                      setSelectedFiles(null); 
+                      setName(''); 
+                      resetConnectState()
+                    }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#777', marginTop: 2 }}>
                       <circle cx="12" cy="12" r="10" />
@@ -557,7 +670,16 @@ export function TableManageDialog({
                   </div>
 
                   {/* Option 4: Connectors */}
-                  <div className="start-option" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
+                  <div 
+                    className={`start-option ${startOption === 'connect' ? 'active' : ''}`}
+                    onClick={() => {
+                      setStartOption('connect')
+                      setSelectedFiles(null)
+                      setUrlInput('')
+                      setName('')
+                      resetConnectState()
+                    }}
+                  >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#777', marginTop: 2 }}>
                       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -763,6 +885,222 @@ export function TableManageDialog({
                   )}
                 </div>
               )}
+
+              {startOption === 'connect' && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Connector URL</div>
+                  <div style={{
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'center',
+                  }}>
+                    <input
+                      type="text"
+                      placeholder="https://www.notion.so/doc..."
+                      value={connectUrlInput}
+                      onChange={(e) => setConnectUrlInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void handleConnectParse()
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        background: '#1a1a1a',
+                        border: '1px solid #333',
+                        borderRadius: 6,
+                        padding: '10px 12px',
+                        fontSize: 14,
+                        color: '#e2e8f0',
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleConnectParse()}
+                      disabled={connectLoading || !connectUrlInput.trim()}
+                      style={{
+                        padding: '10px 16px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: connectLoading || !connectUrlInput.trim() ? '#2a2a2a' : '#3a3a3a',
+                        color: connectLoading || !connectUrlInput.trim() ? '#525252' : '#EDEDED',
+                        cursor: connectLoading || !connectUrlInput.trim() ? 'not-allowed' : 'pointer',
+                        fontSize: 13,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {connectLoading ? 'Parsing...' : 'Parse'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#525252', marginTop: 8 }}>
+                    Works with Notion pages, Google Docs (public), and other supported sources.
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginTop: 12,
+                    padding: '8px 12px',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: 6,
+                    background: '#111111',
+                  }}>
+                    <span style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: connectStatusMeta.color,
+                      boxShadow: connectStatusMeta.color === '#22c55e' ? '0 0 8px rgba(34,197,94,0.6)' : 'none',
+                      flexShrink: 0,
+                    }} />
+                    <span style={{ fontSize: 12, color: connectStatusMeta.color }}>
+                      {connectStatusMeta.label}
+                    </span>
+                  </div>
+
+                  {connectError && (
+                    <div style={{
+                      marginTop: 16,
+                      padding: 12,
+                      borderRadius: 8,
+                      border: '1px solid #4a2a2a',
+                      background: '#2a1a1a',
+                    }}>
+                      <div style={{ fontSize: 12, color: '#f87171', marginBottom: 4 }}>Cannot parse link</div>
+                      <div style={{ fontSize: 13, color: '#b91c1c' }}>{connectError}</div>
+                    </div>
+                  )}
+                  
+                  {connectNeedsAuth && (
+                    <div style={{
+                      marginTop: 16,
+                      padding: 14,
+                      borderRadius: 8,
+                      border: '1px solid #3b82f6',
+                      background: 'rgba(59,130,246,0.08)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}>
+                      <div style={{ fontSize: 12, color: '#bfdbfe', lineHeight: 1.5 }}>
+                        This link needs additional authorization. Finish connecting your workspace on the Integrations page, then retry parsing.
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          onClick={() => window.open('/connect', '_blank', 'noopener')}
+                          style={{
+                            border: '1px solid #93c5fd',
+                            background: '#1d4ed8',
+                            color: '#EDEDED',
+                            borderRadius: 6,
+                            padding: '6px 14px',
+                            fontSize: 12,
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Go to Integrations
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {connectParseResult && (
+                    <div style={{
+                      marginTop: 20,
+                      border: '1px solid #333',
+                      borderRadius: 10,
+                      padding: 16,
+                      background: '#1a1a1a',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#8B8B8B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Preview — {connectParseResult.title || 'Untitled'}
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        fontSize: 12,
+                        color: '#9ca3af',
+                      }}>
+                        <span>Source: {connectParseResult.source_type}</span>
+                        <span>Items: {connectParseResult.total_items}</span>
+                        <span>Structure: {connectParseResult.data_structure}</span>
+                      </div>
+                      {connectParseResult.sample_data && connectParseResult.sample_data.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: '#8B8B8B', marginBottom: 6 }}>
+                            Sample ({connectParseResult.sample_data.length} items)
+                          </div>
+                          <div style={{
+                            background: '#111111',
+                            border: '1px solid #2a2a2a',
+                            borderRadius: 6,
+                            padding: 10,
+                            maxHeight: 160,
+                            overflow: 'auto',
+                            fontSize: 11,
+                          }}>
+                            <pre style={{ margin: 0, color: '#EDEDED', whiteSpace: 'pre-wrap' }}>
+                              {JSON.stringify(connectParseResult.sample_data, null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+                      {connectParseResult.fields && connectParseResult.fields.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: '#8B8B8B', marginBottom: 6 }}>
+                            Detected fields
+                          </div>
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                            gap: 8,
+                          }}>
+                            {connectParseResult.fields.map((field, idx) => (
+                              <div key={idx} style={{
+                                border: '1px solid #2a2a2a',
+                                borderRadius: 6,
+                                padding: '6px 8px',
+                                background: '#0f0f0f',
+                              }}>
+                                <div style={{ fontSize: 12, fontWeight: 500, color: '#EDEDED' }}>{field.name}</div>
+                                <div style={{ fontSize: 11, color: '#8B8B8B' }}>{field.type}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: 4 }}>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Context Name</div>
+                        <input
+                          type="text"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          placeholder={connectParseResult.title || 'Imported Data'}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            background: '#121212',
+                            border: '1px solid #333',
+                            borderRadius: 6,
+                            fontSize: 14,
+                            color: '#EDEDED',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -795,18 +1133,28 @@ export function TableManageDialog({
                   Cancel
                 </button>
                 <button
-                  type={startOption === 'url' ? 'button' : 'submit'}
-                  onClick={startOption === 'url' && urlInput.trim() ? () => setShowImportModal(true) : undefined}
+                  type={startOption === 'url' || startOption === 'connect' ? 'button' : 'submit'}
+                  onClick={
+                    startOption === 'url'
+                      ? (urlInput.trim() ? () => setShowImportModal(true) : undefined)
+                      : startOption === 'connect'
+                        ? (connectParseResult ? () => void handleConnectImport() : undefined)
+                        : undefined
+                  }
                   disabled={
                     loading || 
                     isImporting || 
+                    connectImporting ||
                     (startOption === 'empty' && !name.trim()) ||
                     (startOption === 'documents' && (!selectedFiles || selectedFiles.length === 0 || !name.trim())) ||
-                    (startOption === 'url' && !urlInput.trim())
+                    (startOption === 'url' && !urlInput.trim()) ||
+                    (startOption === 'connect' && !connectParseResult)
                   }
                   style={buttonStyle(true)}
                 >
-                  {loading || isImporting 
+                  {connectImporting
+                    ? 'Importing...'
+                    : loading || isImporting 
                     ? (isImporting ? 'Importing...' : 'Creating...') 
                     : isEdit 
                       ? 'Save Changes' 
@@ -814,7 +1162,9 @@ export function TableManageDialog({
                         ? 'Import & Create' 
                         : startOption === 'url'
                           ? 'Import from URL'
-                          : 'Create Context'}
+                          : startOption === 'connect'
+                            ? 'Import from Connector'
+                            : 'Create Context'}
                 </button>
               </div>
             </div>

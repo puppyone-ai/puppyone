@@ -3,6 +3,8 @@
  * For communicating with backend Connect API
  */
 
+import { getApiAccessToken } from './apiClient'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'
 
 export interface ParseUrlRequest {
@@ -52,20 +54,10 @@ export interface ApiResponse<T> {
 }
 
 /**
- * Get authentication token
- */
-function getAuthToken(): string | null {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('supabase.auth.token')
-  }
-  return null
-}
-
-/**
  * Parse URL and return data preview
  */
 export async function parseUrl(url: string): Promise<ParseUrlResponse> {
-  const token = getAuthToken()
+  const token = await getApiAccessToken()
   
   const response = await fetch(`${API_BASE_URL}/api/v1/connect/parse`, {
     method: 'POST',
@@ -94,7 +86,7 @@ export async function parseUrl(url: string): Promise<ParseUrlResponse> {
  * Import data to project table
  */
 export async function importData(params: ImportDataRequest): Promise<ImportDataResponse> {
-  const token = getAuthToken()
+  const token = await getApiAccessToken()
   
   const response = await fetch(`${API_BASE_URL}/api/v1/connect/import`, {
     method: 'POST',

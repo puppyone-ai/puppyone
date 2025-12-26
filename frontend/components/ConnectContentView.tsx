@@ -1,23 +1,38 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { parseUrl, importData, type ParseUrlResponse, type DataField } from '../lib/connectApi'
+import { useState, useEffect, useCallback } from 'react'
+import { parseUrl, importData, type ParseUrlResponse } from '../lib/connectApi'
 import { getNotionStatus, connectNotion, disconnectNotion, type NotionStatusResponse } from '../lib/oauthApi'
-import type { ProjectInfo } from '../lib/projectsApi'
 import { useProjects } from '../lib/hooks/useData'
 
 type ConnectContentViewProps = {
   onBack: () => void
 }
 
-// SaaS Platform definitions
-const saasPlat = [
+type PlatformId = 'notion' | 'github' | 'google-sheets' | 'linear' | 'airtable'
+
+type PlatformStatusType = 'disconnected' | 'connected' | 'error'
+
+type PlatformState = {
+  status: PlatformStatusType
+  label: string
+  isLoading: boolean
+}
+
+type PlatformConfig = {
+  id: PlatformId
+  name: string
+  description: string
+  isEnabled: boolean
+  icon: JSX.Element
+}
+
+const platformConfigs: PlatformConfig[] = [
   {
     id: 'notion',
     name: 'Notion',
     description: 'Databases, pages, wikis',
-    status: 'supported' as const,
-    requiresAuth: true,
+    isEnabled: true,
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
         <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.98-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466l1.823 1.447zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.886l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952l1.448.327s0 .84-1.168.84l-3.22.186c-.094-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.453-.234 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.886.747-.933l3.222-.187z"/>
@@ -26,9 +41,31 @@ const saasPlat = [
   },
   {
     id: 'github',
+    name: 'GitHub',
+    description: 'Issues, projects, repos',
+    isEnabled: false,
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.477 2 2 6.59 2 12.253c0 4.51 2.865 8.332 6.839 9.69.5.1.683-.223.683-.495 0-.244-.01-1.051-.015-1.905-2.782.615-3.369-1.215-3.369-1.215-.455-1.185-1.11-1.5-1.11-1.5-.908-.636.069-.623.069-.623 1.002.072 1.53 1.058 1.53 1.058.893 1.567 2.343 1.115 2.914.853.091-.663.35-1.115.636-1.372-2.221-.259-4.555-1.136-4.555-5.056 0-1.117.387-2.03 1.024-2.746-.103-.26-.444-1.303.098-2.716 0 0 .837-.272 2.744 1.048a9.205 9.205 0 0 1 2.5-.346c.848.004 1.705.118 2.505.346 1.905-1.32 2.741-1.048 2.741-1.048.544 1.413.203 2.456.1 2.716.64.716 1.023 1.629 1.023 2.746 0 3.931-2.338 4.794-4.566 5.047.36.318.68.94.68 1.896 0 1.368-.013 2.471-.013 2.809 0 .274.18.598.688.495C19.138 20.582 22 16.761 22 12.253 22 6.59 17.523 2 12 2z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'google-sheets',
+    name: 'Google Sheets',
+    description: 'Spreadsheets, worksheets',
+    isEnabled: false,
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19.5 3H4.5C3.12 3 2 4.12 2 5.5v13C2 19.88 3.12 21 4.5 21h15c1.38 0 2.5-1.12 2.5-2.5v-13C22 4.12 20.88 3 19.5 3zM9 17H6v-2h3v2zm0-4H6v-2h3v2zm0-4H6V7h3v2zm9 8h-6v-2h6v2zm0-4h-6v-2h6v2zm0-4h-6V7h6v2z"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'linear',
     name: 'Linear',
     description: 'Issues, projects, roadmaps',
-    status: 'coming-soon' as const,
+    isEnabled: false,
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 3L3 21M21 3L21 10M21 3L14 3"/>
@@ -39,25 +76,30 @@ const saasPlat = [
     id: 'airtable',
     name: 'Airtable',
     description: 'Bases, tables, views',
-    status: 'coming-soon' as const,
+    isEnabled: false,
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
         <path d="M11.992 1.966L2.847 5.478a.75.75 0 0 0 0 1.394l9.145 3.512a.75.75 0 0 0 .533 0l9.145-3.512a.75.75 0 0 0 0-1.394l-9.145-3.512a.75.75 0 0 0-.533 0zM3 9.5v7.25a.75.75 0 0 0 .463.693l8.287 3.432a.75.75 0 0 0 .75-.134V12.5L3 9.5zm18 0l-9.5 3v8.241a.75.75 0 0 0 .75.134l8.287-3.432a.75.75 0 0 0 .463-.693V9.5z"/>
       </svg>
     ),
   },
-  {
-    id: 'google-sheets',
-    name: 'Google Sheets',
-    description: 'Spreadsheets, worksheets',
-    status: 'coming-soon' as const,
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M19.5 3H4.5C3.12 3 2 4.12 2 5.5v13C2 19.88 3.12 21 4.5 21h15c1.38 0 2.5-1.12 2.5-2.5v-13C22 4.12 20.88 3 19.5 3zM9 17H6v-2h3v2zm0-4H6v-2h3v2zm0-4H6V7h3v2zm9 8h-6v-2h6v2zm0-4h-6v-2h6v2zm0-4h-6V7h6v2z"/>
-      </svg>
-    ),
-  },
 ]
+
+const getDefaultPlatformStates = (): Record<PlatformId, PlatformState> =>
+  platformConfigs.reduce((acc, platform) => {
+    acc[platform.id] = {
+      status: 'disconnected',
+      label: platform.isEnabled ? 'Not connected' : 'Coming soon',
+      isLoading: false,
+    }
+    return acc
+  }, {} as Record<PlatformId, PlatformState>)
+
+const statusColors: Record<PlatformStatusType, string> = {
+  connected: '#22c55e',
+  disconnected: '#595959',
+  error: '#ef4444',
+}
 
 export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const { projects } = useProjects()
@@ -69,8 +111,11 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
 
   // OAuth states
   const [notionStatus, setNotionStatus] = useState<NotionStatusResponse>({ connected: false })
-  const [showNotionAuth, setShowNotionAuth] = useState(false)
-  const [isLoadingNotion, setIsLoadingNotion] = useState(false)
+  const [platformStates, setPlatformStates] = useState<Record<PlatformId, PlatformState>>(() => getDefaultPlatformStates())
+  const [disconnectConfirmation, setDisconnectConfirmation] = useState<{ visible: boolean; platformId: PlatformId | null }>({
+    visible: false,
+    platformId: null,
+  })
 
   // Import settings
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
@@ -79,51 +124,121 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const [isImporting, setIsImporting] = useState(false)
   const [importSuccess, setImportSuccess] = useState(false)
 
-  // Panel expansion state
-  const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null)
 
-  // Check Notion status on mount
-  // TODO: Re-enable when Notion OAuth is properly configured
-  // useEffect(() => {
-  //   checkNotionStatus()
-  // }, [])
-
-  // Check URL params for OAuth callback
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    if (urlParams.get('auth') === 'notion') {
-      setShowNotionAuth(true)
-    }
+  const updatePlatformState = useCallback((platformId: PlatformId, updates: Partial<PlatformState>) => {
+    setPlatformStates(prev => ({
+      ...prev,
+      [platformId]: {
+        ...prev[platformId],
+        ...updates,
+      },
+    }))
   }, [])
 
-  const checkNotionStatus = async () => {
+  const checkNotionStatus = useCallback(async () => {
+    updatePlatformState('notion', { isLoading: true })
     try {
       const status = await getNotionStatus()
       setNotionStatus(status)
+      updatePlatformState('notion', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected
+          ? status.workspace_name
+            ? `Connected to ${status.workspace_name}`
+            : 'Connected'
+          : 'Not connected',
+        isLoading: false,
+      })
     } catch (err) {
       console.error('Failed to check Notion status:', err)
+      updatePlatformState('notion', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
     }
-  }
+  }, [updatePlatformState])
 
-  const handleNotionConnect = async () => {
-    setIsLoadingNotion(true)
+  const startNotionConnect = async () => {
+    updatePlatformState('notion', {
+      isLoading: true,
+      label: 'Redirecting to Notion…',
+    })
+    setError(null)
     try {
       await connectNotion()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect to Notion')
-    } finally {
-      setIsLoadingNotion(false)
+      const message = err instanceof Error ? err.message : 'Failed to connect to Notion'
+      setError(message)
+      updatePlatformState('notion', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
     }
   }
 
-  const handleNotionDisconnect = async () => {
+  const handleDisconnectConfirm = async () => {
+    if (!disconnectConfirmation.platformId || disconnectConfirmation.platformId !== 'notion') {
+      closeDisconnectModal()
+      return
+    }
+
+    updatePlatformState('notion', { isLoading: true, label: 'Disconnecting…' })
+    setError(null)
     try {
       await disconnectNotion()
       setNotionStatus({ connected: false })
+      updatePlatformState('notion', {
+        status: 'disconnected',
+        label: 'Not connected',
+        isLoading: false,
+      })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disconnect from Notion')
+      const message = err instanceof Error ? err.message : 'Failed to disconnect from Notion'
+      setError(message)
+      updatePlatformState('notion', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
+    } finally {
+      closeDisconnectModal()
     }
   }
+
+  const handlePlatformToggle = (platformId: PlatformId, nextChecked: boolean) => {
+    if (platformId !== 'notion') {
+      return
+    }
+
+    if (nextChecked) {
+      if (platformStates.notion.status === 'connected' || platformStates.notion.isLoading) {
+        return
+      }
+      startNotionConnect()
+    } else {
+      if (platformStates.notion.isLoading) {
+        return
+      }
+      setDisconnectConfirmation({ visible: true, platformId })
+    }
+  }
+
+  const handlePlatformRowClick = (platformId: PlatformId) => {
+    const state = platformStates[platformId]
+    if (state?.status === 'error') {
+      window.alert('Re-authorize to fix connection')
+    }
+  }
+
+  const closeDisconnectModal = () => {
+    setDisconnectConfirmation({ visible: false, platformId: null })
+  }
+
+  useEffect(() => {
+    void checkNotionStatus()
+  }, [checkNotionStatus])
 
   const isNotionUrl = (url: string) => {
     return url.includes('notion.so') || url.includes('notion.site')
@@ -137,7 +252,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
 
     // Check if Notion URL and not authenticated
     if (isNotionUrl(url) && !notionStatus?.connected) {
-      setShowNotionAuth(true)
+      setError('Please connect Notion before importing this page')
       return
     }
 
@@ -157,9 +272,12 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse URL')
 
-      // Check if error is related to authentication
+      // Mark status as error when auth fails
       if (err instanceof Error && isNotionUrl(url) && err.message.toLowerCase().includes('auth')) {
-        setShowNotionAuth(true)
+        updatePlatformState('notion', {
+          status: 'error',
+          label: 'Authorization error',
+        })
       }
     } finally {
       setIsLoading(false)
@@ -203,8 +321,6 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       setIsImporting(false)
     }
   }
-
-  const selectedProject = projects.find(p => Number(p.id) === selectedProjectId)
 
   return (
     <>
@@ -304,108 +420,140 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
             }}>
-              Supported Platforms
+              Integrations
             </div>
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: 12,
-            }}>
-              {saasPlat.map((platform) => {
-                const isConnected = platform.id === 'notion' && notionStatus?.connected
-                const isExpanded = expandedPlatform === platform.id
-                const isClickable = platform.status === 'supported'
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {platformConfigs.map(platform => {
+                const state = platformStates[platform.id]
+                const isConnected = state?.status === 'connected'
+                const lampColor = statusColors[state?.status ?? 'disconnected']
+                const isToggleDisabled = !platform.isEnabled || state?.isLoading
 
                 return (
                   <div
                     key={platform.id}
-                    onClick={() => {
-                      if (isClickable) {
-                        setExpandedPlatform(isExpanded ? null : platform.id)
-                      }
-                    }}
+                    onClick={() => handlePlatformRowClick(platform.id)}
                     style={{
-                      background: isExpanded ? '#1f1f1f' : '#1a1a1a',
-                      border: `1px solid ${isExpanded ? '#404040' : platform.status === 'supported' ? '#3a3a3a' : '#2a2a2a'}`,
-                      borderRadius: 6,
-                      padding: 12,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 10,
-                      position: 'relative',
-                      cursor: isClickable ? 'pointer' : 'default',
-                      transition: 'all 0.15s',
+                      background: '#1a1a1a',
+                      border: '1px solid #2a2a2a',
+                      borderRadius: 8,
+                      padding: '12px 16px',
+                      gap: 16,
+                      cursor: state?.status === 'error' ? 'pointer' : 'default',
+                      opacity: platform.isEnabled ? 1 : 0.6,
                     }}
                   >
-                    <div style={{
-                      color: platform.status === 'supported' ? '#CDCDCD' : '#5D6065',
-                      opacity: platform.status === 'coming-soon' ? 0.5 : 1,
-                    }}>
+                    <div style={{ color: '#CDCDCD', display: 'flex', alignItems: 'center' }}>
                       {platform.icon}
                     </div>
 
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
-                        fontSize: 12,
+                        fontSize: 14,
                         fontWeight: 500,
-                        color: platform.status === 'supported' ? '#CDCDCD' : '#5D6065',
-                        marginBottom: 2,
+                        color: '#CDCDCD',
                       }}>
                         {platform.name}
                       </div>
-                      <div style={{
-                        fontSize: 10,
-                        color: '#8B8B8B',
-                      }}>
-                        {platform.status === 'supported' ? platform.description : 'Coming soon'}
-                      </div>
+                      {platform.description && (
+                        <div style={{
+                          fontSize: 12,
+                          color: '#8B8B8B',
+                        }}>
+                          {platform.description}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Expand/collapse indicator for supported platforms */}
-                    {isClickable && (
-                      <svg 
-                        width="12" 
-                        height="12" 
-                        viewBox="0 0 12 12" 
-                        fill="none"
-                        style={{
-                          color: '#5D6065',
-                          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                          transition: 'transform 0.15s',
-                        }}
-                      >
-                        <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      minWidth: 140,
+                      justifyContent: 'flex-end',
+                    }}>
+                      <span style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        background: lampColor,
+                        boxShadow: state?.status === 'connected' ? '0 0 8px rgba(34, 197, 94, 0.6)' : 'none',
+                      }} />
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: lampColor,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {state?.label}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      aria-pressed={isConnected}
+                      aria-label={`Toggle ${platform.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (isToggleDisabled) {
+                          return
+                        }
+                        handlePlatformToggle(platform.id, !isConnected)
+                      }}
+                      disabled={isToggleDisabled}
+                      style={{
+                        width: 48,
+                        height: 26,
+                        borderRadius: 999,
+                        border: `1px solid ${isConnected ? '#15803d' : '#3a3a3a'}`,
+                        background: isConnected ? '#22c55e' : '#2a2a2a',
+                        position: 'relative',
+                        padding: 0,
+                        cursor: isToggleDisabled ? 'not-allowed' : 'pointer',
+                        opacity: isToggleDisabled ? 0.4 : 1,
+                        transition: 'background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease',
+                      }}
+                    >
+                      <span style={{
+                        position: 'absolute',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        left: isConnected ? 26 : 4,
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        background: '#ffffff',
+                        transition: 'left 0.2s ease',
+                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.4)',
+                      }} />
+                    </button>
                   </div>
                 )
               })}
             </div>
           </div>
 
-          {/* Notion URL Input Panel - shown when Notion card is expanded */}
-          {expandedPlatform === 'notion' && (
+          {/* Connector URL Input Panel */}
+          <div style={{
+            background: '#111111',
+            border: '1px solid #2a2a2a',
+            borderRadius: 8,
+            padding: 20,
+            marginBottom: 16,
+          }}>
             <div style={{
-              background: '#111111',
-              border: '1px solid #2a2a2a',
-              borderRadius: 8,
-              padding: 20,
-              marginBottom: 16,
-              marginTop: -8,
-              borderTopLeftRadius: 0,
-              borderTopRightRadius: 0,
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#8B8B8B',
+              marginBottom: 12,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
             }}>
-              <div style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#8B8B8B',
-                marginBottom: 12,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}>
-                Notion URL
-              </div>
+              Connector URL
+            </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
               <input
@@ -417,7 +565,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                     handleParse()
                   }
                 }}
-                placeholder="https://yourworkspace.notion.so/page-id..."
+                placeholder="https://workspace.notion.so/page-id or other SaaS URL"
                 disabled={isLoading || isImporting}
                 style={{
                   flex: 1,
@@ -468,92 +616,80 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               color: '#5D6065',
               marginTop: 10,
             }}>
-              Paste a Notion page URL to import its content
+              Paste a supported SaaS page URL to import its content
             </div>
+          </div>
 
-          {/* Notion Auth Modal */}
-          {showNotionAuth && (
+          {disconnectConfirmation.visible && (
             <div style={{
               position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0, 0, 0, 0.8)',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.65)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              zIndex: 1000,
+              zIndex: 1100,
             }}>
               <div style={{
                 background: '#1a1a1a',
                 border: '1px solid #3a3a3a',
-                borderRadius: 8,
+                borderRadius: 10,
                 padding: 24,
-                maxWidth: 400,
-                width: '90%',
+                width: 360,
+                maxWidth: '90%',
+                boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
               }}>
                 <h3 style={{
                   fontSize: 16,
                   fontWeight: 600,
                   color: '#CDCDCD',
-                  marginBottom: 12,
+                  marginBottom: 8,
                 }}>
-                  Connect Notion Account
+                  Disconnect Notion?
                 </h3>
-
                 <p style={{
                   fontSize: 13,
                   color: '#8B8B8B',
-                  marginBottom: 20,
+                  marginBottom: 16,
                   lineHeight: 1.5,
                 }}>
-                  This Notion page requires authorization. Please connect your Notion account to access private content.
+                  You will lose access to private Notion content until you reconnect.
                 </p>
-
-                <div style={{
-                  display: 'flex',
-                  gap: 10,
-                }}>
+                <div style={{ display: 'flex', gap: 10 }}>
                   <button
-                    onClick={() => setShowNotionAuth(false)}
+                    onClick={closeDisconnectModal}
                     style={{
                       flex: 1,
-                      background: '#2a2a2a',
-                      border: '1px solid #3a3a3a',
-                      borderRadius: 6,
                       padding: '8px 16px',
-                      fontSize: 13,
+                      borderRadius: 6,
+                      border: '1px solid #3a3a3a',
+                      background: '#2a2a2a',
                       color: '#CDCDCD',
                       cursor: 'pointer',
+                      fontSize: 13,
                     }}
                   >
                     Cancel
                   </button>
-
                   <button
-                    onClick={() => {
-                      setShowNotionAuth(false)
-                      handleNotionConnect()
-                    }}
+                    onClick={handleDisconnectConfirm}
                     style={{
                       flex: 1,
-                      background: '#2a2a2a',
-                      border: '1px solid #404040',
-                      borderRadius: 6,
                       padding: '8px 16px',
-                      fontSize: 13,
-                      color: '#CDCDCD',
+                      borderRadius: 6,
+                      border: '1px solid #b91c1c',
+                      background: '#7f1d1d',
+                      color: '#f87171',
                       cursor: 'pointer',
+                      fontSize: 13,
                     }}
                   >
-                    Connect Notion
+                    Disconnect
                   </button>
                 </div>
               </div>
             </div>
           )}
-
           {/* Error Message */}
           {error && (
             <div style={{
@@ -822,8 +958,6 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               }}>
                 Data has been imported to your project
               </div>
-            </div>
-          )}
             </div>
           )}
         </div>
