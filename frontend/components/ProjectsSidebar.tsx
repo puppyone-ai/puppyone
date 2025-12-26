@@ -25,6 +25,7 @@ type ProjectsSidebarProps = {
   utilityNav: UtilityNavItem[]
   onUtilityNavClick: (path: string) => void
   userInitial: string
+  userAvatarUrl?: string
   environmentLabel?: string
   onProjectsChange?: (projects: ProjectInfo[]) => void
   loading?: boolean
@@ -51,6 +52,7 @@ export function ProjectsSidebar({
   utilityNav,
   onUtilityNavClick,
   userInitial,
+  userAvatarUrl,
   environmentLabel = 'Local Dev',
   onProjectsChange,
   loading = false,
@@ -1044,6 +1046,15 @@ export function ProjectsSidebar({
           justify-content: center;
           font-size: 12px;
           font-weight: 600;
+          overflow: hidden;
+        }
+
+        .user-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: inherit;
+          display: block;
         }
 
         .context-menu {
@@ -1436,7 +1447,13 @@ export function ProjectsSidebar({
       {/* Footer */}
       <div className="footer">
         <span className="env-badge">{environmentLabel}</span>
-        <div className="user-avatar">{userInitial}</div>
+        <div className="user-avatar">
+          {userAvatarUrl ? (
+            <img src={userAvatarUrl} alt="User avatar" referrerPolicy="no-referrer" />
+          ) : (
+            userInitial
+          )}
+        </div>
       </div>
 
       {/* Context Menu */}

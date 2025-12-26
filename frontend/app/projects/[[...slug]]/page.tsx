@@ -219,6 +219,12 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
 
   const userInitial =
     (session?.user?.email?.[0] || session?.user?.user_metadata?.name?.[0] || 'U').toUpperCase()
+  const userMetadata = session?.user?.user_metadata as Record<string, any> | undefined
+  const userAvatarUrl =
+    userMetadata?.avatar_url ||
+    userMetadata?.picture ||
+    userMetadata?.avatarUrl ||
+    null
 
   if (showOnboarding) {
     return (
@@ -373,6 +379,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
         utilityNav={utilityNav}
         onUtilityNavClick={handleUtilityNavClick}
         userInitial={userInitial}
+        userAvatarUrl={userAvatarUrl ?? undefined}
         loading={loading}
         isCollapsed={isNavCollapsed}
         onCollapsedChange={setIsNavCollapsed}
