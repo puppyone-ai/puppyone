@@ -30,6 +30,13 @@ async function getAuthToken(): Promise<string | null> {
   return getToken()
 }
 
+/**
+ * 暴露给其他 API 客户端使用，保证获取 token 的逻辑一致
+ */
+export async function getApiAccessToken(): Promise<string | null> {
+  return getAuthToken()
+}
+
 interface ApiResponse<T> {
   code: number
   message: string

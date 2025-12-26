@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/config/api";
+import { getApiAccessToken } from "./apiClient";
 
 export interface NotionStatusResponse {
   connected: boolean;
@@ -21,11 +22,14 @@ export interface NotionDisconnectResponse {
  * Get Notion OAuth authorization URL
  */
 export async function getNotionAuthUrl(): Promise<string> {
+  const token = await getApiAccessToken();
+
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/oauth/notion/authorize`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: "include",
     });
@@ -60,11 +64,14 @@ export async function getNotionAuthUrl(): Promise<string> {
  * Handle Notion OAuth callback
  */
 export async function notionCallback(code: string, provider: string = "notion"): Promise<NotionCallbackResponse> {
+  const token = await getApiAccessToken();
+
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/oauth/notion/callback`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: "include",
       body: JSON.stringify({
@@ -89,11 +96,14 @@ export async function notionCallback(code: string, provider: string = "notion"):
  * Check Notion connection status
  */
 export async function getNotionStatus(): Promise<NotionStatusResponse> {
+  const token = await getApiAccessToken();
+
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/oauth/notion/status`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: "include",
     });
@@ -117,11 +127,14 @@ export async function getNotionStatus(): Promise<NotionStatusResponse> {
  * Disconnect Notion integration
  */
 export async function disconnectNotion(): Promise<NotionDisconnectResponse> {
+  const token = await getApiAccessToken();
+
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/oauth/notion/disconnect`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: "include",
     });
