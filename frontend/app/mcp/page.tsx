@@ -72,6 +72,12 @@ export default function McpPage() {
   }, [activeBase])
 
   const userInitial = session?.user?.email?.[0]?.toUpperCase() || 'U'
+  const userMetadata = session?.user?.user_metadata as Record<string, any> | undefined
+  const userAvatarUrl =
+    userMetadata?.avatar_url ||
+    userMetadata?.picture ||
+    userMetadata?.avatarUrl ||
+    null
 
   const handleProjectSelect = (projectId: string) => {
     setActiveBaseId(projectId)
@@ -114,6 +120,7 @@ export default function McpPage() {
         utilityNav={utilityNav}
         onUtilityNavClick={handleUtilityNavClick}
         userInitial={userInitial}
+        userAvatarUrl={userAvatarUrl ?? undefined}
         loading={loading}
       />
 
