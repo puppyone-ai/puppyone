@@ -36,6 +36,28 @@ def list_tools(
     return ApiResponse.success(data=tools, message="获取 Tool 列表成功")
 
 
+@router.get(
+    "/by-table/{table_id}",
+    response_model=ApiResponse[List[ToolOut]],
+    summary="获取某个 table_id 下的 Tool 列表",
+    status_code=status.HTTP_200_OK,
+)
+def list_tools_by_table_id(
+    table_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=1000, ge=1, le=1000),
+    tool_service: ToolService = Depends(get_tool_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    tools = tool_service.list_user_tools_by_table_id(
+        current_user.user_id,
+        table_id=table_id,
+        skip=skip,
+        limit=limit,
+    )
+    return ApiResponse.success(data=tools, message="获取 Tool 列表成功")
+
+
 @router.post(
     "/",
     response_model=ApiResponse[ToolOut],

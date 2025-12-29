@@ -80,6 +80,18 @@ class ToolService:
     def list_user_tools(self, user_id: str, *, skip: int = 0, limit: int = 100) -> List[Tool]:
         return self.repo.get_by_user_id(user_id, skip=skip, limit=limit)
 
+    def list_user_tools_by_table_id(
+        self,
+        user_id: str,
+        *,
+        table_id: int,
+        skip: int = 0,
+        limit: int = 1000,
+    ) -> List[Tool]:
+        # 强校验：table 必须属于当前用户
+        self.table_service.get_by_id_with_access_check(table_id, user_id)
+        return self.repo.get_by_user_id(user_id, skip=skip, limit=limit, table_id=table_id)
+
     def get_by_id(self, tool_id: int) -> Optional[Tool]:
         return self.repo.get_by_id(tool_id)
 
