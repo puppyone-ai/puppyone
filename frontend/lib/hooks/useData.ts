@@ -5,7 +5,9 @@
  */
 
 import useSWR, { mutate } from 'swr'
+import { useMemo } from 'react'
 import { getProjects, getTable, type ProjectInfo, type TableData } from '../projectsApi'
+import { getTools, type Tool } from '../mcpApi'
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
 const defaultConfig = {
@@ -83,5 +85,50 @@ export function refreshTable(projectId: string, tableId: string) {
  */
 export function updateTableCache(projectId: string, tableId: string, newData: TableData) {
   return mutate(['table', projectId, tableId], newData, { revalidate: false })
+}
+
+/**
+ * 获取指定表的 Tools
+ * 
+ * @param tableId 表 ID (可选，为空时不请求)
+ * 
+ * - 按需加载：只有 tableId 存在时才请求
+ * - 自动缓存：相同 tableId 共享数据
+ * - 前端过滤：后端返回所有 tools，前端按 tableId 过滤
+ */
+export function useTableTools(tableId: string | undefined) {
+  const { data, error, isLoading, mutate: revalidate } = useSWR<Tool[]>(
+    // key: 统一使用 'all-tools' 作为缓存 key
+    'all-tools',
+    () => getTools(),
+    {
+      ...defaultConfig,
+      dedupingInterval: 10000, // 10 秒去重
+    }
+  )
+
+  // 在前端按 tableId 过滤 tools - 使用 useMemo 稳定引用
+  const filteredTools = useMemo(() => {
+    if (!tableId || !data) return []
+    return data.filter(tool => tool.table_id === Number(tableId))
+  }, [tableId, data])
+
+  // 稳定 allTools 的引用
+  const allTools = useMemo(() => data ?? [], [data])
+
+  return {
+    tools: filteredTools,
+    allTools, // 也暴露所有 tools，用于 sidebar 显示总数
+    isLoading,
+    error,
+    refresh: revalidate,
+  }
+}
+
+/**
+ * 手动刷新 Tools（刷新整个 tools 缓存）
+ */
+export function refreshTableTools(_tableId?: string) {
+  return mutate('all-tools')
 }
 

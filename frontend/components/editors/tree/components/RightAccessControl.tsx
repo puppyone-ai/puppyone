@@ -2,18 +2,10 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { type McpToolPermissions } from '../../../../lib/mcpApi'
 
-// MCP 工具权限类型
-export interface McpToolPermissions {
-  get_data_schema?: boolean
-  get_all_data?: boolean
-  query_data?: boolean
-  // preview?: boolean
-  // select?: boolean
-  create?: boolean
-  update?: boolean
-  delete?: boolean
-}
+// 重新导出类型供其他组件使用
+export type { McpToolPermissions }
 
 // MCP 工具定义 - 包含图标和标签
 const MCP_TOOLS = [

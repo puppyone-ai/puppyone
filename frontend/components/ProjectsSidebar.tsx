@@ -34,6 +34,8 @@ type ProjectsSidebarProps = {
   onCollapsedChange?: (collapsed: boolean) => void
   sidebarWidth?: number
   onSidebarWidthChange?: (width: number) => void
+  // Tools 数量，用于显示徽章
+  toolsCount?: number
 }
 
 type SectionId = 'contexts' | 'mcp' | 'try'
@@ -61,6 +63,7 @@ export function ProjectsSidebar({
   onCollapsedChange,
   sidebarWidth = DEFAULT_SIDEBAR_WIDTH,
   onSidebarWidthChange,
+  toolsCount = 0,
 }: ProjectsSidebarProps) {
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
@@ -1382,6 +1385,23 @@ export function ProjectsSidebar({
           
           {expandedSections.has('mcp') && (
             <div className="section-content">
+              {/* Tools */}
+              <button 
+                className={`nav-item ${activeView === 'tools' ? 'active' : ''}`}
+                onClick={() => onUtilityNavClick('tools')}
+              >
+                <span className="nav-icon">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M8.5 3.5a1 1 0 0 0 0 1l1 1a1 1 0 0 0 1 0l2.5-2.5a4 4 0 0 1-5.3 5.3L4 12a1.4 1.4 0 0 1-2-2l3.7-3.7a4 4 0 0 1 5.3-5.3L8.5 3.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                  </svg>
+                </span>
+                <span className="nav-label">Tools</span>
+                {toolsCount > 0 && (
+                  <span className="nav-badge">{toolsCount}</span>
+                )}
+              </button>
+              
+              {/* Instances */}
               <button 
                 className={`nav-item ${activeView === 'mcp' ? 'active' : ''}`}
                 onClick={() => onUtilityNavClick('mcp')}

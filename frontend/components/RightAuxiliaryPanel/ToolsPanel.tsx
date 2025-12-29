@@ -1,26 +1,38 @@
 'use client'
 
 import React, { useState } from 'react'
-import { type McpToolPermissions, type McpToolType } from '../../lib/mcpApi'
+import { 
+  type McpToolPermissions, 
+  type McpToolType,
+  type McpToolDefinition,
+  type Tool,
+} from '../../lib/mcpApi'
 
 // Access Point 类型定义
-interface AccessPoint {
+export interface AccessPoint {
   id: string
   path: string
   permissions: McpToolPermissions
+}
+
+// 保存结果类型
+export interface SaveToolsResult {
+  tools: Tool[]
+  count: number
 }
 
 interface ToolsPanelProps {
   accessPoints: AccessPoint[]
   setAccessPoints: React.Dispatch<React.SetStateAction<AccessPoint[]>>
   activeBaseName?: string
+  activeTableName?: string  // 新增：用于显示来源信息
   onClose: () => void
-  onPublishMcp: () => void
-  isPublishing: boolean
-  publishError: string | null
-  publishedResult: { api_key: string; url: string } | null
-  setPublishedResult: React.Dispatch<React.SetStateAction<{ api_key: string; url: string } | null>>
-  onViewAllMcp?: () => void
+  onSaveTools: (toolsDefinition: Record<string, McpToolDefinition>) => void  // 保存 Tools
+  isSaving: boolean
+  saveError: string | null
+  savedResult: SaveToolsResult | null
+  setSavedResult: React.Dispatch<React.SetStateAction<SaveToolsResult | null>>
+  onViewAllMcp?: () => void  // 跳转到 MCP 管理界面
 }
 
 // 颜色编码定义
@@ -101,12 +113,13 @@ export function ToolsPanel({
   accessPoints,
   setAccessPoints,
   activeBaseName,
+  activeTableName,
   onClose,
-  onPublishMcp,
-  isPublishing,
-  publishError,
-  publishedResult,
-  setPublishedResult,
+  onSaveTools,
+  isSaving,
+  saveError,
+  savedResult,
+  setSavedResult,
   onViewAllMcp,
 }: ToolsPanelProps) {
   // 收起的 path 列表 (默认全部展开)
@@ -560,15 +573,15 @@ export function ToolsPanel({
         )}
       </div>
       
-      {/* Footer - 发布 MCP */}
+      {/* Footer - 保存 Tools */}
       {accessPoints.length > 0 && (
         <div style={{ 
           borderTop: '1px solid #2a2a2a', 
           padding: '12px',
           flexShrink: 0,
         }}>
-          {/* 发布结果显示 */}
-          {publishedResult && (
+          {/* 保存成功提示 */}
+          {savedResult && (
             <div style={{
               background: 'rgba(34, 197, 94, 0.1)',
               border: '1px solid rgba(34, 197, 94, 0.3)',
@@ -577,49 +590,17 @@ export function ToolsPanel({
               marginBottom: 10,
             }}>
               <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 500, marginBottom: 6 }}>
-                ✓ Published Successfully
+                ✓ {savedResult.count} Tool{savedResult.count > 1 ? 's' : ''} saved successfully
               </div>
-              <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4 }}>API Key:</div>
-              <div 
-                style={{ 
-                  fontSize: 10, 
-                  color: '#e2e8f0', 
-                  fontFamily: 'monospace',
-                  background: 'rgba(0,0,0,0.3)',
-                  padding: '6px 8px',
-                  borderRadius: 4,
-                  wordBreak: 'break-all',
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  navigator.clipboard.writeText(publishedResult.api_key)
-                }}
-                title="Click to copy"
-              >
-                {publishedResult.api_key.slice(0, 50)}...
+              <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 8 }}>
+                Go to MCP page to create a server with these tools.
               </div>
-              <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 8, marginBottom: 4 }}>URL:</div>
-              <div 
-                style={{ 
-                  fontSize: 10, 
-                  color: '#e2e8f0', 
-                  fontFamily: 'monospace',
-                  background: 'rgba(0,0,0,0.3)',
-                  padding: '6px 8px',
-                  borderRadius: 4,
-                  wordBreak: 'break-all',
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  navigator.clipboard.writeText(publishedResult.url)
-                }}
-                title="Click to copy"
-              >
-                {publishedResult.url}
-              </div>
-              <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
                 <button
-                  onClick={() => setPublishedResult(null)}
+                  onClick={() => {
+                    setSavedResult(null)
+                    setAccessPoints([])  // 清空已保存的配置
+                  }}
                   style={{
                     flex: 1,
                     padding: '6px 10px',
@@ -631,7 +612,7 @@ export function ToolsPanel({
                     cursor: 'pointer',
                   }}
                 >
-                  Dismiss
+                  Done
                 </button>
                 <button
                   onClick={onViewAllMcp}
@@ -646,14 +627,14 @@ export function ToolsPanel({
                     cursor: 'pointer',
                   }}
                 >
-                  View All →
+                  Create MCP Server →
                 </button>
               </div>
             </div>
           )}
           
           {/* 错误显示 */}
-          {publishError && (
+          {saveError && (
             <div style={{
               background: 'rgba(239, 68, 68, 0.1)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
@@ -663,25 +644,39 @@ export function ToolsPanel({
               fontSize: 11,
               color: '#ef4444',
             }}>
-              {publishError}
+              {saveError}
             </div>
           )}
           
-          {/* 发布按钮 */}
-          {!publishedResult && (
+          {/* 保存按钮 */}
+          {!savedResult && (
             <button
-              onClick={onPublishMcp}
-              disabled={isPublishing}
+              onClick={() => {
+                // 将 toolsDefinitionEdits 转换为 McpToolDefinition 格式并传递给父组件
+                const definitions: Record<string, McpToolDefinition> = {}
+                Object.entries(toolsDefinitionEdits).forEach(([key, def]) => {
+                  // key 格式为 "path::toolType"，提取 toolType
+                  const toolType = key.split('::').pop()
+                  if (toolType && def.name) {
+                    definitions[toolType] = {
+                      name: def.name,
+                      description: def.description || '',
+                    }
+                  }
+                })
+                onSaveTools(definitions)
+              }}
+              disabled={isSaving}
               style={{
                 width: '100%',
                 padding: '10px 14px',
                 fontSize: 12,
                 fontWeight: 500,
-                color: isPublishing ? '#525252' : '#e2e8f0',
-                background: isPublishing ? 'rgba(255,255,255,0.05)' : 'rgba(59, 130, 246, 0.15)',
-                border: `1px solid ${isPublishing ? '#333' : 'rgba(59, 130, 246, 0.4)'}`,
+                color: isSaving ? '#525252' : '#e2e8f0',
+                background: isSaving ? 'rgba(255,255,255,0.05)' : 'rgba(16, 185, 129, 0.15)',
+                border: `1px solid ${isSaving ? '#333' : 'rgba(16, 185, 129, 0.4)'}`,
                 borderRadius: 8,
-                cursor: isPublishing ? 'not-allowed' : 'pointer',
+                cursor: isSaving ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -689,29 +684,31 @@ export function ToolsPanel({
                 transition: 'all 0.15s',
               }}
               onMouseEnter={(e) => {
-                if (!isPublishing) {
-                  e.currentTarget.style.background = 'rgba(59, 130, 246, 0.25)'
+                if (!isSaving) {
+                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)'
                 }
               }}
               onMouseLeave={(e) => {
-                if (!isPublishing) {
-                  e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)'
+                if (!isSaving) {
+                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)'
                 }
               }}
             >
-              {isPublishing ? (
+              {isSaving ? (
                 <>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
                     <path d="M12 2v4m0 12v4m-7.07-14.07l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
                   </svg>
-                  Publishing...
+                  Saving...
                 </>
               ) : (
                 <>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 19V5M5 12l7-7 7 7"/>
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
                   </svg>
-                  Publish as MCP Server
+                  Save as Tools
                 </>
               )}
             </button>

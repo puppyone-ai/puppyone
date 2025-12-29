@@ -1,25 +1,21 @@
 'use client'
 
-import React, { useState, useCallback, useEffect } from 'react'
-import { ToolsPanel } from './ToolsPanel'
+import React, { useState, useEffect } from 'react'
+import { ToolsPanel, type AccessPoint, type SaveToolsResult } from './ToolsPanel'
 import { DocumentEditor } from './DocumentEditor'
-import { type McpToolPermissions } from '../../lib/mcpApi'
+import { type McpToolDefinition } from '../../lib/mcpApi'
 
 // 面板类型
 export type RightPanelContent = 'NONE' | 'TOOLS' | 'EDITOR'
-
-// Access Point 类型定义
-interface AccessPoint {
-  id: string
-  path: string
-  permissions: McpToolPermissions
-}
 
 // 编辑器目标类型
 export interface EditorTarget {
   path: string
   value: string
 }
+
+// 重新导出类型
+export type { AccessPoint, SaveToolsResult }
 
 interface RightAuxiliaryPanelProps {
   content: RightPanelContent
@@ -29,11 +25,12 @@ interface RightAuxiliaryPanelProps {
   accessPoints: AccessPoint[]
   setAccessPoints: React.Dispatch<React.SetStateAction<AccessPoint[]>>
   activeBaseName?: string
-  onPublishMcp: () => void
-  isPublishing: boolean
-  publishError: string | null
-  publishedResult: { api_key: string; url: string } | null
-  setPublishedResult: React.Dispatch<React.SetStateAction<{ api_key: string; url: string } | null>>
+  activeTableName?: string
+  onSaveTools: (toolsDefinition: Record<string, McpToolDefinition>) => void  // 保存 Tools
+  isSaving: boolean
+  saveError: string | null
+  savedResult: SaveToolsResult | null
+  setSavedResult: React.Dispatch<React.SetStateAction<SaveToolsResult | null>>
   onViewAllMcp?: () => void
   
   // 文档编辑器相关
@@ -56,11 +53,12 @@ export function RightAuxiliaryPanel({
   accessPoints,
   setAccessPoints,
   activeBaseName,
-  onPublishMcp,
-  isPublishing,
-  publishError,
-  publishedResult,
-  setPublishedResult,
+  activeTableName,
+  onSaveTools,
+  isSaving,
+  saveError,
+  savedResult,
+  setSavedResult,
   onViewAllMcp,
   // Editor props
   editorTarget,
@@ -192,12 +190,13 @@ export function RightAuxiliaryPanel({
             accessPoints={accessPoints}
             setAccessPoints={setAccessPoints}
             activeBaseName={activeBaseName}
+            activeTableName={activeTableName}
             onClose={onClose}
-            onPublishMcp={onPublishMcp}
-            isPublishing={isPublishing}
-            publishError={publishError}
-            publishedResult={publishedResult}
-            setPublishedResult={setPublishedResult}
+            onSaveTools={onSaveTools}
+            isSaving={isSaving}
+            saveError={saveError}
+            savedResult={savedResult}
+            setSavedResult={setSavedResult}
             onViewAllMcp={onViewAllMcp}
           />
         )}
