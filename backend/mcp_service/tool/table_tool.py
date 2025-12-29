@@ -272,15 +272,15 @@ class TableToolImplementation:
         self,
         table_id: int,
         json_path: str,
-        preview_keys: Optional[List[str]] = None
+        keys: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
-        预览表格数据
+        预览表格数据（只返回指定字段，用于快速决策）
         
         Args:
             table_id: 表格ID
             json_path: 挂载点 JSON Pointer 路径
-            preview_keys: 预览字段列表
+            keys: 要保留的字段名列表（由调用方/大模型自主决定）
             
         Returns:
             预览结果
@@ -295,35 +295,34 @@ class TableToolImplementation:
             # 检查数据类型
             if not isinstance(data, list):
                 return {
-                    "message": "当前数据不是列表类型，无法使用预览功能。请使用 get_all_data 或 query_data 工具查询数据。",
+                    "message": "数据结构不符合 preview 要求：顶层必须是 List[Dict]（列表）。请使用 get_all_data 或 query_data。",
                     "data_type": str(type(data).__name__)
                 }
             
             # 检查列表元素类型
             if data and not all(isinstance(item, dict) for item in data):
                 return {
-                    "message": "当前数据不是 List[Dict] 类型，无法使用预览功能。请使用 get_all_data 或 query_data 工具查询数据。",
+                    "message": "数据结构不符合 preview 要求：顶层必须是 List[Dict]（列表中的每个元素必须是对象）。请使用 get_all_data 或 query_data。",
                     "data_type": "List[mixed]"
                 }
             
-            # 如果没有指定preview_keys，返回所有数据
-            if not preview_keys:
-                return {
-                    "message": "预览数据获取成功（显示所有字段）",
-                    "data": data,
-                    "preview_keys": "all"
-                }
+            # 必须传入 keys：否则无法达成“只挑选必要决策信息”的目的
+            if not keys or not isinstance(keys, list):
+                return {"error": "keys 参数必须是非空列表（List[str]）"}
+            normalized_keys: list[str] = [str(k).strip() for k in keys if str(k).strip()]
+            if not normalized_keys:
+                return {"error": "keys 参数不能为空（至少包含 1 个字段名）"}
             
             # 过滤数据
             filtered_data = []
             for item in data:
-                filtered_item = {key: item.get(key) for key in preview_keys if key in item}
+                filtered_item = {k: item.get(k) for k in normalized_keys if k in item}
                 filtered_data.append(filtered_item)
             
             return {
-                "message": "预览数据获取成功",
+                "message": "预览数据获取成功（仅包含 keys 指定字段）。如需获取完整记录，请使用 select 工具按字段值精确筛选。",
                 "data": filtered_data,
-                "preview_keys": preview_keys,
+                "keys": normalized_keys,
                 "total_count": len(filtered_data)
             }
         except Exception as e:

@@ -76,6 +76,12 @@ export default function ConnectPage() {
   }, [activeBase])
 
   const userInitial = session?.user?.email?.[0]?.toUpperCase() || 'U'
+  const userMetadata = session?.user?.user_metadata as Record<string, any> | undefined
+  const userAvatarUrl =
+    userMetadata?.avatar_url ||
+    userMetadata?.picture ||
+    userMetadata?.avatarUrl ||
+    null
 
   const pathSegments = useMemo(() => {
     const segments: Array<{ label: string; path: string }> = []
@@ -140,6 +146,7 @@ export default function ConnectPage() {
         utilityNav={utilityNav}
         onUtilityNavClick={handleUtilityNavClick}
         userInitial={userInitial}
+        userAvatarUrl={userAvatarUrl ?? undefined}
         loading={loading}
       />
 

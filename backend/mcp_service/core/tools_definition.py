@@ -204,7 +204,18 @@ def build_tools_list(config: Dict[str, Any], tool_provider: ToolDefinitionProvid
             tool_description = tool_provider.get_tool_description(t, table_info)  # type: ignore[arg-type]
 
             if t == "preview":
-                input_schema = {"type": "object", "properties": {}, "additionalProperties": False}
+                input_schema = {
+                    "type": "object",
+                    "properties": {
+                        "keys": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "要保留的字段名列表（只返回这些字段，用于快速决策）",
+                        }
+                    },
+                    "required": ["keys"],
+                    "additionalProperties": False,
+                }
             else:
                 input_schema = {
                     "type": "object",

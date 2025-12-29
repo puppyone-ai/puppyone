@@ -1,9 +1,12 @@
-获取数据的轻量级预览，只返回配置的关键字段。
+获取数据的轻量级预览：你传入需要关注的字段 keys（List[str]），工具只返回这些字段，帮助你快速做决策。
 
 表格：{table_name}
 {table_description}
 
-适用条件：数据必须是 List[Dict] 类型
+输入参数：
+- keys (List[str])：你想保留的字段名列表（例如 ["id","title"]）。请由你自行决定哪些字段对决策足够。
+
+适用条件：顶层数据必须是 List[Dict] 类型
 
 使用场景：
 - 数据量较大时快速浏览
@@ -11,8 +14,10 @@
 - 作为 select_data 的前置步骤
 
 工作流程：
-1. 调用 preview_data() 快速浏览关键字段
-2. 根据预览结果确定目标数据
-3. 调用 select_data(field, keys) 获取完整记录
+1. 调用 preview_data(keys) 快速浏览必要字段（减少噪音与 token）
+2. 从预览结果里选择你真正关心的记录（通常会用到某个字段的值，如 id）
+3. 调用 select_data(field, keys) 按字段值精确挑选，获取完整记录
 
-注意：如果数据不是 List[Dict] 类型，请使用 get_all_data 或 query_data
+注意：
+- 如果顶层数据不是 List[Dict]，本工具会直接提示“数据结构不符合”，请改用 get_all_data 或 query_data。
+- 本工具的核心作用是“只挑选必要的决策信息”，不是返回全量数据。
