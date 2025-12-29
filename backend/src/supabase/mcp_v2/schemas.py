@@ -1,7 +1,7 @@
 """
 MCP v2 数据模型
 
-定义 public.mcp_v2 表对应的 Pydantic 模型。
+定义 public.mcp 表对应的 Pydantic 模型。
 """
 
 from __future__ import annotations

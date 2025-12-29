@@ -1,7 +1,7 @@
 """
 MCP v2 数据访问层
 
-提供针对 public.mcp_v2 表的增删改查操作。
+提供针对 public.mcp 表的增删改查操作。
 """
 
 from __future__ import annotations
@@ -24,20 +24,20 @@ class McpV2Repository:
             payload.pop("id", None)
             payload.pop("created_at", None)
             payload.pop("updated_at", None)
-            response = self._client.table("mcp_v2").insert(payload).execute()
+            response = self._client.table("mcp").insert(payload).execute()
             return McpV2Response(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建 MCP v2")
 
     def get_by_id(self, mcp_id: int) -> Optional[McpV2Response]:
-        response = self._client.table("mcp_v2").select("*").eq("id", mcp_id).execute()
+        response = self._client.table("mcp").select("*").eq("id", mcp_id).execute()
         if response.data:
             return McpV2Response(**response.data[0])
         return None
 
     def get_by_api_key(self, api_key: str) -> Optional[McpV2Response]:
         response = (
-            self._client.table("mcp_v2").select("*").eq("api_key", api_key).execute()
+            self._client.table("mcp").select("*").eq("api_key", api_key).execute()
         )
         if response.data:
             return McpV2Response(**response.data[0])
@@ -50,7 +50,7 @@ class McpV2Repository:
         limit: int = 100,
         user_id: Optional[str] = None,
     ) -> List[McpV2Response]:
-        query = self._client.table("mcp_v2").select("*")
+        query = self._client.table("mcp").select("*")
         if user_id is not None:
             query = query.eq("user_id", user_id)
         response = query.range(skip, skip + limit - 1).execute()
@@ -64,7 +64,7 @@ class McpV2Repository:
             payload.pop("id", None)
             payload.pop("created_at", None)
             payload.pop("updated_at", None)
-            response = self._client.table("mcp_v2").update(payload).eq("id", mcp_id).execute()
+            response = self._client.table("mcp").update(payload).eq("id", mcp_id).execute()
             if response.data:
                 return McpV2Response(**response.data[0])
             return None
@@ -72,7 +72,7 @@ class McpV2Repository:
             raise handle_supabase_error(e, "更新 MCP v2")
 
     def delete(self, mcp_id: int) -> bool:
-        response = self._client.table("mcp_v2").delete().eq("id", mcp_id).execute()
+        response = self._client.table("mcp").delete().eq("id", mcp_id).execute()
         return len(response.data) > 0
 
 

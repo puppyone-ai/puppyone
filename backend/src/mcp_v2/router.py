@@ -34,7 +34,8 @@ from src.mcp_v2.service import McpV2Service
 from src.mcp_v2.models import McpV2Instance
 
 
-router = APIRouter(prefix="/mcp_v2", tags=["mcp_v2"])
+# 对外统一使用 /mcp（旧版 /mcp 已下线）
+router = APIRouter(prefix="/mcp", tags=["mcp"])
 
 
 def _generate_api_key(user_id: str) -> str:

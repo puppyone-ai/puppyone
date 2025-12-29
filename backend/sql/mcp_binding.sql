@@ -7,7 +7,7 @@ create table public.mcp_binding (
 
   constraint mcp_binding_pkey primary key (id),
   constraint mcp_binding_mcp_id_fkey foreign key (mcp_id)
-    references public.mcp_v2 (id) on delete cascade,
+    references public.mcp (id) on delete cascade,
   constraint mcp_binding_tool_id_fkey foreign key (tool_id)
     references public.tool (id) on delete cascade,
   constraint mcp_binding_mcp_id_tool_id_key unique (mcp_id, tool_id)
