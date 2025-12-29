@@ -1088,6 +1088,14 @@ export function ProjectsSidebar({
           font-size: 12px;
           font-weight: 600;
           overflow: hidden;
+          cursor: pointer;
+          transition: all 200ms ease;
+        }
+
+        .user-avatar:hover {
+          background: #4A4A4A;
+          transform: scale(1.05);
+          box-shadow: 0 0 0 2px rgba(255,255,255,0.1);
         }
 
         .user-avatar img {
@@ -1526,8 +1534,11 @@ export function ProjectsSidebar({
       {/* Footer */}
       <div className="footer">
         <span className="env-badge">{environmentLabel}</span>
-
-        <div className="user-avatar">
+        <div 
+          className="user-avatar"
+          onClick={() => setUserMenuOpen(true)}
+          title="Account settings"
+        >
           {userAvatarUrl ? (
             <img src={userAvatarUrl} alt="User avatar" referrerPolicy="no-referrer" />
           ) : (
