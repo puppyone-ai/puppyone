@@ -40,8 +40,22 @@ def _default_input_schema_for_tool_type(tool_type: str | None) -> dict[str, Any]
     """
     t = (tool_type or "").strip()
 
-    if t in {"get_data_schema", "get_all_data", "preview"}:
+    if t in {"get_data_schema", "get_all_data"}:
         return {"type": "object", "properties": {}, "additionalProperties": False}
+
+    if t == "preview":
+        return {
+            "type": "object",
+            "properties": {
+                "keys": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "要保留的字段名列表（只返回这些字段，用于快速决策）",
+                }
+            },
+            "required": ["keys"],
+            "additionalProperties": False,
+        }
 
     if t == "query_data":
         return {
@@ -258,16 +272,10 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                     keys = arguments.get("keys", [])
                     result = await table_tool.delete_element(table_id=table_id, json_path=json_path, keys=keys)
                 elif tool_type == "preview":
-                    preview_keys = None
-                    if isinstance(metadata, dict):
-                        preview_keys = metadata.get("preview_keys")
-                    # 未配置 preview_keys -> 等价于 get_all
-                    if not preview_keys:
-                        result = await table_tool.get_all_data(table_id=table_id, json_path=json_path)
-                    else:
-                        result = await table_tool.preview_data(
-                            table_id=table_id, json_path=json_path, preview_keys=preview_keys
-                        )
+                    keys = arguments.get("keys")
+                    result = await table_tool.preview_data(
+                        table_id=table_id, json_path=json_path, keys=keys
+                    )
                 elif tool_type == "select":
                     field = arguments.get("field")
                     keys = arguments.get("keys", [])
@@ -363,8 +371,9 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                     table_id=table_id, json_path=json_path, keys=keys
                 )
             elif tool_type == "preview":
+                keys = arguments.get("keys")
                 result = await table_tool.preview_data(
-                    table_id=table_id, json_path=json_path, preview_keys=preview_keys
+                    table_id=table_id, json_path=json_path, keys=keys
                 )
             elif tool_type == "select":
                 field = arguments.get("field")
