@@ -111,6 +111,37 @@ class InternalApiClient:
         except httpx.RequestError as e:
             print(f"Error fetching MCP instance: request_failed url={e.request.url} error={e}")
             raise RuntimeError(f"获取 MCP 实例失败: {str(e)}") from e
+
+    async def get_mcp_v2_instance_and_tools(self, api_key: str) -> Optional[Dict[str, Any]]:
+        """
+        获取 MCP v2 实例 + 绑定工具列表（新契约）
+
+        Returns:
+            {
+              "mcp_v2": {...},
+              "bound_tools": [{ "tool": {...}, "binding": {...} }, ...]
+            }
+        """
+        try:
+            url = f"{self.base_url}/internal/mcp-v2/{api_key}"
+            response = await self._client.get(url)
+
+            if response.status_code == 404:
+                return None
+
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error fetching MCP v2: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"获取 MCP v2 实例失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error fetching MCP v2: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"获取 MCP v2 实例失败: {str(e)}") from e
     
     async def get_table_metadata(self, table_id: int) -> Optional[TableMetadata]:
         """

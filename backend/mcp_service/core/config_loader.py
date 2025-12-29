@@ -18,6 +18,22 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
     if cached:
         return cached
 
+    # 0) 优先尝试新契约：MCP v2 + bound tools
+    try:
+        mcp_v2_payload = await rpc_client.get_mcp_v2_instance_and_tools(api_key)
+    except Exception:
+        mcp_v2_payload = None
+
+    if mcp_v2_payload and mcp_v2_payload.get("mcp_v2"):
+        mcp_v2 = mcp_v2_payload["mcp_v2"]
+        config: Dict[str, Any] = {
+            "mode": "v2",
+            "mcp_v2": mcp_v2,
+            "bound_tools": mcp_v2_payload.get("bound_tools") or [],
+        }
+        await CacheManager.set_config(api_key, config)
+        return config
+
     # 从 API_KEY 解析 table_id/json_path（仅用于兜底与快速失败）
     # 注意：MCP 实例的“真实配置”以主服务 internal/mcp-instance 返回为准，
     # 否则当用户在数据库/主服务更新 json_path 后，旧 token payload 会导致一直走旧路径。
@@ -45,6 +61,7 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
         return None
 
     config: Dict[str, Any] = {
+        "mode": "legacy",
         "mcp_instance": {
             "api_key": mcp_instance.api_key,
             "user_id": mcp_instance.user_id,
