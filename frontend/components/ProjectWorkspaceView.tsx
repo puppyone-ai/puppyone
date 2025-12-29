@@ -7,27 +7,21 @@ import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { McpBar } from './McpBar'
 import { ErrorConsole, type ErrorLog } from './ErrorConsole'
 import type { ProjectTableJSON } from '../lib/projectData'
-import { updateTableData, type TableInfo } from '../lib/projectsApi'
+import { updateTableData, type TableInfo, type ProjectInfo } from '../lib/projectsApi'
 import { useProjects, useTable, refreshProjects } from '../lib/hooks/useData'
 import type { EditorType } from './ProjectsHeader'
-
-// Dynamic imports for editors (from editors/ folder)
-const EditorLoading = () => (
-    <div style={{ padding: '20px', color: '#94a3b8', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      Loading Editor...
-    </div>
-)
+import { EditorSkeleton } from './Skeleton'
 
 // Tree editor with virtual scrolling
 const TreeLineVirtualEditor = dynamic(
   () => import('./editors/tree/TreeLineVirtualEditor'),
-  { ssr: false, loading: EditorLoading }
+  { ssr: false, loading: EditorSkeleton }
 )
 
 // Monaco (raw JSON text editor)
 const MonacoJsonEditor = dynamic(
   () => import('./editors/code/MonacoJsonEditor'),
-  { ssr: false, loading: EditorLoading }
+  { ssr: false, loading: EditorSkeleton }
 )
 
 // Access Point 类型
@@ -50,6 +44,8 @@ interface ConfiguredAccessPoint {
 
 type ProjectWorkspaceViewProps = {
   projectId: string
+  project?: ProjectInfo | null  // 从父组件传入，避免重复查找
+  isProjectsLoading?: boolean   // 从父组件传入，避免重复调用 useProjects
   activeTableId?: string
   onActiveTableChange?: (tableId: string) => void
   onTreePathChange?: (treePath: string | null) => void
@@ -77,6 +73,8 @@ type ProjectWorkspaceViewProps = {
 
 export function ProjectWorkspaceView({
   projectId,
+  project: projectProp,
+  isProjectsLoading = false,
   activeTableId: activeTableIdProp,
   onActiveTableChange,
   onTreePathChange,
@@ -101,8 +99,9 @@ export function ProjectWorkspaceView({
   const { session, isAuthReady } = useAuth()
   const router = useRouter()
   
-  // 使用 SWR 获取项目列表（自动缓存、去重）
+  // 使用传入的 project，如果没传则 fallback 到自己查找（兼容旧调用方式）
   const { projects, refresh: refreshProjectsList } = useProjects()
+  const project = projectProp ?? projects.find((p) => p.id === projectId) ?? null
 
   // Listen for projects refresh event
   useEffect(() => {
@@ -129,9 +128,6 @@ export function ProjectWorkspaceView({
     }
   }, [])
 
-
-  const project = useMemo(() => projects.find((p) => p.id === projectId), [projects, projectId])
-
   const isControlled = activeTableIdProp !== undefined
 
   const [internalActiveTableId, setInternalActiveTableId] = useState<string>(() => {
@@ -145,7 +141,7 @@ export function ProjectWorkspaceView({
   const resolvedActiveTableId = isControlled ? activeTableIdProp ?? '' : internalActiveTableId
   
   // 使用 SWR 获取当前表数据（自动缓存、去重）
-  const { tableData: rawTableData, refresh: refreshTableData } = useTable(projectId, resolvedActiveTableId)
+  const { tableData: rawTableData, isLoading: isTableLoading, refresh: refreshTableData } = useTable(projectId, resolvedActiveTableId)
   
   // 处理表数据格式（保持原有逻辑）
   const tableData = useMemo(() => {
@@ -477,6 +473,12 @@ export function ProjectWorkspaceView({
                         />
                         )}
                       </div>
+                    ) : isTableLoading && resolvedActiveTableId ? (
+                      /* 复用标准的 Editor Skeleton */
+                      <EditorSkeleton />
+                    ) : isProjectsLoading ? (
+                      /* 项目列表还在加载 -> 显示骨架屏，和 Sidebar 同步 */
+                      <EditorSkeleton />
                     ) : (
                       <div
                         style={{
@@ -500,17 +502,25 @@ export function ProjectWorkspaceView({
             </section>
           </>
         ) : (
-          <div
-            style={{
-              flex: 1,
-              display: 'grid',
-              placeItems: 'center',
-              color: '#94a3b8',
-              fontSize: 14,
-            }}
-          >
-            {project ? 'No contexts available for this project.' : 'Loading project…'}
-          </div>
+          /* Project Loading State or Empty State */
+          project ? (
+            <div
+              style={{
+                flex: 1,
+                display: 'grid',
+                placeItems: 'center',
+                color: '#94a3b8',
+                fontSize: 14,
+              }}
+            >
+              No contexts available for this project.
+            </div>
+          ) : (
+            /* Project is loading -> Show Skeleton to match Sidebar loading */
+            <div style={{ flex: 1, backgroundColor: '#050607' }}>
+              <EditorSkeleton />
+            </div>
+          )
         )}
       </div>
 

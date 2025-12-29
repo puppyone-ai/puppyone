@@ -6,6 +6,7 @@ import { ProjectManageDialog } from './ProjectManageDialog'
 import { TableManageDialog } from './TableManageDialog'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { getProcessingTableIds } from './BackgroundTaskNotifier'
+import UserMenuPanel from './UserMenuPanel'
 
 type UtilityNavItem = {
   id: string
@@ -67,6 +68,7 @@ export function ProjectsSidebar({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'project' | 'table'; id: string; projectId?: string } | null>(null)
   const [expandedSections, setExpandedSections] = useState<Set<SectionId>>(new Set(['contexts', 'mcp', 'try']))
   const [isResizing, setIsResizing] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const sidebarRef = useRef<HTMLElement>(null)
   
   // 追踪正在处理中的 Table
@@ -594,7 +596,7 @@ export function ProjectsSidebar({
           width: 26px;
           height: 26px;
           background: transparent;
-          border: 1px solid transparent;
+          border: none;
           border-radius: 4px;
           cursor: pointer;
           color: #5D6065;
@@ -606,12 +608,10 @@ export function ProjectsSidebar({
           opacity: 1;
           color: #9ca3af;
           background: rgba(255,255,255,0.05);
-          border-color: rgba(255,255,255,0.1);
         }
 
         .section-add-btn:hover {
           background: rgba(255,255,255,0.1) !important;
-          border-color: rgba(255,255,255,0.2) !important;
           color: #EDEDED !important;
         }
 
@@ -901,22 +901,60 @@ export function ProjectsSidebar({
 
         .loading {
           display: flex;
+          flex-direction: column;
+          padding: 8px 0;
+          gap: 2px;
+        }
+
+        .skeleton-item {
+          display: flex;
           align-items: center;
-          justify-content: center;
-          padding: 32px;
+          gap: 12px;
+          padding: 0 16px;
+          height: 28px; /* 统一高度 28px */
         }
 
-        .spinner {
-          width: 16px;
-          height: 16px;
-          border: 2px solid #404040;
-          border-top-color: #8B8B8B;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
+        .skeleton-icon {
+          width: 14px;
+          height: 14px;
+          border-radius: 4px;
+          flex-shrink: 0;
+          background: rgba(255,255,255,0.06);
+          position: relative;
+          overflow: hidden;
         }
 
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        .skeleton-text {
+          height: 10px;
+          border-radius: 4px;
+          background: rgba(255,255,255,0.06);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .skeleton-text::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255,255,255,0.15),
+            transparent
+          );
+          transform: translateX(-100%);
+          animation: shimmer 1.5s infinite;
+        }
+
+        .skeleton-child {
+          padding-left: 36px;
+        }
+
+        @keyframes shimmer {
+          100% { transform: translateX(100%); }
         }
 
         .nav-item {
@@ -1044,6 +1082,14 @@ export function ProjectsSidebar({
           justify-content: center;
           font-size: 12px;
           font-weight: 600;
+          cursor: pointer;
+          transition: all 200ms ease;
+        }
+
+        .user-avatar:hover {
+          background: #4A4A4A;
+          transform: scale(1.05);
+          box-shadow: 0 0 0 2px rgba(255,255,255,0.1);
         }
 
         .context-menu {
@@ -1169,7 +1215,27 @@ export function ProjectsSidebar({
             <div className="section-content">
         {loading ? (
                 <div className="loading">
-                  <div className="spinner" />
+                  {/* 骨架屏：模拟 2 个项目，每个项目有 2 个子项 */}
+                  <div className="skeleton-item">
+                    <div className="skeleton-icon" />
+                    <div className="skeleton-text" style={{ width: '65%' }} />
+                  </div>
+                  <div className="skeleton-item skeleton-child">
+                    <div className="skeleton-icon" style={{ width: 14, height: 14 }} />
+                    <div className="skeleton-text" style={{ width: '55%' }} />
+                  </div>
+                  <div className="skeleton-item skeleton-child">
+                    <div className="skeleton-icon" style={{ width: 14, height: 14 }} />
+                    <div className="skeleton-text" style={{ width: '70%' }} />
+                  </div>
+                  <div className="skeleton-item" style={{ marginTop: 4 }}>
+                    <div className="skeleton-icon" />
+                    <div className="skeleton-text" style={{ width: '50%' }} />
+                  </div>
+                  <div className="skeleton-item skeleton-child">
+                    <div className="skeleton-icon" style={{ width: 14, height: 14 }} />
+                    <div className="skeleton-text" style={{ width: '60%' }} />
+                  </div>
                 </div>
               ) : projects.length === 0 ? (
                 <button className="nav-item" onClick={handleCreateProject}>
@@ -1436,7 +1502,13 @@ export function ProjectsSidebar({
       {/* Footer */}
       <div className="footer">
         <span className="env-badge">{environmentLabel}</span>
-        <div className="user-avatar">{userInitial}</div>
+        <div 
+          className="user-avatar"
+          onClick={() => setUserMenuOpen(true)}
+          title="Account settings"
+        >
+          {userInitial}
+        </div>
       </div>
 
       {/* Context Menu */}
@@ -1555,6 +1627,12 @@ export function ProjectsSidebar({
           onMouseDown={handleMouseDown}
         />
       )}
+
+      {/* User Menu Panel */}
+      <UserMenuPanel 
+        isOpen={userMenuOpen} 
+        onClose={() => setUserMenuOpen(false)} 
+      />
     </aside>
   )
 }

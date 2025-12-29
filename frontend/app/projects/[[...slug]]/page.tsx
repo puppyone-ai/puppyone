@@ -25,6 +25,7 @@ import {
   type RightPanelContent, 
   type EditorTarget 
 } from '../../../components/RightAuxiliaryPanel'
+import { EditorSkeleton } from '../../../components/Skeleton'
 
 type ActiveView = 'projects' | 'mcp' | 'connect' | 'test' | 'logs' | 'settings'
 
@@ -165,22 +166,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     return segments
   }, [activeBase, activeTable])
 
-  // 如果正在加载，显示 loading
-  if (loading) {
-    return (
-      <div style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#040404',
-        color: '#9ca3af',
-        fontSize: 14,
-      }}>
-        Loading projects...
-      </div>
-    )
-  }
+  // 不再显示全屏 loading，让页面框架先渲染，各区域显示各自的骨架屏
 
   // 判断是否需要显示空状态（没有 slug 且没有 projects）
   // Debug Mode: 暂时强制显示 Onboarding 以便测试动画效果
@@ -230,8 +216,8 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     )
   }
 
+  // 点击 Project 只展开/收起，不跳转 URL
   const handleProjectSelect = (newProjectId: string) => {
-    setActiveBaseId(newProjectId)
     setExpandedBaseIds(prev => {
       const newSet = new Set(prev)
       if (newSet.has(newProjectId)) {
@@ -241,11 +227,6 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
       }
       return newSet
     })
-    const project = projects.find(p => p.id === newProjectId)
-    if (project) {
-      const url = `/projects/${encodeURIComponent(newProjectId)}`
-      window.history.pushState({}, '', url)
-    }
   }
 
   const handleTableSelect = (newProjectId: string, newTableId: string) => {
@@ -403,6 +384,8 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                   <ProjectWorkspaceView
                     key={activeBase.id}
                     projectId={activeBase.id}
+                    project={activeBase}
+                    isProjectsLoading={loading}
                     activeTableId={activeTableId}
                     onActiveTableChange={setActiveTableId}
                     onTreePathChange={setCurrentTreePath}
@@ -456,6 +439,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                       setRightPanelContent('EDITOR')
                     }}
                   />
+                ) : loading ? (
+                  /* Projects 正在加载 -> 显示骨架屏 */
+                  <EditorSkeleton />
                 ) : (
                   <div
                     style={{
