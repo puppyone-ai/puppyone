@@ -9,6 +9,7 @@ from src.mcp.dependencies import get_mcp_instance_service
 from src.table.dependencies import get_table_service
 from src.config import settings
 from src.exceptions import AppException
+from src.supabase.dependencies import get_supabase_repository
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -59,6 +60,60 @@ async def get_mcp_instance(
         "tools_definition": instance.tools_definition,
         "register_tools": instance.register_tools,
         "preview_keys": instance.preview_keys
+    }
+
+
+@router.get(
+    "/mcp-v2/{api_key}",
+    summary="获取 MCP v2 实例及其绑定工具列表",
+    description="根据 api_key 获取 mcp_v2 实例 + 已绑定工具（用于 mcp_service list_tools/call_tool）",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def get_mcp_v2_instance_and_tools(
+    api_key: str,
+    supabase_repo=Depends(get_supabase_repository),
+):
+    """
+    返回结构（稳定契约）:
+    {
+      "mcp_v2": { id, api_key, user_id, name, status },
+      "bound_tools": [
+        { tool: {...tool fields...}, binding: { id, status } }
+      ]
+    }
+    """
+    mcp = supabase_repo.get_mcp_v2_by_api_key(api_key)
+    if not mcp:
+        raise HTTPException(status_code=404, detail="MCP v2 instance not found")
+
+    bindings = supabase_repo.get_mcp_bindings_by_mcp_id(mcp.id)
+    bound_tools = []
+    for b in bindings:
+        # 默认只返回启用的 binding（禁用的在 mcp_service 不展示，也不允许执行）
+        if b.status is False:
+            continue
+        tool_id = int(b.tool_id or 0)
+        if not tool_id:
+            continue
+        tool = supabase_repo.get_tool(tool_id)
+        if not tool:
+            continue
+        bound_tools.append(
+            {
+                "tool": tool.model_dump(),
+                "binding": {"id": b.id, "status": bool(b.status)},
+            }
+        )
+
+    return {
+        "mcp_v2": {
+            "id": mcp.id,
+            "api_key": mcp.api_key,
+            "user_id": mcp.user_id,
+            "name": mcp.name,
+            "status": bool(mcp.status),
+        },
+        "bound_tools": bound_tools,
     }
 
 

@@ -52,6 +52,15 @@ mcp_router_start = time.time()
 from src.mcp.router import router as mcp_router
 mcp_router_duration = time.time() - mcp_router_start
 
+# tool_router_start = time.time()
+tool_router_start = time.time()
+from src.tool.router import router as tool_router
+tool_router_duration = time.time() - tool_router_start
+
+mcp_v2_router_start = time.time()
+from src.mcp_v2.router import router as mcp_v2_router
+mcp_v2_router_duration = time.time() - mcp_v2_router_start
+
 # s3_router_start = time.time()
 # from src.s3.router import router as s3_router
 # s3_router_duration = time.time() - s3_router_start
@@ -80,6 +89,8 @@ from src.internal.router import router as internal_router
 internal_router_duration = time.time() - internal_router_start
 
 routers_duration = (table_router_duration + mcp_router_duration +
+                   tool_router_duration +
+                   mcp_v2_router_duration +
                    etl_router_duration + project_router_duration + connect_router_duration + oauth_router_duration + internal_router_duration)
 
 
@@ -105,6 +116,8 @@ async def app_lifespan(app: FastAPI):
     log_info(f"  ├─ 路由模块:")
     log_info(f"  │  ├─ table_router: {table_router_duration*1000:.2f}ms")
     log_info(f"  │  ├─ mcp_router: {mcp_router_duration*1000:.2f}ms")
+    log_info(f"  │  ├─ tool_router: {tool_router_duration*1000:.2f}ms")
+    log_info(f"  │  ├─ mcp_v2_router: {mcp_v2_router_duration*1000:.2f}ms")
     if settings.etl_enabled:
         log_info(f"  │  ├─ etl_router: {etl_router_duration*1000:.2f}ms")
     else:
@@ -219,6 +232,8 @@ def create_app() -> FastAPI:
     router_register_start = time.time()
     app.include_router(table_router, prefix="/api/v1", tags=["tables"])
     app.include_router(mcp_router, prefix="/api/v1", tags=["mcp"])
+    app.include_router(tool_router, prefix="/api/v1", tags=["tools"])
+    app.include_router(mcp_v2_router, prefix="/api/v1", tags=["mcp_v2"])
     # app.include_router(s3_router, prefix="/api/v1")
     if etl_router is not None:
         app.include_router(etl_router, prefix="/api/v1", tags=["etl"])

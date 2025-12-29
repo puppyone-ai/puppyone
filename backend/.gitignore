@@ -5,3 +5,4 @@ logs/
 .test_data/
 .mineru_cache/
 .etl_rules/
+.pytest_cache/

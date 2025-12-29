@@ -29,6 +29,91 @@ from .rpc.client import create_client
 from .tool.table_tool import TableToolImplementation
 
 
+def _default_input_schema_for_tool_type(tool_type: str | None) -> dict[str, Any]:
+    """
+    v2 模式默认 inputSchema 兜底。
+
+    说明：
+    - legacy 模式的默认 schema 在 `mcp_service/core/tools_definition.py` 内生成；
+    - v2 模式的 tool 定义来自主服务绑定的 Tool（可能不带 input_schema），这里按 type 补齐，
+      以保证调用方（如 Cursor/Agents）能正确看到可传入的参数结构。
+    """
+    t = (tool_type or "").strip()
+
+    if t in {"get_data_schema", "get_all_data", "preview"}:
+        return {"type": "object", "properties": {}, "additionalProperties": False}
+
+    if t == "query_data":
+        return {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "JMESPath 查询表达式"},
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        }
+
+    if t == "create":
+        return {
+            "type": "object",
+            "properties": {
+                "elements": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {"key": {"type": "string"}, "content": {}},
+                        "required": ["key", "content"],
+                    },
+                }
+            },
+            "required": ["elements"],
+            "additionalProperties": False,
+        }
+
+    if t == "update":
+        return {
+            "type": "object",
+            "properties": {
+                "updates": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {"key": {"type": "string"}, "content": {}},
+                        "required": ["key", "content"],
+                    },
+                }
+            },
+            "required": ["updates"],
+            "additionalProperties": False,
+        }
+
+    if t == "delete":
+        return {
+            "type": "object",
+            "properties": {"keys": {"type": "array", "items": {"type": "string"}}},
+            "required": ["keys"],
+            "additionalProperties": False,
+        }
+
+    if t == "select":
+        return {
+            "type": "object",
+            "properties": {
+                "field": {"type": "string", "description": "用于匹配的字段名"},
+                "keys": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "要匹配的值列表",
+                },
+            },
+            "required": ["field", "keys"],
+            "additionalProperties": False,
+        }
+
+    # 未知 tool.type：保持兼容，允许透传任意参数
+    return {"type": "object", "properties": {}, "additionalProperties": True}
+
+
 def build_starlette_app(*, json_response: bool = True) -> Starlette:
     """构建 Starlette 应用实例（MCP handler 装配）"""
 
@@ -74,6 +159,34 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             if not config:
                 return []
 
+            # v2：按绑定工具列表返回
+            if config.get("mode") == "v2":
+                mcp_v2 = config.get("mcp_v2") or {}
+                if not mcp_v2.get("status", False):
+                    return []
+                bound_tools = config.get("bound_tools") or []
+                tools: list[mcp_types.Tool] = []
+                for item in bound_tools:
+                    tool = (item or {}).get("tool") or {}
+                    name = tool.get("name")
+                    if not name:
+                        continue
+                    desc = tool.get("description") or ""
+                    tool_type = tool.get("type")
+                    input_schema = tool.get("input_schema")
+                    # v2 兜底：当主服务未提供 schema（或提供了空 dict）时，根据 type 补默认 schema
+                    if not isinstance(input_schema, dict) or not input_schema:
+                        input_schema = _default_input_schema_for_tool_type(tool_type)
+                    tools.append(
+                        mcp_types.Tool(
+                            name=name,
+                            description=desc,
+                            inputSchema=input_schema,
+                        )
+                    )
+                return tools
+
+            # legacy：保持原逻辑
             if config["mcp_instance"]["status"] != 1:
                 return []
 
@@ -102,6 +215,75 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                     mcp_types.TextContent(type="text", text="错误: MCP实例不存在或配置加载失败")
                 ]
 
+            # v2：按 tool.name -> tool 配置执行
+            if config.get("mode") == "v2":
+                mcp_v2 = config.get("mcp_v2") or {}
+                if not mcp_v2.get("status", False):
+                    return [mcp_types.TextContent(type="text", text="错误: MCP实例已关闭")]
+
+                bound_tools = config.get("bound_tools") or []
+                tool_obj: dict[str, Any] | None = None
+                for item in bound_tools:
+                    t = (item or {}).get("tool") or {}
+                    if t.get("name") == name:
+                        tool_obj = t
+                        break
+
+                if not tool_obj:
+                    return [mcp_types.TextContent(type="text", text=f"错误: 未知的工具名称: {name}")]
+
+                tool_type = tool_obj.get("type")
+                table_id = int(tool_obj.get("table_id") or 0)
+                json_path = tool_obj.get("json_path") or ""
+                metadata = tool_obj.get("metadata") or {}
+
+                if not table_id:
+                    return [mcp_types.TextContent(type="text", text="错误: tool.table_id 缺失")]
+
+                result: Any = None
+                if tool_type == "get_data_schema":
+                    result = await table_tool.get_data_schema(table_id=table_id, json_path=json_path)
+                elif tool_type == "get_all_data":
+                    result = await table_tool.get_all_data(table_id=table_id, json_path=json_path)
+                elif tool_type == "query_data":
+                    query = arguments.get("query")
+                    result = await table_tool.query_data(table_id=table_id, json_path=json_path, query=query)
+                elif tool_type == "create":
+                    elements = arguments.get("elements", [])
+                    result = await table_tool.create_element(table_id=table_id, json_path=json_path, elements=elements)
+                elif tool_type == "update":
+                    updates = arguments.get("updates", [])
+                    result = await table_tool.update_element(table_id=table_id, json_path=json_path, updates=updates)
+                elif tool_type == "delete":
+                    keys = arguments.get("keys", [])
+                    result = await table_tool.delete_element(table_id=table_id, json_path=json_path, keys=keys)
+                elif tool_type == "preview":
+                    preview_keys = None
+                    if isinstance(metadata, dict):
+                        preview_keys = metadata.get("preview_keys")
+                    # 未配置 preview_keys -> 等价于 get_all
+                    if not preview_keys:
+                        result = await table_tool.get_all_data(table_id=table_id, json_path=json_path)
+                    else:
+                        result = await table_tool.preview_data(
+                            table_id=table_id, json_path=json_path, preview_keys=preview_keys
+                        )
+                elif tool_type == "select":
+                    field = arguments.get("field")
+                    keys = arguments.get("keys", [])
+                    result = await table_tool.select_tables(
+                        table_id=table_id, json_path=json_path, field=field, keys=keys
+                    )
+                else:
+                    return [mcp_types.TextContent(type="text", text=f"错误: 未支持的 tool.type: {tool_type}")]
+
+                return [
+                    mcp_types.TextContent(
+                        type="text", text=json.dumps(result, ensure_ascii=False, indent=2)
+                    )
+                ]
+
+            # legacy：保持原逻辑
             if config["mcp_instance"]["status"] != 1:
                 return [mcp_types.TextContent(type="text", text="错误: MCP实例已关闭")]
 
