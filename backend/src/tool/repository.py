@@ -18,7 +18,14 @@ class ToolRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_by_user_id(self, user_id: str, *, skip: int = 0, limit: int = 100) -> List[Tool]:
+    def get_by_user_id(
+        self,
+        user_id: str,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        table_id: Optional[int] = None,
+    ) -> List[Tool]:
         pass
 
     @abstractmethod
@@ -60,8 +67,15 @@ class ToolRepositorySupabase(ToolRepositoryBase):
             return None
         return self._to_model(resp)
 
-    def get_by_user_id(self, user_id: str, *, skip: int = 0, limit: int = 100) -> List[Tool]:
-        resps = self._repo.get_tools(skip=skip, limit=limit, user_id=user_id)
+    def get_by_user_id(
+        self,
+        user_id: str,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        table_id: Optional[int] = None,
+    ) -> List[Tool]:
+        resps = self._repo.get_tools(skip=skip, limit=limit, user_id=user_id, table_id=table_id)
         return [self._to_model(r) for r in resps]
 
     def update(self, tool_id: int, tool: SbToolUpdate) -> Optional[Tool]:

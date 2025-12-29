@@ -370,8 +370,9 @@ class SupabaseRepository:
         skip: int = 0,
         limit: int = 100,
         user_id: Optional[str] = None,
+        table_id: Optional[int] = None,
     ) -> List[ToolResponse]:
-        return self._tool_repo.get_list(skip=skip, limit=limit, user_id=user_id)
+        return self._tool_repo.get_list(skip=skip, limit=limit, user_id=user_id, table_id=table_id)
 
     def update_tool(self, tool_id: int, tool_data: ToolUpdate) -> Optional[ToolResponse]:
         return self._tool_repo.update(tool_id, tool_data)
