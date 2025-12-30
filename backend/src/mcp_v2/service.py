@@ -8,8 +8,9 @@ from src.supabase.dependencies import get_supabase_repository
 from src.supabase.mcp_binding.schemas import McpBindingCreate, McpBindingUpdate
 from src.supabase.mcp_v2.schemas import McpV2Create as SbMcpV2Create, McpV2Update as SbMcpV2Update
 from src.tool.repository import ToolRepositorySupabase
+from src.tool.models import Tool
 from src.mcp_v2.models import McpV2Instance
-from src.mcp_v2.schemas import BindToolRequest
+from src.mcp_v2.schemas import BindToolRequest, BoundToolOut
 
 
 class McpV2Service:
@@ -42,8 +43,20 @@ class McpV2Service:
             return None
         return self._to_model(resp)
 
+    def get_by_id(self, mcp_id: int) -> McpV2Instance | None:
+        resp = self._repo.get_mcp_v2(mcp_id)
+        if not resp:
+            return None
+        return self._to_model(resp)
+
     def get_by_api_key_with_access_check(self, api_key: str, user_id: str) -> McpV2Instance:
         inst = self.get_by_api_key(api_key)
+        if not inst or inst.user_id != user_id:
+            raise NotFoundException("MCP v2 instance not found", code=ErrorCode.NOT_FOUND)
+        return inst
+
+    def get_by_id_with_access_check(self, mcp_id: int, user_id: str) -> McpV2Instance:
+        inst = self.get_by_id(mcp_id)
         if not inst or inst.user_id != user_id:
             raise NotFoundException("MCP v2 instance not found", code=ErrorCode.NOT_FOUND)
         return inst
@@ -73,6 +86,60 @@ class McpV2Service:
                 continue
             out.append((b.id, tool))
         return out
+
+    def list_bound_tools_by_mcp_id(
+        self,
+        mcp_id: int,
+        *,
+        include_disabled: bool = False,
+    ) -> List[BoundToolOut]:
+        """
+        查询某个 mcp_v2.id 绑定的 Tool 列表（默认仅 enabled bindings）。
+        数据来源：mcp_binding + tool。
+        """
+        bindings = self._repo.get_mcp_bindings_by_mcp_id(mcp_id)
+        out: list[BoundToolOut] = []
+        for b in bindings:
+            binding_status = bool(b.status)
+            if (not include_disabled) and (binding_status is False):
+                continue
+
+            tool_id = int(b.tool_id or 0)
+            if not tool_id:
+                continue
+            tool = self._tool_repo.get_by_id(tool_id)
+            if not tool:
+                continue
+
+            out.append(
+                BoundToolOut(
+                    tool_id=tool.id,
+                    binding_id=int(b.id),
+                    binding_status=binding_status,
+                    created_at=tool.created_at,
+                    user_id=tool.user_id,
+                    name=tool.name,
+                    type=tool.type,
+                    table_id=tool.table_id,
+                    json_path=tool.json_path or "",
+                    alias=tool.alias,
+                    description=tool.description,
+                    input_schema=tool.input_schema,
+                    output_schema=tool.output_schema,
+                    metadata=tool.metadata,
+                )
+            )
+        return out
+
+    def list_bound_tools_by_mcp_id_with_access_check(
+        self,
+        mcp_id: int,
+        *,
+        user_id: str,
+        include_disabled: bool = False,
+    ) -> List[BoundToolOut]:
+        _ = self.get_by_id_with_access_check(mcp_id, user_id)
+        return self.list_bound_tools_by_mcp_id(mcp_id, include_disabled=include_disabled)
 
     def bind_tool(self, *, api_key: str, user_id: str, tool_id: int, status: bool) -> None:
         inst = self.get_by_api_key_with_access_check(api_key, user_id)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -82,9 +82,18 @@ class BoundToolOut(BaseModel):
     binding_id: int
     binding_status: bool
 
+    created_at: datetime
+    user_id: str
+
     name: str
     type: str
     table_id: Optional[int] = None
     json_path: str = ""
+
+    alias: Optional[str] = None
+    description: Optional[str] = None
+    input_schema: Optional[Any] = None
+    output_schema: Optional[Any] = None
+    metadata: Optional[Any] = None
 
 
