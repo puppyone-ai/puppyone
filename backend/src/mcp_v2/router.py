@@ -29,6 +29,7 @@ from src.mcp_v2.schemas import (
     BindToolRequest,
     BindToolsRequest,
     UpdateBindingRequest,
+    BoundToolOut,
 )
 from src.mcp_v2.service import McpV2Service
 from src.mcp_v2.models import McpV2Instance
@@ -211,6 +212,48 @@ def unbind_tool(
 ):
     svc.unbind_tool(api_key=api_key, user_id=current_user.user_id, tool_id=tool_id)
     return ApiResponse.success(data=None, message="解绑成功")
+
+
+@router.get(
+    "/{api_key}/tools",
+    response_model=ApiResponse[List[BoundToolOut]],
+    summary="获取 MCP v2 绑定的 Tool 列表（按 api_key）",
+    status_code=status.HTTP_200_OK,
+)
+def list_bound_tools_by_api_key(
+    include_disabled: bool = Query(default=False, description="是否包含 disabled bindings"),
+    instance: McpV2Instance = Depends(get_mcp_v2_instance_by_api_key),
+    svc: McpV2Service = Depends(get_mcp_v2_service),
+):
+    # api_key 路由不要求登录：若实例被禁用，则不对外暴露
+    if not instance.status:
+        raise NotFoundException(
+            f"StatusError: MCP v2 instance is disabled (status={instance.status})",
+            code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
+        )
+
+    data = svc.list_bound_tools_by_mcp_id(instance.id, include_disabled=include_disabled)
+    return ApiResponse.success(data=data, message="获取 MCP v2 绑定 Tool 列表成功")
+
+
+@router.get(
+    "/id/{mcp_id}/tools",
+    response_model=ApiResponse[List[BoundToolOut]],
+    summary="获取 MCP v2 绑定的 Tool 列表（按 mcp_id）",
+    status_code=status.HTTP_200_OK,
+)
+def list_bound_tools_by_mcp_id(
+    mcp_id: int,
+    include_disabled: bool = Query(default=False, description="是否包含 disabled bindings"),
+    svc: McpV2Service = Depends(get_mcp_v2_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    data = svc.list_bound_tools_by_mcp_id_with_access_check(
+        mcp_id,
+        user_id=current_user.user_id,
+        include_disabled=include_disabled,
+    )
+    return ApiResponse.success(data=data, message="获取 MCP v2 绑定 Tool 列表成功")
 
 
 # ============================================================
