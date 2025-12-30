@@ -307,8 +307,8 @@ export async function getTools(skip = 0, limit = 100): Promise<Tool[]> {
 /**
  * 获取指定 table 的所有 Tool
  */
-export async function getToolsByTableId(tableId: number, skip = 0, limit = 100): Promise<Tool[]> {
-  return get<Tool[]>(`/api/v1/tools?table_id=${tableId}&skip=${skip}&limit=${limit}`)
+export async function getToolsByTableId(tableId: number, skip = 0, limit = 1000): Promise<Tool[]> {
+  return get<Tool[]>(`/api/v1/tools/by-table/${tableId}?skip=${skip}&limit=${limit}`)
 }
 
 /**
@@ -362,6 +362,46 @@ export async function getMcpV2Instance(apiKey: string): Promise<McpV2Instance> {
  */
 export async function createMcpV2(request: McpV2CreateRequest): Promise<McpV2Instance> {
   return post<McpV2Instance>('/api/v1/mcp', request)
+}
+
+/**
+ * Legacy MCP 创建请求（兼容 v1 API）
+ */
+export interface McpLegacyCreateRequest {
+  name: string
+  project_id: number
+  table_id: number
+  json_pointer?: string
+  tools_definition?: Record<string, unknown>
+  register_tools?: string[]
+}
+
+/**
+ * Legacy MCP 创建响应
+ */
+export interface McpLegacyCreateResponse {
+  api_key: string
+  url: string
+  proxy_url: string
+  direct_url: string
+}
+
+/**
+ * 创建 MCP 实例（Legacy API - 需要 project_id 和 table_id）
+ * 返回的格式会被转换为 McpV2Instance 兼容格式
+ */
+export async function createMcpLegacy(request: McpLegacyCreateRequest): Promise<McpV2Instance> {
+  const response = await post<McpLegacyCreateResponse>('/api/v1/mcp', request)
+  // 转换为 McpV2Instance 格式
+  return {
+    id: 0, // Legacy API 不返回 id
+    user_id: '',
+    api_key: response.api_key,
+    name: request.name,
+    status: true, // 新创建的实例默认是启用的
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
 }
 
 /**

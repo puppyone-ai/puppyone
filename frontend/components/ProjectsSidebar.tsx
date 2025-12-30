@@ -38,7 +38,7 @@ type ProjectsSidebarProps = {
   toolsCount?: number
 }
 
-type SectionId = 'contexts' | 'mcp' | 'try'
+type SectionId = 'contexts' | 'connect'
 
 const MIN_SIDEBAR_WIDTH = 200
 const MAX_SIDEBAR_WIDTH = 400
@@ -71,7 +71,7 @@ export function ProjectsSidebar({
   const [editingTableId, setEditingTableId] = useState<string | null>(null)
   const [deleteMode, setDeleteMode] = useState<'project' | 'table' | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'project' | 'table'; id: string; projectId?: string } | null>(null)
-  const [expandedSections, setExpandedSections] = useState<Set<SectionId>>(new Set(['contexts', 'mcp', 'try']))
+  const [expandedSections, setExpandedSections] = useState<Set<SectionId>>(new Set(['contexts', 'connect']))
   const [isResizing, setIsResizing] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const sidebarRef = useRef<HTMLElement>(null)
@@ -624,7 +624,7 @@ export function ProjectsSidebar({
           display: flex;
           flex-direction: column;
           gap: 1px;
-          padding: 2px 8px 4px 12px;
+          padding: 2px 8px 4px 8px;
         }
 
         .projects-list {
@@ -966,7 +966,7 @@ export function ProjectsSidebar({
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 0 4px 0 0;
+          padding: 0 4px 0 12px;
           height: 28px;
           background: transparent;
           border: none;
@@ -975,6 +975,7 @@ export function ProjectsSidebar({
           transition: background 0.15s;
           width: 100%;
           text-align: left;
+          box-sizing: border-box;
         }
 
         .nav-item:hover:not(:disabled) {
@@ -1380,75 +1381,48 @@ export function ProjectsSidebar({
         </div>
         </div>
 
-        {/* Bottom Content - MCP & Try (flex-shrink: 0, bottom aligned) */}
+        {/* Bottom Content - Connect (flex-shrink: 0, bottom aligned) */}
         <div className="content-bottom">
-        {/* Section: MCP */}
+        {/* Section: Connect */}
         <div className="section">
-          <div className="section-header" onClick={() => toggleSection('mcp')}>
-            <span className="section-title">MCP</span>
-            <svg className={`section-chevron ${expandedSections.has('mcp') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
+          <div className="section-header" onClick={() => toggleSection('connect')}>
+            <span className="section-title">Connect</span>
+            <svg className={`section-chevron ${expandedSections.has('connect') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
               <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
           
-          {expandedSections.has('mcp') && (
+          {expandedSections.has('connect') && (
             <div className="section-content">
-              {/* Tools */}
+              {/* Tools & MCP (Outbound) */}
               <button 
                 className={`nav-item ${activeView === 'tools' ? 'active' : ''}`}
                 onClick={() => onUtilityNavClick('tools')}
               >
                 <span className="nav-icon">
+                  {/* External Link / Export style icon */}
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M8.5 3.5a1 1 0 0 0 0 1l1 1a1 1 0 0 0 1 0l2.5-2.5a4 4 0 0 1-5.3 5.3L4 12a1.4 1.4 0 0 1-2-2l3.7-3.7a4 4 0 0 1 5.3-5.3L8.5 3.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                    <path d="M9 2.5h2.5V5M11.5 2.5L6 8M11 9v2.5a1.5 1.5 0 01-1.5 1.5H3.5A1.5 1.5 0 012 11.5V5.5A1.5 1.5 0 013.5 4H6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </span>
-                <span className="nav-label">Tools</span>
+                <span className="nav-label">Tools & MCP</span>
                 {toolsCount > 0 && (
                   <span className="nav-badge">{toolsCount}</span>
                 )}
               </button>
-              
-              {/* Instances */}
-              <button 
-                className={`nav-item ${activeView === 'mcp' ? 'active' : ''}`}
-                onClick={() => onUtilityNavClick('mcp')}
-              >
-                <span className="nav-icon">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <circle cx="3" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
-                    <circle cx="11" cy="4" r="2" stroke="currentColor" strokeWidth="1.2"/>
-                    <circle cx="11" cy="10" r="2" stroke="currentColor" strokeWidth="1.2"/>
-                    <path d="M5 7h2M9 4.5L7.5 6M9 9.5L7.5 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  </svg>
-                </span>
-                <span className="nav-label">Instances</span>
-              </button>
-            </div>
-          )}
-        </div>
 
-        {/* Section: Try */}
-        <div className="section">
-          <div className="section-header" onClick={() => toggleSection('try')}>
-            <span className="section-title">Try</span>
-            <svg className={`section-chevron ${expandedSections.has('try') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
-              <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          
-          {expandedSections.has('try') && (
-            <div className="section-content">
+              {/* Import Settings (Inbound) */}
               <button 
                 className={`nav-item ${activeView === 'connect' ? 'active' : ''}`}
                 onClick={() => onUtilityNavClick('connect')}
               >
                 <span className="nav-icon">
+                  {/* Download / Import style icon */}
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M6 2.5a1.5 1.5 0 113 0V3h1.5A1.5 1.5 0 0112 4.5V6h-.5a1.5 1.5 0 100 3h.5v1.5a1.5 1.5 0 01-1.5 1.5H9v-.5a1.5 1.5 0 10-3 0v.5H4.5A1.5 1.5 0 013 10.5V9h.5a1.5 1.5 0 100-3H3V4.5A1.5 1.5 0 014.5 3H6v-.5z" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </span>
-                <span className="nav-label">Integrations</span>
+                <span className="nav-label">Import Settings</span>
               </button>
             </div>
           )}
@@ -1504,28 +1478,25 @@ export function ProjectsSidebar({
         </div>
         
         <div className="collapsed-nav-bottom">
-          {/* MCP Icon */}
+          {/* Tools & MCP Icon (Outbound) */}
           <button
-            className={`collapsed-nav-btn ${activeView === 'mcp' ? 'active' : ''}`}
-            onClick={() => onUtilityNavClick('mcp')}
-            title="MCP Instances"
+            className={`collapsed-nav-btn ${activeView === 'tools' ? 'active' : ''}`}
+            onClick={() => onUtilityNavClick('tools')}
+            title="Tools & MCP"
           >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <circle cx="3" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
-              <circle cx="11" cy="4" r="2" stroke="currentColor" strokeWidth="1.2"/>
-              <circle cx="11" cy="10" r="2" stroke="currentColor" strokeWidth="1.2"/>
-              <path d="M5 7h2M9 4.5L7.5 6M9 9.5L7.5 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  </svg>
-              </button>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M9 2.5h2.5V5M11.5 2.5L6 8M11 9v2.5a1.5 1.5 0 01-1.5 1.5H3.5A1.5 1.5 0 012 11.5V5.5A1.5 1.5 0 013.5 4H6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
 
-          {/* Integrations Icon */}
+          {/* Import Settings Icon (Inbound) */}
           <button
             className={`collapsed-nav-btn ${activeView === 'connect' ? 'active' : ''}`}
             onClick={() => onUtilityNavClick('connect')}
-            title="Integrations"
+            title="Import Settings"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M6 2.5a1.5 1.5 0 113 0V3h1.5A1.5 1.5 0 0112 4.5V6h-.5a1.5 1.5 0 100 3h.5v1.5a1.5 1.5 0 01-1.5 1.5H9v-.5a1.5 1.5 0 10-3 0v.5H4.5A1.5 1.5 0 013 10.5V9h.5a1.5 1.5 0 100-3H3V4.5A1.5 1.5 0 014.5 3H6v-.5z" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
         </div>

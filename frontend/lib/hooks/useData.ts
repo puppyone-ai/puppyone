@@ -5,9 +5,8 @@
  */
 
 import useSWR, { mutate } from 'swr'
-import { useMemo } from 'react'
 import { getProjects, getTable, type ProjectInfo, type TableData } from '../projectsApi'
-import { getTools, type Tool } from '../mcpApi'
+import { getTools, getToolsByTableId, type Tool } from '../mcpApi'
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
 const defaultConfig = {
@@ -88,37 +87,38 @@ export function updateTableCache(projectId: string, tableId: string, newData: Ta
 }
 
 /**
- * 获取指定表的 Tools
+ * 获取指定表的 Tools（使用后端直接过滤）
  * 
  * @param tableId 表 ID (可选，为空时不请求)
  * 
  * - 按需加载：只有 tableId 存在时才请求
+ * - 后端过滤：直接调用 /api/v1/tools/by-table/{tableId}
  * - 自动缓存：相同 tableId 共享数据
- * - 前端过滤：后端返回所有 tools，前端按 tableId 过滤
  */
 export function useTableTools(tableId: string | undefined) {
-  const { data, error, isLoading, mutate: revalidate } = useSWR<Tool[]>(
-    // key: 统一使用 'all-tools' 作为缓存 key
+  // 获取指定 table 的 tools
+  const { data: tableTools, error, isLoading, mutate: revalidate } = useSWR<Tool[]>(
+    tableId ? ['tools-by-table', tableId] : null,
+    () => getToolsByTableId(Number(tableId)),
+    {
+      ...defaultConfig,
+      dedupingInterval: 10000,
+    }
+  )
+
+  // 同时获取所有 tools 的总数（用于 sidebar badge）
+  const { data: allToolsData } = useSWR<Tool[]>(
     'all-tools',
     () => getTools(),
     {
       ...defaultConfig,
-      dedupingInterval: 10000, // 10 秒去重
+      dedupingInterval: 30000, // 30 秒去重，因为只用于显示总数
     }
   )
 
-  // 在前端按 tableId 过滤 tools - 使用 useMemo 稳定引用
-  const filteredTools = useMemo(() => {
-    if (!tableId || !data) return []
-    return data.filter(tool => tool.table_id === Number(tableId))
-  }, [tableId, data])
-
-  // 稳定 allTools 的引用
-  const allTools = useMemo(() => data ?? [], [data])
-
   return {
-    tools: filteredTools,
-    allTools, // 也暴露所有 tools，用于 sidebar 显示总数
+    tools: tableTools ?? [],
+    allTools: allToolsData ?? [],
     isLoading,
     error,
     refresh: revalidate,
@@ -126,9 +126,13 @@ export function useTableTools(tableId: string | undefined) {
 }
 
 /**
- * 手动刷新 Tools（刷新整个 tools 缓存）
+ * 手动刷新指定表的 Tools
  */
-export function refreshTableTools(_tableId?: string) {
+export function refreshTableTools(tableId?: string) {
+  if (tableId) {
+    mutate(['tools-by-table', tableId])
+  }
+  // 同时刷新 all-tools 缓存
   return mutate('all-tools')
 }
 

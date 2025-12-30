@@ -3,12 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../supabase/SupabaseAuthProvider'
-import { type ProjectInfo } from '../../lib/projectsApi'
 import { useProjects, refreshProjects } from '../../lib/hooks/useData'
 import { ProjectsSidebar } from '../../components/ProjectsSidebar'
-import { McpContentView } from '../../components/McpContentView'
+import { ToolsManager } from './components/ToolsManager'
 
-type ActiveView = 'projects' | 'mcp' | 'etl' | 'connect' | 'test' | 'logs' | 'settings'
+type ActiveView = 'projects' | 'mcp' | 'tools' | 'etl' | 'connect' | 'test' | 'logs' | 'settings'
 
 const utilityNav = [
   { id: 'mcp', label: 'MCP', path: 'mcp', isAvailable: true },
@@ -19,7 +18,7 @@ const utilityNav = [
   { id: 'settings', label: 'Settings', path: 'settings', isAvailable: false },
 ]
 
-export default function McpPage() {
+export default function ToolsPage() {
   const router = useRouter()
   const { session } = useAuth()
   
@@ -28,7 +27,7 @@ export default function McpPage() {
   const [activeBaseId, setActiveBaseId] = useState<string>('')
   const [activeTableId, setActiveTableId] = useState<string>('')
   const [expandedBaseIds, setExpandedBaseIds] = useState<Set<string>>(new Set())
-  const [activeView] = useState<ActiveView>('mcp')
+  const [activeView] = useState<ActiveView>('tools')
 
   useEffect(() => {
     if (projects.length > 0 && !activeBaseId) {
@@ -53,11 +52,6 @@ export default function McpPage() {
   const activeBase = useMemo(
     () => projects.find((project) => project.id === activeBaseId) ?? null,
     [projects, activeBaseId],
-  )
-
-  const activeTable = useMemo(
-    () => activeBase?.tables.find((table) => table.id === activeTableId) ?? null,
-    [activeBase, activeTableId],
   )
 
   useEffect(() => {
@@ -107,6 +101,17 @@ export default function McpPage() {
     router.push('/projects')
   }
 
+  const handleNavigateToTable = (tableId: number) => {
+    // 找到包含这个 table 的 project
+    for (const project of projects) {
+      const table = project.tables.find(t => t.id === String(tableId))
+      if (table) {
+        router.push(`/projects/${encodeURIComponent(project.id)}/${encodeURIComponent(table.id)}`)
+        return
+      }
+    }
+  }
+
   return (
     <main style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: '#040404' }}>
       <ProjectsSidebar
@@ -125,7 +130,10 @@ export default function McpPage() {
       />
 
       <section style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#040404' }}>
-        <McpContentView onBack={handleBackToProjects} />
+        <ToolsManager 
+          onBack={handleBackToProjects} 
+          onNavigateToTable={handleNavigateToTable}
+        />
       </section>
     </main>
   )

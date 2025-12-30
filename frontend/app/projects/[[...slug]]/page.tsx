@@ -8,8 +8,7 @@ import { useProjects, refreshProjects, useTableTools, refreshTableTools } from '
 import { ProjectWorkspaceView } from '../../../components/ProjectWorkspaceView'
 import { ProjectsSidebar } from '../../../components/ProjectsSidebar'
 import { ProjectsHeader, type EditorType } from '../../../components/ProjectsHeader'
-import { McpContentView } from '../../../components/McpContentView'
-import { ToolsContentView } from '../../../components/ToolsContentView'
+import { ToolsManager } from '../../tools/components/ToolsManager'
 import { ConnectContentView } from '../../../components/ConnectContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
 import { AuthGuard } from '../../../components/AuthGuard'
@@ -556,9 +555,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
             </div>
           </>
         ) : activeView === 'tools' ? (
-          <ToolsContentView 
+          <ToolsManager 
             onBack={handleBackToProjects} 
-            onNavigateToTable={(tableId) => {
+            onNavigateToTable={(tableId: number) => {
               // 查找 table 所属的 project
               const project = projects.find(p => p.tables.some(t => t.id === String(tableId)))
               if (project) {
@@ -569,8 +568,6 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
               }
             }}
           />
-        ) : activeView === 'mcp' ? (
-          <McpContentView onBack={handleBackToProjects} />
         ) : activeView === 'connect' ? (
           <ConnectContentView onBack={handleBackToProjects} />
         ) : null}
