@@ -7,6 +7,7 @@ from fastapi.security import HTTPBearer
 
 from src.auth.dependencies import get_current_user
 from src.oauth.notion_service import NotionOAuthService
+from src.oauth.github_service import GithubOAuthService
 from src.oauth.repository import OAuthRepository
 
 
@@ -17,6 +18,11 @@ oauth_scheme = HTTPBearer(auto_error=False)
 def get_notion_service() -> NotionOAuthService:
     """Get Notion OAuth service instance."""
     return NotionOAuthService()
+
+
+def get_github_service() -> GithubOAuthService:
+    """Get GitHub OAuth service instance."""
+    return GithubOAuthService()
 
 
 def get_oauth_repository() -> OAuthRepository:

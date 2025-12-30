@@ -47,7 +47,12 @@ class Settings(BaseSettings):
     # Notion OAuth 配置
     NOTION_CLIENT_ID: str = ""
     NOTION_CLIENT_SECRET: str = ""
-    NOTION_REDIRECT_URI: str = "http://localhost:3000/oauth/callback"
+    NOTION_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/notion"
+
+    # GitHub OAuth 配置
+    GITHUB_CLIENT_ID: str = ""
+    GITHUB_CLIENT_SECRET: str = ""
+    GITHUB_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/github"
 
     # 服务间通信
     INTERNAL_API_SECRET: str = ""   # 内部服务通信密钥

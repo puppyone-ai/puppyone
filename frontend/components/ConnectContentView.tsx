@@ -2,7 +2,16 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { parseUrl, importData, type ParseUrlResponse } from '../lib/connectApi'
-import { getNotionStatus, connectNotion, disconnectNotion, type NotionStatusResponse } from '../lib/oauthApi'
+import {
+  getNotionStatus,
+  connectNotion,
+  disconnectNotion,
+  type NotionStatusResponse,
+  getGithubStatus,
+  connectGithub,
+  disconnectGithub,
+  type GithubStatusResponse,
+} from '../lib/oauthApi'
 import { useProjects } from '../lib/hooks/useData'
 
 type ConnectContentViewProps = {
@@ -43,7 +52,7 @@ const platformConfigs: PlatformConfig[] = [
     id: 'github',
     name: 'GitHub',
     description: 'Issues, projects, repos',
-    isEnabled: false,
+    isEnabled: true,
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12 2C6.477 2 2 6.59 2 12.253c0 4.51 2.865 8.332 6.839 9.69.5.1.683-.223.683-.495 0-.244-.01-1.051-.015-1.905-2.782.615-3.369-1.215-3.369-1.215-.455-1.185-1.11-1.5-1.11-1.5-.908-.636.069-.623.069-.623 1.002.072 1.53 1.058 1.53 1.058.893 1.567 2.343 1.115 2.914.853.091-.663.35-1.115.636-1.372-2.221-.259-4.555-1.136-4.555-5.056 0-1.117.387-2.03 1.024-2.746-.103-.26-.444-1.303.098-2.716 0 0 .837-.272 2.744 1.048a9.205 9.205 0 0 1 2.5-.346c.848.004 1.705.118 2.505.346 1.905-1.32 2.741-1.048 2.741-1.048.544 1.413.203 2.456.1 2.716.64.716 1.023 1.629 1.023 2.746 0 3.931-2.338 4.794-4.566 5.047.36.318.68.94.68 1.896 0 1.368-.013 2.471-.013 2.809 0 .274.18.598.688.495C19.138 20.582 22 16.761 22 12.253 22 6.59 17.523 2 12 2z" />
@@ -111,11 +120,15 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
 
   // OAuth states
   const [notionStatus, setNotionStatus] = useState<NotionStatusResponse>({ connected: false })
+  const [githubStatus, setGithubStatus] = useState<GithubStatusResponse>({ connected: false })
   const [platformStates, setPlatformStates] = useState<Record<PlatformId, PlatformState>>(() => getDefaultPlatformStates())
   const [disconnectConfirmation, setDisconnectConfirmation] = useState<{ visible: boolean; platformId: PlatformId | null }>({
     visible: false,
     platformId: null,
   })
+  const getPlatformName = useCallback((platformId: PlatformId) => {
+    return platformConfigs.find(platform => platform.id === platformId)?.name ?? platformId
+  }, [])
 
   // Import settings
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
@@ -159,6 +172,30 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     }
   }, [updatePlatformState])
 
+  const checkGithubStatus = useCallback(async () => {
+    updatePlatformState('github', { isLoading: true })
+    try {
+      const status = await getGithubStatus()
+      setGithubStatus(status)
+      updatePlatformState('github', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected
+          ? status.username
+            ? `Connected to ${status.username}`
+            : 'Connected'
+          : 'Not connected',
+        isLoading: false,
+      })
+    } catch (err) {
+      console.error('Failed to check GitHub status:', err)
+      updatePlatformState('github', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
+    }
+  }, [updatePlatformState])
+
   const startNotionConnect = async () => {
     updatePlatformState('notion', {
       isLoading: true,
@@ -178,26 +215,53 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     }
   }
 
+  const startGithubConnect = async () => {
+    updatePlatformState('github', {
+      isLoading: true,
+      label: 'Redirecting to GitHub…',
+    })
+    setError(null)
+    try {
+      await connectGithub()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect to GitHub'
+      setError(message)
+      updatePlatformState('github', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
+    }
+  }
+
   const handleDisconnectConfirm = async () => {
-    if (!disconnectConfirmation.platformId || disconnectConfirmation.platformId !== 'notion') {
+    const platformId = disconnectConfirmation.platformId
+    if (!platformId || !['notion', 'github'].includes(platformId)) {
       closeDisconnectModal()
       return
     }
 
-    updatePlatformState('notion', { isLoading: true, label: 'Disconnecting…' })
+    updatePlatformState(platformId, { isLoading: true, label: 'Disconnecting…' })
     setError(null)
     try {
-      await disconnectNotion()
-      setNotionStatus({ connected: false })
-      updatePlatformState('notion', {
+      if (platformId === 'notion') {
+        await disconnectNotion()
+        setNotionStatus({ connected: false })
+      } else if (platformId === 'github') {
+        await disconnectGithub()
+        setGithubStatus({ connected: false })
+      }
+
+      updatePlatformState(platformId, {
         status: 'disconnected',
         label: 'Not connected',
         isLoading: false,
       })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to disconnect from Notion'
+      const message =
+        err instanceof Error ? err.message : `Failed to disconnect from ${getPlatformName(platformId)}`
       setError(message)
-      updatePlatformState('notion', {
+      updatePlatformState(platformId, {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
@@ -208,19 +272,23 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   }
 
   const handlePlatformToggle = (platformId: PlatformId, nextChecked: boolean) => {
-    if (platformId !== 'notion') {
+    const state = platformStates[platformId]
+    const platformConfig = platformConfigs.find(platform => platform.id === platformId)
+    if (!platformConfig?.isEnabled || !state || state.isLoading) {
       return
     }
 
     if (nextChecked) {
-      if (platformStates.notion.status === 'connected' || platformStates.notion.isLoading) {
+      if (state.status === 'connected') {
         return
       }
-      startNotionConnect()
+
+      if (platformId === 'notion') {
+        void startNotionConnect()
+      } else if (platformId === 'github') {
+        void startGithubConnect()
+      }
     } else {
-      if (platformStates.notion.isLoading) {
-        return
-      }
       setDisconnectConfirmation({ visible: true, platformId })
     }
   }
@@ -238,11 +306,13 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
 
   useEffect(() => {
     void checkNotionStatus()
-  }, [checkNotionStatus])
+    void checkGithubStatus()
+  }, [checkNotionStatus, checkGithubStatus])
 
   const isNotionUrl = (url: string) => {
     return url.includes('notion.so') || url.includes('notion.site')
   }
+  const isGithubUrl = (url: string) => url.includes('github.com')
 
   const handleParse = async () => {
     if (!url.trim()) {
@@ -250,9 +320,13 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       return
     }
 
-    // Check if Notion URL and not authenticated
+    // Check if Notion/GitHub URL and not authenticated
     if (isNotionUrl(url) && !notionStatus?.connected) {
       setError('Please connect Notion before importing this page')
+      return
+    }
+    if (isGithubUrl(url) && !githubStatus?.connected) {
+      setError('Please connect GitHub before importing this page')
       return
     }
 
@@ -273,11 +347,19 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       setError(err instanceof Error ? err.message : 'Failed to parse URL')
 
       // Mark status as error when auth fails
-      if (err instanceof Error && isNotionUrl(url) && err.message.toLowerCase().includes('auth')) {
-        updatePlatformState('notion', {
-          status: 'error',
-          label: 'Authorization error',
-        })
+      if (err instanceof Error && err.message.toLowerCase().includes('auth')) {
+        if (isNotionUrl(url)) {
+          updatePlatformState('notion', {
+            status: 'error',
+            label: 'Authorization error',
+          })
+        }
+        if (isGithubUrl(url)) {
+          updatePlatformState('github', {
+            status: 'error',
+            label: 'Authorization error',
+          })
+        }
       }
     } finally {
       setIsLoading(false)
@@ -321,6 +403,11 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       setIsImporting(false)
     }
   }
+
+  const disconnectPlatformName = disconnectConfirmation.platformId
+    ? getPlatformName(disconnectConfirmation.platformId)
+    : ''
+  const disconnectPlatformLabel = disconnectPlatformName || 'this integration'
 
   return (
     <>
@@ -645,7 +732,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                   color: '#CDCDCD',
                   marginBottom: 8,
                 }}>
-                  Disconnect Notion?
+                  Disconnect {disconnectPlatformLabel}?
                 </h3>
                 <p style={{
                   fontSize: 13,
@@ -653,7 +740,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                   marginBottom: 16,
                   lineHeight: 1.5,
                 }}>
-                  You will lose access to private Notion content until you reconnect.
+                  You will lose access to private {disconnectPlatformLabel} content until you reconnect.
                 </p>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button

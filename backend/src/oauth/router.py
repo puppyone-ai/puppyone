@@ -8,8 +8,9 @@ from fastapi.responses import RedirectResponse
 from src.config import settings
 from src.auth.dependencies import get_current_user
 from src.common_schemas import ApiResponse
-from src.oauth.dependencies import get_notion_service, get_oauth_repository
+from src.oauth.dependencies import get_notion_service, get_github_service
 from src.oauth.notion_service import NotionOAuthService
+from src.oauth.github_service import GithubOAuthService
 from src.oauth.schemas import (
     OAuthAuthorizeResponse,
     OAuthCallbackRequest,
@@ -142,6 +143,140 @@ async def notion_disconnect(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to disconnect from Notion: {str(e)}"
+        )
+
+
+@router.get("/github/authorize", response_model=ApiResponse[OAuthAuthorizeResponse])
+async def github_authorize(
+    github_service: Annotated[GithubOAuthService, Depends(get_github_service)],
+):
+    """Get GitHub OAuth authorization URL."""
+    try:
+        if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
+            raise HTTPException(
+                status_code=500,
+                detail="GitHub OAuth is not configured. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET environment variables.",
+            )
+
+        authorization_url, _ = await github_service.get_authorization_url()
+        return ApiResponse.success(
+            data=OAuthAuthorizeResponse(authorization_url=authorization_url),
+            message="GitHub授权URL生成成功",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate GitHub authorization URL: {str(e)}")
+
+
+@router.post("/github/callback", response_model=ApiResponse[OAuthCallbackResponse])
+async def github_callback(
+    request: OAuthCallbackRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    github_service: Annotated[GithubOAuthService, Depends(get_github_service)],
+):
+    """Handle GitHub OAuth callback."""
+    try:
+        success, message, connection_info = await github_service.handle_callback(
+            user_id=current_user.user_id,
+            code=request.code,
+        )
+
+        return ApiResponse.success(
+            data=OAuthCallbackResponse(
+                success=success,
+                message=message,
+                workspace_name=connection_info.get("username") if connection_info else None,
+                username=connection_info.get("username") if connection_info else None,
+            ),
+            message="GitHub OAuth回调处理完成",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to handle GitHub callback: {str(e)}",
+        )
+
+
+@router.get("/github/status", response_model=ApiResponse[OAuthStatusResponse])
+async def github_status(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    github_service: Annotated[GithubOAuthService, Depends(get_github_service)],
+):
+    """Check GitHub connection status."""
+    try:
+        connection = await github_service.get_connection(current_user.user_id)
+
+        if connection:
+            is_expired = await github_service.is_token_expired(current_user.user_id)
+            if is_expired:
+                connection = await github_service.refresh_token_if_needed(current_user.user_id)
+
+            username = None
+            if connection:
+                metadata = connection.metadata if isinstance(connection.metadata, dict) else {}
+                if connection.workspace_name:
+                    username = connection.workspace_name
+                elif metadata.get("user"):
+                    username = metadata["user"].get("login")
+
+            return ApiResponse.success(
+                data=OAuthStatusResponse(
+                    connected=connection is not None,
+                    workspace_name=connection.workspace_name if connection else None,
+                    username=username,
+                    connected_at=connection.created_at if connection else None,
+                ),
+                message="GitHub连接状态获取成功",
+            )
+
+        return ApiResponse.success(
+            data=OAuthStatusResponse(
+                connected=False,
+                workspace_name=None,
+                username=None,
+                connected_at=None,
+            ),
+            message="GitHub连接状态获取成功",
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check GitHub status: {str(e)}",
+        )
+
+
+@router.delete("/github/disconnect", response_model=ApiResponse[OAuthDisconnectResponse])
+async def github_disconnect(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    github_service: Annotated[GithubOAuthService, Depends(get_github_service)],
+):
+    """Disconnect GitHub integration."""
+    try:
+        success = await github_service.disconnect(current_user.user_id)
+
+        if success:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=True,
+                    message="Successfully disconnected from GitHub",
+                ),
+                message="GitHub断开连接成功",
+            )
+        else:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=False,
+                    message="No active GitHub connection found",
+                ),
+                message="没有找到活跃的GitHub连接",
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to disconnect from GitHub: {str(e)}",
         )
 
 
