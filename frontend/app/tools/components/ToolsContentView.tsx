@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAuth } from '../app/supabase/SupabaseAuthProvider'
+import { useAuth } from '../../supabase/SupabaseAuthProvider'
 import { 
   getTools, deleteTool, updateTool,
   getMcpV2Instances, getBoundTools,
   createMcpV2, deleteMcpV2,
   createBindings, deleteBinding,
   type Tool, type McpV2Instance, type BoundTool,
-} from '../lib/mcpApi'
+} from '../../../lib/mcpApi'
 
 // ============================================================================
 // 常量配置
