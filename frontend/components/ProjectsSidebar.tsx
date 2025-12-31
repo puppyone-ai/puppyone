@@ -6,6 +6,7 @@ import { ProjectManageDialog } from './ProjectManageDialog'
 import { TableManageDialog } from './TableManageDialog'
 import { useAuth } from '../app/supabase/SupabaseAuthProvider'
 import { getProcessingTableIds } from './BackgroundTaskNotifier'
+import UserMenuPanel from './UserMenuPanel'
 
 type UtilityNavItem = {
   id: string
@@ -33,9 +34,11 @@ type ProjectsSidebarProps = {
   onCollapsedChange?: (collapsed: boolean) => void
   sidebarWidth?: number
   onSidebarWidthChange?: (width: number) => void
+  // Tools 数量，用于显示徽章
+  toolsCount?: number
 }
 
-type SectionId = 'contexts' | 'mcp' | 'try'
+type SectionId = 'contexts' | 'connect'
 
 const MIN_SIDEBAR_WIDTH = 200
 const MAX_SIDEBAR_WIDTH = 400
@@ -60,15 +63,31 @@ export function ProjectsSidebar({
   onCollapsedChange,
   sidebarWidth = DEFAULT_SIDEBAR_WIDTH,
   onSidebarWidthChange,
+  toolsCount = 0,
 }: ProjectsSidebarProps) {
+  // 内部 collapsed 状态（非受控模式时使用）
+  const [internalCollapsed, setInternalCollapsed] = useState(false)
+  
+  // 如果外部传了 onCollapsedChange，使用受控模式；否则使用内部状态
+  const isControlled = onCollapsedChange !== undefined
+  const effectiveCollapsed = isControlled ? isCollapsed : internalCollapsed
+  const handleCollapsedChange = (collapsed: boolean) => {
+    if (isControlled) {
+      onCollapsedChange?.(collapsed)
+    } else {
+      setInternalCollapsed(collapsed)
+    }
+  }
+  
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingTableId, setEditingTableId] = useState<string | null>(null)
   const [deleteMode, setDeleteMode] = useState<'project' | 'table' | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'project' | 'table'; id: string; projectId?: string } | null>(null)
-  const [expandedSections, setExpandedSections] = useState<Set<SectionId>>(new Set(['contexts', 'mcp', 'try']))
+  const [expandedSections, setExpandedSections] = useState<Set<SectionId>>(new Set(['contexts', 'connect']))
   const [isResizing, setIsResizing] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const sidebarRef = useRef<HTMLElement>(null)
   
   // 追踪正在处理中的 Table
@@ -193,8 +212,8 @@ export function ProjectsSidebar({
   return (
     <aside 
       ref={sidebarRef}
-      className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}
-      style={{ width: isCollapsed ? 45 : sidebarWidth }}
+      className={`sidebar ${effectiveCollapsed ? 'collapsed' : ''}`}
+      style={{ width: effectiveCollapsed ? 45 : sidebarWidth }}
     >
       <style jsx>{`
         .sidebar {
@@ -596,7 +615,7 @@ export function ProjectsSidebar({
           width: 26px;
           height: 26px;
           background: transparent;
-          border: 1px solid transparent;
+          border: none;
           border-radius: 4px;
           cursor: pointer;
           color: #5D6065;
@@ -608,12 +627,10 @@ export function ProjectsSidebar({
           opacity: 1;
           color: #9ca3af;
           background: rgba(255,255,255,0.05);
-          border-color: rgba(255,255,255,0.1);
         }
 
         .section-add-btn:hover {
           background: rgba(255,255,255,0.1) !important;
-          border-color: rgba(255,255,255,0.2) !important;
           color: #EDEDED !important;
         }
 
@@ -621,7 +638,7 @@ export function ProjectsSidebar({
           display: flex;
           flex-direction: column;
           gap: 1px;
-          padding: 2px 8px 4px 12px;
+          padding: 2px 8px 4px 8px;
         }
 
         .projects-list {
@@ -903,29 +920,67 @@ export function ProjectsSidebar({
 
         .loading {
           display: flex;
+          flex-direction: column;
+          padding: 8px 0;
+          gap: 2px;
+        }
+
+        .skeleton-item {
+          display: flex;
           align-items: center;
-          justify-content: center;
-          padding: 32px;
+          gap: 12px;
+          padding: 0 16px;
+          height: 28px; /* 统一高度 28px */
         }
 
-        .spinner {
-          width: 16px;
-          height: 16px;
-          border: 2px solid #404040;
-          border-top-color: #8B8B8B;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
+        .skeleton-icon {
+          width: 14px;
+          height: 14px;
+          border-radius: 4px;
+          flex-shrink: 0;
+          background: rgba(255,255,255,0.06);
+          position: relative;
+          overflow: hidden;
         }
 
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        .skeleton-text {
+          height: 10px;
+          border-radius: 4px;
+          background: rgba(255,255,255,0.06);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .skeleton-text::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255,255,255,0.15),
+            transparent
+          );
+          transform: translateX(-100%);
+          animation: shimmer 1.5s infinite;
+        }
+
+        .skeleton-child {
+          padding-left: 36px;
+        }
+
+        @keyframes shimmer {
+          100% { transform: translateX(100%); }
         }
 
         .nav-item {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 0 4px 0 0;
+          padding: 0 4px 0 12px;
           height: 28px;
           background: transparent;
           border: none;
@@ -934,6 +989,7 @@ export function ProjectsSidebar({
           transition: background 0.15s;
           width: 100%;
           text-align: left;
+          box-sizing: border-box;
         }
 
         .nav-item:hover:not(:disabled) {
@@ -1047,6 +1103,14 @@ export function ProjectsSidebar({
           font-size: 12px;
           font-weight: 600;
           overflow: hidden;
+          cursor: pointer;
+          transition: all 200ms ease;
+        }
+
+        .user-avatar:hover {
+          background: #4A4A4A;
+          transform: scale(1.05);
+          box-shadow: 0 0 0 2px rgba(255,255,255,0.1);
         }
 
         .user-avatar img {
@@ -1055,6 +1119,7 @@ export function ProjectsSidebar({
           object-fit: cover;
           border-radius: inherit;
           display: block;
+
         }
 
         .context-menu {
@@ -1110,10 +1175,10 @@ export function ProjectsSidebar({
 
       {/* Header */}
       <div className="header">
-        {isCollapsed ? (
+        {effectiveCollapsed ? (
           <div
             className="collapsed-logo-wrapper"
-            onClick={() => onCollapsedChange?.(false)}
+            onClick={() => handleCollapsedChange(false)}
             title="Expand sidebar"
           >
             {/* Product logo - shows by default, hides on hover */}
@@ -1138,7 +1203,7 @@ export function ProjectsSidebar({
         </div>
             <div
               className="collapse-toggle-wrapper"
-              onClick={() => onCollapsedChange?.(true)}
+              onClick={() => handleCollapsedChange(true)}
               title="Collapse sidebar"
             >
               {/* Sidebar collapse icon */}
@@ -1180,7 +1245,27 @@ export function ProjectsSidebar({
             <div className="section-content">
         {loading ? (
                 <div className="loading">
-                  <div className="spinner" />
+                  {/* 骨架屏：模拟 2 个项目，每个项目有 2 个子项 */}
+                  <div className="skeleton-item">
+                    <div className="skeleton-icon" />
+                    <div className="skeleton-text" style={{ width: '65%' }} />
+                  </div>
+                  <div className="skeleton-item skeleton-child">
+                    <div className="skeleton-icon" style={{ width: 14, height: 14 }} />
+                    <div className="skeleton-text" style={{ width: '55%' }} />
+                  </div>
+                  <div className="skeleton-item skeleton-child">
+                    <div className="skeleton-icon" style={{ width: 14, height: 14 }} />
+                    <div className="skeleton-text" style={{ width: '70%' }} />
+                  </div>
+                  <div className="skeleton-item" style={{ marginTop: 4 }}>
+                    <div className="skeleton-icon" />
+                    <div className="skeleton-text" style={{ width: '50%' }} />
+                  </div>
+                  <div className="skeleton-item skeleton-child">
+                    <div className="skeleton-icon" style={{ width: 14, height: 14 }} />
+                    <div className="skeleton-text" style={{ width: '60%' }} />
+                  </div>
                 </div>
               ) : projects.length === 0 ? (
                 <button className="nav-item" onClick={handleCreateProject}>
@@ -1310,58 +1395,48 @@ export function ProjectsSidebar({
         </div>
         </div>
 
-        {/* Bottom Content - MCP & Try (flex-shrink: 0, bottom aligned) */}
+        {/* Bottom Content - Connect (flex-shrink: 0, bottom aligned) */}
         <div className="content-bottom">
-        {/* Section: MCP */}
+        {/* Section: Connect */}
         <div className="section">
-          <div className="section-header" onClick={() => toggleSection('mcp')}>
-            <span className="section-title">MCP</span>
-            <svg className={`section-chevron ${expandedSections.has('mcp') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
+          <div className="section-header" onClick={() => toggleSection('connect')}>
+            <span className="section-title">Connect</span>
+            <svg className={`section-chevron ${expandedSections.has('connect') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
               <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
           
-          {expandedSections.has('mcp') && (
+          {expandedSections.has('connect') && (
             <div className="section-content">
+              {/* Tools & MCP (Outbound) */}
               <button 
-                className={`nav-item ${activeView === 'mcp' ? 'active' : ''}`}
-                onClick={() => onUtilityNavClick('mcp')}
+                className={`nav-item ${activeView === 'tools' ? 'active' : ''}`}
+                onClick={() => onUtilityNavClick('tools')}
               >
                 <span className="nav-icon">
+                  {/* External Link / Export style icon */}
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <circle cx="3" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
-                    <circle cx="11" cy="4" r="2" stroke="currentColor" strokeWidth="1.2"/>
-                    <circle cx="11" cy="10" r="2" stroke="currentColor" strokeWidth="1.2"/>
-                    <path d="M5 7h2M9 4.5L7.5 6M9 9.5L7.5 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    <path d="M9 2.5h2.5V5M11.5 2.5L6 8M11 9v2.5a1.5 1.5 0 01-1.5 1.5H3.5A1.5 1.5 0 012 11.5V5.5A1.5 1.5 0 013.5 4H6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </span>
-                <span className="nav-label">Instances</span>
+                <span className="nav-label">Tools & MCP</span>
+                {toolsCount > 0 && (
+                  <span className="nav-badge">{toolsCount}</span>
+                )}
               </button>
-            </div>
-          )}
-        </div>
 
-        {/* Section: Try */}
-        <div className="section">
-          <div className="section-header" onClick={() => toggleSection('try')}>
-            <span className="section-title">Try</span>
-            <svg className={`section-chevron ${expandedSections.has('try') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
-              <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          
-          {expandedSections.has('try') && (
-            <div className="section-content">
+              {/* Import Settings (Inbound) */}
               <button 
                 className={`nav-item ${activeView === 'connect' ? 'active' : ''}`}
                 onClick={() => onUtilityNavClick('connect')}
               >
                 <span className="nav-icon">
+                  {/* Download / Import style icon */}
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M6 2.5a1.5 1.5 0 113 0V3h1.5A1.5 1.5 0 0112 4.5V6h-.5a1.5 1.5 0 100 3h.5v1.5a1.5 1.5 0 01-1.5 1.5H9v-.5a1.5 1.5 0 10-3 0v.5H4.5A1.5 1.5 0 013 10.5V9h.5a1.5 1.5 0 100-3H3V4.5A1.5 1.5 0 014.5 3H6v-.5z" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </span>
-                <span className="nav-label">Integrations</span>
+                <span className="nav-label">Import Settings</span>
               </button>
             </div>
           )}
@@ -1417,28 +1492,25 @@ export function ProjectsSidebar({
         </div>
         
         <div className="collapsed-nav-bottom">
-          {/* MCP Icon */}
+          {/* Tools & MCP Icon (Outbound) */}
           <button
-            className={`collapsed-nav-btn ${activeView === 'mcp' ? 'active' : ''}`}
-            onClick={() => onUtilityNavClick('mcp')}
-            title="MCP Instances"
+            className={`collapsed-nav-btn ${activeView === 'tools' ? 'active' : ''}`}
+            onClick={() => onUtilityNavClick('tools')}
+            title="Tools & MCP"
           >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <circle cx="3" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
-              <circle cx="11" cy="4" r="2" stroke="currentColor" strokeWidth="1.2"/>
-              <circle cx="11" cy="10" r="2" stroke="currentColor" strokeWidth="1.2"/>
-              <path d="M5 7h2M9 4.5L7.5 6M9 9.5L7.5 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  </svg>
-              </button>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M9 2.5h2.5V5M11.5 2.5L6 8M11 9v2.5a1.5 1.5 0 01-1.5 1.5H3.5A1.5 1.5 0 012 11.5V5.5A1.5 1.5 0 013.5 4H6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
 
-          {/* Integrations Icon */}
+          {/* Import Settings Icon (Inbound) */}
           <button
             className={`collapsed-nav-btn ${activeView === 'connect' ? 'active' : ''}`}
             onClick={() => onUtilityNavClick('connect')}
-            title="Integrations"
+            title="Import Settings"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M6 2.5a1.5 1.5 0 113 0V3h1.5A1.5 1.5 0 0112 4.5V6h-.5a1.5 1.5 0 100 3h.5v1.5a1.5 1.5 0 01-1.5 1.5H9v-.5a1.5 1.5 0 10-3 0v.5H4.5A1.5 1.5 0 013 10.5V9h.5a1.5 1.5 0 100-3H3V4.5A1.5 1.5 0 014.5 3H6v-.5z" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
         </div>
@@ -1447,7 +1519,11 @@ export function ProjectsSidebar({
       {/* Footer */}
       <div className="footer">
         <span className="env-badge">{environmentLabel}</span>
-        <div className="user-avatar">
+        <div 
+          className="user-avatar"
+          onClick={() => setUserMenuOpen(true)}
+          title="Account settings"
+        >
           {userAvatarUrl ? (
             <img src={userAvatarUrl} alt="User avatar" referrerPolicy="no-referrer" />
           ) : (
@@ -1566,12 +1642,18 @@ export function ProjectsSidebar({
       )}
 
       {/* Resize Handle */}
-      {!isCollapsed && (
+      {!effectiveCollapsed && (
         <div 
           className={`resize-handle ${isResizing ? 'active' : ''}`}
           onMouseDown={handleMouseDown}
         />
       )}
+
+      {/* User Menu Panel */}
+      <UserMenuPanel 
+        isOpen={userMenuOpen} 
+        onClose={() => setUserMenuOpen(false)} 
+      />
     </aside>
   )
 }

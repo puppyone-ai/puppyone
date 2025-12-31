@@ -29,17 +29,8 @@ interface FlatNode {
 
 // ContextMenuState is imported from './components/ContextMenu'
 
-// MCP 工具权限类型 - 对应后端 8 种工具
-interface McpToolPermissions {
-  get_data_schema?: boolean
-  get_all_data?: boolean
-  query_data?: boolean
-  preview?: boolean
-  select?: boolean
-  create?: boolean
-  update?: boolean
-  delete?: boolean
-}
+// MCP 工具权限类型 - 从统一的 API 模块导入
+import { type McpToolPermissions } from '../../../lib/mcpApi'
 
 // Access Point 类型，用于显示已配置的节点
 interface ConfiguredAccessPoint {

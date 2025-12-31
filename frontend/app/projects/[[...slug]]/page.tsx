@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState, use } from 'react'
+import { useEffect, useMemo, useState, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../supabase/SupabaseAuthProvider'
 import { type ProjectInfo } from '../../../lib/projectsApi'
-import { useProjects, refreshProjects } from '../../../lib/hooks/useData'
+import { useProjects, refreshProjects, useTableTools, refreshTableTools } from '../../../lib/hooks/useData'
 import { ProjectWorkspaceView } from '../../../components/ProjectWorkspaceView'
 import { ProjectsSidebar } from '../../../components/ProjectsSidebar'
 import { ProjectsHeader, type EditorType } from '../../../components/ProjectsHeader'
-import { McpContentView } from '../../../components/McpContentView'
+import { ToolsManager } from '../../tools/components/ToolsManager'
 import { ConnectContentView } from '../../../components/ConnectContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
 import { AuthGuard } from '../../../components/AuthGuard'
@@ -17,16 +17,21 @@ import {
   type McpToolPermissions, 
   type McpToolType,
   type McpToolDefinition,
-  createMcpInstance,
+  type Tool,
+  createTool,
   permissionsToRegisterTools,
+  TOOL_INFO,
 } from '../../../lib/mcpApi'
 import { 
   RightAuxiliaryPanel, 
   type RightPanelContent, 
-  type EditorTarget 
+  type EditorTarget,
+  type AccessPoint,
+  type SaveToolsResult,
 } from '../../../components/RightAuxiliaryPanel'
+import { EditorSkeleton } from '../../../components/Skeleton'
 
-type ActiveView = 'projects' | 'mcp' | 'connect' | 'test' | 'logs' | 'settings'
+type ActiveView = 'projects' | 'tools' | 'mcp' | 'connect' | 'test' | 'logs' | 'settings'
 
 const utilityNav = [
   { id: 'mcp', label: 'MCP', path: 'mcp', isAvailable: true },
@@ -34,13 +39,6 @@ const utilityNav = [
   { id: 'logs', label: 'Logs', path: 'logs', isAvailable: false },
   { id: 'settings', label: 'Settings', path: 'settings', isAvailable: false },
 ]
-
-// Access Point 类型定义
-interface AccessPoint {
-  id: string
-  path: string
-  permissions: McpToolPermissions
-}
 
 export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: string[] }> }) {
   // Unwrap params Promise with React.use()
@@ -74,19 +72,46 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   
   // Access Points 状态 - 用于存储已配置的 MCP 工具权限
   const [accessPoints, setAccessPoints] = useState<AccessPoint[]>([])
-  // Tool 定义编辑状态 - 用于发布 MCP 时自定义工具名称
-  const [toolsDefinitionEdits, setToolsDefinitionEdits] = useState<Record<string, { name: string; description: string }>>({})
   
-  // MCP 发布状态
-  const [isPublishing, setIsPublishing] = useState(false)
-  const [publishError, setPublishError] = useState<string | null>(null)
-  const [publishedResult, setPublishedResult] = useState<{ api_key: string; url: string } | null>(null)
+  // Tools 保存状态
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [savedResult, setSavedResult] = useState<SaveToolsResult | null>(null)
 
   // Extract projectId and tableId from slug (must be before any conditional returns)
   const [projectId, tableId] = slug || []
   const [activeBaseId, setActiveBaseId] = useState<string>(projectId || '')
   const [activeTableId, setActiveTableId] = useState<string>(tableId || '')
   const [isOnboardingLoading, setIsOnboardingLoading] = useState(false)
+  
+  // 获取当前 table 的 Tools（用于 sidebar 显示）
+  const { tools: tableTools, allTools, isLoading: toolsLoading, refresh: refreshTools } = useTableTools(activeTableId || tableId)
+  
+  // 跟踪上次同步的 tableId，避免重复同步
+  const lastSyncedTableId = useRef<string | null>(null)
+  
+  // 当 tableId 变化且 tools 加载完成时，用后端 tools 初始化 accessPoints
+  useEffect(() => {
+    const currentTableId = activeTableId || tableId
+    if (!currentTableId || toolsLoading) return
+    if (currentTableId === lastSyncedTableId.current) return
+    
+    // 转换后端 tools 为 accessPoints 格式
+    const pathPermissionsMap = new Map<string, McpToolPermissions>()
+    tableTools.forEach(tool => {
+      const path = tool.json_path || ''
+      const existing = pathPermissionsMap.get(path) || {}
+      pathPermissionsMap.set(path, { ...existing, [tool.type]: true })
+    })
+    
+    const initialAccessPoints: AccessPoint[] = []
+    pathPermissionsMap.forEach((permissions, path) => {
+      initialAccessPoints.push({ id: `saved-${path || 'root'}`, path, permissions })
+    })
+    
+    setAccessPoints(initialAccessPoints)
+    lastSyncedTableId.current = currentTableId
+  }, [activeTableId, tableId, toolsLoading, tableTools])
 
   // Update state when slug changes
   useEffect(() => {
@@ -144,6 +169,12 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     [activeBase, activeTableId],
   )
 
+  // 将 accessPoints 转换为 configuredAccessPoints 格式（用于 JSON editor）
+  // accessPoints 已经从后端 tools 初始化，不需要再合并
+  const configuredAccessPoints = useMemo(() => {
+    return accessPoints.map(ap => ({ path: ap.path, permissions: ap.permissions }))
+  }, [accessPoints])
+
   useEffect(() => {
     if (activeBase?.tables?.length && !activeTableId) {
       setActiveTableId(activeBase.tables[0].id)
@@ -165,22 +196,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     return segments
   }, [activeBase, activeTable])
 
-  // 如果正在加载，显示 loading
-  if (loading) {
-    return (
-      <div style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#040404',
-        color: '#9ca3af',
-        fontSize: 14,
-      }}>
-        Loading projects...
-      </div>
-    )
-  }
+  // 不再显示全屏 loading，让页面框架先渲染，各区域显示各自的骨架屏
 
   // 判断是否需要显示空状态（没有 slug 且没有 projects）
   // Debug Mode: 暂时强制显示 Onboarding 以便测试动画效果
@@ -236,8 +252,8 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     )
   }
 
+  // 点击 Project 只展开/收起，不跳转 URL
   const handleProjectSelect = (newProjectId: string) => {
-    setActiveBaseId(newProjectId)
     setExpandedBaseIds(prev => {
       const newSet = new Set(prev)
       if (newSet.has(newProjectId)) {
@@ -247,11 +263,6 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
       }
       return newSet
     })
-    const project = projects.find(p => p.id === newProjectId)
-    if (project) {
-      const url = `/projects/${encodeURIComponent(newProjectId)}`
-      window.history.pushState({}, '', url)
-    }
   }
 
   const handleTableSelect = (newProjectId: string, newTableId: string) => {
@@ -266,7 +277,10 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   }
 
   const handleUtilityNavClick = (viewId: string) => {
-    if (viewId === 'mcp') {
+    if (viewId === 'tools') {
+      setActiveView('tools')
+      window.history.pushState({}, '', '/tools')
+    } else if (viewId === 'mcp') {
       setActiveView('mcp')
       window.history.pushState({}, '', '/mcp')
     } else if (viewId === 'connect') {
@@ -286,60 +300,70 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     }
   }
 
-  // 发布 MCP Server
-  const handlePublishMcp = async () => {
+  // 保存 Tools（不创建 MCP Server）
+  const handleSaveTools = async (customDefinitions: Record<string, McpToolDefinition>) => {
     if (!activeBase || !activeTable || !session?.user?.id) return
     if (accessPoints.length === 0) return
 
-    setIsPublishing(true)
-    setPublishError(null)
-    setPublishedResult(null)
+    setIsSaving(true)
+    setSaveError(null)
+    setSavedResult(null)
 
     try {
-      // 合并所有 path 的权限
-      const mergedPermissions: McpToolPermissions = {}
+      // 收集所有需要创建的 Tool
+      const toolsToCreate: Array<{
+        path: string
+        type: McpToolType
+        customDef?: McpToolDefinition
+      }> = []
+
+      // 遍历所有 accessPoints，为每个路径的每个权限创建一个 Tool
       accessPoints.forEach(ap => {
-        Object.entries(ap.permissions).forEach(([key, value]) => {
-          if (value) {
-            mergedPermissions[key as keyof McpToolPermissions] = true
-          }
+        const toolTypes = permissionsToRegisterTools(ap.permissions)
+        toolTypes.forEach(type => {
+          toolsToCreate.push({
+            path: ap.path,
+            type,
+            customDef: customDefinitions[type],
+          })
         })
       })
 
-      // 构建 tools_definition
-      const toolsDefinition: Record<string, McpToolDefinition> = {}
-      const registerTools = permissionsToRegisterTools(mergedPermissions)
+      if (toolsToCreate.length === 0) {
+        throw new Error('No tools to create')
+      }
+
+      // 批量创建 Tool
+      const createdTools: Tool[] = await Promise.all(
+        toolsToCreate.map(({ path, type, customDef }) => {
+          // 生成工具名称：tableName_path_type
+          const pathSuffix = path ? path.replace(/\//g, '_').replace(/^_/, '') : 'root'
+          const defaultName = `${activeTable.name}_${pathSuffix}_${type}`
+          
+          return createTool({
+            table_id: parseInt(activeTable.id),
+            json_path: path,
+            type: type,
+            name: customDef?.name || defaultName,
+            description: customDef?.description || TOOL_INFO[type].description,
+          })
+        })
+      )
+
+      setSavedResult({
+        tools: createdTools,
+        count: createdTools.length,
+      })
       
-      registerTools.forEach(toolType => {
-        // 查找用户自定义的名称和描述
-        const editKey = Object.keys(toolsDefinitionEdits).find(k => k.endsWith(`::${toolType}`))
-        const customDef = editKey ? toolsDefinitionEdits[editKey] : null
-        
-        toolsDefinition[toolType] = {
-          name: customDef?.name || `${toolType}_${activeTable.name}`,
-          description: customDef?.description || `${toolType} for ${activeTable.name}`,
-        }
-      })
-
-      // 生成默认名称
-      const instanceName = `${activeBase.name} - ${activeTable.name}`
-
-      const result = await createMcpInstance({
-        user_id: session.user.id,
-        project_id: parseInt(activeBase.id),
-        table_id: parseInt(activeTable.id),
-        name: instanceName,
-        json_pointer: '',
-        tools_definition: toolsDefinition,
-        register_tools: registerTools,
-      })
-
-      setPublishedResult(result)
+      // 刷新 tools 列表
+      if (activeTableId) {
+        refreshTableTools(activeTableId)
+      }
     } catch (error) {
-      console.error('Failed to publish MCP:', error)
-      setPublishError(error instanceof Error ? error.message : 'Failed to publish MCP server')
+      console.error('Failed to save tools:', error)
+      setSaveError(error instanceof Error ? error.message : 'Failed to save tools')
     } finally {
-      setIsPublishing(false)
+      setIsSaving(false)
     }
   }
 
@@ -385,6 +409,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
         onCollapsedChange={setIsNavCollapsed}
         sidebarWidth={sidebarWidth}
         onSidebarWidthChange={setSidebarWidth}
+        toolsCount={allTools.length}
       />
 
       <section style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#040404' }}>
@@ -410,17 +435,16 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                   <ProjectWorkspaceView
                     key={activeBase.id}
                     projectId={activeBase.id}
+                    project={activeBase}
+                    isProjectsLoading={loading}
                     activeTableId={activeTableId}
                     onActiveTableChange={setActiveTableId}
                     onTreePathChange={setCurrentTreePath}
                     showHeaderBar={false}
                     showBackButton={false}
                     editorType={editorType}
-                    // 已配置的 Access Points，用于右侧 Gutter 显示徽章
-                    configuredAccessPoints={accessPoints.map(ap => ({
-                      path: ap.path,
-                      permissions: ap.permissions
-                    }))}
+                    // 已配置的 Access Points - 合并本地配置 + 后端 tools
+                    configuredAccessPoints={configuredAccessPoints}
                     // 统一交互模型：右侧 Gutter 配置
                     onAccessPointChange={(path, permissions) => {
                       const hasAnyPermission = Object.values(permissions).some(Boolean)
@@ -463,6 +487,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                       setRightPanelContent('EDITOR')
                     }}
                   />
+                ) : loading ? (
+                  /* Projects 正在加载 -> 显示骨架屏 */
+                  <EditorSkeleton />
                 ) : (
                   <div
                     style={{
@@ -507,11 +534,12 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
                 accessPoints={accessPoints}
                 setAccessPoints={setAccessPoints}
                 activeBaseName={activeBase?.name}
-                onPublishMcp={handlePublishMcp}
-                isPublishing={isPublishing}
-                publishError={publishError}
-                publishedResult={publishedResult}
-                setPublishedResult={setPublishedResult}
+                activeTableName={activeTable?.name}
+                onSaveTools={handleSaveTools}
+                isSaving={isSaving}
+                saveError={saveError}
+                savedResult={savedResult}
+                setSavedResult={setSavedResult}
                 onViewAllMcp={() => handleUtilityNavClick('mcp')}
                 editorTarget={editorTarget}
                 onEditorSave={(path, newValue) => {
@@ -526,8 +554,20 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
               />
             </div>
           </>
-        ) : activeView === 'mcp' ? (
-          <McpContentView onBack={handleBackToProjects} />
+        ) : activeView === 'tools' ? (
+          <ToolsManager 
+            onBack={handleBackToProjects} 
+            onNavigateToTable={(tableId: number) => {
+              // 查找 table 所属的 project
+              const project = projects.find(p => p.tables.some(t => t.id === String(tableId)))
+              if (project) {
+                setActiveBaseId(project.id)
+                setActiveTableId(String(tableId))
+                setActiveView('projects')
+                window.history.pushState({}, '', `/projects/${project.id}/${tableId}`)
+              }
+            }}
+          />
         ) : activeView === 'connect' ? (
           <ConnectContentView onBack={handleBackToProjects} />
         ) : null}
