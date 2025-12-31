@@ -82,8 +82,8 @@ export interface ToolUpdateRequest {
   json_path?: string
   type?: McpToolType
   name?: string
-  alias?: string
-  description?: string
+  alias?: string | null
+  description?: string | null
   input_schema?: Record<string, unknown>
   output_schema?: Record<string, unknown>
   metadata?: Record<string, unknown>
