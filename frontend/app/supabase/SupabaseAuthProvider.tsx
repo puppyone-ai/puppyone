@@ -1,8 +1,8 @@
 'use client'
 
 import React, { createContext, useContext, useMemo, useState, useEffect } from 'react'
-import { createClient, SupabaseClient, Session } from '@supabase/supabase-js'
-import { setTokenGetter } from '../../lib/apiClient'
+import { createBrowserClient } from '@supabase/ssr'
+import { Session, SupabaseClient } from '@supabase/supabase-js'
 
 type AuthContextValue = {
   supabase: SupabaseClient | null
@@ -31,14 +31,8 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       return
     }
     
-    const client = createClient(url, anon)
+    const client = createBrowserClient(url, anon)
     setSupabase(client)
-
-    // 设置 token 获取函数供 API client 使用
-    setTokenGetter(async () => {
-      const { data } = await client.auth.getSession()
-      return data.session?.access_token ?? null
-    })
 
     // 获取当前 session
     client.auth
@@ -60,18 +54,21 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       throw new Error('Supabase is not configured')
     }
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('Starting OAuth sign-in with:', provider)
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          // 使用 /auth/callback 处理 Supabase OAuth 回调
-          // 注意：/oauth/callback 是给 Notion OAuth 用的，不要混淆
           redirectTo: typeof window !== 'undefined' 
             ? `${window.location.origin}/auth/callback` 
             : undefined,
           skipBrowserRedirect: false,
         }
       })
-      if (error) throw error
+      if (error) {
+        console.error('Supabase OAuth error:', error)
+        throw error
+      }
+      console.log('OAuth initiated:', data)
     } catch (err) {
       console.error('OAuth sign-in failed:', err)
       throw err

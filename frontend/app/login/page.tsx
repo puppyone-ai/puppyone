@@ -1,20 +1,18 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useState } from 'react'
 import { useAuth } from '../supabase/SupabaseAuthProvider'
 
+/**
+ * 登录页面
+ * 
+ * 注意：已登录用户的重定向由 middleware.ts 处理
+ * 这里只负责渲染登录 UI 和处理登录操作
+ */
 export default function LoginPage() {
-  const { session, signInWithProvider } = useAuth()
-  const router = useRouter()
+  const { signInWithProvider } = useAuth()
   const [loading, setLoading] = useState<'google' | 'github' | null>(null)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (session) {
-      router.replace('/')
-    }
-  }, [session, router])
 
   return (
     <div style={{
