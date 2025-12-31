@@ -4,7 +4,7 @@ import { BackgroundTaskNotifier } from '../components/BackgroundTaskNotifier';
 import { TaskStatusWidget } from '../components/TaskStatusWidget';
 
 export const metadata = {
-  title: 'PuppyOne | Context base for AI agents',
+  title: 'puppyone | Context base for AI agents',
   description: 'Context base for AI agents',
 };
 
