@@ -1,3 +1,5 @@
+import { createBrowserClient } from '@supabase/ssr'
+
 /**
  * 统一的 API 客户端
  * 自动附加 Authorization header
@@ -5,33 +7,23 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-// 用 Promise 等待 AuthProvider 设置 token getter
-// 这样所有 API 请求都会等待 auth 准备好，不会出现 401
-let resolveTokenGetter: ((fn: () => Promise<string | null>) => void) | null = null
-const tokenGetterPromise = new Promise<() => Promise<string | null>>((resolve) => {
-  resolveTokenGetter = resolve
-})
+// 创建一个独立的 Supabase 客户端用于获取 Token
+// 它会自动读取 Cookie，无需等待 AuthProvider
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 /**
- * 设置 token 获取函数（由 AuthProvider 调用）
- */
-export function setTokenGetter(fn: () => Promise<string | null>) {
-  if (resolveTokenGetter) {
-    resolveTokenGetter(fn)
-    resolveTokenGetter = null
-  }
-}
-
-/**
- * 获取当前 access token（自动等待 auth 准备好）
+ * 获取当前 access token
  */
 async function getAuthToken(): Promise<string | null> {
-  const getToken = await tokenGetterPromise
-  return getToken()
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? null
 }
 
 /**
- * 暴露给其他 API 客户端使用，保证获取 token 的逻辑一致
+ * 暴露给其他 API 客户端使用
  */
 export async function getApiAccessToken(): Promise<string | null> {
   return getAuthToken()
@@ -121,4 +113,3 @@ export function put<T>(endpoint: string, body?: unknown): Promise<T> {
 export function del<T>(endpoint: string): Promise<T> {
   return apiRequest<T>(endpoint, { method: 'DELETE' })
 }
-

@@ -11,7 +11,6 @@ import { ProjectsHeader, type EditorType } from '../../../components/ProjectsHea
 import { ToolsManager } from '../../tools/components/ToolsManager'
 import { ConnectContentView } from '../../../components/ConnectContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
-import { AuthGuard } from '../../../components/AuthGuard'
 import { OnboardingView } from '../../../components/OnboardingView'
 import { 
   type McpToolPermissions, 
@@ -367,8 +366,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     }
   }
 
+  // 注意：认证检查已移到 middleware.ts，这里无需 AuthGuard
   return (
-    <AuthGuard>
+    <>
     <style>{`
       @keyframes spin {
         from { transform: rotate(0deg); }
@@ -581,7 +581,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
         onChatWidthChange={setChatWidth}
       />
     </main>
-    </AuthGuard>
+    </>
   )
 }
 

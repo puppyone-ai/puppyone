@@ -4,8 +4,8 @@ import { BackgroundTaskNotifier } from '../components/BackgroundTaskNotifier';
 import { TaskStatusWidget } from '../components/TaskStatusWidget';
 
 export const metadata = {
-  title: 'PuppyBase',
-  description: 'PuppyBase',
+  title: 'puppyone | Context base for AI agents',
+  description: 'Context base for AI agents',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
