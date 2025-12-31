@@ -13,7 +13,24 @@ export interface NotionCallbackResponse {
   workspace_name?: string;
 }
 
+export interface GithubCallbackResponse {
+  success: boolean;
+  message: string;
+  username?: string;
+}
+
 export interface NotionDisconnectResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface GithubStatusResponse {
+  connected: boolean;
+  username?: string;
+  connected_at?: string;
+}
+
+export interface GithubDisconnectResponse {
   success: boolean;
   message: string;
 }
@@ -88,6 +105,37 @@ export async function notionCallback(code: string, provider: string = "notion"):
     return data.data;
   } catch (error) {
     console.error("Error handling Notion callback:", error);
+    throw error;
+  }
+}
+
+/**
+ * Handle GitHub OAuth callback
+ */
+export async function githubCallback(code: string): Promise<GithubCallbackResponse> {
+  const token = await getApiAccessToken();
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/callback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        code,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to handle GitHub callback: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error("Error handling GitHub callback:", error);
     throw error;
   }
 }
@@ -173,4 +221,91 @@ export function handleOAuthRedirect(): { code: string | null; state: string | nu
   const state = urlParams.get("state");
 
   return { code, state };
+}
+
+async function getGithubAuthUrl(): Promise<string> {
+  const token = await getApiAccessToken();
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/authorize`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get authorization URL: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (data.authorization_url) {
+    return data.authorization_url;
+  }
+  if (data.data?.authorization_url) {
+    return data.data.authorization_url;
+  }
+  throw new Error("Invalid response from server: authorization_url not found");
+}
+
+export async function connectGithub(): Promise<void> {
+  try {
+    const authUrl = await getGithubAuthUrl();
+    window.location.href = authUrl;
+  } catch (error) {
+    console.error("Error initiating GitHub OAuth flow:", error);
+    throw error;
+  }
+}
+
+export async function getGithubStatus(): Promise<GithubStatusResponse> {
+  const token = await getApiAccessToken();
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/status`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get GitHub status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error("Error getting GitHub status:", error);
+    return { connected: false };
+  }
+}
+
+export async function disconnectGithub(): Promise<GithubDisconnectResponse> {
+  const token = await getApiAccessToken();
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/disconnect`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to disconnect GitHub: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error("Error disconnecting GitHub:", error);
+    throw error;
+  }
 }
