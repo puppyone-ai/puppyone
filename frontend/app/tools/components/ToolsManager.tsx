@@ -1,17 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useAuth } from '../../supabase/SupabaseAuthProvider'
+import { useState } from 'react'
 import { 
-  getTools, 
   deleteTool,
-  getMcpV2Instances,
-  getBoundTools,
   deleteMcpV2,
-  type Tool,
   type McpV2Instance,
-  type BoundTool,
 } from '../../../lib/mcpApi'
+import { useAllTools, useMcpInstances, refreshToolsAndMcp } from '../../../lib/hooks/useData'
 import { ToolsSidebar } from './ToolsSidebar'
 import { LibraryView } from './LibraryView'
 import { ServerView } from './ServerView'
@@ -21,65 +16,24 @@ type ToolsManagerProps = {
   onNavigateToTable?: (tableId: number) => void
 }
 
-// MCP 实例及其绑定的 tools
-interface McpWithBindings extends McpV2Instance {
-  boundTools: BoundTool[]
-}
-
 // 视图状态
 type ViewMode = { type: 'library' } | { type: 'server'; apiKey: string }
 
 export function ToolsManager({ onBack, onNavigateToTable }: ToolsManagerProps) {
-  const { session } = useAuth()
-  const userId = session?.user?.id
-  
-  // 状态
+  // 视图状态
   const [currentView, setCurrentView] = useState<ViewMode>({ type: 'library' })
-  const [tools, setTools] = useState<Tool[]>([])
-  const [mcpInstances, setMcpInstances] = useState<McpWithBindings[]>([])
-  const [loading, setLoading] = useState(true)
-
-  // 初始化加载
-  useEffect(() => {
-    if (userId) {
-      refreshAll()
-    }
-  }, [userId])
-
-  const refreshAll = async () => {
-    setLoading(true)
-    try {
-      const [toolsData, instancesData] = await Promise.all([
-        getTools(),
-        getMcpV2Instances()
-      ])
-      
-      setTools(toolsData || [])
-      
-      const instancesWithBindings = await Promise.all(
-        instancesData.map(async (instance) => {
-          try {
-            const boundTools = await getBoundTools(instance.api_key)
-            return { ...instance, boundTools }
-          } catch {
-            return { ...instance, boundTools: [] }
-          }
-        })
-      )
-      setMcpInstances(instancesWithBindings)
-    } catch (e) {
-      console.error('Failed to load data', e)
-    } finally {
-      setLoading(false)
-    }
-  }
+  
+  // 使用 SWR hooks（自动缓存，30秒内不重复请求）
+  const { tools, isLoading: toolsLoading, refresh: refreshTools } = useAllTools()
+  const { instances, isLoading: instancesLoading, refresh: refreshInstances } = useMcpInstances()
+  
+  const loading = toolsLoading || instancesLoading
 
   // --- Actions ---
 
   const handleMcpCreated = (newMcp: McpV2Instance) => {
-    // Add new MCP to list and switch view
-    const mcpWithBindings: McpWithBindings = { ...newMcp, boundTools: [] }
-    setMcpInstances(prev => [...prev, mcpWithBindings])
+    // 刷新实例列表并切换视图
+    refreshInstances()
     setCurrentView({ type: 'server', apiKey: newMcp.api_key })
   }
 
@@ -87,7 +41,7 @@ export function ToolsManager({ onBack, onNavigateToTable }: ToolsManagerProps) {
     if (!confirm('Delete this MCP instance?')) return
     try {
       await deleteMcpV2(apiKey)
-      setMcpInstances(prev => prev.filter(m => m.api_key !== apiKey))
+      refreshInstances()
       if (currentView.type === 'server' && currentView.apiKey === apiKey) {
         setCurrentView({ type: 'library' })
       }
@@ -101,12 +55,17 @@ export function ToolsManager({ onBack, onNavigateToTable }: ToolsManagerProps) {
     if (!confirm('Delete this tool?')) return
     try {
       await deleteTool(toolId)
-      setTools(prev => prev.filter(t => t.id !== toolId))
-      refreshAll() // 刷新绑定关系 (因为删除 tool 可能影响 bindings)
+      // 刷新 tools 和当前选中 server 的 bound tools
+      refreshToolsAndMcp(currentView.type === 'server' ? currentView.apiKey : undefined)
     } catch (e) {
       console.error('Failed to delete tool', e)
       alert('Error deleting tool')
     }
+  }
+
+  const handleRefresh = () => {
+    refreshTools()
+    refreshInstances()
   }
 
   // 渲染
@@ -117,9 +76,9 @@ export function ToolsManager({ onBack, onNavigateToTable }: ToolsManagerProps) {
         currentView={currentView}
         onChangeView={setCurrentView}
         toolsCount={tools.length}
-        mcpInstances={mcpInstances}
+        mcpInstances={instances}
+        loading={loading}
         onShowCreateFlow={() => {
-          // 切换到 Library 视图，提示用户选择 tools
           setCurrentView({ type: 'library' })
         }}
       />
@@ -133,22 +92,21 @@ export function ToolsManager({ onBack, onNavigateToTable }: ToolsManagerProps) {
         ) : currentView.type === 'library' ? (
           <LibraryView 
             tools={tools} 
-            mcpInstances={mcpInstances}
+            mcpInstances={instances}
             onDeleteTool={handleDeleteTool}
             onNavigateToTable={onNavigateToTable}
-            onRefresh={refreshAll}
+            onRefresh={handleRefresh}
             onMcpCreated={handleMcpCreated}
           />
         ) : (
           <ServerView 
-            server={mcpInstances.find(m => m.api_key === (currentView as any).apiKey)!}
+            server={instances.find(m => m.api_key === currentView.apiKey)}
             allTools={tools}
             onDeleteServer={handleDeleteMcp}
-            onRefresh={refreshAll}
+            onRefresh={handleRefresh}
           />
         )}
       </div>
     </div>
   )
 }
-

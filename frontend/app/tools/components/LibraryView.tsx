@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useCallback } from 'react'
-import { createBindings, createMcpLegacy, type Tool } from '../../../lib/mcpApi'
+import { createBindings, createMcpLegacy, updateTool, type Tool } from '../../../lib/mcpApi'
 import { useProjects } from '../../../lib/hooks/useData'
 import { FONT, TOOL_TYPE_CONFIG } from './ToolsTable'
 
@@ -22,6 +22,12 @@ export function LibraryView({
   const [newServerName, setNewServerName] = useState('')
   const [creating, setCreating] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+  
+  // 编辑状态
+  const [editingTool, setEditingTool] = useState<Tool | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [saving, setSaving] = useState(false)
   
   // 列宽状态
   const [columnWidths, setColumnWidths] = useState({ name: 45, description: 55 })
@@ -67,9 +73,59 @@ export function LibraryView({
     setSelectedTools(next)
   }
 
+  // 快捷添加函数
+  const handleQuickAdd = (tool: Tool) => {
+    // 如果没有选中的工具，或者选中的不包含当前工具，则只操作当前工具
+    if (selectedTools.size === 0 || !selectedTools.has(tool.id)) {
+      setSelectedTools(new Set([tool.id]))
+    }
+    // 如果有已部署的服务器，打开添加菜单；否则打开创建服务器弹窗
+    if (mcpInstances.length > 0) {
+      setShowAddMenu(true)
+    } else {
+      setShowCreateServer(true)
+    }
+  }
+
+  const handleRunTest = (tool: Tool) => {
+    console.log('Run tool:', tool.name)
+    // TODO: Implement run/test logic
+  }
+
   const clearSelection = () => {
     setSelectedTools(new Set())
     setShowAddMenu(false)
+  }
+
+  // 编辑函数
+  const handleStartEdit = (tool: Tool) => {
+    setEditingTool(tool)
+    setEditName(tool.name)
+    setEditDescription(tool.description || '')
+  }
+
+  const handleCancelEdit = () => {
+    setEditingTool(null)
+    setEditName('')
+    setEditDescription('')
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingTool) return
+    setSaving(true)
+    try {
+      await updateTool(editingTool.id, { 
+        name: editName.trim() || editingTool.name,
+        description: editDescription.trim() || null 
+      })
+      handleCancelEdit()
+      onRefresh()
+    } catch (e) {
+      console.error('Failed to update tool:', e)
+      alert('Failed to save changes')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleAddToServer = async (apiKey: string) => {
@@ -152,13 +208,15 @@ export function LibraryView({
     document.addEventListener('mouseup', handleMouseUp)
   }, [columnWidths])
 
-  const gridTemplate = `40px 70px ${columnWidths.name}fr ${columnWidths.description}fr 36px`
+  const gridTemplate = `40px 70px ${columnWidths.name}fr ${columnWidths.description}fr 220px`
 
   // 全局序号
   let globalIndex = 0
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header - 45px + 1px border = 46px total */}
       <div style={{
         height: HEADER_HEIGHT,
@@ -243,7 +301,6 @@ export function LibraryView({
                             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {mcp.name || 'Unnamed Server'}
                             </span>
-                            <span style={{ fontSize: FONT.secondary, color: '#3f3f46' }}>{mcp.boundTools?.length || 0}</span>
                           </button>
                         ))}
                       </>
@@ -258,54 +315,66 @@ export function LibraryView({
 
       {showAddMenu && <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setShowAddMenu(false)} />}
 
-      {/* Table Header */}
-      <div 
-        ref={headerRef}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: gridTemplate,
-          padding: '8px 24px',
-          borderBottom: '1px solid #141416',
-          fontSize: FONT.tertiary,
-          fontWeight: 500,
-          color: '#3f3f46',
-          letterSpacing: '0.3px',
-          textTransform: 'uppercase',
-          userSelect: draggingColumn ? 'none' : 'auto',
-        }}
-      >
-        <div style={{ textAlign: 'center' }}>#</div>
-        <div>Type</div>
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          Name
-          <div
-            onMouseDown={handleMouseDown}
+      {/* Tools Table Card */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 20px', overflow: 'hidden' }}>
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#0f0f11',
+          borderRadius: 10,
+          border: '1px solid #1a1a1c',
+          overflow: 'hidden',
+        }}>
+          {/* Table Header */}
+          <div 
+            ref={headerRef}
             style={{
-              position: 'absolute',
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: 8,
-              cursor: 'col-resize',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              display: 'grid',
+              gridTemplateColumns: gridTemplate,
+              padding: '10px 20px',
+              borderBottom: '1px solid #141416',
+              fontSize: FONT.tertiary,
+              fontWeight: 500,
+              color: '#525252',
+              letterSpacing: '0.3px',
+              textTransform: 'uppercase',
+              userSelect: draggingColumn ? 'none' : 'auto',
+              flexShrink: 0,
             }}
           >
-            <div style={{
-              width: 1,
-              height: 14,
-              background: draggingColumn === 'name' ? '#3b82f6' : '#1f1f22',
-              transition: 'background 0.15s',
-            }} />
+            <div style={{ textAlign: 'center' }}>#</div>
+            <div>Type</div>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              Name
+              <div
+                onMouseDown={handleMouseDown}
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 8,
+                  cursor: 'col-resize',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <div style={{
+                  width: 1,
+                  height: 14,
+                  background: draggingColumn === 'name' ? '#3b82f6' : '#1f1f22',
+                  transition: 'background 0.15s',
+                }} />
+              </div>
+            </div>
+            <div>Description</div>
+            <div></div>
           </div>
-        </div>
-        <div>Description</div>
-        <div></div>
-      </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+          {/* Content */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
         {tools.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#3f3f46' }}>
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.4, margin: '0 auto 12px' }}>
@@ -322,7 +391,7 @@ export function LibraryView({
                 style={{
                   display: 'grid',
                   gridTemplateColumns: gridTemplate,
-                  padding: '6px 24px',
+                  padding: '6px 20px',
                   alignItems: 'center',
                   borderTop: groupIndex > 0 ? '1px solid #141416' : 'none',
                   marginTop: groupIndex > 0 ? 4 : 0,
@@ -358,20 +427,27 @@ export function LibraryView({
                     key={tool.id}
                     onMouseEnter={() => setHoveredRow(tool.id)}
                     onMouseLeave={() => setHoveredRow(null)}
-                    onClick={() => toggleSelect(tool.id)}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: gridTemplate,
-                      padding: '10px 24px',
+                      padding: '0 20px',
+                      height: 40,
                       alignItems: 'center',
-                      cursor: 'pointer',
-                      background: isSelected ? 'rgba(59, 130, 246, 0.08)' : (isHovered ? '#0f0f11' : 'transparent'),
+                      background: isSelected ? 'rgba(59, 130, 246, 0.08)' : (isHovered ? '#141416' : 'transparent'),
                       borderLeft: isSelected ? '2px solid #3b82f6' : '2px solid transparent',
                       transition: 'background 0.1s',
                     }}
                   >
                     {/* # / Checkbox */}
-                    <div style={{ textAlign: 'center', color: '#3f3f46', fontSize: FONT.secondary }}>
+                    <div 
+                      onClick={() => toggleSelect(tool.id)}
+                      style={{ 
+                        textAlign: 'center', 
+                        color: '#3f3f46', 
+                        fontSize: FONT.secondary,
+                        cursor: 'pointer',
+                      }}
+                    >
                       {isHovered || isSelected ? (
                         <div style={{
                           width: 14, height: 14, margin: '0 auto',
@@ -406,42 +482,161 @@ export function LibraryView({
                       </span>
                     </div>
                     
-                    {/* Name */}
+                    {/* Name + Edit Icon */}
                     <div style={{
-                      fontSize: FONT.primary,
-                      fontWeight: 500,
-                      color: isHovered ? '#fff' : '#e2e8f0',
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
                       overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
                       paddingRight: 12,
                     }}>
-                      {tool.name}
+                      <span style={{
+                        fontSize: FONT.primary,
+                        fontWeight: 500,
+                        color: isHovered ? '#fff' : '#e2e8f0',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {tool.name}
+                      </span>
+                      <button
+                        onClick={() => handleStartEdit(tool)}
+                        style={{
+                          width: 26, height: 26, background: 'none', border: 'none',
+                          color: '#52525b', cursor: 'pointer', borderRadius: 5,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          marginLeft: 4,
+                          flexShrink: 0,
+                          opacity: isHovered ? 1 : 0,
+                          pointerEvents: isHovered ? 'auto' : 'none',
+                          transition: 'opacity 0.1s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#60a5fa'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#52525b'}
+                        title="Edit"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      </button>
                     </div>
                     
-                    {/* Description */}
+                    {/* Description + Edit Icon */}
                     <div style={{
-                      fontSize: FONT.secondary,
-                      color: '#525252',
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
                       overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
                       paddingRight: 12,
                     }}>
-                      {tool.description || '—'}
+                      <span style={{
+                        fontSize: FONT.secondary,
+                        color: '#525252',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {tool.description || '—'}
+                      </span>
+                      <button
+                        onClick={() => handleStartEdit(tool)}
+                        style={{
+                          width: 26, height: 26, background: 'none', border: 'none',
+                          color: '#52525b', cursor: 'pointer', borderRadius: 5,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          marginLeft: 4,
+                          flexShrink: 0,
+                          opacity: isHovered ? 1 : 0,
+                          pointerEvents: isHovered ? 'auto' : 'none',
+                          transition: 'opacity 0.1s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#60a5fa'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#52525b'}
+                        title="Edit"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      </button>
                     </div>
                     
                     {/* Actions */}
-                    <div style={{ opacity: isHovered ? 1 : 0, transition: 'opacity 0.1s' }}>
+                    <div style={{ 
+                      opacity: isHovered ? 1 : 0, 
+                      transition: 'opacity 0.1s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                    }}>
+                      {/* Run / Test Button (Primary) */}
                       <button
-                        onClick={(e) => { e.stopPropagation(); onDeleteTool(tool.id) }}
+                        onClick={(e) => { e.stopPropagation(); handleRunTest(tool) }}
+                        style={{
+                          height: 24, padding: '0 8px 0 6px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)',
+                          color: '#34d399', cursor: 'pointer', borderRadius: 4,
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          fontSize: 11, fontWeight: 500,
+                          marginRight: 6,
+                          transition: 'all 0.1s',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'rgba(16, 185, 129, 0.2)';
+                          e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)';
+                          e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+                        }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                        Run
+                      </button>
+
+                      {/* Add to Server Button (Primary) */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleQuickAdd(tool) }}
+                        style={{
+                          height: 24, padding: '0 8px 0 6px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)',
+                          color: '#60a5fa', cursor: 'pointer', borderRadius: 4,
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          fontSize: 11, fontWeight: 500,
+                          marginRight: 6,
+                          transition: 'all 0.1s',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
+                          e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                          e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.2)';
+                        }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 5v14M5 12h14" />
+                        </svg>
+                        Add to Server
+                      </button>
+
+                      <div style={{ width: 1, height: 14, background: '#27272a', margin: '0 4px' }} />
+
+                      {/* Delete Button (Secondary) */}
+                      <button
+                        onClick={() => onDeleteTool(tool.id)}
                         style={{
                           width: 24, height: 24, background: 'none', border: 'none',
                           color: '#3f3f46', cursor: 'pointer', borderRadius: 4,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          marginLeft: 2,
                         }}
                         onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
                         onMouseLeave={e => e.currentTarget.style.color = '#3f3f46'}
+                        title="Delete"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -454,6 +649,8 @@ export function LibraryView({
             </div>
           ))
         )}
+          </div>
+        </div>
       </div>
 
       {/* Create Server Modal */}
@@ -478,7 +675,7 @@ export function LibraryView({
                 autoFocus
                 value={newServerName}
                 onChange={e => setNewServerName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleCreateServerAndAdd()}
+                onKeyDown={e => e.key === 'Enter' && !creating && handleCreateServerAndAdd()}
                 placeholder="e.g. Production, Staging..."
                 style={{
                   width: '100%', padding: '10px 12px', background: '#0a0a0c',
@@ -500,18 +697,110 @@ export function LibraryView({
                 disabled={!newServerName.trim() || creating}
                 style={{
                   height: 28, padding: '0 14px', 
-                  background: newServerName.trim() ? '#2563eb' : '#1a1a1c', 
+                  background: creating ? '#1e40af' : (newServerName.trim() ? '#2563eb' : '#1a1a1c'), 
                   border: 'none', borderRadius: 6, 
-                  color: newServerName.trim() ? '#fff' : '#3f3f46', 
-                  fontSize: FONT.secondary, cursor: newServerName.trim() ? 'pointer' : 'not-allowed',
+                  color: creating ? 'rgba(255,255,255,0.7)' : (newServerName.trim() ? '#fff' : '#3f3f46'), 
+                  fontSize: FONT.secondary, 
+                  cursor: creating ? 'wait' : (newServerName.trim() ? 'pointer' : 'not-allowed'),
+                  opacity: creating ? 0.8 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
+                {creating && (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="32" strokeDashoffset="12" />
+                  </svg>
+                )}
                 {creating ? 'Creating...' : 'Create & Add'}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Edit Tool Modal */}
+      {editingTool && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          backdropFilter: 'blur(4px)',
+        }} onClick={handleCancelEdit}>
+          <div style={{
+            background: '#111113', border: '1px solid #1a1a1c', borderRadius: 10, 
+            width: 420, padding: 20, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: FONT.primary, fontWeight: 600, color: '#e2e8f0', marginBottom: 16 }}>Edit Tool</div>
+            
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: FONT.tertiary, color: '#71717a', display: 'block', marginBottom: 6 }}>Name</label>
+              <input
+                autoFocus
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !saving && handleSaveEdit()}
+                placeholder="Tool name"
+                style={{
+                  width: '100%', padding: '10px 12px', background: '#0a0a0c',
+                  border: '1px solid #1a1a1c', borderRadius: 6, color: '#e2e8f0', 
+                  fontSize: FONT.primary, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: FONT.tertiary, color: '#71717a', display: 'block', marginBottom: 6 }}>Description</label>
+              <textarea
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                placeholder="Description (optional)"
+                rows={3}
+                style={{
+                  width: '100%', padding: '10px 12px', background: '#0a0a0c',
+                  border: '1px solid #1a1a1c', borderRadius: 6, color: '#e2e8f0', 
+                  fontSize: FONT.secondary, outline: 'none', boxSizing: 'border-box',
+                  resize: 'vertical', minHeight: 60,
+                  fontFamily: 'inherit',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={handleCancelEdit} style={{
+                height: 28, padding: '0 14px', background: 'transparent', 
+                border: '1px solid #27272a', borderRadius: 6, color: '#71717a', fontSize: FONT.secondary, cursor: 'pointer',
+              }}>
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveEdit} 
+                disabled={saving}
+                style={{
+                  height: 28, padding: '0 14px', 
+                  background: saving ? '#1e40af' : '#2563eb', 
+                  border: 'none', borderRadius: 6, 
+                  color: saving ? 'rgba(255,255,255,0.7)' : '#fff', 
+                  fontSize: FONT.secondary, 
+                  cursor: saving ? 'wait' : 'pointer',
+                  opacity: saving ? 0.8 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {saving && (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="32" strokeDashoffset="12" />
+                  </svg>
+                )}
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+    </>
   )
 }

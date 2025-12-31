@@ -136,3 +136,86 @@ export function refreshTableTools(tableId?: string) {
   return mutate('all-tools')
 }
 
+// ============================================
+// Tools & MCP 页面专用 Hooks
+// ============================================
+
+import { getMcpV2Instances, getBoundTools, type McpV2Instance, type BoundTool } from '../mcpApi'
+
+/**
+ * 获取所有 Tools（带缓存）
+ * - 30秒内不重复请求
+ * - 多组件共享数据
+ */
+export function useAllTools() {
+  const { data, error, isLoading, mutate: revalidate } = useSWR<Tool[]>(
+    'all-tools',
+    () => getTools(),
+    defaultConfig
+  )
+
+  return {
+    tools: data ?? [],
+    isLoading,
+    error,
+    refresh: revalidate,
+  }
+}
+
+/**
+ * 获取 MCP 实例列表（不含 bound tools）
+ * - 30秒内不重复请求
+ * - 只获取实例基本信息，不获取绑定的 tools
+ */
+export function useMcpInstances() {
+  const { data, error, isLoading, mutate: revalidate } = useSWR<McpV2Instance[]>(
+    'mcp-instances',
+    () => getMcpV2Instances(),
+    defaultConfig
+  )
+
+  return {
+    instances: data ?? [],
+    isLoading,
+    error,
+    refresh: revalidate,
+  }
+}
+
+/**
+ * 获取指定 MCP 实例的 bound tools（懒加载）
+ * 
+ * @param apiKey MCP 实例的 api_key（为空时不请求）
+ * 
+ * - 按需加载：只有选中某个 server 时才请求
+ * - 自动缓存：相同 apiKey 共享数据
+ */
+export function useBoundTools(apiKey: string | undefined) {
+  const { data, error, isLoading, mutate: revalidate } = useSWR<BoundTool[]>(
+    apiKey ? ['bound-tools', apiKey] : null,
+    () => getBoundTools(apiKey!),
+    {
+      ...defaultConfig,
+      dedupingInterval: 10000, // 10秒去重
+    }
+  )
+
+  return {
+    boundTools: data ?? [],
+    isLoading,
+    error,
+    refresh: revalidate,
+  }
+}
+
+/**
+ * 手动刷新 Tools & MCP 相关缓存
+ */
+export function refreshToolsAndMcp(apiKey?: string) {
+  mutate('all-tools')
+  mutate('mcp-instances')
+  if (apiKey) {
+    mutate(['bound-tools', apiKey])
+  }
+}
+

@@ -65,6 +65,20 @@ export function ProjectsSidebar({
   onSidebarWidthChange,
   toolsCount = 0,
 }: ProjectsSidebarProps) {
+  // 内部 collapsed 状态（非受控模式时使用）
+  const [internalCollapsed, setInternalCollapsed] = useState(false)
+  
+  // 如果外部传了 onCollapsedChange，使用受控模式；否则使用内部状态
+  const isControlled = onCollapsedChange !== undefined
+  const effectiveCollapsed = isControlled ? isCollapsed : internalCollapsed
+  const handleCollapsedChange = (collapsed: boolean) => {
+    if (isControlled) {
+      onCollapsedChange?.(collapsed)
+    } else {
+      setInternalCollapsed(collapsed)
+    }
+  }
+  
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
@@ -198,8 +212,8 @@ export function ProjectsSidebar({
   return (
     <aside 
       ref={sidebarRef}
-      className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}
-      style={{ width: isCollapsed ? 45 : sidebarWidth }}
+      className={`sidebar ${effectiveCollapsed ? 'collapsed' : ''}`}
+      style={{ width: effectiveCollapsed ? 45 : sidebarWidth }}
     >
       <style jsx>{`
         .sidebar {
@@ -1161,10 +1175,10 @@ export function ProjectsSidebar({
 
       {/* Header */}
       <div className="header">
-        {isCollapsed ? (
+        {effectiveCollapsed ? (
           <div
             className="collapsed-logo-wrapper"
-            onClick={() => onCollapsedChange?.(false)}
+            onClick={() => handleCollapsedChange(false)}
             title="Expand sidebar"
           >
             {/* Product logo - shows by default, hides on hover */}
@@ -1189,7 +1203,7 @@ export function ProjectsSidebar({
         </div>
             <div
               className="collapse-toggle-wrapper"
-              onClick={() => onCollapsedChange?.(true)}
+              onClick={() => handleCollapsedChange(true)}
               title="Collapse sidebar"
             >
               {/* Sidebar collapse icon */}
@@ -1628,7 +1642,7 @@ export function ProjectsSidebar({
       )}
 
       {/* Resize Handle */}
-      {!isCollapsed && (
+      {!effectiveCollapsed && (
         <div 
           className={`resize-handle ${isResizing ? 'active' : ''}`}
           onMouseDown={handleMouseDown}

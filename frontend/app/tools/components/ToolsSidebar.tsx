@@ -14,6 +14,7 @@ export function ToolsSidebar({
   onChangeView, 
   toolsCount, 
   mcpInstances, 
+  loading = false,
   onShowCreateFlow,
 }: any) {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
@@ -165,6 +166,36 @@ export function ToolsSidebar({
       {!isCollapsed && (
         <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
           
+          {loading ? (
+            /* Skeleton Loading */
+            <>
+              <style>{`
+                @keyframes shimmer {
+                  0% { transform: translateX(-100%); }
+                  100% { transform: translateX(100%); }
+                }
+              `}</style>
+              <div style={{ padding: '0 12px', marginBottom: 4 }}>
+                <div style={{ height: 28, display: 'flex', alignItems: 'center' }}>
+                  <div style={{ width: 50, height: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 4 }} />
+                </div>
+                <div style={{ padding: '2px 0 4px 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <SkeletonItem width="70%" />
+                </div>
+              </div>
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #333', padding: '8px 12px 0 12px' }}>
+                <div style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ width: 90, height: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 4 }} />
+                </div>
+                <div style={{ padding: '2px 0 4px 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <SkeletonItem width="60%" />
+                  <SkeletonItem width="75%" />
+                  <SkeletonItem width="50%" />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
           {/* Library Section */}
           <div style={{ marginBottom: 4 }}>
             <div style={{ 
@@ -249,7 +280,6 @@ export function ToolsSidebar({
                   active={currentView.type === 'server' && currentView.apiKey === mcp.api_key}
                   onClick={() => onChangeView({ type: 'server', apiKey: mcp.api_key })}
                   label={mcp.name || 'Unnamed'}
-                  count={mcp.boundTools.length}
                   status={mcp.status}
                   isServer
                 />
@@ -291,6 +321,8 @@ export function ToolsSidebar({
               )}
             </div>
           </div>
+            </>
+          )}
         </div>
       )}
 
@@ -551,5 +583,43 @@ function NavItem({ active, onClick, label, count, status, isServer }: any) {
         </span>
       )}
     </button>
+  )
+}
+
+function SkeletonItem({ width = '60%' }: { width?: string }) {
+  return (
+    <div style={{
+      height: 28,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '0 4px',
+    }}>
+      <div style={{
+        width: 16,
+        height: 16,
+        borderRadius: 4,
+        background: 'rgba(255,255,255,0.06)',
+        flexShrink: 0,
+      }} />
+      <div style={{
+        width,
+        height: 10,
+        borderRadius: 4,
+        background: 'rgba(255,255,255,0.06)',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent)',
+          animation: 'shimmer 1.5s infinite',
+        }} />
+      </div>
+    </div>
   )
 }

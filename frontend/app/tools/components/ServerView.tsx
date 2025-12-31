@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createBindings, deleteBinding, updateMcpInstance } from '../../../lib/mcpApi'
+import { useBoundTools, refreshToolsAndMcp } from '../../../lib/hooks/useData'
 import { ToolsTable, ToolsEmptyState, FONT, TOOL_TYPE_CONFIG, type ToolItem } from './ToolsTable'
 
 // Header 高度 (包含 border)
@@ -9,6 +10,9 @@ const HEADER_HEIGHT = 45
 
 export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any) {
   if (!server) return <div style={{ padding: 40, color: '#3f3f46', textAlign: 'center', fontSize: FONT.primary }}>Server not found</div>
+
+  // 懒加载 bound tools（只有选中这个 server 时才请求）
+  const { boundTools: rawBoundTools, isLoading: boundToolsLoading, refresh: refreshBoundTools } = useBoundTools(server.api_key)
 
   const [showAddTools, setShowAddTools] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -19,10 +23,15 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
   const [nameValue, setNameValue] = useState(server.name || '')
   const [savingName, setSavingName] = useState(false)
 
+  // 当 server 变化时重置 nameValue
+  useEffect(() => {
+    setNameValue(server.name || '')
+  }, [server.name])
+
   const handleRemoveTool = async (toolId: number) => {
     try {
       await deleteBinding(server.api_key, toolId)
-      onRefresh()
+      refreshBoundTools()
     } catch (e) {
       console.error(e)
     }
@@ -33,14 +42,14 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
       const bindings = toolIds.map(id => ({ tool_id: id, status: true }))
       await createBindings(server.api_key, bindings)
       setShowAddTools(false)
-      onRefresh()
+      refreshBoundTools()
     } catch (e) {
       console.error(e)
     }
   }
 
   // 转换为 ToolItem 格式
-  const boundTools: ToolItem[] = server.boundTools.map((t: any) => ({
+  const boundTools: ToolItem[] = rawBoundTools.map((t: any) => ({
     id: t.tool_id,
     tool_id: t.tool_id,
     name: t.name,
@@ -48,7 +57,7 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
     description: t.description,
   }))
 
-  const boundToolIds = new Set(server.boundTools.map((t: any) => t.tool_id))
+  const boundToolIds = new Set(rawBoundTools.map((t: any) => t.tool_id))
   const availableTools = allTools.filter((t: any) => !boundToolIds.has(t.id))
   const filteredAvailableTools = availableTools.filter((t: any) => 
     t.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -102,150 +111,131 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Header - 45px + 1px border = 46px total */}
+      {/* Empty Header */}
       <div style={{
         height: HEADER_HEIGHT,
         minHeight: HEADER_HEIGHT,
-        padding: '0 24px',
         borderBottom: '1px solid #1a1a1c',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
         flexShrink: 0,
         boxSizing: 'content-box',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {editingName ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input
-                value={nameValue}
-                onChange={(e) => setNameValue(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }}
-                autoFocus
-                style={{
-                  height: 28,
-                  background: '#0a0a0c',
-                  border: '1px solid #3b82f6',
-                  borderRadius: 5,
-                  padding: '0 10px',
-                  fontSize: FONT.primary,
-                  fontWeight: 500,
-                  color: '#e2e8f0',
-                  outline: 'none',
-                  width: 180,
-                }}
-              />
-              <button onClick={handleSaveName} disabled={savingName} style={{ fontSize: FONT.secondary, color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}>
-                {savingName ? '...' : 'Save'}
-              </button>
-              <button onClick={() => setEditingName(false)} style={{ fontSize: FONT.secondary, color: '#525252', background: 'none', border: 'none', cursor: 'pointer' }}>
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <span 
-              onClick={() => { setEditingName(true); setNameValue(server.name || '') }}
-              style={{ fontSize: FONT.primary, fontWeight: 600, color: '#e2e8f0', cursor: 'text' }}
-            >
-              {server.name || 'Unnamed Server'}
-            </span>
-          )}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '3px 8px',
-            borderRadius: 4,
-            background: server.status ? 'rgba(34,197,94,0.1)' : 'rgba(113,113,122,0.1)',
-          }}>
-            <div style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: server.status ? '#22c55e' : '#3f3f46',
-            }} />
-            <span style={{ fontSize: FONT.tertiary, color: server.status ? '#4ade80' : '#525252' }}>
-              {server.status ? 'Running' : 'Stopped'}
-            </span>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            style={{
-              height: 28,
-              padding: '0 12px',
-              fontSize: FONT.secondary,
-              color: '#71717a',
-              background: 'transparent',
-              border: '1px solid #27272a',
-              borderRadius: 5,
-              cursor: 'pointer',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#e2e8f0' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#27272a'; e.currentTarget.style.color = '#71717a' }}
-          >
-            {server.status ? 'Stop' : 'Start'}
-          </button>
-          <button
-            onClick={() => onDeleteServer(server.api_key)}
-            style={{
-              height: 28,
-              padding: '0 12px',
-              fontSize: FONT.secondary,
-              color: '#f87171',
-              background: 'rgba(239,68,68,0.08)',
-              border: '1px solid rgba(239,68,68,0.15)',
-              borderRadius: 5,
-              cursor: 'pointer',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
-          >
-            Delete
-          </button>
-        </div>
-      </div>
+      }} />
 
       {/* Main Content */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
         
-        {/* Tools Section */}
-        <div>
+        {/* Server Title Row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {editingName ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input
+                  value={nameValue}
+                  onChange={(e) => setNameValue(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }}
+                  autoFocus
+                  style={{
+                    height: 36,
+                    background: '#0a0a0c',
+                    border: '1px solid #27272a',
+                    borderRadius: 6,
+                    padding: '0 12px',
+                    fontSize: 20,
+                    fontWeight: 600,
+                    color: '#e2e8f0',
+                    outline: 'none',
+                    width: 280,
+                  }}
+                />
+                <span 
+                  onClick={handleSaveName} 
+                  style={{ fontSize: FONT.secondary, color: '#a1a1aa', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#e2e8f0'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#a1a1aa'}
+                >
+                  {savingName ? '...' : 'Save'}
+                </span>
+                <span 
+                  onClick={() => setEditingName(false)} 
+                  style={{ fontSize: FONT.secondary, color: '#525252', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#71717a'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#525252'}
+                >
+                  Cancel
+                </span>
+              </div>
+            ) : (
+              <>
+                <span 
+                  onClick={() => { setEditingName(true); setNameValue(server.name || '') }}
+                  style={{ fontSize: 20, fontWeight: 600, color: '#e2e8f0', cursor: 'text' }}
+                >
+                  {server.name || 'Unnamed Server'}
+                </span>
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: server.status ? '#22c55e' : '#3f3f46',
+                }} />
+                <span
+                  onClick={() => onDeleteServer(server.api_key)}
+                  style={{ fontSize: FONT.secondary, color: '#525252', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#525252'}
+                >
+                  Delete
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        
+        {/* Tools Section Card */}
+        <div style={{
+          background: '#0f0f11',
+          borderRadius: 10,
+          border: '1px solid #1a1a1c',
+          overflow: 'hidden',
+        }}>
           <div style={{ 
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center', 
-            padding: '14px 24px 8px',
+            padding: '12px 16px',
+            borderBottom: '1px solid #141416',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: FONT.secondary, fontWeight: 600, color: '#525252' }}>
+              <span style={{ fontSize: FONT.secondary, fontWeight: 600, color: '#a1a1aa' }}>
                 Included Tools
               </span>
-              <span style={{ fontSize: FONT.tertiary, color: '#3f3f46' }}>
-                {boundTools.length}
+              <span style={{ 
+                fontSize: FONT.tertiary, 
+                color: '#3f3f46',
+                background: '#1a1a1c',
+                padding: '2px 6px',
+                borderRadius: 4,
+              }}>
+                {boundToolsLoading ? '...' : boundTools.length}
               </span>
             </div>
-            <button 
+            <span 
               onClick={() => setShowAddTools(true)}
               style={{ 
                 fontSize: FONT.secondary, 
-                color: '#60a5fa', 
-                background: 'none', 
-                border: 'none', 
+                color: '#525252', 
                 cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
               }}
+              onMouseEnter={e => e.currentTarget.style.color = '#a1a1aa'}
+              onMouseLeave={e => e.currentTarget.style.color = '#525252'}
             >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                <path d="M7 3v8M3 7h8"/>
-              </svg>
               Add
-            </button>
+            </span>
           </div>
 
-          {boundTools.length === 0 ? (
-            <div style={{ padding: '0 24px' }}>
+          {boundToolsLoading ? (
+            <div style={{ padding: '24px 16px', color: '#525252', fontSize: FONT.secondary, textAlign: 'center' }}>
+              Loading tools...
+            </div>
+          ) : boundTools.length === 0 ? (
+            <div style={{ padding: '16px' }}>
               <ToolsEmptyState 
                 message="No tools included" 
                 actionLabel="Add tools from library"
@@ -253,38 +243,69 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
               />
             </div>
           ) : (
-            <ToolsTable
-              tools={boundTools}
-              showPath={false}
-              selectable={false}
-              onRemove={handleRemoveTool}
-              removeIcon="remove"
-            />
+            <div style={{ padding: '0' }}>
+              <ToolsTable
+                tools={boundTools}
+                showPath={false}
+                selectable={false}
+                onRemove={handleRemoveTool}
+                removeIcon="remove"
+              />
+            </div>
           )}
         </div>
 
-        {/* Configuration Section */}
-        <div style={{ padding: '20px 24px' }}>
-          <div style={{ marginBottom: 12 }}>
-            <span style={{ fontSize: FONT.secondary, fontWeight: 600, color: '#525252' }}>
+        {/* API Key Row */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 10,
+          padding: '10px 16px',
+          background: '#0f0f11',
+          borderRadius: 8,
+          border: '1px solid #1a1a1c',
+        }}>
+          <span style={{ fontSize: FONT.secondary, color: '#525252' }}>API Key</span>
+          <code style={{ 
+            flex: 1,
+            fontSize: FONT.secondary, 
+            color: '#71717a', 
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {server.api_key}
+          </code>
+          <span
+            onClick={() => { navigator.clipboard.writeText(server.api_key); }}
+            style={{ fontSize: FONT.secondary, color: '#525252', cursor: 'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#a1a1aa'}
+            onMouseLeave={e => e.currentTarget.style.color = '#525252'}
+          >
+            Copy
+          </span>
+        </div>
+
+        {/* Configuration Section Card */}
+        <div style={{
+          background: '#0f0f11',
+          borderRadius: 10,
+          border: '1px solid #1a1a1c',
+          overflow: 'hidden',
+        }}>
+          <div style={{ 
+            padding: '12px 16px', 
+            borderBottom: '1px solid #141416',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: FONT.secondary, fontWeight: 600, color: '#a1a1aa' }}>
               Configuration
             </span>
-          </div>
-
-          <div style={{
-            background: '#0a0a0c',
-            border: '1px solid #141416',
-            borderRadius: 8,
-            overflow: 'hidden',
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '8px 12px',
-              borderBottom: '1px solid #111113',
-            }}>
-              <div style={{ display: 'flex', gap: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 2, background: '#0a0a0c', borderRadius: 5, padding: 2 }}>
                 {(['json', 'yaml'] as const).map(tab => (
                   <button
                     key={tab}
@@ -293,8 +314,8 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
                       padding: '4px 10px',
                       fontSize: FONT.tertiary,
                       fontWeight: 500,
-                      color: activeTab === tab ? '#a1a1aa' : '#3f3f46',
-                      background: activeTab === tab ? '#141416' : 'transparent',
+                      color: activeTab === tab ? '#e2e8f0' : '#525252',
+                      background: activeTab === tab ? '#1a1a1c' : 'transparent',
                       border: 'none',
                       borderRadius: 4,
                       cursor: 'pointer',
@@ -308,12 +329,14 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
               <button
                 onClick={handleCopy}
                 style={{
-                  padding: '4px 10px',
+                  height: 26,
+                  padding: '0 10px',
                   fontSize: FONT.tertiary,
                   fontWeight: 500,
-                  color: copied ? '#4ade80' : '#3f3f46',
-                  background: 'transparent',
+                  color: copied ? '#4ade80' : '#525252',
+                  background: copied ? 'rgba(34,197,94,0.1)' : '#0a0a0c',
                   border: 'none',
+                  borderRadius: 5,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -322,14 +345,14 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
               >
                 {copied ? (
                   <>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <polyline points="20 6 9 17 4 12"/>
                     </svg>
                     Copied
                   </>
                 ) : (
                   <>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <rect x="9" y="9" width="13" height="13" rx="2"/>
                       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                     </svg>
@@ -338,35 +361,43 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
                 )}
               </button>
             </div>
-            
-            <pre style={{
-              margin: 0,
-              padding: '14px 16px',
-              fontSize: FONT.secondary,
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-              color: '#525252',
-              lineHeight: 1.6,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
-              maxHeight: 180,
-              overflow: 'auto',
-            }}>
-              {configText}
-            </pre>
           </div>
+          
+          <pre style={{
+            margin: 0,
+            padding: '14px 16px',
+            fontSize: FONT.secondary,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            color: '#71717a',
+            lineHeight: 1.6,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all',
+            maxHeight: 200,
+            overflow: 'auto',
+            background: '#0a0a0c',
+          }}>
+            {configText}
+          </pre>
 
           <div style={{ 
-            marginTop: 12, 
-            padding: '10px 12px', 
-            background: 'rgba(59, 130, 246, 0.04)', 
-            borderRadius: 6,
-            border: '1px solid rgba(59, 130, 246, 0.08)',
+            padding: '12px 16px', 
+            background: 'rgba(59, 130, 246, 0.03)', 
+            borderTop: '1px solid #141416',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10,
           }}>
-            <div style={{ fontSize: FONT.secondary, color: '#3b82f6', fontWeight: 500, marginBottom: 4 }}>
-              How to use
-            </div>
-            <div style={{ fontSize: FONT.secondary, color: '#525252', lineHeight: 1.5 }}>
-              Copy and paste into your Claude Desktop or Cursor settings file.
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" style={{ marginTop: 2, flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 16v-4M12 8h.01"/>
+            </svg>
+            <div>
+              <div style={{ fontSize: FONT.secondary, color: '#60a5fa', fontWeight: 500, marginBottom: 2 }}>
+                How to use
+              </div>
+              <div style={{ fontSize: FONT.secondary, color: '#525252', lineHeight: 1.5 }}>
+                Copy and paste into your Claude Desktop or Cursor settings file.
+              </div>
             </div>
           </div>
         </div>

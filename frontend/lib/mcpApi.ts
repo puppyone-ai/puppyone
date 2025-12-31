@@ -148,16 +148,26 @@ export interface McpV2CreateWithBindingsResponse {
 
 /**
  * 已绑定的 Tool 信息（包含 binding 状态）
+ * 对应后端 BoundToolOut schema
  */
 export interface BoundTool {
   tool_id: number
   binding_id: number
   binding_status: boolean
   
+  created_at: string
+  user_id: string
+  
   name: string
   type: McpToolType
   table_id: number | null
   json_path: string
+  
+  alias?: string | null
+  description?: string | null
+  input_schema?: Record<string, unknown> | null
+  output_schema?: Record<string, unknown> | null
+  metadata?: Record<string, unknown> | null
 }
 
 // ============================================
@@ -454,12 +464,11 @@ export async function deleteBinding(apiKey: string, toolId: number): Promise<voi
 
 /**
  * 获取 MCP v2 实例绑定的所有 Tool
- * 注意：这个接口可能需要后端支持，如果没有可以先用 internal 接口
+ * 使用 GET /api/v1/mcp/{api_key}/tools 端点
  */
-export async function getBoundTools(apiKey: string): Promise<BoundTool[]> {
-  // 使用 internal 接口获取 MCP v2 实例及其绑定的 Tool
-  const response = await get<{ tools: BoundTool[] }>(`/api/v1/internal/mcp_v2/${apiKey}`)
-  return response.tools || []
+export async function getBoundTools(apiKey: string, includeDisabled = false): Promise<BoundTool[]> {
+  const params = includeDisabled ? '?include_disabled=true' : ''
+  return get<BoundTool[]>(`/api/v1/mcp/${apiKey}/tools${params}`)
 }
 
 // ============================================
