@@ -55,12 +55,16 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
     }
     try {
       console.log('Starting OAuth sign-in with:', provider)
+      
+      // ✅ 极致精简：只信任环境变量，本地默认 localhost:3000
+      // 生产环境必须配置 NEXT_PUBLIC_SITE_URL
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      const redirectTo = `${siteUrl}/auth/callback`
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: typeof window !== 'undefined' 
-            ? `${window.location.origin}/auth/callback` 
-            : undefined,
+          redirectTo,
           skipBrowserRedirect: false,
         }
       })

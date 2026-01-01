@@ -116,7 +116,7 @@ export function LibraryView({
     try {
       await updateTool(editingTool.id, { 
         name: editName.trim() || editingTool.name,
-        description: editDescription.trim() || null 
+        description: editDescription.trim() || undefined 
       })
       handleCancelEdit()
       onRefresh()
