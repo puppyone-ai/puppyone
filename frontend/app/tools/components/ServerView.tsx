@@ -16,6 +16,7 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
 
   const [showAddTools, setShowAddTools] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedToolIds, setSelectedToolIds] = useState<Set<number>>(new Set())
   const [activeTab, setActiveTab] = useState<'json' | 'yaml'>('json')
   const [copied, setCopied] = useState(false)
   
@@ -123,7 +124,7 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
       {/* Main Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
         
-        {/* Server Title Row */}
+        {/* Server Title Row (H1) */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {editingName ? (
@@ -134,16 +135,17 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
                   onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }}
                   autoFocus
                   style={{
-                    height: 36,
+                    height: 40,
                     background: '#0a0a0c',
                     border: '1px solid #27272a',
                     borderRadius: 6,
                     padding: '0 12px',
-                    fontSize: 20,
+                    fontSize: 24,
                     fontWeight: 600,
-                    color: '#e2e8f0',
+                    color: '#f4f4f5',
                     outline: 'none',
-                    width: 280,
+                    width: 320,
+                    letterSpacing: '-0.02em',
                   }}
                 />
                 <span 
@@ -167,7 +169,7 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
               <>
                 <span 
                   onClick={() => { setEditingName(true); setNameValue(server.name || '') }}
-                  style={{ fontSize: 20, fontWeight: 600, color: '#e2e8f0', cursor: 'text' }}
+                  style={{ fontSize: 24, fontWeight: 600, color: '#f4f4f5', cursor: 'text', letterSpacing: '-0.02em' }}
                 >
                   {server.name || 'Unnamed Server'}
                 </span>
@@ -188,123 +190,88 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
           </div>
         </div>
         
-        {/* Tools Section Card */}
-        <div style={{
-          background: '#0f0f11',
-          borderRadius: 10,
-          border: '1px solid #1a1a1c',
-          overflow: 'hidden',
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
-            padding: '12px 16px',
-            borderBottom: '1px solid #141416',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: FONT.secondary, fontWeight: 600, color: '#a1a1aa' }}>
-                Included Tools
-              </span>
-              <span style={{ 
-                fontSize: FONT.tertiary, 
-                color: '#3f3f46',
-                background: '#1a1a1c',
-                padding: '2px 6px',
-                borderRadius: 4,
-              }}>
-                {boundToolsLoading ? '...' : boundTools.length}
-              </span>
+        {/* Included Tools Section */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 600, color: '#a1a1aa', margin: '0 0 4px 0' }}>Included Tools</h2>
+              <p style={{ fontSize: FONT.secondary, color: '#525252', margin: 0 }}>Tools exposed by this server instance.</p>
             </div>
-            <span 
-              onClick={() => setShowAddTools(true)}
-              style={{ 
-                fontSize: FONT.secondary, 
-                color: '#525252', 
+            <button
+              onClick={() => { setSelectedToolIds(new Set()); setShowAddTools(true) }}
+              style={{
+                height: 28,
+                padding: '0 12px',
+                fontSize: 13,
+                fontWeight: 500,
+                color: '#fff',
+                background: '#22c55e',
+                border: 'none',
+                borderRadius: 4,
                 cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
               }}
-              onMouseEnter={e => e.currentTarget.style.color = '#a1a1aa'}
-              onMouseLeave={e => e.currentTarget.style.color = '#525252'}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
             >
-              Add
-            </span>
+              Add Tool
+            </button>
           </div>
 
-          {boundToolsLoading ? (
-            <div style={{ padding: '24px 16px', color: '#525252', fontSize: FONT.secondary, textAlign: 'center' }}>
-              Loading tools...
-            </div>
-          ) : boundTools.length === 0 ? (
-            <div style={{ padding: '16px' }}>
-              <ToolsEmptyState 
-                message="No tools included" 
-                actionLabel="Add tools from library"
-                onAction={() => setShowAddTools(true)}
-              />
-            </div>
-          ) : (
-            <div style={{ padding: '0' }}>
-              <ToolsTable
-                tools={boundTools}
-                showPath={false}
-                selectable={false}
-                onRemove={handleRemoveTool}
-                removeIcon="remove"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* API Key Row */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 10,
-          padding: '10px 16px',
-          background: '#0f0f11',
-          borderRadius: 8,
-          border: '1px solid #1a1a1c',
-        }}>
-          <span style={{ fontSize: FONT.secondary, color: '#525252' }}>API Key</span>
-          <code style={{ 
-            flex: 1,
-            fontSize: FONT.secondary, 
-            color: '#71717a', 
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          <div style={{
+            background: '#0f0f11',
+            borderRadius: 8,
+            border: '1px solid #27272a',
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
           }}>
-            {server.api_key}
-          </code>
-          <span
-            onClick={() => { navigator.clipboard.writeText(server.api_key); }}
-            style={{ fontSize: FONT.secondary, color: '#525252', cursor: 'pointer' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#a1a1aa'}
-            onMouseLeave={e => e.currentTarget.style.color = '#525252'}
-          >
-            Copy
-          </span>
+            {boundToolsLoading ? (
+              <div style={{ padding: '32px', color: '#71717a', fontSize: 13, textAlign: 'center' }}>
+                Loading tools...
+              </div>
+            ) : boundTools.length === 0 ? (
+              <div style={{ padding: '24px' }}>
+                <ToolsEmptyState 
+                  message="No tools included" 
+                  actionLabel="Add tools from library"
+                  onAction={() => setShowAddTools(true)}
+                />
+              </div>
+            ) : (
+              <div style={{ padding: '0' }}>
+                <ToolsTable
+                  tools={boundTools}
+                  showPath={false}
+                  selectable={false}
+                  onRemove={handleRemoveTool}
+                  removeIcon="remove"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Configuration Section Card */}
-        <div style={{
-          background: '#0f0f11',
-          borderRadius: 10,
-          border: '1px solid #1a1a1c',
-          overflow: 'hidden',
-        }}>
-          <div style={{ 
-            padding: '12px 16px', 
-            borderBottom: '1px solid #141416',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+        {/* Configuration Section */}
+        <div>
+          <div style={{ marginBottom: 12 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: '#a1a1aa', margin: '0 0 4px 0' }}>Configuration</h2>
+            <p style={{ fontSize: FONT.secondary, color: '#525252', margin: 0 }}>Client configuration for using this server.</p>
+          </div>
+
+          <div style={{
+            background: '#0f0f11',
+            borderRadius: 8,
+            border: '1px solid #27272a',
+            overflow: 'hidden',
           }}>
-            <span style={{ fontSize: FONT.secondary, fontWeight: 600, color: '#a1a1aa' }}>
-              Configuration
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ 
+              padding: '8px 12px', 
+              borderBottom: '1px solid #1a1a1c',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
               <div style={{ display: 'flex', gap: 2, background: '#0a0a0c', borderRadius: 5, padding: 2 }}>
                 {(['json', 'yaml'] as const).map(tab => (
                   <button
@@ -329,30 +296,32 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
               <button
                 onClick={handleCopy}
                 style={{
-                  height: 26,
-                  padding: '0 10px',
+                  height: 24,
+                  padding: '0 8px',
                   fontSize: FONT.tertiary,
                   fontWeight: 500,
-                  color: copied ? '#4ade80' : '#525252',
-                  background: copied ? 'rgba(34,197,94,0.1)' : '#0a0a0c',
+                  color: copied ? '#22c55e' : '#71717a',
+                  background: 'transparent',
                   border: 'none',
-                  borderRadius: 5,
+                  borderRadius: 4,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 5,
+                  gap: 4,
                 }}
+                onMouseEnter={e => { if (!copied) e.currentTarget.style.color = '#e2e8f0' }}
+                onMouseLeave={e => { if (!copied) e.currentTarget.style.color = '#71717a' }}
               >
                 {copied ? (
                   <>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <polyline points="20 6 9 17 4 12"/>
                     </svg>
                     Copied
                   </>
                 ) : (
                   <>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <rect x="9" y="9" width="13" height="13" rx="2"/>
                       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                     </svg>
@@ -361,9 +330,8 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
                 )}
               </button>
             </div>
-          </div>
           
-          <pre style={{
+            <pre style={{
             margin: 0,
             padding: '14px 16px',
             fontSize: FONT.secondary,
@@ -378,27 +346,6 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
           }}>
             {configText}
           </pre>
-
-          <div style={{ 
-            padding: '12px 16px', 
-            background: 'rgba(59, 130, 246, 0.03)', 
-            borderTop: '1px solid #141416',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 10,
-          }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" style={{ marginTop: 2, flexShrink: 0 }}>
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 16v-4M12 8h.01"/>
-            </svg>
-            <div>
-              <div style={{ fontSize: FONT.secondary, color: '#60a5fa', fontWeight: 500, marginBottom: 2 }}>
-                How to use
-              </div>
-              <div style={{ fontSize: FONT.secondary, color: '#525252', lineHeight: 1.5 }}>
-                Copy and paste into your Claude Desktop or Cursor settings file.
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -449,22 +396,6 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
               />
             </div>
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '70px 1fr 1fr 60px',
-              padding: '8px 16px',
-              borderBottom: '1px solid #111113',
-              fontSize: FONT.tertiary,
-              fontWeight: 500,
-              color: '#3f3f46',
-              textTransform: 'uppercase',
-            }}>
-              <div>Type</div>
-              <div>Name</div>
-              <div>Description</div>
-              <div></div>
-            </div>
-
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {filteredAvailableTools.length === 0 ? (
                 <div style={{ padding: 32, textAlign: 'center', color: '#3f3f46', fontSize: FONT.primary }}>
@@ -473,89 +404,120 @@ export function ServerView({ server, allTools, onDeleteServer, onRefresh }: any)
               ) : (
                 filteredAvailableTools.map((t: any) => {
                   const typeConfig = TOOL_TYPE_CONFIG[t.type] || { label: t.type?.toUpperCase() || 'TOOL', color: '#71717a', bg: 'rgba(113,113,122,0.15)' }
+                  const isSelected = selectedToolIds.has(t.id)
                   return (
                     <div
                       key={t.id}
+                      onClick={() => {
+                        const newSet = new Set(selectedToolIds)
+                        if (isSelected) newSet.delete(t.id)
+                        else newSet.add(t.id)
+                        setSelectedToolIds(newSet)
+                      }}
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: '70px 1fr 1fr 60px',
-                        padding: '10px 16px',
+                        display: 'flex',
                         alignItems: 'center',
+                        gap: 12,
+                        padding: '10px 16px',
                         borderBottom: '1px solid #0f0f11',
+                        cursor: 'pointer',
+                        background: isSelected ? '#141416' : 'transparent',
                         transition: 'background 0.1s',
                       }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#0f0f11'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#0f0f11' }}
+                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
                     >
-                      <div>
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          fontSize: FONT.tertiary,
-                          fontWeight: 600,
-                          color: typeConfig.color,
-                          background: typeConfig.bg,
-                        }}>
-                          {typeConfig.label}
-                        </span>
+                      {/* Checkbox */}
+                      <div style={{
+                        width: 16, height: 16,
+                        borderRadius: 3,
+                        border: isSelected ? 'none' : '1px solid #3f3f46',
+                        background: isSelected ? '#22c55e' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        {isSelected && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        )}
                       </div>
 
-                      <div style={{
+                      {/* Type Badge */}
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        fontSize: FONT.tertiary,
+                        fontWeight: 600,
+                        color: typeConfig.color,
+                        background: typeConfig.bg,
+                        flexShrink: 0,
+                      }}>
+                        {typeConfig.label}
+                      </span>
+
+                      {/* Name */}
+                      <span style={{
                         fontSize: FONT.primary,
                         fontWeight: 500,
                         color: '#e2e8f0',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        paddingRight: 12,
+                        minWidth: 0,
                       }}>
                         {t.name}
-                      </div>
+                      </span>
 
-                      <div style={{
+                      {/* Description */}
+                      <span style={{
                         fontSize: FONT.secondary,
                         color: '#525252',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        paddingRight: 12,
+                        marginLeft: 'auto',
+                        flexShrink: 1,
+                        minWidth: 0,
                       }}>
-                        {t.description || '—'}
-                      </div>
-
-                      <div>
-                        <button
-                          onClick={() => handleAddTools([t.id])}
-                          style={{
-                            height: 24,
-                            padding: '0 10px',
-                            fontSize: FONT.tertiary,
-                            fontWeight: 500,
-                            color: '#60a5fa', 
-                            background: 'transparent', 
-                            border: '1px solid rgba(59,130,246,0.25)',
-                            borderRadius: 4,
-                            cursor: 'pointer', 
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.1)'; e.currentTarget.style.borderColor = '#60a5fa' }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.25)' }}
-                        >
-                          Add
-                        </button>
-                      </div>
+                        {t.description || ''}
+                      </span>
                     </div>
                   )
                 })
               )}
             </div>
-            <div style={{ padding: '10px 16px', borderTop: '1px solid #141416', textAlign: 'right' }}>
-              <button
-                onClick={() => setShowAddTools(false)}
-                style={{ fontSize: FONT.secondary, color: '#e2e8f0', background: '#1a1a1c', border: 'none', borderRadius: 5, padding: '6px 14px', cursor: 'pointer' }}
-              >
-                Done
-              </button>
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #141416', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: FONT.secondary, color: '#525252' }}>
+                {selectedToolIds.size > 0 ? `${selectedToolIds.size} selected` : ''}
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setShowAddTools(false)}
+                  style={{ fontSize: FONT.secondary, color: '#71717a', background: 'transparent', border: 'none', padding: '6px 12px', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#e2e8f0'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#71717a'}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { if (selectedToolIds.size > 0) handleAddTools(Array.from(selectedToolIds)) }}
+                  disabled={selectedToolIds.size === 0}
+                  style={{
+                    fontSize: FONT.secondary,
+                    fontWeight: 500,
+                    color: selectedToolIds.size > 0 ? '#fff' : '#525252',
+                    background: selectedToolIds.size > 0 ? '#22c55e' : '#1a1a1c',
+                    border: 'none',
+                    borderRadius: 5,
+                    padding: '6px 14px',
+                    cursor: selectedToolIds.size > 0 ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  Add{selectedToolIds.size > 0 ? ` (${selectedToolIds.size})` : ''}
+                </button>
+              </div>
             </div>
           </div>
         </div>
