@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../supabase/SupabaseAuthProvider'
 import { useProjects, refreshProjects } from '../../lib/hooks/useData'
 import { ProjectsSidebar } from '../../components/ProjectsSidebar'
-import { ToolsManager } from './components/ToolsManager'
+import { SettingsManager } from './components/SettingsManager'
 
 type ActiveView = 'projects' | 'mcp' | 'tools' | 'etl' | 'connect' | 'test' | 'logs' | 'settings'
 
@@ -18,7 +18,7 @@ const utilityNav = [
   { id: 'settings', label: 'Settings', path: 'settings', isAvailable: false },
 ]
 
-export default function ToolsPage() {
+export default function SettingsPage() {
   const router = useRouter()
   const { session } = useAuth()
   
@@ -27,7 +27,7 @@ export default function ToolsPage() {
   const [activeBaseId, setActiveBaseId] = useState<string>('')
   const [activeTableId, setActiveTableId] = useState<string>('')
   const [expandedBaseIds, setExpandedBaseIds] = useState<Set<string>>(new Set())
-  const [activeView] = useState<ActiveView>('tools')
+  const [activeView] = useState<ActiveView>('settings')
 
   useEffect(() => {
     if (projects.length > 0 && !activeBaseId) {
@@ -86,10 +86,10 @@ export default function ToolsPage() {
   }
 
   const handleUtilityNavClick = (viewId: string) => {
-    if (viewId === 'mcp') {
+    if (viewId === 'tools') {
+      router.push('/tools')
+    } else if (viewId === 'mcp') {
       router.push('/mcp')
-    } else if (viewId === 'etl') {
-      router.push('/etl')
     } else if (viewId === 'connect') {
       router.push('/connect')
     } else if (viewId === 'settings') {
@@ -101,17 +101,6 @@ export default function ToolsPage() {
 
   const handleBackToProjects = () => {
     router.push('/projects')
-  }
-
-  const handleNavigateToTable = (tableId: number) => {
-    // 找到包含这个 table 的 project
-    for (const project of projects) {
-      const table = project.tables.find(t => t.id === String(tableId))
-      if (table) {
-        router.push(`/projects/${encodeURIComponent(project.id)}/${encodeURIComponent(table.id)}`)
-        return
-      }
-    }
   }
 
   return (
@@ -132,9 +121,8 @@ export default function ToolsPage() {
       />
 
       <section style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#040404' }}>
-        <ToolsManager 
+        <SettingsManager 
           onBack={handleBackToProjects} 
-          onNavigateToTable={handleNavigateToTable}
         />
       </section>
     </main>

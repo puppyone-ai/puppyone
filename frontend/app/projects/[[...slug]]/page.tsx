@@ -9,6 +9,7 @@ import { ProjectWorkspaceView } from '../../../components/ProjectWorkspaceView'
 import { ProjectsSidebar } from '../../../components/ProjectsSidebar'
 import { ProjectsHeader, type EditorType } from '../../../components/ProjectsHeader'
 import { ToolsManager } from '../../tools/components/ToolsManager'
+import { SettingsManager } from '../../settings/components/SettingsManager'
 import { ConnectContentView } from '../../../components/ConnectContentView'
 import { ChatSidebar } from '../../../components/ChatSidebar'
 import { OnboardingView } from '../../../components/OnboardingView'
@@ -150,7 +151,7 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
   // Listen for navigate to connect event (from ImportModal auth button)
   useEffect(() => {
     const handleNavigateToConnect = () => {
-      setActiveView('connect')
+      setActiveView('settings')
     }
     window.addEventListener('navigateToConnect', handleNavigateToConnect)
     return () => {
@@ -226,8 +227,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
          router.push(`/projects/${firstProject.id}`)
       }
     } else {
-      // 如果没有任何项目，跳到 Connect 页面
-      router.push('/connect')
+      // 如果没有任何项目，跳到 Settings 页面 (以前是 Connect)
+      setActiveView('settings')
+      window.history.pushState({}, '', '/settings')
     }
     // 不要 setIsOnboardingLoading(false)，让 loading 一直显示到新页面出现
   }
@@ -282,9 +284,9 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
     } else if (viewId === 'mcp') {
       setActiveView('mcp')
       window.history.pushState({}, '', '/mcp')
-    } else if (viewId === 'connect') {
-      setActiveView('connect')
-      window.history.pushState({}, '', '/connect')
+    } else if (viewId === 'settings') {
+      setActiveView('settings')
+      window.history.pushState({}, '', '/settings')
     }
   }
 
@@ -568,8 +570,8 @@ export default function ProjectsSlugPage({ params }: { params: Promise<{ slug: s
               }
             }}
           />
-        ) : activeView === 'connect' ? (
-          <ConnectContentView onBack={handleBackToProjects} />
+        ) : activeView === 'settings' ? (
+          <SettingsManager onBack={handleBackToProjects} />
         ) : null}
       </section>
 

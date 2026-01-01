@@ -1395,12 +1395,12 @@ export function ProjectsSidebar({
         </div>
         </div>
 
-        {/* Bottom Content - Connect (flex-shrink: 0, bottom aligned) */}
+        {/* Bottom Content - Deploy & Settings */}
         <div className="content-bottom">
-        {/* Section: Connect */}
+        {/* Section: Deploy */}
         <div className="section">
           <div className="section-header" onClick={() => toggleSection('connect')}>
-            <span className="section-title">Connect</span>
+            <span className="section-title">Deploy</span>
             <svg className={`section-chevron ${expandedSections.has('connect') ? 'expanded' : ''}`} viewBox="0 0 12 12" fill="none">
               <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -1424,23 +1424,28 @@ export function ProjectsSidebar({
                   <span className="nav-badge">{toolsCount}</span>
                 )}
               </button>
-
-              {/* Import Settings (Inbound) */}
-              <button 
-                className={`nav-item ${activeView === 'connect' ? 'active' : ''}`}
-                onClick={() => onUtilityNavClick('connect')}
-              >
-                <span className="nav-icon">
-                  {/* Download / Import style icon */}
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
-                <span className="nav-label">Import Settings</span>
-              </button>
             </div>
           )}
         </div>
+        </div>
+
+        {/* Sidebar Bottom Actions (Fixed Settings) */}
+        <div style={{
+          padding: '8px 8px 8px 8px',
+          borderTop: '1px solid #333',
+          flexShrink: 0,
+        }}>
+          <button 
+            className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
+            onClick={() => onUtilityNavClick('settings')}
+          >
+            <span className="nav-icon">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 1.75C7 1.75 7.6 1.75 7.6 2.65C7.6 3.15 8 3.55 8.5 3.55C9.4 3.55 10 3.2 10 3.2C10 3.2 10.5 3.6 10.9 4.1C11.3 4.6 11.3 4.6 11.3 4.6C11.3 4.6 10.75 5.15 10.75 6.05C10.75 7.35 11.85 7.9 11.85 7.9C11.85 7.9 11.6 8.65 11.35 9.15C11.1 9.65 11.1 9.65 11.1 9.65C11.1 9.65 10.2 9.5 9.3 10.4C8.4 11.3 8.7 12.35 8.7 12.35C8.7 12.35 8.1 12.35 7.5 12.35L6.45 12.35C5.85 12.35 5.25 12.35 5.25 12.35C5.25 12.35 5.55 11.3 4.65 10.4C3.75 9.5 2.85 9.65 2.85 9.65C2.85 9.65 2.85 9.65 2.6 9.15C2.35 8.65 2.1 7.9 2.1 7.9C2.1 7.9 3.2 7.35 3.2 6.05C3.2 5.15 2.65 4.6 2.65 4.6C2.65 4.6 2.65 4.6 3.05 4.1C3.45 3.6 3.95 3.2 3.95 3.2C3.95 3.2 4.55 3.55 5.45 3.55C5.95 3.55 6.35 3.15 6.35 2.65C6.35 1.75 6.95 1.75 6.95 1.75L7 1.75ZM7 5.25C5.9 5.25 5 6.15 5 7.25C5 8.35 5.9 9.25 7 9.25C8.1 9.25 9 8.35 9 7.25C9 6.15 8.1 5.25 7 5.25Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </span>
+            <span className="nav-label">Settings</span>
+          </button>
         </div>
       </div>
               
@@ -1503,14 +1508,14 @@ export function ProjectsSidebar({
             </svg>
           </button>
 
-          {/* Import Settings Icon (Inbound) */}
+          {/* Settings Icon */}
           <button
-            className={`collapsed-nav-btn ${activeView === 'connect' ? 'active' : ''}`}
-            onClick={() => onUtilityNavClick('connect')}
-            title="Import Settings"
+            className={`collapsed-nav-btn ${activeView === 'settings' ? 'active' : ''}`}
+            onClick={() => onUtilityNavClick('settings')}
+            title="Settings"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M7 1.75C7 1.75 7.6 1.75 7.6 2.65C7.6 3.15 8 3.55 8.5 3.55C9.4 3.55 10 3.2 10 3.2C10 3.2 10.5 3.6 10.9 4.1C11.3 4.6 11.3 4.6 11.3 4.6C11.3 4.6 10.75 5.15 10.75 6.05C10.75 7.35 11.85 7.9 11.85 7.9C11.85 7.9 11.6 8.65 11.35 9.15C11.1 9.65 11.1 9.65 11.1 9.65C11.1 9.65 10.2 9.5 9.3 10.4C8.4 11.3 8.7 12.35 8.7 12.35C8.7 12.35 8.1 12.35 7.5 12.35L6.45 12.35C5.85 12.35 5.25 12.35 5.25 12.35C5.25 12.35 5.55 11.3 4.65 10.4C3.75 9.5 2.85 9.65 2.85 9.65C2.85 9.65 2.85 9.65 2.6 9.15C2.35 8.65 2.1 7.9 2.1 7.9C2.1 7.9 3.2 7.35 3.2 6.05C3.2 5.15 2.65 4.6 2.65 4.6C2.65 4.6 2.65 4.6 3.05 4.1C3.45 3.6 3.95 3.2 3.95 3.2C3.95 3.2 4.55 3.55 5.45 3.55C5.95 3.55 6.35 3.15 6.35 2.65C6.35 1.75 6.95 1.75 6.95 1.75L7 1.75ZM7 5.25C5.9 5.25 5 6.15 5 7.25C5 8.35 5.9 9.25 7 9.25C8.1 9.25 9 8.35 9 7.25C9 6.15 8.1 5.25 7 5.25Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
         </div>
