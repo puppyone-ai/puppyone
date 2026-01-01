@@ -15,9 +15,25 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   // useProjects 自动处理了 SWR 缓存
   const { projects, isLoading: projectsLoading } = useProjects()
 
-  // 解析 URL 参数
-  const activeBaseId = (params?.projectId as string) || ''
-  const activeTableId = (params?.tableId as string) || ''
+  // 解析 URL 参数 - 增加更健壮的解析逻辑
+  // 注意：params.projectId 和 tableId 在 layout 中可能获取不到，因为它们是在子页面的 params 中的
+  // 所以需要从 pathname 中提取
+  const [activeBaseId, setActiveBaseId] = useState('')
+  const [activeTableId, setActiveTableId] = useState('')
+
+  useEffect(() => {
+    if (!pathname) return
+    
+    // Pattern: /projects/[projectId]/[tableId]
+    const projectsMatch = pathname.match(/^\/projects\/([^\/]+)(?:\/([^\/]+))?/)
+    if (projectsMatch) {
+      setActiveBaseId(projectsMatch[1])
+      setActiveTableId(projectsMatch[2] || '')
+    } else {
+      setActiveBaseId('')
+      setActiveTableId('')
+    }
+  }, [pathname])
 
   // 侧边栏状态
   const [isNavCollapsed, setIsNavCollapsed] = useState(false)

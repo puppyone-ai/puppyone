@@ -132,11 +132,11 @@ export function ProjectWorkspaceView({
   const resolvedActiveTableId = isControlled ? activeTableIdProp ?? '' : internalActiveTableId
   
   // 使用 SWR 获取当前表数据（自动缓存、去重）
-  const { tableData: rawTableData, isLoading: isTableLoading, refresh: refreshTableData } = useTable(projectId, resolvedActiveTableId)
+  const { tableData: rawTableData, isLoading: isTableLoading, error: tableError, refresh: refreshTableData } = useTable(projectId, resolvedActiveTableId)
   
   // 处理表数据格式（保持原有逻辑）
   const tableData = useMemo(() => {
-    if (!rawTableData?.data) return undefined
+    if (rawTableData?.data === undefined || rawTableData?.data === null) return undefined
     let displayData = rawTableData.data as any
     // 如果数据是数组且只有一个元素，且该元素是对象（可能是文件夹结构），则提取该对象
     if (Array.isArray(displayData) && displayData.length === 1 && typeof displayData[0] === 'object' && !Array.isArray(displayData[0])) {
@@ -470,6 +470,21 @@ export function ProjectWorkspaceView({
                     ) : isProjectsLoading ? (
                       /* 项目列表还在加载 -> 显示骨架屏，和 Sidebar 同步 */
                       <EditorSkeleton />
+                    ) : tableError ? (
+                      <div
+                        style={{
+                          height: '100%',
+                          display: 'grid',
+                          placeItems: 'center',
+                          color: '#ef4444',
+                          fontSize: 13,
+                          padding: 20,
+                          textAlign: 'center',
+                        }}
+                      >
+                        <div>Failed to load data.</div>
+                        <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>{tableError.message || 'Unknown error'}</div>
+                      </div>
                     ) : (
                       <div
                         style={{

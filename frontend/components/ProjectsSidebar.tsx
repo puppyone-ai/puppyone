@@ -664,8 +664,18 @@ export function ProjectsSidebar({
         }
 
         .project-row:hover,
-        .project-row.menu-open {
+        .project-row.menu-open,
+        .project-row.active {
           background: #2C2C2C;
+        }
+
+        .project-row.active .project-name {
+          color: #FFFFFF;
+        }
+        
+        .project-row.active .folder-icon-wrapper {
+          background: rgba(59, 130, 246, 0.25);
+          color: #60a5fa;
         }
 
         .project-btn {
@@ -1283,7 +1293,7 @@ export function ProjectsSidebar({
 
           return (
                       <div key={project.id} className="project-item">
-            <div className={`project-row ${contextMenu?.type === 'project' && contextMenu.id === project.id ? 'menu-open' : ''}`}>
+            <div className={`project-row ${String(project.id) === String(activeBaseId) ? 'active' : ''} ${contextMenu?.type === 'project' && contextMenu.id === project.id ? 'menu-open' : ''}`}>
               <button
                 className="project-btn"
                 onClick={() => onBaseClick(project.id)}
@@ -1339,7 +1349,7 @@ export function ProjectsSidebar({
                               return (
                               <div
                                 key={table.id}
-                                className={`table-wrapper ${activeView === 'projects' && table.id === activeTableId ? 'active' : ''} ${contextMenu?.type === 'table' && contextMenu.id === table.id ? 'menu-open' : ''} ${isProcessing ? 'processing' : ''}`}
+                                className={`table-wrapper ${String(table.id) === String(activeTableId) ? 'active' : ''} ${contextMenu?.type === 'table' && contextMenu.id === table.id ? 'menu-open' : ''} ${isProcessing ? 'processing' : ''}`}
                               >
                                 <button
                                   className="table-btn"

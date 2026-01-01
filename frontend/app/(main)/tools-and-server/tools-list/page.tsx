@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { LibraryView } from '@/app/tools/components/LibraryView'
+import { LibraryView } from '../components/LibraryView'
 import { useAllTools, useMcpInstances, refreshToolsAndMcp } from '@/lib/hooks/useData'
 import { deleteTool, type McpV2Instance } from '@/lib/mcpApi'
 

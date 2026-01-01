@@ -2,7 +2,7 @@
 
 import { use, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ServerView } from '@/app/tools/components/ServerView'
+import { ServerView } from '../../components/ServerView'
 import { useAllTools, useMcpInstances, refreshToolsAndMcp } from '@/lib/hooks/useData'
 import { deleteMcpV2 } from '@/lib/mcpApi'
 
