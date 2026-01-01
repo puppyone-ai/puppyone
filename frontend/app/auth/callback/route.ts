@@ -13,9 +13,12 @@ import { cookies } from 'next/headers'
  * 这是 Supabase 官方推荐的做法，比客户端处理更安全可靠。
  */
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/projects'
+  
+  // ✅ 极致精简：统一信任源
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
   if (code) {
     const cookieStore = await cookies()
@@ -41,17 +44,13 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error) {
-      // 成功，重定向到目标页面
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${siteUrl}${next}`)
     }
     
-    // 失败，重定向到登录页并带上错误信息
     console.error('OAuth callback error:', error)
-    return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`)
+    return NextResponse.redirect(`${siteUrl}/login?error=auth_callback_failed`)
   }
 
-  // 没有 code，可能是旧的 implicit flow 或错误
-  // 重定向到登录页
-  return NextResponse.redirect(`${origin}/login`)
+  return NextResponse.redirect(`${siteUrl}/login`)
 }
 
