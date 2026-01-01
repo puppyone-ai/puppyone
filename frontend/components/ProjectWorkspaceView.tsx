@@ -1,553 +1,162 @@
 'use client'
 
 import { useEffect, useMemo, useState, useRef } from 'react'
-import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '../app/supabase/SupabaseAuthProvider'
-import { McpBar } from './McpBar'
-import { ErrorConsole, type ErrorLog } from './ErrorConsole'
-import type { ProjectTableJSON } from '../lib/projectData'
+import { useTable } from '../lib/hooks/useData'
 import { updateTableData, type TableInfo, type ProjectInfo } from '../lib/projectsApi'
-import { useProjects, useTable, refreshProjects } from '../lib/hooks/useData'
-import type { EditorType } from './ProjectsHeader'
 import { EditorSkeleton } from './Skeleton'
-
-// Tree editor with virtual scrolling
-const TreeLineVirtualEditor = dynamic(
-  () => import('./editors/tree/TreeLineVirtualEditor'),
-  { ssr: false, loading: EditorSkeleton }
-)
-
-// Monaco (raw JSON text editor)
-const MonacoJsonEditor = dynamic(
-  () => import('./editors/code/MonacoJsonEditor'),
-  { ssr: false, loading: EditorSkeleton }
-)
-
-// MCP 工具权限类型 - 从统一的 API 模块导入
+import TreeLineVirtualEditor from './editors/tree/TreeLineVirtualEditor'
+import MonacoJsonEditor from './editors/code/MonacoJsonEditor'
+import type { EditorType } from './ProjectsHeader'
+import type { ProjectTableJSON } from '../lib/projectData'
 import { type McpToolPermissions } from '../lib/mcpApi'
 
-// Access Point 类型
-interface ConfiguredAccessPoint {
-  path: string
-  permissions: McpToolPermissions
-}
-
-type ProjectWorkspaceViewProps = {
-  projectId: string
-  project?: ProjectInfo | null  // 从父组件传入，避免重复查找
-  isProjectsLoading?: boolean   // 从父组件传入，避免重复调用 useProjects
-  activeTableId?: string
-  onActiveTableChange?: (tableId: string) => void
-  onTreePathChange?: (treePath: string | null) => void
-  showHeaderBar?: boolean
-  showBackButton?: boolean
-  onNavigateBack?: () => void
-  onProjectMissing?: () => void
-  editorType?: EditorType
-  isSelectingAccessPoint?: boolean
-  selectedAccessPath?: string | null
-  onAddAccessPoint?: (path: string, permissions: McpToolPermissions) => void
-  onCancelSelection?: () => void
-  publishPanel?: React.ReactNode  // Publish Panel 作为 slot 传入
-  configuredAccessPoints?: ConfiguredAccessPoint[]  // 已配置的 Access Points，用于高亮显示
-  // Pending 配置 - 用于在节点旁边显示浮动配置面板
-  pendingConfig?: { path: string; permissions: McpToolPermissions } | null
-  onPendingConfigChange?: (config: { path: string; permissions: McpToolPermissions } | null) => void
-  onPendingConfigSave?: () => void
-  // 统一交互模型：右侧 Gutter 配置 Agent 权限
-  onAccessPointChange?: (path: string, permissions: McpToolPermissions) => void
-  onAccessPointRemove?: (path: string) => void
-  // 打开长文本文档编辑器
-  onOpenDocument?: (path: string, value: string) => void
-}
-
+// 简化版 ProjectWorkspaceView
 export function ProjectWorkspaceView({
   projectId,
-  project: projectProp,
-  isProjectsLoading = false,
-  activeTableId: activeTableIdProp,
+  activeTableId,
   onActiveTableChange,
-  onTreePathChange,
-  publishPanel,
-  configuredAccessPoints = [],
-  pendingConfig = null,
-  onPendingConfigChange,
-  onPendingConfigSave,
-  showHeaderBar = true,
-  showBackButton = true,
-  onNavigateBack,
-  onProjectMissing,
   editorType = 'treeline-virtual',
-  isSelectingAccessPoint = false,
-  selectedAccessPath = null,
-  onAddAccessPoint,
-  onCancelSelection,
-  onAccessPointChange,
-  onAccessPointRemove,
-  onOpenDocument,
-}: ProjectWorkspaceViewProps) {
-  const { session, isAuthReady } = useAuth()
-  const router = useRouter()
+  ...props // 忽略其他非核心 props
+}: any) {
   
-  // 使用传入的 project，如果没传则 fallback 到自己查找（兼容旧调用方式）
-  const { projects, refresh: refreshProjectsList } = useProjects()
-  const project = projectProp ?? projects.find((p) => p.id === projectId) ?? null
+  // 1. 数据获取
+  // 确保 activeTableId 是字符串
+  const validTableId = activeTableId ? String(activeTableId) : undefined
+  const { tableData: rawTableData, isLoading, error } = useTable(projectId, validTableId)
 
-  // Listen for projects refresh event
-  useEffect(() => {
-    const handleProjectsRefresh = () => {
-      refreshProjects() // 使用 SWR 的 mutate 刷新
-    }
-    window.addEventListener('projects-refresh', handleProjectsRefresh)
-    return () => {
-      window.removeEventListener('projects-refresh', handleProjectsRefresh)
-    }
-  }, [])
-
-  // Listen for import log events (from ProjectsHeader's McpBar)
-  useEffect(() => {
-    const handleImportLog = (event: CustomEvent<{ type: 'error' | 'warning' | 'info' | 'success', message: string }>) => {
-      const { type, message } = event.detail
-      if (addErrorLogRef.current) {
-        addErrorLogRef.current(type, message)
-      }
-    }
-    window.addEventListener('import-log', handleImportLog as EventListener)
-    return () => {
-      window.removeEventListener('import-log', handleImportLog as EventListener)
-    }
-  }, [])
-
-  const isControlled = activeTableIdProp !== undefined
-
-  const [internalActiveTableId, setInternalActiveTableId] = useState<string>(() => {
-    if (isControlled) {
-      return activeTableIdProp ?? ''
-    }
-    return project?.tables[0]?.id ?? ''
-  })
-  
-  // 计算当前激活的表 ID
-  const resolvedActiveTableId = isControlled ? activeTableIdProp ?? '' : internalActiveTableId
-  
-  // 使用 SWR 获取当前表数据（自动缓存、去重）
-  const { tableData: rawTableData, isLoading: isTableLoading, error: tableError, refresh: refreshTableData } = useTable(projectId, resolvedActiveTableId)
-  
-  // 处理表数据格式（保持原有逻辑）
+  // 2. 数据处理
   const tableData = useMemo(() => {
-    if (rawTableData?.data === undefined || rawTableData?.data === null) return undefined
-    let displayData = rawTableData.data as any
-    // 如果数据是数组且只有一个元素，且该元素是对象（可能是文件夹结构），则提取该对象
-    if (Array.isArray(displayData) && displayData.length === 1 && typeof displayData[0] === 'object' && !Array.isArray(displayData[0])) {
-      displayData = displayData[0]
+    if (!rawTableData?.data) return undefined
+    let data = rawTableData.data as any
+    // 兼容处理：如果最外层包裹了数组且只有一个对象，取出来
+    if (Array.isArray(data) && data.length === 1 && typeof data[0] === 'object' && !Array.isArray(data[0])) {
+      data = data[0]
     }
-    return displayData as ProjectTableJSON
+    return data as ProjectTableJSON
   }, [rawTableData])
-  
-  // 本地编辑状态（用于防抖保存）
-  const [localTableData, setLocalTableData] = useState<ProjectTableJSON | undefined>(undefined)
-  const [currentTreePath, setCurrentTreePath] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [errorLogs, setErrorLogs] = useState<ErrorLog[]>([])
+
+  // 3. 本地状态
+  const [localData, setLocalData] = useState<any>(undefined)
+  const [isSaving, setIsSaving] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const errorIdCounterRef = useRef(0)
-  const addErrorLogRef = useRef<((type: ErrorLog['type'], message: string) => void) | null>(null)
-
-  // Notify parent component when tree path changes
-  useEffect(() => {
-    onTreePathChange?.(currentTreePath)
-  }, [currentTreePath, onTreePathChange])
 
   useEffect(() => {
-    if (isControlled) {
-      setInternalActiveTableId(activeTableIdProp ?? '')
+    // 当从后端获取到新数据，且本地没有未保存的更改时，同步数据
+    if (tableData && !isSaving) {
+        setLocalData(tableData)
     }
-  }, [activeTableIdProp, isControlled])
+  }, [tableData]) // 移除 isSaving 依赖，防止保存状态变化导致的回滚
 
-  useEffect(() => {
-    if (!isControlled) {
-      const nextId = project?.tables?.[0]?.id ?? ''
-      setInternalActiveTableId(nextId)
-    }
-  }, [projectId, project?.tables, isControlled])
-
-  useEffect(() => {
-    if (onProjectMissing && isAuthReady && session && !project) {
-      onProjectMissing()
-    }
-  }, [onProjectMissing, isAuthReady, session, project])
-
-  const activeTable = project?.tables.find((t: TableInfo) => t.id === resolvedActiveTableId)
-  
-  // 当 SWR 数据变化时，同步到本地状态
-  useEffect(() => {
-    setLocalTableData(tableData)
-  }, [tableData])
-
-  // Add error log
-  const addErrorLog = (type: ErrorLog['type'], message: string) => {
-    errorIdCounterRef.current += 1
-    const logEntry = {
-      id: `error-${errorIdCounterRef.current}`,
-      timestamp: new Date(),
-      type,
-      message,
-    }
+  // 4. 保存逻辑 (带防抖)
+  const handleDataChange = (newData: any) => {
+    setLocalData(newData)
     
-    // Sync to browser console
-    const logPrefix = `[${type.toUpperCase()}]`
-    switch (type) {
-      case 'error':
-        console.error(logPrefix, message)
-        break
-      case 'warning':
-        console.warn(logPrefix, message)
-        break
-      case 'info':
-        console.info(logPrefix, message)
-        break
-      case 'success':
-        console.log(logPrefix, message)
-        break
-      default:
-        console.log(logPrefix, message)
-    }
-    
-    setErrorLogs((prev) => [...prev, logEntry])
-  }
-
-  // Store addErrorLog in ref for event listeners
-  addErrorLogRef.current = addErrorLog
-
-  // Clear error logs
-  const clearErrorLogs = () => {
-    setErrorLogs([])
-  }
-
-  // Expose addErrorLog for ImportFolderDialog
-  const handleImportLog = (type: 'error' | 'warning' | 'info' | 'success', message: string) => {
-    addErrorLog(type, message)
-  }
-
-  // 处理表数据变更，自动保存到后端
-  const handleTableDataChange = async (newData: any) => {
-    if (!resolvedActiveTableId || !projectId) return
-
-    // 更新本地状态（用于即时显示）
-    setLocalTableData(newData)
-
-    // 清除之前的保存定时器
+    // 清除之前的定时器
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
     }
 
-    // 防抖：等待用户停止编辑2s后再保存
+    // 2秒防抖保存
     saveTimeoutRef.current = setTimeout(async () => {
+      if (!projectId || !validTableId) return
+      
+      setIsSaving(true)
       try {
-        setSaving(true)
-        // 确保数据是数组格式
-        const dataArray = Array.isArray(newData) ? newData : [newData]
-        
-        // 验证数据格式
-        const isValid = dataArray.every(
-          (item) => item !== null && typeof item === 'object' && !Array.isArray(item)
-        )
-
-        if (!isValid) {
-          addErrorLog(
-            'error',
-            'Invalid data format: Data must be an array of objects. Each element must be an object (not null, not array).'
-          )
-          setSaving(false)
-          return
-        }
-
-        // 保存数据到后端
-        await updateTableData(projectId, resolvedActiveTableId, dataArray)
-
-        setLastSaved(new Date())
-        addErrorLog('success', 'Data saved successfully')
-        console.log('Data saved successfully')
-      } catch (error: any) {
-        console.error('Failed to save data:', error)
-        
-        // 尝试获取详细的错误信息
-        let errorMessage = 'Unknown error'
-        
-        // 检查错误对象是否包含详细的验证错误信息（从apiRequest中传递的）
-        if (error && typeof error === 'object') {
-          // 如果错误对象包含data字段（验证错误详情）
-          if (error.data && Array.isArray(error.data)) {
-            // 显示详细的验证错误
-            errorMessage = `Validation Error:\n${error.data.join('\n')}`
-          } else if (error.message) {
-            errorMessage = error.message
-          }
-        } else if (error instanceof Error) {
-          errorMessage = error.message
-        }
-        
-        addErrorLog('error', `Failed to save changes: ${errorMessage}`)
+        // 确保数据是数组格式 (兼容后端要求)
+        const dataToSave = Array.isArray(newData) ? newData : [newData]
+        await updateTableData(projectId, validTableId, dataToSave)
+        console.log('[AutoSave] Saved successfully')
+      } catch (err) {
+        console.error('[AutoSave] Failed:', err)
+        // 这里后续可以对接全局 Toast 报错
       } finally {
-        setSaving(false)
+        setIsSaving(false)
       }
-    }, 2000) // 2秒防抖
+    }, 2000)
   }
 
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  // 切换表时重置状态
-  useEffect(() => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-        saveTimeoutRef.current = null
-      }
-      setSaving(false)
-      setLastSaved(null)
-  }, [resolvedActiveTableId])
-
-  const overlayMessage = !isAuthReady ? 'Loading…' : undefined
-
-  const handleTableSelect = (tableId: string) => {
-    if (!isControlled) {
-      setInternalActiveTableId(tableId)
-    }
-    onActiveTableChange?.(tableId)
-  }
-
-  const handleBack = () => {
-    if (!showBackButton) return
-    if (onNavigateBack) {
-      onNavigateBack()
-    } else {
-      router.push('/projects')
-    }
-  }
-
+  // 5. 渲染
+  // 强制全屏容器
   return (
-    <>
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
-      {showHeaderBar && (
-        <div
-          style={{
-            borderBottom: '1px solid rgba(255,255,255,0.12)',
-            backgroundColor: '#0d1014',
-            padding: '12px 22px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 14,
-            position: 'relative',
-            zIndex: 5,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {showBackButton && (
-              <button
-                onClick={handleBack}
-                aria-label="Back to projects"
-                style={{
-                  height: 28,
-                  width: 28,
-                  borderRadius: 6,
-                  border: '1px solid rgba(148,163,184,0.35)',
-                  backgroundColor: 'transparent',
-                  color: '#cbd5f5',
-                  fontSize: 16,
-                  lineHeight: '26px',
-                  display: 'grid',
-                  placeItems: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                ←
-              </button>
-            )}
-            <div
-              style={{
-                fontFamily: "'JetBrains Mono', SFMono-Regular, Menlo, monospace",
-                fontSize: 12,
-                color: '#EDEDED',
-                letterSpacing: 0.4,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              {[project?.name ?? 'Project', activeTable?.name ?? '—']
-                .filter(Boolean)
-                .map((segment, idx) => (
-                  <span key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {idx > 0 && <span style={{ color: '#4F5561' }}>/</span>}
-                    <span>{segment}</span>
-                  </span>
-                ))}
-            </div>
-          </div>
-          <McpBar 
-            projectId={projectId} 
-            currentTreePath={currentTreePath}
-            onProjectsRefresh={() => refreshProjects()}
-            onLog={handleImportLog}
-          />
+    <div style={{ 
+      width: '100%', 
+      height: '100%', 
+      position: 'relative', 
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      
+      {/* 编辑器区域 */}
+      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+        <div style={{ 
+            position: 'absolute', 
+            top: 10, 
+            right: 20, 
+            zIndex: 10,
+            pointerEvents: 'none'
+        }}>
+            {isSaving ? (
+                <span style={{ 
+                    background: 'rgba(0,0,0,0.6)', 
+                    color: '#ddd', 
+                    padding: '4px 8px', 
+                    borderRadius: 4, 
+                    fontSize: 12 
+                }}>
+                    Saving...
+                </span>
+            ) : null}
         </div>
-      )}
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {project && project.tables.length > 0 ? (
-          <>
-            <section style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#050607' }}>
-              <div style={{ flex: 1, display: 'flex', gap: 24, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 0,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
-                    style={{
-                      flex: 1,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      background: 'transparent',
-                      border: isSelectingAccessPoint ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid transparent',
-                      position: 'relative',
-                      minHeight: 0,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      transition: 'border-color 0.2s ease',
-                    }}
-                  >
-                    {(localTableData ?? tableData) ? (
-                      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        {editorType === 'treeline-virtual' && (
-                          <TreeLineVirtualEditor 
-                            json={localTableData ?? tableData!} 
-                            onPathChange={setCurrentTreePath}
-                            onChange={handleTableDataChange}
-                            isSelectingAccessPoint={isSelectingAccessPoint}
-                            selectedAccessPath={selectedAccessPath}
-                            onAddAccessPoint={onAddAccessPoint}
-                            configuredAccessPoints={configuredAccessPoints}
-                            onAccessPointChange={onAccessPointChange}
-                            onAccessPointRemove={onAccessPointRemove}
-                            projectId={Number(projectId)}
-                            tableId={resolvedActiveTableId ? Number(resolvedActiveTableId) : undefined}
-                            onImportSuccess={refreshTableData}
-                            onOpenDocument={onOpenDocument}
-                          />
-                        )}
-                        {editorType === 'monaco' && (
-                          <MonacoJsonEditor 
-                          json={localTableData ?? tableData!} 
-                          onPathChange={setCurrentTreePath}
-                          onChange={handleTableDataChange}
-                        />
-                        )}
-                      </div>
-                    ) : isTableLoading && resolvedActiveTableId ? (
-                      /* 复用标准的 Editor Skeleton */
-                      <EditorSkeleton />
-                    ) : isProjectsLoading ? (
-                      /* 项目列表还在加载 -> 显示骨架屏，和 Sidebar 同步 */
-                      <EditorSkeleton />
-                    ) : tableError ? (
-                      <div
-                        style={{
-                          height: '100%',
-                          display: 'grid',
-                          placeItems: 'center',
-                          color: '#ef4444',
-                          fontSize: 13,
-                          padding: 20,
-                          textAlign: 'center',
-                        }}
-                      >
-                        <div>Failed to load data.</div>
-                        <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>{tableError.message || 'Unknown error'}</div>
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          height: '100%',
-                          display: 'grid',
-                          placeItems: 'center',
-                          color: '#94a3b8',
-                          fontSize: 13,
-                        }}
-                      >
-                        Select a context to view its data.
-                      </div>
-                    )}
-                  </div>
-                  {/* Console hidden - logs only shown as toast notifications */}
+        {isLoading && !tableData ? (
+            <div style={{ position: 'absolute', inset: 0, padding: 20 }}>
+                <EditorSkeleton />
+            </div>
+        ) : error ? (
+            <div style={{ padding: 40, color: 'red', textAlign: 'center' }}>
+                Failed to load table data: {error.message}
+            </div>
+        ) : (localData || tableData) ? (
+            editorType === 'treeline-virtual' ? (
+                <div style={{ position: 'absolute', inset: 0 }}>
+                    <TreeLineVirtualEditor 
+                        json={localData || tableData}
+                        onChange={handleDataChange}
+                        // 传递所有业务回调
+                        onPathChange={props.onTreePathChange}
+                        onAddAccessPoint={props.onAddAccessPoint}
+                        onAccessPointChange={props.onAccessPointChange}
+                        onAccessPointRemove={props.onAccessPointRemove}
+                        configuredAccessPoints={props.configuredAccessPoints}
+                        projectId={Number(projectId)}
+                        tableId={validTableId ? Number(validTableId) : undefined}
+                        onImportSuccess={props.onImportSuccess}
+                        onOpenDocument={props.onOpenDocument}
+                    />
                 </div>
-                
-                {/* Publish Panel Slot - rendered inside the same padding container */}
-                {publishPanel}
-              </div>
-            </section>
-          </>
+            ) : (
+                <div style={{ position: 'absolute', inset: 0 }}>
+                    <MonacoJsonEditor 
+                        json={localData || tableData}
+                        onChange={handleDataChange}
+                    />
+                </div>
+            )
         ) : (
-          /* Project Loading State or Empty State */
-          project ? (
-            <div
-              style={{
-                flex: 1,
-                display: 'grid',
-                placeItems: 'center',
-                color: '#94a3b8',
-                fontSize: 14,
-              }}
-            >
-              No contexts available for this project.
+            <div style={{ 
+                height: '100%', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                color: '#666'
+            }}>
+                Select a table to view data
             </div>
-          ) : (
-            /* Project is loading -> Show Skeleton to match Sidebar loading */
-            <div style={{ flex: 1, backgroundColor: '#050607' }}>
-              <EditorSkeleton />
-            </div>
-          )
         )}
       </div>
-
-      {overlayMessage && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.55)',
-            display: 'grid',
-            placeItems: 'center',
-            fontSize: 16,
-            letterSpacing: 1,
-            color: '#d4d4d8',
-          }}
-        >
-          {overlayMessage}
-        </div>
-      )}
-      </div>
-    </>
+    </div>
   )
 }
 
