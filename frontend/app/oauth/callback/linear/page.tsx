@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { linearCallback } from '@/lib/oauthApi'
 
-export default function LinearCallbackPage() {
+function LinearCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
@@ -35,7 +35,7 @@ export default function LinearCallbackPage() {
 
       try {
         const result = await linearCallback(code)
-        
+
         if (result.success) {
           setStatus('success')
           setMessage(result.message || 'Successfully connected to Linear!')
@@ -92,7 +92,7 @@ export default function LinearCallbackPage() {
             </div>
           </>
         )}
-        
+
         {status === 'success' && (
           <>
             <div style={{
@@ -124,7 +124,7 @@ export default function LinearCallbackPage() {
             </div>
           </>
         )}
-        
+
         {status === 'error' && (
           <>
             <div style={{
@@ -158,6 +158,25 @@ export default function LinearCallbackPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function LinearCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#0a0a0a',
+        color: '#CDCDCD',
+      }}>
+        <div>Loading...</div>
+      </div>
+    }>
+      <LinearCallbackContent />
+    </Suspense>
   )
 }
 

@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { airtableCallback } from '@/lib/oauthApi'
 
-export default function AirtableCallbackPage() {
+function AirtableCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
@@ -36,7 +36,7 @@ export default function AirtableCallbackPage() {
 
       try {
         const result = await airtableCallback(code, state || undefined)
-        
+
         if (result.success) {
           setStatus('success')
           setMessage(result.message || 'Successfully connected to Airtable!')
@@ -93,7 +93,7 @@ export default function AirtableCallbackPage() {
             </div>
           </>
         )}
-        
+
         {status === 'success' && (
           <>
             <div style={{
@@ -125,7 +125,7 @@ export default function AirtableCallbackPage() {
             </div>
           </>
         )}
-        
+
         {status === 'error' && (
           <>
             <div style={{
@@ -159,6 +159,25 @@ export default function AirtableCallbackPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function AirtableCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#0a0a0a',
+        color: '#CDCDCD',
+      }}>
+        <div>Loading...</div>
+      </div>
+    }>
+      <AirtableCallbackContent />
+    </Suspense>
   )
 }
 
