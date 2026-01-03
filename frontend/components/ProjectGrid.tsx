@@ -26,13 +26,15 @@ export function ProjectGrid({ projects, onSelect }: ProjectGridProps) {
   const renderContent = (project: ProjectInfo) => (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <img src="/puppybase.svg" alt="" width={18} height={18} />
+        <img src='/puppybase.svg' alt='' width={18} height={18} />
         <div style={{ fontWeight: 600, fontSize: 14 }}>{project.name}</div>
       </div>
       {project.description && (
         <div style={{ fontSize: 12, color: '#9aa' }}>{project.description}</div>
       )}
-      <div style={{ fontSize: 12, color: '#8fb' }}>{project.tables.length} tables</div>
+      <div style={{ fontSize: 12, color: '#8fb' }}>
+        {project.tables.length} tables
+      </div>
     </>
   );
 
@@ -45,23 +47,30 @@ export function ProjectGrid({ projects, onSelect }: ProjectGridProps) {
         padding: 16,
       }}
     >
-      {projects.map((project) => {
+      {projects.map(project => {
         if (onSelect) {
           return (
-            <button key={project.id} type="button" onClick={() => onSelect(project.id)} style={cardStyle}>
+            <button
+              key={project.id}
+              type='button'
+              onClick={() => onSelect(project.id)}
+              style={cardStyle}
+            >
               {renderContent(project)}
             </button>
           );
         }
 
         return (
-          <Link key={project.id} href={`/projects/${project.id}`} style={cardStyle}>
+          <Link
+            key={project.id}
+            href={`/projects/${project.id}`}
+            style={cardStyle}
+          >
             {renderContent(project)}
-        </Link>
+          </Link>
         );
       })}
     </div>
   );
 }
-
-

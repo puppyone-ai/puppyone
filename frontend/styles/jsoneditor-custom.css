@@ -25,33 +25,35 @@ div.jsoneditor-menu {
   backdrop-filter: blur(8px);
 }
 
-div.jsoneditor-menu>button,
-div.jsoneditor-menu>.jsoneditor-modes>button {
+div.jsoneditor-menu > button,
+div.jsoneditor-menu > .jsoneditor-modes > button {
   background-color: transparent;
   color: #cbd5e1;
   opacity: 0.9;
-  transition: background-color 0.2s ease, opacity 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    opacity 0.2s ease;
   border-radius: 6px;
   padding: 6px 10px;
   margin: 0 2px;
 }
 
-div.jsoneditor-menu>button:hover,
-div.jsoneditor-menu>.jsoneditor-modes>button:hover {
+div.jsoneditor-menu > button:hover,
+div.jsoneditor-menu > .jsoneditor-modes > button:hover {
   background-color: rgba(148, 163, 184, 0.12);
   color: #cbd5e1;
   opacity: 1;
 }
 
 /* Highlight the currently active mode button */
-div.jsoneditor-menu>.jsoneditor-modes>button.jsoneditor-selected {
+div.jsoneditor-menu > .jsoneditor-modes > button.jsoneditor-selected {
   background-color: rgba(78, 90, 247, 0.15);
   color: #818cf8;
   border: 1px solid rgba(78, 90, 247, 0.25);
   opacity: 1;
 }
 
-div.jsoneditor-menu>.jsoneditor-modes>button.jsoneditor-selected:hover {
+div.jsoneditor-menu > .jsoneditor-modes > button.jsoneditor-selected:hover {
   background-color: rgba(78, 90, 247, 0.2);
   border-color: rgba(78, 90, 247, 0.35);
 }
@@ -66,14 +68,14 @@ div.jsoneditor-menu button.jsoneditor-separator {
 /* 使用自定义的扁平现代图标替换默认图标 */
 
 /* 通用图标按钮样式 - 只影响图标按钮，不影响模式切换按钮 */
-div.jsoneditor-menu>button.jsoneditor-expand-all,
-div.jsoneditor-menu>button.jsoneditor-collapse-all,
-div.jsoneditor-menu>button.jsoneditor-sort,
-div.jsoneditor-menu>button.jsoneditor-transform,
-div.jsoneditor-menu>button.jsoneditor-undo,
-div.jsoneditor-menu>button.jsoneditor-redo,
-div.jsoneditor-menu>button.jsoneditor-compact,
-div.jsoneditor-menu>button.jsoneditor-format {
+div.jsoneditor-menu > button.jsoneditor-expand-all,
+div.jsoneditor-menu > button.jsoneditor-collapse-all,
+div.jsoneditor-menu > button.jsoneditor-sort,
+div.jsoneditor-menu > button.jsoneditor-transform,
+div.jsoneditor-menu > button.jsoneditor-undo,
+div.jsoneditor-menu > button.jsoneditor-redo,
+div.jsoneditor-menu > button.jsoneditor-compact,
+div.jsoneditor-menu > button.jsoneditor-format {
   position: relative;
   width: 26px !important;
   height: 26px !important;
@@ -89,15 +91,15 @@ div.jsoneditor-menu>button.jsoneditor-format {
   /* prevent icon text from flashing */
 }
 
-div.jsoneditor-menu>button.jsoneditor-expand-all::after,
-div.jsoneditor-menu>button.jsoneditor-collapse-all::after,
-div.jsoneditor-menu>button.jsoneditor-sort::after,
-div.jsoneditor-menu>button.jsoneditor-transform::after,
-div.jsoneditor-menu>button.jsoneditor-undo::after,
-div.jsoneditor-menu>button.jsoneditor-redo::after,
-div.jsoneditor-menu>button.jsoneditor-compact::after,
-div.jsoneditor-menu>button.jsoneditor-format::after {
-  content: "";
+div.jsoneditor-menu > button.jsoneditor-expand-all::after,
+div.jsoneditor-menu > button.jsoneditor-collapse-all::after,
+div.jsoneditor-menu > button.jsoneditor-sort::after,
+div.jsoneditor-menu > button.jsoneditor-transform::after,
+div.jsoneditor-menu > button.jsoneditor-undo::after,
+div.jsoneditor-menu > button.jsoneditor-redo::after,
+div.jsoneditor-menu > button.jsoneditor-compact::after,
+div.jsoneditor-menu > button.jsoneditor-format::after {
+  content: '';
   display: block;
   width: 20px;
   height: 20px;
@@ -112,69 +114,69 @@ div.jsoneditor-menu>button.jsoneditor-format::after {
 }
 
 /* 模式切换按钮保持文本显示，不使用图标 */
-div.jsoneditor-menu>.jsoneditor-modes>button {
+div.jsoneditor-menu > .jsoneditor-modes > button {
   background-image: none !important;
   width: auto !important;
   padding: 6px 10px !important;
 }
 
 /* Expand All 按钮 */
-div.jsoneditor-menu>button.jsoneditor-expand-all::after {
+div.jsoneditor-menu > button.jsoneditor-expand-all::after {
   -webkit-mask-image: url('/icons/jsoneditor/expand-all.svg') !important;
   mask-image: url('/icons/jsoneditor/expand-all.svg') !important;
 }
 
 /* Collapse All 按钮 */
-div.jsoneditor-menu>button.jsoneditor-collapse-all::after {
+div.jsoneditor-menu > button.jsoneditor-collapse-all::after {
   -webkit-mask-image: url('/icons/jsoneditor/collapse-all.svg') !important;
   mask-image: url('/icons/jsoneditor/collapse-all.svg') !important;
 }
 
 /* Sort 按钮 */
-div.jsoneditor-menu>button.jsoneditor-sort::after {
+div.jsoneditor-menu > button.jsoneditor-sort::after {
   -webkit-mask-image: url('/icons/jsoneditor/sort.svg') !important;
   mask-image: url('/icons/jsoneditor/sort.svg') !important;
 }
 
 /* Transform 按钮 */
-div.jsoneditor-menu>button.jsoneditor-transform::after {
+div.jsoneditor-menu > button.jsoneditor-transform::after {
   -webkit-mask-image: url('/icons/jsoneditor/transform.svg') !important;
   mask-image: url('/icons/jsoneditor/transform.svg') !important;
 }
 
 /* Undo 按钮 */
-div.jsoneditor-menu>button.jsoneditor-undo::after {
+div.jsoneditor-menu > button.jsoneditor-undo::after {
   -webkit-mask-image: url('/icons/jsoneditor/undo.svg') !important;
   mask-image: url('/icons/jsoneditor/undo.svg') !important;
 }
 
 /* Redo 按钮 */
-div.jsoneditor-menu>button.jsoneditor-redo::after {
+div.jsoneditor-menu > button.jsoneditor-redo::after {
   -webkit-mask-image: url('/icons/jsoneditor/redo.svg') !important;
   mask-image: url('/icons/jsoneditor/redo.svg') !important;
 }
 
 /* Compact 按钮 */
-div.jsoneditor-menu>button.jsoneditor-compact::after {
+div.jsoneditor-menu > button.jsoneditor-compact::after {
   -webkit-mask-image: url('/icons/jsoneditor/compact.svg') !important;
   mask-image: url('/icons/jsoneditor/compact.svg') !important;
 }
 
 /* Format 按钮 */
-div.jsoneditor-menu>button.jsoneditor-format::after {
+div.jsoneditor-menu > button.jsoneditor-format::after {
   -webkit-mask-image: url('/icons/jsoneditor/format.svg') !important;
   mask-image: url('/icons/jsoneditor/format.svg') !important;
 }
 
 /* 自定义按钮悬停效果 */
-div.jsoneditor-menu>button.jsoneditor-expand-all:hover,
-div.jsoneditor-menu>button.jsoneditor-collapse-all:hover,
-div.jsoneditor-menu>button.jsoneditor-sort:hover,
-div.jsoneditor-menu>button.jsoneditor-transform:hover,
-div.jsoneditor-menu>button.jsoneditor-undo:hover,
-div.jsoneditor-menu>button.jsoneditor-redo:hover,
-div.jsoneditor-menu>button.jsoneditor-compact:hover,
-div.jsoneditor-menu>button.jsoneditor-format:hover {
+div.jsoneditor-menu > button.jsoneditor-expand-all:hover,
+div.jsoneditor-menu > button.jsoneditor-collapse-all:hover,
+div.jsoneditor-menu > button.jsoneditor-sort:hover,
+div.jsoneditor-menu > button.jsoneditor-transform:hover,
+div.jsoneditor-menu > button.jsoneditor-undo:hover,
+div.jsoneditor-menu > button.jsoneditor-redo:hover,
+div.jsoneditor-menu > button.jsoneditor-compact:hover,
+div.jsoneditor-menu > button.jsoneditor-format:hover {
   background-color: rgba(148, 163, 184, 0.12) !important;
   opacity: 1 !important;
 }
@@ -331,7 +333,8 @@ div.jsoneditor .jsoneditor-field,
 div.jsoneditor td.jsoneditor-field.jsoneditor-tree,
 div.jsoneditor th.jsoneditor-field.jsoneditor-tree {
   color: #cbd5e1 !important;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
   font-size: 14px !important;
   font-weight: 400;
   letter-spacing: 0;
@@ -406,7 +409,8 @@ div.jsoneditor td.jsoneditor-value:focus {
 
 div.jsoneditor div.jsoneditor-readonly {
   color: #cbd5e1 !important;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
   font-size: 14px !important;
   opacity: 0.85;
 }
@@ -469,7 +473,7 @@ button.jsoneditor-button.jsoneditor-contextmenu-button::before {
 }
 
 button.jsoneditor-button.jsoneditor-contextmenu-button::after {
-  content: "";
+  content: '';
   display: block;
   position: absolute;
   width: 20px;
@@ -526,7 +530,7 @@ button.jsoneditor-button.jsoneditor-dragarea::before {
 }
 
 button.jsoneditor-button.jsoneditor-dragarea::after {
-  content: "";
+  content: '';
   display: block;
   position: absolute;
   width: 20px;
@@ -575,7 +579,7 @@ div.jsoneditor-tree tr:hover {
 div.jsoneditor-tree .jsoneditor-selected {
   background-color: rgba(78, 90, 247, 0.1) !important;
   border-radius: 4px;
-  border-left: 2px solid #4E5AF7;
+  border-left: 2px solid #4e5af7;
 }
 
 div.jsoneditor-tree .jsoneditor-selected:hover {
@@ -717,7 +721,7 @@ button.jsoneditor-previous::before {
 button.jsoneditor-refresh::after,
 button.jsoneditor-next::after,
 button.jsoneditor-previous::after {
-  content: "";
+  content: '';
   display: block;
   position: absolute;
   width: 16px;
@@ -773,7 +777,8 @@ button.jsoneditor-previous::after {
   border-bottom: none !important;
   padding: 6px 12px;
   font-size: 14px;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
   height: 32px !important;
   line-height: 32px !important;
 }
@@ -782,7 +787,8 @@ button.jsoneditor-previous::after {
 .jsoneditor-navigation-bar .jsoneditor-treepath-element,
 .jsoneditor-navigation-bar span {
   color: #cbd5e1 !important;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
   font-size: 14px !important;
 }
 
@@ -806,7 +812,8 @@ div.jsoneditor-contextmenu {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
   padding: 4px !important;
   color: #cbd5e1 !important;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
   font-size: 14px !important;
 }
 
@@ -867,15 +874,15 @@ div.jsoneditor-modal,
 
 /* Modal close button */
 .jsoneditor-modal .jsoneditor-modal-close,
-.jsoneditor-modal button[aria-label*="close"],
-.jsoneditor-modal button[aria-label*="关闭"] {
+.jsoneditor-modal button[aria-label*='close'],
+.jsoneditor-modal button[aria-label*='关闭'] {
   color: #cbd5e1 !important;
   background-color: transparent !important;
 }
 
 .jsoneditor-modal .jsoneditor-modal-close:hover,
-.jsoneditor-modal button[aria-label*="close"]:hover,
-.jsoneditor-modal button[aria-label*="关闭"]:hover {
+.jsoneditor-modal button[aria-label*='close']:hover,
+.jsoneditor-modal button[aria-label*='关闭']:hover {
   color: #e2e8f0 !important;
   background-color: rgba(148, 163, 184, 0.12) !important;
 }
@@ -940,7 +947,8 @@ div.jsoneditor-modal,
   border: 1px solid rgba(148, 163, 184, 0.12) !important;
   border-radius: 6px !important;
   padding: 12px !important;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
 }
 
 /* Ensure JSON values in modal preview use correct colors */
@@ -974,7 +982,8 @@ div.jsoneditor-modal,
 .jsoneditor-contextmenu button {
   background-color: transparent !important;
   color: #cbd5e1 !important;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
   font-size: 14px !important;
   border: none !important;
   border-radius: 4px !important;
@@ -1071,13 +1080,15 @@ div.jsoneditor-menu button:not(.jsoneditor-selected) {
 /* Ensure all context menu text elements are light */
 .jsoneditor-contextmenu * {
   color: inherit !important;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
   font-size: 14px !important;
 }
 
 .jsoneditor-contextmenu span,
 .jsoneditor-contextmenu div {
   color: #cbd5e1 !important;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
   font-size: 14px !important;
 }
