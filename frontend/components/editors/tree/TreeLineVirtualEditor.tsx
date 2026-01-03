@@ -799,6 +799,17 @@ export function TreeLineVirtualEditor({
     return flattenJson(json, expandedPaths)
   }, [json, expandedPaths])
 
+  // 调试：如果节点为空，强制显示提示
+  if (flatNodes.length === 0) {
+    return (
+      <div style={{ padding: 20, color: '#888', textAlign: 'center' }}>
+        No nodes to display. Data might be empty or invalid.
+        <br/>
+        <pre style={{ textAlign: 'left', fontSize: 10, marginTop: 10 }}>{JSON.stringify(json).slice(0, 100)}</pre>
+      </div>
+    )
+  }
+
   // 计算当前数据的最大深度（用于 resize bar）
   const maxDepth = useMemo(() => {
     return flatNodes.reduce((max, node) => Math.max(max, node.depth), -1)

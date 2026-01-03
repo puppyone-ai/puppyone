@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { createBindings, deleteBinding, updateMcpInstance } from '../../../lib/mcpApi'
-import { useBoundTools, refreshToolsAndMcp } from '../../../lib/hooks/useData'
+import { createBindings, deleteBinding, updateMcpInstance } from '@/lib/mcpApi'
+import { useBoundTools, refreshToolsAndMcp } from '@/lib/hooks/useData'
 import { ToolsTable, ToolsEmptyState, FONT, TOOL_TYPE_CONFIG, type ToolItem } from './ToolsTable'
 
 // Header 高度 (包含 border)
