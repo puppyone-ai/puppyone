@@ -70,7 +70,7 @@ export default function ToolsLayout({ children }: { children: React.ReactNode })
     if (!newServerUrl.trim()) return
     setIsCreating(true)
     try {
-      const newMcp = await createMcpV2(newServerUrl)
+      const newMcp = await createMcpV2({ name: newServerUrl })
       await refreshInstances()
       setShowCreateModal(false)
       setNewServerUrl('')
