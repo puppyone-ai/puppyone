@@ -11,7 +11,13 @@ from src.connect.schemas import ParseUrlResponse, DataField
 from src.connect.providers.notion_provider import NotionProvider
 from src.oauth.notion_service import NotionOAuthService
 from src.oauth.github_service import GithubOAuthService
+from src.oauth.google_sheets_service import GoogleSheetsOAuthService
+from src.oauth.linear_service import LinearOAuthService
+from src.oauth.airtable_service import AirtableOAuthService
 from src.connect.providers.github_provider import GithubProvider
+from src.connect.providers.google_sheets_provider import GoogleSheetsProvider
+from src.connect.providers.linear_provider import LinearProvider
+from src.connect.providers.airtable_provider import AirtableProvider
 from src.exceptions import BusinessException, ErrorCode
 from src.utils.logger import log_info, log_error, log_warning
 
@@ -50,6 +56,21 @@ class ConnectService:
         github_provider = GithubProvider(self.user_id, github_service)
         self.parser.register_provider(github_provider)
         log_info("GithubProvider registered")
+
+        google_sheets_service = GoogleSheetsOAuthService()
+        google_sheets_provider = GoogleSheetsProvider(self.user_id, google_sheets_service)
+        self.parser.register_provider(google_sheets_provider)
+        log_info("GoogleSheetsProvider registered")
+
+        linear_service = LinearOAuthService()
+        linear_provider = LinearProvider(self.user_id, linear_service)
+        self.parser.register_provider(linear_provider)
+        log_info("LinearProvider registered")
+
+        airtable_service = AirtableOAuthService()
+        airtable_provider = AirtableProvider(self.user_id, airtable_service)
+        self.parser.register_provider(airtable_provider)
+        log_info("AirtableProvider registered")
     
     async def parse_url(self, url: str) -> ParseUrlResponse:
         """

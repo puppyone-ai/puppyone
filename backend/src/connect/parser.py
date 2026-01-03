@@ -92,6 +92,10 @@ class UrlParser:
             return "notion"
         elif "linear.app" in url_lower:
             return "linear"
+        elif "docs.google.com" in url_lower and "spreadsheets" in url_lower:
+            return "google-sheets"
+        elif "airtable.com" in url_lower:
+            return "airtable"
         elif url_lower.endswith(".json"):
             return "json"
         else:

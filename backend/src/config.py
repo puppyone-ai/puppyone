@@ -54,6 +54,21 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_SECRET: str = ""
     GITHUB_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/github"
 
+    # Google Sheets OAuth 配置
+    GOOGLE_SHEETS_CLIENT_ID: str = ""
+    GOOGLE_SHEETS_CLIENT_SECRET: str = ""
+    GOOGLE_SHEETS_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/google-sheets"
+
+    # Linear OAuth 配置
+    LINEAR_CLIENT_ID: str = ""
+    LINEAR_CLIENT_SECRET: str = ""
+    LINEAR_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/linear"
+
+    # Airtable OAuth 配置
+    AIRTABLE_CLIENT_ID: str = ""
+    AIRTABLE_CLIENT_SECRET: str = ""
+    AIRTABLE_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/airtable"
+
     # 服务间通信
     INTERNAL_API_SECRET: str = ""   # 内部服务通信密钥
     MCP_SERVER_URL: str = ""        # MCP服务的地址

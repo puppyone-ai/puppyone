@@ -11,11 +11,23 @@ import {
   connectGithub,
   disconnectGithub,
   type GithubStatusResponse,
+  getGoogleSheetsStatus,
+  connectGoogleSheets,
+  disconnectGoogleSheets,
+  type GoogleSheetsStatusResponse,
+  getLinearStatus,
+  connectLinear,
+  disconnectLinear,
+  type LinearStatusResponse,
+  getAirtableStatus,
+  connectAirtable,
+  disconnectAirtable,
+  type AirtableStatusResponse,
 } from '../lib/oauthApi'
 import { useProjects } from '../lib/hooks/useData'
 
 type ConnectContentViewProps = {
-  onBack: () => void
+  onBack?: () => void
 }
 
 type PlatformId = 'notion' | 'github' | 'google-sheets' | 'linear' | 'airtable'
@@ -63,7 +75,7 @@ const platformConfigs: PlatformConfig[] = [
     id: 'google-sheets',
     name: 'Google Sheets',
     description: 'Spreadsheets, worksheets',
-    isEnabled: false,
+    isEnabled: true,
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
         <path d="M19.5 3H4.5C3.12 3 2 4.12 2 5.5v13C2 19.88 3.12 21 4.5 21h15c1.38 0 2.5-1.12 2.5-2.5v-13C22 4.12 20.88 3 19.5 3zM9 17H6v-2h3v2zm0-4H6v-2h3v2zm0-4H6V7h3v2zm9 8h-6v-2h6v2zm0-4h-6v-2h6v2zm0-4h-6V7h6v2z"/>
@@ -74,7 +86,7 @@ const platformConfigs: PlatformConfig[] = [
     id: 'linear',
     name: 'Linear',
     description: 'Issues, projects, roadmaps',
-    isEnabled: false,
+    isEnabled: true,
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 3L3 21M21 3L21 10M21 3L14 3"/>
@@ -85,7 +97,7 @@ const platformConfigs: PlatformConfig[] = [
     id: 'airtable',
     name: 'Airtable',
     description: 'Bases, tables, views',
-    isEnabled: false,
+    isEnabled: true,
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
         <path d="M11.992 1.966L2.847 5.478a.75.75 0 0 0 0 1.394l9.145 3.512a.75.75 0 0 0 .533 0l9.145-3.512a.75.75 0 0 0 0-1.394l-9.145-3.512a.75.75 0 0 0-.533 0zM3 9.5v7.25a.75.75 0 0 0 .463.693l8.287 3.432a.75.75 0 0 0 .75-.134V12.5L3 9.5zm18 0l-9.5 3v8.241a.75.75 0 0 0 .75.134l8.287-3.432a.75.75 0 0 0 .463-.693V9.5z"/>
@@ -98,7 +110,7 @@ const getDefaultPlatformStates = (): Record<PlatformId, PlatformState> =>
   platformConfigs.reduce((acc, platform) => {
     acc[platform.id] = {
       status: 'disconnected',
-      label: platform.isEnabled ? 'Not connected' : 'Coming soon',
+      label: platform.isEnabled ? 'Not connected' : 'Coming soon!',
       isLoading: false,
     }
     return acc
@@ -121,6 +133,9 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   // OAuth states
   const [notionStatus, setNotionStatus] = useState<NotionStatusResponse>({ connected: false })
   const [githubStatus, setGithubStatus] = useState<GithubStatusResponse>({ connected: false })
+  const [googleSheetsStatus, setGoogleSheetsStatus] = useState<GoogleSheetsStatusResponse>({ connected: false })
+  const [linearStatus, setLinearStatus] = useState<LinearStatusResponse>({ connected: false })
+  const [airtableStatus, setAirtableStatus] = useState<AirtableStatusResponse>({ connected: false })
   const [platformStates, setPlatformStates] = useState<Record<PlatformId, PlatformState>>(() => getDefaultPlatformStates())
   const [disconnectConfirmation, setDisconnectConfirmation] = useState<{ visible: boolean; platformId: PlatformId | null }>({
     visible: false,
@@ -196,6 +211,135 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     }
   }, [updatePlatformState])
 
+  const checkGoogleSheetsStatus = useCallback(async () => {
+    updatePlatformState('google-sheets', { isLoading: true })
+    try {
+      const status = await getGoogleSheetsStatus()
+      setGoogleSheetsStatus(status)
+      updatePlatformState('google-sheets', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected
+          ? status.workspace_name
+            ? `Connected to ${status.workspace_name}`
+            : 'Connected'
+          : 'Not connected',
+        isLoading: false,
+      })
+    } catch (err) {
+      console.error('Failed to check Google Sheets status:', err)
+      updatePlatformState('google-sheets', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
+    }
+  }, [updatePlatformState])
+
+  const checkLinearStatus = useCallback(async () => {
+    updatePlatformState('linear', { isLoading: true })
+    try {
+      const status = await getLinearStatus()
+      setLinearStatus(status)
+      updatePlatformState('linear', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected
+          ? status.workspace_name
+            ? `Connected to ${status.workspace_name}`
+            : 'Connected'
+          : 'Not connected',
+        isLoading: false,
+      })
+    } catch (err) {
+      console.error('Failed to check Linear status:', err)
+      updatePlatformState('linear', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
+    }
+  }, [updatePlatformState])
+
+  const checkAirtableStatus = useCallback(async () => {
+    updatePlatformState('airtable', { isLoading: true })
+    try {
+      const status = await getAirtableStatus()
+      setAirtableStatus(status)
+      updatePlatformState('airtable', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected
+          ? status.workspace_name
+            ? `Connected to ${status.workspace_name}`
+            : 'Connected'
+          : 'Not connected',
+        isLoading: false,
+      })
+    } catch (err) {
+      console.error('Failed to check Airtable status:', err)
+      updatePlatformState('airtable', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
+    }
+  }, [updatePlatformState])
+
+  const startGoogleSheetsConnect = async () => {
+    updatePlatformState('google-sheets', {
+      isLoading: true,
+      label: 'Redirecting to Google…',
+    })
+    setError(null)
+    try {
+      await connectGoogleSheets()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect to Google Sheets'
+      setError(message)
+      updatePlatformState('google-sheets', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
+    }
+  }
+
+  const startLinearConnect = async () => {
+    updatePlatformState('linear', {
+      isLoading: true,
+      label: 'Redirecting to Linear…',
+    })
+    setError(null)
+    try {
+      await connectLinear()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect to Linear'
+      setError(message)
+      updatePlatformState('linear', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
+    }
+  }
+
+  const startAirtableConnect = async () => {
+    updatePlatformState('airtable', {
+      isLoading: true,
+      label: 'Redirecting to Airtable…',
+    })
+    setError(null)
+    try {
+      await connectAirtable()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect to Airtable'
+      setError(message)
+      updatePlatformState('airtable', {
+        status: 'error',
+        label: 'Authorization error',
+        isLoading: false,
+      })
+    }
+  }
+
   const startNotionConnect = async () => {
     updatePlatformState('notion', {
       isLoading: true,
@@ -236,7 +380,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
 
   const handleDisconnectConfirm = async () => {
     const platformId = disconnectConfirmation.platformId
-    if (!platformId || !['notion', 'github'].includes(platformId)) {
+    if (!platformId || !['notion', 'github', 'google-sheets', 'linear', 'airtable'].includes(platformId)) {
       closeDisconnectModal()
       return
     }
@@ -250,6 +394,15 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       } else if (platformId === 'github') {
         await disconnectGithub()
         setGithubStatus({ connected: false })
+      } else if (platformId === 'google-sheets') {
+        await disconnectGoogleSheets()
+        setGoogleSheetsStatus({ connected: false })
+      } else if (platformId === 'linear') {
+        await disconnectLinear()
+        setLinearStatus({ connected: false })
+      } else if (platformId === 'airtable') {
+        await disconnectAirtable()
+        setAirtableStatus({ connected: false })
       }
 
       updatePlatformState(platformId, {
@@ -287,6 +440,12 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
         void startNotionConnect()
       } else if (platformId === 'github') {
         void startGithubConnect()
+      } else if (platformId === 'google-sheets') {
+        void startGoogleSheetsConnect()
+      } else if (platformId === 'linear') {
+        void startLinearConnect()
+      } else if (platformId === 'airtable') {
+        void startAirtableConnect()
       }
     } else {
       setDisconnectConfirmation({ visible: true, platformId })
@@ -307,12 +466,18 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   useEffect(() => {
     void checkNotionStatus()
     void checkGithubStatus()
-  }, [checkNotionStatus, checkGithubStatus])
+    void checkGoogleSheetsStatus()
+    void checkLinearStatus()
+    void checkAirtableStatus()
+  }, [checkNotionStatus, checkGithubStatus, checkGoogleSheetsStatus, checkLinearStatus, checkAirtableStatus])
 
   const isNotionUrl = (url: string) => {
     return url.includes('notion.so') || url.includes('notion.site')
   }
   const isGithubUrl = (url: string) => url.includes('github.com')
+  const isGoogleSheetsUrl = (url: string) => url.includes('docs.google.com') && url.includes('spreadsheets')
+  const isLinearUrl = (url: string) => url.includes('linear.app')
+  const isAirtableUrl = (url: string) => url.includes('airtable.com')
 
   const handleParse = async () => {
     if (!url.trim()) {
@@ -320,13 +485,25 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       return
     }
 
-    // Check if Notion/GitHub URL and not authenticated
+    // Check if Notion/GitHub/Google Sheets/Linear/Airtable URL and not authenticated
     if (isNotionUrl(url) && !notionStatus?.connected) {
       setError('Please connect Notion before importing this page')
       return
     }
     if (isGithubUrl(url) && !githubStatus?.connected) {
       setError('Please connect GitHub before importing this page')
+      return
+    }
+    if (isGoogleSheetsUrl(url) && !googleSheetsStatus?.connected) {
+      setError('Please connect Google Sheets before importing this spreadsheet')
+      return
+    }
+    if (isLinearUrl(url) && !linearStatus?.connected) {
+      setError('Please connect Linear before importing this page')
+      return
+    }
+    if (isAirtableUrl(url) && !airtableStatus?.connected) {
+      setError('Please connect Airtable before importing this base')
       return
     }
 
@@ -356,6 +533,24 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
         }
         if (isGithubUrl(url)) {
           updatePlatformState('github', {
+            status: 'error',
+            label: 'Authorization error',
+          })
+        }
+        if (isGoogleSheetsUrl(url)) {
+          updatePlatformState('google-sheets', {
+            status: 'error',
+            label: 'Authorization error',
+          })
+        }
+        if (isLinearUrl(url)) {
+          updatePlatformState('linear', {
+            status: 'error',
+            label: 'Authorization error',
+          })
+        }
+        if (isAirtableUrl(url)) {
+          updatePlatformState('airtable', {
             status: 'error',
             label: 'Authorization error',
           })
@@ -450,34 +645,36 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
         borderBottom: '1px solid #262626',
         gap: 12,
       }}>
-        <button
-          onClick={onBack}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 28,
-            height: 28,
-            background: 'transparent',
-            border: 'none',
-            borderRadius: 6,
-            cursor: 'pointer',
-            color: '#6D7177',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#2C2C2C'
-            e.currentTarget.style.color = '#CDCDCD'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = '#6D7177'
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M10 4L6 8L10 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 28,
+              height: 28,
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              color: '#6D7177',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#2C2C2C'
+              e.currentTarget.style.color = '#CDCDCD'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.color = '#6D7177'
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 4L6 8L10 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        )}
         <span style={{ fontSize: 13, color: '#CDCDCD', fontWeight: 500 }}>Connect</span>
       </div>
 
@@ -652,7 +849,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                     handleParse()
                   }
                 }}
-                placeholder="https://workspace.notion.so/page-id or other SaaS URL"
+                placeholder="eg. https://www.notion.so/page-id"
                 disabled={isLoading || isImporting}
                 style={{
                   flex: 1,
@@ -703,7 +900,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               color: '#5D6065',
               marginTop: 10,
             }}>
-              Paste a supported SaaS page URL to import its content
+              Paste a URL to import content from any webpage
             </div>
           </div>
 
