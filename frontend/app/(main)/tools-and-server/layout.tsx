@@ -70,7 +70,7 @@ export default function ToolsLayout({ children }: { children: React.ReactNode })
     if (!newServerUrl.trim()) return
     setIsCreating(true)
     try {
-      const newMcp = await createMcpV2(newServerUrl)
+      const newMcp = await createMcpV2({ name: newServerUrl })
       await refreshInstances()
       setShowCreateModal(false)
       setNewServerUrl('')
@@ -284,7 +284,7 @@ export default function ToolsLayout({ children }: { children: React.ReactNode })
                       alignItems: 'center',
                       gap: 8,
                       height: 28,
-                      padding: '0 4px 0 12px',
+                      padding: '0 4px 0 6px',
                       background: 'transparent',
                       border: 'none',
                       borderRadius: 5,
@@ -479,7 +479,7 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
         display: 'flex', 
         alignItems: 'center', 
         gap: 8,
-        padding: '0 4px 0 12px',
+        padding: '0 4px 0 6px',
         borderRadius: 6, 
         cursor: 'pointer', 
         background: active || hovered ? '#2C2C2C' : 'transparent',
