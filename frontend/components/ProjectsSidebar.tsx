@@ -990,7 +990,7 @@ export function ProjectsSidebar({
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 0 4px 0 12px;
+          padding: 0 4px 0 6px;
           height: 28px;
           background: transparent;
           border: none;

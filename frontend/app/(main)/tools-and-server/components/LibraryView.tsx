@@ -230,7 +230,7 @@ export function LibraryView({
         boxSizing: 'content-box',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: FONT.primary, fontWeight: 600, color: '#e2e8f0' }}>Tools Library</div>
+          <div style={{ fontSize: FONT.primary, fontWeight: 600, color: '#e2e8f0' }}>Tools List</div>
           <div style={{ fontSize: FONT.secondary, color: '#3f3f46' }}>{tools.length}</div>
         </div>
 
