@@ -28,7 +28,7 @@ jobs:
     # Set default working directory for all run commands in this job
     defaults:
       run:
-        working-directory: ./PuppyFlow
+        working-directory: ./frontend
 
     # Steps included in the job
     steps:
@@ -42,14 +42,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22' # Adjust Node.js version according to your project
-          # Cache npm dependencies in the PuppyFlow directory
+          # Cache npm dependencies in the frontend directory
           cache: 'npm'
-          cache-dependency-path: PuppyFlow/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
-      # Step 3: Install dependencies (executed automatically in PuppyFlow directory)
+      # Step 3: Install dependencies (executed automatically in frontend directory)
       - name: Install Dependencies
         run: npm ci
 
-      # Step 4: Run build script (executed automatically in PuppyFlow directory)
+      # Step 4: Run build script (executed automatically in frontend directory)
       - name: Run Build Script
         run: npm run build

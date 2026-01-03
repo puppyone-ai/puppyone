@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./PuppyFlow
+        working-directory: ./frontend
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: PuppyFlow/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install Dependencies
         run: npm ci
