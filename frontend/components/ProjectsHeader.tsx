@@ -132,29 +132,21 @@ export function ProjectsHeader({
         }}
       >
         {/* Agent Dashboard Button + Dropdown */}
-        <div ref={agentPanelRef} style={{ position: 'relative' }}>
+        <div
+          ref={agentPanelRef}
+          style={{
+            position: 'relative',
+            ...viewSwitcherContainerStyle,
+          }}
+        >
           <button
             onClick={() => onAgentPanelOpenChange?.(!isAgentPanelOpen)}
             style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: 28,
-              padding: '0 8px',
-              gap: 6,
-              borderRadius: 6,
-
-              border: '1px solid',
-              borderColor: isAgentPanelOpen
-                ? 'rgba(255, 167, 61, 0.4)'
-                : '#333',
+              ...viewSwitcherBtnStyle,
               background: isAgentPanelOpen
-                ? 'rgba(255, 167, 61, 0.15)'
-                : 'rgba(0,0,0,0.3)',
-              color: isAgentPanelOpen ? '#FFA73D' : '#9ca3af',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
+                ? 'rgba(255,255,255,0.1)'
+                : 'transparent',
+              color: isAgentPanelOpen ? '#e2e8f0' : '#6b7280',
             }}
             title='Agent Dashboard'
           >
@@ -215,46 +207,44 @@ export function ProjectsHeader({
 
             {/* Chat Toggle Block - 28x28 to match left sidebar toggle */}
 
-            {/* TODO: Re-enable when chat feature is ready */}
-            {false && (
-              <div
-                onClick={() => onChatOpenChange?.(true)}
-                style={{
-                  width: 28,
-                  height: 28,
-                  background: 'transparent',
-                  borderRadius: 5,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  marginRight: 8,
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-                title='Open Chat'
+            {/* Chat Toggle - Claude Agent SDK enabled */}
+            <div
+              onClick={() => onChatOpenChange?.(true)}
+              style={{
+                width: 28,
+                height: 28,
+                background: 'transparent',
+                borderRadius: 5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                marginRight: 8,
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+              title='Open Chat'
+            >
+              {/* Sidebar toggle icon - Rectangle like OpenAI, 14px to match left sidebar */}
+              <svg
+                width='14'
+                height='14'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='#6b7280'
+                strokeWidth='1.5'
+                strokeLinecap='round'
+                strokeLinejoin='round'
               >
-                {/* Sidebar toggle icon - Rectangle like OpenAI, 14px to match left sidebar */}
-                <svg
-                  width='14'
-                  height='14'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='#6b7280'
-                  strokeWidth='1.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                >
-                  <rect x='3' y='3' width='18' height='18' rx='2' />
-                  <line x1='15' y1='3' x2='15' y2='21' />
-                </svg>
-              </div>
-            )}
+                <rect x='3' y='3' width='18' height='18' rx='2' />
+                <line x1='15' y1='3' x2='15' y2='21' />
+              </svg>
+            </div>
           </>
         ) : (
           /* Right padding when chat is open */

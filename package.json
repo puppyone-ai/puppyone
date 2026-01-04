@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "framer-motion": "^12.23.26",
-    "lucide-react": "^0.562.0"
+    "lucide-react": "^0.562.0",
+    "react-resizable-panels": "^4.2.1"
   }
 }
