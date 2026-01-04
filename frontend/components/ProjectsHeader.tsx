@@ -157,7 +157,6 @@ export function ProjectsHeader({
               transition: 'all 0.15s',
             }}
             title='Agent Dashboard'
-
           >
             {/* 小狗爪子 SVG */}
             <svg width='14' height='11' viewBox='0 0 33 26' fill='none'>
@@ -256,7 +255,6 @@ export function ProjectsHeader({
                 </svg>
               </div>
             )}
-
           </>
         ) : (
           /* Right padding when chat is open */

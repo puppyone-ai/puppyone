@@ -41,7 +41,6 @@ export const TOOL_TYPE_CONFIG: Record<
   delete: { label: 'Delete', color: '#f87171', bg: 'rgba(239, 68, 68, 0.15)' },
 };
 
-
 export type ToolItem = {
   id: number;
   tool_id?: number; // for bound tools
