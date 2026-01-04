@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 /**
  * 统一的骨架屏组件
@@ -36,44 +36,45 @@ const skeletonStyles = `
   }
   .skeleton-child { padding-left: 24px; }
   @keyframes shimmer { 100% { transform: translateX(100%); } }
-`
+`;
 
 /** Editor / Content 区域的骨架屏 */
 export function EditorSkeleton() {
   return (
-    <div style={{ 
-      flex: 1, 
-      padding: '32px 40px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 2,
-    }}>
+    <div
+      style={{
+        flex: 1,
+        padding: '32px 40px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+      }}
+    >
       <style>{skeletonStyles}</style>
-      <div className="skeleton-item">
-        <div className="skeleton-icon" />
-        <div className="skeleton-text" style={{ width: '30%' }} />
+      <div className='skeleton-item'>
+        <div className='skeleton-icon' />
+        <div className='skeleton-text' style={{ width: '30%' }} />
       </div>
-      <div className="skeleton-item skeleton-child">
-        <div className="skeleton-icon" />
-        <div className="skeleton-text" style={{ width: '45%' }} />
+      <div className='skeleton-item skeleton-child'>
+        <div className='skeleton-icon' />
+        <div className='skeleton-text' style={{ width: '45%' }} />
       </div>
-      <div className="skeleton-item" style={{ paddingLeft: '48px' }}>
-        <div className="skeleton-icon" />
-        <div className="skeleton-text" style={{ width: '50%' }} />
+      <div className='skeleton-item' style={{ paddingLeft: '48px' }}>
+        <div className='skeleton-icon' />
+        <div className='skeleton-text' style={{ width: '50%' }} />
       </div>
-      <div className="skeleton-item" style={{ paddingLeft: '48px' }}>
-        <div className="skeleton-icon" />
-        <div className="skeleton-text" style={{ width: '35%' }} />
+      <div className='skeleton-item' style={{ paddingLeft: '48px' }}>
+        <div className='skeleton-icon' />
+        <div className='skeleton-text' style={{ width: '35%' }} />
       </div>
-      <div className="skeleton-item" style={{ marginTop: 8 }}>
-        <div className="skeleton-icon" />
-        <div className="skeleton-text" style={{ width: '25%' }} />
+      <div className='skeleton-item' style={{ marginTop: 8 }}>
+        <div className='skeleton-icon' />
+        <div className='skeleton-text' style={{ width: '25%' }} />
       </div>
-      <div className="skeleton-item skeleton-child">
-        <div className="skeleton-icon" />
-        <div className="skeleton-text" style={{ width: '40%' }} />
+      <div className='skeleton-item skeleton-child'>
+        <div className='skeleton-icon' />
+        <div className='skeleton-text' style={{ width: '40%' }} />
       </div>
     </div>
-  )
+  );
 }
-
