@@ -215,10 +215,9 @@ export function ProjectsHeader({
 
             {/* Chat Toggle Block - 28x28 to match left sidebar toggle */}
 
-            {/* TODO: Re-enable when chat feature is ready */}
-            {false && (
-              <div
-                onClick={() => onChatOpenChange?.(true)}
+            {/* Chat Toggle - Claude Agent SDK enabled */}
+            <div
+              onClick={() => onChatOpenChange?.(true)}
                 style={{
                   width: 28,
                   height: 28,
@@ -254,7 +253,6 @@ export function ProjectsHeader({
                   <line x1='15' y1='3' x2='15' y2='21' />
                 </svg>
               </div>
-            )}
           </>
         ) : (
           /* Right padding when chat is open */
