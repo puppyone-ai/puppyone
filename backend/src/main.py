@@ -61,6 +61,12 @@ mcp_v2_router_start = time.time()
 from src.mcp_v2.router import router as mcp_v2_router
 mcp_v2_router_duration = time.time() - mcp_v2_router_start
 
+# context_publish_router_start = time.time()
+context_publish_router_start = time.time()
+from src.context_publish.router import router as context_publish_router
+from src.context_publish.router import public_router as context_publish_public_router
+context_publish_router_duration = time.time() - context_publish_router_start
+
 # s3_router_start = time.time()
 # from src.s3.router import router as s3_router
 # s3_router_duration = time.time() - s3_router_start
@@ -92,6 +98,7 @@ routers_duration = (
     table_router_duration
     + tool_router_duration
     + mcp_v2_router_duration
+    + context_publish_router_duration
     + etl_router_duration
     + project_router_duration
     + connect_router_duration
@@ -123,6 +130,7 @@ async def app_lifespan(app: FastAPI):
     log_info(f"  │  ├─ table_router: {table_router_duration*1000:.2f}ms")
     log_info(f"  │  ├─ tool_router: {tool_router_duration*1000:.2f}ms")
     log_info(f"  │  ├─ mcp_router(v2): {mcp_v2_router_duration*1000:.2f}ms")
+    log_info(f"  │  ├─ context_publish_router: {context_publish_router_duration*1000:.2f}ms")
     if settings.etl_enabled:
         log_info(f"  │  ├─ etl_router: {etl_router_duration*1000:.2f}ms")
     else:
@@ -239,6 +247,9 @@ def create_app() -> FastAPI:
     # 旧版 /mcp 路由已下线（避免与 v2 对外前缀 /mcp 冲突）
     app.include_router(tool_router, prefix="/api/v1", tags=["tools"])
     app.include_router(mcp_v2_router, prefix="/api/v1", tags=["mcp"])
+    app.include_router(context_publish_router, prefix="/api/v1", tags=["publishes"])
+    # public short link: /p/{publish_key}
+    app.include_router(context_publish_public_router, tags=["publishes"])
     # app.include_router(s3_router, prefix="/api/v1")
     if etl_router is not None:
         app.include_router(etl_router, prefix="/api/v1", tags=["etl"])

@@ -486,3 +486,24 @@ Notice: You should first create a mcp server instance through `/api/v1/mcp/` ent
   }
 }
 ```
+
+### Public JSON Publish（短链接 + curl）
+
+后端支持把任意 `table_id + json_path(JSON Pointer)` 发布成一个公开只读短链接（默认 7 天过期，可 revoke）。
+
+1) **创建 publish（需要登录）**
+
+```bash
+curl -X POST http://localhost:9090/api/v1/publishes \
+  -H "Authorization: Bearer $CONTEXTBASE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"table_id": 123, "json_path": "/users"}'
+```
+
+响应里会包含 `url`（形如 `http://localhost:9090/p/<publish_key>`）。
+
+2) **公开读取 raw JSON（无需登录）**
+
+```bash
+curl http://localhost:9090/p/<publish_key>
+```
