@@ -5,30 +5,37 @@ export async function POST(request: NextRequest) {
     const { messages, systemPrompt } = await request.json();
 
     if (!messages || !Array.isArray(messages)) {
-      return new Response(JSON.stringify({ error: 'Messages array is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'Messages array is required' }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     // 构建请求体
-    const apiMessages = messages.map((msg: { role: string; content: string }) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
+    const apiMessages = messages.map(
+      (msg: { role: string; content: string }) => ({
+        role: msg.role,
+        content: msg.content,
+      })
+    );
 
     const requestBody = {
       model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       stream: true,
-      system: systemPrompt || `You are Puppy, a helpful AI assistant that helps users understand and navigate their data context. 
+      system:
+        systemPrompt ||
+        `You are Puppy, a helpful AI assistant that helps users understand and navigate their data context. 
 You are friendly, concise, and knowledgeable. When discussing data, be specific and helpful.
 Always respond in the same language the user uses.`,
       messages: apiMessages,
     };
 
     // 直接调用 API（完全控制端点）
-    const apiUrl = process.env.ANTHROPIC_BASE_URL 
+    const apiUrl = process.env.ANTHROPIC_BASE_URL
       ? `${process.env.ANTHROPIC_BASE_URL}/v1/messages`
       : 'https://api.anthropic.com/v1/messages';
 
@@ -47,10 +54,15 @@ Always respond in the same language the user uses.`,
     if (!response.ok) {
       const errorText = await response.text();
       console.error('API Error:', response.status, errorText);
-      return new Response(JSON.stringify({ error: `API error: ${response.status} - ${errorText}` }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          error: `API error: ${response.status} - ${errorText}`,
+        }),
+        {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     // 转发流式响应
@@ -81,9 +93,14 @@ Always respond in the same language the user uses.`,
                 try {
                   const parsed = JSON.parse(data);
                   // Anthropic 流式格式
-                  if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                  if (
+                    parsed.type === 'content_block_delta' &&
+                    parsed.delta?.text
+                  ) {
                     controller.enqueue(
-                      encoder.encode(`data: ${JSON.stringify({ text: parsed.delta.text })}\n\n`)
+                      encoder.encode(
+                        `data: ${JSON.stringify({ text: parsed.delta.text })}\n\n`
+                      )
                     );
                   }
                 } catch {

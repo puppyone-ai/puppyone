@@ -15,16 +15,16 @@ type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 // 简化：消息部件（按时间顺序）
 interface MessagePart {
   type: 'text' | 'tool';
-  content?: string;      // type='text' 时的文本
-  toolId?: string;       // type='tool' 时的工具ID
-  toolName?: string;     // type='tool' 时的工具名
-  toolInput?: string;    // type='tool' 时的输入参数
+  content?: string; // type='text' 时的文本
+  toolId?: string; // type='tool' 时的工具ID
+  toolName?: string; // type='tool' 时的工具名
+  toolInput?: string; // type='tool' 时的输入参数
   toolStatus?: 'running' | 'completed' | 'error';
 }
 
 interface Message {
   role: MessageRole;
-  content: string;       // 保留用于简单消息
+  content: string; // 保留用于简单消息
   timestamp?: Date;
   parts?: MessagePart[]; // Agent 模式：按顺序的部件
   isStreaming?: boolean; // 是否正在生成中
@@ -62,7 +62,7 @@ export function ChatSidebar({
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    
+
     // Only auto-resize if there's content, otherwise use CSS default
     if (inputValue.trim()) {
       textarea.style.height = '0px';
@@ -76,7 +76,11 @@ export function ChatSidebar({
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, messages[messages.length - 1]?.content, messages[messages.length - 1]?.parts?.length]);
+  }, [
+    messages.length,
+    messages[messages.length - 1]?.content,
+    messages[messages.length - 1]?.parts?.length,
+  ]);
 
   // Resize handling
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -89,7 +93,10 @@ export function ChatSidebar({
     const handleMouseMove = (e: MouseEvent) => {
       const windowWidth = window.innerWidth;
       const newWidth = windowWidth - e.clientX;
-      const clampedWidth = Math.min(Math.max(newWidth, MIN_CHAT_WIDTH), MAX_CHAT_WIDTH);
+      const clampedWidth = Math.min(
+        Math.max(newWidth, MIN_CHAT_WIDTH),
+        MAX_CHAT_WIDTH
+      );
       onChatWidthChange?.(clampedWidth);
     };
     const handleMouseUp = () => setIsResizing(false);
@@ -116,12 +123,20 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
 
   const handleAskSend = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
-    const userMessage: Message = { role: 'user', content: inputValue, timestamp: new Date() };
+    const userMessage: Message = {
+      role: 'user',
+      content: inputValue,
+      timestamp: new Date(),
+    };
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
 
-    const assistantMessage: Message = { role: 'assistant', content: '', timestamp: new Date() };
+    const assistantMessage: Message = {
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+    };
     setMessages(prev => [...prev, assistantMessage]);
 
     if (abortControllerRef.current) abortControllerRef.current.abort();
@@ -162,7 +177,8 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
                 setMessages(prev => {
                   const newMessages = [...prev];
                   const last = newMessages[newMessages.length - 1];
-                  if (last?.role === 'assistant') last.content = accumulatedContent;
+                  if (last?.role === 'assistant')
+                    last.content = accumulatedContent;
                   return newMessages;
                 });
               }
@@ -175,7 +191,8 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
       setMessages(prev => {
         const newMessages = [...prev];
         const last = newMessages[newMessages.length - 1];
-        if (last?.role === 'assistant') last.content = '抱歉，发生了错误。请稍后重试。';
+        if (last?.role === 'assistant')
+          last.content = '抱歉，发生了错误。请稍后重试。';
         return newMessages;
       });
     } finally {
@@ -186,7 +203,11 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
 
   const handleAgentSend = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
-    const userMessage: Message = { role: 'user', content: inputValue, timestamp: new Date() };
+    const userMessage: Message = {
+      role: 'user',
+      content: inputValue,
+      timestamp: new Date(),
+    };
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
@@ -214,33 +235,42 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
       // ===== 极简架构：用 parts 数组按顺序存储所有内容 =====
       const seen = new Set<string>();
       let buffer = '';
-      
-      setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date(), parts: [], isStreaming: true }]);
+
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: '',
+          timestamp: new Date(),
+          parts: [],
+          isStreaming: true,
+        },
+      ]);
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-        
+
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const data = line.slice(6).trim();
           if (!data || data === '[DONE]') continue;
-          
+
           try {
             const msg = JSON.parse(data);
-            
+
             // UUID 去重
             if (msg.uuid) {
               if (seen.has(msg.uuid)) continue;
               seen.add(msg.uuid);
             }
-            
+
             console.log('[Agent]', msg.type);
-            
+
             setMessages(prev => {
               const last = prev[prev.length - 1];
               if (!last || last.role !== 'assistant') return prev;
@@ -254,24 +284,36 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
                   if (b.type === 'text' && b.text) {
                     parts.push({ type: 'text', content: b.text });
                   }
-                  if (b.type === 'tool_use' && b.id && !parts.find(p => p.toolId === b.id)) {
+                  if (
+                    b.type === 'tool_use' &&
+                    b.id &&
+                    !parts.find(p => p.toolId === b.id)
+                  ) {
                     // 提取工具输入（如搜索 query）
-                    const toolInput = b.input?.query || b.input?.path || b.input?.pattern || '';
-                    parts.push({ type: 'tool', toolId: b.id, toolName: b.name || 'Tool', toolInput, toolStatus: 'running' });
+                    const toolInput =
+                      b.input?.query || b.input?.path || b.input?.pattern || '';
+                    parts.push({
+                      type: 'tool',
+                      toolId: b.id,
+                      toolName: b.name || 'Tool',
+                      toolInput,
+                      toolStatus: 'running',
+                    });
                   }
                 }
               }
-              
+
               // ===== user (tool_result): 更新工具状态 =====
               if (msg.type === 'user' && Array.isArray(blocks)) {
                 for (const b of blocks) {
                   if (b.type === 'tool_result' && b.tool_use_id) {
                     const i = parts.findIndex(p => p.toolId === b.tool_use_id);
-                    if (i !== -1) parts[i] = { ...parts[i], toolStatus: 'completed' };
+                    if (i !== -1)
+                      parts[i] = { ...parts[i], toolStatus: 'completed' };
                   }
                 }
               }
-              
+
               // ===== result: 标记所有工具完成，停止 streaming =====
               let isStreaming = last.isStreaming;
               if (msg.type === 'result') {
@@ -286,17 +328,27 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
                 }
                 isStreaming = false; // 生成完成
               }
-              
+
               // ===== error =====
               if (msg.type === 'error') {
-                parts.push({ type: 'tool', toolName: `Error: ${msg.error || msg.message}`, toolStatus: 'error' });
+                parts.push({
+                  type: 'tool',
+                  toolName: `Error: ${msg.error || msg.message}`,
+                  toolStatus: 'error',
+                });
                 isStreaming = false; // 出错也停止
               }
 
               // 生成 content（用于复制等）
-              const content = parts.filter(p => p.type === 'text').map(p => p.content).join('\n\n');
+              const content = parts
+                .filter(p => p.type === 'text')
+                .map(p => p.content)
+                .join('\n\n');
 
-              return [...prev.slice(0, -1), { ...last, content, parts, isStreaming }];
+              return [
+                ...prev.slice(0, -1),
+                { ...last, content, parts, isStreaming },
+              ];
             });
           } catch {}
         }
@@ -307,7 +359,7 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
         const newMessages = [...prev];
         const last = newMessages[newMessages.length - 1];
         if (last?.role === 'assistant') {
-            last.content += '\n\n**Error:** An unexpected error occurred.';
+          last.content += '\n\n**Error:** An unexpected error occurred.';
         }
         return newMessages;
       });
@@ -340,7 +392,7 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
       borderRadius: '8px',
       padding: '6px 8px',
       backgroundColor: '#181818',
-      transition: 'all 0.2s ease'
+      transition: 'all 0.2s ease',
     },
     textarea: {
       flex: 1,
@@ -357,7 +409,7 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
       minHeight: '32px',
       boxSizing: 'border-box' as const,
       maxHeight: '150px',
-      overflowY: 'auto' as const
+      overflowY: 'auto' as const,
     },
     sendButton: {
       width: '28px',
@@ -369,9 +421,9 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
       justifyContent: 'center',
       cursor: 'pointer',
       transition: 'all 0.2s ease',
-      flexShrink: 0
-    }
-  }
+      flexShrink: 0,
+    },
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -391,7 +443,9 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
         borderLeft: isOpen ? '1px solid #222' : 'none',
         display: 'flex',
         flexDirection: 'column',
-        transition: isResizing ? 'none' : 'width 0.2s ease, min-width 0.2s ease',
+        transition: isResizing
+          ? 'none'
+          : 'width 0.2s ease, min-width 0.2s ease',
         overflow: 'hidden',
         position: 'relative',
         flexShrink: 0,
@@ -402,107 +456,248 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
         <div
           onMouseDown={handleMouseDown}
           style={{
-            position: 'absolute', top: 0, left: -2, width: 4, height: '100%',
-            cursor: 'col-resize', zIndex: 10,
+            position: 'absolute',
+            top: 0,
+            left: -2,
+            width: 4,
+            height: '100%',
+            cursor: 'col-resize',
+            zIndex: 10,
             background: isResizing ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
           }}
-          onMouseEnter={e => { if (!isResizing) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; }}
-          onMouseLeave={e => { if (!isResizing) e.currentTarget.style.background = 'transparent'; }}
+          onMouseEnter={e => {
+            if (!isResizing)
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+          }}
+          onMouseLeave={e => {
+            if (!isResizing) e.currentTarget.style.background = 'transparent';
+          }}
         />
       )}
 
       {/* Header */}
-      <div style={{ height: 45, padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #222', flexShrink: 0, background: '#111111', zIndex: 5 }}>
+      <div
+        style={{
+          height: 45,
+          padding: '0 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid #222',
+          flexShrink: 0,
+          background: '#111111',
+          zIndex: 5,
+        }}
+      >
         <button
           onClick={() => onOpenChange(false)}
           title='Close Panel'
-          style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#9ca3af'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7280'; }}
+          style={{
+            width: 28,
+            height: 28,
+            background: 'transparent',
+            border: 'none',
+            color: '#6b7280',
+            cursor: 'pointer',
+            borderRadius: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+            e.currentTarget.style.color = '#9ca3af';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = '#6b7280';
+          }}
         >
-          <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <rect x='3' y='3' width='18' height='18' rx='2' /><line x1='15' y1='3' x2='15' y2='21' />
+          <svg
+            width='16'
+            height='16'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          >
+            <rect x='3' y='3' width='18' height='18' rx='2' />
+            <line x1='15' y1='3' x2='15' y2='21' />
           </svg>
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <button
             title='Chat History'
-            style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#9ca3af'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7280'; }}
+            style={{
+              width: 28,
+              height: 28,
+              background: 'transparent',
+              border: 'none',
+              color: '#6b7280',
+              cursor: 'pointer',
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.color = '#9ca3af';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#6b7280';
+            }}
           >
-            <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-              <circle cx='12' cy='12' r='10' /><polyline points='12 6 12 12 16 14' />
+            <svg
+              width='16'
+              height='16'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <circle cx='12' cy='12' r='10' />
+              <polyline points='12 6 12 12 16 14' />
             </svg>
           </button>
           <button
             onClick={handleClear}
             title='New Chat'
-            style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#9ca3af'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7280'; }}
+            style={{
+              width: 28,
+              height: 28,
+              background: 'transparent',
+              border: 'none',
+              color: '#6b7280',
+              cursor: 'pointer',
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.color = '#9ca3af';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#6b7280';
+            }}
           >
-            <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-              <path d='M12 5v14' /><path d='M5 12h14' />
+            <svg
+              width='16'
+              height='16'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <path d='M12 5v14' />
+              <path d='M5 12h14' />
             </svg>
           </button>
         </div>
       </div>
 
       {/* Messages Area */}
-      <div 
-        style={{ 
-          flex: 1, 
-          overflowY: 'auto', 
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
           overflowX: 'hidden',
-          padding: '20px 16px', 
-          display: 'flex', 
-          flexDirection: 'column', 
+          padding: '20px 16px',
+          display: 'flex',
+          flexDirection: 'column',
           gap: 24,
           background: '#111111',
-          maskImage: 'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)',
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)'
+          maskImage:
+            'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)',
+          WebkitMaskImage:
+            'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)',
         }}
       >
         {messages.length === 0 ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, opacity: 0.5 }}>
-            <svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' style={{ color: '#6b7280' }}>
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              opacity: 0.5,
+            }}
+          >
+            <svg
+              width='32'
+              height='32'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='1.5'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              style={{ color: '#6b7280' }}
+            >
               <path d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' />
             </svg>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 13, color: '#888', lineHeight: 1.6, maxWidth: 240 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: '#888',
+                  lineHeight: 1.6,
+                  maxWidth: 240,
+                }}
+              >
                 Ask questions or let Agent help you explore your data.
               </div>
             </div>
           </div>
         ) : (
-          messages.map((msg, idx) => (
+          messages.map((msg, idx) =>
             msg.role === 'user' ? (
-              <UserMessage 
-                key={idx} 
-                message={{ content: msg.content, timestamp: msg.timestamp }} 
+              <UserMessage
+                key={idx}
+                message={{ content: msg.content, timestamp: msg.timestamp }}
                 showAvatar={false}
               />
             ) : (
-              <BotMessage 
-                key={idx} 
-                message={{ role: 'assistant', content: msg.content }} 
+              <BotMessage
+                key={idx}
+                message={{ role: 'assistant', content: msg.content }}
                 parts={msg.parts}
                 isStreaming={msg.isStreaming}
               />
             )
-          ))
+          )
         )}
         <div ref={messagesEndRef} style={{ height: 1 }} />
       </div>
 
       {/* Input Area */}
       <div style={{ padding: '12px', flexShrink: 0, background: '#111111' }}>
-        
         {/* Mode + MCP - Above input */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '8px',
+          }}
+        >
           <ModeSelector mode={mode} onModeChange={setMode} />
-          
+
           {mode === 'agent' && (
             <>
               {/* <div style={{ width: '1px', height: '16px', background: '#444' }} />
@@ -511,17 +706,19 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
           )}
         </div>
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'stretch',
-          gap: '8px',
-          minHeight: '80px',
-          boxSizing: 'border-box',
-          backgroundColor: '#1a1a1a',
-          borderRadius: '16px',
-          padding: '8px',
-          border: '1.5px solid #3a3a3a',
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'stretch',
+            gap: '8px',
+            minHeight: '80px',
+            boxSizing: 'border-box',
+            backgroundColor: '#1a1a1a',
+            borderRadius: '16px',
+            padding: '8px',
+            border: '1.5px solid #3a3a3a',
+          }}
+        >
           {/* Textarea */}
           <textarea
             ref={textareaRef}
@@ -530,7 +727,11 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder={mode === 'agent' ? 'Ask Agent to read files or search...' : 'Ask a question...'}
+            placeholder={
+              mode === 'agent'
+                ? 'Ask Agent to read files or search...'
+                : 'Ask a question...'
+            }
             disabled={isLoading}
             style={{
               flex: 1,
@@ -544,7 +745,7 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
               maxHeight: '200px',
               fontFamily: 'inherit',
               padding: '4px 8px',
-              overflowY: 'auto'
+              overflowY: 'auto',
             }}
             rows={1}
           />
@@ -562,23 +763,39 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
               alignItems: 'center',
               justifyContent: 'center',
               cursor: !inputValue.trim() || isLoading ? 'default' : 'pointer',
-              backgroundColor: inputValue.trim() && !isLoading ? '#4a90e2' : '#3a3a3a',
+              backgroundColor:
+                inputValue.trim() && !isLoading ? '#4a90e2' : '#3a3a3a',
               color: '#ffffff',
               transition: 'all 0.2s ease',
               opacity: !inputValue.trim() || isLoading ? 0.5 : 1,
               flexShrink: 0,
-              alignSelf: 'flex-end'
+              alignSelf: 'flex-end',
             }}
           >
             {isLoading ? (
-              <div style={{ 
-                width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', 
-                borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' 
-              }} />
+              <div
+                style={{
+                  width: 14,
+                  height: 14,
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTopColor: '#fff',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                }}
+              />
             ) : (
-              <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
-                <path d="M5 12h14" />
-                <path d="M12 5l7 7-7 7" />
+              <svg
+                width='16'
+                height='16'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2.5'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              >
+                <path d='M5 12h14' />
+                <path d='M12 5l7 7-7 7' />
               </svg>
             )}
           </button>
@@ -586,9 +803,13 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
       </div>
 
       <style jsx global>{`
-        @keyframes spin { 
-          from { transform: rotate(0deg); } 
-          to { transform: rotate(360deg); } 
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
         }
         ::-webkit-scrollbar {
           width: 6px;

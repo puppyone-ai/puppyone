@@ -40,7 +40,7 @@ Be concise and helpful.`,
             console.log('Type:', (message as Record<string, unknown>).type);
             console.log('Full message:', JSON.stringify(message, null, 2));
             console.log('========================================\n');
-            
+
             // 根据消息类型处理
             const data = JSON.stringify(message);
             controller.enqueue(encoder.encode(`data: ${data}\n\n`));
@@ -75,4 +75,3 @@ Be concise and helpful.`,
     });
   }
 }
-
