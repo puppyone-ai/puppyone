@@ -17,6 +17,7 @@ from src.supabase.mcps.repository import McpRepository
 from src.supabase.tools.repository import ToolRepository
 from src.supabase.mcp_v2.repository import McpV2Repository
 from src.supabase.mcp_binding.repository import McpBindingRepository
+from src.supabase.context_publish.repository import ContextPublishRepository
 
 # 导入各个子模块的 Schema
 from src.supabase.projects.schemas import (
@@ -40,6 +41,11 @@ from src.supabase.mcp_binding.schemas import (
     McpBindingCreate,
     McpBindingUpdate,
     McpBindingResponse,
+)
+from src.supabase.context_publish.schemas import (
+    ContextPublishCreate,
+    ContextPublishUpdate,
+    ContextPublishResponse,
 )
 
 
@@ -65,6 +71,7 @@ class SupabaseRepository:
         self._tool_repo = ToolRepository(self._client)
         self._mcp_v2_repo = McpV2Repository(self._client)
         self._mcp_binding_repo = McpBindingRepository(self._client)
+        self._context_publish_repo = ContextPublishRepository(self._client)
 
     # ==================== Project 相关操作 ====================
 
@@ -444,3 +451,29 @@ class SupabaseRepository:
 
     def delete_mcp_binding(self, binding_id: int) -> bool:
         return self._mcp_binding_repo.delete(binding_id)
+
+    # ==================== Context Publish 相关操作 ====================
+
+    def create_context_publish(self, data: ContextPublishCreate) -> ContextPublishResponse:
+        return self._context_publish_repo.create(data)
+
+    def get_context_publish(self, publish_id: int) -> Optional[ContextPublishResponse]:
+        return self._context_publish_repo.get_by_id(publish_id)
+
+    def get_context_publish_by_key(self, publish_key: str) -> Optional[ContextPublishResponse]:
+        return self._context_publish_repo.get_by_publish_key(publish_key)
+
+    def get_context_publish_list(
+        self,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        user_id: Optional[str] = None,
+    ) -> List[ContextPublishResponse]:
+        return self._context_publish_repo.get_list(skip=skip, limit=limit, user_id=user_id)
+
+    def update_context_publish(self, publish_id: int, data: ContextPublishUpdate) -> Optional[ContextPublishResponse]:
+        return self._context_publish_repo.update(publish_id, data)
+
+    def delete_context_publish(self, publish_id: int) -> bool:
+        return self._context_publish_repo.delete(publish_id)

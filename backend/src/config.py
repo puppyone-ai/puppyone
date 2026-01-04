@@ -64,4 +64,9 @@ class Settings(BaseSettings):
     # - 如果不设置，会从请求头自动推断
     PUBLIC_URL: str = ""
 
+    # Context Publish 配置
+    PUBLISH_DEFAULT_EXPIRES_DAYS: int = 7
+    PUBLISH_KEY_LENGTH: int = 16
+    PUBLISH_CACHE_TTL_SECONDS: int = 10
+
 settings = Settings()
