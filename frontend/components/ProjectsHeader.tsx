@@ -144,6 +144,7 @@ export function ProjectsHeader({
               padding: '0 8px',
               gap: 6,
               borderRadius: 6,
+
               border: '1px solid',
               borderColor: isAgentPanelOpen
                 ? 'rgba(255, 167, 61, 0.4)'
@@ -156,6 +157,7 @@ export function ProjectsHeader({
               transition: 'all 0.15s',
             }}
             title='Agent Dashboard'
+
           >
             {/* 小狗爪子 SVG */}
             <svg width='14' height='11' viewBox='0 0 33 26' fill='none'>
@@ -213,6 +215,7 @@ export function ProjectsHeader({
             />
 
             {/* Chat Toggle Block - 28x28 to match left sidebar toggle */}
+
             {/* TODO: Re-enable when chat feature is ready */}
             {false && (
               <div
@@ -253,6 +256,7 @@ export function ProjectsHeader({
                 </svg>
               </div>
             )}
+
           </>
         ) : (
           /* Right padding when chat is open */

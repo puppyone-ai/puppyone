@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 
 // 字号规范：13px / 12px / 11px 三种
+
 export const FONT = {
   primary: 13,
   secondary: 12,
@@ -39,6 +40,7 @@ export const TOOL_TYPE_CONFIG: Record<
   update: { label: 'Update', color: '#fbbf24', bg: 'rgba(245, 158, 11, 0.15)' },
   delete: { label: 'Delete', color: '#f87171', bg: 'rgba(239, 68, 68, 0.15)' },
 };
+
 
 export type ToolItem = {
   id: number;
