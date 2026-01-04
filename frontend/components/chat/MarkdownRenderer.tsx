@@ -13,11 +13,11 @@ const DEFAULT_STYLES: Record<string, CSSProperties> = {
   ol: { margin: '8px 0', paddingLeft: '20px', fontSize: '13px' },
   li: { margin: '4px 0' },
   link: { color: '#4a90e2', textDecoration: 'underline', textDecorationColor: '#4a90e2', transition: 'all 0.2s ease', cursor: 'pointer', fontWeight: 500, wordBreak: 'break-word', overflowWrap: 'break-word', display: 'inline', maxWidth: '100%', fontSize: '13px' },
-  table: { borderCollapse: 'collapse', width: '100%', margin: '12px 0', fontSize: '12px', border: '1px solid #3a3a3a', backgroundColor: '#1a1a1a', borderRadius: '6px', overflow: 'hidden' },
-  thead: { backgroundColor: '#2a2a2a' },
-  tr: { borderBottom: '1px solid #2a2a2a' },
-  th: { padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #3a3a3a', borderRight: '1px solid #3a3a3a', fontWeight: 600, color: '#e0e0e0', backgroundColor: '#2a2a2a' },
-  td: { padding: '6px 10px', borderBottom: '1px solid #2a2a2a', borderRight: '1px solid #2a2a2a', color: '#d2d2d2', verticalAlign: 'top' }
+  table: { borderCollapse: 'separate', borderSpacing: 0, width: '100%', margin: '12px 0', fontSize: '12px', border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'transparent', borderRadius: '6px', overflow: 'hidden' },
+  thead: { backgroundColor: 'transparent' },
+  tr: {},
+  th: { padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRight: '1px solid rgba(255,255,255,0.12)', fontWeight: 500, color: 'rgba(255,255,255,0.5)', backgroundColor: 'transparent' },
+  td: { padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.1)', borderRight: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', verticalAlign: 'top' }
 }
 
 export interface MarkdownRendererProps {

@@ -132,29 +132,21 @@ export function ProjectsHeader({
         }}
       >
         {/* Agent Dashboard Button + Dropdown */}
-        <div ref={agentPanelRef} style={{ position: 'relative' }}>
+        <div 
+          ref={agentPanelRef} 
+          style={{ 
+            position: 'relative',
+            ...viewSwitcherContainerStyle 
+          }}
+        >
           <button
             onClick={() => onAgentPanelOpenChange?.(!isAgentPanelOpen)}
             style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: 28,
-              padding: '0 8px',
-              gap: 6,
-              borderRadius: 6,
-
-              border: '1px solid',
-              borderColor: isAgentPanelOpen
-                ? 'rgba(255, 167, 61, 0.4)'
-                : '#333',
+              ...viewSwitcherBtnStyle,
               background: isAgentPanelOpen
-                ? 'rgba(255, 167, 61, 0.15)'
-                : 'rgba(0,0,0,0.3)',
-              color: isAgentPanelOpen ? '#FFA73D' : '#9ca3af',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
+                ? 'rgba(255,255,255,0.1)'
+                : 'transparent',
+              color: isAgentPanelOpen ? '#e2e8f0' : '#6b7280',
             }}
             title='Agent Dashboard'
           >

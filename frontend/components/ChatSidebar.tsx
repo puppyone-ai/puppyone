@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import BotMessage, { ActionStep } from './chat/BotMessage';
+import BotMessage from './chat/BotMessage';
 import UserMessage from './chat/UserMessage';
 import ModeSelector, { ChatMode } from './chat/ModeSelector';
-import MCPBar from './chat/MCPBar';
+// import MCPBar from './chat/MCPBar';
 
 const MIN_CHAT_WIDTH = 280;
 const MAX_CHAT_WIDTH = 600;
@@ -12,15 +12,22 @@ const DEFAULT_CHAT_WIDTH = 400;
 
 type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
-// Internal message structure for logic
+// 简化：消息部件（按时间顺序）
+interface MessagePart {
+  type: 'text' | 'tool';
+  content?: string;      // type='text' 时的文本
+  toolId?: string;       // type='tool' 时的工具ID
+  toolName?: string;     // type='tool' 时的工具名
+  toolInput?: string;    // type='tool' 时的输入参数
+  toolStatus?: 'running' | 'completed' | 'error';
+}
+
 interface Message {
   role: MessageRole;
-  content: string;
-  toolName?: string;
-  isToolResult?: boolean;
+  content: string;       // 保留用于简单消息
   timestamp?: Date;
-  // For grouping tool steps
-  toolSteps?: ActionStep[];
+  parts?: MessagePart[]; // Agent 模式：按顺序的部件
+  isStreaming?: boolean; // 是否正在生成中
 }
 
 interface ChatSidebarProps {
@@ -69,7 +76,7 @@ export function ChatSidebar({
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, messages[messages.length - 1]?.content, messages[messages.length - 1]?.toolSteps?.length]);
+  }, [messages.length, messages[messages.length - 1]?.content, messages[messages.length - 1]?.parts?.length]);
 
   // Resize handling
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -204,10 +211,11 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
       const decoder = new TextDecoder();
       if (!reader) throw new Error('No response body');
 
-      const processedIds = new Set<string>();
+      // ===== 极简架构：用 parts 数组按顺序存储所有内容 =====
+      const seen = new Set<string>();
       let buffer = '';
       
-      setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date(), toolSteps: [] }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date(), parts: [], isStreaming: true }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -215,189 +223,82 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
         
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        buffer = lines.pop() || '';
         
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
-            if (data === '[DONE]') continue;
-            if (!data) continue;
-            try {
-              const msg = JSON.parse(data);
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (!data || data === '[DONE]') continue;
+          
+          try {
+            const msg = JSON.parse(data);
+            
+            // UUID 去重
+            if (msg.uuid) {
+              if (seen.has(msg.uuid)) continue;
+              seen.add(msg.uuid);
+            }
+            
+            console.log('[Agent]', msg.type);
+            
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (!last || last.role !== 'assistant') return prev;
+
+              const parts = [...(last.parts || [])];
+              const blocks = msg.message?.content;
+
+              // ===== assistant: 文本和工具调用按顺序加入 =====
+              if (msg.type === 'assistant' && Array.isArray(blocks)) {
+                for (const b of blocks) {
+                  if (b.type === 'text' && b.text) {
+                    parts.push({ type: 'text', content: b.text });
+                  }
+                  if (b.type === 'tool_use' && b.id && !parts.find(p => p.toolId === b.id)) {
+                    // 提取工具输入（如搜索 query）
+                    const toolInput = b.input?.query || b.input?.path || b.input?.pattern || '';
+                    parts.push({ type: 'tool', toolId: b.id, toolName: b.name || 'Tool', toolInput, toolStatus: 'running' });
+                  }
+                }
+              }
               
-              setMessages(prev => {
-                const lastMsg = prev[prev.length - 1];
-                if (!lastMsg || lastMsg.role !== 'assistant') return prev;
-
-                const currentSteps = [...(lastMsg.toolSteps || [])];
-                let newContent = lastMsg.content;
-
-                // Debug: log message type
-                console.log('[Agent Stream]', msg.type, msg);
-
-                // Handle 'user' type messages - they may contain tool_result!
-                if (msg.type === 'user') {
-                  // Check if this user message contains tool_result
-                  if (msg.message?.content && Array.isArray(msg.message.content)) {
-                    for (const block of msg.message.content) {
-                      if (block.type === 'tool_result') {
-                        const toolId = block.tool_use_id;
-                        const stepIndex = currentSteps.findIndex(s => s.id === toolId);
-                        if (stepIndex !== -1) {
-                          currentSteps[stepIndex] = { ...currentSteps[stepIndex], status: 'completed' as const };
-                        }
-                      }
-                    }
-                    // If we processed tool results, update the message
-                    if (currentSteps.length > 0) {
-                      const updatedMsg = { 
-                        ...lastMsg, 
-                        toolSteps: currentSteps
-                      };
-                      return [...prev.slice(0, -1), updatedMsg];
-                    }
+              // ===== user (tool_result): 更新工具状态 =====
+              if (msg.type === 'user' && Array.isArray(blocks)) {
+                for (const b of blocks) {
+                  if (b.type === 'tool_result' && b.tool_use_id) {
+                    const i = parts.findIndex(p => p.toolId === b.tool_use_id);
+                    if (i !== -1) parts[i] = { ...parts[i], toolStatus: 'completed' };
                   }
-                  return prev;
                 }
-
-                switch (msg.type) {
-                  case 'assistant': {
-                    // Official SDK format: msg.message.content is array of blocks
-                    // Each block has { type: 'text', text: '...' } or { type: 'tool_use', ... }
-                    if (msg.message?.content && Array.isArray(msg.message.content)) {
-                      // Extract all text blocks and join them
-                      const textBlocks = msg.message.content
-                        .filter((block: { type: string }) => block.type === 'text')
-                        .map((block: { text: string }) => block.text)
-                        .join('');
-                      
-                      if (textBlocks) {
-                        // Use content hash for deduplication
-                        const contentKey = `assistant-${textBlocks.substring(0, 100)}-${textBlocks.length}`;
-                        if (!processedIds.has(contentKey)) {
-                          processedIds.add(contentKey);
-                          // Append new content
-                          if (newContent && newContent.trim()) {
-                            newContent = newContent + '\n\n' + textBlocks;
-                          } else {
-                            newContent = textBlocks;
-                          }
-                        }
-                      }
-                      
-                      // Also check for tool_use blocks in the content
-                      const toolUseBlocks = msg.message.content.filter(
-                        (block: { type: string }) => block.type === 'tool_use'
-                      );
-                      for (const toolBlock of toolUseBlocks) {
-                        const toolId = toolBlock.id;
-                        if (toolId && !processedIds.has(toolId)) {
-                          processedIds.add(toolId);
-                          currentSteps.push({
-                            id: toolId,
-                            text: toolBlock.name || 'Tool',
-                            status: 'running' as const
-                          });
-                        }
-                      }
-                    }
-                    break;
+              }
+              
+              // ===== result: 标记所有工具完成，停止 streaming =====
+              let isStreaming = last.isStreaming;
+              if (msg.type === 'result') {
+                parts.forEach((p, i) => {
+                  if (p.type === 'tool' && p.toolStatus === 'running') {
+                    parts[i] = { ...p, toolStatus: 'completed' };
                   }
-                  
-                  // Streaming delta events - for real-time text streaming
-                  case 'content_block_start': {
-                    // Start of a new content block
-                    if (msg.content_block?.type === 'tool_use') {
-                      const toolId = msg.content_block.id;
-                      if (toolId && !processedIds.has(toolId)) {
-                        processedIds.add(toolId);
-                        currentSteps.push({
-                          id: toolId,
-                          text: msg.content_block.name || 'Tool',
-                          status: 'running' as const
-                        });
-                      }
-                    }
-                    break;
-                  }
-                  case 'content_block_delta': {
-                    // Streaming text delta - append character by character
-                    if (msg.delta?.type === 'text_delta' && msg.delta.text) {
-                      newContent = (newContent || '') + msg.delta.text;
-                    }
-                    // Tool input delta
-                    if (msg.delta?.type === 'input_json_delta') {
-                      // Tool is being called - we already added it in content_block_start
-                    }
-                    break;
-                  }
-                  case 'content_block_stop': {
-                    // Content block finished
-                    break;
-                  }
-                  
-                  case 'tool_use': {
-                    // Standalone tool_use message
-                    const toolId = msg.tool_use_id || msg.id;
-                    if (toolId && !processedIds.has(toolId)) {
-                      processedIds.add(toolId);
-                      currentSteps.push({ 
-                        id: toolId,
-                        text: msg.tool_name || msg.name || 'Tool', 
-                        status: 'running' as const
-                      });
-                    }
-                    break;
-                  }
-                  case 'tool_result': {
-                    const resultToolId = msg.tool_use_id || msg.id;
-                    const stepIndex = currentSteps.findIndex(s => s.id === resultToolId);
-                    if (stepIndex !== -1) {
-                      currentSteps[stepIndex] = { ...currentSteps[stepIndex], status: 'completed' as const };
-                    }
-                    break;
-                  }
-                  case 'result': {
-                    // Official SDK: final result
-                    // DON'T replace content - the last assistant message already has the same content
-                    // Just mark all running tools as completed
-                    currentSteps.forEach((s, i) => { 
-                      if (s.status === 'running') {
-                        currentSteps[i] = { ...s, status: 'completed' as const };
-                      }
-                    });
-                    // Only use result if we have no content yet (edge case)
-                    if (!newContent && msg.result) {
-                      newContent = msg.result;
-                    }
-                    break;
-                  }
-                  case 'error': {
-                    const errorText = msg.error || msg.message || 'Unknown error';
-                    currentSteps.push({ text: `Error: ${errorText}`, status: 'error' as const });
-                    break;
-                  }
-                  
-                  // Message lifecycle events
-                  case 'message_start':
-                  case 'message_delta':
-                  case 'message_stop':
-                    // These are lifecycle events, no content to process
-                    break;
+                });
+                // 如果没有任何内容，用 result
+                if (parts.length === 0 && msg.result) {
+                  parts.push({ type: 'text', content: msg.result });
                 }
-                
-                // Create a new message object to trigger React re-render
-                const updatedMsg: Message = {
-                  ...lastMsg,
-                  content: newContent,
-                  toolSteps: currentSteps
-                };
-                
-                return [...prev.slice(0, -1), updatedMsg];
-              });
+                isStreaming = false; // 生成完成
+              }
+              
+              // ===== error =====
+              if (msg.type === 'error') {
+                parts.push({ type: 'tool', toolName: `Error: ${msg.error || msg.message}`, toolStatus: 'error' });
+                isStreaming = false; // 出错也停止
+              }
 
-            } catch {}
-          }
+              // 生成 content（用于复制等）
+              const content = parts.filter(p => p.type === 'text').map(p => p.content).join('\n\n');
+
+              return [...prev.slice(0, -1), { ...last, content, parts, isStreaming }];
+            });
+          } catch {}
         }
       }
     } catch (error) {
@@ -486,8 +387,8 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
         width: isOpen ? chatWidth : 0,
         minWidth: isOpen ? chatWidth : 0,
         height: '100vh',
-        background: '#0a0a0a',
-        borderLeft: isOpen ? '1px solid #1a1a1a' : 'none',
+        background: '#111111',
+        borderLeft: isOpen ? '1px solid #222' : 'none',
         display: 'flex',
         flexDirection: 'column',
         transition: isResizing ? 'none' : 'width 0.2s ease, min-width 0.2s ease',
@@ -511,7 +412,7 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
       )}
 
       {/* Header */}
-      <div style={{ height: 45, padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1a1a1a', flexShrink: 0, background: '#0a0a0a', zIndex: 5 }}>
+      <div style={{ height: 45, padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #222', flexShrink: 0, background: '#111111', zIndex: 5 }}>
         <button
           onClick={() => onOpenChange(false)}
           title='Close Panel'
@@ -558,7 +459,7 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
           display: 'flex', 
           flexDirection: 'column', 
           gap: 24,
-          background: '#0a0a0a',
+          background: '#111111',
           maskImage: 'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)',
           WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)'
         }}
@@ -585,11 +486,9 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
             ) : (
               <BotMessage 
                 key={idx} 
-                message={{ 
-                  role: 'assistant', 
-                  content: msg.content 
-                }} 
-                actionSteps={msg.toolSteps}
+                message={{ role: 'assistant', content: msg.content }} 
+                parts={msg.parts}
+                isStreaming={msg.isStreaming}
               />
             )
           ))
@@ -598,7 +497,7 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
       </div>
 
       {/* Input Area */}
-      <div style={{ padding: '12px', flexShrink: 0, background: '#0a0a0a' }}>
+      <div style={{ padding: '12px', flexShrink: 0, background: '#111111' }}>
         
         {/* Mode + MCP - Above input */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
@@ -606,8 +505,8 @@ You are friendly, concise, and knowledgeable. Always respond in the same languag
           
           {mode === 'agent' && (
             <>
-              <div style={{ width: '1px', height: '16px', background: '#444' }} />
-              <MCPBar enabled={true} />
+              {/* <div style={{ width: '1px', height: '16px', background: '#444' }} />
+              <MCPBar enabled={true} /> */}
             </>
           )}
         </div>
