@@ -37,5 +37,3 @@ class ContextPublishResponse(ContextPublishBase):
 
     class Config:
         from_attributes = True
-
-

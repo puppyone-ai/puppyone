@@ -16,5 +16,3 @@ def get_context_publish_service() -> ContextPublishService:
         table_service = get_table_service()
         _publish_service = ContextPublishService(repo=repo, table_service=table_service)
     return _publish_service
-
-

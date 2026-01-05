@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
@@ -14,7 +13,7 @@ import httpx
 from src.connect.data_provider import DataProvider, DataProviderResult
 from src.connect.exceptions import AuthenticationError
 from src.oauth.github_service import GithubOAuthService
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error
 
 
 @dataclass
@@ -30,7 +29,9 @@ class GithubProvider(DataProvider):
 
     API_BASE = "https://api.github.com"
 
-    def __init__(self, user_id: str, github_service: Optional[GithubOAuthService] = None):
+    def __init__(
+        self, user_id: str, github_service: Optional[GithubOAuthService] = None
+    ):
         self.user_id = user_id
         self.github_service = github_service or GithubOAuthService()
         self.client = httpx.AsyncClient(
@@ -82,7 +83,9 @@ class GithubProvider(DataProvider):
                 project_data, items = await self._fetch_project(resource, headers)
                 return self._build_project_result(resource, project_data, items)
 
-            raise ValueError(f"Unsupported GitHub resource type: {resource.resource_type}")
+            raise ValueError(
+                f"Unsupported GitHub resource type: {resource.resource_type}"
+            )
         except httpx.HTTPStatusError as e:
             if e.response.status_code in (401, 403):
                 raise AuthenticationError(
@@ -90,8 +93,16 @@ class GithubProvider(DataProvider):
                     provider="github",
                     requires_auth=True,
                 )
-            message = e.response.json().get("message") if e.response.headers.get("content-type", "").startswith("application/json") else e.response.text
-            raise ValueError(f"GitHub API error ({e.response.status_code}): {message}") from e
+            message = (
+                e.response.json().get("message")
+                if e.response.headers.get("content-type", "").startswith(
+                    "application/json"
+                )
+                else e.response.text
+            )
+            raise ValueError(
+                f"GitHub API error ({e.response.status_code}): {message}"
+            ) from e
         except Exception:
             log_error("Failed to fetch GitHub data", exc_info=True)
             raise
@@ -120,13 +131,17 @@ class GithubProvider(DataProvider):
 
         return GithubResource("repo", owner, repo)
 
-    async def _fetch_repo(self, res: GithubResource, headers: Dict[str, str]) -> Tuple[Dict[str, Any], Optional[str]]:
+    async def _fetch_repo(
+        self, res: GithubResource, headers: Dict[str, str]
+    ) -> Tuple[Dict[str, Any], Optional[str]]:
         repo_url = f"{self.API_BASE}/repos/{res.owner}/{res.repo}"
         readme_url = f"{repo_url}/readme"
         repo_task = asyncio.create_task(self.client.get(repo_url, headers=headers))
         readme_task = asyncio.create_task(self.client.get(readme_url, headers=headers))
 
-        repo_resp, readme_resp = await asyncio.gather(repo_task, readme_task, return_exceptions=True)
+        repo_resp, readme_resp = await asyncio.gather(
+            repo_task, readme_task, return_exceptions=True
+        )
 
         if isinstance(repo_resp, httpx.Response):
             repo_resp.raise_for_status()
@@ -138,18 +153,28 @@ class GithubProvider(DataProvider):
         if isinstance(readme_resp, httpx.Response) and readme_resp.status_code == 200:
             data = readme_resp.json()
             if data.get("encoding") == "base64" and data.get("content"):
-                readme_content = base64.b64decode(data["content"]).decode("utf-8", errors="ignore")
+                readme_content = base64.b64decode(data["content"]).decode(
+                    "utf-8", errors="ignore"
+                )
 
         return repo_data, readme_content
 
-    async def _fetch_issue(self, res: GithubResource, headers: Dict[str, str]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        issue_url = f"{self.API_BASE}/repos/{res.owner}/{res.repo}/issues/{res.identifier}"
+    async def _fetch_issue(
+        self, res: GithubResource, headers: Dict[str, str]
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        issue_url = (
+            f"{self.API_BASE}/repos/{res.owner}/{res.repo}/issues/{res.identifier}"
+        )
         comments_url = f"{issue_url}/comments"
 
         issue_task = asyncio.create_task(self.client.get(issue_url, headers=headers))
-        comments_task = asyncio.create_task(self.client.get(comments_url, headers=headers))
+        comments_task = asyncio.create_task(
+            self.client.get(comments_url, headers=headers)
+        )
 
-        issue_resp, comments_resp = await asyncio.gather(issue_task, comments_task, return_exceptions=True)
+        issue_resp, comments_resp = await asyncio.gather(
+            issue_task, comments_task, return_exceptions=True
+        )
 
         if isinstance(issue_resp, httpx.Response):
             issue_resp.raise_for_status()
@@ -158,19 +183,30 @@ class GithubProvider(DataProvider):
             raise issue_resp  # noqa: TRY201
 
         comments = []
-        if isinstance(comments_resp, httpx.Response) and comments_resp.status_code == 200:
+        if (
+            isinstance(comments_resp, httpx.Response)
+            and comments_resp.status_code == 200
+        ):
             comments = comments_resp.json()
 
         return issue_data, comments
 
-    async def _fetch_pull(self, res: GithubResource, headers: Dict[str, str]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        pull_url = f"{self.API_BASE}/repos/{res.owner}/{res.repo}/pulls/{res.identifier}"
+    async def _fetch_pull(
+        self, res: GithubResource, headers: Dict[str, str]
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        pull_url = (
+            f"{self.API_BASE}/repos/{res.owner}/{res.repo}/pulls/{res.identifier}"
+        )
         reviews_url = f"{pull_url}/reviews"
 
         pull_task = asyncio.create_task(self.client.get(pull_url, headers=headers))
-        reviews_task = asyncio.create_task(self.client.get(reviews_url, headers=headers))
+        reviews_task = asyncio.create_task(
+            self.client.get(reviews_url, headers=headers)
+        )
 
-        pull_resp, reviews_resp = await asyncio.gather(pull_task, reviews_task, return_exceptions=True)
+        pull_resp, reviews_resp = await asyncio.gather(
+            pull_task, reviews_task, return_exceptions=True
+        )
 
         if isinstance(pull_resp, httpx.Response):
             pull_resp.raise_for_status()
@@ -184,21 +220,31 @@ class GithubProvider(DataProvider):
 
         return pull_data, reviews
 
-    async def _fetch_project(self, res: GithubResource, headers: Dict[str, str]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    async def _fetch_project(
+        self, res: GithubResource, headers: Dict[str, str]
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         # Support classic repo projects via /projects
         if not res.identifier:
             raise ValueError("Project URL must include an ID or number")
 
-        project_url = f"{self.API_BASE}/repos/{res.owner}/{res.repo}/projects/{res.identifier}"
+        project_url = (
+            f"{self.API_BASE}/repos/{res.owner}/{res.repo}/projects/{res.identifier}"
+        )
         columns_url = f"{project_url}/columns"
 
         headers = headers.copy()
         headers["Accept"] = "application/vnd.github.inertia-preview+json"
 
-        project_task = asyncio.create_task(self.client.get(project_url, headers=headers))
-        columns_task = asyncio.create_task(self.client.get(columns_url, headers=headers))
+        project_task = asyncio.create_task(
+            self.client.get(project_url, headers=headers)
+        )
+        columns_task = asyncio.create_task(
+            self.client.get(columns_url, headers=headers)
+        )
 
-        project_resp, columns_resp = await asyncio.gather(project_task, columns_task, return_exceptions=True)
+        project_resp, columns_resp = await asyncio.gather(
+            project_task, columns_task, return_exceptions=True
+        )
 
         if isinstance(project_resp, httpx.Response):
             project_resp.raise_for_status()
@@ -210,7 +256,9 @@ class GithubProvider(DataProvider):
         if isinstance(columns_resp, httpx.Response) and columns_resp.status_code == 200:
             columns = columns_resp.json()
             for column in columns:
-                column_cards_url = f"{self.API_BASE}/projects/columns/{column['id']}/cards"
+                column_cards_url = (
+                    f"{self.API_BASE}/projects/columns/{column['id']}/cards"
+                )
                 cards_resp = await self.client.get(column_cards_url, headers=headers)
                 cards_resp.raise_for_status()
                 cards = cards_resp.json()
@@ -226,7 +274,9 @@ class GithubProvider(DataProvider):
 
         return project_data, items
 
-    def _build_repo_result(self, res: GithubResource, repo_data: Dict[str, Any], readme: Optional[str]) -> DataProviderResult:
+    def _build_repo_result(
+        self, res: GithubResource, repo_data: Dict[str, Any], readme: Optional[str]
+    ) -> DataProviderResult:
         topics = repo_data.get("topics", [])
         structured = [
             {
@@ -283,7 +333,12 @@ class GithubProvider(DataProvider):
             },
         )
 
-    def _build_issue_result(self, res: GithubResource, issue_data: Dict[str, Any], comments: List[Dict[str, Any]]) -> DataProviderResult:
+    def _build_issue_result(
+        self,
+        res: GithubResource,
+        issue_data: Dict[str, Any],
+        comments: List[Dict[str, Any]],
+    ) -> DataProviderResult:
         structured = [
             {
                 "type": "issue",
@@ -292,8 +347,12 @@ class GithubProvider(DataProvider):
                 "title": issue_data.get("title"),
                 "state": issue_data.get("state"),
                 "author": issue_data.get("user", {}).get("login"),
-                "labels": ", ".join([lbl.get("name", "") for lbl in issue_data.get("labels", [])]),
-                "assignees": ", ".join([asg.get("login", "") for asg in issue_data.get("assignees", [])]),
+                "labels": ", ".join(
+                    [lbl.get("name", "") for lbl in issue_data.get("labels", [])]
+                ),
+                "assignees": ", ".join(
+                    [asg.get("login", "") for asg in issue_data.get("assignees", [])]
+                ),
                 "body": issue_data.get("body"),
                 "comments_count": issue_data.get("comments"),
                 "comments": [
@@ -334,7 +393,12 @@ class GithubProvider(DataProvider):
             },
         )
 
-    def _build_pull_result(self, res: GithubResource, pull_data: Dict[str, Any], reviews: List[Dict[str, Any]]) -> DataProviderResult:
+    def _build_pull_result(
+        self,
+        res: GithubResource,
+        pull_data: Dict[str, Any],
+        reviews: List[Dict[str, Any]],
+    ) -> DataProviderResult:
         structured = [
             {
                 "type": "pull",
@@ -383,14 +447,19 @@ class GithubProvider(DataProvider):
             fields=fields,
             structure_info={
                 "type": "pull",
-                "number": pull_data.get('number'),
-                "state": pull_data.get('state'),
-                "merged": pull_data.get('merged'),
+                "number": pull_data.get("number"),
+                "state": pull_data.get("state"),
+                "merged": pull_data.get("merged"),
                 "reviews": len(reviews),
             },
         )
 
-    def _build_project_result(self, res: GithubResource, project_data: Dict[str, Any], items: List[Dict[str, Any]]) -> DataProviderResult:
+    def _build_project_result(
+        self,
+        res: GithubResource,
+        project_data: Dict[str, Any],
+        items: List[Dict[str, Any]],
+    ) -> DataProviderResult:
         structured = [
             {
                 "name": project_data.get("name"),
@@ -428,4 +497,3 @@ class GithubProvider(DataProvider):
 
     async def close(self):
         await self.client.aclose()
-

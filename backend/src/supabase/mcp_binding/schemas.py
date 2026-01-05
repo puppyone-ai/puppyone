@@ -32,5 +32,3 @@ class McpBindingResponse(McpBindingBase):
 
     class Config:
         from_attributes = True
-
-

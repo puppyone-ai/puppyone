@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 class ETLTaskStatus(str, Enum):
     """Status of an ETL task."""
+
     PENDING = "pending"
     MINERU_PARSING = "mineru_parsing"
     LLM_PROCESSING = "llm_processing"
@@ -33,18 +34,26 @@ class ETLTaskResult(BaseModel):
 class ETLTask(BaseModel):
     """ETL task model."""
 
-    task_id: Optional[int] = Field(None, description="Unique task identifier (None for new tasks)")
+    task_id: Optional[int] = Field(
+        None, description="Unique task identifier (None for new tasks)"
+    )
     user_id: str = Field(..., description="User ID who created the task")
     project_id: int = Field(..., description="Project ID")
     filename: str = Field(..., description="Original filename")
     rule_id: int = Field(..., description="Rule ID to apply")
-    status: ETLTaskStatus = Field(default=ETLTaskStatus.PENDING, description="Task status")
+    status: ETLTaskStatus = Field(
+        default=ETLTaskStatus.PENDING, description="Task status"
+    )
     progress: int = Field(default=0, description="Progress percentage (0-100)")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    result: Optional[ETLTaskResult] = Field(None, description="Task result if completed")
+    result: Optional[ETLTaskResult] = Field(
+        None, description="Task result if completed"
+    )
     error: Optional[str] = Field(None, description="Error message if failed")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
 
     def update_status(self, status: ETLTaskStatus, progress: Optional[int] = None):
         """Update task status and timestamp."""
@@ -88,13 +97,13 @@ class ETLTask(BaseModel):
             "error": self.error,
             "metadata": self.metadata,
         }
-        
+
         if self.task_id is not None:
             data["id"] = self.task_id
-        
+
         if self.result:
             data["result"] = self.result.model_dump()
-        
+
         return data
 
     @classmethod
@@ -104,18 +113,18 @@ class ETLTask(BaseModel):
         result = None
         if data.get("result"):
             result = ETLTaskResult(**data["result"])
-        
+
         # Parse timestamps
         created_at = data.get("created_at")
         if isinstance(created_at, str):
             created_at = created_at.replace("Z", "+00:00")
             created_at = datetime.fromisoformat(created_at)
-        
+
         updated_at = data.get("updated_at")
         if isinstance(updated_at, str):
             updated_at = updated_at.replace("Z", "+00:00")
             updated_at = datetime.fromisoformat(updated_at)
-        
+
         return cls(
             task_id=data.get("id"),
             user_id=data["user_id"],
@@ -130,4 +139,3 @@ class ETLTask(BaseModel):
             error=data.get("error"),
             metadata=data.get("metadata", {}),
         )
-

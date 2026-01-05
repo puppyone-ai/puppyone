@@ -147,10 +147,5 @@ class ProjectRepository:
         Returns:
             是否删除成功
         """
-        response = (
-            self._client.table("project")
-            .delete()
-            .eq("id", project_id)
-            .execute()
-        )
+        response = self._client.table("project").delete().eq("id", project_id).execute()
         return len(response.data) > 0

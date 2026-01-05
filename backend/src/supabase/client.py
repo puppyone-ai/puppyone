@@ -29,16 +29,16 @@ class SupabaseClient:
             key: str = os.environ.get("SUPABASE_KEY", "")
 
             if not url or not key:
-                raise ValueError(
-                    "SUPABASE_URL 和 SUPABASE_KEY 环境变量必须设置"
-                )
+                raise ValueError("SUPABASE_URL 和 SUPABASE_KEY 环境变量必须设置")
 
             # 默认不信任环境变量里的代理（HTTP_PROXY/HTTPS_PROXY/ALL_PROXY），避免代理导致
             # Supabase(PostgREST) TLS 握手异常，例如:
             #   [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol
             # 如确实需要让 Supabase 走环境代理，可设置:
             #   SUPABASE_TRUST_ENV_PROXY=true
-            trust_env_proxy = os.environ.get("SUPABASE_TRUST_ENV_PROXY", "").strip().lower() in {
+            trust_env_proxy = os.environ.get(
+                "SUPABASE_TRUST_ENV_PROXY", ""
+            ).strip().lower() in {
                 "1",
                 "true",
                 "yes",

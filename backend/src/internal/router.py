@@ -2,9 +2,9 @@
 Internal API路由
 供内部服务（如MCP Server）调用，使用SECRET鉴权
 """
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from typing import Optional, Dict, Any
-from src.common_schemas import ApiResponse
 from src.mcp.dependencies import get_mcp_instance_service
 from src.table.dependencies import get_table_service
 from src.config import settings
@@ -13,13 +13,14 @@ from src.supabase.dependencies import get_supabase_repository
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
+
 async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
     """
     验证Internal API的SECRET
-    
+
     Args:
         x_internal_secret: X-Internal-Secret header
-        
+
     Raises:
         HTTPException: 如果SECRET无效
     """
@@ -31,25 +32,22 @@ async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
     "/mcp-instance/{api_key}",
     summary="获取MCP实例数据",
     description="根据API key获取MCP实例的完整数据",
-    dependencies=[Depends(verify_internal_secret)]
+    dependencies=[Depends(verify_internal_secret)],
 )
-async def get_mcp_instance(
-    api_key: str,
-    mcp_service = Depends(get_mcp_instance_service)
-):
+async def get_mcp_instance(api_key: str, mcp_service=Depends(get_mcp_instance_service)):
     """
     获取MCP实例数据
-    
+
     Args:
         api_key: API key
-        
+
     Returns:
         MCP实例数据
     """
     instance = await mcp_service.get_mcp_instance_by_api_key(api_key)
     if not instance:
         raise HTTPException(status_code=404, detail="MCP instance not found")
-    
+
     return {
         "api_key": instance.api_key,
         "user_id": instance.user_id,
@@ -59,7 +57,7 @@ async def get_mcp_instance(
         "status": instance.status,
         "tools_definition": instance.tools_definition,
         "register_tools": instance.register_tools,
-        "preview_keys": instance.preview_keys
+        "preview_keys": instance.preview_keys,
     }
 
 
@@ -121,34 +119,30 @@ async def get_mcp_v2_instance_and_tools(
     "/table/{table_id}",
     summary="获取表格元数据",
     description="根据table_id获取表格的元数据（不包含数据内容）",
-    dependencies=[Depends(verify_internal_secret)]
+    dependencies=[Depends(verify_internal_secret)],
 )
-async def get_table_metadata(
-    table_id: int,
-    table_service = Depends(get_table_service)
-):
+async def get_table_metadata(table_id: int, table_service=Depends(get_table_service)):
     """
     获取表格元数据
-    
+
     Args:
         table_id: 表格ID
-        
+
     Returns:
         表格元数据
     """
     table = table_service.get_by_id(table_id)
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
-    
+
     return {
         # 兼容字段：历史上有的客户端使用 id，有的使用 table_id
         "id": table.id,
         "table_id": table.id,
         "name": table.name,
         "description": table.description,
-        "project_id": table.project_id
+        "project_id": table.project_id,
     }
-
 
 
 # ============================================================
@@ -156,6 +150,7 @@ async def get_table_metadata(
 # - json_path: 挂载点（JSON Pointer），对应 mcp_instance 的职责范围
 # - query: JMESPath 查询表达式
 # ============================================================
+
 
 @router.get(
     "/tables/{table_id}/context-schema",
@@ -188,7 +183,9 @@ async def get_table_context_schema(
 async def get_table_context_data(
     table_id: int,
     json_path: str = Query(default="", description="挂载点 JSON Pointer 路径"),
-    query: Optional[str] = Query(default=None, description="JMESPath 查询表达式（可选）"),
+    query: Optional[str] = Query(
+        default=None, description="JMESPath 查询表达式（可选）"
+    ),
     table_service=Depends(get_table_service),
 ):
     try:
@@ -293,24 +290,24 @@ async def delete_table_context_data(
 # ):
 #     """
 #     创建表格数据
-    
+
 #     Args:
 #         table_id: 表格ID
 #         payload: 请求体，包含json_pointer和elements
-        
+
 #     Returns:
 #         操作结果
 #     """
 #     try:
 #         json_pointer = payload.get("json_pointer", "")
 #         elements = payload.get("elements", [])
-        
+
 #         table_service.create_context_data(
 #             table_id=table_id,
 #             mounted_json_pointer_path=json_pointer,
 #             elements=elements
 #         )
-        
+
 #         return {"message": "创建成功"}
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
@@ -329,24 +326,24 @@ async def delete_table_context_data(
 # ):
 #     """
 #     更新表格数据
-    
+
 #     Args:
 #         table_id: 表格ID
 #         payload: 请求体，包含json_pointer和elements
-        
+
 #     Returns:
 #         操作结果
 #     """
 #     try:
 #         json_pointer = payload.get("json_pointer", "")
 #         elements = payload.get("elements", [])
-        
+
 #         table_service.update_context_data(
 #             table_id=table_id,
 #             json_pointer_path=json_pointer,
 #             elements=elements
 #         )
-        
+
 #         return {"message": "更新成功"}
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
@@ -365,24 +362,24 @@ async def delete_table_context_data(
 # ):
 #     """
 #     删除表格数据
-    
+
 #     Args:
 #         table_id: 表格ID
 #         payload: 请求体，包含json_pointer和keys
-        
+
 #     Returns:
 #         操作结果
 #     """
 #     try:
 #         json_pointer = payload.get("json_pointer", "")
 #         keys = payload.get("keys", [])
-        
+
 #         table_service.delete_context_data(
 #             table_id=table_id,
 #             json_pointer_path=json_pointer,
 #             keys=keys
 #         )
-        
+
 #         return {"message": "删除成功"}
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))

@@ -39,6 +39,7 @@ class BindToolsRequest(BaseModel):
     """
     绑定 Tool 到 MCP v2（批量）。
     """
+
     bindings: List[BindToolRequest] = Field(
         ...,
         min_length=1,
@@ -95,5 +96,3 @@ class BoundToolOut(BaseModel):
     input_schema: Optional[Any] = None
     output_schema: Optional[Any] = None
     metadata: Optional[Any] = None
-
-

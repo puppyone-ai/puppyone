@@ -59,5 +59,3 @@ class ToolResponse(ToolBase):
 
     class Config:
         from_attributes = True
-
-

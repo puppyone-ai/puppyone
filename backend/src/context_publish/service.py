@@ -38,7 +38,9 @@ def _generate_publish_key(*, length: int) -> str:
 
 
 class ContextPublishService:
-    def __init__(self, *, repo: ContextPublishRepositoryBase, table_service: TableService):
+    def __init__(
+        self, *, repo: ContextPublishRepositoryBase, table_service: TableService
+    ):
         self.repo = repo
         self.table_service = table_service
         self.cache = PublishCache(ttl_seconds=int(settings.PUBLISH_CACHE_TTL_SECONDS))
@@ -90,10 +92,14 @@ class ContextPublishService:
         # 极小概率：连续撞 key；这里返回 422（Validation）
         raise ValidationException("Failed to generate unique publish_key") from last_dup
 
-    def list_user_publishes(self, user_id: str, *, skip: int = 0, limit: int = 100) -> List[ContextPublish]:
+    def list_user_publishes(
+        self, user_id: str, *, skip: int = 0, limit: int = 100
+    ) -> List[ContextPublish]:
         return self.repo.list_by_user_id(user_id, skip=skip, limit=limit)
 
-    def get_by_id_with_access_check(self, publish_id: int, user_id: str) -> ContextPublish:
+    def get_by_id_with_access_check(
+        self, publish_id: int, user_id: str
+    ) -> ContextPublish:
         p = self.repo.get_by_id(publish_id)
         if not p or p.user_id != user_id:
             raise NotFoundException("Publish not found", code=ErrorCode.NOT_FOUND)
@@ -145,7 +151,7 @@ class ContextPublishService:
             raise NotFoundException("Publish not found", code=ErrorCode.NOT_FOUND)
 
         # 注意：公开读取不做 user 权限校验；publish_key 即访问凭据
-        data = self.table_service.get_context_data(table_id=p.table_id, json_pointer_path=p.json_path or "")
+        data = self.table_service.get_context_data(
+            table_id=p.table_id, json_pointer_path=p.json_path or ""
+        )
         return data
-
-

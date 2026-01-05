@@ -7,7 +7,6 @@ Context Publish API
 
 from __future__ import annotations
 
-from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse
 from typing import List
@@ -140,5 +139,3 @@ def get_public_json(
     # 返回 raw JSON（不要包 ApiResponse）
     data = svc.get_public_json(publish_key)
     return JSONResponse(content=data)
-
-

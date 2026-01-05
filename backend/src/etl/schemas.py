@@ -62,10 +62,14 @@ class ETLRuleCreateRequest(BaseModel):
 
     name: str = Field(..., description="Rule name")
     description: str = Field(..., description="Rule description")
-    json_schema: Optional[dict[str, Any]] = Field(None, description="JSON Schema for output (required for llm)")
+    json_schema: Optional[dict[str, Any]] = Field(
+        None, description="JSON Schema for output (required for llm)"
+    )
     system_prompt: Optional[str] = Field(None, description="Optional system prompt")
     postprocess_mode: Optional[str] = Field(default=None, description="llm|skip")
-    postprocess_strategy: Optional[str] = Field(default=None, description="Postprocess strategy (optional)")
+    postprocess_strategy: Optional[str] = Field(
+        default=None, description="Postprocess strategy (optional)"
+    )
 
 
 class ETLRuleResponse(BaseModel):

@@ -71,5 +71,3 @@ class ToolRepository:
     def delete(self, tool_id: int) -> bool:
         response = self._client.table("tool").delete().eq("id", tool_id).execute()
         return len(response.data) > 0
-
-

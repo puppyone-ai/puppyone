@@ -61,10 +61,7 @@ class TableRepository:
             表数据，如果不存在则返回 None
         """
         response = (
-            self._client.table("context_table")
-            .select("*")
-            .eq("id", table_id)
-            .execute()
+            self._client.table("context_table").select("*").eq("id", table_id).execute()
         )
         if response.data:
             return TableResponse(**response.data[0])
@@ -100,9 +97,7 @@ class TableRepository:
         response = query.range(skip, skip + limit - 1).execute()
         return [TableResponse(**item) for item in response.data]
 
-    def update(
-        self, table_id: int, table_data: TableUpdate
-    ) -> Optional[TableResponse]:
+    def update(self, table_id: int, table_data: TableUpdate) -> Optional[TableResponse]:
         """
         更新表
 
@@ -148,9 +143,6 @@ class TableRepository:
             是否删除成功
         """
         response = (
-            self._client.table("context_table")
-            .delete()
-            .eq("id", table_id)
-            .execute()
+            self._client.table("context_table").delete().eq("id", table_id).execute()
         )
         return len(response.data) > 0

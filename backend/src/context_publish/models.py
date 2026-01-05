@@ -15,5 +15,3 @@ class ContextPublish(BaseModel):
     publish_key: str
     status: bool
     expires_at: datetime
-
-

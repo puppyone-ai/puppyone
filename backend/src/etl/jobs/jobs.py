@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import time
 from datetime import datetime, UTC
 from pathlib import Path
@@ -101,7 +100,9 @@ async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
         else:
             source_key = f"users/{task.user_id}/raw/{task.project_id}/{task.filename}"
 
-        presigned_url = await s3.generate_presigned_download_url(source_key, expires_in=3600)
+        presigned_url = await s3.generate_presigned_download_url(
+            source_key, expires_in=3600
+        )
 
         parsed = await mineru.parse_document(
             file_url=presigned_url,
@@ -111,7 +112,9 @@ async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
 
         # If user cancelled while we were waiting on provider, honor cancellation and avoid overwriting terminal state.
         latest = await state_repo.get(task_id)
-        if (latest and latest.status == ETLTaskStatus.CANCELLED) or task.status == ETLTaskStatus.CANCELLED:
+        if (
+            latest and latest.status == ETLTaskStatus.CANCELLED
+        ) or task.status == ETLTaskStatus.CANCELLED:
             logger.info(f"etl_ocr_job: cancelled during provider wait, skip: {task_id}")
             return {"ok": True, "skipped": "cancelled"}
 
@@ -132,12 +135,18 @@ async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
         await state_repo.set(state)
 
         latest = await state_repo.get(task_id)
-        if (latest and latest.status == ETLTaskStatus.CANCELLED) or task.status == ETLTaskStatus.CANCELLED:
-            logger.info(f"etl_ocr_job: cancelled before enqueue postprocess, skip: {task_id}")
+        if (
+            latest and latest.status == ETLTaskStatus.CANCELLED
+        ) or task.status == ETLTaskStatus.CANCELLED:
+            logger.info(
+                f"etl_ocr_job: cancelled before enqueue postprocess, skip: {task_id}"
+            )
             return {"ok": True, "skipped": "cancelled"}
 
         # Enqueue postprocess
-        job = await ctx["redis"].enqueue_job("etl_postprocess_job", task_id, _queue_name=queue_name)
+        job = await ctx["redis"].enqueue_job(
+            "etl_postprocess_job", task_id, _queue_name=queue_name
+        )
         state.arq_job_id_postprocess = job.job_id
         state.phase = ETLPhase.POSTPROCESS
         state.status = ETLTaskStatus.LLM_PROCESSING
@@ -233,7 +242,9 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
 
     started_at = time.time()
     try:
-        md_key = state.artifact_mineru_markdown_key or task.metadata.get("artifact_mineru_markdown_key")
+        md_key = state.artifact_mineru_markdown_key or task.metadata.get(
+            "artifact_mineru_markdown_key"
+        )
         if not md_key:
             raise RuntimeError("Missing markdown artifact key for postprocess")
 
@@ -242,7 +253,9 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
 
         # Load rule (per-user)
         supabase_client = get_supabase_client()
-        rule_repo = RuleRepositorySupabase(supabase_client=supabase_client, user_id=task.user_id)
+        rule_repo = RuleRepositorySupabase(
+            supabase_client=supabase_client, user_id=task.user_id
+        )
         rule = rule_repo.get_rule(str(task.rule_id))
         if not rule:
             raise RuntimeError(f"Rule not found: {task.rule_id}")
@@ -286,22 +299,30 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
                     )
                     summaries.append(resp.content)
                 input_text = "\n\n".join(
-                    [f"## Chunk {i+1} Summary\n{t}" for i, t in enumerate(summaries)]
+                    [f"## Chunk {i + 1} Summary\n{t}" for i, t in enumerate(summaries)]
                 )
 
             engine = RuleEngine(llm)
             transform = await engine.apply_rule(markdown_content=input_text, rule=rule)
             if not transform.success:
-                raise ETLTransformationError(transform.error or "Unknown error", str(task.rule_id))
+                raise ETLTransformationError(
+                    transform.error or "Unknown error", str(task.rule_id)
+                )
             output_obj = transform.output
 
         latest = await state_repo.get(task_id)
-        if (latest and latest.status == ETLTaskStatus.CANCELLED) or task.status == ETLTaskStatus.CANCELLED:
-            logger.info(f"etl_postprocess_job: cancelled before upload, skip: {task_id}")
+        if (
+            latest and latest.status == ETLTaskStatus.CANCELLED
+        ) or task.status == ETLTaskStatus.CANCELLED:
+            logger.info(
+                f"etl_postprocess_job: cancelled before upload, skip: {task_id}"
+            )
             return {"ok": True, "skipped": "cancelled"}
 
         output_key = _output_json_key(task_id, task.user_id, task.project_id)
-        output_json = json.dumps(output_obj, indent=2, ensure_ascii=False).encode("utf-8")
+        output_json = json.dumps(output_obj, indent=2, ensure_ascii=False).encode(
+            "utf-8"
+        )
         await s3.upload_file(
             key=output_key,
             content=output_json,
@@ -344,11 +365,17 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
         # - mount_key is already a per-file unique key (filename+hash), so we mount the inner payload.
         if getattr(rule, "postprocess_mode", "llm") == "skip":
             base_name = Path(task.filename).stem
-            mount_value: Any = output_obj.get(base_name, output_obj) if isinstance(output_obj, dict) else output_obj
+            mount_value: Any = (
+                output_obj.get(base_name, output_obj)
+                if isinstance(output_obj, dict)
+                else output_obj
+            )
         else:
             mount_value = output_obj
 
-        elements: list[dict[str, Any]] = [{"key": str(mount_key), "content": mount_value}]
+        elements: list[dict[str, Any]] = [
+            {"key": str(mount_key), "content": mount_value}
+        ]
         try:
             await asyncio.to_thread(
                 table_service.create_context_data,
@@ -440,7 +467,9 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
 
     except Exception as e:
         # Persist minimal retry pointer if OCR succeeded
-        md_key = state.artifact_mineru_markdown_key or task.metadata.get("artifact_mineru_markdown_key")
+        md_key = state.artifact_mineru_markdown_key or task.metadata.get(
+            "artifact_mineru_markdown_key"
+        )
         if md_key:
             task.metadata["artifact_mineru_markdown_key"] = md_key
         if state.provider_task_id:
@@ -458,7 +487,7 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
         state.updated_at = datetime.now(UTC)
         await state_repo.set_terminal(state)
 
-        logger.error(f"etl_postprocess_job failed task_id={task_id}: {e}", exc_info=True)
+        logger.error(
+            f"etl_postprocess_job failed task_id={task_id}: {e}", exc_info=True
+        )
         return {"ok": False, "stage": "postprocess", "error": str(e)}
-
-

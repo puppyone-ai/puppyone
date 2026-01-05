@@ -16,12 +16,14 @@ from src.etl.rules.schemas import (
     build_rule_payload,
     parse_rule_payload,
 )
-from src.supabase.exceptions import handle_supabase_error, SupabaseNotFoundError
+from src.supabase.exceptions import handle_supabase_error
 
 logger = logging.getLogger(__name__)
 
 
-def _parse_timestamp(timestamp_str: str | None, fallback: str | None = None) -> datetime:
+def _parse_timestamp(
+    timestamp_str: str | None, fallback: str | None = None
+) -> datetime:
     """
     安全地解析时间戳字符串。
 
@@ -35,7 +37,7 @@ def _parse_timestamp(timestamp_str: str | None, fallback: str | None = None) -> 
     ts = timestamp_str or fallback
     if ts is None:
         return datetime.now(UTC)
-    
+
     # 处理 Supabase 返回的时间戳格式（可能带 Z 后缀）
     if isinstance(ts, str):
         ts = ts.replace("Z", "+00:00")
@@ -96,9 +98,7 @@ class RuleRepositorySupabase:
         try:
             # 插入到数据库
             response = (
-                self.supabase.table(self.TABLE_NAME)
-                .insert(insert_data)
-                .execute()
+                self.supabase.table(self.TABLE_NAME).insert(insert_data).execute()
             )
 
             if not response.data or len(response.data) == 0:
@@ -117,7 +117,9 @@ class RuleRepositorySupabase:
                 postprocess_strategy=strategy,
                 system_prompt=row["system_prompt"],
                 created_at=_parse_timestamp(row.get("created_at")),
-                updated_at=_parse_timestamp(row.get("updated_at"), row.get("created_at")),
+                updated_at=_parse_timestamp(
+                    row.get("updated_at"), row.get("created_at")
+                ),
             )
 
             logger.info(f"Created rule: {rule.name} (id: {row['id']})")
@@ -158,7 +160,7 @@ class RuleRepositorySupabase:
 
             row = response.data[0]
             mode, strategy, schema = parse_rule_payload(row["json_schema"])
-            
+
             # 从数据库记录构建 ETLRule
             rule = ETLRule(
                 rule_id=str(row["id"]),
@@ -169,7 +171,9 @@ class RuleRepositorySupabase:
                 postprocess_strategy=strategy,
                 system_prompt=row["system_prompt"] or None,
                 created_at=_parse_timestamp(row.get("created_at")),
-                updated_at=_parse_timestamp(row.get("updated_at"), row.get("created_at")),
+                updated_at=_parse_timestamp(
+                    row.get("updated_at"), row.get("created_at")
+                ),
             )
 
             return rule
@@ -178,7 +182,9 @@ class RuleRepositorySupabase:
             logger.error(f"Error getting rule {rule_id}: {e}")
             return None
 
-    def update_rule(self, rule_id: str, request: RuleUpdateRequest) -> Optional[ETLRule]:
+    def update_rule(
+        self, rule_id: str, request: RuleUpdateRequest
+    ) -> Optional[ETLRule]:
         """
         更新现有规则。
 
@@ -215,8 +221,14 @@ class RuleRepositorySupabase:
             # Load existing payload to merge
             mode, strategy, schema = parse_rule_payload(existing_rule.json_schema)
             next_mode = request.postprocess_mode or mode
-            next_strategy = request.postprocess_strategy if request.postprocess_strategy is not None else strategy
-            next_schema = request.json_schema if request.json_schema is not None else schema
+            next_strategy = (
+                request.postprocess_strategy
+                if request.postprocess_strategy is not None
+                else strategy
+            )
+            next_schema = (
+                request.json_schema if request.json_schema is not None else schema
+            )
             update_data["json_schema"] = build_rule_payload(
                 json_schema=next_schema,
                 postprocess_mode=next_mode,
@@ -234,7 +246,11 @@ class RuleRepositorySupabase:
             # 将 rule_id 转换为 bigint
             id_int = int(rule_id)
 
-            query = self.supabase.table(self.TABLE_NAME).update(update_data).eq("id", id_int)
+            query = (
+                self.supabase.table(self.TABLE_NAME)
+                .update(update_data)
+                .eq("id", id_int)
+            )
 
             # 如果指定了 user_id，添加过滤
             if self.user_id is not None:
@@ -259,7 +275,9 @@ class RuleRepositorySupabase:
                 postprocess_strategy=strategy,
                 system_prompt=row["system_prompt"] or None,
                 created_at=_parse_timestamp(row.get("created_at")),
-                updated_at=_parse_timestamp(row.get("updated_at"), row.get("created_at")),
+                updated_at=_parse_timestamp(
+                    row.get("updated_at"), row.get("created_at")
+                ),
             )
 
             logger.info(f"Updated rule: {rule_id}")
@@ -326,7 +344,9 @@ class RuleRepositorySupabase:
                 query = query.eq("user_id", self.user_id)
 
             # 应用分页
-            query = query.range(offset, offset + limit - 1).order("created_at", desc=True)
+            query = query.range(offset, offset + limit - 1).order(
+                "created_at", desc=True
+            )
 
             response = query.execute()
 
@@ -342,7 +362,9 @@ class RuleRepositorySupabase:
                     postprocess_strategy=strategy,
                     system_prompt=row["system_prompt"] or None,
                     created_at=_parse_timestamp(row.get("created_at")),
-                    updated_at=_parse_timestamp(row.get("updated_at"), row.get("created_at")),
+                    updated_at=_parse_timestamp(
+                        row.get("updated_at"), row.get("created_at")
+                    ),
                 )
                 rules.append(rule)
 
@@ -375,4 +397,3 @@ class RuleRepositorySupabase:
         except Exception as e:
             logger.error(f"Error counting rules: {e}")
             return 0
-
