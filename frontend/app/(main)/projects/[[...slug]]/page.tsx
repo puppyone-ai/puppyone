@@ -239,171 +239,157 @@ export default function ProjectsSlugPage({
         width: '100%',
         height: '100%',
         display: 'flex',
-        flexDirection: 'row', // 改为 row，让 ChatSidebar 在右侧挤压
+        flexDirection: 'column',
         background: '#000', // 底色纯黑
         overflow: 'hidden',
       }}
     >
-      {/* 左侧主要区域 (Header + Main Content) */}
+      {/* 顶部 Header - 固定高度 */}
+      <div style={{ flexShrink: 0 }}>
+        <ProjectsHeader
+          pathSegments={pathSegments}
+          projectId={activeBase?.id ?? null}
+          onProjectsRefresh={() => refreshProjects()}
+          editorType={editorType}
+          onEditorTypeChange={setEditorType}
+          isAgentPanelOpen={rightPanelContent === 'TOOLS'}
+          onAgentPanelOpenChange={open =>
+            setRightPanelContent(open ? 'TOOLS' : 'NONE')
+          }
+          accessPointCount={accessPoints.length}
+          isChatOpen={isChatOpen}
+          onChatOpenChange={setIsChatOpen}
+        />
+      </div>
+
+      {/* 中间主要区域 - 占据剩余空间 */}
       <div
         style={{
           flex: 1,
           display: 'flex',
-          flexDirection: 'column',
-          minWidth: 0, // 防止 flex item 溢出
-          height: '100%',
+          minHeight: 0,
           position: 'relative',
+          background: '#050607', // 编辑器背景色
         }}
       >
-        {/* 顶部 Header - 固定高度 */}
-        <div style={{ flexShrink: 0 }}>
-          <ProjectsHeader
-            pathSegments={pathSegments}
-            projectId={activeBase?.id ?? null}
-            onProjectsRefresh={() => refreshProjects()}
-            editorType={editorType}
-            onEditorTypeChange={setEditorType}
-            isAgentPanelOpen={rightPanelContent === 'TOOLS'}
-            onAgentPanelOpenChange={open =>
-              setRightPanelContent(open ? 'TOOLS' : 'NONE')
-            }
-            accessPointCount={accessPoints.length}
-            isChatOpen={isChatOpen}
-            onChatOpenChange={setIsChatOpen}
-          />
-        </div>
+        {/* 左侧编辑器容器 */}
+        {!(isEditorFullScreen && rightPanelContent === 'EDITOR') && (
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative',
+              minWidth: 0,
+              borderRight:
+                isChatOpen || rightPanelContent !== 'NONE'
+                  ? '1px solid #333'
+                  : 'none',
+            }}
+          >
+            {activeBase ? (
+              <ProjectWorkspaceView
+                projectId={activeBase.id}
+                project={activeBase}
+                activeTableId={activeTableId}
+                onActiveTableChange={(id: string) => {
+                  setActiveTableId(id);
+                  router.push(`/projects/${activeBaseId}/${id}`);
+                }}
+                onTreePathChange={setCurrentTreePath}
+                editorType={editorType}
+                configuredAccessPoints={configuredAccessPoints}
+                onAccessPointChange={(
+                  path: string,
+                  permissions: McpToolPermissions
+                ) => {
+                  const hasAnyPermission =
+                    Object.values(permissions).some(Boolean);
 
-        {/* 中间主要区域 - 占据剩余空间 */}
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            minHeight: 0,
-            position: 'relative',
-            background: '#050607', // 编辑器背景色
-          }}
-        >
-          {/* 左侧编辑器容器 */}
-          {!(isEditorFullScreen && rightPanelContent === 'EDITOR') && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                position: 'relative',
-                minWidth: 0,
-                // borderRight 已移除 - 浮动卡片样式的 sidebar 不需要分隔线
-              }}
-            >
-              {activeBase ? (
-                <ProjectWorkspaceView
-                  projectId={activeBase.id}
-                  project={activeBase}
-                  activeTableId={activeTableId}
-                  onActiveTableChange={(id: string) => {
-                    setActiveTableId(id);
-                    router.push(`/projects/${activeBaseId}/${id}`);
-                  }}
-                  onTreePathChange={setCurrentTreePath}
-                  editorType={editorType}
-                  configuredAccessPoints={configuredAccessPoints}
-                  onAccessPointChange={(
-                    path: string,
-                    permissions: McpToolPermissions
-                  ) => {
-                    const hasAnyPermission =
-                      Object.values(permissions).some(Boolean);
+                  // 🎯 只要 Sidebar 是收起的，配置新工具时就展开
+                  if (hasAnyPermission && !isAgentPanelOpen) {
+                    setIsAgentPanelOpen(true);
+                  }
 
-                    // 🎯 只要 Sidebar 是收起的，配置新工具时就展开
-                    if (hasAnyPermission && !isAgentPanelOpen) {
-                      setIsAgentPanelOpen(true);
-                    }
+                  // 如果该 path 已存在，更新权限；否则添加新的
+                  setAccessPoints(prev => {
+                    const existing = prev.find(ap => ap.path === path);
 
-                    // 如果该 path 已存在，更新权限；否则添加新的
-                    setAccessPoints(prev => {
-                      const existing = prev.find(ap => ap.path === path);
-
-                      if (existing) {
-                        // 如果没有任何权限了，则移除
-                        if (!hasAnyPermission) {
-                          return prev.filter(ap => ap.path !== path);
-                        }
-                        return prev.map(ap =>
-                          ap.path === path ? { ...ap, permissions } : ap
-                        );
-                      } else if (hasAnyPermission) {
-                        return [
-                          ...prev,
-                          {
-                            id: `ap-${Date.now()}`,
-                            path,
-                            permissions,
-                          },
-                        ];
+                    if (existing) {
+                      // 如果没有任何权限了，则移除
+                      if (!hasAnyPermission) {
+                        return prev.filter(ap => ap.path !== path);
                       }
-                      return prev;
-                    });
-                  }}
-                  onAccessPointRemove={(path: string) => {
-                    setAccessPoints(prev =>
-                      prev.filter(ap => ap.path !== path)
-                    );
-                  }}
-                  onOpenDocument={(path: string, value: string) => {
-                    setEditorTarget({ path, value });
-                    setRightPanelContent('EDITOR');
-                  }}
-                />
-              ) : (
-                <div style={{ color: '#666', padding: 20 }}>
-                  {projectsLoading
-                    ? 'Loading Projects...'
-                    : 'Project Not Found'}
-                </div>
-              )}
-            </div>
-          )}
+                      return prev.map(ap =>
+                        ap.path === path ? { ...ap, permissions } : ap
+                      );
+                    } else if (hasAnyPermission) {
+                      return [
+                        ...prev,
+                        {
+                          id: `ap-${Date.now()}`,
+                          path,
+                          permissions,
+                        },
+                      ];
+                    }
+                    return prev;
+                  });
+                }}
+                onAccessPointRemove={(path: string) => {
+                  setAccessPoints(prev => prev.filter(ap => ap.path !== path));
+                }}
+                onOpenDocument={(path: string, value: string) => {
+                  setEditorTarget({ path, value });
+                  setRightPanelContent('EDITOR');
+                }}
+              />
+            ) : (
+              <div style={{ color: '#666', padding: 20 }}>
+                {projectsLoading ? 'Loading Projects...' : 'Project Not Found'}
+              </div>
+            )}
+          </div>
+        )}
 
-          {/* 右侧面板区域 (Tools / Document Editor) */}
-          <RightAuxiliaryPanel
-            content={rightPanelContent}
-            onClose={() => {
-              setRightPanelContent('NONE');
-              setIsEditorFullScreen(false);
-            }}
-            accessPoints={accessPoints}
-            setAccessPoints={setAccessPoints}
-            activeBaseName={activeBase?.name}
-            activeTableName={activeTable?.name}
-            onSaveTools={handleSaveTools}
-            isSaving={isSaving}
-            saveError={saveError}
-            savedResult={savedResult}
-            setSavedResult={setSavedResult}
-            onViewAllMcp={() => router.push('/tools-and-server/tools-list')}
-            editorTarget={editorTarget}
-            onEditorSave={(path, newValue) => {
-              // TODO: 实现保存逻辑 - 通过 path 找到对应的节点并更新
-              console.log('Save document:', path, newValue);
-              setEditorTarget(null);
-              setRightPanelContent('NONE');
-              setIsEditorFullScreen(false);
-            }}
-            isEditorFullScreen={isEditorFullScreen}
-            onToggleEditorFullScreen={() =>
-              setIsEditorFullScreen(!isEditorFullScreen)
-            }
-          />
-        </div>
+        {/* 右侧面板区域 (Tools / Document Editor) */}
+        <RightAuxiliaryPanel
+          content={rightPanelContent}
+          onClose={() => {
+            setRightPanelContent('NONE');
+            setIsEditorFullScreen(false);
+          }}
+          accessPoints={accessPoints}
+          setAccessPoints={setAccessPoints}
+          activeBaseName={activeBase?.name}
+          activeTableName={activeTable?.name}
+          onSaveTools={handleSaveTools}
+          isSaving={isSaving}
+          saveError={saveError}
+          savedResult={savedResult}
+          setSavedResult={setSavedResult}
+          onViewAllMcp={() => router.push('/tools-and-server/tools-list')}
+          editorTarget={editorTarget}
+          onEditorSave={(path, newValue) => {
+            // TODO: 实现保存逻辑 - 通过 path 找到对应的节点并更新
+            console.log('Save document:', path, newValue);
+            setEditorTarget(null);
+            setRightPanelContent('NONE');
+            setIsEditorFullScreen(false);
+          }}
+          isEditorFullScreen={isEditorFullScreen}
+          onToggleEditorFullScreen={() =>
+            setIsEditorFullScreen(!isEditorFullScreen)
+          }
+        />
+
+        <ChatSidebar
+          isOpen={isChatOpen}
+          onOpenChange={setIsChatOpen}
+          chatWidth={chatWidth}
+          onChatWidthChange={setChatWidth}
+        />
       </div>
-
-      {/* Chat Sidebar (全局层级，挤压左侧所有内容) */}
-      <ChatSidebar
-        isOpen={isChatOpen}
-        onOpenChange={setIsChatOpen}
-        chatWidth={chatWidth}
-        onChatWidthChange={setChatWidth}
-      />
     </div>
   );
 }

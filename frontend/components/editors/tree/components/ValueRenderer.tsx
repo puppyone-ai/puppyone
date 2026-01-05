@@ -141,7 +141,7 @@ function PrimitiveValueEditor({
     const hasNewline = str.includes('\n');
     const isLong = str.length > COLLAPSE_THRESHOLD || hasNewline;
 
-    // 长文本：显示 preview + 字符数，点击打开文档编辑器
+    // 长文本：只显示字数，点击打开文档编辑器
     if (isLong) {
       const handleOpenDoc = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -151,14 +151,6 @@ function PrimitiveValueEditor({
           onSelect();
         }
       };
-
-      // 生成 preview：只加载前 300 个字符到 DOM，由 CSS 负责截断显示
-      // 这样无论原字符串多长，DOM 中最多只有约 300 个字符
-      const preview = str
-        .slice(0, 300)
-        .replace(/\n+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
 
       return (
         <div
@@ -174,7 +166,7 @@ function PrimitiveValueEditor({
             background: 'transparent',
             border: '1px solid transparent',
             width: '100%',
-            overflow: 'hidden', // 关键：容器隐藏溢出
+            overflow: 'hidden',
             height: 28,
             userSelect: 'none',
             transition: 'background 0.1s',
@@ -184,7 +176,7 @@ function PrimitiveValueEditor({
           }
           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
         >
-          {/* 图标 - 固定不收缩 */}
+          {/* 图标 */}
           <div
             style={{
               display: 'flex',
@@ -208,30 +200,13 @@ function PrimitiveValueEditor({
               <polyline points='10 9 9 9 8 9'></polyline>
             </svg>
           </div>
-          {/* Preview 文本 - 自适应宽度，CSS 自动截断 */}
+          {/* 字数统计 */}
           <span
             style={{
               fontSize: 14,
-              color: '#e2e8f0',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis', // 关键：超出显示 ...
-              flex: 1, // 关键：占据剩余空间
-              minWidth: 0, // 关键：允许收缩到 0，让 text-overflow 生效
-              lineHeight: '28px',
-            }}
-          >
-            {preview}
-          </span>
-          {/* 字符数 - 固定不收缩，始终完整显示 */}
-          <span
-            style={{
-              fontSize: 12,
               color: '#6b7280',
               whiteSpace: 'nowrap',
-              flexShrink: 0, // 关键：禁止收缩
               lineHeight: '28px',
-              paddingLeft: 8,
             }}
           >
             {str.length.toLocaleString()} chars
