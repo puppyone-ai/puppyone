@@ -3,20 +3,150 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { type McpToolPermissions } from '../../../../lib/mcpApi';
-import { TOOL_ICONS, DEFAULT_TOOL_ICON } from '../../../../lib/toolIcons';
-import { TOOL_TYPE_CONFIG } from '../../../../lib/toolConfig';
 
 // 重新导出类型供其他组件使用
 export type { McpToolPermissions };
 
-// MCP 工具列表定义
+// MCP 工具定义 - 包含图标和标签
 const MCP_TOOLS = [
-  { id: 'get_data_schema', label: 'Get Schema' },
-  { id: 'query_data', label: 'Query' },
-  { id: 'get_all_data', label: 'Get All' },
-  { id: 'create', label: 'Create' },
-  { id: 'update', label: 'Update' },
-  { id: 'delete', label: 'Delete' },
+  {
+    id: 'get_data_schema',
+    label: 'Get Schema',
+    icon: (
+      <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+        <path
+          d='M5.2 3.2c-1.2.6-2 1.8-2 3.8s.8 3.2 2 3.8'
+          stroke='currentColor'
+          strokeWidth='1.2'
+          strokeLinecap='round'
+        />
+        <path
+          d='M8.8 3.2c1.2.6 2 1.8 2 3.8s-.8 3.2-2 3.8'
+          stroke='currentColor'
+          strokeWidth='1.2'
+          strokeLinecap='round'
+        />
+        <path
+          d='M6.2 5.4h1.6M6.2 7h1.6M6.2 8.6h1.6'
+          stroke='currentColor'
+          strokeWidth='1.2'
+          strokeLinecap='round'
+        />
+      </svg>
+    ),
+  },
+  {
+    id: 'query_data',
+    label: 'Query',
+    icon: (
+      <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+        <circle cx='6' cy='6' r='4' stroke='currentColor' strokeWidth='1.2' />
+        <path
+          d='M9 9l3 3'
+          stroke='currentColor'
+          strokeWidth='1.2'
+          strokeLinecap='round'
+        />
+      </svg>
+    ),
+  },
+  {
+    id: 'get_all_data',
+    label: 'Get All',
+    icon: (
+      <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+        <rect
+          x='2'
+          y='2'
+          width='10'
+          height='2'
+          rx='0.5'
+          stroke='currentColor'
+          strokeWidth='1.2'
+        />
+        <rect
+          x='2'
+          y='6'
+          width='10'
+          height='2'
+          rx='0.5'
+          stroke='currentColor'
+          strokeWidth='1.2'
+        />
+        <rect
+          x='2'
+          y='10'
+          width='10'
+          height='2'
+          rx='0.5'
+          stroke='currentColor'
+          strokeWidth='1.2'
+        />
+      </svg>
+    ),
+  },
+  // {
+  //   id: 'preview',
+  //   label: 'Preview',
+  //   icon: (
+  //     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+  //       <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+  //       <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
+  //     </svg>
+  //   )
+  // },
+  // {
+  //   id: 'select',
+  //   label: 'Select',
+  //   icon: (
+  //     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+  //       <rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2"/>
+  //       <path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+  //     </svg>
+  //   )
+  // },
+  {
+    id: 'create',
+    label: 'Create',
+    icon: (
+      <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+        <path
+          d='M7 3v8M3 7h8'
+          stroke='currentColor'
+          strokeWidth='1.3'
+          strokeLinecap='round'
+        />
+      </svg>
+    ),
+  },
+  {
+    id: 'update',
+    label: 'Update',
+    icon: (
+      <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+        <path
+          d='M10 2l2 2-7 7H3v-2l7-7z'
+          stroke='currentColor'
+          strokeWidth='1.2'
+          strokeLinejoin='round'
+        />
+      </svg>
+    ),
+  },
+  {
+    id: 'delete',
+    label: 'Delete',
+    icon: (
+      <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+        <path
+          d='M2 4h10M5 4V2.5A.5.5 0 015.5 2h3a.5.5 0 01.5.5V4M11 4v7.5a1.5 1.5 0 01-1.5 1.5h-5A1.5 1.5 0 013 11.5V4'
+          stroke='currentColor'
+          strokeWidth='1.2'
+          strokeLinecap='round'
+        />
+      </svg>
+    ),
+  },
 ];
 
 interface RightAccessControlProps {
@@ -131,18 +261,8 @@ export function RightAccessControl({
         style={{
           marginLeft: 8,
           marginRight: 0,
-          width:
-            isConfigured &&
-            Object.values(configuredAccess || {}).filter(Boolean).length > 1
-              ? 'auto'
-              : 26,
-          minWidth: 26,
+          width: 26,
           height: 26,
-          padding:
-            isConfigured &&
-            Object.values(configuredAccess || {}).filter(Boolean).length > 1
-              ? '0 6px'
-              : 0,
           flexShrink: 0,
           display: 'flex',
           alignItems: 'center',
@@ -172,59 +292,76 @@ export function RightAccessControl({
         }}
         title='Configure MCP Tool Permissions'
       >
-        {isConfigured ? (
-          // 已配置：显示图标组
-          <div
+        <svg
+          width='15'
+          height='12'
+          viewBox='0 0 33 26'
+          fill='none'
+          style={{
+            color: isConfigured
+              ? '#FFA73D'
+              : gutterHovered || showPopover
+                ? '#e2e8f0'
+                : '#6b7280',
+            transition: 'color 0.12s',
+          }}
+        >
+          <ellipse
+            cx='27.9463'
+            cy='11.0849'
+            rx='3.45608'
+            ry='4.0321'
+            transform='rotate(14 27.9463 11.0849)'
+            fill='currentColor'
+          />
+          <ellipse
+            cx='11.5129'
+            cy='4.75922'
+            rx='3.45608'
+            ry='4.3201'
+            transform='rotate(-8 11.5129 4.75922)'
+            fill='currentColor'
+          />
+          <ellipse
+            cx='20.7294'
+            cy='4.7593'
+            rx='3.45608'
+            ry='4.3201'
+            transform='rotate(8 20.7294 4.7593)'
+            fill='currentColor'
+          />
+          <ellipse
+            cx='4.32887'
+            cy='11.0848'
+            rx='3.45608'
+            ry='4.0321'
+            transform='rotate(-14 4.32887 11.0848)'
+            fill='currentColor'
+          />
+          <path
+            d='M15.4431 11.5849C15.9709 11.499 16.0109 11.4991 16.5387 11.585C17.4828 11.7388 17.9619 12.099 18.7308 12.656C20.3528 13.8309 20.0223 15.0304 21.4709 16.4048C22.2387 17.1332 23.2473 17.7479 23.9376 18.547C24.7716 19.5125 25.1949 20.2337 25.3076 21.4924C25.4028 22.5548 25.3449 23.2701 24.7596 24.1701C24.1857 25.0527 23.5885 25.4635 22.5675 25.7768C21.6486 26.0587 21.0619 25.8454 20.1014 25.7768C18.4688 25.66 17.6279 24.9515 15.9912 24.9734C14.4592 24.994 13.682 25.655 12.155 25.7768C11.1951 25.8533 10.6077 26.0587 9.68884 25.7768C8.66788 25.4635 8.07066 25.0527 7.49673 24.1701C6.91143 23.2701 6.85388 22.5546 6.94907 21.4922C7.06185 20.2335 7.57596 19.5812 8.31877 18.547C9.01428 17.5786 9.71266 17.2943 10.5109 16.4048C11.7247 15.0521 11.7621 13.7142 13.251 12.656C14.0251 12.1059 14.499 11.7387 15.4431 11.5849Z'
+            fill='currentColor'
+          />
+        </svg>
+
+        {/* 数字角标 */}
+        {isConfigured && (
+          <span
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              justifyContent: 'center',
-              width: '100%',
+              position: 'absolute',
+              top: '50%',
+              right: -10,
+              transform: 'translateY(-50%)',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#FFA73D',
+              pointerEvents: 'none',
+              fontFamily:
+                "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
             }}
           >
-            {MCP_TOOLS.filter(t => (configuredAccess as any)?.[t.id]).map(
-              tool => {
-                // const config = TOOL_TYPE_CONFIG[tool.id] // 不再使用彩色配置
-                return (
-                  <div
-                    key={tool.id}
-                    style={{
-                      color: '#fb923c', // 使用橙色 (Orange-400)
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 14,
-                      height: 14,
-                      transition: 'color 0.15s',
-                    }}
-                    title={tool.label}
-                    // Hover 时稍微变亮
-                    onMouseEnter={e =>
-                      (e.currentTarget.style.color = '#fdba74')
-                    } // Orange-300
-                    onMouseLeave={e =>
-                      (e.currentTarget.style.color = '#fb923c')
-                    }
-                  >
-                    {TOOL_ICONS[tool.id]}
-                  </div>
-                );
-              }
-            )}
-          </div>
-        ) : (
-          // 未配置：显示默认图标
-          <div
-            style={{
-              color: gutterHovered || showPopover ? '#e2e8f0' : '#6b7280',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {DEFAULT_TOOL_ICON}
-          </div>
+            {Object.values(configuredAccess || {}).filter(Boolean).length}
+          </span>
         )}
       </div>
 
@@ -309,12 +446,10 @@ export function RightAccessControl({
                       alignItems: 'center',
                       justifyContent: 'center',
                       opacity: isEnabled ? 1 : 0.6,
-                      color: isEnabled
-                        ? TOOL_TYPE_CONFIG[tool.id]?.color
-                        : 'inherit',
+                      color: isEnabled ? '#FFA73D' : 'inherit',
                     }}
                   >
-                    {TOOL_ICONS[tool.id]}
+                    {tool.icon}
                   </span>
                   <span style={{ flex: 1 }}>{tool.label}</span>
                   <span
@@ -326,10 +461,10 @@ export function RightAccessControl({
                       justifyContent: 'center',
                       borderRadius: 3,
                       background: isEnabled
-                        ? TOOL_TYPE_CONFIG[tool.id]?.bg
+                        ? 'rgba(255, 167, 61, 0.2)'
                         : 'rgba(255,255,255,0.05)',
                       border: isEnabled
-                        ? `1px solid ${TOOL_TYPE_CONFIG[tool.id]?.color}40`
+                        ? '1px solid rgba(255, 167, 61, 0.4)'
                         : '1px solid rgba(255,255,255,0.1)',
                     }}
                   >
@@ -342,7 +477,7 @@ export function RightAccessControl({
                       >
                         <path
                           d='M2 5l2.5 2.5L8 3'
-                          stroke={TOOL_TYPE_CONFIG[tool.id]?.color}
+                          stroke='#FFA73D'
                           strokeWidth='1.5'
                           strokeLinecap='round'
                           strokeLinejoin='round'

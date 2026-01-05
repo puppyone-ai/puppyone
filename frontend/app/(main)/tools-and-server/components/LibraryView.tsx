@@ -8,7 +8,7 @@ import {
   type Tool,
 } from '@/lib/mcpApi';
 import { useProjects } from '@/lib/hooks/useData';
-import { FONT, TOOL_TYPE_CONFIG } from '@/lib/toolConfig';
+import { FONT, TOOL_TYPE_CONFIG } from './ToolsTable';
 
 // Header 高度 (包含 border)
 const HEADER_HEIGHT = 45;
