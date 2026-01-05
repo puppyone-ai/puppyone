@@ -58,5 +58,3 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         client_ip_var.reset(token_ip)
 
         return response
-
-

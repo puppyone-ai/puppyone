@@ -64,7 +64,9 @@ class McpV2Repository:
             payload.pop("id", None)
             payload.pop("created_at", None)
             payload.pop("updated_at", None)
-            response = self._client.table("mcp").update(payload).eq("id", mcp_id).execute()
+            response = (
+                self._client.table("mcp").update(payload).eq("id", mcp_id).execute()
+            )
             if response.data:
                 return McpV2Response(**response.data[0])
             return None
@@ -74,5 +76,3 @@ class McpV2Repository:
     def delete(self, mcp_id: int) -> bool:
         response = self._client.table("mcp").delete().eq("id", mcp_id).execute()
         return len(response.data) > 0
-
-

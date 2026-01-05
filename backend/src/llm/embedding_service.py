@@ -94,7 +94,9 @@ class EmbeddingService:
         duration = (
             (asyncio.get_event_loop().time() - start_time) * 1000 if start_time else 0
         )
-        logger.info("litellm loaded successfully for embeddings (took %.2fms)", duration)
+        logger.info(
+            "litellm loaded successfully for embeddings (took %.2fms)", duration
+        )
 
     @staticmethod
     def _estimate_tokens(text: str) -> int:
@@ -133,7 +135,9 @@ class EmbeddingService:
         if "text-embedding-3" in model and self.dimensions:
             params["dimensions"] = self.dimensions
 
-    def _extract_embeddings(self, response: Any, expected_count: int) -> list[list[float]]:
+    def _extract_embeddings(
+        self, response: Any, expected_count: int
+    ) -> list[list[float]]:
         data = getattr(response, "data", None)
         if data is None and isinstance(response, dict):
             data = response.get("data")
@@ -170,7 +174,9 @@ class EmbeddingService:
 
         return embeddings
 
-    async def _call_embedding_api(self, texts: list[str], model: str) -> list[list[float]]:
+    async def _call_embedding_api(
+        self, texts: list[str], model: str
+    ) -> list[list[float]]:
         """
         调用 litellm embedding API（带重试）
         """
@@ -199,7 +205,9 @@ class EmbeddingService:
 
             except self._exc_AuthenticationError as e:
                 provider = model.split("/")[0] if "/" in model else "unknown"
-                logger.error("Embedding authentication error for provider %s: %s", provider, e)
+                logger.error(
+                    "Embedding authentication error for provider %s: %s", provider, e
+                )
                 raise APIKeyError(provider) from e
 
             except self._exc_Timeout as e:
@@ -234,12 +242,19 @@ class EmbeddingService:
                 )
 
                 # Retry on transient server errors
-                if status_code in {500, 502, 503, 504} and attempt < self.config.llm_max_retries - 1:
-                    last_error = LLMError(f"Embedding API error: {str(e)}", original_error=e)
+                if (
+                    status_code in {500, 502, 503, 504}
+                    and attempt < self.config.llm_max_retries - 1
+                ):
+                    last_error = LLMError(
+                        f"Embedding API error: {str(e)}", original_error=e
+                    )
                     await asyncio.sleep(2**attempt)
                     continue
 
-                raise LLMError(f"Embedding API error: {str(e)}", original_error=e) from e
+                raise LLMError(
+                    f"Embedding API error: {str(e)}", original_error=e
+                ) from e
 
             except Exception as e:
                 logger.error(
@@ -248,7 +263,9 @@ class EmbeddingService:
                     e,
                     exc_info=True,
                 )
-                last_error = LLMError(f"Unexpected embedding error: {str(e)}", original_error=e)
+                last_error = LLMError(
+                    f"Unexpected embedding error: {str(e)}", original_error=e
+                )
                 if attempt < self.config.llm_max_retries - 1:
                     await asyncio.sleep(2**attempt)
                 continue
@@ -265,7 +282,9 @@ class EmbeddingService:
             raise last_error
         raise LLMError("All embedding retries exhausted with unknown error")
 
-    async def generate_embedding(self, text: str, model: Optional[str] = None) -> list[float]:
+    async def generate_embedding(
+        self, text: str, model: Optional[str] = None
+    ) -> list[float]:
         """
         Generate embedding for a single text.
 
@@ -321,5 +340,3 @@ class EmbeddingService:
             results.extend(batch_vectors)
 
         return results
-
-

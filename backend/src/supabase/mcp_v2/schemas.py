@@ -36,5 +36,3 @@ class McpV2Response(McpV2Base):
 
     class Config:
         from_attributes = True
-
-

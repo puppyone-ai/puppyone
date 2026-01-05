@@ -20,5 +20,3 @@ def patch_log_record_from_context(record: dict[str, Any]) -> None:
     extra.setdefault("method", method_var.get())
     extra.setdefault("path", path_var.get())
     extra.setdefault("client_ip", client_ip_var.get())
-
-

@@ -4,7 +4,7 @@ Project Router
 提供项目 CRUD 的 REST API 接口。
 """
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status
 from typing import List
 
 from src.project.service import ProjectService
@@ -15,13 +15,11 @@ from src.project.schemas import (
     ProjectCreate,
     ProjectUpdate,
     TableInfo,
-    TableOut,
 )
 from src.supabase.dependencies import get_supabase_repository
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
 from src.common_schemas import ApiResponse
-from src.exceptions import NotFoundException, ErrorCode
 
 router = APIRouter(
     prefix="/projects",
@@ -45,12 +43,14 @@ def _convert_to_project_out(project: Project, tables=None) -> ProjectOut:
                     rows = len(t.data)
                 elif isinstance(t.data, dict):
                     rows = len(t.data)
-            table_infos.append(TableInfo(
-                id=str(t.id),
-                name=t.name or "",
-                rows=rows,
-            ))
-    
+            table_infos.append(
+                TableInfo(
+                    id=str(t.id),
+                    name=t.name or "",
+                    rows=rows,
+                )
+            )
+
     return ProjectOut(
         id=str(project.id),
         name=project.name,
@@ -73,10 +73,10 @@ def list_projects(
 ):
     # 获取当前用户的所有项目
     projects = project_service.get_by_user_id(current_user.user_id)
-    
+
     # 需要获取每个项目的表信息
     supabase_repo = get_supabase_repository()
-    
+
     result = []
     for p in projects:
         tables = supabase_repo.get_tables(project_id=p.id)
@@ -97,9 +97,11 @@ def get_project(
 ):
     # 获取项目下的表信息
     supabase_repo = get_supabase_repository()
-    
+
     tables = supabase_repo.get_tables(project_id=project.id)
-    return ApiResponse.success(data=_convert_to_project_out(project, tables), message="项目获取成功")
+    return ApiResponse.success(
+        data=_convert_to_project_out(project, tables), message="项目获取成功"
+    )
 
 
 @router.post(
@@ -121,7 +123,9 @@ def create_project(
         description=payload.description,
         user_id=current_user.user_id,
     )
-    return ApiResponse.success(data=_convert_to_project_out(project, []), message="项目创建成功")
+    return ApiResponse.success(
+        data=_convert_to_project_out(project, []), message="项目创建成功"
+    )
 
 
 @router.put(
@@ -143,12 +147,14 @@ def update_project(
         name=payload.name,
         description=payload.description,
     )
-    
+
     # 获取项目下的表信息
     supabase_repo = get_supabase_repository()
-    
+
     tables = supabase_repo.get_tables(project_id=project.id)
-    return ApiResponse.success(data=_convert_to_project_out(updated_project, tables), message="项目更新成功")
+    return ApiResponse.success(
+        data=_convert_to_project_out(updated_project, tables), message="项目更新成功"
+    )
 
 
 @router.delete(
@@ -166,4 +172,3 @@ def delete_project(
     # 删除项目
     project_service.delete(project.id)
     return ApiResponse.success(message="项目删除成功")
-

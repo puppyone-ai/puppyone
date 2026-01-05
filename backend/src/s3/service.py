@@ -48,25 +48,22 @@ class S3Service:
 
         # 创建 boto3 客户端（线程安全）
         from botocore.config import Config
-        
+
         # 配置签名版本为 v4 (Supabase Storage 要求)
         config = Config(
-            signature_version='s3v4',
+            signature_version="s3v4",
             s3={
-                'addressing_style': 'path'  # 使用路径样式 (bucket/key)
+                "addressing_style": "path"  # 使用路径样式 (bucket/key)
             },
             # 增加重试次数和超时时间，避免SSL错误
-            retries={
-                'max_attempts': 5,
-                'mode': 'adaptive'
-            },
+            retries={"max_attempts": 5, "mode": "adaptive"},
             connect_timeout=60,
             read_timeout=300,
             # 禁用SSL验证（如果使用自签名证书或开发环境）
             # 注意：生产环境应该使用有效的SSL证书
             # verify=False
         )
-        
+
         client_kwargs = {
             "service_name": "s3",
             "aws_access_key_id": self.access_key_id,
@@ -97,18 +94,26 @@ class S3Service:
         """处理 boto3 ClientError"""
         error_code = error.response.get("Error", {}).get("Code", "Unknown")
         error_message = error.response.get("Error", {}).get("Message", str(error))
-        http_status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
+        http_status = error.response.get("ResponseMetadata", {}).get(
+            "HTTPStatusCode", 0
+        )
 
         logger.error(
             f"S3 {operation} failed: {error_code} - {error_message} (HTTP {http_status})",
-            extra={"error_code": error_code, "operation": operation, "http_status": http_status},
+            extra={
+                "error_code": error_code,
+                "operation": operation,
+                "http_status": http_status,
+            },
         )
 
         # 处理各种错误码
         if error_code == "NoSuchKey" or error_code == "404" or http_status == 404:
             # 404 可能是文件不存在或 bucket 不存在
             if operation in ["upload_file", "create_multipart_upload"]:
-                raise S3OperationError(f"Bucket '{self.bucket_name}' may not exist or is not accessible: {error_message}")
+                raise S3OperationError(
+                    f"Bucket '{self.bucket_name}' may not exist or is not accessible: {error_message}"
+                )
             else:
                 raise S3FileNotFoundError(error_message)
         elif error_code == "NoSuchBucket":
@@ -154,7 +159,9 @@ class S3Service:
                 f"File size ({file_size} bytes) exceeds threshold ({self.multipart_threshold} bytes), "
                 f"using multipart upload for {key}"
             )
-            return await self._upload_file_multipart(key, content, content_type, metadata)
+            return await self._upload_file_multipart(
+                key, content, content_type, metadata
+            )
 
         # 小文件使用单次上传
         try:
@@ -185,7 +192,7 @@ class S3Service:
         except ClientError as e:
             self._handle_client_error(e, "upload_file")
             raise  # 永远不会执行,但类型检查器需要
-    
+
     async def _upload_file_multipart(
         self,
         key: str,
@@ -207,38 +214,38 @@ class S3Service:
         """
         file_size = len(content)
         upload_id = None
-        
+
         try:
             # 1. 创建分片上传
             upload_id = await self.create_multipart_upload(key, content_type, metadata)
-            
+
             # 2. 分片上传
             parts = []
             part_number = 1
             offset = 0
-            
+
             while offset < file_size:
                 # 计算当前分片大小
                 chunk_size = min(self.multipart_chunksize, file_size - offset)
-                chunk_data = content[offset:offset + chunk_size]
-                
+                chunk_data = content[offset : offset + chunk_size]
+
                 # 上传分片
                 etag = await self.upload_part(key, upload_id, part_number, chunk_data)
                 parts.append((part_number, etag))
-                
+
                 logger.info(
                     f"Uploaded part {part_number}/{(file_size + self.multipart_chunksize - 1) // self.multipart_chunksize} "
                     f"for {key} ({chunk_size} bytes)"
                 )
-                
+
                 offset += chunk_size
                 part_number += 1
-            
+
             # 3. 完成分片上传
             result = await self.complete_multipart_upload(key, upload_id, parts)
-            
+
             logger.info(f"Multipart upload completed for {key} ({file_size} bytes)")
-            
+
             return FileUploadResponse(
                 key=key,
                 bucket=self.bucket_name,
@@ -246,7 +253,7 @@ class S3Service:
                 etag=result.etag,
                 content_type=content_type,
             )
-            
+
         except Exception as e:
             # 如果上传失败，取消分片上传
             if upload_id:
@@ -254,8 +261,10 @@ class S3Service:
                     await self.abort_multipart_upload(key, upload_id)
                     logger.info(f"Aborted multipart upload for {key}: {upload_id}")
                 except Exception as abort_error:
-                    logger.error(f"Failed to abort multipart upload for {key}: {abort_error}")
-            
+                    logger.error(
+                        f"Failed to abort multipart upload for {key}: {abort_error}"
+                    )
+
             # 重新抛出原始错误
             raise S3OperationError(f"Multipart upload failed for {key}: {e}")
 
@@ -303,14 +312,12 @@ class S3Service:
         """
         try:
             response = await self._run_sync(
-                self.client.get_object,
-                Bucket=self.bucket_name,
-                Key=key
+                self.client.get_object, Bucket=self.bucket_name, Key=key
             )
-            
+
             # 读取完整内容
             content = await self._run_sync(response["Body"].read)
-            
+
             logger.info(f"File downloaded successfully: {key} ({len(content)} bytes)")
             return content
 
@@ -869,7 +876,7 @@ _s3_service_instance = None
 def get_s3_service_instance() -> S3Service:
     """
     获取 S3 服务单例
-    
+
     Returns:
         S3Service 实例
     """
@@ -893,4 +900,3 @@ class _S3ServiceProxy:
 
 
 s3_service = _S3ServiceProxy()
-

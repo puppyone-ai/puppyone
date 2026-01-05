@@ -17,9 +17,15 @@ class ToolCreate(BaseModel):
     alias: Optional[str] = Field(default=None, description="前端展示名（可重复）")
     description: Optional[str] = Field(default=None, description="工具描述")
 
-    input_schema: Optional[Any] = Field(default=None, description="JSON Schema (input), 非自定义Tool则为空")
-    output_schema: Optional[Any] = Field(default=None, description="JSON Schema (output), 非自定义Tool则为空")
-    metadata: Optional[Any] = Field(default=None, description="扩展配置（如 preview_keys 等）")
+    input_schema: Optional[Any] = Field(
+        default=None, description="JSON Schema (input), 非自定义Tool则为空"
+    )
+    output_schema: Optional[Any] = Field(
+        default=None, description="JSON Schema (output), 非自定义Tool则为空"
+    )
+    metadata: Optional[Any] = Field(
+        default=None, description="扩展配置（如 preview_keys 等）"
+    )
 
 
 class ToolUpdate(BaseModel):
@@ -52,5 +58,3 @@ class ToolOut(BaseModel):
     input_schema: Optional[Any] = None
     output_schema: Optional[Any] = None
     metadata: Optional[Any] = None
-
-

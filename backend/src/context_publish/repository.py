@@ -31,7 +31,9 @@ class ContextPublishRepositoryBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def update(self, publish_id: int, data: SbContextPublishUpdate) -> Optional[ContextPublish]:
+    def update(
+        self, publish_id: int, data: SbContextPublishUpdate
+    ) -> Optional[ContextPublish]:
         raise NotImplementedError
 
     @abstractmethod
@@ -75,10 +77,14 @@ class ContextPublishRepositorySupabase(ContextPublishRepositoryBase):
     def list_by_user_id(
         self, user_id: str, *, skip: int = 0, limit: int = 100
     ) -> List[ContextPublish]:
-        resps = self._repo.get_context_publish_list(skip=skip, limit=limit, user_id=user_id)
+        resps = self._repo.get_context_publish_list(
+            skip=skip, limit=limit, user_id=user_id
+        )
         return [self._to_model(r) for r in resps]
 
-    def update(self, publish_id: int, data: SbContextPublishUpdate) -> Optional[ContextPublish]:
+    def update(
+        self, publish_id: int, data: SbContextPublishUpdate
+    ) -> Optional[ContextPublish]:
         resp = self._repo.update_context_publish(publish_id, data)
         if not resp:
             return None
@@ -86,5 +92,3 @@ class ContextPublishRepositorySupabase(ContextPublishRepositoryBase):
 
     def delete(self, publish_id: int) -> bool:
         return self._repo.delete_context_publish(publish_id)
-
-

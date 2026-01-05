@@ -106,4 +106,3 @@ async def get_verified_etl_task(
     return await etl_service.get_task_status_with_access_check(
         task_id, current_user.user_id
     )
-

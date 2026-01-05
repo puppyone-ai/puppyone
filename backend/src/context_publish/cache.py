@@ -55,5 +55,3 @@ class PublishCache:
             return
         with self._lock:
             self._store.pop(publish_key, None)
-
-

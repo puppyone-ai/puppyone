@@ -18,7 +18,7 @@ from src.auth.dependencies import get_current_user
 from src.table.service import TableService
 from src.table.dependencies import get_table_service
 from src.exceptions import NotFoundException, BusinessException, ErrorCode
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_info
 
 router = APIRouter(
     prefix="/connect",
@@ -85,68 +85,65 @@ async def import_data(
     )
 
     # 验证项目是否属于当前用户
-    if not table_service.verify_project_access(payload.project_id, current_user.user_id):
+    if not table_service.verify_project_access(
+        payload.project_id, current_user.user_id
+    ):
         raise NotFoundException(
-            f"Project not found: {payload.project_id}",
-            code=ErrorCode.NOT_FOUND
+            f"Project not found: {payload.project_id}", code=ErrorCode.NOT_FOUND
         )
-    
+
     # 获取完整数据
     full_data_result = await connect_service.fetch_full_data(str(payload.url))
     data = full_data_result.get("data", [])
     title = full_data_result.get("title", "Imported Data")
-    
+
     if not data:
         raise BusinessException(
-            message="No data found to import",
-            code=ErrorCode.BAD_REQUEST
+            message="No data found to import", code=ErrorCode.BAD_REQUEST
         )
-    
+
     # 如果提供了table_id，追加数据到现有表格或指定路径
     if payload.table_id:
         table = table_service.get_by_id(payload.table_id)
         if not table:
             raise NotFoundException(
-                f"Table not found: {payload.table_id}",
-                code=ErrorCode.NOT_FOUND
+                f"Table not found: {payload.table_id}", code=ErrorCode.NOT_FOUND
             )
-        
+
         # 验证表格是否属于指定项目
         if table.project_id != payload.project_id:
             raise BusinessException(
                 message="Table does not belong to the specified project",
-                code=ErrorCode.BAD_REQUEST
+                code=ErrorCode.BAD_REQUEST,
             )
-        
+
         existing_data = table.data or {}
-        
+
         # 优先使用新的foolproof导入模式
         if payload.import_mode in ["add_to_existing", "replace_all", "keep_separate"]:
             log_info(f"Using foolproof import mode: {payload.import_mode}")
-            
+
             # 使用傻瓜式导入 - 100%成功
             updated_data = connect_service.foolproof_import(
-                existing_data,
-                data,
-                payload.import_mode
+                existing_data, data, payload.import_mode
             )
-            
+
             items_imported = len(data) if isinstance(data, list) else 1
-            
+
             # 更新表格
             updated_table = table_service.update(
                 table_id=payload.table_id,
                 name=None,
                 description=None,
-                data=updated_data
+                data=updated_data,
             )
-            
+
             mode_messages = {
                 "add_to_existing": f"Added {items_imported} items to existing data",
                 "replace_all": f"Replaced all data with {items_imported} new items",
-                "keep_separate": f"Stored {items_imported} items in imports section"
+                "keep_separate": f"Stored {items_imported} items in imports section",
             }
-            
+
             return ApiResponse.success(
                 data=ImportDataResponse(
                     success=True,
@@ -154,34 +151,35 @@ async def import_data(
                     table_id=payload.table_id,
                     table_name=updated_table.name,
                     items_imported=items_imported,
-                    message=mode_messages.get(payload.import_mode, f"Imported {items_imported} items")
+                    message=mode_messages.get(
+                        payload.import_mode, f"Imported {items_imported} items"
+                    ),
                 ),
-                message="Data imported successfully"
+                message="Data imported successfully",
             )
-        
+
         # 兼容旧的路径级导入（如果指定了target_path）
         if payload.target_path is not None:
-            log_info(f"Using legacy path import: {payload.target_path} with strategy: {payload.merge_strategy}")
-            
+            log_info(
+                f"Using legacy path import: {payload.target_path} with strategy: {payload.merge_strategy}"
+            )
+
             # 使用智能合并逻辑
             updated_data = connect_service.merge_data_at_path(
-                existing_data,
-                data,
-                payload.target_path,
-                payload.merge_strategy
+                existing_data, data, payload.target_path, payload.merge_strategy
             )
-            
+
             items_imported = len(data) if isinstance(data, list) else 1
-            path_display = payload.target_path or '/'
-            
+            path_display = payload.target_path or "/"
+
             # 更新表格
             updated_table = table_service.update(
                 table_id=payload.table_id,
                 name=None,
                 description=None,
-                data=updated_data
+                data=updated_data,
             )
-            
+
             return ApiResponse.success(
                 data=ImportDataResponse(
                     success=True,
@@ -189,11 +187,11 @@ async def import_data(
                     table_id=payload.table_id,
                     table_name=updated_table.name,
                     items_imported=items_imported,
-                    message=f"Imported {items_imported} items to path {path_display}"
+                    message=f"Imported {items_imported} items to path {path_display}",
                 ),
-                message="Data imported successfully"
+                message="Data imported successfully",
             )
-        
+
         # 否则追加数据到表格（原有逻辑）
         # 如果现有数据是字典，将新数据作为一个新key添加
         if isinstance(existing_data, dict):
@@ -210,17 +208,14 @@ async def import_data(
         else:
             # 其他情况，创建新结构
             updated_data = {"existing": existing_data, "imported": data}
-        
+
         # 更新表格
         updated_table = table_service.update(
-            table_id=payload.table_id,
-            name=None,
-            description=None,
-            data=updated_data
+            table_id=payload.table_id, name=None, description=None, data=updated_data
         )
-        
+
         items_imported = len(data) if isinstance(data, list) else 1
-        
+
         return ApiResponse.success(
             data=ImportDataResponse(
                 success=True,
@@ -228,26 +223,26 @@ async def import_data(
                 table_id=payload.table_id,
                 table_name=updated_table.name,
                 items_imported=items_imported,
-                message=f"Successfully imported {items_imported} items to table {updated_table.name}"
+                message=f"Successfully imported {items_imported} items to table {updated_table.name}",
             ),
-            message="Data imported successfully"
+            message="Data imported successfully",
         )
-    
+
     # 否则创建新表格
     else:
         table_name = payload.table_name or title or "Imported Data"
         table_description = payload.table_description or f"Imported from {payload.url}"
-        
+
         # 创建新表格
         new_table = table_service.create(
             project_id=payload.project_id,
             name=table_name,
             description=table_description,
-            data={"imported_data": data} if isinstance(data, list) else data
+            data={"imported_data": data} if isinstance(data, list) else data,
         )
-        
+
         items_imported = len(data) if isinstance(data, list) else 1
-        
+
         return ApiResponse.success(
             data=ImportDataResponse(
                 success=True,
@@ -255,8 +250,7 @@ async def import_data(
                 table_id=new_table.id,
                 table_name=new_table.name,
                 items_imported=items_imported,
-                message=f"Successfully created table {new_table.name} and imported {items_imported} items"
+                message=f"Successfully created table {new_table.name} and imported {items_imported} items",
             ),
-            message="Data imported successfully"
+            message="Data imported successfully",
         )
-

@@ -39,4 +39,3 @@ def get_supabase_repository() -> SupabaseRepository:
     if _supabase_repository is None:
         _supabase_repository = SupabaseRepository()
     return _supabase_repository
-

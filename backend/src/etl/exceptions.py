@@ -34,9 +34,7 @@ class ETLTaskTimeoutError(ETLError):
     """Exception raised when ETL task times out."""
 
     def __init__(self, task_id: str, timeout: int):
-        super().__init__(
-            f"ETL task {task_id} timed out after {timeout} seconds"
-        )
+        super().__init__(f"ETL task {task_id} timed out after {timeout} seconds")
         self.task_id = task_id
         self.timeout = timeout
 
@@ -47,4 +45,3 @@ class FileNotFoundError(ETLError):
     def __init__(self, file_path: str):
         super().__init__(f"File not found: {file_path}")
         self.file_path = file_path
-

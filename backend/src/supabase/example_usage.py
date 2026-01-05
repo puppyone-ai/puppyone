@@ -70,9 +70,7 @@ def example_usage():
     print(f"获取项目: {project}")
 
     # 更新项目
-    project = repo.update_project(
-        project.id, ProjectUpdate(description="更新后的描述")
-    )
+    project = repo.update_project(project.id, ProjectUpdate(description="更新后的描述"))
     print(f"更新项目: {project}")
 
     # 获取用户的所有项目

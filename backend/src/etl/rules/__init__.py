@@ -13,4 +13,3 @@ __all__ = [
     "RuleRepositorySupabase",
     "get_rule_repository",
 ]
-

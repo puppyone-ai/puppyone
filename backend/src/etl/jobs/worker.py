@@ -48,5 +48,3 @@ class WorkerSettings:
     # NOTE: ARQ cancels jobs on timeout via asyncio.CancelledError (BaseException on Py3.12).
     # Keep this in sync with MineRU/LLM latency expectations.
     job_timeout = etl_config.etl_task_timeout
-
-

@@ -7,10 +7,7 @@ class Settings(BaseSettings):
     """应用配置"""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        case_sensitive=True,
-        extra="ignore",
-        env_file_encoding="utf-8"
+        env_file=".env", case_sensitive=True, extra="ignore", env_file_encoding="utf-8"
     )
 
     # 服务配置
@@ -55,9 +52,9 @@ class Settings(BaseSettings):
     GITHUB_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/github"
 
     # 服务间通信
-    INTERNAL_API_SECRET: str = ""   # 内部服务通信密钥
-    MCP_SERVER_URL: str = ""        # MCP服务的地址
-    
+    INTERNAL_API_SECRET: str = ""  # 内部服务通信密钥
+    MCP_SERVER_URL: str = ""  # MCP服务的地址
+
     # 公共访问 URL（用于生成对外的 API 链接）
     # - 本地开发: http://localhost:8000
     # - Railway: https://your-app.railway.app
@@ -68,5 +65,6 @@ class Settings(BaseSettings):
     PUBLISH_DEFAULT_EXPIRES_DAYS: int = 7
     PUBLISH_KEY_LENGTH: int = 16
     PUBLISH_CACHE_TTL_SECONDS: int = 10
+
 
 settings = Settings()

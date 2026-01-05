@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TableInfo:
     """表信息"""
+
     id: int
     name: str
     rows: Optional[int] = None

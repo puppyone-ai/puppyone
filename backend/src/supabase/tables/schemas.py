@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 class TableBase(BaseModel):
     """表基础模型"""
+
     name: Optional[str] = None
     project_id: Optional[int] = None
     description: Optional[str] = None
@@ -19,11 +20,13 @@ class TableBase(BaseModel):
 
 class TableCreate(TableBase):
     """创建表模型"""
+
     pass
 
 
 class TableUpdate(BaseModel):
     """更新表模型"""
+
     name: Optional[str] = None
     project_id: Optional[int] = None
     description: Optional[str] = None
@@ -32,6 +35,7 @@ class TableUpdate(BaseModel):
 
 class TableResponse(TableBase):
     """表响应模型"""
+
     id: int
     created_at: datetime
 

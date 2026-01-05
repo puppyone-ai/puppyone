@@ -4,7 +4,6 @@ LLM Service Configuration
 Manages configuration for LLM models including API keys, model settings, and timeouts.
 """
 
-
 import logging
 import os
 
@@ -15,7 +14,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 logger = logging.getLogger(__name__)
 
 _ENV_FILE = ".env"
-_ENV_FILE_FOR_SETTINGS = _ENV_FILE if (os.path.isfile(_ENV_FILE) and os.access(_ENV_FILE, os.R_OK)) else None
+_ENV_FILE_FOR_SETTINGS = (
+    _ENV_FILE if (os.path.isfile(_ENV_FILE) and os.access(_ENV_FILE, os.R_OK)) else None
+)
 
 
 class LLMConfig(BaseSettings):
@@ -26,13 +27,13 @@ class LLMConfig(BaseSettings):
         env_file=_ENV_FILE_FOR_SETTINGS,
         env_file_encoding="utf-8",
         extra="ignore",
-        env_ignore_empty=True
+        env_ignore_empty=True,
     )
 
     # Default model to use
     default_text_model: str = Field(
         default="openrouter/qwen/qwen3-235b-a22b-2507",
-        description="Default text model for general purposes"
+        description="Default text model for general purposes",
     )
 
     # Supported models (format: provider/model-name)
@@ -44,9 +45,9 @@ class LLMConfig(BaseSettings):
             "openrouter/openai/gpt-5.1",
             "openrouter/anthropic/claude-sonnet-4.5",
             "openrouter/google/gemini-3-pro-preview",
-            "openrouter/qwen/qwen3-8b"
+            "openrouter/qwen/qwen3-8b",
         ],
-        description="List of supported text models"
+        description="List of supported text models",
     )
 
     # Default embedding model to use
@@ -81,20 +82,18 @@ class LLMConfig(BaseSettings):
 
     # Request timeout settings
     llm_timeout: int = Field(
-        default=60,
-        description="Timeout for LLM API calls in seconds"
+        default=60, description="Timeout for LLM API calls in seconds"
     )
 
     # Temperature for deterministic outputs
     llm_temperature: float = Field(
         default=0.3,
-        description="Temperature for LLM outputs (lower = more deterministic)"
+        description="Temperature for LLM outputs (lower = more deterministic)",
     )
 
     # Max retries on failure
     llm_max_retries: int = Field(
-        default=3,
-        description="Maximum number of retries on API failure"
+        default=3, description="Maximum number of retries on API failure"
     )
 
     @field_validator("embedding_dimensions")
@@ -150,4 +149,3 @@ class LLMConfig(BaseSettings):
 
 # Global config instance
 llm_config = LLMConfig()
-

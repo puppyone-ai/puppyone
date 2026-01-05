@@ -57,7 +57,9 @@ class InvalidResponseError(LLMError):
     """Exception raised when LLM returns invalid response format."""
 
     def __init__(self, expected_format: str, actual_response: str):
-        message = f"Expected response format '{expected_format}', but got invalid response."
+        message = (
+            f"Expected response format '{expected_format}', but got invalid response."
+        )
         super().__init__(message)
         self.expected_format = expected_format
         self.actual_response = actual_response
@@ -85,4 +87,3 @@ class TextTooLongError(LLMError):
         self.actual_length = actual_length
         self.limit_length = limit_length
         self.index = index
-

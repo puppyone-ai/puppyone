@@ -52,13 +52,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/etl", tags=["etl"])
 
 
-@router.post("/upload_and_submit", response_model=UploadAndSubmitResponse, status_code=201)
+@router.post(
+    "/upload_and_submit", response_model=UploadAndSubmitResponse, status_code=201
+)
 async def upload_and_submit(
     project_id: int = Form(..., description="Project ID"),
-    files: list[UploadFile] = File(..., description="Files to upload (single or multiple)"),
+    files: list[UploadFile] = File(
+        ..., description="Files to upload (single or multiple)"
+    ),
     rule_id: Optional[int] = Form(None, description="Optional ETL rule id"),
-    table_id: Optional[int] = Form(None, description="Optional target table id to mount results"),
-    json_path: Optional[str] = Form(None, description="Optional JSON Pointer mount path (default: root)"),
+    table_id: Optional[int] = Form(
+        None, description="Optional target table id to mount results"
+    ),
+    json_path: Optional[str] = Form(
+        None, description="Optional JSON Pointer mount path (default: root)"
+    ),
     etl_service: Annotated[ETLService, Depends(get_etl_service)] = None,
     s3_service: Annotated[S3Service, Depends(get_s3_service)] = None,
     table_service: Annotated[TableService, Depends(get_table_service)] = None,
@@ -292,37 +300,36 @@ async def get_batch_etl_tasks(
 ):
     """
     批量查询 ETL 任务状态。
-    
+
     Args:
         task_ids: 逗号分隔的任务ID列表
         etl_service: ETL service dependency
         current_user: Current user (from token)
-    
+
     Returns:
         BatchETLTaskStatusResponse with all task statuses
-    
+
     Raises:
         HTTPException: If task_ids format is invalid
     """
     try:
         # Parse task IDs
         id_list = [int(tid.strip()) for tid in task_ids.split(",") if tid.strip()]
-        
+
         if not id_list:
             raise HTTPException(status_code=400, detail="No valid task IDs provided")
-        
+
         if len(id_list) > 100:
             raise HTTPException(status_code=400, detail="Too many task IDs (max 100)")
-        
+
         # Get task statuses
         task_responses = []
         for task_id in id_list:
             try:
                 task = await etl_service.get_task_status_with_access_check(
-                    task_id=task_id,
-                    user_id=current_user.user_id
+                    task_id=task_id, user_id=current_user.user_id
                 )
-                
+
                 task_responses.append(
                     ETLTaskResponse(
                         task_id=task.task_id,
@@ -343,14 +350,15 @@ async def get_batch_etl_tasks(
                 # If task not found or access denied, skip it
                 logger.warning(f"Failed to get task {task_id}: {e}")
                 continue
-        
+
         return BatchETLTaskStatusResponse(
-            tasks=task_responses,
-            total=len(task_responses)
+            tasks=task_responses, total=len(task_responses)
         )
-    
+
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid task_ids format: {str(e)}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid task_ids format: {str(e)}"
+        )
 
 
 @router.get("/tasks/{task_id}", response_model=ETLTaskResponse)

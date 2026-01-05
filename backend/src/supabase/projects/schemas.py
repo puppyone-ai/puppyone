@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 class ProjectBase(BaseModel):
     """项目基础模型"""
+
     name: str
     description: Optional[str] = None
     user_id: Optional[str] = None
@@ -18,11 +19,13 @@ class ProjectBase(BaseModel):
 
 class ProjectCreate(ProjectBase):
     """创建项目模型"""
+
     pass
 
 
 class ProjectUpdate(BaseModel):
     """更新项目模型"""
+
     name: Optional[str] = None
     description: Optional[str] = None
     user_id: Optional[str] = None
@@ -30,6 +33,7 @@ class ProjectUpdate(BaseModel):
 
 class ProjectResponse(ProjectBase):
     """项目响应模型"""
+
     id: int
     created_at: datetime
 

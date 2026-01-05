@@ -47,7 +47,10 @@ class ContextPublishRepository:
 
     def get_by_id(self, publish_id: int) -> Optional[ContextPublishResponse]:
         response = (
-            self._client.table("context_publish").select("*").eq("id", publish_id).execute()
+            self._client.table("context_publish")
+            .select("*")
+            .eq("id", publish_id)
+            .execute()
         )
         if response.data:
             return ContextPublishResponse(**response.data[0])
@@ -77,7 +80,9 @@ class ContextPublishRepository:
         response = query.range(skip, skip + limit - 1).execute()
         return [ContextPublishResponse(**item) for item in response.data]
 
-    def update(self, publish_id: int, data: ContextPublishUpdate) -> Optional[ContextPublishResponse]:
+    def update(
+        self, publish_id: int, data: ContextPublishUpdate
+    ) -> Optional[ContextPublishResponse]:
         try:
             payload = data.model_dump(exclude_none=True)
             if not payload:
@@ -99,7 +104,10 @@ class ContextPublishRepository:
             raise handle_supabase_error(e, "更新 ContextPublish")
 
     def delete(self, publish_id: int) -> bool:
-        response = self._client.table("context_publish").delete().eq("id", publish_id).execute()
+        response = (
+            self._client.table("context_publish")
+            .delete()
+            .eq("id", publish_id)
+            .execute()
+        )
         return len(response.data) > 0
-
-

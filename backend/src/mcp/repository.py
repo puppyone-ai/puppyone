@@ -6,7 +6,6 @@ from pathlib import Path
 from src.mcp.models import McpInstance
 from src.mcp.schemas import McpToolsDefinition, ToolTypeKey
 from src.utils.logger import log_error
-from src.supabase.repository import SupabaseRepository
 from src.supabase.mcps.schemas import McpCreate, McpUpdate
 
 
@@ -282,13 +281,14 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
     def __init__(self, supabase_repo=None):
         """
         初始化仓库
-        
+
         Args:
             supabase_repo: 可选的 SupabaseRepository 实例，如果不提供则使用共享单例
         """
         if supabase_repo is None:
             # 延迟导入，避免在模块导入时触发
             from src.supabase.dependencies import get_supabase_repository
+
             self._repo = get_supabase_repository()
         else:
             self._repo = supabase_repo

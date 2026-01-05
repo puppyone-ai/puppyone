@@ -2,6 +2,8 @@
 ContextBase Backend Server Entrypoint.
 """
 
+# ruff: noqa: E402
+
 import time
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
@@ -16,17 +18,20 @@ APP_START_TIME = time.time()
 
 # 加载 .env 文件（仅用于本地开发，生产环境直接使用系统环境变量）
 from dotenv import load_dotenv
+
 dotenv_start = time.time()
 load_dotenv()
 dotenv_duration = time.time() - dotenv_start
 
 # 初始化 Loguru + 拦截标准 logging（含 uvicorn.*）
 from src.utils.logging_setup import setup_logging
+
 setup_logging()
 
 # 记录各模块导入时间
 config_start = time.time()
 from src.config import settings
+
 config_duration = time.time() - config_start
 
 exceptions_start = time.time()
@@ -37,15 +42,18 @@ from src.exception_handler import (
     validation_exception_handler,
     generic_exception_handler,
 )
+
 exceptions_duration = time.time() - exceptions_start
 
 logger_start = time.time()
 from src.utils.logger import log_info, log_error
+
 logger_duration = time.time() - logger_start
 
 # 记录各路由模块导入时间
 table_router_start = time.time()
 from src.table.router import router as table_router
+
 table_router_duration = time.time() - table_router_start
 
 #
@@ -55,16 +63,19 @@ table_router_duration = time.time() - table_router_start
 # tool_router_start = time.time()
 tool_router_start = time.time()
 from src.tool.router import router as tool_router
+
 tool_router_duration = time.time() - tool_router_start
 
 mcp_v2_router_start = time.time()
 from src.mcp_v2.router import router as mcp_v2_router
+
 mcp_v2_router_duration = time.time() - mcp_v2_router_start
 
 # context_publish_router_start = time.time()
 context_publish_router_start = time.time()
 from src.context_publish.router import router as context_publish_router
 from src.context_publish.router import public_router as context_publish_public_router
+
 context_publish_router_duration = time.time() - context_publish_router_start
 
 # s3_router_start = time.time()
@@ -76,22 +87,27 @@ etl_router_duration = 0.0
 if settings.etl_enabled:
     etl_router_start = time.time()
     from src.etl.router import router as etl_router
+
     etl_router_duration = time.time() - etl_router_start
 
 project_router_start = time.time()
 from src.project.router import router as project_router
+
 project_router_duration = time.time() - project_router_start
 
 connect_router_start = time.time()
 from src.connect.router import router as connect_router
+
 connect_router_duration = time.time() - connect_router_start
 
 oauth_router_start = time.time()
 from src.oauth.router import router as oauth_router
+
 oauth_router_duration = time.time() - oauth_router_start
 
 internal_router_start = time.time()
 from src.internal.router import router as internal_router
+
 internal_router_duration = time.time() - internal_router_start
 
 routers_duration = (
@@ -115,32 +131,33 @@ async def app_lifespan(app: FastAPI):
     可以在这里初始化数据库连接、缓存等资源
     """
     # 启动时的初始化逻辑
-    lifespan_start = time.time()
     log_info("=" * 80)
     log_info("🚀 ContextBase API 启动中...")
     log_info("=" * 80)
-    
+
     # 输出模块导入时间
-    log_info(f"📦 模块导入耗时统计:")
-    log_info(f"  ├─ .env 加载: {dotenv_duration*1000:.2f}ms")
-    log_info(f"  ├─ 配置模块 (config): {config_duration*1000:.2f}ms")
-    log_info(f"  ├─ 异常处理模块 (exceptions): {exceptions_duration*1000:.2f}ms")
-    log_info(f"  ├─ 日志模块 (logger): {logger_duration*1000:.2f}ms")
-    log_info(f"  ├─ 路由模块:")
-    log_info(f"  │  ├─ table_router: {table_router_duration*1000:.2f}ms")
-    log_info(f"  │  ├─ tool_router: {tool_router_duration*1000:.2f}ms")
-    log_info(f"  │  ├─ mcp_router(v2): {mcp_v2_router_duration*1000:.2f}ms")
-    log_info(f"  │  ├─ context_publish_router: {context_publish_router_duration*1000:.2f}ms")
+    log_info("📦 模块导入耗时统计:")
+    log_info(f"  ├─ .env 加载: {dotenv_duration * 1000:.2f}ms")
+    log_info(f"  ├─ 配置模块 (config): {config_duration * 1000:.2f}ms")
+    log_info(f"  ├─ 异常处理模块 (exceptions): {exceptions_duration * 1000:.2f}ms")
+    log_info(f"  ├─ 日志模块 (logger): {logger_duration * 1000:.2f}ms")
+    log_info("  ├─ 路由模块:")
+    log_info(f"  │  ├─ table_router: {table_router_duration * 1000:.2f}ms")
+    log_info(f"  │  ├─ tool_router: {tool_router_duration * 1000:.2f}ms")
+    log_info(f"  │  ├─ mcp_router(v2): {mcp_v2_router_duration * 1000:.2f}ms")
+    log_info(
+        f"  │  ├─ context_publish_router: {context_publish_router_duration * 1000:.2f}ms"
+    )
     if settings.etl_enabled:
-        log_info(f"  │  ├─ etl_router: {etl_router_duration*1000:.2f}ms")
+        log_info(f"  │  ├─ etl_router: {etl_router_duration * 1000:.2f}ms")
     else:
         log_info("  │  ├─ etl_router: skipped (ENABLE_ETL=0 or DEBUG auto)")
-    log_info(f"  │  ├─ project_router: {project_router_duration*1000:.2f}ms")
-    log_info(f"  │  ├─ connect_router: {connect_router_duration*1000:.2f}ms")
-    log_info(f"  │  ├─ oauth_router: {oauth_router_duration*1000:.2f}ms")
-    log_info(f"  │  └─ internal_router: {internal_router_duration*1000:.2f}ms")
-    log_info(f"  └─ 路由总耗时: {routers_duration*1000:.2f}ms")
-    log_info(f"📊 总导入时间: {(time.time() - APP_START_TIME)*1000:.2f}ms")
+    log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
+    log_info(f"  │  ├─ connect_router: {connect_router_duration * 1000:.2f}ms")
+    log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
+    log_info(f"  │  └─ internal_router: {internal_router_duration * 1000:.2f}ms")
+    log_info(f"  └─ 路由总耗时: {routers_duration * 1000:.2f}ms")
+    log_info(f"📊 总导入时间: {(time.time() - APP_START_TIME) * 1000:.2f}ms")
     log_info("")
 
     # 1. MCP模块: 检查 MCP Server 健康状态
@@ -152,13 +169,17 @@ async def app_lifespan(app: FastAPI):
         mcp_service = get_mcp_instance_service()
         health_result = await mcp_service.check_mcp_server_health()
         mcp_duration = time.time() - mcp_init_start
-        if health_result.get("status","") != "unhealthy":
-            log_info(f"✅ MCP Server 健康检查完成: {health_result} (耗时: {mcp_duration*1000:.2f}ms)")
+        if health_result.get("status", "") != "unhealthy":
+            log_info(
+                f"✅ MCP Server 健康检查完成: {health_result} (耗时: {mcp_duration * 1000:.2f}ms)"
+            )
         else:
             log_error(f"❌ MCP Server停机, 健康信息: {health_result}")
     except Exception as e:
         mcp_duration = time.time() - mcp_init_start
-        log_error(f"❌ MCP Server 健康检查失败 (耗时: {mcp_duration*1000:.2f}ms): {e}")
+        log_error(
+            f"❌ MCP Server 健康检查失败 (耗时: {mcp_duration * 1000:.2f}ms): {e}"
+        )
 
     # 2. 初始化 ETL 服务（需要启用 ETL）
     if settings.etl_enabled:
@@ -169,20 +190,20 @@ async def app_lifespan(app: FastAPI):
             from pathlib import Path
 
             etl_service = await get_etl_service()
-            
+
             # 创建必要的目录
             Path(".mineru_cache").mkdir(parents=True, exist_ok=True)
             Path(".etl_rules").mkdir(parents=True, exist_ok=True)
-            
+
             # 启动 ETL 控制面（worker 由独立进程启动）
             await etl_service.start()
             etl_duration = time.time() - etl_init_start
-            log_info(f"✅ ETL 服务启动成功 (耗时: {etl_duration*1000:.2f}ms)")
+            log_info(f"✅ ETL 服务启动成功 (耗时: {etl_duration * 1000:.2f}ms)")
             if settings.DEBUG:
                 log_info("   ℹ️  DEBUG 模式下 ETL workers 已启动（用于开发测试）")
         except Exception as e:
             etl_duration = time.time() - etl_init_start
-            log_error(f"❌ ETL 服务启动失败 (耗时: {etl_duration*1000:.2f}ms): {e}")
+            log_error(f"❌ ETL 服务启动失败 (耗时: {etl_duration * 1000:.2f}ms): {e}")
     else:
         log_info("⏭️  ETL 服务已跳过（ENABLE_ETL 关闭）")
 
@@ -190,19 +211,21 @@ async def app_lifespan(app: FastAPI):
     total_startup_time = time.time() - APP_START_TIME
     log_info("")
     log_info("=" * 80)
-    log_info(f"✨ ContextBase API 启动完成! 总耗时: {total_startup_time*1000:.2f}ms ({total_startup_time:.3f}s)")
+    log_info(
+        f"✨ ContextBase API 启动完成! 总耗时: {total_startup_time * 1000:.2f}ms ({total_startup_time:.3f}s)"
+    )
     log_info("=" * 80)
     log_info("")
 
     yield
     # 关闭时的清理逻辑
     log_info("ContextBase API 关闭中...")
-    
+
     # 停止 ETL 服务（需要启用 ETL）
     if settings.etl_enabled:
         try:
             from src.etl.dependencies import get_etl_service
-            
+
             etl_service = await get_etl_service()
             await etl_service.stop()
             log_info("ETL service stopped successfully")
@@ -239,6 +262,7 @@ def create_app() -> FastAPI:
 
     # Request context + access log（X-Request-Id / latency / status_code）
     from src.utils.middleware import RequestContextMiddleware
+
     app.add_middleware(RequestContextMiddleware)
 
     # 注册路由
@@ -256,7 +280,9 @@ def create_app() -> FastAPI:
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
     app.include_router(connect_router, prefix="/api/v1", tags=["connect"])
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
-    app.include_router(internal_router, tags=["internal"])  # Internal API不加/api/v1前缀
+    app.include_router(
+        internal_router, tags=["internal"]
+    )  # Internal API不加/api/v1前缀
     router_register_duration = time.time() - router_register_start
 
     # 注册异常处理器
@@ -268,14 +294,14 @@ def create_app() -> FastAPI:
     exception_handler_duration = time.time() - exception_handler_start
 
     app_create_duration = time.time() - app_create_start
-    
+
     # 统一用日志输出（已在文件顶部 setup_logging）
     log_info("⚙️  FastAPI 应用创建耗时统计:")
-    log_info(f"  ├─ FastAPI 实例化: {fastapi_duration*1000:.2f}ms")
-    log_info(f"  ├─ CORS 中间件配置: {cors_duration*1000:.2f}ms")
-    log_info(f"  ├─ 路由注册: {router_register_duration*1000:.2f}ms")
-    log_info(f"  └─ 异常处理器注册: {exception_handler_duration*1000:.2f}ms")
-    log_info(f"📦 应用创建总耗时: {app_create_duration*1000:.2f}ms")
+    log_info(f"  ├─ FastAPI 实例化: {fastapi_duration * 1000:.2f}ms")
+    log_info(f"  ├─ CORS 中间件配置: {cors_duration * 1000:.2f}ms")
+    log_info(f"  ├─ 路由注册: {router_register_duration * 1000:.2f}ms")
+    log_info(f"  └─ 异常处理器注册: {exception_handler_duration * 1000:.2f}ms")
+    log_info(f"📦 应用创建总耗时: {app_create_duration * 1000:.2f}ms")
     log_info("")
 
     return app
@@ -286,27 +312,27 @@ app = create_app()
 
 
 @app.get("/health")
-async def health_check(
-    mcp_service = Depends(get_mcp_instance_service)
-):
+async def health_check(mcp_service=Depends(get_mcp_instance_service)):
     """健康检查接口"""
     import os
-    
+
     # 检查关键环境变量
     env_status = {
-        "supabase_configured": bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY")),
+        "supabase_configured": bool(
+            os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY")
+        ),
         "s3_configured": bool(os.getenv("S3_BUCKET_NAME")),
         "mineru_configured": bool(os.getenv("MINERU_API_KEY")),
     }
 
     health_result = await mcp_service.check_mcp_server_health()
-    
+
     return {
         "status": "healthy",
         "service": "ContextBase API",
         "version": settings.VERSION,
         "environment": env_status,
-        "mcp_status": health_result
+        "mcp_status": health_result,
     }
 
 

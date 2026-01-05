@@ -1,7 +1,7 @@
 """Notion provider for parsing Notion databases and pages."""
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional
 from urllib.parse import urlparse
 import httpx
 
@@ -13,7 +13,9 @@ from src.oauth.notion_service import NotionOAuthService
 class NotionProvider(DataProvider):
     """Provider for Notion data sources."""
 
-    def __init__(self, user_id: str, notion_service: Optional[NotionOAuthService] = None):
+    def __init__(
+        self, user_id: str, notion_service: Optional[NotionOAuthService] = None
+    ):
         self.user_id = user_id
         self.notion_service = notion_service or NotionOAuthService()
         self.client = httpx.AsyncClient()
@@ -24,7 +26,11 @@ class NotionProvider(DataProvider):
         domain = parsed.netloc.lower()
 
         # Handle both notion.so and notion.site domains
-        return domain in ["notion.so", "notion.site"] or domain.endswith(".notion.so") or domain.endswith(".notion.site")
+        return (
+            domain in ["notion.so", "notion.site"]
+            or domain.endswith(".notion.so")
+            or domain.endswith(".notion.site")
+        )
 
     async def fetch_data(self, url: str) -> DataProviderResult:
         """Fetch data from Notion URL."""
@@ -34,7 +40,7 @@ class NotionProvider(DataProvider):
             raise AuthenticationError(
                 "Not connected to Notion. Please authorize your Notion account first.",
                 provider="notion",
-                requires_auth=True
+                requires_auth=True,
             )
 
         # Check if token is expired and refresh if needed
@@ -44,7 +50,7 @@ class NotionProvider(DataProvider):
                 raise AuthenticationError(
                     "Notion authorization expired. Please reconnect your Notion account.",
                     provider="notion",
-                    requires_auth=True
+                    requires_auth=True,
                 )
 
         # Extract page or database ID from URL
@@ -65,35 +71,45 @@ class NotionProvider(DataProvider):
                 raise AuthenticationError(
                     "Notion authorization failed. Please reconnect your Notion account.",
                     provider="notion",
-                    requires_auth=True
+                    requires_auth=True,
                 )
-            
+
             # If we got a 400 error saying it's a page when we tried database (or vice versa), retry with the other type
             if e.response.status_code == 400:
                 try:
                     error_data = e.response.json()
                     error_message = error_data.get("message", "")
-                    
+
                     # If we tried database but it's actually a page
                     if "is a page, not a database" in error_message and is_database:
-                        return await self._fetch_page(entity_id, connection.access_token)
-                    
-                    # If we tried page but it's actually a database
-                    elif "is a database, not a page" in error_message and not is_database:
-                        return await self._fetch_database(entity_id, connection.access_token)
-                except:
-                    pass
-            
-            raise ValueError(f"Failed to fetch Notion data: {e.response.status_code} - {e.response.text}")
+                        return await self._fetch_page(
+                            entity_id, connection.access_token
+                        )
 
-    async def _fetch_database(self, database_id: str, access_token: str) -> DataProviderResult:
+                    # If we tried page but it's actually a database
+                    elif (
+                        "is a database, not a page" in error_message and not is_database
+                    ):
+                        return await self._fetch_database(
+                            entity_id, connection.access_token
+                        )
+                except Exception:
+                    pass
+
+            raise ValueError(
+                f"Failed to fetch Notion data: {e.response.status_code} - {e.response.text}"
+            )
+
+    async def _fetch_database(
+        self, database_id: str, access_token: str
+    ) -> DataProviderResult:
         """Fetch Notion database content."""
         # Query the database
         query_url = f"https://api.notion.com/v1/databases/{database_id}/query"
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Notion-Version": "2022-06-28",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         response = await self.client.post(query_url, json={}, headers=headers)
@@ -138,12 +154,14 @@ class NotionProvider(DataProvider):
         for field_name in sorted(fields):
             field_info = properties.get(field_name, {})
             field_type = self._infer_field_type(field_info.get("type", "text"))
-            field_definitions.append({
-                "name": field_name,
-                "type": field_type,
-                "nullable": True,
-                "description": f"Notion {field_info.get('type', 'text')} property"
-            })
+            field_definitions.append(
+                {
+                    "name": field_name,
+                    "type": field_type,
+                    "nullable": True,
+                    "description": f"Notion {field_info.get('type', 'text')} property",
+                }
+            )
 
         return DataProviderResult(
             source_type="notion_database",
@@ -156,8 +174,8 @@ class NotionProvider(DataProvider):
                 "total_rows": len(rows),
                 "total_fields": len(field_definitions),
                 "database_id": database_id,
-                "has_more": data.get("has_more", False)
-            }
+                "has_more": data.get("has_more", False),
+            },
         )
 
     async def _fetch_page(self, page_id: str, access_token: str) -> DataProviderResult:
@@ -166,7 +184,7 @@ class NotionProvider(DataProvider):
         page_url = f"https://api.notion.com/v1/pages/{page_id}"
         headers = {
             "Authorization": f"Bearer {access_token}",
-            "Notion-Version": "2022-06-28"
+            "Notion-Version": "2022-06-28",
         }
 
         response = await self.client.get(page_url, headers=headers)
@@ -190,7 +208,11 @@ class NotionProvider(DataProvider):
             if prop_data.get("type") == "title":
                 title_info = prop_data.get("title", [])
                 if title_info and isinstance(title_info, list):
-                    title_parts = [t.get("plain_text", "") for t in title_info if t.get("plain_text")]
+                    title_parts = [
+                        t.get("plain_text", "")
+                        for t in title_info
+                        if t.get("plain_text")
+                    ]
                     if title_parts:
                         title = " ".join(title_parts)
                 break
@@ -199,14 +221,16 @@ class NotionProvider(DataProvider):
         content = self._extract_blocks_content(blocks_data.get("results", []))
 
         # Create a structured representation of the page
-        structured_content = [{
-            "id": page_id,
-            "title": title,
-            "content": content,
-            "created_time": page_data.get("created_time"),
-            "last_edited_time": page_data.get("last_edited_time"),
-            "url": page_data.get("url")
-        }]
+        structured_content = [
+            {
+                "id": page_id,
+                "title": title,
+                "content": content,
+                "created_time": page_data.get("created_time"),
+                "last_edited_time": page_data.get("last_edited_time"),
+                "url": page_data.get("url"),
+            }
+        ]
 
         # Define fields for page data
         field_definitions = [
@@ -214,32 +238,32 @@ class NotionProvider(DataProvider):
                 "name": "id",
                 "type": "string",
                 "nullable": False,
-                "description": "Page ID"
+                "description": "Page ID",
             },
             {
                 "name": "title",
                 "type": "string",
                 "nullable": False,
-                "description": "Page title"
+                "description": "Page title",
             },
             {
                 "name": "content",
                 "type": "text",
                 "nullable": True,
-                "description": "Page content"
+                "description": "Page content",
             },
             {
                 "name": "created_time",
                 "type": "datetime",
                 "nullable": True,
-                "description": "Page creation time"
+                "description": "Page creation time",
             },
             {
                 "name": "last_edited_time",
                 "type": "datetime",
                 "nullable": True,
-                "description": "Last edit time"
-            }
+                "description": "Last edit time",
+            },
         ]
 
         return DataProviderResult(
@@ -252,14 +276,14 @@ class NotionProvider(DataProvider):
                 "type": "page",
                 "total_blocks": len(blocks_data.get("results", [])),
                 "page_id": page_id,
-                "has_more": blocks_data.get("has_more", False)
-            }
+                "has_more": blocks_data.get("has_more", False),
+            },
         )
 
     def _extract_notion_id(self, url: str) -> Optional[str]:
         """Extract Notion page or database ID from URL."""
         # Pattern to match Notion IDs (32-character hex string)
-        pattern = r'([a-f0-9]{32})'
+        pattern = r"([a-f0-9]{32})"
         matches = re.findall(pattern, url)
         return matches[0] if matches else None
 
@@ -275,11 +299,15 @@ class NotionProvider(DataProvider):
 
         if prop_type == "title":
             title_data = prop_data.get("title", [])
-            return " ".join([t.get("plain_text", "") for t in title_data if t.get("plain_text")])
+            return " ".join(
+                [t.get("plain_text", "") for t in title_data if t.get("plain_text")]
+            )
 
         elif prop_type == "rich_text":
             rich_text_data = prop_data.get("rich_text", [])
-            return " ".join([t.get("plain_text", "") for t in rich_text_data if t.get("plain_text")])
+            return " ".join(
+                [t.get("plain_text", "") for t in rich_text_data if t.get("plain_text")]
+            )
 
         elif prop_type == "select":
             select_data = prop_data.get("select")
@@ -287,7 +315,9 @@ class NotionProvider(DataProvider):
 
         elif prop_type == "multi_select":
             multi_select_data = prop_data.get("multi_select", [])
-            return ", ".join([s.get("name", "") for s in multi_select_data if s.get("name")])
+            return ", ".join(
+                [s.get("name", "") for s in multi_select_data if s.get("name")]
+            )
 
         elif prop_type == "number":
             return prop_data.get("number")
@@ -344,7 +374,7 @@ class NotionProvider(DataProvider):
             "created_time": "datetime",
             "created_by": "string",
             "last_edited_time": "datetime",
-            "last_edited_by": "string"
+            "last_edited_by": "string",
         }
         return type_mapping.get(notion_type, "string")
 
@@ -361,43 +391,57 @@ class NotionProvider(DataProvider):
 
             if block_type == "paragraph":
                 rich_text = block_data.get("rich_text", [])
-                text = " ".join([t.get("plain_text", "") for t in rich_text if t.get("plain_text")])
+                text = " ".join(
+                    [t.get("plain_text", "") for t in rich_text if t.get("plain_text")]
+                )
                 if text:
                     content_parts.append(text)
 
             elif block_type == "heading_1":
                 rich_text = block_data.get("rich_text", [])
-                text = " ".join([t.get("plain_text", "") for t in rich_text if t.get("plain_text")])
+                text = " ".join(
+                    [t.get("plain_text", "") for t in rich_text if t.get("plain_text")]
+                )
                 if text:
                     content_parts.append(f"# {text}")
 
             elif block_type == "heading_2":
                 rich_text = block_data.get("rich_text", [])
-                text = " ".join([t.get("plain_text", "") for t in rich_text if t.get("plain_text")])
+                text = " ".join(
+                    [t.get("plain_text", "") for t in rich_text if t.get("plain_text")]
+                )
                 if text:
                     content_parts.append(f"## {text}")
 
             elif block_type == "heading_3":
                 rich_text = block_data.get("rich_text", [])
-                text = " ".join([t.get("plain_text", "") for t in rich_text if t.get("plain_text")])
+                text = " ".join(
+                    [t.get("plain_text", "") for t in rich_text if t.get("plain_text")]
+                )
                 if text:
                     content_parts.append(f"### {text}")
 
             elif block_type == "bulleted_list_item":
                 rich_text = block_data.get("rich_text", [])
-                text = " ".join([t.get("plain_text", "") for t in rich_text if t.get("plain_text")])
+                text = " ".join(
+                    [t.get("plain_text", "") for t in rich_text if t.get("plain_text")]
+                )
                 if text:
                     content_parts.append(f"• {text}")
 
             elif block_type == "numbered_list_item":
                 rich_text = block_data.get("rich_text", [])
-                text = " ".join([t.get("plain_text", "") for t in rich_text if t.get("plain_text")])
+                text = " ".join(
+                    [t.get("plain_text", "") for t in rich_text if t.get("plain_text")]
+                )
                 if text:
                     content_parts.append(f"1. {text}")
 
             elif block_type == "to_do":
                 rich_text = block_data.get("rich_text", [])
-                text = " ".join([t.get("plain_text", "") for t in rich_text if t.get("plain_text")])
+                text = " ".join(
+                    [t.get("plain_text", "") for t in rich_text if t.get("plain_text")]
+                )
                 checked = block_data.get("checked", False)
                 if text:
                     checkbox = "☑" if checked else "☐"
@@ -405,20 +449,26 @@ class NotionProvider(DataProvider):
 
             elif block_type == "toggle":
                 rich_text = block_data.get("rich_text", [])
-                text = " ".join([t.get("plain_text", "") for t in rich_text if t.get("plain_text")])
+                text = " ".join(
+                    [t.get("plain_text", "") for t in rich_text if t.get("plain_text")]
+                )
                 if text:
                     content_parts.append(f"> {text}")
 
             elif block_type == "code":
                 rich_text = block_data.get("rich_text", [])
-                text = "\n".join([t.get("plain_text", "") for t in rich_text if t.get("plain_text")])
+                text = "\n".join(
+                    [t.get("plain_text", "") for t in rich_text if t.get("plain_text")]
+                )
                 if text:
                     language = block_data.get("language", "")
                     content_parts.append(f"```{language}\n{text}\n```")
 
             elif block_type == "quote":
                 rich_text = block_data.get("rich_text", [])
-                text = " ".join([t.get("plain_text", "") for t in rich_text if t.get("plain_text")])
+                text = " ".join(
+                    [t.get("plain_text", "") for t in rich_text if t.get("plain_text")]
+                )
                 if text:
                     content_parts.append(f"> {text}")
 

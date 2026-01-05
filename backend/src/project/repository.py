@@ -66,6 +66,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         """
         if supabase_repo is None:
             from src.supabase.dependencies import get_supabase_repository
+
             self._supabase_repo = get_supabase_repository()
         else:
             self._supabase_repo = supabase_repo
@@ -168,20 +169,20 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
     def verify_project_access(self, project_id: int, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的项目
-        
+
         检查 project.user_id 是否等于用户ID
-        
+
         Args:
             project_id: 项目ID
             user_id: 用户ID
-            
+
         Returns:
             如果用户有权限返回True，否则返回False
         """
         project = self.get_by_id(project_id)
         if not project:
             return False
-        
+
         # 检查项目是否属于当前用户
         return project.user_id == user_id
 

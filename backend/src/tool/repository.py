@@ -4,7 +4,10 @@ from abc import ABC, abstractmethod
 from typing import Optional, List
 
 from src.supabase.repository import SupabaseRepository
-from src.supabase.tools.schemas import ToolCreate as SbToolCreate, ToolUpdate as SbToolUpdate
+from src.supabase.tools.schemas import (
+    ToolCreate as SbToolCreate,
+    ToolUpdate as SbToolUpdate,
+)
 from src.tool.models import Tool
 
 
@@ -75,7 +78,9 @@ class ToolRepositorySupabase(ToolRepositoryBase):
         limit: int = 100,
         table_id: Optional[int] = None,
     ) -> List[Tool]:
-        resps = self._repo.get_tools(skip=skip, limit=limit, user_id=user_id, table_id=table_id)
+        resps = self._repo.get_tools(
+            skip=skip, limit=limit, user_id=user_id, table_id=table_id
+        )
         return [self._to_model(r) for r in resps]
 
     def update(self, tool_id: int, tool: SbToolUpdate) -> Optional[Tool]:
@@ -86,5 +91,3 @@ class ToolRepositorySupabase(ToolRepositoryBase):
 
     def delete(self, tool_id: int) -> bool:
         return self._repo.delete_tool(tool_id)
-
-

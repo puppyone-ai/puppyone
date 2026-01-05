@@ -49,4 +49,3 @@ class MineRUAPIKeyError(MineRUError):
         super().__init__(
             "MineRU API key is missing. Please set the MINERU_API_KEY environment variable."
         )
-
