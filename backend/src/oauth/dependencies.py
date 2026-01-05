@@ -8,6 +8,9 @@ from fastapi.security import HTTPBearer
 from src.auth.dependencies import get_current_user
 from src.oauth.notion_service import NotionOAuthService
 from src.oauth.github_service import GithubOAuthService
+from src.oauth.google_sheets_service import GoogleSheetsOAuthService
+from src.oauth.linear_service import LinearOAuthService
+from src.oauth.airtable_service import AirtableOAuthService
 from src.oauth.repository import OAuthRepository
 
 
@@ -23,6 +26,21 @@ def get_notion_service() -> NotionOAuthService:
 def get_github_service() -> GithubOAuthService:
     """Get GitHub OAuth service instance."""
     return GithubOAuthService()
+
+
+def get_google_sheets_service() -> GoogleSheetsOAuthService:
+    """Get Google Sheets OAuth service instance."""
+    return GoogleSheetsOAuthService()
+
+
+def get_linear_service() -> LinearOAuthService:
+    """Get Linear OAuth service instance."""
+    return LinearOAuthService()
+
+
+def get_airtable_service() -> AirtableOAuthService:
+    """Get Airtable OAuth service instance."""
+    return AirtableOAuthService()
 
 
 def get_oauth_repository() -> OAuthRepository:

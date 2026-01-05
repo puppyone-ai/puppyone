@@ -7,9 +7,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from src.config import settings
 from src.auth.dependencies import get_current_user
 from src.common_schemas import ApiResponse
-from src.oauth.dependencies import get_notion_service, get_github_service
+from src.oauth.dependencies import (
+    get_notion_service,
+    get_github_service,
+    get_google_sheets_service,
+    get_linear_service,
+    get_airtable_service,
+)
 from src.oauth.notion_service import NotionOAuthService
 from src.oauth.github_service import GithubOAuthService
+from src.oauth.google_sheets_service import GoogleSheetsOAuthService
+from src.oauth.linear_service import LinearOAuthService
+from src.oauth.airtable_service import AirtableOAuthService
 from src.oauth.schemas import (
     OAuthAuthorizeResponse,
     OAuthCallbackRequest,
@@ -320,5 +329,379 @@ async def oauth_callback_browser(
 
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Failed to handle OAuth callback: {str(e)}"
+            status_code=500,
+            detail=f"Failed to handle OAuth callback: {str(e)}"
+        )
+
+
+# Google Sheets OAuth endpoints
+@router.get("/google-sheets/authorize", response_model=ApiResponse[OAuthAuthorizeResponse])
+async def google_sheets_authorize(
+    google_sheets_service: Annotated[GoogleSheetsOAuthService, Depends(get_google_sheets_service)],
+):
+    """Get Google Sheets OAuth authorization URL."""
+    try:
+        if not settings.GOOGLE_SHEETS_CLIENT_ID or not settings.GOOGLE_SHEETS_CLIENT_SECRET:
+            raise HTTPException(
+                status_code=500,
+                detail="Google Sheets OAuth is not configured. Please set GOOGLE_SHEETS_CLIENT_ID and GOOGLE_SHEETS_CLIENT_SECRET environment variables.",
+            )
+
+        authorization_url, _ = await google_sheets_service.get_authorization_url()
+        return ApiResponse.success(
+            data=OAuthAuthorizeResponse(authorization_url=authorization_url),
+            message="Google Sheets authorization URL generated successfully",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate Google Sheets authorization URL: {str(e)}")
+
+
+@router.post("/google-sheets/callback", response_model=ApiResponse[OAuthCallbackResponse])
+async def google_sheets_callback(
+    request: OAuthCallbackRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_sheets_service: Annotated[GoogleSheetsOAuthService, Depends(get_google_sheets_service)],
+):
+    """Handle Google Sheets OAuth callback."""
+    try:
+        success, message, connection_info = await google_sheets_service.handle_callback(
+            user_id=current_user.user_id,
+            code=request.code,
+        )
+
+        return ApiResponse.success(
+            data=OAuthCallbackResponse(
+                success=success,
+                message=message,
+                workspace_name=connection_info.get("email") if connection_info else None,
+            ),
+            message="Google Sheets OAuth callback processed",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to handle Google Sheets callback: {str(e)}",
+        )
+
+
+@router.get("/google-sheets/status", response_model=ApiResponse[OAuthStatusResponse])
+async def google_sheets_status(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_sheets_service: Annotated[GoogleSheetsOAuthService, Depends(get_google_sheets_service)],
+):
+    """Check Google Sheets connection status."""
+    try:
+        connection = await google_sheets_service.get_connection(current_user.user_id)
+
+        if connection:
+            is_expired = await google_sheets_service.is_token_expired(current_user.user_id)
+            if is_expired:
+                connection = await google_sheets_service.refresh_token_if_needed(current_user.user_id)
+
+            return ApiResponse.success(
+                data=OAuthStatusResponse(
+                    connected=connection is not None,
+                    workspace_name=connection.workspace_name if connection else None,
+                    connected_at=connection.created_at if connection else None,
+                ),
+                message="Google Sheets connection status retrieved",
+            )
+
+        return ApiResponse.success(
+            data=OAuthStatusResponse(
+                connected=False,
+                workspace_name=None,
+                connected_at=None,
+            ),
+            message="Google Sheets connection status retrieved",
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check Google Sheets status: {str(e)}",
+        )
+
+
+@router.delete("/google-sheets/disconnect", response_model=ApiResponse[OAuthDisconnectResponse])
+async def google_sheets_disconnect(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_sheets_service: Annotated[GoogleSheetsOAuthService, Depends(get_google_sheets_service)],
+):
+    """Disconnect Google Sheets integration."""
+    try:
+        success = await google_sheets_service.disconnect(current_user.user_id)
+
+        if success:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=True,
+                    message="Successfully disconnected from Google Sheets",
+                ),
+                message="Google Sheets disconnected",
+            )
+        else:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=False,
+                    message="No active Google Sheets connection found",
+                ),
+                message="No active Google Sheets connection",
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to disconnect from Google Sheets: {str(e)}",
+        )
+
+
+# Linear OAuth endpoints
+@router.get("/linear/authorize", response_model=ApiResponse[OAuthAuthorizeResponse])
+async def linear_authorize(
+    linear_service: Annotated[LinearOAuthService, Depends(get_linear_service)],
+):
+    """Get Linear OAuth authorization URL."""
+    try:
+        if not settings.LINEAR_CLIENT_ID or not settings.LINEAR_CLIENT_SECRET:
+            raise HTTPException(
+                status_code=500,
+                detail="Linear OAuth is not configured. Please set LINEAR_CLIENT_ID and LINEAR_CLIENT_SECRET environment variables.",
+            )
+
+        authorization_url, _ = await linear_service.get_authorization_url()
+        return ApiResponse.success(
+            data=OAuthAuthorizeResponse(authorization_url=authorization_url),
+            message="Linear authorization URL generated successfully",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate Linear authorization URL: {str(e)}")
+
+
+@router.post("/linear/callback", response_model=ApiResponse[OAuthCallbackResponse])
+async def linear_callback(
+    request: OAuthCallbackRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    linear_service: Annotated[LinearOAuthService, Depends(get_linear_service)],
+):
+    """Handle Linear OAuth callback."""
+    try:
+        success, message, connection_info = await linear_service.handle_callback(
+            user_id=current_user.user_id,
+            code=request.code,
+        )
+
+        return ApiResponse.success(
+            data=OAuthCallbackResponse(
+                success=success,
+                message=message,
+                workspace_name=connection_info.get("username") if connection_info else None,
+            ),
+            message="Linear OAuth callback processed",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to handle Linear callback: {str(e)}",
+        )
+
+
+@router.get("/linear/status", response_model=ApiResponse[OAuthStatusResponse])
+async def linear_status(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    linear_service: Annotated[LinearOAuthService, Depends(get_linear_service)],
+):
+    """Check Linear connection status."""
+    try:
+        connection = await linear_service.get_connection(current_user.user_id)
+
+        if connection:
+            is_expired = await linear_service.is_token_expired(current_user.user_id)
+            if is_expired:
+                connection = await linear_service.refresh_token_if_needed(current_user.user_id)
+
+            return ApiResponse.success(
+                data=OAuthStatusResponse(
+                    connected=connection is not None,
+                    workspace_name=connection.workspace_name if connection else None,
+                    connected_at=connection.created_at if connection else None,
+                ),
+                message="Linear connection status retrieved",
+            )
+
+        return ApiResponse.success(
+            data=OAuthStatusResponse(
+                connected=False,
+                workspace_name=None,
+                connected_at=None,
+            ),
+            message="Linear connection status retrieved",
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check Linear status: {str(e)}",
+        )
+
+
+@router.delete("/linear/disconnect", response_model=ApiResponse[OAuthDisconnectResponse])
+async def linear_disconnect(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    linear_service: Annotated[LinearOAuthService, Depends(get_linear_service)],
+):
+    """Disconnect Linear integration."""
+    try:
+        success = await linear_service.disconnect(current_user.user_id)
+
+        if success:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=True,
+                    message="Successfully disconnected from Linear",
+                ),
+                message="Linear disconnected",
+            )
+        else:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=False,
+                    message="No active Linear connection found",
+                ),
+                message="No active Linear connection",
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to disconnect from Linear: {str(e)}",
+        )
+
+
+# Airtable OAuth endpoints
+@router.get("/airtable/authorize", response_model=ApiResponse[OAuthAuthorizeResponse])
+async def airtable_authorize(
+    airtable_service: Annotated[AirtableOAuthService, Depends(get_airtable_service)],
+):
+    """Get Airtable OAuth authorization URL."""
+    try:
+        if not settings.AIRTABLE_CLIENT_ID or not settings.AIRTABLE_CLIENT_SECRET:
+            raise HTTPException(
+                status_code=500,
+                detail="Airtable OAuth is not configured. Please set AIRTABLE_CLIENT_ID and AIRTABLE_CLIENT_SECRET environment variables.",
+            )
+
+        authorization_url, _ = await airtable_service.get_authorization_url()
+        return ApiResponse.success(
+            data=OAuthAuthorizeResponse(authorization_url=authorization_url),
+            message="Airtable authorization URL generated successfully",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate Airtable authorization URL: {str(e)}")
+
+
+@router.post("/airtable/callback", response_model=ApiResponse[OAuthCallbackResponse])
+async def airtable_callback(
+    request: OAuthCallbackRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    airtable_service: Annotated[AirtableOAuthService, Depends(get_airtable_service)],
+):
+    """Handle Airtable OAuth callback."""
+    try:
+        success, message, connection_info = await airtable_service.handle_callback(
+            user_id=current_user.user_id,
+            code=request.code,
+            state=request.state,
+        )
+
+        return ApiResponse.success(
+            data=OAuthCallbackResponse(
+                success=success,
+                message=message,
+                workspace_name=connection_info.get("workspace") if connection_info else None,
+            ),
+            message="Airtable OAuth callback processed",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to handle Airtable callback: {str(e)}",
+        )
+
+
+@router.get("/airtable/status", response_model=ApiResponse[OAuthStatusResponse])
+async def airtable_status(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    airtable_service: Annotated[AirtableOAuthService, Depends(get_airtable_service)],
+):
+    """Check Airtable connection status."""
+    try:
+        connection = await airtable_service.get_connection(current_user.user_id)
+
+        if connection:
+            is_expired = await airtable_service.is_token_expired(current_user.user_id)
+            if is_expired:
+                connection = await airtable_service.refresh_token_if_needed(current_user.user_id)
+
+            return ApiResponse.success(
+                data=OAuthStatusResponse(
+                    connected=connection is not None,
+                    workspace_name=connection.workspace_name if connection else None,
+                    connected_at=connection.created_at if connection else None,
+                ),
+                message="Airtable connection status retrieved",
+            )
+
+        return ApiResponse.success(
+            data=OAuthStatusResponse(
+                connected=False,
+                workspace_name=None,
+                connected_at=None,
+            ),
+            message="Airtable connection status retrieved",
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check Airtable status: {str(e)}",
+        )
+
+
+@router.delete("/airtable/disconnect", response_model=ApiResponse[OAuthDisconnectResponse])
+async def airtable_disconnect(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    airtable_service: Annotated[AirtableOAuthService, Depends(get_airtable_service)],
+):
+    """Disconnect Airtable integration."""
+    try:
+        success = await airtable_service.disconnect(current_user.user_id)
+
+        if success:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=True,
+                    message="Successfully disconnected from Airtable",
+                ),
+                message="Airtable disconnected",
+            )
+        else:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=False,
+                    message="No active Airtable connection found",
+                ),
+                message="No active Airtable connection",
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to disconnect from Airtable: {str(e)}",
         )
