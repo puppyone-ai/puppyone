@@ -29,6 +29,7 @@ dependencies = [
     "supabase>=2.25.0",
     "uvicorn>=0.38.0",
     "arq>=0.26.3",
+    "turbopuffer>=1.12.0",
 ]
 
 [tool.pytest.ini_options]

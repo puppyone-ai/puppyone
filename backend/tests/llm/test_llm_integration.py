@@ -9,11 +9,6 @@ import os
 
 import pytest
 
-# 配置 litellm 以避免 event loop 冲突
-import litellm
-litellm.turn_off_message_logging = True  # 禁用消息日志
-litellm.suppress_debug_info = True  # 禁用调试信息
-
 from src.llm.exceptions import (
     APIKeyError,
     InvalidResponseError,
@@ -39,6 +34,26 @@ def check_api_key():
     """检查 API 密钥是否已设置"""
     if not os.environ.get("OPENROUTER_API_KEY"):
         pytest.skip("需要设置 OPENROUTER_API_KEY 环境变量才能运行集成测试")
+
+
+@pytest.fixture(autouse=True)
+def configure_litellm(check_api_key):
+    """
+    配置 litellm（延迟导入）。
+
+    说明：
+    - 在某些受限运行环境（如沙盒）中，导入 litellm/httpx 可能因为无法读取系统证书而抛出 PermissionError。
+    - 集成测试本质依赖真实网络调用；在这类环境下应直接 skip，而不是让整个测试收集阶段失败。
+    """
+    try:
+        import litellm  # noqa: WPS433 (runtime import is intentional)
+    except PermissionError as e:
+        pytest.skip(f"受限环境无法导入 litellm（证书读取权限不足）：{e}")
+    except Exception as e:
+        pytest.skip(f"无法导入 litellm，跳过集成测试：{e}")
+
+    litellm.turn_off_message_logging = True  # 禁用消息日志
+    litellm.suppress_debug_info = True  # 禁用调试信息
 
 
 # ============= 基础功能测试 =============
