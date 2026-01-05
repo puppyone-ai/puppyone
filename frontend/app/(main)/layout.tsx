@@ -91,8 +91,7 @@ export default function MainLayout({
       }
       return next;
     });
-    // 跳转
-    router.push(`/projects/${projectId}`);
+    // 不需要跳转，只做展开收起交互
   };
 
   const handleTableClick = (projectId: string, tableId: string) => {
