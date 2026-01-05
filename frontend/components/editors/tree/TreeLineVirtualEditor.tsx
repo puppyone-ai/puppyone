@@ -271,6 +271,7 @@ const styles = {
     paddingRight: 0,
     paddingTop: extraPaddingTop, // 容器顶部间距
     paddingBottom: extraPaddingBottom, // 容器底部间距
+    overflow: 'hidden', // 关键：防止内容溢出行边界
     // 只保留 hover 态高亮，移除选中态的持久高亮，避免用户视觉焦点混乱
     background: isHovered ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
     cursor: 'pointer',
@@ -604,8 +605,10 @@ const VirtualRow = React.memo(
             alignItems: 'flex-start',
             marginLeft: contentLeft,
             paddingTop: 0,
-            paddingRight: 0, // 移除右侧内边距，因为没有负 margin 了
+            paddingRight: 0,
             flex: 1,
+            minWidth: 0, // 关键：允许 flex 子项收缩到比内容更小
+            overflow: 'hidden', // 关键：配合 minWidth: 0 实现截断
           }}
         >
           {/* Key + 分隔线（根节点不显示） */}
@@ -730,10 +733,12 @@ const VirtualRow = React.memo(
               display: 'flex',
               alignItems: 'center',
               flex: 1,
+              minWidth: 0, // 关键：允许 flex 子项收缩
+              overflow: 'hidden', // 关键：隐藏溢出内容
               borderRadius: 4,
               padding: '0 8px',
               minHeight: 28,
-              margin: '0', // 移除负 margin
+              margin: '0',
               transition: 'all 0.12s',
               // 未配置时：popover 打开后显示橙色背景
               ...(isPopoverOwner && !isConfigured
@@ -772,7 +777,7 @@ const VirtualRow = React.memo(
         </div>
 
         {/* MCP 按钮容器 - position: relative 用于 popover 定位 */}
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
           <RightAccessControl
             path={node.path}
             configuredAccess={configuredAccess ?? null}

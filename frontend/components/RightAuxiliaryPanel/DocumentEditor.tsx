@@ -53,33 +53,37 @@ export function DocumentEditor({
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        background: '#161618',
+        background: '#0f0f11', // 与卡片背景一致
         overflow: 'hidden',
         height: '100%',
       }}
     >
-      {/* Header - 收起/模式切换 (左) + 字数 (右) */}
+      {/* Header */}
       <div
         style={{
-          padding: '10px 12px',
-          borderBottom: '1px solid #2a2a2a',
+          height: 46,
+          padding: '0 16px',
+          borderBottom: '1px solid #1a1a1c',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexShrink: 0,
+          background: '#0f0f11',
         }}
       >
         {/* 左侧：收起按钮 + 全屏按钮 + Preview / Raw 切换 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* 收起按钮 (Notion 风格) */}
+          {/* 收起按钮 */}
           <button
             onClick={onClose}
             style={{
+              width: 28,
+              height: 28,
               background: 'transparent',
               border: 'none',
               color: '#6b7280',
               cursor: 'pointer',
-              padding: 4,
+              padding: 0,
               borderRadius: 4,
               display: 'flex',
               alignItems: 'center',
@@ -103,15 +107,17 @@ export function DocumentEditor({
             </svg>
           </button>
 
-          {/* 全屏按钮 (Toggle) */}
+          {/* 全屏按钮 - 28x28 统一尺寸 */}
           <button
             onClick={onToggleFullScreen}
             style={{
+              width: 28,
+              height: 28,
               background: 'transparent',
               border: 'none',
               color: '#6b7280',
               cursor: 'pointer',
-              padding: 4,
+              padding: 0,
               borderRadius: 4,
               display: 'flex',
               alignItems: 'center',
@@ -124,8 +130,8 @@ export function DocumentEditor({
             {isFullScreen ? (
               // 退出全屏图标
               <svg
-                width='14'
-                height='14'
+                width='16'
+                height='16'
                 viewBox='0 0 24 24'
                 fill='none'
                 stroke='currentColor'
@@ -138,8 +144,8 @@ export function DocumentEditor({
             ) : (
               // 进入全屏图标 (Open as page / Fullscreen)
               <svg
-                width='14'
-                height='14'
+                width='16'
+                height='16'
                 viewBox='0 0 24 24'
                 fill='none'
                 stroke='currentColor'
