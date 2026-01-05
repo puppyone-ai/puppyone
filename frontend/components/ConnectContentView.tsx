@@ -149,9 +149,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const [githubStatus, setGithubStatus] = useState<GithubStatusResponse>({
     connected: false,
   });
-  const [googleSheetsStatus, setGoogleSheetsStatus] = useState<GoogleSheetsStatusResponse>({
-    connected: false,
-  });
+  const [googleSheetsStatus, setGoogleSheetsStatus] =
+    useState<GoogleSheetsStatusResponse>({
+      connected: false,
+    });
   const [linearStatus, setLinearStatus] = useState<LinearStatusResponse>({
     connected: false,
   });
@@ -246,10 +247,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   }, [updatePlatformState]);
 
   const checkGoogleSheetsStatus = useCallback(async () => {
-    updatePlatformState('google-sheets', { isLoading: true })
+    updatePlatformState('google-sheets', { isLoading: true });
     try {
-      const status = await getGoogleSheetsStatus()
-      setGoogleSheetsStatus(status)
+      const status = await getGoogleSheetsStatus();
+      setGoogleSheetsStatus(status);
       updatePlatformState('google-sheets', {
         status: status.connected ? 'connected' : 'disconnected',
         label: status.connected
@@ -258,22 +259,22 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
             : 'Connected'
           : 'Not connected',
         isLoading: false,
-      })
+      });
     } catch (err) {
-      console.error('Failed to check Google Sheets status:', err)
+      console.error('Failed to check Google Sheets status:', err);
       updatePlatformState('google-sheets', {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
-      })
+      });
     }
-  }, [updatePlatformState])
+  }, [updatePlatformState]);
 
   const checkLinearStatus = useCallback(async () => {
-    updatePlatformState('linear', { isLoading: true })
+    updatePlatformState('linear', { isLoading: true });
     try {
-      const status = await getLinearStatus()
-      setLinearStatus(status)
+      const status = await getLinearStatus();
+      setLinearStatus(status);
       updatePlatformState('linear', {
         status: status.connected ? 'connected' : 'disconnected',
         label: status.connected
@@ -282,22 +283,22 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
             : 'Connected'
           : 'Not connected',
         isLoading: false,
-      })
+      });
     } catch (err) {
-      console.error('Failed to check Linear status:', err)
+      console.error('Failed to check Linear status:', err);
       updatePlatformState('linear', {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
-      })
+      });
     }
-  }, [updatePlatformState])
+  }, [updatePlatformState]);
 
   const checkAirtableStatus = useCallback(async () => {
-    updatePlatformState('airtable', { isLoading: true })
+    updatePlatformState('airtable', { isLoading: true });
     try {
-      const status = await getAirtableStatus()
-      setAirtableStatus(status)
+      const status = await getAirtableStatus();
+      setAirtableStatus(status);
       updatePlatformState('airtable', {
         status: status.connected ? 'connected' : 'disconnected',
         label: status.connected
@@ -306,73 +307,78 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
             : 'Connected'
           : 'Not connected',
         isLoading: false,
-      })
+      });
     } catch (err) {
-      console.error('Failed to check Airtable status:', err)
+      console.error('Failed to check Airtable status:', err);
       updatePlatformState('airtable', {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
-      })
+      });
     }
-  }, [updatePlatformState])
+  }, [updatePlatformState]);
 
   const startGoogleSheetsConnect = async () => {
     updatePlatformState('google-sheets', {
       isLoading: true,
       label: 'Redirecting to Google…',
-    })
-    setError(null)
+    });
+    setError(null);
     try {
-      await connectGoogleSheets()
+      await connectGoogleSheets();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to connect to Google Sheets'
-      setError(message)
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Failed to connect to Google Sheets';
+      setError(message);
       updatePlatformState('google-sheets', {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
-      })
+      });
     }
-  }
+  };
 
   const startLinearConnect = async () => {
     updatePlatformState('linear', {
       isLoading: true,
       label: 'Redirecting to Linear…',
-    })
-    setError(null)
+    });
+    setError(null);
     try {
-      await connectLinear()
+      await connectLinear();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to connect to Linear'
-      setError(message)
+      const message =
+        err instanceof Error ? err.message : 'Failed to connect to Linear';
+      setError(message);
       updatePlatformState('linear', {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
-      })
+      });
     }
-  }
+  };
 
   const startAirtableConnect = async () => {
     updatePlatformState('airtable', {
       isLoading: true,
       label: 'Redirecting to Airtable…',
-    })
-    setError(null)
+    });
+    setError(null);
     try {
-      await connectAirtable()
+      await connectAirtable();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to connect to Airtable'
-      setError(message)
+      const message =
+        err instanceof Error ? err.message : 'Failed to connect to Airtable';
+      setError(message);
       updatePlatformState('airtable', {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
-      })
+      });
     }
-  }
+  };
 
   const startNotionConnect = async () => {
     updatePlatformState('notion', {
@@ -416,7 +422,12 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
 
   const handleDisconnectConfirm = async () => {
     const platformId = disconnectConfirmation.platformId;
-    if (!platformId || !['notion', 'github', 'google-sheets', 'linear', 'airtable'].includes(platformId)) {
+    if (
+      !platformId ||
+      !['notion', 'github', 'google-sheets', 'linear', 'airtable'].includes(
+        platformId
+      )
+    ) {
       closeDisconnectModal();
       return;
     }
@@ -515,13 +526,20 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     void checkGoogleSheetsStatus();
     void checkLinearStatus();
     void checkAirtableStatus();
-  }, [checkNotionStatus, checkGithubStatus, checkGoogleSheetsStatus, checkLinearStatus, checkAirtableStatus]);
+  }, [
+    checkNotionStatus,
+    checkGithubStatus,
+    checkGoogleSheetsStatus,
+    checkLinearStatus,
+    checkAirtableStatus,
+  ]);
 
   const isNotionUrl = (url: string) => {
     return url.includes('notion.so') || url.includes('notion.site');
   };
   const isGithubUrl = (url: string) => url.includes('github.com');
-  const isGoogleSheetsUrl = (url: string) => url.includes('docs.google.com') && url.includes('spreadsheets');
+  const isGoogleSheetsUrl = (url: string) =>
+    url.includes('docs.google.com') && url.includes('spreadsheets');
   const isLinearUrl = (url: string) => url.includes('linear.app');
   const isAirtableUrl = (url: string) => url.includes('airtable.com');
 
@@ -541,16 +559,18 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       return;
     }
     if (isGoogleSheetsUrl(url) && !googleSheetsStatus?.connected) {
-      setError('Please connect Google Sheets before importing this spreadsheet')
-      return
+      setError(
+        'Please connect Google Sheets before importing this spreadsheet'
+      );
+      return;
     }
     if (isLinearUrl(url) && !linearStatus?.connected) {
-      setError('Please connect Linear before importing this page')
-      return
+      setError('Please connect Linear before importing this page');
+      return;
     }
     if (isAirtableUrl(url) && !airtableStatus?.connected) {
-      setError('Please connect Airtable before importing this base')
-      return
+      setError('Please connect Airtable before importing this base');
+      return;
     }
 
     setIsLoading(true);
@@ -587,19 +607,19 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
           updatePlatformState('google-sheets', {
             status: 'error',
             label: 'Authorization error',
-          })
+          });
         }
         if (isLinearUrl(url)) {
           updatePlatformState('linear', {
             status: 'error',
             label: 'Authorization error',
-          })
+          });
         }
         if (isAirtableUrl(url)) {
           updatePlatformState('airtable', {
             status: 'error',
             label: 'Authorization error',
-          })
+          });
         }
       }
     } finally {

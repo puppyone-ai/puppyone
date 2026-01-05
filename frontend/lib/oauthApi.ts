@@ -395,14 +395,17 @@ export async function disconnectGithub(): Promise<GithubDisconnectResponse> {
 async function getGoogleSheetsAuthUrl(): Promise<string> {
   const token = await getApiAccessToken();
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-sheets/authorize`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: "include",
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/oauth/google-sheets/authorize`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to get authorization URL: ${response.status}`);
@@ -416,7 +419,7 @@ async function getGoogleSheetsAuthUrl(): Promise<string> {
   if (data.data?.authorization_url) {
     return data.data.authorization_url;
   }
-  throw new Error("Invalid response from server: authorization_url not found");
+  throw new Error('Invalid response from server: authorization_url not found');
 }
 
 export async function connectGoogleSheets(): Promise<void> {
@@ -424,35 +427,42 @@ export async function connectGoogleSheets(): Promise<void> {
     const authUrl = await getGoogleSheetsAuthUrl();
     window.location.href = authUrl;
   } catch (error) {
-    console.error("Error initiating Google Sheets OAuth flow:", error);
+    console.error('Error initiating Google Sheets OAuth flow:', error);
     throw error;
   }
 }
 
-export async function googleSheetsCallback(code: string): Promise<GoogleSheetsCallbackResponse> {
+export async function googleSheetsCallback(
+  code: string
+): Promise<GoogleSheetsCallbackResponse> {
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-sheets/callback`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        code,
-      }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/google-sheets/callback`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          code,
+        }),
+      }
+    );
 
     if (!response.ok) {
-      throw new Error(`Failed to handle Google Sheets callback: ${response.status}`);
+      throw new Error(
+        `Failed to handle Google Sheets callback: ${response.status}`
+      );
     }
 
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error handling Google Sheets callback:", error);
+    console.error('Error handling Google Sheets callback:', error);
     throw error;
   }
 }
@@ -461,14 +471,17 @@ export async function getGoogleSheetsStatus(): Promise<GoogleSheetsStatusRespons
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-sheets/status`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/google-sheets/status`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to get Google Sheets status: ${response.status}`);
@@ -477,7 +490,7 @@ export async function getGoogleSheetsStatus(): Promise<GoogleSheetsStatusRespons
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error getting Google Sheets status:", error);
+    console.error('Error getting Google Sheets status:', error);
     return { connected: false };
   }
 }
@@ -486,14 +499,17 @@ export async function disconnectGoogleSheets(): Promise<GoogleSheetsDisconnectRe
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-sheets/disconnect`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/google-sheets/disconnect`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to disconnect Google Sheets: ${response.status}`);
@@ -502,7 +518,7 @@ export async function disconnectGoogleSheets(): Promise<GoogleSheetsDisconnectRe
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error disconnecting Google Sheets:", error);
+    console.error('Error disconnecting Google Sheets:', error);
     throw error;
   }
 }
@@ -511,14 +527,17 @@ export async function disconnectGoogleSheets(): Promise<GoogleSheetsDisconnectRe
 async function getLinearAuthUrl(): Promise<string> {
   const token = await getApiAccessToken();
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/oauth/linear/authorize`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: "include",
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/oauth/linear/authorize`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to get authorization URL: ${response.status}`);
@@ -532,7 +551,7 @@ async function getLinearAuthUrl(): Promise<string> {
   if (data.data?.authorization_url) {
     return data.data.authorization_url;
   }
-  throw new Error("Invalid response from server: authorization_url not found");
+  throw new Error('Invalid response from server: authorization_url not found');
 }
 
 export async function connectLinear(): Promise<void> {
@@ -540,26 +559,31 @@ export async function connectLinear(): Promise<void> {
     const authUrl = await getLinearAuthUrl();
     window.location.href = authUrl;
   } catch (error) {
-    console.error("Error initiating Linear OAuth flow:", error);
+    console.error('Error initiating Linear OAuth flow:', error);
     throw error;
   }
 }
 
-export async function linearCallback(code: string): Promise<LinearCallbackResponse> {
+export async function linearCallback(
+  code: string
+): Promise<LinearCallbackResponse> {
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/linear/callback`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        code,
-      }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/linear/callback`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          code,
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to handle Linear callback: ${response.status}`);
@@ -568,7 +592,7 @@ export async function linearCallback(code: string): Promise<LinearCallbackRespon
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error handling Linear callback:", error);
+    console.error('Error handling Linear callback:', error);
     throw error;
   }
 }
@@ -578,12 +602,12 @@ export async function getLinearStatus(): Promise<LinearStatusResponse> {
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/oauth/linear/status`, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      credentials: "include",
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -593,7 +617,7 @@ export async function getLinearStatus(): Promise<LinearStatusResponse> {
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error getting Linear status:", error);
+    console.error('Error getting Linear status:', error);
     return { connected: false };
   }
 }
@@ -602,14 +626,17 @@ export async function disconnectLinear(): Promise<LinearDisconnectResponse> {
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/linear/disconnect`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/linear/disconnect`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to disconnect Linear: ${response.status}`);
@@ -618,7 +645,7 @@ export async function disconnectLinear(): Promise<LinearDisconnectResponse> {
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error disconnecting Linear:", error);
+    console.error('Error disconnecting Linear:', error);
     throw error;
   }
 }
@@ -627,14 +654,17 @@ export async function disconnectLinear(): Promise<LinearDisconnectResponse> {
 async function getAirtableAuthUrl(): Promise<string> {
   const token = await getApiAccessToken();
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/oauth/airtable/authorize`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: "include",
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/oauth/airtable/authorize`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to get authorization URL: ${response.status}`);
@@ -648,7 +678,7 @@ async function getAirtableAuthUrl(): Promise<string> {
   if (data.data?.authorization_url) {
     return data.data.authorization_url;
   }
-  throw new Error("Invalid response from server: authorization_url not found");
+  throw new Error('Invalid response from server: authorization_url not found');
 }
 
 export async function connectAirtable(): Promise<void> {
@@ -656,27 +686,33 @@ export async function connectAirtable(): Promise<void> {
     const authUrl = await getAirtableAuthUrl();
     window.location.href = authUrl;
   } catch (error) {
-    console.error("Error initiating Airtable OAuth flow:", error);
+    console.error('Error initiating Airtable OAuth flow:', error);
     throw error;
   }
 }
 
-export async function airtableCallback(code: string, state?: string): Promise<AirtableCallbackResponse> {
+export async function airtableCallback(
+  code: string,
+  state?: string
+): Promise<AirtableCallbackResponse> {
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/airtable/callback`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        code,
-        state,
-      }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/airtable/callback`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          code,
+          state,
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to handle Airtable callback: ${response.status}`);
@@ -685,7 +721,7 @@ export async function airtableCallback(code: string, state?: string): Promise<Ai
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error handling Airtable callback:", error);
+    console.error('Error handling Airtable callback:', error);
     throw error;
   }
 }
@@ -694,14 +730,17 @@ export async function getAirtableStatus(): Promise<AirtableStatusResponse> {
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/airtable/status`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/airtable/status`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to get Airtable status: ${response.status}`);
@@ -710,7 +749,7 @@ export async function getAirtableStatus(): Promise<AirtableStatusResponse> {
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error getting Airtable status:", error);
+    console.error('Error getting Airtable status:', error);
     return { connected: false };
   }
 }
@@ -719,14 +758,17 @@ export async function disconnectAirtable(): Promise<AirtableDisconnectResponse> 
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/airtable/disconnect`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/airtable/disconnect`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to disconnect Airtable: ${response.status}`);
@@ -735,7 +777,7 @@ export async function disconnectAirtable(): Promise<AirtableDisconnectResponse> 
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error disconnecting Airtable:", error);
+    console.error('Error disconnecting Airtable:', error);
     throw error;
   }
 }
