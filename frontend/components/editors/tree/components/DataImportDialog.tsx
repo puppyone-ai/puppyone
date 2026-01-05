@@ -1,20 +1,20 @@
-'use client'
+'use client';
 
-import React, { useState, useRef, useEffect, CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
-import { parseUrl } from '../../../../lib/connectApi'
+import React, { useState, useRef, useEffect, CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
+import { parseUrl } from '../../../../lib/connectApi';
 
 interface DataImportDialogProps {
-  visible: boolean
-  mode: 'url' | 'file'
-  targetPath: string
-  currentValue: any
-  initialData?: any // 预解析的数据（file 模式下使用）
-  onClose: () => void
-  onSuccess: (data: any, strategy: 'merge' | 'replace') => void
+  visible: boolean;
+  mode: 'url' | 'file';
+  targetPath: string;
+  currentValue: any;
+  initialData?: any; // 预解析的数据（file 模式下使用）
+  onClose: () => void;
+  onSuccess: (data: any, strategy: 'merge' | 'replace') => void;
 }
 
-type Strategy = 'merge' | 'replace'
+type Strategy = 'merge' | 'replace';
 
 const styles = {
   overlay: {
@@ -39,7 +39,8 @@ const styles = {
     width: '90%',
     maxHeight: '80vh',
     overflowY: 'auto',
-    fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+    fontFamily:
+      "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
   } as CSSProperties,
 
   header: {
@@ -83,7 +84,8 @@ const styles = {
     marginBottom: 16,
     maxHeight: 200,
     overflow: 'auto',
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    fontFamily:
+      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
     fontSize: 11,
     color: '#CDCDCD',
     whiteSpace: 'pre-wrap',
@@ -114,7 +116,7 @@ const styles = {
   } as CSSProperties,
 
   button: (primary = false, disabled = false): CSSProperties => ({
-    background: disabled ? '#2a2a2a' : (primary ? '#3b82f6' : '#2a2a2a'),
+    background: disabled ? '#2a2a2a' : primary ? '#3b82f6' : '#2a2a2a',
     border: 'none',
     borderRadius: 6,
     padding: '8px 16px',
@@ -123,7 +125,7 @@ const styles = {
     color: disabled ? '#666' : 'white',
     cursor: disabled ? 'not-allowed' : 'pointer',
   }),
-}
+};
 
 export function DataImportDialog({
   visible,
@@ -134,134 +136,151 @@ export function DataImportDialog({
   onClose,
   onSuccess,
 }: DataImportDialogProps) {
-  const [url, setUrl] = useState('')
-  const [parsedData, setParsedData] = useState<any>(initialData ?? null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [strategy, setStrategy] = useState<Strategy>('replace')
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [url, setUrl] = useState('');
+  const [parsedData, setParsedData] = useState<any>(initialData ?? null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [strategy, setStrategy] = useState<Strategy>('replace');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 当 initialData 变化时更新 parsedData 和策略
   useEffect(() => {
     if (initialData !== undefined) {
-      setParsedData(initialData)
+      setParsedData(initialData);
       // 如果可以合并，默认选择合并
-      if (currentValue && typeof currentValue === 'object' && initialData && typeof initialData === 'object') {
-        const bothArrays = Array.isArray(currentValue) && Array.isArray(initialData)
-        const bothObjects = !Array.isArray(currentValue) && !Array.isArray(initialData)
+      if (
+        currentValue &&
+        typeof currentValue === 'object' &&
+        initialData &&
+        typeof initialData === 'object'
+      ) {
+        const bothArrays =
+          Array.isArray(currentValue) && Array.isArray(initialData);
+        const bothObjects =
+          !Array.isArray(currentValue) && !Array.isArray(initialData);
         if (bothArrays || bothObjects) {
-          setStrategy('merge')
+          setStrategy('merge');
         }
       }
     }
-  }, [initialData, currentValue])
+  }, [initialData, currentValue]);
 
   // 检查是否可以合并（都是对象或都是数组）
-  const canMerge = parsedData && currentValue && (
-    (Array.isArray(parsedData) && Array.isArray(currentValue)) ||
-    (typeof parsedData === 'object' && parsedData !== null && typeof currentValue === 'object' && currentValue !== null && !Array.isArray(parsedData) && !Array.isArray(currentValue))
-  )
+  const canMerge =
+    parsedData &&
+    currentValue &&
+    ((Array.isArray(parsedData) && Array.isArray(currentValue)) ||
+      (typeof parsedData === 'object' &&
+        parsedData !== null &&
+        typeof currentValue === 'object' &&
+        currentValue !== null &&
+        !Array.isArray(parsedData) &&
+        !Array.isArray(currentValue)));
 
   const handleParseUrl = async () => {
-    if (!url) return
-    setIsLoading(true)
-    setError(null)
+    if (!url) return;
+    setIsLoading(true);
+    setError(null);
     try {
-      const result = await parseUrl(url)
+      const result = await parseUrl(url);
       if (result && result.sample_data) {
-        setParsedData(result.sample_data)
+        setParsedData(result.sample_data);
         if (currentValue && typeof currentValue === 'object') {
-           setStrategy('merge')
+          setStrategy('merge');
         }
       } else {
-        throw new Error('No data found')
+        throw new Error('No data found');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to parse URL')
+      setError(err instanceof Error ? err.message : 'Failed to parse URL');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const readFileAsText = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = e => resolve(e.target?.result as string)
-      reader.onerror = reject
-      reader.readAsText(file)
-    })
-  }
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target?.result as string);
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     try {
       // 如果只有一个文件且是 JSON，直接解析
-      if (files.length === 1 && files[0].name.endsWith('.json') && !files[0].webkitRelativePath.includes('/')) {
-        const text = await readFileAsText(files[0])
+      if (
+        files.length === 1 &&
+        files[0].name.endsWith('.json') &&
+        !files[0].webkitRelativePath.includes('/')
+      ) {
+        const text = await readFileAsText(files[0]);
         try {
-          setParsedData(JSON.parse(text))
+          setParsedData(JSON.parse(text));
         } catch {
-          setParsedData(text)
+          setParsedData(text);
         }
       } else {
         // 多文件/文件夹：构建结构
-        const result: any = {}
-        
+        const result: any = {};
+
         for (let i = 0; i < files.length; i++) {
-          const file = files[i]
-          const path = file.webkitRelativePath || file.name
-          const parts = path.split('/')
-          
-          let current = result
+          const file = files[i];
+          const path = file.webkitRelativePath || file.name;
+          const parts = path.split('/');
+
+          let current = result;
           if (parts.length > 1) {
             for (let j = 0; j < parts.length - 1; j++) {
-              const part = parts[j]
-              if (!current[part]) current[part] = {}
-              current = current[part]
+              const part = parts[j];
+              if (!current[part]) current[part] = {};
+              current = current[part];
             }
-            const fileName = parts[parts.length - 1]
-            const text = await readFileAsText(file)
+            const fileName = parts[parts.length - 1];
+            const text = await readFileAsText(file);
             try {
-              current[fileName] = JSON.parse(text)
+              current[fileName] = JSON.parse(text);
             } catch {
-              current[fileName] = text
+              current[fileName] = text;
             }
           } else {
-             const text = await readFileAsText(file)
-             try {
-               result[file.name] = JSON.parse(text)
-             } catch {
-               result[file.name] = text
-             }
+            const text = await readFileAsText(file);
+            try {
+              result[file.name] = JSON.parse(text);
+            } catch {
+              result[file.name] = text;
+            }
           }
         }
-        
-        setParsedData(result)
+
+        setParsedData(result);
       }
 
       if (currentValue && typeof currentValue === 'object') {
-        setStrategy('merge')
+        setStrategy('merge');
       }
     } catch (err) {
-      setError('Failed to parse files')
+      setError('Failed to parse files');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleConfirm = () => {
     if (parsedData) {
-      onSuccess(parsedData, strategy)
-      onClose()
+      onSuccess(parsedData, strategy);
+      onClose();
     }
-  }
+  };
 
-  if (!visible) return null
+  if (!visible) return null;
 
   return createPortal(
     <div style={styles.overlay} onClick={onClose}>
@@ -269,9 +288,7 @@ export function DataImportDialog({
         <div style={styles.header}>
           Import from {mode === 'url' ? 'URL' : 'Files'}
         </div>
-        <div style={styles.subHeader}>
-          Target: {targetPath || 'Root'}
-        </div>
+        <div style={styles.subHeader}>Target: {targetPath || 'Root'}</div>
 
         {/* URL Input */}
         {mode === 'url' && !parsedData && (
@@ -282,11 +299,11 @@ export function DataImportDialog({
                 style={styles.input}
                 value={url}
                 onChange={e => setUrl(e.target.value)}
-                placeholder="https://api.example.com/data.json"
+                placeholder='https://api.example.com/data.json'
                 onKeyDown={e => e.key === 'Enter' && handleParseUrl()}
               />
-              <button 
-                style={styles.button(true, isLoading || !url)} 
+              <button
+                style={styles.button(true, isLoading || !url)}
                 onClick={handleParseUrl}
               >
                 {isLoading ? 'Fetching...' : 'Fetch'}
@@ -298,37 +315,39 @@ export function DataImportDialog({
         {/* File/Folder Selection */}
         {mode === 'file' && !parsedData && (
           <div>
-             <div 
-               style={{ 
-                 border: '2px dashed #333', 
-                 borderRadius: 8, 
-                 padding: 32, 
-                 textAlign: 'center', 
-                 cursor: 'pointer',
-                 color: '#888',
-                 transition: 'border-color 0.2s',
-               }}
-               onClick={() => fileInputRef.current?.click()}
-               onMouseEnter={e => (e.currentTarget.style.borderColor = '#555')}
-               onMouseLeave={e => (e.currentTarget.style.borderColor = '#333')}
-             >
-               {isLoading ? (
-                 <div>Processing files...</div>
-               ) : (
-                 <>
-                   <div style={{ marginBottom: 8 }}>📁</div>
-                   <div>Click to select files or folder</div>
-                   <div style={{ fontSize: 11, marginTop: 4, color: '#666' }}>Supports JSON, text files, and folders</div>
-                 </>
-               )}
-             </div>
+            <div
+              style={{
+                border: '2px dashed #333',
+                borderRadius: 8,
+                padding: 32,
+                textAlign: 'center',
+                cursor: 'pointer',
+                color: '#888',
+                transition: 'border-color 0.2s',
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = '#555')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = '#333')}
+            >
+              {isLoading ? (
+                <div>Processing files...</div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 8 }}>📁</div>
+                  <div>Click to select files or folder</div>
+                  <div style={{ fontSize: 11, marginTop: 4, color: '#666' }}>
+                    Supports JSON, text files, and folders
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
 
         {/* File Input (Hidden) - supports both files and folder */}
         <input
           ref={fileInputRef}
-          type="file"
+          type='file'
           style={{ display: 'none' }}
           {...({ webkitdirectory: '', directory: '' } as any)}
           multiple
@@ -350,39 +369,95 @@ export function DataImportDialog({
             </div>
 
             <label style={styles.label}>Import Strategy</label>
-            
-            <div 
+
+            <div
               style={{
                 ...styles.strategyOption,
-                ...(strategy === 'replace' ? styles.strategyOptionSelected : {})
+                ...(strategy === 'replace'
+                  ? styles.strategyOptionSelected
+                  : {}),
               }}
               onClick={() => setStrategy('replace')}
             >
-              <div style={{ width: 16, height: 16, borderRadius: '50%', border: '1px solid #666', background: strategy === 'replace' ? '#3b82f6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {strategy === 'replace' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
+              <div
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  border: '1px solid #666',
+                  background:
+                    strategy === 'replace' ? '#3b82f6' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {strategy === 'replace' && (
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: 'white',
+                    }}
+                  />
+                )}
               </div>
               <div>
-                <div style={{ color: '#CDCDCD', fontSize: 13, fontWeight: 500 }}>Replace Current Node</div>
-                <div style={{ color: '#888', fontSize: 12 }}>Overwrite existing data with imported content.</div>
+                <div
+                  style={{ color: '#CDCDCD', fontSize: 13, fontWeight: 500 }}
+                >
+                  Replace Current Node
+                </div>
+                <div style={{ color: '#888', fontSize: 12 }}>
+                  Overwrite existing data with imported content.
+                </div>
               </div>
             </div>
 
             {canMerge && (
-              <div 
+              <div
                 style={{
                   ...styles.strategyOption,
-                  ...(strategy === 'merge' ? styles.strategyOptionSelected : {})
+                  ...(strategy === 'merge'
+                    ? styles.strategyOptionSelected
+                    : {}),
                 }}
                 onClick={() => setStrategy('merge')}
               >
-                <div style={{ width: 16, height: 16, borderRadius: '50%', border: '1px solid #666', background: strategy === 'merge' ? '#3b82f6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {strategy === 'merge' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
+                <div
+                  style={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    border: '1px solid #666',
+                    background:
+                      strategy === 'merge' ? '#3b82f6' : 'transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {strategy === 'merge' && (
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: 'white',
+                      }}
+                    />
+                  )}
                 </div>
                 <div>
-                  <div style={{ color: '#CDCDCD', fontSize: 13, fontWeight: 500 }}>Merge into Current Node</div>
+                  <div
+                    style={{ color: '#CDCDCD', fontSize: 13, fontWeight: 500 }}
+                  >
+                    Merge into Current Node
+                  </div>
                   <div style={{ color: '#888', fontSize: 12 }}>
-                    {Array.isArray(currentValue) 
-                      ? 'Append items to the existing array.' 
+                    {Array.isArray(currentValue)
+                      ? 'Append items to the existing array.'
                       : 'Merge properties into the existing object.'}
                   </div>
                 </div>
@@ -390,14 +465,17 @@ export function DataImportDialog({
             )}
 
             <div style={styles.buttonRow}>
-              <button style={styles.button(false)} onClick={onClose}>Cancel</button>
-              <button style={styles.button(true)} onClick={handleConfirm}>Confirm Import</button>
+              <button style={styles.button(false)} onClick={onClose}>
+                Cancel
+              </button>
+              <button style={styles.button(true)} onClick={handleConfirm}>
+                Confirm Import
+              </button>
             </div>
           </div>
         )}
       </div>
     </div>,
     document.body
-  )
+  );
 }
-

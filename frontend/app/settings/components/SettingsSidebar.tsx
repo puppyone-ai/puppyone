@@ -1,62 +1,68 @@
-'use client'
+'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react';
 
-const MIN_WIDTH = 180
-const MAX_WIDTH = 320
-const DEFAULT_WIDTH = 220
-const COLLAPSED_WIDTH = 45
+const MIN_WIDTH = 180;
+const MAX_WIDTH = 320;
+const DEFAULT_WIDTH = 220;
+const COLLAPSED_WIDTH = 45;
 
-type SettingsView = 'import'
+type SettingsView = 'import';
 
 interface SettingsSidebarProps {
-  currentView: SettingsView
-  onChangeView: (view: SettingsView) => void
+  currentView: SettingsView;
+  onChangeView: (view: SettingsView) => void;
 }
 
-export function SettingsSidebar({ currentView, onChangeView }: SettingsSidebarProps) {
-  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const [isResizing, setIsResizing] = useState(false)
-  const sidebarRef = useRef<HTMLDivElement>(null)
+export function SettingsSidebar({
+  currentView,
+  onChangeView,
+}: SettingsSidebarProps) {
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   // Handle resize
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (isCollapsed) return
-    e.preventDefault()
-    setIsResizing(true)
-  }, [isCollapsed])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (isCollapsed) return;
+      e.preventDefault();
+      setIsResizing(true);
+    },
+    [isCollapsed]
+  );
 
   useEffect(() => {
-    if (!isResizing) return
+    if (!isResizing) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!sidebarRef.current) return
-      const rect = sidebarRef.current.getBoundingClientRect()
-      const newWidth = e.clientX - rect.left
-      const clampedWidth = Math.min(Math.max(newWidth, MIN_WIDTH), MAX_WIDTH)
-      setSidebarWidth(clampedWidth)
-    }
+      if (!sidebarRef.current) return;
+      const rect = sidebarRef.current.getBoundingClientRect();
+      const newWidth = e.clientX - rect.left;
+      const clampedWidth = Math.min(Math.max(newWidth, MIN_WIDTH), MAX_WIDTH);
+      setSidebarWidth(clampedWidth);
+    };
 
     const handleMouseUp = () => {
-      setIsResizing(false)
-    }
+      setIsResizing(false);
+    };
 
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-  }, [isResizing])
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
 
   return (
-    <div 
+    <div
       ref={sidebarRef}
       style={{
         width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
@@ -64,7 +70,8 @@ export function SettingsSidebar({ currentView, onChangeView }: SettingsSidebarPr
         display: 'flex',
         flexDirection: 'column',
         background: '#181818',
-        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily:
+          "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
         boxSizing: 'border-box',
         position: 'relative',
         flexShrink: 0,
@@ -72,21 +79,23 @@ export function SettingsSidebar({ currentView, onChangeView }: SettingsSidebarPr
       }}
     >
       {/* Header */}
-      <div style={{
-        height: 46,
-        minHeight: 46,
-        maxHeight: 46,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: isCollapsed ? 'center' : 'space-between',
-        padding: isCollapsed ? '0' : '0 9px 0 16px',
-        borderBottom: '1px solid #404040',
-        boxSizing: 'border-box',
-      }}>
+      <div
+        style={{
+          height: 46,
+          minHeight: 46,
+          maxHeight: 46,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: isCollapsed ? 'center' : 'space-between',
+          padding: isCollapsed ? '0' : '0 9px 0 16px',
+          borderBottom: '1px solid #404040',
+          boxSizing: 'border-box',
+        }}
+      >
         {isCollapsed ? (
           <button
             onClick={() => setIsCollapsed(false)}
-            title="Expand sidebar"
+            title='Expand sidebar'
             style={{
               width: 28,
               height: 28,
@@ -101,32 +110,43 @@ export function SettingsSidebar({ currentView, onChangeView }: SettingsSidebarPr
               transition: 'all 0.15s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-              e.currentTarget.style.color = '#9ca3af'
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.color = '#9ca3af';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.color = '#6b7280'
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#6b7280';
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <line x1="9" y1="3" x2="9" y2="21"/>
+            <svg
+              width='14'
+              height='14'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='1.5'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <rect x='3' y='3' width='18' height='18' rx='2' />
+              <line x1='9' y1='3' x2='9' y2='21' />
             </svg>
           </button>
         ) : (
           <>
-            <span style={{ 
-              fontSize: 14, 
-              fontWeight: 600, 
-              color: '#EDEDED', 
-              letterSpacing: '0.3px' 
-            }}>
+            <span
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: '#EDEDED',
+                letterSpacing: '0.3px',
+              }}
+            >
               Settings
             </span>
             <button
               onClick={() => setIsCollapsed(true)}
-              title="Collapse sidebar"
+              title='Collapse sidebar'
               style={{
                 width: 28,
                 height: 28,
@@ -141,17 +161,26 @@ export function SettingsSidebar({ currentView, onChangeView }: SettingsSidebarPr
                 transition: 'all 0.15s',
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-                e.currentTarget.style.color = '#9ca3af'
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = '#9ca3af';
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent'
-                e.currentTarget.style.color = '#6b7280'
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#6b7280';
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <line x1="9" y1="3" x2="9" y2="21"/>
+              <svg
+                width='14'
+                height='14'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='1.5'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              >
+                <rect x='3' y='3' width='18' height='18' rx='2' />
+                <line x1='9' y1='3' x2='9' y2='21' />
               </svg>
             </button>
           </>
@@ -163,25 +192,36 @@ export function SettingsSidebar({ currentView, onChangeView }: SettingsSidebarPr
         <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
           {/* Workspace Section */}
           <div style={{ marginBottom: 4 }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              padding: '0 12px',
-              height: 28,
-            }}>
-              <span style={{ 
-                fontSize: 12, 
-                fontWeight: 600, 
-                color: '#6D7177',
-              }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 12px',
+                height: 28,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#6D7177',
+                }}
+              >
                 Workspace
               </span>
             </div>
-            <div style={{ padding: '2px 8px 4px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <NavItem 
+            <div
+              style={{
+                padding: '2px 8px 4px 8px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1,
+              }}
+            >
+              <NavItem
                 active={currentView === 'import'}
                 onClick={() => onChangeView('import')}
-                label="Import Settings"
+                label='Import Settings'
               />
             </div>
           </div>
@@ -190,24 +230,29 @@ export function SettingsSidebar({ currentView, onChangeView }: SettingsSidebarPr
 
       {/* Collapsed Navigation */}
       {isCollapsed && (
-        <div style={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center',
-          padding: '12px 0',
-          gap: 4,
-        }}>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            padding: '12px 0',
+            gap: 4,
+          }}
+        >
           <button
             onClick={() => onChangeView('import')}
-            title="Import Settings"
+            title='Import Settings'
             style={{
               width: 28,
               height: 28,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: currentView === 'import' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+              background:
+                currentView === 'import'
+                  ? 'rgba(59, 130, 246, 0.15)'
+                  : 'transparent',
               border: 'none',
               borderRadius: 5,
               cursor: 'pointer',
@@ -216,19 +261,25 @@ export function SettingsSidebar({ currentView, onChangeView }: SettingsSidebarPr
             }}
             onMouseEnter={e => {
               if (currentView !== 'import') {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-                e.currentTarget.style.color = '#e2e8f0'
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = '#e2e8f0';
               }
             }}
             onMouseLeave={e => {
               if (currentView !== 'import') {
-                e.currentTarget.style.background = 'transparent'
-                e.currentTarget.style.color = '#808080'
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#808080';
               }
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+              <path
+                d='M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7'
+                stroke='currentColor'
+                strokeWidth='1.2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              />
             </svg>
           </button>
         </div>
@@ -250,20 +301,21 @@ export function SettingsSidebar({ currentView, onChangeView }: SettingsSidebarPr
             transition: 'background 0.15s',
           }}
           onMouseEnter={e => {
-            if (!isResizing) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+            if (!isResizing)
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
           }}
           onMouseLeave={e => {
-            if (!isResizing) e.currentTarget.style.background = 'transparent'
+            if (!isResizing) e.currentTarget.style.background = 'transparent';
           }}
         />
       )}
     </div>
-  )
+  );
 }
 
 function NavItem({ active, onClick, label }: any) {
-  const [hovered, setHovered] = useState(false)
-  
+  const [hovered, setHovered] = useState(false);
+
   return (
     <button
       onClick={onClick}
@@ -271,12 +323,12 @@ function NavItem({ active, onClick, label }: any) {
       onMouseLeave={() => setHovered(false)}
       style={{
         height: 28,
-        display: 'flex', 
-        alignItems: 'center', 
+        display: 'flex',
+        alignItems: 'center',
         gap: 8,
         padding: '0 4px 0 12px',
-        borderRadius: 6, 
-        cursor: 'pointer', 
+        borderRadius: 6,
+        cursor: 'pointer',
         background: active || hovered ? '#2C2C2C' : 'transparent',
         border: 'none',
         width: '100%',
@@ -286,33 +338,42 @@ function NavItem({ active, onClick, label }: any) {
       }}
     >
       {/* Icon */}
-      <span style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 16,
-        height: 16,
-        flexShrink: 0,
-      }}>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7" stroke={active ? '#CDCDCD' : (hovered ? '#9B9B9B' : '#5D6065')} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+      <span
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 16,
+          height: 16,
+          flexShrink: 0,
+        }}
+      >
+        <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+          <path
+            d='M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7'
+            stroke={active ? '#CDCDCD' : hovered ? '#9B9B9B' : '#5D6065'}
+            strokeWidth='1.2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          />
         </svg>
       </span>
-      
+
       {/* Label */}
-      <span style={{ 
-        flex: 1, 
-        fontSize: 13, 
-        fontWeight: 500, 
-        color: active ? '#FFFFFF' : (hovered ? '#F0EFED' : '#9B9B9B'),
-        overflow: 'hidden', 
-        textOverflow: 'ellipsis', 
-        whiteSpace: 'nowrap',
-        transition: 'color 0.15s',
-      }}>
+      <span
+        style={{
+          flex: 1,
+          fontSize: 13,
+          fontWeight: 500,
+          color: active ? '#FFFFFF' : hovered ? '#F0EFED' : '#9B9B9B',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          transition: 'color 0.15s',
+        }}
+      >
         {label}
       </span>
     </button>
-  )
+  );
 }
-
