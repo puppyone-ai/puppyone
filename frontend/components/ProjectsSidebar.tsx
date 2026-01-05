@@ -754,7 +754,7 @@ export function ProjectsSidebar({
         .project-name {
           font-size: 13px;
           font-weight: 500;
-          color: #e1e1e1;
+          color: #9b9b9b;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -1393,7 +1393,7 @@ export function ProjectsSidebar({
                       return (
                         <div key={project.id} className='project-item'>
                           <div
-                            className={`project-row ${String(project.id) === String(activeBaseId) ? 'active' : ''} ${contextMenu?.type === 'project' && contextMenu.id === project.id ? 'menu-open' : ''}`}
+                            className={`project-row ${contextMenu?.type === 'project' && contextMenu.id === project.id ? 'menu-open' : ''}`}
                           >
                             <button
                               className='project-btn'
