@@ -69,13 +69,13 @@ class ETLQueue:
         """
         # Create task in database first to get task_id
         task_with_id = self.task_repository.create_task(task)
-        
+
         # Add to memory cache
         self.tasks[task_with_id.task_id] = task_with_id
-        
+
         # Add to queue
         await self.queue.put(task_with_id.task_id)
-        
+
         logger.info(f"Task {task_with_id.task_id} submitted to queue")
         return task_with_id
 
@@ -91,14 +91,14 @@ class ETLQueue:
         """
         # First try memory cache
         task = self.tasks.get(task_id)
-        
+
         # If not in memory, try database
         if task is None:
             task = self.task_repository.get_task(task_id)
             if task:
                 # Cache it in memory
                 self.tasks[task_id] = task
-        
+
         return task
 
     def list_tasks(
@@ -109,7 +109,7 @@ class ETLQueue:
     ) -> list[ETLTask]:
         """
         List tasks with optional filters.
-        
+
         从数据库和内存缓存中合并任务列表。
 
         Args:
@@ -122,14 +122,12 @@ class ETLQueue:
         """
         # 从数据库获取任务列表
         db_tasks = self.task_repository.list_tasks(
-            user_id=user_id,
-            project_id=project_id,
-            status=status
+            user_id=user_id, project_id=project_id, status=status
         )
-        
+
         # 创建任务字典（以 task_id 为 key）
         task_dict = {task.task_id: task for task in db_tasks}
-        
+
         # 用内存中的任务状态覆盖数据库中的状态（内存中的状态更新）
         for task_id, memory_task in self.tasks.items():
             # 应用过滤条件
@@ -142,10 +140,10 @@ class ETLQueue:
                 if task_id in task_dict:
                     del task_dict[task_id]
                 continue
-            
+
             # 用内存中的任务覆盖或添加
             task_dict[task_id] = memory_task
-        
+
         return list(task_dict.values())
 
     async def start_workers(self):
@@ -198,10 +196,7 @@ class ETLQueue:
             try:
                 # Get task from queue with timeout
                 try:
-                    task_id = await asyncio.wait_for(
-                        self.queue.get(),
-                        timeout=1.0
-                    )
+                    task_id = await asyncio.wait_for(self.queue.get(), timeout=1.0)
                 except asyncio.TimeoutError:
                     continue
 
@@ -220,10 +215,13 @@ class ETLQueue:
                 try:
                     if self.executor:
                         await self.executor(task)
-                        
+
                         # Update database if task completed or failed
                         # (intermediate states are only in memory)
-                        if task.status in (ETLTaskStatus.COMPLETED, ETLTaskStatus.FAILED):
+                        if task.status in (
+                            ETLTaskStatus.COMPLETED,
+                            ETLTaskStatus.FAILED,
+                        ):
                             try:
                                 self.task_repository.update_task(task)
                                 logger.info(
@@ -236,10 +234,10 @@ class ETLQueue:
                 except Exception as e:
                     logger.error(
                         f"Worker {worker_id}: Error processing task {task_id}: {e}",
-                        exc_info=True
+                        exc_info=True,
                     )
                     task.mark_failed(f"Worker error: {str(e)}")
-                    
+
                     # Persist failure to database
                     try:
                         self.task_repository.update_task(task)
@@ -255,8 +253,7 @@ class ETLQueue:
                 break
             except Exception as e:
                 logger.error(
-                    f"Worker {worker_id}: Unexpected error: {e}",
-                    exc_info=True
+                    f"Worker {worker_id}: Unexpected error: {e}", exc_info=True
                 )
                 await asyncio.sleep(1)
 
@@ -273,4 +270,3 @@ class ETLQueue:
     def task_count(self) -> int:
         """Get total number of tasks."""
         return len(self.tasks)
-

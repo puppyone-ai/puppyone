@@ -3,7 +3,6 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import RedirectResponse
 
 from src.config import settings
 from src.auth.dependencies import get_current_user
@@ -25,7 +24,7 @@ from src.oauth.schemas import (
     OAuthCallbackRequest,
     OAuthCallbackResponse,
     OAuthStatusResponse,
-    OAuthDisconnectResponse
+    OAuthDisconnectResponse,
 )
 
 router = APIRouter(prefix="/oauth", tags=["oauth"])
@@ -33,7 +32,7 @@ router = APIRouter(prefix="/oauth", tags=["oauth"])
 
 @router.get("/notion/authorize", response_model=ApiResponse[OAuthAuthorizeResponse])
 async def notion_authorize(
-    notion_service: Annotated[NotionOAuthService, Depends(get_notion_service)]
+    notion_service: Annotated[NotionOAuthService, Depends(get_notion_service)],
 ):
     """Get Notion OAuth authorization URL."""
     try:
@@ -41,50 +40,55 @@ async def notion_authorize(
         if not settings.NOTION_CLIENT_ID or not settings.NOTION_CLIENT_SECRET:
             raise HTTPException(
                 status_code=500,
-                detail="Notion OAuth is not configured. Please set NOTION_CLIENT_ID and NOTION_CLIENT_SECRET environment variables."
+                detail="Notion OAuth is not configured. Please set NOTION_CLIENT_ID and NOTION_CLIENT_SECRET environment variables.",
             )
 
         authorization_url, _ = await notion_service.get_authorization_url()
-        return ApiResponse.success(data=OAuthAuthorizeResponse(authorization_url=authorization_url), message="授权URL生成成功")
+        return ApiResponse.success(
+            data=OAuthAuthorizeResponse(authorization_url=authorization_url),
+            message="授权URL生成成功",
+        )
     except HTTPException:
         raise  # Re-raise HTTP exceptions
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate authorization URL: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate authorization URL: {str(e)}"
+        )
 
 
 @router.post("/notion/callback", response_model=ApiResponse[OAuthCallbackResponse])
 async def notion_callback(
     request: OAuthCallbackRequest,
     current_user: Annotated[dict, Depends(get_current_user)],
-    notion_service: Annotated[NotionOAuthService, Depends(get_notion_service)]
+    notion_service: Annotated[NotionOAuthService, Depends(get_notion_service)],
 ):
     """Handle Notion OAuth callback."""
     try:
         success, message, connection_info = await notion_service.handle_callback(
-            user_id=current_user.user_id,
-            code=request.code
+            user_id=current_user.user_id, code=request.code
         )
 
         return ApiResponse.success(
             data=OAuthCallbackResponse(
                 success=success,
                 message=message,
-                workspace_name=connection_info.get("workspace_name") if connection_info else None
+                workspace_name=connection_info.get("workspace_name")
+                if connection_info
+                else None,
             ),
-            message="OAuth回调处理完成"
+            message="OAuth回调处理完成",
         )
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to handle Notion callback: {str(e)}"
+            status_code=500, detail=f"Failed to handle Notion callback: {str(e)}"
         )
 
 
 @router.get("/notion/status", response_model=ApiResponse[OAuthStatusResponse])
 async def notion_status(
     current_user: Annotated[dict, Depends(get_current_user)],
-    notion_service: Annotated[NotionOAuthService, Depends(get_notion_service)]
+    notion_service: Annotated[NotionOAuthService, Depends(get_notion_service)],
 ):
     """Check Notion connection status."""
     try:
@@ -95,37 +99,38 @@ async def notion_status(
             is_expired = await notion_service.is_token_expired(current_user.user_id)
             if is_expired:
                 # Try to refresh token
-                connection = await notion_service.refresh_token_if_needed(current_user.user_id)
+                connection = await notion_service.refresh_token_if_needed(
+                    current_user.user_id
+                )
 
             return ApiResponse.success(
                 data=OAuthStatusResponse(
                     connected=connection is not None,
                     workspace_name=connection.workspace_name if connection else None,
-                    connected_at=connection.created_at if connection else None
+                    connected_at=connection.created_at if connection else None,
                 ),
-                message="Notion连接状态获取成功"
+                message="Notion连接状态获取成功",
             )
         else:
             return ApiResponse.success(
                 data=OAuthStatusResponse(
-                    connected=False,
-                    workspace_name=None,
-                    connected_at=None
+                    connected=False, workspace_name=None, connected_at=None
                 ),
-                message="Notion连接状态获取成功"
+                message="Notion连接状态获取成功",
             )
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to check Notion status: {str(e)}"
+            status_code=500, detail=f"Failed to check Notion status: {str(e)}"
         )
 
 
-@router.delete("/notion/disconnect", response_model=ApiResponse[OAuthDisconnectResponse])
+@router.delete(
+    "/notion/disconnect", response_model=ApiResponse[OAuthDisconnectResponse]
+)
 async def notion_disconnect(
     current_user: Annotated[dict, Depends(get_current_user)],
-    notion_service: Annotated[NotionOAuthService, Depends(get_notion_service)]
+    notion_service: Annotated[NotionOAuthService, Depends(get_notion_service)],
 ):
     """Disconnect Notion integration."""
     try:
@@ -134,24 +139,21 @@ async def notion_disconnect(
         if success:
             return ApiResponse.success(
                 data=OAuthDisconnectResponse(
-                    success=True,
-                    message="Successfully disconnected from Notion"
+                    success=True, message="Successfully disconnected from Notion"
                 ),
-                message="Notion断开连接成功"
+                message="Notion断开连接成功",
             )
         else:
             return ApiResponse.success(
                 data=OAuthDisconnectResponse(
-                    success=False,
-                    message="No active Notion connection found"
+                    success=False, message="No active Notion connection found"
                 ),
-                message="没有找到活跃的Notion连接"
+                message="没有找到活跃的Notion连接",
             )
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to disconnect from Notion: {str(e)}"
+            status_code=500, detail=f"Failed to disconnect from Notion: {str(e)}"
         )
 
 
@@ -175,7 +177,10 @@ async def github_authorize(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate GitHub authorization URL: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate GitHub authorization URL: {str(e)}",
+        )
 
 
 @router.post("/github/callback", response_model=ApiResponse[OAuthCallbackResponse])
@@ -195,7 +200,9 @@ async def github_callback(
             data=OAuthCallbackResponse(
                 success=success,
                 message=message,
-                workspace_name=connection_info.get("username") if connection_info else None,
+                workspace_name=connection_info.get("username")
+                if connection_info
+                else None,
                 username=connection_info.get("username") if connection_info else None,
             ),
             message="GitHub OAuth回调处理完成",
@@ -219,11 +226,15 @@ async def github_status(
         if connection:
             is_expired = await github_service.is_token_expired(current_user.user_id)
             if is_expired:
-                connection = await github_service.refresh_token_if_needed(current_user.user_id)
+                connection = await github_service.refresh_token_if_needed(
+                    current_user.user_id
+                )
 
             username = None
             if connection:
-                metadata = connection.metadata if isinstance(connection.metadata, dict) else {}
+                metadata = (
+                    connection.metadata if isinstance(connection.metadata, dict) else {}
+                )
                 if connection.workspace_name:
                     username = connection.workspace_name
                 elif metadata.get("user"):
@@ -256,7 +267,9 @@ async def github_status(
         )
 
 
-@router.delete("/github/disconnect", response_model=ApiResponse[OAuthDisconnectResponse])
+@router.delete(
+    "/github/disconnect", response_model=ApiResponse[OAuthDisconnectResponse]
+)
 async def github_disconnect(
     current_user: Annotated[dict, Depends(get_current_user)],
     github_service: Annotated[GithubOAuthService, Depends(get_github_service)],
@@ -295,22 +308,23 @@ async def oauth_callback_browser(
     current_user: Annotated[dict, Depends(get_current_user)],
     notion_service: Annotated[NotionOAuthService, Depends(get_notion_service)],
     code: str = Query(..., description="Authorization code"),
-    state: str = Query(None, description="OAuth state parameter")
+    state: str = Query(None, description="OAuth state parameter"),
 ):
     """Handle OAuth callback from browser redirect."""
     try:
         success, message, connection_info = await notion_service.handle_callback(
-            user_id=current_user.user_id,
-            code=code
+            user_id=current_user.user_id, code=code
         )
 
         return ApiResponse.success(
             data=OAuthCallbackResponse(
                 success=success,
                 message=message,
-                workspace_name=connection_info.get("workspace_name") if connection_info else None
+                workspace_name=connection_info.get("workspace_name")
+                if connection_info
+                else None,
             ),
-            message="OAuth回调处理完成"
+            message="OAuth回调处理完成",
         )
 
     except Exception as e:

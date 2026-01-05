@@ -14,7 +14,9 @@ class TableRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_projects_with_tables_by_user_id(self, user_id: str) -> List[ProjectWithTables]:
+    def get_projects_with_tables_by_user_id(
+        self, user_id: str
+    ) -> List[ProjectWithTables]:
         """获取用户的所有项目及其下的所有表格"""
         pass
 
@@ -47,9 +49,7 @@ class TableRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def update_context_data(
-        self, table_id: int, data: dict
-    ) -> Optional[Table]:
+    def update_context_data(self, table_id: int, data: dict) -> Optional[Table]:
         """更新 data 字段"""
         pass
 
@@ -57,13 +57,13 @@ class TableRepositoryBase(ABC):
     def verify_table_access(self, table_id: int, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的表格
-        
+
         通过 table.project_id 关联到 project 表，检查 project.user_id 是否等于用户ID
-        
+
         Args:
             table_id: 表格ID
             user_id: 用户ID
-            
+
         Returns:
             如果用户有权限返回True，否则返回False
         """
@@ -73,13 +73,13 @@ class TableRepositoryBase(ABC):
     def verify_project_access(self, project_id: int, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的项目
-        
+
         检查 project.user_id 是否等于用户ID
-        
+
         Args:
             project_id: 项目ID
             user_id: 用户ID
-            
+
         Returns:
             如果用户有权限返回True，否则返回False
         """
@@ -99,6 +99,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         if supabase_repo is None:
             # 延迟导入，避免在模块导入时触发
             from src.supabase.dependencies import get_supabase_repository
+
             # 使用共享的单例实例，避免重复创建
             self._supabase_repo = get_supabase_repository()
         else:
@@ -130,7 +131,9 @@ class TableRepositorySupabase(TableRepositoryBase):
         # 转换为Table模型
         return [self._table_response_to_table(table) for table in all_tables]
 
-    def get_projects_with_tables_by_user_id(self, user_id: str) -> List[ProjectWithTables]:
+    def get_projects_with_tables_by_user_id(
+        self, user_id: str
+    ) -> List[ProjectWithTables]:
         """
         获取用户的所有项目及其下的所有表格
 
@@ -150,7 +153,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         for project in projects:
             # 获取该项目下的所有表格
             tables_response = self._supabase_repo.get_tables(project_id=project.id)
-            
+
             # 转换为 TableOut 模型
             tables = [
                 TableOut(
@@ -265,9 +268,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         """
         return self._supabase_repo.delete_table(table_id)
 
-    def update_context_data(
-        self, table_id: int, data: dict
-    ) -> Optional[Table]:
+    def update_context_data(self, table_id: int, data: dict) -> Optional[Table]:
         """
         更新Table的data字段
 
@@ -289,13 +290,13 @@ class TableRepositorySupabase(TableRepositoryBase):
     def verify_table_access(self, table_id: int, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的表格
-        
+
         通过 table.project_id 关联到 project 表，检查 project.user_id 是否等于用户ID
-        
+
         Args:
             table_id: 表格ID
             user_id: 用户ID
-            
+
         Returns:
             如果用户有权限返回True，否则返回False
         """
@@ -303,29 +304,29 @@ class TableRepositorySupabase(TableRepositoryBase):
         table = self.get_by_id(table_id)
         if not table:
             return False
-        
+
         # 如果表格没有关联项目，返回False（安全起见）
         if not table.project_id:
             return False
-        
+
         # 获取项目并检查用户权限
         project = self._supabase_repo.get_project(table.project_id)
         if not project:
             return False
-        
+
         # 检查项目是否属于当前用户
         return project.user_id == user_id
 
     def verify_project_access(self, project_id: int, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的项目
-        
+
         检查 project.user_id 是否等于用户ID
-        
+
         Args:
             project_id: 项目ID
             user_id: 用户ID
-            
+
         Returns:
             如果用户有权限返回True，否则返回False
         """
@@ -333,7 +334,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         project = self._supabase_repo.get_project(project_id)
         if not project:
             return False
-        
+
         # 检查项目是否属于当前用户
         return project.user_id == user_id
 

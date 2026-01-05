@@ -40,7 +40,9 @@ class McpBindingRepository:
             return McpBindingResponse(**response.data[0])
         return None
 
-    def get_by_mcp_and_tool(self, mcp_id: int, tool_id: int) -> Optional[McpBindingResponse]:
+    def get_by_mcp_and_tool(
+        self, mcp_id: int, tool_id: int
+    ) -> Optional[McpBindingResponse]:
         response = (
             self._client.table("mcp_binding")
             .select("*")
@@ -84,13 +86,18 @@ class McpBindingRepository:
         )
         return [McpBindingResponse(**item) for item in response.data]
 
-    def update(self, binding_id: int, data: McpBindingUpdate) -> Optional[McpBindingResponse]:
+    def update(
+        self, binding_id: int, data: McpBindingUpdate
+    ) -> Optional[McpBindingResponse]:
         try:
             payload = data.model_dump(exclude_none=True)
             if not payload:
                 return self.get_by_id(binding_id)
             response = (
-                self._client.table("mcp_binding").update(payload).eq("id", binding_id).execute()
+                self._client.table("mcp_binding")
+                .update(payload)
+                .eq("id", binding_id)
+                .execute()
             )
             if response.data:
                 return McpBindingResponse(**response.data[0])
@@ -99,7 +106,7 @@ class McpBindingRepository:
             raise handle_supabase_error(e, "更新 MCP Binding")
 
     def delete(self, binding_id: int) -> bool:
-        response = self._client.table("mcp_binding").delete().eq("id", binding_id).execute()
+        response = (
+            self._client.table("mcp_binding").delete().eq("id", binding_id).execute()
+        )
         return len(response.data) > 0
-
-

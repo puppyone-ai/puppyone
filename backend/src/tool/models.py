@@ -20,7 +20,7 @@ class Tool(BaseModel):
     description: Optional[str] = None
 
     input_schema: Optional[Any] = Field(default=None, description="JSON Schema (input)")
-    output_schema: Optional[Any] = Field(default=None, description="JSON Schema (output)")
+    output_schema: Optional[Any] = Field(
+        default=None, description="JSON Schema (output)"
+    )
     metadata: Optional[Any] = Field(default=None, description="扩展配置")
-
-

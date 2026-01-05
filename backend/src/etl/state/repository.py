@@ -29,8 +29,12 @@ class ETLStateRepositoryRedis:
         terminal_ttl_seconds: int | None = None,
     ):
         self.redis = redis
-        self.key_prefix = key_prefix if key_prefix is not None else etl_config.etl_redis_prefix
-        self.ttl_seconds = ttl_seconds if ttl_seconds is not None else etl_config.etl_state_ttl_seconds
+        self.key_prefix = (
+            key_prefix if key_prefix is not None else etl_config.etl_redis_prefix
+        )
+        self.ttl_seconds = (
+            ttl_seconds if ttl_seconds is not None else etl_config.etl_state_ttl_seconds
+        )
         self.terminal_ttl_seconds = (
             terminal_ttl_seconds
             if terminal_ttl_seconds is not None
@@ -56,13 +60,17 @@ class ETLStateRepositoryRedis:
             logger.warning(f"Failed to decode runtime state for task_id={task_id}: {e}")
             return None
 
-    async def set(self, state: ETLRuntimeState, *, ttl_seconds: int | None = None) -> None:
+    async def set(
+        self, state: ETLRuntimeState, *, ttl_seconds: int | None = None
+    ) -> None:
         state.updated_at = datetime.now(UTC)
         ttl = ttl_seconds if ttl_seconds is not None else self.ttl_seconds
         # Redis SET only accepts bytes/str/int/float. Store JSON string for compatibility.
         await self.redis.set(self._key(state.task_id), state.model_dump_json(), ex=ttl)
 
-    async def merge(self, task_id: int, patch: dict[str, Any], *, ttl_seconds: int | None = None) -> Optional[ETLRuntimeState]:
+    async def merge(
+        self, task_id: int, patch: dict[str, Any], *, ttl_seconds: int | None = None
+    ) -> Optional[ETLRuntimeState]:
         current = await self.get(task_id)
         if current is None:
             return None
@@ -77,5 +85,3 @@ class ETLStateRepositoryRedis:
     async def set_terminal(self, state: ETLRuntimeState) -> None:
         """Mark terminal state and shorten TTL."""
         await self.set(state, ttl_seconds=self.terminal_ttl_seconds)
-
-

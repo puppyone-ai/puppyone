@@ -691,27 +691,27 @@ class McpService:
     async def shutdown_all_instances(self) -> Dict[str, Any]:
         """
         关闭所有 MCP 实例（应用关闭时调用）
-        
+
         停止所有正在运行的 MCP 进程,并清理资源
-        
+
         Returns:
             关闭结果统计
         """
         log_info("Shutting down all MCP instances...")
-        
+
         try:
             # 调用 manager 关闭所有进程
             await shutdown_all_mcp_servers()
-            
+
             # 获取所有实例
             instances = self.instance_repo.get_all()
-            
+
             result = {
                 "total": len(instances),
                 "stopped": len(instances),
                 "errors": 0,
             }
-            
+
             log_info(f"MCP instances shutdown completed: {result}")
             return result
         except Exception as e:

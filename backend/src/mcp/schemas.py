@@ -8,9 +8,7 @@ class McpToolsDefinition(BaseModel):
     用于自定义工具的名称和描述模板
     """
 
-    name: str = Field(
-        ..., description="工具名称"
-    )
+    name: str = Field(..., description="工具名称")
     description: str = Field(
         ...,
         description="工具描述",
@@ -28,6 +26,8 @@ ToolTypeKey = Literal[
     "preview",
     "select",
 ]
+
+
 class McpCreate(BaseModel):
     """
     创建 MCP 实例请求模型
@@ -55,9 +55,19 @@ class McpCreate(BaseModel):
         ],
     )
     register_tools: List[ToolTypeKey] = Field(
-        default=["get_data_schema", "create", "update", "delete","get_all_data","query_data"],
+        default=[
+            "get_data_schema",
+            "create",
+            "update",
+            "delete",
+            "get_all_data",
+            "query_data",
+        ],
         description="🔧工具注册列表. 默认注册基础工具: ['get_data_schema', 'create', 'update', 'delete','get_all_data','query_data']. 可以只选择部分工具进行注册。如果设置了preview_keys, 会自动注册preview_data和select_data两个工具。",
-        examples=[["get_data_schema", "create"], ["get_data_schema", "update", "delete"]],
+        examples=[
+            ["get_data_schema", "create"],
+            ["get_data_schema", "update", "delete"],
+        ],
     )
     preview_keys: Optional[List[str]] = Field(
         default=None,

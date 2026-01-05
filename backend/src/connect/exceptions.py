@@ -3,6 +3,7 @@
 
 class ConnectException(Exception):
     """Base exception for connect module."""
+
     pass
 
 
@@ -17,14 +18,17 @@ class AuthenticationError(ConnectException):
 
 class UnsupportedURLError(ConnectException):
     """Raised when URL is not supported."""
+
     pass
 
 
 class DataFetchError(ConnectException):
     """Raised when data fetching fails."""
+
     pass
 
 
 class DataParseError(ConnectException):
     """Raised when data parsing fails."""
+
     pass

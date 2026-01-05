@@ -12,7 +12,13 @@ from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from starlette.requests import ClientDisconnect
 from src.common_schemas import ApiResponse
-from src.mcp.schemas import McpCreate, McpStatusResponse, McpUpdate, McpToolsDefinition, ToolTypeKey
+from src.mcp.schemas import (
+    McpCreate,
+    McpStatusResponse,
+    McpUpdate,
+    McpToolsDefinition,
+    ToolTypeKey,
+)
 from src.mcp.service import McpService
 from src.mcp.dependencies import (
     get_mcp_instance_service,
@@ -74,7 +80,9 @@ def _hydrate_tools_definition_for_list_response(instance: McpInstance) -> None:
     - 若 tools_definition 缺失该工具，或缺失 description，则用默认描述补全
     """
     enabled_tools: list[str] = (
-        list(instance.register_tools) if instance.register_tools else list(get_args(ToolTypeKey))
+        list(instance.register_tools)
+        if instance.register_tools
+        else list(get_args(ToolTypeKey))
     )
     if not enabled_tools:
         return
@@ -103,6 +111,7 @@ def _hydrate_tools_definition_for_list_response(instance: McpInstance) -> None:
 #   - update
 #   - delete
 # ============================================================
+
 
 @router.get(
     "/list",
@@ -139,7 +148,7 @@ async def generate_mcp_instance(
 ):
     """
     创建一个 MCP 实例并返回对应的 API key (JWT token)
-    
+
     返回两个 URL：
     1. proxy_url: 通过代理访问的 URL（推荐使用，无需记住端口）
     2. direct_url: 直接访问 MCP Server 的 URL（需要记住端口）
@@ -161,7 +170,7 @@ async def generate_mcp_instance(
     # 1. 环境变量 PUBLIC_URL（显式配置）
     # 2. X-Forwarded-* headers（反向代理环境，如 Railway）
     # 3. request.url（本地开发）
-    
+
     if settings.PUBLIC_URL:
         # 显式配置的公共 URL（去除末尾斜杠）
         base_url = settings.PUBLIC_URL.rstrip("/")
@@ -170,7 +179,7 @@ async def generate_mcp_instance(
         # 优先使用 X-Forwarded-* headers（反向代理环境）
         forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
         forwarded_host = request.headers.get("x-forwarded-host")
-        
+
         if forwarded_host:
             # Railway 等反向代理环境
             scheme = forwarded_proto
@@ -179,9 +188,9 @@ async def generate_mcp_instance(
             # 本地开发环境
             scheme = request.url.scheme
             host = request.headers.get("host", f"localhost:{request.url.port or 8000}")
-        
+
         base_url = f"{scheme}://{host}"
-    
+
     proxy_url = f"{base_url}/api/v1/mcp/server/{instance.api_key}"
 
     return ApiResponse.success(
@@ -190,7 +199,7 @@ async def generate_mcp_instance(
             # 为兼容旧版本，这里返回三个一样的URL
             "url": proxy_url,
             "proxy_url": proxy_url,
-            "direct_url": proxy_url
+            "direct_url": proxy_url,
         },
         message="MCP 实例创建成功",
     )
@@ -286,6 +295,7 @@ async def delete_mcp_instance(
 
     return ApiResponse.success(data=None, message="MCP 实例删除成功")
 
+
 # ============================================================
 # MCP协议代理接口
 # - 职责:
@@ -293,6 +303,7 @@ async def delete_mcp_instance(
 #   2. 状态拦截: 如果用户没有开启此mcp server，拒绝请求。
 #   3. 健康拦截: 如果目标实例不可达，拒绝请求
 # ============================================================
+
 
 @router.api_route(
     "/server/{api_key}",
@@ -315,25 +326,25 @@ async def proxy_mcp_server(
 ):
     """
     MCP Server 代理路由（新版：转发到共享MCP Server）
-    
+
     该路由充当代理，将所有请求转发到共享的 MCP Server 服务。
     用户无需直接访问 MCP Server，而是通过统一的代理端点访问。
-    
+
     注意：此接口不需要用户登录的 JWT token，只需要在 URL 中提供有效的 api_key 即可。
-    
+
     Args:
         request: FastAPI Request 对象
         api_key: API key（从URL提取）
         path: 要转发的路径（从 URL 中提取）
         instance: 验证后的 MCP 实例（通过依赖注入，只验证 api_key 是否存在）
-    
+
     Returns:
         转发的响应
-    
+
     Raises:
         NotFoundException: 如果 MCP 实例不存在或未运行
     """
-    
+
     # 1. 检查是否启动了mcp server实例
     if instance.status != 1:
         raise NotFoundException(
@@ -358,7 +369,7 @@ async def proxy_mcp_server(
         downstream_path = f"/mcp/{normalized_path}"
 
     target_url = f"{mcp_server_url}{downstream_path}"
-    
+
     # 2.2 获取请求体：
     # - GET/HEAD/OPTIONS 通常无 body，且读取可能在客户端断开时触发 ClientDisconnect
     # - 仅在可能携带 body 的方法下读取
@@ -369,17 +380,17 @@ async def proxy_mcp_server(
         except ClientDisconnect:
             # 客户端已断开连接，无需继续转发
             return Response(status_code=204)
-    
+
     # 2.3 准备转发的请求头
     headers = dict(request.headers)
     # 移除 Host 头，让 httpx 自动设置
     headers.pop("host", None)
     # 移除 content-length，让 httpx 自动计算
     headers.pop("content-length", None)
-    
+
     # 2.4 添加 X-API-KEY header，用于MCP Server识别租户
     headers["X-API-KEY"] = instance.api_key
-    
+
     # 2.5 准备查询参数
     query_params = dict(request.query_params)
 

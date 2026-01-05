@@ -113,7 +113,9 @@ def update_tool(
 ):
     # 只更新「请求体里实际传入」的字段，没传入的不影响
     patch = payload.model_dump(exclude_unset=True)
-    tool = tool_service.update(tool_id=tool_id, user_id=current_user.user_id, patch=patch)
+    tool = tool_service.update(
+        tool_id=tool_id, user_id=current_user.user_id, patch=patch
+    )
     return ApiResponse.success(data=tool, message="更新 Tool 成功")
 
 
@@ -130,5 +132,3 @@ def delete_tool(
 ):
     tool_service.delete(tool_id, current_user.user_id)
     return ApiResponse.success(data=None, message="删除 Tool 成功")
-
-

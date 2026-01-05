@@ -19,7 +19,9 @@ class SupabaseException(BusinessException):
 class SupabaseDuplicateKeyError(SupabaseException):
     """主键冲突错误"""
 
-    def __init__(self, table: str, key: str, value: any, original_error: Exception = None):
+    def __init__(
+        self, table: str, key: str, value: any, original_error: Exception = None
+    ):
         message = f"记录已存在: 表 '{table}' 中已存在 {key}={value} 的记录"
         super().__init__(message=message, original_error=original_error)
         self.table = table
@@ -45,7 +47,9 @@ class SupabaseForeignKeyError(SupabaseException):
         super().__init__(message=message, original_error=original_error)
 
 
-def handle_supabase_error(error: Exception, operation: str = "操作") -> SupabaseException:
+def handle_supabase_error(
+    error: Exception, operation: str = "操作"
+) -> SupabaseException:
     """
     处理 Supabase API 错误，转换为友好的异常
 
@@ -58,7 +62,9 @@ def handle_supabase_error(error: Exception, operation: str = "操作") -> Supaba
     """
     if isinstance(error, APIError):
         # APIError 的错误信息在 args[0] 中，是一个字典
-        error_dict = error.args[0] if error.args and isinstance(error.args[0], dict) else {}
+        error_dict = (
+            error.args[0] if error.args and isinstance(error.args[0], dict) else {}
+        )
         error_code = error_dict.get("code", "")
         error_message = error_dict.get("message", str(error))
         details = error_dict.get("details", "") or ""
@@ -67,16 +73,17 @@ def handle_supabase_error(error: Exception, operation: str = "操作") -> Supaba
         # 处理主键冲突 (23505)
         if error_code == "23505":
             import re
+
             # 键信息通常在 details 字段中，格式: "Key (id)=(1) already exists."
             # 也可能在 error_message 中
             key_info = details if details else error_message
-            
+
             # 尝试提取键名和值
-            match = re.search(r'Key \(([^)]+)\)=\(([^)]+)\)', key_info)
+            match = re.search(r"Key \(([^)]+)\)=\(([^)]+)\)", key_info)
             if match:
                 key_name = match.group(1)
                 key_value = match.group(2)
-                
+
                 # 从 error_message 中提取表名（通常在约束名称中）
                 # 例如: 'duplicate key value violates unique constraint "table_pkey"'
                 table_match = re.search(r'"([^"]+)_pkey"', error_message)
@@ -84,16 +91,18 @@ def handle_supabase_error(error: Exception, operation: str = "操作") -> Supaba
                     table_name = table_match.group(1)
                 else:
                     # 尝试从其他位置提取表名
-                    table_match = re.search(r'table "([^"]+)"', error_message + details + hint)
+                    table_match = re.search(
+                        r'table "([^"]+)"', error_message + details + hint
+                    )
                     table_name = table_match.group(1) if table_match else "unknown"
-                
+
                 return SupabaseDuplicateKeyError(
                     table=table_name,
                     key=key_name,
                     value=key_value,
                     original_error=error,
                 )
-            
+
             # 如果无法解析，返回通用错误
             return SupabaseDuplicateKeyError(
                 table="unknown",

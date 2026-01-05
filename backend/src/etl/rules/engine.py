@@ -57,9 +57,7 @@ class RuleEngine:
         last_error: Optional[str] = None
         for attempt in range(max_retries + 1):
             try:
-                logger.info(
-                    f"Transformation attempt {attempt + 1}/{max_retries + 1}"
-                )
+                logger.info(f"Transformation attempt {attempt + 1}/{max_retries + 1}")
 
                 # Call LLM
                 llm_response = await self.llm_service.call_text_model(
@@ -150,7 +148,9 @@ Return a valid JSON object that strictly matches the schema. Do not include any 
 
         return prompt
 
-    def validate_output(self, output: dict | list, json_schema: dict) -> tuple[bool, Optional[str]]:
+    def validate_output(
+        self, output: dict | list, json_schema: dict
+    ) -> tuple[bool, Optional[str]]:
         """
         Validate output against JSON Schema.
 
@@ -166,4 +166,3 @@ Return a valid JSON object that strictly matches the schema. Do not include any 
             return True, None
         except ValidationError as e:
             return False, e.message
-

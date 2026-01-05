@@ -61,10 +61,7 @@ class McpRepository:
             MCP 实例数据，如果不存在则返回 None
         """
         response = (
-            self._client.table("mcp_instance")
-            .select("*")
-            .eq("id", mcp_id)
-            .execute()
+            self._client.table("mcp_instance").select("*").eq("id", mcp_id).execute()
         )
         if response.data:
             return McpResponse(**response.data[0])
@@ -125,9 +122,7 @@ class McpRepository:
         response = query.range(skip, skip + limit - 1).execute()
         return [McpResponse(**item) for item in response.data]
 
-    def update(
-        self, mcp_id: int, mcp_data: McpUpdate
-    ) -> Optional[McpResponse]:
+    def update(self, mcp_id: int, mcp_data: McpUpdate) -> Optional[McpResponse]:
         """
         更新 MCP 实例
 
@@ -210,10 +205,7 @@ class McpRepository:
             是否删除成功
         """
         response = (
-            self._client.table("mcp_instance")
-            .delete()
-            .eq("id", mcp_id)
-            .execute()
+            self._client.table("mcp_instance").delete().eq("id", mcp_id).execute()
         )
         return len(response.data) > 0
 
@@ -228,9 +220,6 @@ class McpRepository:
             是否删除成功
         """
         response = (
-            self._client.table("mcp_instance")
-            .delete()
-            .eq("api_key", api_key)
-            .execute()
+            self._client.table("mcp_instance").delete().eq("api_key", api_key).execute()
         )
         return len(response.data) > 0

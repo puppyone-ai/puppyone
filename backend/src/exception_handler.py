@@ -10,13 +10,26 @@ from src.utils.request_context import request_id_var
 
 async def app_exception_handler(request: Request, exc: AppException):
     """处理自定义应用异常"""
+    # 注意：AppException（4xx/业务错误）默认也应该记录日志，便于排障。
+    # 之前只返回响应不打日志，会造成“看不到任何报错”的错觉。
+    rid = request_id_var.get()
+    log = logger.bind(
+        err_code=int(exc.code),
+        err_status=exc.status_code,
+        err_message=exc.message,
+        request_id=rid,
+    )
+    if exc.status_code >= 500:
+        log.error("AppException")
+    else:
+        log.warning("AppException")
+
     resp = JSONResponse(
         status_code=exc.status_code,
         content=ApiResponse.error(
             code=exc.code, message=exc.message, data=exc.details
         ).model_dump(),
     )
-    rid = request_id_var.get()
     if rid:
         resp.headers["X-Request-Id"] = rid
     return resp

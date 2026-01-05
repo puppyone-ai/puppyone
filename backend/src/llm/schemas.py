@@ -13,12 +13,17 @@ class TextModelRequest(BaseModel):
     """Request model for text generation."""
 
     prompt: str = Field(..., description="User prompt for the model")
-    system_prompt: Optional[str] = Field(None, description="System prompt to guide model behavior")
-    model: Optional[str] = Field(None, description="Model to use (defaults to config default)")
-    temperature: Optional[float] = Field(None, description="Temperature for generation (0.0-2.0)")
+    system_prompt: Optional[str] = Field(
+        None, description="System prompt to guide model behavior"
+    )
+    model: Optional[str] = Field(
+        None, description="Model to use (defaults to config default)"
+    )
+    temperature: Optional[float] = Field(
+        None, description="Temperature for generation (0.0-2.0)"
+    )
     response_format: Optional[Literal["text", "json_object"]] = Field(
-        "text",
-        description="Response format: 'text' or 'json_object'"
+        "text", description="Response format: 'text' or 'json_object'"
     )
     max_tokens: Optional[int] = Field(None, description="Maximum tokens to generate")
 
@@ -29,7 +34,9 @@ class TextModelResponse(BaseModel):
     content: str = Field(..., description="Generated content")
     model: str = Field(..., description="Model used for generation")
     usage: dict[str, Any] = Field(..., description="Token usage statistics")
-    finish_reason: str = Field(..., description="Reason for completion (stop, length, etc)")
+    finish_reason: str = Field(
+        ..., description="Reason for completion (stop, length, etc)"
+    )
 
 
 class LLMHealthResponse(BaseModel):
@@ -39,3 +46,41 @@ class LLMHealthResponse(BaseModel):
     message: str
     available_models: list[str]
 
+
+class EmbeddingRequest(BaseModel):
+    """Request model for single-text embedding generation."""
+
+    text: str = Field(..., description="Input text to embed")
+    model: Optional[str] = Field(
+        None, description="Embedding model to use (defaults to config default)"
+    )
+
+
+class EmbeddingResponse(BaseModel):
+    """Response model for single-text embedding generation."""
+
+    embedding: list[float] = Field(..., description="Embedding vector")
+    model: str = Field(..., description="Model used for embedding")
+    dimensions: int = Field(..., description="Embedding dimensions")
+
+
+class BatchEmbeddingRequest(BaseModel):
+    """Request model for batch embedding generation."""
+
+    texts: list[str] = Field(..., description="List of input texts to embed")
+    model: Optional[str] = Field(
+        None, description="Embedding model to use (defaults to config default)"
+    )
+    batch_size: Optional[int] = Field(
+        None, description="Optional override for embedding batch size"
+    )
+
+
+class BatchEmbeddingResponse(BaseModel):
+    """Response model for batch embedding generation."""
+
+    embeddings: list[list[float]] = Field(
+        ..., description="Embedding vectors, aligned with input order"
+    )
+    model: str = Field(..., description="Model used for embedding")
+    dimensions: int = Field(..., description="Embedding dimensions")

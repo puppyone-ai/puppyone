@@ -17,6 +17,7 @@ from src.supabase.mcps.repository import McpRepository
 from src.supabase.tools.repository import ToolRepository
 from src.supabase.mcp_v2.repository import McpV2Repository
 from src.supabase.mcp_binding.repository import McpBindingRepository
+from src.supabase.context_publish.repository import ContextPublishRepository
 
 # 导入各个子模块的 Schema
 from src.supabase.projects.schemas import (
@@ -41,6 +42,11 @@ from src.supabase.mcp_binding.schemas import (
     McpBindingUpdate,
     McpBindingResponse,
 )
+from src.supabase.context_publish.schemas import (
+    ContextPublishCreate,
+    ContextPublishUpdate,
+    ContextPublishResponse,
+)
 
 
 class SupabaseRepository:
@@ -57,7 +63,7 @@ class SupabaseRepository:
             self._client = SupabaseClient().get_client()
         else:
             self._client = client
-        
+
         # 初始化各个子仓库
         self._project_repo = ProjectRepository(self._client)
         self._table_repo = TableRepository(self._client)
@@ -65,6 +71,7 @@ class SupabaseRepository:
         self._tool_repo = ToolRepository(self._client)
         self._mcp_v2_repo = McpV2Repository(self._client)
         self._mcp_binding_repo = McpBindingRepository(self._client)
+        self._context_publish_repo = ContextPublishRepository(self._client)
 
     # ==================== Project 相关操作 ====================
 
@@ -114,7 +121,9 @@ class SupabaseRepository:
         Returns:
             项目列表
         """
-        return self._project_repo.get_list(skip=skip, limit=limit, user_id=user_id, name=name)
+        return self._project_repo.get_list(
+            skip=skip, limit=limit, user_id=user_id, name=name
+        )
 
     def update_project(
         self, project_id: int, project_data: ProjectUpdate
@@ -194,7 +203,9 @@ class SupabaseRepository:
         Returns:
             表列表
         """
-        return self._table_repo.get_list(skip=skip, limit=limit, project_id=project_id, name=name)
+        return self._table_repo.get_list(
+            skip=skip, limit=limit, project_id=project_id, name=name
+        )
 
     def update_table(
         self, table_id: int, table_data: TableUpdate
@@ -293,12 +304,10 @@ class SupabaseRepository:
             limit=limit,
             user_id=user_id,
             project_id=project_id,
-            table_id=table_id
+            table_id=table_id,
         )
 
-    def update_mcp(
-        self, mcp_id: int, mcp_data: McpUpdate
-    ) -> Optional[McpResponse]:
+    def update_mcp(self, mcp_id: int, mcp_data: McpUpdate) -> Optional[McpResponse]:
         """
         更新 MCP 实例
 
@@ -372,9 +381,13 @@ class SupabaseRepository:
         user_id: Optional[str] = None,
         table_id: Optional[int] = None,
     ) -> List[ToolResponse]:
-        return self._tool_repo.get_list(skip=skip, limit=limit, user_id=user_id, table_id=table_id)
+        return self._tool_repo.get_list(
+            skip=skip, limit=limit, user_id=user_id, table_id=table_id
+        )
 
-    def update_tool(self, tool_id: int, tool_data: ToolUpdate) -> Optional[ToolResponse]:
+    def update_tool(
+        self, tool_id: int, tool_data: ToolUpdate
+    ) -> Optional[ToolResponse]:
         return self._tool_repo.update(tool_id, tool_data)
 
     def delete_tool(self, tool_id: int) -> bool:
@@ -435,7 +448,9 @@ class SupabaseRepository:
         skip: int = 0,
         limit: int = 1000,
     ) -> List[McpBindingResponse]:
-        return self._mcp_binding_repo.get_list_by_tool_id(tool_id, skip=skip, limit=limit)
+        return self._mcp_binding_repo.get_list_by_tool_id(
+            tool_id, skip=skip, limit=limit
+        )
 
     def update_mcp_binding(
         self, binding_id: int, data: McpBindingUpdate
@@ -444,3 +459,37 @@ class SupabaseRepository:
 
     def delete_mcp_binding(self, binding_id: int) -> bool:
         return self._mcp_binding_repo.delete(binding_id)
+
+    # ==================== Context Publish 相关操作 ====================
+
+    def create_context_publish(
+        self, data: ContextPublishCreate
+    ) -> ContextPublishResponse:
+        return self._context_publish_repo.create(data)
+
+    def get_context_publish(self, publish_id: int) -> Optional[ContextPublishResponse]:
+        return self._context_publish_repo.get_by_id(publish_id)
+
+    def get_context_publish_by_key(
+        self, publish_key: str
+    ) -> Optional[ContextPublishResponse]:
+        return self._context_publish_repo.get_by_publish_key(publish_key)
+
+    def get_context_publish_list(
+        self,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        user_id: Optional[str] = None,
+    ) -> List[ContextPublishResponse]:
+        return self._context_publish_repo.get_list(
+            skip=skip, limit=limit, user_id=user_id
+        )
+
+    def update_context_publish(
+        self, publish_id: int, data: ContextPublishUpdate
+    ) -> Optional[ContextPublishResponse]:
+        return self._context_publish_repo.update(publish_id, data)
+
+    def delete_context_publish(self, publish_id: int) -> bool:
+        return self._context_publish_repo.delete(publish_id)

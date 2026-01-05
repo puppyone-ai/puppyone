@@ -23,5 +23,3 @@ def invalidate_mcp_cache(api_key: str) -> None:
         httpx.post(url, json={"api_key": api_key}, timeout=5.0, trust_env=False)
     except Exception as e:
         log_error(f"Failed to invalidate MCP cache: api_key={api_key[:12]}... err={e}")
-
-

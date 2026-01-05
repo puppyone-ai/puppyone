@@ -1,54 +1,60 @@
-'use client'
+'use client';
 
-import { Suspense, useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { githubCallback } from '@/lib/oauthApi'
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { githubCallback } from '@/lib/oauthApi';
 
 function GithubCallbackContent() {
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
-  const [message, setMessage] = useState('')
-  const [username, setUsername] = useState('')
-  const searchParams = useSearchParams()
-  const router = useRouter()
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
+    'loading'
+  );
+  const [message, setMessage] = useState('');
+  const [username, setUsername] = useState('');
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
     const handleCallback = async () => {
-      const code = searchParams.get('code')
+      const code = searchParams.get('code');
 
       if (!code) {
-        setStatus('error')
-        setMessage('Missing authorization code')
-        return
+        setStatus('error');
+        setMessage('Missing authorization code');
+        return;
       }
 
       try {
-        const result = await githubCallback(code)
+        const result = await githubCallback(code);
 
         if (result.success) {
-          setStatus('success')
-          setMessage('Successfully connected to GitHub!')
-          setUsername(result.username || '')
+          setStatus('success');
+          setMessage('Successfully connected to GitHub!');
+          setUsername(result.username || '');
         } else {
-          setStatus('error')
-          setMessage(result.message || 'Failed to connect to GitHub')
+          setStatus('error');
+          setMessage(result.message || 'Failed to connect to GitHub');
         }
       } catch (error) {
-        console.error('GitHub OAuth callback error:', error)
-        setStatus('error')
-        setMessage(error instanceof Error ? error.message : 'An unexpected error occurred')
+        console.error('GitHub OAuth callback error:', error);
+        setStatus('error');
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred'
+        );
       }
-    }
+    };
 
-    handleCallback()
-  }, [searchParams])
+    handleCallback();
+  }, [searchParams]);
 
   const handleContinue = () => {
-    router.push('/connect')
-  }
+    router.push('/connect');
+  };
 
   const handleRetry = () => {
-    router.push('/connect?auth=github')
-  }
+    router.push('/connect?auth=github');
+  };
 
   return (
     <div
@@ -66,7 +72,8 @@ function GithubCallbackContent() {
           backgroundColor: 'white',
           padding: '32px',
           borderRadius: '8px',
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+          boxShadow:
+            '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
           width: '100%',
           maxWidth: '448px',
         }}
@@ -84,9 +91,12 @@ function GithubCallbackContent() {
             {status === 'error' && 'Connection Failed'}
           </h1>
           <p style={{ color: '#6b7280', fontSize: '14px' }}>
-            {status === 'loading' && 'Please wait while we connect your GitHub account...'}
-            {status === 'success' && 'Your GitHub account has been successfully connected.'}
-            {status === 'error' && 'There was an error connecting your GitHub account.'}
+            {status === 'loading' &&
+              'Please wait while we connect your GitHub account...'}
+            {status === 'success' &&
+              'Your GitHub account has been successfully connected.'}
+            {status === 'error' &&
+              'There was an error connecting your GitHub account.'}
           </p>
         </div>
 
@@ -142,11 +152,11 @@ function GithubCallbackContent() {
                   justifyContent: 'center',
                 }}
               >
-                <svg width="24" height="24" fill="white" viewBox="0 0 20 20">
+                <svg width='24' height='24' fill='white' viewBox='0 0 20 20'>
                   <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
+                    fillRule='evenodd'
+                    d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'
+                    clipRule='evenodd'
                   />
                 </svg>
               </div>
@@ -159,7 +169,8 @@ function GithubCallbackContent() {
                       marginBottom: '8px',
                     }}
                   >
-                    Connected as: <span style={{ fontWeight: '500' }}>{username}</span>
+                    Connected as:{' '}
+                    <span style={{ fontWeight: '500' }}>{username}</span>
                   </p>
                 )}
                 <p style={{ fontSize: '14px', color: '#6b7280' }}>{message}</p>
@@ -187,11 +198,11 @@ function GithubCallbackContent() {
                   justifyContent: 'center',
                 }}
               >
-                <svg width="24" height="24" fill="white" viewBox="0 0 20 20">
+                <svg width='24' height='24' fill='white' viewBox='0 0 20 20'>
                   <path
-                    fillRule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clipRule="evenodd"
+                    fillRule='evenodd'
+                    d='M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z'
+                    clipRule='evenodd'
                   />
                 </svg>
               </div>
@@ -218,7 +229,14 @@ function GithubCallbackContent() {
           )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '16px' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            paddingTop: '16px',
+          }}
+        >
           {status === 'success' && (
             <button
               onClick={handleContinue}
@@ -276,7 +294,7 @@ function GithubCallbackContent() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export default function GithubCallbackPage() {
@@ -298,6 +316,5 @@ export default function GithubCallbackPage() {
     >
       <GithubCallbackContent />
     </Suspense>
-  )
+  );
 }
-

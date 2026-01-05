@@ -42,7 +42,9 @@ class InterceptHandler(logging.Handler):
             frame = frame.f_back
             depth += 1
 
-        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+        logger.opt(depth=depth, exception=record.exc_info).log(
+            level, record.getMessage()
+        )
 
 
 def setup_logging() -> None:
@@ -88,8 +90,11 @@ def setup_logging() -> None:
 
     # Console (stderr)
     if json_console:
-        logger.add(sys.stderr, level=log_level, serialize=True, backtrace=True, diagnose=False)
+        logger.add(
+            sys.stderr, level=log_level, serialize=True, backtrace=True, diagnose=False
+        )
     else:
+
         def _console_formatter(record: dict[str, Any]) -> str:
             extra = record.get("extra", {}) or {}
             rid = extra.get("request_id")
@@ -113,9 +118,7 @@ def setup_logging() -> None:
                 "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
                 "<level>{level: <8}</level> | "
                 "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
-                "{message}"
-                + ctx
-                + "\n{exception}"
+                "{message}" + ctx + "\n{exception}"
             )
 
         logger.add(
@@ -166,5 +169,3 @@ def setup_logging() -> None:
 def get_loguru_logger(**extra: Any):
     """Convenience wrapper to bind structured fields."""
     return logger.bind(**extra)
-
-

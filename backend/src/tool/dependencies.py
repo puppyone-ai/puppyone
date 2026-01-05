@@ -16,5 +16,3 @@ def get_tool_service() -> ToolService:
         table_service = get_table_service()
         _tool_service = ToolService(repo=repo, table_service=table_service)
     return _tool_service
-
-

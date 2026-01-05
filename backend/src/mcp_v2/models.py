@@ -15,5 +15,3 @@ class McpV2Instance(BaseModel):
     name: Optional[str] = None
     api_key: str
     status: bool = Field(default=False, description="是否启用")
-
-

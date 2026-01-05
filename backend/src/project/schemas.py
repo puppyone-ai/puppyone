@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 class TableInfo(BaseModel):
     """表信息（简化版，用于项目列表）"""
+
     id: str
     name: str
     rows: Optional[int] = None
@@ -17,6 +18,7 @@ class TableInfo(BaseModel):
 
 class ProjectOut(BaseModel):
     """项目输出模型 - 匹配前端 ProjectInfo 类型"""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -25,20 +27,22 @@ class ProjectOut(BaseModel):
 
 class ProjectCreate(BaseModel):
     """创建项目请求"""
+
     name: str
     description: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
     """更新项目请求"""
+
     name: Optional[str] = None
     description: Optional[str] = None
 
 
 class TableOut(BaseModel):
     """表输出模型"""
+
     id: str
     name: str
     rows: Optional[int] = None
     data: Optional[List[Any]] = None
-

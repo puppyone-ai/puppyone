@@ -1,5 +1,11 @@
 # Context分发方式重构（重大更新）
 
+## 现状说明（避免误解）
+
+- **Context 是逻辑概念**：Context = `Table.data` 的某个子 JSON 子树，由 `(table_id, json_path)`（JSON Pointer；根路径 `""`）标识。
+- **数据库实现没有单独的 Context 表**：系统核心实体是 `tool`（对某个 Context 的操作定义，ADI）以及 `mcp_v2/mcp_binding`（暴露入口与绑定，AEI）；公开只读发布使用 `context_publish` 表引用 `(table_id, json_path)`。
+- **MCP v2 已“去 Context 化”**：一个 MCP v2 实例可以绑定多个 Tool，从而跨多个 Context 组合暴露能力；不再是“一个 Context 对应一个 MCP 实例”。
+
 ## 背景
 
 PuppyOne的核心价值是：托管用户的数据，然后用agent friendly的方式进行分发。这个产品扮演了Connector的角色，将用户在各种平台散落的数据源进行统一的分发。
@@ -7,11 +13,11 @@ PuppyOne的核心价值是：托管用户的数据，然后用agent friendly的�
 被分发的Context = Table表中的data字段的一个子JSON（json_path定位）
 
 ## 目前的分发方式为
-- 被分发的Context唯一对应一个数据库中的Mcp Server实例 @sql/mcp.sql
+- （历史描述）被分发的Context唯一对应一个数据库中的Mcp Server实例 @sql/mcp.sql
 - Tools直接绑定到了MCP Server上面，作为附庸而不是独立实体。
 - 平台的分发方式受限，无法通过Api、CLI等其他方式分发，因为分发方法绑定到了MCP上面。
 
-### 现有架构
+### 现有架构（历史）
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

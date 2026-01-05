@@ -33,4 +33,3 @@ async def get_mcp_v2_instance_by_api_key(
             code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
         )
     return inst
-

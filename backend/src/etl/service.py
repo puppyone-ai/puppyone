@@ -207,7 +207,10 @@ class ETLService:
         if state is not None:
             # Reconcile "stuck running" tasks (e.g. worker crash/timeout before state could be finalized).
             # If the runtime state hasn't been updated for longer than job_timeout + buffer, mark it failed.
-            if state.status in (ETLTaskStatus.MINERU_PARSING, ETLTaskStatus.LLM_PROCESSING):
+            if state.status in (
+                ETLTaskStatus.MINERU_PARSING,
+                ETLTaskStatus.LLM_PROCESSING,
+            ):
                 age_s = (datetime.now(UTC) - state.updated_at).total_seconds()
                 if age_s > (etl_config.etl_task_timeout + 30):
                     err = f"Runtime state stale for {int(age_s)}s (timeout={etl_config.etl_task_timeout}s)"
@@ -241,7 +244,11 @@ class ETLService:
                         )
 
             # Terminal state details should come from DB for result payload stability
-            if state.status in (ETLTaskStatus.COMPLETED, ETLTaskStatus.FAILED, ETLTaskStatus.CANCELLED):
+            if state.status in (
+                ETLTaskStatus.COMPLETED,
+                ETLTaskStatus.FAILED,
+                ETLTaskStatus.CANCELLED,
+            ):
                 return self.task_repository.get_task(task_id)
 
             return ETLTask(
@@ -307,7 +314,9 @@ class ETLService:
         Returns:
             List of matching tasks
         """
-        tasks = self.task_repository.list_tasks(user_id=user_id, project_id=project_id, status=status, limit=100, offset=0)
+        tasks = self.task_repository.list_tasks(
+            user_id=user_id, project_id=project_id, status=status, limit=100, offset=0
+        )
 
         for t in tasks:
             if t.task_id is None:
@@ -315,7 +324,11 @@ class ETLService:
             st = await self.state_repo.get(t.task_id)
             if not st:
                 continue
-            if st.status in (ETLTaskStatus.PENDING, ETLTaskStatus.MINERU_PARSING, ETLTaskStatus.LLM_PROCESSING):
+            if st.status in (
+                ETLTaskStatus.PENDING,
+                ETLTaskStatus.MINERU_PARSING,
+                ETLTaskStatus.LLM_PROCESSING,
+            ):
                 t.status = st.status
                 t.progress = st.progress
                 t.error = st.error_message or t.error
@@ -325,7 +338,9 @@ class ETLService:
 
         return tasks
 
-    async def cancel_task(self, task_id: int, user_id: str, *, force: bool = False) -> ETLTask:
+    async def cancel_task(
+        self, task_id: int, user_id: str, *, force: bool = False
+    ) -> ETLTask:
         """
         Cancel a queued/pending task.
 
@@ -344,7 +359,11 @@ class ETLService:
             if task.status != ETLTaskStatus.PENDING:
                 raise ValueError(f"Task not cancellable in status={task.status.value}")
         else:
-            if task.status in (ETLTaskStatus.COMPLETED, ETLTaskStatus.FAILED, ETLTaskStatus.CANCELLED):
+            if task.status in (
+                ETLTaskStatus.COMPLETED,
+                ETLTaskStatus.FAILED,
+                ETLTaskStatus.CANCELLED,
+            ):
                 raise ValueError(f"Task not cancellable in status={task.status.value}")
 
         state = await self.state_repo.get(task_id)
@@ -369,7 +388,11 @@ class ETLService:
                 )
             if not force and state.status != ETLTaskStatus.PENDING:
                 raise ValueError(f"Task not cancellable in status={state.status.value}")
-            if state.status in (ETLTaskStatus.COMPLETED, ETLTaskStatus.FAILED, ETLTaskStatus.CANCELLED):
+            if state.status in (
+                ETLTaskStatus.COMPLETED,
+                ETLTaskStatus.FAILED,
+                ETLTaskStatus.CANCELLED,
+            ):
                 raise ValueError(f"Task not cancellable in status={state.status.value}")
             state.status = ETLTaskStatus.CANCELLED
             state.phase = ETLPhase.FINALIZE
@@ -410,9 +433,13 @@ class ETLService:
             raise ValueError(f"Task is running (status={state.status.value})")
 
         if from_stage == "postprocess":
-            md_key = state.artifact_mineru_markdown_key or task.metadata.get("artifact_mineru_markdown_key")
+            md_key = state.artifact_mineru_markdown_key or task.metadata.get(
+                "artifact_mineru_markdown_key"
+            )
             if not md_key:
-                raise ValueError("Cannot retry postprocess: missing markdown artifact pointer")
+                raise ValueError(
+                    "Cannot retry postprocess: missing markdown artifact pointer"
+                )
             job_id = await self.arq_client.enqueue_postprocess(task_id)
             state.phase = ETLPhase.POSTPROCESS
             state.status = ETLTaskStatus.LLM_PROCESSING
@@ -450,4 +477,3 @@ class ETLService:
     def get_task_count(self) -> int:
         """Task count is stored in DB; API does not track it."""
         return 0
-

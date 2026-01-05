@@ -12,7 +12,12 @@ interface JsonEditorComponentProps {
   options?: JSONEditorOptions;
 }
 
-const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChange, onPathChange, options = {} }) => {
+const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({
+  json,
+  onChange,
+  onPathChange,
+  options = {},
+}) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<JSONEditor | null>(null);
   const currentPathRef = useRef<string | null>(null);
@@ -36,7 +41,7 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
             try {
               // Get path from node
               let path: string | null = null;
-              
+
               if (node && node.path) {
                 // node.path might be an array or string
                 if (Array.isArray(node.path)) {
@@ -45,7 +50,7 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
                   path = node.path;
                 }
               }
-              
+
               // Also try to get selection from editor
               if (!path && editorRef.current) {
                 try {
@@ -82,11 +87,11 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
       // Also listen for selection changes via DOM events
       const handleSelectionChange = () => {
         if (!editorRef.current || !containerRef.current) return;
-        
+
         try {
           // Try to get selection from editor instance
           const editorInstance = editorRef.current as any;
-          
+
           // Method 1: Try getSelection method
           if (editorInstance.getSelection) {
             const selection = editorInstance.getSelection();
@@ -97,7 +102,7 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
               } else if (typeof selection.path === 'string') {
                 path = selection.path;
               }
-              
+
               if (path !== null && path !== currentPathRef.current) {
                 currentPathRef.current = path;
                 console.log('当前 tree path:', path);
@@ -105,9 +110,11 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
               }
             }
           }
-          
+
           // Method 2: Try to find selected node in DOM
-          const selectedNode = containerRef.current.querySelector('.jsoneditor-selected');
+          const selectedNode = containerRef.current.querySelector(
+            '.jsoneditor-selected'
+          );
           if (selectedNode) {
             // Try to extract path from data attributes or DOM structure
             const pathAttr = selectedNode.getAttribute('data-path');
@@ -124,7 +131,7 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
 
       // Listen for click events on the container
       containerRef.current.addEventListener('click', handleSelectionChange);
-      
+
       // Use MutationObserver to watch for selection changes
       const selectionObserver = new MutationObserver(() => {
         handleSelectionChange();
@@ -142,19 +149,19 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
 
         // Common Chinese to English translations for JSONEditor
         const translations: { [key: string]: string } = {
-          '内容排序': 'Sort',
+          内容排序: 'Sort',
           '筛选, 排序, 或者转换内容': 'Filter, sort, or transform content',
-          '排序': 'Sort',
-          '变换': 'Transform',
+          排序: 'Sort',
+          变换: 'Transform',
           '字段:': 'Field:',
           '方向:': 'Direction:',
-          '升序排序': 'Ascending',
-          '降序排序': 'Descending',
-          '向导': 'Wizard',
-          '筛选': 'Filter',
-          '选择字段': 'Select Fields',
-          '查询': 'Query',
-          '预览': 'Preview',
+          升序排序: 'Ascending',
+          降序排序: 'Descending',
+          向导: 'Wizard',
+          筛选: 'Filter',
+          选择字段: 'Select Fields',
+          查询: 'Query',
+          预览: 'Preview',
         };
 
         // Replace text in all text nodes
@@ -172,11 +179,14 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
           }
         }
 
-        textNodes.forEach((textNode) => {
+        textNodes.forEach(textNode => {
           let text = textNode.textContent || '';
-          Object.keys(translations).forEach((chinese) => {
+          Object.keys(translations).forEach(chinese => {
             if (text.includes(chinese)) {
-              text = text.replace(new RegExp(chinese, 'g'), translations[chinese]);
+              text = text.replace(
+                new RegExp(chinese, 'g'),
+                translations[chinese]
+              );
             }
           });
           if (text !== textNode.textContent) {
@@ -185,15 +195,19 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
         });
 
         // Replace aria-label attributes
-        const elementsWithAriaLabel = containerRef.current.querySelectorAll('[aria-label]');
-        elementsWithAriaLabel.forEach((element) => {
+        const elementsWithAriaLabel =
+          containerRef.current.querySelectorAll('[aria-label]');
+        elementsWithAriaLabel.forEach(element => {
           const ariaLabel = element.getAttribute('aria-label');
           if (ariaLabel) {
-            Object.keys(translations).forEach((chinese) => {
+            Object.keys(translations).forEach(chinese => {
               if (ariaLabel.includes(chinese)) {
                 element.setAttribute(
                   'aria-label',
-                  ariaLabel.replace(new RegExp(chinese, 'g'), translations[chinese])
+                  ariaLabel.replace(
+                    new RegExp(chinese, 'g'),
+                    translations[chinese]
+                  )
                 );
               }
             });
@@ -201,11 +215,12 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
         });
 
         // Replace title attributes
-        const elementsWithTitle = containerRef.current.querySelectorAll('[title]');
-        elementsWithTitle.forEach((element) => {
+        const elementsWithTitle =
+          containerRef.current.querySelectorAll('[title]');
+        elementsWithTitle.forEach(element => {
           const title = element.getAttribute('title');
           if (title) {
-            Object.keys(translations).forEach((chinese) => {
+            Object.keys(translations).forEach(chinese => {
               if (title.includes(chinese)) {
                 element.setAttribute(
                   'title',
@@ -235,7 +250,10 @@ const JsonEditorComponent: React.FC<JsonEditorComponentProps> = ({ json, onChang
         observer.disconnect();
         selectionObserver.disconnect();
         if (containerRef.current) {
-          containerRef.current.removeEventListener('click', handleSelectionChange);
+          containerRef.current.removeEventListener(
+            'click',
+            handleSelectionChange
+          );
         }
         if (editorRef.current) {
           editorRef.current.destroy();

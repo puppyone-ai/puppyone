@@ -26,7 +26,6 @@ from src.mcp_v2.schemas import (
     McpV2CreateWithBindingsOut,
     McpV2Out,
     McpV2Update,
-    BindToolRequest,
     BindToolsRequest,
     UpdateBindingRequest,
     BoundToolOut,
@@ -141,7 +140,12 @@ def update_mcp_v2(
     svc: McpV2Service = Depends(get_mcp_v2_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    inst = svc.update_instance(api_key=api_key, user_id=current_user.user_id, name=payload.name, status=payload.status)
+    inst = svc.update_instance(
+        api_key=api_key,
+        user_id=current_user.user_id,
+        name=payload.name,
+        status=payload.status,
+    )
     return ApiResponse.success(data=inst, message="更新 MCP v2 成功")
 
 
@@ -221,7 +225,9 @@ def unbind_tool(
     status_code=status.HTTP_200_OK,
 )
 def list_bound_tools_by_api_key(
-    include_disabled: bool = Query(default=False, description="是否包含 disabled bindings"),
+    include_disabled: bool = Query(
+        default=False, description="是否包含 disabled bindings"
+    ),
     instance: McpV2Instance = Depends(get_mcp_v2_instance_by_api_key),
     svc: McpV2Service = Depends(get_mcp_v2_service),
 ):
@@ -232,7 +238,9 @@ def list_bound_tools_by_api_key(
             code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
         )
 
-    data = svc.list_bound_tools_by_mcp_id(instance.id, include_disabled=include_disabled)
+    data = svc.list_bound_tools_by_mcp_id(
+        instance.id, include_disabled=include_disabled
+    )
     return ApiResponse.success(data=data, message="获取 MCP v2 绑定 Tool 列表成功")
 
 
@@ -244,7 +252,9 @@ def list_bound_tools_by_api_key(
 )
 def list_bound_tools_by_mcp_id(
     mcp_id: int,
-    include_disabled: bool = Query(default=False, description="是否包含 disabled bindings"),
+    include_disabled: bool = Query(
+        default=False, description="是否包含 disabled bindings"
+    ),
     svc: McpV2Service = Depends(get_mcp_v2_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -264,6 +274,7 @@ def list_bound_tools_by_mcp_id(
 #   3. 健康拦截: 如果目标实例不可达，拒绝请求。
 # - 行为：模仿 /mcp/server/*，但实例来源为 mcp_v2
 # ============================================================
+
 
 @router.api_route(
     "/server/{api_key}",
@@ -449,5 +460,3 @@ async def proxy_mcp_v2_server(
                     f"转发请求到 MCP Server 时发生错误: {str(e)}",
                     code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
                 )
-
-

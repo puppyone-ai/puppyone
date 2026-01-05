@@ -7,10 +7,7 @@ class Settings(BaseSettings):
     """应用配置"""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        case_sensitive=True,
-        extra="ignore",
-        env_file_encoding="utf-8"
+        env_file=".env", case_sensitive=True, extra="ignore", env_file_encoding="utf-8"
     )
 
     # 服务配置
@@ -70,13 +67,19 @@ class Settings(BaseSettings):
     AIRTABLE_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/airtable"
 
     # 服务间通信
-    INTERNAL_API_SECRET: str = ""   # 内部服务通信密钥
-    MCP_SERVER_URL: str = ""        # MCP服务的地址
-    
+    INTERNAL_API_SECRET: str = ""  # 内部服务通信密钥
+    MCP_SERVER_URL: str = ""  # MCP服务的地址
+
     # 公共访问 URL（用于生成对外的 API 链接）
     # - 本地开发: http://localhost:8000
     # - Railway: https://your-app.railway.app
     # - 如果不设置，会从请求头自动推断
     PUBLIC_URL: str = ""
+
+    # Context Publish 配置
+    PUBLISH_DEFAULT_EXPIRES_DAYS: int = 7
+    PUBLISH_KEY_LENGTH: int = 16
+    PUBLISH_CACHE_TTL_SECONDS: int = 10
+
 
 settings = Settings()

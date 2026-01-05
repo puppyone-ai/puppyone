@@ -23,10 +23,10 @@ class ETLTaskRepositoryBase(ABC):
     def create_task(self, task: ETLTask) -> ETLTask:
         """
         Create a new task in storage.
-        
+
         Args:
             task: Task to create (task_id will be assigned)
-            
+
         Returns:
             Task with assigned task_id
         """
@@ -36,10 +36,10 @@ class ETLTaskRepositoryBase(ABC):
     def get_task(self, task_id: int) -> Optional[ETLTask]:
         """
         Get task by ID.
-        
+
         Args:
             task_id: Task identifier
-            
+
         Returns:
             Task if found, None otherwise
         """
@@ -49,10 +49,10 @@ class ETLTaskRepositoryBase(ABC):
     def update_task(self, task: ETLTask) -> Optional[ETLTask]:
         """
         Update existing task.
-        
+
         Args:
             task: Task to update
-            
+
         Returns:
             Updated task if found, None otherwise
         """
@@ -69,14 +69,14 @@ class ETLTaskRepositoryBase(ABC):
     ) -> list[ETLTask]:
         """
         List tasks with optional filters.
-        
+
         Args:
             user_id: Filter by user ID
             project_id: Filter by project ID
             status: Filter by status
             limit: Maximum number of results
             offset: Number of results to skip
-            
+
         Returns:
             List of tasks
         """
@@ -91,12 +91,12 @@ class ETLTaskRepositoryBase(ABC):
     ) -> int:
         """
         Count tasks with optional filters.
-        
+
         Args:
             user_id: Filter by user ID
             project_id: Filter by project ID
             status: Filter by status
-            
+
         Returns:
             Number of matching tasks
         """
@@ -106,10 +106,10 @@ class ETLTaskRepositoryBase(ABC):
     def delete_task(self, task_id: int) -> bool:
         """
         Delete task by ID.
-        
+
         Args:
             task_id: Task identifier
-            
+
         Returns:
             True if deleted, False if not found
         """
@@ -131,16 +131,14 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
         try:
             # Convert task to dict for insertion
             insert_data = task.to_dict()
-            
+
             # Remove id field as it will be auto-generated
             if "id" in insert_data:
                 del insert_data["id"]
-            
+
             # Insert to database
             response = (
-                self.supabase.table(self.TABLE_NAME)
-                .insert(insert_data)
-                .execute()
+                self.supabase.table(self.TABLE_NAME).insert(insert_data).execute()
             )
 
             if not response.data or len(response.data) == 0:
@@ -148,11 +146,13 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
             # Get inserted record
             row = response.data[0]
-            
+
             # Create task from database record
             created_task = ETLTask.from_dict(row)
-            
-            logger.info(f"Created task: {created_task.task_id} for user {created_task.user_id}")
+
+            logger.info(
+                f"Created task: {created_task.task_id} for user {created_task.user_id}"
+            )
             return created_task
 
         except Exception as e:
@@ -174,7 +174,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
             row = response.data[0]
             task = ETLTask.from_dict(row)
-            
+
             return task
 
         except Exception as e:
@@ -190,14 +190,14 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
         try:
             # Convert task to dict
             update_data = task.to_dict()
-            
+
             # Remove id field (not updatable)
             if "id" in update_data:
                 del update_data["id"]
-            
+
             # Update timestamp
             update_data["updated_at"] = datetime.now(UTC).isoformat()
-            
+
             # Update in database
             response = (
                 self.supabase.table(self.TABLE_NAME)
@@ -212,7 +212,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
             row = response.data[0]
             updated_task = ETLTask.from_dict(row)
-            
+
             logger.info(f"Updated task: {task.task_id}")
             return updated_task
 
@@ -240,7 +240,9 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
                 query = query.eq("status", status.value)
 
             # Apply pagination and ordering
-            query = query.range(offset, offset + limit - 1).order("created_at", desc=True)
+            query = query.range(offset, offset + limit - 1).order(
+                "created_at", desc=True
+            )
 
             response = query.execute()
 
@@ -306,4 +308,3 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
         except Exception as e:
             handle_supabase_error(e, "删除 ETL 任务")
-

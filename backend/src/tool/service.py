@@ -8,7 +8,10 @@ from src.exceptions import NotFoundException, ErrorCode, BusinessException
 from src.table.service import TableService
 from src.tool.models import Tool
 from src.tool.repository import ToolRepositoryBase
-from src.supabase.tools.schemas import ToolCreate as SbToolCreate, ToolUpdate as SbToolUpdate
+from src.supabase.tools.schemas import (
+    ToolCreate as SbToolCreate,
+    ToolUpdate as SbToolUpdate,
+)
 from src.supabase.dependencies import get_supabase_repository
 from src.mcp.cache_invalidator import invalidate_mcp_cache
 
@@ -49,7 +52,9 @@ class ToolService:
                 continue
             invalidate_mcp_cache(mcp.api_key)
 
-    def _assert_name_update_no_conflict(self, tool_id: int, user_id: str, new_name: str) -> None:
+    def _assert_name_update_no_conflict(
+        self, tool_id: int, user_id: str, new_name: str
+    ) -> None:
         """
         如果该 tool 已绑定到任意 mcp_v2，则更新 name 前需要保证
         在每个相关 mcp_v2 内仍然保持 name 唯一。
@@ -77,7 +82,9 @@ class ToolService:
                         code=ErrorCode.VALIDATION_ERROR,
                     )
 
-    def list_user_tools(self, user_id: str, *, skip: int = 0, limit: int = 100) -> List[Tool]:
+    def list_user_tools(
+        self, user_id: str, *, skip: int = 0, limit: int = 100
+    ) -> List[Tool]:
         return self.repo.get_by_user_id(user_id, skip=skip, limit=limit)
 
     def list_user_tools_by_table_id(
@@ -90,7 +97,9 @@ class ToolService:
     ) -> List[Tool]:
         # 强校验：table 必须属于当前用户
         self.table_service.get_by_id_with_access_check(table_id, user_id)
-        return self.repo.get_by_user_id(user_id, skip=skip, limit=limit, table_id=table_id)
+        return self.repo.get_by_user_id(
+            user_id, skip=skip, limit=limit, table_id=table_id
+        )
 
     def get_by_id(self, tool_id: int) -> Optional[Tool]:
         return self.repo.get_by_id(tool_id)
@@ -98,7 +107,9 @@ class ToolService:
     def get_by_id_with_access_check(self, tool_id: int, user_id: str) -> Tool:
         tool = self.repo.get_by_id(tool_id)
         if not tool or tool.user_id != user_id:
-            raise NotFoundException(f"Tool not found: {tool_id}", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(
+                f"Tool not found: {tool_id}", code=ErrorCode.NOT_FOUND
+            )
         return tool
 
     def create(
@@ -166,11 +177,15 @@ class ToolService:
         )
         if not updated:
             # 理论上不会发生（已做 get_by_id_with_access_check），这里做兜底
-            raise BusinessException("Tool update failed", code=ErrorCode.INTERNAL_SERVER_ERROR)
+            raise BusinessException(
+                "Tool update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
+            )
 
         # 保持 user_id 不变（DB 层也不会更新 user_id，但为了安全再校验一次）
         if updated.user_id != existing.user_id:
-            raise BusinessException("Tool owner mismatch after update", code=ErrorCode.INTERNAL_SERVER_ERROR)
+            raise BusinessException(
+                "Tool owner mismatch after update", code=ErrorCode.INTERNAL_SERVER_ERROR
+            )
 
         # 触发所有绑定该 tool 的 mcp_v2 失效（工具列表/执行参数都可能变化）
         self._invalidate_bound_mcps(tool_id)
@@ -181,7 +196,7 @@ class ToolService:
         _ = self.get_by_id_with_access_check(tool_id, user_id)
         ok = self.repo.delete(tool_id)
         if not ok:
-            raise BusinessException("Tool delete failed", code=ErrorCode.INTERNAL_SERVER_ERROR)
+            raise BusinessException(
+                "Tool delete failed", code=ErrorCode.INTERNAL_SERVER_ERROR
+            )
         self._invalidate_bound_mcps(tool_id)
-
-

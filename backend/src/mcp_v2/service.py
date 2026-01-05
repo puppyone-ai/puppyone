@@ -2,11 +2,19 @@ from __future__ import annotations
 
 from typing import List
 
-from src.exceptions import NotFoundException, ErrorCode, ValidationException, BusinessException
+from src.exceptions import (
+    NotFoundException,
+    ErrorCode,
+    ValidationException,
+    BusinessException,
+)
 from src.mcp.cache_invalidator import invalidate_mcp_cache
 from src.supabase.dependencies import get_supabase_repository
 from src.supabase.mcp_binding.schemas import McpBindingCreate, McpBindingUpdate
-from src.supabase.mcp_v2.schemas import McpV2Create as SbMcpV2Create, McpV2Update as SbMcpV2Update
+from src.supabase.mcp_v2.schemas import (
+    McpV2Create as SbMcpV2Create,
+    McpV2Update as SbMcpV2Update,
+)
 from src.tool.repository import ToolRepositorySupabase
 from src.tool.models import Tool
 from src.mcp_v2.models import McpV2Instance
@@ -29,12 +37,18 @@ class McpV2Service:
             status=bool(resp.status),
         )
 
-    def list_user_instances(self, user_id: str, *, skip: int = 0, limit: int = 100) -> List[McpV2Instance]:
+    def list_user_instances(
+        self, user_id: str, *, skip: int = 0, limit: int = 100
+    ) -> List[McpV2Instance]:
         resps = self._repo.get_mcp_v2_list(skip=skip, limit=limit, user_id=user_id)
         return [self._to_model(r) for r in resps]
 
-    def create_instance(self, *, user_id: str, api_key: str, name: str | None, status: bool) -> McpV2Instance:
-        resp = self._repo.create_mcp_v2(SbMcpV2Create(user_id=user_id, api_key=api_key, name=name, status=status))
+    def create_instance(
+        self, *, user_id: str, api_key: str, name: str | None, status: bool
+    ) -> McpV2Instance:
+        resp = self._repo.create_mcp_v2(
+            SbMcpV2Create(user_id=user_id, api_key=api_key, name=name, status=status)
+        )
         return self._to_model(resp)
 
     def get_by_api_key(self, api_key: str) -> McpV2Instance | None:
@@ -49,23 +63,35 @@ class McpV2Service:
             return None
         return self._to_model(resp)
 
-    def get_by_api_key_with_access_check(self, api_key: str, user_id: str) -> McpV2Instance:
+    def get_by_api_key_with_access_check(
+        self, api_key: str, user_id: str
+    ) -> McpV2Instance:
         inst = self.get_by_api_key(api_key)
         if not inst or inst.user_id != user_id:
-            raise NotFoundException("MCP v2 instance not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(
+                "MCP v2 instance not found", code=ErrorCode.NOT_FOUND
+            )
         return inst
 
     def get_by_id_with_access_check(self, mcp_id: int, user_id: str) -> McpV2Instance:
         inst = self.get_by_id(mcp_id)
         if not inst or inst.user_id != user_id:
-            raise NotFoundException("MCP v2 instance not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(
+                "MCP v2 instance not found", code=ErrorCode.NOT_FOUND
+            )
         return inst
 
-    def update_instance(self, *, api_key: str, user_id: str, name: str | None, status: bool | None) -> McpV2Instance:
+    def update_instance(
+        self, *, api_key: str, user_id: str, name: str | None, status: bool | None
+    ) -> McpV2Instance:
         inst = self.get_by_api_key_with_access_check(api_key, user_id)
-        resp = self._repo.update_mcp_v2(inst.id, SbMcpV2Update(name=name, status=status))
+        resp = self._repo.update_mcp_v2(
+            inst.id, SbMcpV2Update(name=name, status=status)
+        )
         if not resp:
-            raise BusinessException("MCP v2 update failed", code=ErrorCode.INTERNAL_SERVER_ERROR)
+            raise BusinessException(
+                "MCP v2 update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
+            )
         updated = self._to_model(resp)
         invalidate_mcp_cache(api_key)
         return updated
@@ -74,7 +100,9 @@ class McpV2Service:
         inst = self.get_by_api_key_with_access_check(api_key, user_id)
         ok = self._repo.delete_mcp_v2(inst.id)
         if not ok:
-            raise BusinessException("MCP v2 delete failed", code=ErrorCode.INTERNAL_SERVER_ERROR)
+            raise BusinessException(
+                "MCP v2 delete failed", code=ErrorCode.INTERNAL_SERVER_ERROR
+            )
         invalidate_mcp_cache(api_key)
 
     def _list_bound_tools(self, mcp_id: int) -> List[tuple[int, Tool]]:
@@ -139,9 +167,13 @@ class McpV2Service:
         include_disabled: bool = False,
     ) -> List[BoundToolOut]:
         _ = self.get_by_id_with_access_check(mcp_id, user_id)
-        return self.list_bound_tools_by_mcp_id(mcp_id, include_disabled=include_disabled)
+        return self.list_bound_tools_by_mcp_id(
+            mcp_id, include_disabled=include_disabled
+        )
 
-    def bind_tool(self, *, api_key: str, user_id: str, tool_id: int, status: bool) -> None:
+    def bind_tool(
+        self, *, api_key: str, user_id: str, tool_id: int, status: bool
+    ) -> None:
         inst = self.get_by_api_key_with_access_check(api_key, user_id)
 
         tool = self._tool_repo.get_by_id(tool_id)
@@ -160,7 +192,9 @@ class McpV2Service:
             # 已绑定则视为更新 status
             self._repo.update_mcp_binding(existed.id, McpBindingUpdate(status=status))
         else:
-            self._repo.create_mcp_binding(McpBindingCreate(mcp_id=inst.id, tool_id=tool_id, status=status))
+            self._repo.create_mcp_binding(
+                McpBindingCreate(mcp_id=inst.id, tool_id=tool_id, status=status)
+            )
 
         invalidate_mcp_cache(api_key)
 
@@ -217,18 +251,31 @@ class McpV2Service:
                 existed = self._repo.get_mcp_binding_by_mcp_and_tool(inst.id, b.tool_id)
                 if existed:
                     prev_status = bool(existed.status)
-                    self._repo.update_mcp_binding(existed.id, McpBindingUpdate(status=b.status))
+                    self._repo.update_mcp_binding(
+                        existed.id, McpBindingUpdate(status=b.status)
+                    )
                     wrote_anything = True
                     processed.append(
-                        {"tool_id": b.tool_id, "existed": True, "binding_id": existed.id, "prev_status": prev_status}
+                        {
+                            "tool_id": b.tool_id,
+                            "existed": True,
+                            "binding_id": existed.id,
+                            "prev_status": prev_status,
+                        }
                     )
                 else:
                     created = self._repo.create_mcp_binding(
-                        McpBindingCreate(mcp_id=inst.id, tool_id=b.tool_id, status=b.status)
+                        McpBindingCreate(
+                            mcp_id=inst.id, tool_id=b.tool_id, status=b.status
+                        )
                     )
                     wrote_anything = True
                     processed.append(
-                        {"tool_id": b.tool_id, "existed": False, "binding_id": created.id}
+                        {
+                            "tool_id": b.tool_id,
+                            "existed": False,
+                            "binding_id": created.id,
+                        }
                     )
         except Exception as e:
             # 回滚（best-effort）
@@ -280,7 +327,9 @@ class McpV2Service:
                 )
             seen_names.add(tool.name)
 
-        inst = self.create_instance(user_id=user_id, api_key=api_key, name=name, status=status)
+        inst = self.create_instance(
+            user_id=user_id, api_key=api_key, name=name, status=status
+        )
 
         try:
             for b in bindings:
@@ -308,15 +357,17 @@ class McpV2Service:
             raise NotFoundException("Binding not found", code=ErrorCode.NOT_FOUND)
         ok = self._repo.delete_mcp_binding(binding.id)
         if not ok:
-            raise BusinessException("Unbind failed", code=ErrorCode.INTERNAL_SERVER_ERROR)
+            raise BusinessException(
+                "Unbind failed", code=ErrorCode.INTERNAL_SERVER_ERROR
+            )
         invalidate_mcp_cache(api_key)
 
-    def update_binding_status(self, *, api_key: str, user_id: str, tool_id: int, status: bool) -> None:
+    def update_binding_status(
+        self, *, api_key: str, user_id: str, tool_id: int, status: bool
+    ) -> None:
         inst = self.get_by_api_key_with_access_check(api_key, user_id)
         binding = self._repo.get_mcp_binding_by_mcp_and_tool(inst.id, tool_id)
         if not binding:
             raise NotFoundException("Binding not found", code=ErrorCode.NOT_FOUND)
         self._repo.update_mcp_binding(binding.id, McpBindingUpdate(status=status))
         invalidate_mcp_cache(api_key)
-
-

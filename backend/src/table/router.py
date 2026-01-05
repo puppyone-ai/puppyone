@@ -41,8 +41,12 @@ def list_tables(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     # 获取用户的所有项目及其下的表格
-    projects_with_tables = table_service.get_projects_with_tables_by_user_id(current_user.user_id)
-    return ApiResponse.success(data=projects_with_tables, message="项目及表格列表获取成功")
+    projects_with_tables = table_service.get_projects_with_tables_by_user_id(
+        current_user.user_id
+    )
+    return ApiResponse.success(
+        data=projects_with_tables, message="项目及表格列表获取成功"
+    )
 
 
 @router.get(
@@ -73,11 +77,13 @@ def create_table(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     # 验证项目是否属于当前用户
-    if not table_service.verify_project_access(payload.project_id, current_user.user_id):
+    if not table_service.verify_project_access(
+        payload.project_id, current_user.user_id
+    ):
         raise NotFoundException(
             f"Project not found: {payload.project_id}", code=ErrorCode.NOT_FOUND
         )
-    
+
     # 创建表格
     table = table_service.create(
         project_id=payload.project_id,

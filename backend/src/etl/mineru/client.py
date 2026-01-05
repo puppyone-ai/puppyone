@@ -109,13 +109,13 @@ class MineRUClient:
 
                 data = response.json()
                 result = CreateTaskResponse(**data)
-                
+
                 # 检查 API 返回的 code 字段
                 if result.code != 0:
                     error_msg = f"{result.msg} (code: {result.code})"
                     logger.error(f"MineRU API error: {error_msg}")
                     raise MineRUAPIError(result.code, error_msg)
-                
+
                 logger.info(f"MineRU task created: task_id={result.task_id}")
                 return result
 
@@ -158,13 +158,13 @@ class MineRUClient:
 
                 data = response.json()
                 result = TaskStatusResponse(**data)
-                
+
                 # 检查 API 返回的 code 字段
                 if result.code != 0:
                     error_msg = f"{result.msg} (code: {result.code})"
                     logger.error(f"MineRU API error: {error_msg}")
                     raise MineRUAPIError(result.code, error_msg)
-                
+
                 return result
 
             except httpx.HTTPError as e:
@@ -243,28 +243,28 @@ class MineRUClient:
             "follow_redirects": True,
             "verify": True,  # 验证 SSL 证书
         }
-        
+
         # 如果设置了代理环境变量,httpx 会自动使用
         # 支持: HTTP_PROXY, HTTPS_PROXY, ALL_PROXY
-        
+
         async with httpx.AsyncClient(**client_kwargs) as client:
             try:
-                logger.info(f"Downloading MineRU result for task {task_id} from {zip_url[:100]}...")
+                logger.info(
+                    f"Downloading MineRU result for task {task_id} from {zip_url[:100]}..."
+                )
                 response = await client.get(zip_url)
 
                 if response.status_code != 200:
                     raise MineRUAPIError(
                         response.status_code,
-                        f"Failed to download result: {response.text}"
+                        f"Failed to download result: {response.text}",
                     )
 
                 # Write ZIP file
                 with open(zip_path, "wb") as f:
                     f.write(response.content)
 
-                logger.info(
-                    f"Downloaded {len(response.content)} bytes to {zip_path}"
-                )
+                logger.info(f"Downloaded {len(response.content)} bytes to {zip_path}")
 
             except httpx.ConnectError as e:
                 error_msg = (
@@ -315,17 +315,17 @@ class MineRUClient:
         """
         # 尝试多种可能的 Markdown 文件路径
         possible_paths = [
-            cache_dir / "full.md",           # MineRU 新版本
+            cache_dir / "full.md",  # MineRU 新版本
             cache_dir / "auto" / "auto.md",  # 旧版本路径
-            cache_dir / "result.md",         # 备选路径
+            cache_dir / "result.md",  # 备选路径
         ]
-        
+
         markdown_path = None
         for path in possible_paths:
             if path.exists():
                 markdown_path = path
                 break
-        
+
         # 如果上述路径都不存在,使用通配符查找任何 .md 文件
         if not markdown_path:
             md_files = list(cache_dir.glob("*.md"))
@@ -337,7 +337,9 @@ class MineRUClient:
                 md_files = list(cache_dir.glob("**/*.md"))
                 if md_files:
                     markdown_path = md_files[0]
-                    logger.info(f"Found markdown file via recursive glob: {markdown_path}")
+                    logger.info(
+                        f"Found markdown file via recursive glob: {markdown_path}"
+                    )
 
         if not markdown_path:
             # 列出目录内容以便调试
@@ -353,8 +355,7 @@ class MineRUClient:
             content = f.read()
 
         logger.info(
-            f"Extracted Markdown from {markdown_path} "
-            f"({len(content)} characters)"
+            f"Extracted Markdown from {markdown_path} ({len(content)} characters)"
         )
         return content
 
@@ -402,13 +403,13 @@ class MineRUClient:
             cache_dir / "auto" / "auto.md",
             cache_dir / "result.md",
         ]
-        
+
         markdown_path = None
         for path in possible_paths:
             if path.exists():
                 markdown_path = path
                 break
-        
+
         # 如果都不存在,使用通配符查找
         if not markdown_path:
             md_files = list(cache_dir.glob("*.md"))
@@ -418,7 +419,7 @@ class MineRUClient:
                 md_files = list(cache_dir.glob("**/*.md"))
                 if md_files:
                     markdown_path = md_files[0]
-        
+
         # 默认路径(如果找不到)
         if not markdown_path:
             markdown_path = cache_dir / "full.md"
@@ -429,4 +430,3 @@ class MineRUClient:
             markdown_path=str(markdown_path),
             markdown_content=markdown_content,
         )
-

@@ -15,7 +15,9 @@ from pydantic import BaseModel, Field, field_validator
 PostprocessMode = Literal["llm", "skip"]
 
 
-def parse_rule_payload(raw_json_schema: dict[str, Any]) -> tuple[PostprocessMode, Optional[str], dict[str, Any]]:
+def parse_rule_payload(
+    raw_json_schema: dict[str, Any],
+) -> tuple[PostprocessMode, Optional[str], dict[str, Any]]:
     """
     Backward compatible parsing for rule json_schema stored in DB.
 
@@ -67,12 +69,17 @@ class ETLRule(BaseModel):
     rule_id: str = Field(..., description="Unique rule identifier")
     name: str = Field(..., description="Rule name")
     description: str = Field(..., description="Rule description")
-    json_schema: dict[str, Any] = Field(..., description="JSON Schema for output structure (effective)")
-    postprocess_mode: PostprocessMode = Field(default="llm", description="Postprocess mode: llm|skip")
-    postprocess_strategy: Optional[str] = Field(default=None, description="Postprocess strategy (optional)")
+    json_schema: dict[str, Any] = Field(
+        ..., description="JSON Schema for output structure (effective)"
+    )
+    postprocess_mode: PostprocessMode = Field(
+        default="llm", description="Postprocess mode: llm|skip"
+    )
+    postprocess_strategy: Optional[str] = Field(
+        default=None, description="Postprocess strategy (optional)"
+    )
     system_prompt: Optional[str] = Field(
-        None,
-        description="System prompt to guide LLM transformation"
+        None, description="System prompt to guide LLM transformation"
     )
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -93,17 +100,20 @@ class RuleCreateRequest(BaseModel):
 
     name: str = Field(..., description="Rule name")
     description: str = Field(..., description="Rule description")
-    json_schema: Optional[dict[str, Any]] = Field(default=None, description="JSON Schema for output (required for llm)")
-    postprocess_mode: PostprocessMode = Field(default="llm", description="llm|skip")
-    postprocess_strategy: Optional[str] = Field(default=None, description="Postprocess strategy (optional)")
-    system_prompt: Optional[str] = Field(
-        None,
-        description="Optional system prompt"
+    json_schema: Optional[dict[str, Any]] = Field(
+        default=None, description="JSON Schema for output (required for llm)"
     )
+    postprocess_mode: PostprocessMode = Field(default="llm", description="llm|skip")
+    postprocess_strategy: Optional[str] = Field(
+        default=None, description="Postprocess strategy (optional)"
+    )
+    system_prompt: Optional[str] = Field(None, description="Optional system prompt")
 
     @field_validator("json_schema")
     @classmethod
-    def validate_create_schema(cls, v: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    def validate_create_schema(
+        cls, v: Optional[dict[str, Any]]
+    ) -> Optional[dict[str, Any]]:
         if v is None:
             return None
         if not isinstance(v, dict):
@@ -118,15 +128,22 @@ class RuleUpdateRequest(BaseModel):
     description: Optional[str] = Field(None, description="Rule description")
     json_schema: Optional[dict[str, Any]] = Field(None, description="JSON Schema")
     system_prompt: Optional[str] = Field(None, description="System prompt")
-    postprocess_mode: Optional[PostprocessMode] = Field(default=None, description="llm|skip")
-    postprocess_strategy: Optional[str] = Field(default=None, description="Postprocess strategy")
+    postprocess_mode: Optional[PostprocessMode] = Field(
+        default=None, description="llm|skip"
+    )
+    postprocess_strategy: Optional[str] = Field(
+        default=None, description="Postprocess strategy"
+    )
 
 
 class TransformationResult(BaseModel):
     """Result of applying an ETL rule."""
 
     success: bool = Field(..., description="Whether transformation succeeded")
-    output: Optional[dict[str, Any] | list[Any]] = Field(None, description="Transformed JSON output (dict or list)")
+    output: Optional[dict[str, Any] | list[Any]] = Field(
+        None, description="Transformed JSON output (dict or list)"
+    )
     error: Optional[str] = Field(None, description="Error message if failed")
-    llm_usage: Optional[dict[str, Any]] = Field(None, description="LLM usage statistics")
-
+    llm_usage: Optional[dict[str, Any]] = Field(
+        None, description="LLM usage statistics"
+    )
