@@ -1,5 +1,5 @@
-import { API_BASE_URL } from "@/config/api";
-import { getApiAccessToken } from "./apiClient";
+import { API_BASE_URL } from '@/config/api';
+import { getApiAccessToken } from './apiClient';
 
 export interface NotionStatusResponse {
   connected: boolean;
@@ -42,14 +42,17 @@ export async function getNotionAuthUrl(): Promise<string> {
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/notion/authorize`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/notion/authorize`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to get authorization URL: ${response.status}`);
@@ -63,14 +66,18 @@ export async function getNotionAuthUrl(): Promise<string> {
     } else if (data.data && data.data.authorization_url) {
       return data.data.authorization_url;
     } else {
-      throw new Error("Invalid response from server: authorization_url not found");
+      throw new Error(
+        'Invalid response from server: authorization_url not found'
+      );
     }
   } catch (error) {
-    console.error("Error getting Notion auth URL:", error);
+    console.error('Error getting Notion auth URL:', error);
 
     // Provide more specific error messages
     if (error instanceof Error && error.message.includes('500')) {
-      throw new Error("Notion OAuth is not properly configured. Please check server configuration.");
+      throw new Error(
+        'Notion OAuth is not properly configured. Please check server configuration.'
+      );
     }
 
     throw error;
@@ -80,22 +87,28 @@ export async function getNotionAuthUrl(): Promise<string> {
 /**
  * Handle Notion OAuth callback
  */
-export async function notionCallback(code: string, provider: string = "notion"): Promise<NotionCallbackResponse> {
+export async function notionCallback(
+  code: string,
+  provider: string = 'notion'
+): Promise<NotionCallbackResponse> {
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/notion/callback`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        code,
-        state: provider,
-      }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/notion/callback`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          code,
+          state: provider,
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to handle callback: ${response.status}`);
@@ -104,7 +117,7 @@ export async function notionCallback(code: string, provider: string = "notion"):
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error handling Notion callback:", error);
+    console.error('Error handling Notion callback:', error);
     throw error;
   }
 }
@@ -112,21 +125,26 @@ export async function notionCallback(code: string, provider: string = "notion"):
 /**
  * Handle GitHub OAuth callback
  */
-export async function githubCallback(code: string): Promise<GithubCallbackResponse> {
+export async function githubCallback(
+  code: string
+): Promise<GithubCallbackResponse> {
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/callback`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        code,
-      }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/github/callback`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          code,
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to handle GitHub callback: ${response.status}`);
@@ -135,7 +153,7 @@ export async function githubCallback(code: string): Promise<GithubCallbackRespon
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error handling GitHub callback:", error);
+    console.error('Error handling GitHub callback:', error);
     throw error;
   }
 }
@@ -148,12 +166,12 @@ export async function getNotionStatus(): Promise<NotionStatusResponse> {
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/oauth/notion/status`, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      credentials: "include",
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -163,7 +181,7 @@ export async function getNotionStatus(): Promise<NotionStatusResponse> {
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error getting Notion status:", error);
+    console.error('Error getting Notion status:', error);
     // Return disconnected status on error
     return {
       connected: false,
@@ -178,14 +196,17 @@ export async function disconnectNotion(): Promise<NotionDisconnectResponse> {
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/notion/disconnect`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/notion/disconnect`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to disconnect Notion: ${response.status}`);
@@ -194,7 +215,7 @@ export async function disconnectNotion(): Promise<NotionDisconnectResponse> {
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error disconnecting Notion:", error);
+    console.error('Error disconnecting Notion:', error);
     throw error;
   }
 }
@@ -207,7 +228,7 @@ export async function connectNotion(): Promise<void> {
     const authUrl = await getNotionAuthUrl();
     window.location.href = authUrl;
   } catch (error) {
-    console.error("Error initiating Notion OAuth flow:", error);
+    console.error('Error initiating Notion OAuth flow:', error);
     throw error;
   }
 }
@@ -215,10 +236,13 @@ export async function connectNotion(): Promise<void> {
 /**
  * Handle OAuth redirect callback from browser
  */
-export function handleOAuthRedirect(): { code: string | null; state: string | null } {
+export function handleOAuthRedirect(): {
+  code: string | null;
+  state: string | null;
+} {
   const urlParams = new URLSearchParams(window.location.search);
-  const code = urlParams.get("code");
-  const state = urlParams.get("state");
+  const code = urlParams.get('code');
+  const state = urlParams.get('state');
 
   return { code, state };
 }
@@ -226,14 +250,17 @@ export function handleOAuthRedirect(): { code: string | null; state: string | nu
 async function getGithubAuthUrl(): Promise<string> {
   const token = await getApiAccessToken();
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/authorize`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: "include",
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/oauth/github/authorize`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to get authorization URL: ${response.status}`);
@@ -247,7 +274,7 @@ async function getGithubAuthUrl(): Promise<string> {
   if (data.data?.authorization_url) {
     return data.data.authorization_url;
   }
-  throw new Error("Invalid response from server: authorization_url not found");
+  throw new Error('Invalid response from server: authorization_url not found');
 }
 
 export async function connectGithub(): Promise<void> {
@@ -255,7 +282,7 @@ export async function connectGithub(): Promise<void> {
     const authUrl = await getGithubAuthUrl();
     window.location.href = authUrl;
   } catch (error) {
-    console.error("Error initiating GitHub OAuth flow:", error);
+    console.error('Error initiating GitHub OAuth flow:', error);
     throw error;
   }
 }
@@ -265,12 +292,12 @@ export async function getGithubStatus(): Promise<GithubStatusResponse> {
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/status`, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      credentials: "include",
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -280,7 +307,7 @@ export async function getGithubStatus(): Promise<GithubStatusResponse> {
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error getting GitHub status:", error);
+    console.error('Error getting GitHub status:', error);
     return { connected: false };
   }
 }
@@ -289,14 +316,17 @@ export async function disconnectGithub(): Promise<GithubDisconnectResponse> {
   const token = await getApiAccessToken();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/disconnect`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/oauth/github/disconnect`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to disconnect GitHub: ${response.status}`);
@@ -305,7 +335,7 @@ export async function disconnectGithub(): Promise<GithubDisconnectResponse> {
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error("Error disconnecting GitHub:", error);
+    console.error('Error disconnecting GitHub:', error);
     throw error;
   }
 }

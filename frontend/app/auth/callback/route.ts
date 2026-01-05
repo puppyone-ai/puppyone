@@ -1,56 +1,55 @@
-import { NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 /**
  * Supabase OAuth Callback - Route Handler (服务端)
- * 
+ *
  * 处理 PKCE 流程：
  * 1. 从 URL 获取 code 参数
  * 2. 在服务端用 code 交换 session
  * 3. 设置 cookie 后重定向到 /projects
- * 
+ *
  * 这是 Supabase 官方推荐的做法，比客户端处理更安全可靠。
  */
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/projects'
-  
+  const { searchParams } = new URL(request.url);
+  const code = searchParams.get('code');
+  const next = searchParams.get('next') ?? '/projects';
+
   // ✅ 极致精简：统一信任源
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
   if (code) {
-    const cookieStore = await cookies()
-    
+    const cookieStore = await cookies();
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           get(name: string) {
-            return cookieStore.get(name)?.value
+            return cookieStore.get(name)?.value;
           },
           set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options })
+            cookieStore.set({ name, value, ...options });
           },
           remove(name: string, options: any) {
-            cookieStore.delete({ name, ...options })
+            cookieStore.delete({ name, ...options });
           },
         },
       }
-    )
+    );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+
     if (!error) {
-      return NextResponse.redirect(`${siteUrl}${next}`)
+      return NextResponse.redirect(`${siteUrl}${next}`);
     }
-    
-    console.error('OAuth callback error:', error)
-    return NextResponse.redirect(`${siteUrl}/login?error=auth_callback_failed`)
+
+    console.error('OAuth callback error:', error);
+    return NextResponse.redirect(`${siteUrl}/login?error=auth_callback_failed`);
   }
 
-  return NextResponse.redirect(`${siteUrl}/login`)
+  return NextResponse.redirect(`${siteUrl}/login`);
 }
-

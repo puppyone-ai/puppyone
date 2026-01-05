@@ -1,17 +1,21 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import type { ProjectInfo } from '../lib/projectsApi'
-import { createProject, updateProject, deleteProject } from '../lib/projectsApi'
-import { refreshProjects } from '../lib/hooks/useData'
+import { useState, useEffect } from 'react';
+import type { ProjectInfo } from '../lib/projectsApi';
+import {
+  createProject,
+  updateProject,
+  deleteProject,
+} from '../lib/projectsApi';
+import { refreshProjects } from '../lib/hooks/useData';
 
 type ProjectManageDialogProps = {
-  projectId: string | null
-  projects: ProjectInfo[]
-  onClose: () => void
-  onProjectsChange?: (projects: ProjectInfo[]) => void
-  deleteMode?: boolean
-}
+  projectId: string | null;
+  projects: ProjectInfo[];
+  onClose: () => void;
+  onProjectsChange?: (projects: ProjectInfo[]) => void;
+  deleteMode?: boolean;
+};
 
 export function ProjectManageDialog({
   projectId,
@@ -19,58 +23,64 @@ export function ProjectManageDialog({
   onClose,
   deleteMode = false,
 }: ProjectManageDialogProps) {
-  const isEdit = projectId !== null
-  const project = isEdit ? projects.find((p) => p.id === projectId) : null
+  const isEdit = projectId !== null;
+  const project = isEdit ? projects.find(p => p.id === projectId) : null;
 
-  const [name, setName] = useState(project?.name || '')
+  const [name, setName] = useState(project?.name || '');
   // description 虽然不显示，但为了兼容后端 API，如果已有则保留，新建则为空
-  const [description] = useState(project?.description || '')
-  const [loading, setLoading] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(deleteMode)
+  const [description] = useState(project?.description || '');
+  const [loading, setLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(deleteMode);
 
   useEffect(() => {
     if (project) {
-      setName(project.name)
+      setName(project.name);
     }
-  }, [project])
+  }, [project]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name.trim()) return
+    e.preventDefault();
+    if (!name.trim()) return;
 
     try {
-      setLoading(true)
+      setLoading(true);
       if (isEdit && projectId) {
-        await updateProject(projectId, name.trim(), description)
+        await updateProject(projectId, name.trim(), description);
       } else {
-        await createProject(name.trim(), '')
+        await createProject(name.trim(), '');
       }
-      await refreshProjects()
-      onClose()
+      await refreshProjects();
+      onClose();
     } catch (error) {
-      console.error('Failed to save project:', error)
-      alert('Operation failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      console.error('Failed to save project:', error);
+      alert(
+        'Operation failed: ' +
+          (error instanceof Error ? error.message : 'Unknown error')
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!projectId) return
+    if (!projectId) return;
 
     try {
-      setLoading(true)
-      await deleteProject(projectId)
-      await refreshProjects()
-      onClose()
+      setLoading(true);
+      await deleteProject(projectId);
+      await refreshProjects();
+      onClose();
     } catch (error) {
-      console.error('Failed to delete project:', error)
-      alert('Delete failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      console.error('Failed to delete project:', error);
+      alert(
+        'Delete failed: ' +
+          (error instanceof Error ? error.message : 'Unknown error')
+      );
     } finally {
-      setLoading(false)
-      setShowDeleteConfirm(false)
+      setLoading(false);
+      setShowDeleteConfirm(false);
     }
-  }
+  };
 
   return (
     <div
@@ -98,28 +108,61 @@ export function ProjectManageDialog({
           overflow: 'hidden',
           animation: 'dialog-fade-in 0.2s ease-out',
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
         <style jsx>{`
           @keyframes dialog-fade-in {
-            from { opacity: 0; transform: scale(0.98); }
-            to { opacity: 1; transform: scale(1); }
+            from {
+              opacity: 0;
+              transform: scale(0.98);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1);
+            }
           }
         `}</style>
 
         {/* Header */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div
+          style={{
+            padding: '16px 24px',
+            borderBottom: '1px solid #333',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           <div style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>
-            {showDeleteConfirm ? 'Delete Project' : (isEdit ? 'Edit Project' : 'New Project')}
+            {showDeleteConfirm
+              ? 'Delete Project'
+              : isEdit
+                ? 'Edit Project'
+                : 'New Project'}
           </div>
           {!showDeleteConfirm && (
-            <button 
+            <button
               onClick={onClose}
-              style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', padding: 4 }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#666',
+                cursor: 'pointer',
+                padding: 4,
+              }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
+              <svg
+                width='16'
+                height='16'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              >
+                <line x1='18' y1='6' x2='6' y2='18' />
+                <line x1='6' y1='6' x2='18' y2='18' />
               </svg>
             </button>
           )}
@@ -132,17 +175,20 @@ export function ProjectManageDialog({
                 Are you sure you want to delete project "{project?.name}"?
               </p>
               <p style={{ color: '#9ca3af', fontSize: 13, lineHeight: '1.5' }}>
-                This will permanently delete the project and all contexts inside it. This action cannot be undone.
+                This will permanently delete the project and all contexts inside
+                it. This action cannot be undone.
               </p>
             </div>
-            <div style={{  
-              padding: '16px 20px', 
-              background: '#202020', 
-              borderTop: '1px solid #333',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 12
-            }}>
+            <div
+              style={{
+                padding: '16px 20px',
+                background: '#202020',
+                borderTop: '1px solid #333',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 12,
+              }}
+            >
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 style={buttonStyle(false)}
@@ -156,7 +202,7 @@ export function ProjectManageDialog({
                   ...buttonStyle(true),
                   background: 'rgba(239,68,68,0.1)',
                   color: '#ef4444',
-                  border: '1px solid rgba(239,68,68,0.2)'
+                  border: '1px solid rgba(239,68,68,0.2)',
                 }}
               >
                 {loading ? 'Deleting...' : 'Delete Project'}
@@ -166,12 +212,21 @@ export function ProjectManageDialog({
         ) : (
           <form onSubmit={handleSubmit}>
             <div style={{ padding: '24px 32px 32px' }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8 }}>Project Name</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: '#666',
+                  marginBottom: 8,
+                }}
+              >
+                Project Name
+              </div>
               <input
-                type="text"
+                type='text'
                 value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter project name"
+                onChange={e => setName(e.target.value)}
+                placeholder='Enter project name'
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -187,40 +242,52 @@ export function ProjectManageDialog({
               />
             </div>
 
-            <div style={{ 
-              padding: '16px 20px', 
-              background: '#202020', 
-              borderTop: '1px solid #333',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
+            <div
+              style={{
+                padding: '16px 20px',
+                background: '#202020',
+                borderTop: '1px solid #333',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
               {isEdit ? (
                 <button
-                  type="button"
+                  type='button'
                   onClick={() => setShowDeleteConfirm(true)}
-                  style={{ ...buttonStyle(false), color: '#ef4444', border: 'none', background: 'transparent', padding: 0 }}
+                  style={{
+                    ...buttonStyle(false),
+                    color: '#ef4444',
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                  }}
                 >
                   Delete project
                 </button>
               ) : (
                 <div />
               )}
-              
+
               <div style={{ display: 'flex', gap: 12 }}>
                 <button
-                  type="button"
+                  type='button'
                   onClick={onClose}
                   style={buttonStyle(false)}
                 >
                   Cancel
                 </button>
                 <button
-                  type="submit"
+                  type='submit'
                   disabled={loading || !name.trim()}
                   style={buttonStyle(true)}
                 >
-                  {loading ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Project'}
+                  {loading
+                    ? 'Saving...'
+                    : isEdit
+                      ? 'Save Changes'
+                      : 'Create Project'}
                 </button>
               </div>
             </div>
@@ -228,7 +295,7 @@ export function ProjectManageDialog({
         )}
       </div>
     </div>
-  )
+  );
 }
 
 const buttonStyle = (primary: boolean): React.CSSProperties => ({
@@ -242,4 +309,4 @@ const buttonStyle = (primary: boolean): React.CSSProperties => ({
   cursor: 'pointer',
   transition: 'all 0.1s',
   fontFamily: 'inherit',
-})
+});
