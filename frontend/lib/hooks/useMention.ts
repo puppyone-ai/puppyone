@@ -265,6 +265,9 @@ export function useMention({ data }: UseMentionOptions): UseMentionReturn {
 
     // 正常的发送逻辑
     if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.nativeEvent.isComposing) {
+        return true;
+      }
       e.preventDefault();
       onSend();
       return true;

@@ -94,10 +94,13 @@ export function ChatSidebar({
   const prevSessionIdRef = useRef<string | null>(null);
   const hasLoadedForSessionRef = useRef<string | null>(null);
 
-  // 只在【切换会话】时从数据库加载消息（单一数据源原则）
+  // 【单一数据源原则】：本地 messages 状态是唯一事实来源
+  // dbMessages 仅在【切换会话】时作为初始值加载一次
   useEffect(() => {
-    // 如果没有会话，清空消息
-    if (!currentSessionId) {
+    const sessionId = currentSessionId;
+    
+    // 1. 如果没有会话，清空消息
+    if (!sessionId) {
       if (prevSessionIdRef.current !== null) {
         setMessages([]);
       }
@@ -106,20 +109,27 @@ export function ChatSidebar({
       return;
     }
 
-    // 如果正在加载，等待
-    if (messagesLoading) return;
-
-    // 检测是否已经为这个会话加载过了
-    if (hasLoadedForSessionRef.current === currentSessionId) {
-      return; // 已加载，不重复加载
+    // 2. 检测会话切换
+    if (sessionId !== prevSessionIdRef.current) {
+      // 会话已改变，重置加载标记，并清空当前消息（显示骨架屏）
+      hasLoadedForSessionRef.current = null;
+      prevSessionIdRef.current = sessionId;
+      setMessages([]);
     }
 
-    // 标记已加载
-    hasLoadedForSessionRef.current = currentSessionId;
-    prevSessionIdRef.current = currentSessionId;
+    // 3. 如果正在加载 SWR 数据，等待
+    if (messagesLoading) return;
 
-    // 从数据库加载消息
-    if (dbMessages.length > 0) {
+    // 4. 如果已经为当前会话加载过数据，【绝对不要】再次加载
+    // 这样可以防止 SWR 的后台 revalidation 覆盖我们本地正在流式传输的消息
+    if (hasLoadedForSessionRef.current === sessionId) {
+      return;
+    }
+
+    // 5. 首次加载数据
+    hasLoadedForSessionRef.current = sessionId;
+
+    if (dbMessages && dbMessages.length > 0) {
       const localMessages: Message[] = dbMessages.map(m => ({
         id: m.id,
         role: m.role as MessageRole,
@@ -405,8 +415,9 @@ export function ChatSidebar({
       if (assistantMsgId && currentSessionId) {
         try {
           await updateAssistantMessage(assistantMsgId, finalContent, finalParts);
-          // 等待 SWR 缓存刷新，避免 useEffect 用旧数据覆盖本地状态
-          await refreshChatMessages(currentSessionId);
+          // 注意：我们只在后台刷新 SWR 缓存，但不让它触发上面的 useEffect
+          // hasLoadedForSessionRef 会阻止 useEffect 覆盖本地状态
+          refreshChatMessages(currentSessionId); 
         } catch (err) {
           console.error('Failed to save assistant message:', err);
         }
@@ -457,6 +468,11 @@ export function ChatSidebar({
 
   // 处理键盘事件
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // 中文输入法组合过程中，不处理任何 Enter 事件
+    if (e.nativeEvent.isComposing) {
+      return;
+    }
+
     // 补全菜单特殊处理：Enter/Tab 需要选择当前项
     if (mention.showMentionMenu && mention.filteredMentionOptions.length > 0) {
       if (e.key === 'Enter' || e.key === 'Tab') {
