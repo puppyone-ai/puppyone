@@ -8,7 +8,9 @@ import {
   refreshProjects,
   useTableTools,
   refreshTableTools,
+  useTable,
 } from '@/lib/hooks/useData';
+import { updateTableData } from '@/lib/projectsApi';
 import { ProjectWorkspaceView } from '@/components/ProjectWorkspaceView';
 import { OnboardingView } from '@/components/OnboardingView';
 import { ProjectsHeader, type EditorType } from '@/components/ProjectsHeader';
@@ -51,6 +53,11 @@ export default function ProjectsSlugPage({
   const { projects, isLoading: projectsLoading } = useProjects();
   // 获取当前 table 的 Tools（用于 sidebar 显示）
   const { tools: tableTools, isLoading: toolsLoading } = useTableTools(
+    activeTableId || tableId
+  );
+  // 获取当前 table 的数据（用于 ChatSidebar）
+  const { tableData: currentTableData, refresh: refreshTable } = useTable(
+    activeBaseId || projectId,
     activeTableId || tableId
   );
 
@@ -403,6 +410,20 @@ export default function ProjectsSlugPage({
         onOpenChange={setIsChatOpen}
         chatWidth={chatWidth}
         onChatWidthChange={setChatWidth}
+        tableData={currentTableData?.data}
+        onDataUpdate={async (newData) => {
+          // 保存到后端
+          if (activeBaseId && activeTableId) {
+            try {
+              const dataToSave = Array.isArray(newData) ? newData : [newData];
+              await updateTableData(activeBaseId, activeTableId, dataToSave);
+              // 刷新数据
+              refreshTable();
+            } catch (err) {
+              console.error('[ChatSidebar] Failed to save:', err);
+            }
+          }
+        }}
       />
     </div>
   );
