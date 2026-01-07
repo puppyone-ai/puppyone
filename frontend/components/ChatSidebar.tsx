@@ -149,7 +149,7 @@ export function ChatSidebar({
     const handleClickOutside = (e: MouseEvent) => {
       if (historyMenuRef.current && !historyMenuRef.current.contains(e.target as Node)) {
         setShowHistory(false);
-      }
+    }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -216,7 +216,7 @@ export function ChatSidebar({
       if (currentSessionId === sessionId) {
         setCurrentSessionId(null);
         setMessages([]);
-      }
+    }
     } catch (err) {
       console.error('Failed to delete session:', err);
     }
@@ -233,7 +233,7 @@ export function ChatSidebar({
     // 确保有会话
     let sessionId = currentSessionId;
     if (!sessionId) {
-      try {
+    try {
         const session = await createSession({ mode: 'agent' });
         sessionId = session.id;
         setCurrentSessionId(sessionId);
@@ -252,7 +252,7 @@ export function ChatSidebar({
         await addUserMessage(sessionId, currentInput);
         if (messages.length === 0) {
           await autoSetSessionTitle(sessionId, currentInput);
-        }
+      }
       } catch (err) {
         console.error('Failed to save user message:', err);
       }
@@ -328,19 +328,19 @@ export function ChatSidebar({
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
+        
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-
+        
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const data = line.slice(6).trim();
           if (!data || data === '[DONE]') continue;
-
+          
           try {
             const event = JSON.parse(data);
-
+            
             setMessages(prev => {
               const newMessages = [...prev];
               const last = newMessages[newMessages.length - 1];
@@ -377,7 +377,7 @@ export function ChatSidebar({
                 case 'result':
                   if (event.updatedData && onDataUpdate) {
                     onDataUpdate(event.updatedData);
-                  }
+                }
                   break;
                 case 'error':
                   parts.push({ type: 'text', content: `Error: ${event.message}` });
@@ -476,7 +476,7 @@ export function ChatSidebar({
     // 补全菜单特殊处理：Enter/Tab 需要选择当前项
     if (mention.showMentionMenu && mention.filteredMentionOptions.length > 0) {
       if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
+      e.preventDefault();
         handleSelectMention(mention.filteredMentionOptions[mention.mentionIndex]);
         return;
       }
@@ -531,9 +531,9 @@ export function ChatSidebar({
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <div ref={historyMenuRef} style={{ position: 'relative' }}>
-            <button
+          <button
               onClick={() => setShowHistory(!showHistory)}
-              title='Chat History'
+            title='Chat History'
               style={{ 
                 width: 28, height: 28, 
                 background: showHistory ? 'rgba(255,255,255,0.08)' : 'transparent', 
@@ -541,13 +541,13 @@ export function ChatSidebar({
                 color: showHistory ? '#9ca3af' : '#6b7280', 
                 cursor: 'pointer', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' 
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#9ca3af'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#9ca3af'; }}
               onMouseLeave={e => { if (!showHistory) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7280'; }}}
-            >
-              <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-                <circle cx='12' cy='12' r='10' /><polyline points='12 6 12 12 16 14' />
-              </svg>
-            </button>
+          >
+            <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+              <circle cx='12' cy='12' r='10' /><polyline points='12 6 12 12 16 14' />
+            </svg>
+          </button>
 
             {/* History Dropdown Menu */}
             {showHistory && (
@@ -849,7 +849,7 @@ export function ChatSidebar({
         ref={inputAreaRef}
         inputValue={inputValue}
         onInputChange={handleInputChange}
-        onKeyDown={handleKeyDown}
+            onKeyDown={handleKeyDown}
         onSend={handleSend}
         isLoading={isLoading}
         showMentionMenu={mention.showMentionMenu}

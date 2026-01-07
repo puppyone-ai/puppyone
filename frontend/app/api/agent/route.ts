@@ -135,20 +135,20 @@ function executeFileTool(name: string, input: Record<string, string>, cwd: strin
 export async function POST(request: NextRequest) {
   const { prompt, chatHistory, tableData, workingDirectory } = await request.json();
 
-  if (!prompt) {
+    if (!prompt) {
     return Response.json({ error: 'Missing prompt' }, { status: 400 });
-  }
+    }
 
   const cwd = workingDirectory || process.cwd();
   const hasTableData = !!tableData;
-  const encoder = new TextEncoder();
+    const encoder = new TextEncoder();
   
   // 如果有 tableData，创建沙盒客户端
   const sandboxSessionId = hasTableData ? `agent-${Date.now()}` : null;
   const sandbox = sandboxSessionId ? new SandboxClient(sandboxSessionId) : null;
 
-  const stream = new ReadableStream({
-    async start(controller) {
+    const stream = new ReadableStream({
+      async start(controller) {
       const sendEvent = (type: string, data: Record<string, unknown>) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type, ...data })}\n\n`));
       };
@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
           sendEvent('status', { message: 'Sandbox ready' });
         }
 
-        // 系统提示
+              // 系统提示
         const systemPrompt = hasTableData
           ? `你是一个 JSON 数据编辑助手。
 
@@ -321,16 +321,16 @@ Be concise and helpful.`;
           }
         } else {
           sendEvent('result', { success: true });
-        }
+          }
 
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
 
       } catch (error: unknown) {
         const err = error as { message?: string };
         sendEvent('error', { message: err.message });
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
+          controller.close();
       } finally {
         // 停止沙盒
         if (sandbox) {
@@ -338,15 +338,15 @@ Be concise and helpful.`;
             await sandbox.stop();
           } catch {}
         }
-      }
-    },
-  });
+        }
+      },
+    });
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-    },
-  });
+      },
+    });
 }
