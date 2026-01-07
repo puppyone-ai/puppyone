@@ -119,4 +119,8 @@ json_received.json
 # Tree directories
 .tree/
 
+# LLM documentation files
+*llms.txt
+*llms-full.txt
+
 

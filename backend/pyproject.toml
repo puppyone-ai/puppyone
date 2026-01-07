@@ -10,6 +10,7 @@ dependencies = [
     "cashews>=7.4.4",
     "fastapi>=0.121.1",
     "fastmcp>=2.13.0.2",
+    "firecrawl-py>=4.0.0",
     "httpx[socks]>=0.28.1",
     "jmespath>=1.0.1",
     "jsonpointer>=3.0.0",

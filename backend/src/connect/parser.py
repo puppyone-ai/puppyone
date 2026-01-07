@@ -13,6 +13,7 @@ from src.exceptions import BusinessException, ErrorCode
 from src.utils.logger import log_info, log_error, log_warning
 from src.connect.data_provider import DataProvider, DataProviderResult
 from src.connect.exceptions import AuthenticationError
+from src.connect.firecrawl_client import FirecrawlClient
 
 
 class UrlParser:
@@ -41,6 +42,7 @@ class UrlParser:
             limits=httpx.Limits(max_connections=10),
         )
         self.providers: List[DataProvider] = []
+        self.firecrawl_client = FirecrawlClient()
 
     def register_provider(self, provider: DataProvider):
         """注册数据提供者"""
@@ -170,6 +172,14 @@ class UrlParser:
             if "application/json" in content_type or source_type == "json":
                 return self._parse_json(response.text, url, source_type)
             else:
+                # Try Firecrawl first for HTML content
+                if self.firecrawl_client.is_available():
+                    firecrawl_result = await self._parse_with_firecrawl(url, source_type)
+                    if firecrawl_result:
+                        return firecrawl_result
+                    # If Firecrawl fails, fall back to BeautifulSoup
+                    log_info(f"Firecrawl failed, falling back to BeautifulSoup for {url}")
+                
                 return self._parse_html(response.text, url, source_type)
 
         except httpx.HTTPStatusError as e:
@@ -222,6 +232,90 @@ class UrlParser:
             "fields": fields,
             "structure_info": result.structure_info,
         }
+
+    async def _parse_with_firecrawl(
+        self, url: str, source_type: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        使用Firecrawl解析URL
+
+        Args:
+            url: 要解析的URL
+            source_type: 数据源类型
+
+        Returns:
+            解析结果或None（如果失败）
+        """
+        try:
+            log_info(f"Attempting to parse URL with Firecrawl: {url}")
+            
+            # Scrape with Firecrawl (get markdown for clean parsing)
+            result = await self.firecrawl_client.scrape_url(
+                url,
+                formats=["markdown", "html"],
+                only_main_content=True,
+            )
+
+            if not result:
+                return None
+
+            # Extract metadata
+            metadata = result.get("metadata", {})
+            title = metadata.get("title") or metadata.get("ogTitle") or urlparse(url).netloc
+            
+            # Get content - prefer markdown for cleaner structure
+            markdown_content = result.get("markdown", "")
+            
+            if not markdown_content:
+                log_warning(f"No markdown content from Firecrawl for {url}")
+                return None
+
+            # Parse markdown into structured data
+            # Split by paragraphs and headings for better structure
+            lines = markdown_content.split("\n")
+            data = []
+            current_section = {"title": "", "content": ""}
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                # Check if it's a heading
+                if line.startswith("#"):
+                    # Save previous section if it has content
+                    if current_section["content"]:
+                        data.append(current_section.copy())
+                    
+                    # Start new section
+                    heading_text = line.lstrip("#").strip()
+                    current_section = {"title": heading_text, "content": ""}
+                else:
+                    # Add to current section content
+                    if current_section["content"]:
+                        current_section["content"] += " " + line
+                    else:
+                        current_section["content"] = line
+            
+            # Add final section
+            if current_section["content"]:
+                data.append(current_section)
+            
+            # If no structured data was found, create a single entry
+            if not data:
+                data = [{"title": title, "content": markdown_content[:500]}]
+
+            log_info(f"Successfully parsed URL with Firecrawl: {url}, found {len(data)} sections")
+            
+            return {
+                "data": data,
+                "source_type": source_type,
+                "title": title,
+            }
+
+        except Exception as e:
+            log_error(f"Error parsing with Firecrawl for {url}: {e}")
+            return None
 
     def _parse_json(self, content: str, url: str, source_type: str) -> Dict[str, Any]:
         """
@@ -429,3 +523,9 @@ class UrlParser:
                 await provider.close()
             except Exception as e:
                 log_error(f"Error closing provider {provider.__class__.__name__}: {e}")
+        
+        # Close Firecrawl client
+        try:
+            await self.firecrawl_client.close()
+        except Exception as e:
+            log_error(f"Error closing Firecrawl client: {e}")
