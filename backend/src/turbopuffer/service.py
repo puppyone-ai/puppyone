@@ -220,11 +220,30 @@ class TurbopufferSearchService:
     async def delete_namespace(self, namespace: str) -> None:
         """删除整个 namespace（对应 Delete namespace API）。"""
         ns = self._get_namespace(namespace)
-        # SDK 常见提供 ns.delete()
+
+        # 兼容：有些 SDK 提供 ns.delete()
         if hasattr(ns, "delete"):
             await self._call(lambda: ns.delete())
             return
-        await self._call(lambda: getattr(ns, "delete_namespace")())
+
+        # 兼容：旧实现/其它 SDK 可能提供 ns.delete_namespace()
+        if hasattr(ns, "delete_namespace"):
+            await self._call(lambda: getattr(ns, "delete_namespace")())
+            return
+
+        # turbopuffer==1.12.0：Namespace 仅提供 delete_all()（清空数据），
+        # 删除整个 namespace 需要调用 HTTP: DELETE /v2/namespaces/:namespace
+        client = self._get_client()
+        if hasattr(client, "delete"):
+            await self._call(
+                lambda: client.delete(
+                    f"/v2/namespaces/{namespace}",
+                    cast_to=object,
+                )
+            )
+            return
+
+        raise TurbopufferConfigError("Invalid turbopuffer client: no delete namespace API")
 
     async def delete_all(self, namespace: str) -> None:
         ns = self._get_namespace(namespace)
@@ -384,8 +403,11 @@ class TurbopufferSearchService:
     ) -> TurbopufferQueryResponse:
         ns = self._get_namespace(namespace)
         params: dict[str, Any] = {}
-        # 兼容：top_k 是 limit.total 的别名；但 SDK 通常也接受 top_k
-        params["top_k"] = top_k
+        # 注意：
+        # - rank_by 查询：top_k 表示返回的 documents 数量（等价于 limit.total 的常见别名）
+        # - aggregate_by 且不带 group_by 的纯聚合查询：turbopuffer 会拒绝 top_k（400）
+        if not (rank_by is None and aggregate_by is not None and group_by is None):
+            params["top_k"] = top_k
         if rank_by is not None:
             params["rank_by"] = rank_by
         if filters is not None:
