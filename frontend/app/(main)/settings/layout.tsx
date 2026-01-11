@@ -65,26 +65,39 @@ export default function SettingsLayout({
         display: 'flex',
         width: '100%',
         height: '100%',
-        backgroundColor: '#040404',
+        backgroundColor: '#202020', // 一级 sidebar 的背景色作为整个页面底色
       }}
     >
-      {/* --- Settings Sidebar --- */}
-      <aside
-        ref={sidebarRef}
+      {/* --- 右侧浮动容器：包含二级 sidebar + 主内容区 --- */}
+      <div
         style={{
-          width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
-          borderRight: '1px solid #404040',
+          flex: 1,
           display: 'flex',
-          flexDirection: 'column',
-          background: '#181818',
-          fontFamily:
-            "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-          boxSizing: 'border-box',
-          position: 'relative',
-          flexShrink: 0,
-          transition: isResizing ? 'none' : 'width 0.2s ease',
+          margin: 8,
+          marginLeft: 0,
+          borderRadius: 12,
+          border: '1px solid #2a2a2a',
+          background: '#0e0e0e',
+          overflow: 'hidden',
         }}
       >
+        {/* --- Settings Sidebar --- */}
+        <aside
+          ref={sidebarRef}
+          style={{
+            width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
+            borderRight: '1px solid #2a2a2a',
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#141414',
+            fontFamily:
+              "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+            boxSizing: 'border-box',
+            position: 'relative',
+            flexShrink: 0,
+            transition: isResizing ? 'none' : 'width 0.2s ease',
+          }}
+        >
         {/* Header */}
         <div
           style={{
@@ -95,7 +108,7 @@ export default function SettingsLayout({
             alignItems: 'center',
             justifyContent: isCollapsed ? 'center' : 'space-between',
             padding: isCollapsed ? '0' : '0 9px 0 16px',
-            borderBottom: '1px solid #404040',
+            borderBottom: '1px solid #2a2a2a',
             boxSizing: 'border-box',
           }}
         >
@@ -200,24 +213,6 @@ export default function SettingsLayout({
             <div style={{ marginBottom: 4 }}>
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '0 12px',
-                  height: 28,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: '#6D7177',
-                  }}
-                >
-                  Workspace
-                </span>
-              </div>
-              <div
-                style={{
                   padding: '2px 8px 4px 8px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -293,18 +288,21 @@ export default function SettingsLayout({
         )}
       </aside>
 
-      {/* --- Main Content Area --- */}
-      <section
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {children}
-      </section>
+        {/* --- Main Content Area --- */}
+        <section
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: '100%', // 确保高度传递给子组件
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#0a0a0a',
+          }}
+        >
+          {children}
+        </section>
+      </div>
     </div>
   );
 }

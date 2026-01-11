@@ -140,9 +140,6 @@ export default function ProjectsSlugPage({
     return segments;
   }, [activeBase, activeTable]);
 
-  // 7. 处理 Onboarding
-  const showOnboarding = !slug || slug.length === 0;
-
   // 保存 Tools
   const handleSaveTools = async (
     customDefinitions: Record<string, McpToolDefinition>
@@ -211,26 +208,11 @@ export default function ProjectsSlugPage({
     }
   };
 
-  if (showOnboarding) {
-    return (
-      <OnboardingView
-        userName={session?.user?.email?.split('@')[0] || 'User'}
-        onStart={async () => {
-          setIsOnboardingLoading(true);
-          await new Promise(r => setTimeout(r, 500));
-          if (projects.length > 0) {
-            const p = projects[0];
-            router.push(`/projects/${p.id}/${p.tables?.[0]?.id || ''}`);
-          } else {
-            router.push('/settings/connect');
-          }
-        }}
-        isLoading={isOnboardingLoading}
-      />
-    );
-  }
-
-  // 将 accessPoints 转换为 configuredAccessPoints 格式
+  // 7. 处理 Onboarding - 移除自动跳转逻辑
+  // 我们不再通过前端粗暴地判断是否跳转 Onboarding，避免与后端预置数据逻辑冲突
+  // 如果是空项目状态，应该由 UI (ProjectWorkspaceView) 展示 Empty State 引导用户
+  
+  // 8. 渲染
   const configuredAccessPoints = useMemo(() => {
     return accessPoints.map(ap => ({
       path: ap.path,

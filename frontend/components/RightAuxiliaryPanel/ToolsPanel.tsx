@@ -39,7 +39,7 @@ interface ToolsPanelProps {
 
 // Tool Definition configuration
 const TOOL_DEFS = [
-  { backendId: 'get_data_schema' as McpToolType, label: 'Get Schema' },
+  // { backendId: 'get_data_schema' as McpToolType, label: 'Get Schema' }, // TODO: 暂时隐藏，之后再用
   { backendId: 'query_data' as McpToolType, label: 'Query' },
   { backendId: 'get_all_data' as McpToolType, label: 'Get All' },
   // { backendId: 'preview' as McpToolType, label: 'Preview' },
@@ -143,7 +143,7 @@ export function ToolsPanel({
         <div
           style={{ fontSize: FONT.primary, fontWeight: 600, color: '#e2e8f0' }}
         >
-          Tools
+          Access
         </div>
       </div>
 

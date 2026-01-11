@@ -231,7 +231,7 @@ export function DocumentEditor({
       <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
         {mode === 'preview' ? (
           /* 预览模式 - 渲染 Markdown/HTML */
-          <div style={{ padding: '12px 16px', minHeight: '100%' }}>
+          <div style={{ padding: '12px 16px' }}>
             {editedValue ? (
               <div className='markdown-preview'>
                 <ReactMarkdown rehypePlugins={[rehypeRaw]}>

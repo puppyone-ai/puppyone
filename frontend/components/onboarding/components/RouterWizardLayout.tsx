@@ -1,46 +1,54 @@
+'use client';
+
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useOnboardingStore, OnboardingStep } from '../store';
+import { usePathname } from 'next/navigation';
 
-interface WizardLayoutProps {
+interface RouterWizardLayoutProps {
   children: React.ReactNode;
   title: string;
   subtitle?: string;
 }
 
-const STEPS: OnboardingStep[] = ['scope', 'ingestion', 'verification', 'configuration', 'testing'];
+const STEPS = [
+  '/onboarding/step1',
+  '/onboarding/step2',
+  '/onboarding/step3',
+];
 
-export function WizardLayout({ children, title, subtitle }: WizardLayoutProps) {
-  const currentStep = useOnboardingStore(s => s.currentStep);
-  const currentStepIndex = STEPS.indexOf(currentStep);
-
+export function RouterWizardLayout({ children, title, subtitle }: RouterWizardLayoutProps) {
+  const pathname = usePathname();
+  
+  // Find current step index based on pathname prefix match
+  const currentStepIndex = STEPS.findIndex(step => pathname?.startsWith(step));
+  
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: '100vh',
+      minHeight: '100vh',
       width: '100vw',
       background: '#050505',
       color: '#E0E0E0',
       fontFamily: "Inter, -apple-system, sans-serif",
-      overflow: 'hidden',
+      overflowX: 'hidden',
+      overflowY: 'auto',
       alignItems: 'center',
-      justifyContent: 'center'
     }}>
       <div style={{
         width: '100%',
-        maxWidth: 800, // 稍微放宽一点，让进度条更舒展
-        padding: '0 20px',
+        maxWidth: 800,
+        padding: '60px 20px 80px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 60 // 增加内容与顶部的距离
+        gap: 48
       }}>
         {/* Top Navigation - Centered Progress Only */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'center', 
           alignItems: 'center',
-          marginTop: 40,
+          marginTop: 0, // margin-top 不再需要，由外层 padding 控制
         }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
             
@@ -64,7 +72,6 @@ export function WizardLayout({ children, title, subtitle }: WizardLayoutProps) {
                   <div style={{ 
                     position: 'relative', 
                     zIndex: 2,
-                    // No padding needed here
                   }}>
                     <motion.div
                       initial={false}
@@ -105,7 +112,7 @@ export function WizardLayout({ children, title, subtitle }: WizardLayoutProps) {
 
         {/* Content Area */}
         <motion.div
-          key={currentStep}
+          key={pathname} // Use pathname as key to trigger transition on route change
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
@@ -113,7 +120,7 @@ export function WizardLayout({ children, title, subtitle }: WizardLayoutProps) {
         >
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <h1 style={{ 
-              fontSize: 24, // 32 -> 24
+              fontSize: 24,
               fontWeight: 600, 
               marginBottom: 8,
               background: 'linear-gradient(to bottom, #fff, #bbb)',

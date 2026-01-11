@@ -11,7 +11,7 @@ export type { McpToolPermissions };
 
 // MCP 工具列表定义
 const MCP_TOOLS = [
-  { id: 'get_data_schema', label: 'Get Schema' },
+  // { id: 'get_data_schema', label: 'Get Schema' }, // TODO: 暂时隐藏，之后再用
   { id: 'query_data', label: 'Query' },
   { id: 'get_all_data', label: 'Get All' },
   { id: 'create', label: 'Create' },

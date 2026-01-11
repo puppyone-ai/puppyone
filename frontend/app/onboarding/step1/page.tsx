@@ -1,7 +1,10 @@
+'use client';
+
 import React, { useState } from 'react';
-import { WizardLayout } from '../components/WizardLayout';
-import { useOnboardingStore, ScenarioType } from '../store';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { useOnboardingStore } from '../../../components/onboarding/store';
+import { RouterWizardLayout } from '../../../components/onboarding/components/RouterWizardLayout';
 
 // Image Icons
 const IconImg = ({ src, alt }: { src: string; alt: string }) => (
@@ -30,12 +33,6 @@ const WebIcon = () => (
 
 const GDocsIcon = () => (
   <IconImg src="/icons/Google_Docs_logo.png" alt="Google Docs" />
-);
-
-const MagicIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'text-bottom', margin: '0 4px' }}>
-    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
-  </svg>
 );
 
 const SCENARIOS = [
@@ -77,8 +74,9 @@ const SCENARIOS = [
   }
 ];
 
-export function Step1_Scope() {
-  const { setProjectName, setScenario, setStep, setDataSourceType } = useOnboardingStore();
+export default function Step1Page() {
+  const router = useRouter();
+  const { setProjectName, setScenario, setDataSourceType } = useOnboardingStore();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   const handleSelect = (s: typeof SCENARIOS[0]) => {
@@ -97,13 +95,14 @@ export function Step1_Scope() {
     if (s.action === 'crawl') setDataSourceType('url');
     if (s.action === 'demo') setDataSourceType('demo');
 
-    setTimeout(() => setStep('ingestion'), 200);
+    // Navigation via Router
+    setTimeout(() => router.push('/onboarding/step2'), 200);
   };
 
   return (
-    <WizardLayout 
-      title="What context do your AI agents need?" 
-      subtitle="Build a unified knowledge layer for your tools."
+    <RouterWizardLayout 
+      title="Tell us about your workflow." 
+      subtitle="This helps us recommend the best sources and settings."
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 600, margin: '0 auto' }}>
         {SCENARIOS.map((s, i) => (
@@ -118,13 +117,13 @@ export function Step1_Scope() {
             style={{
               padding: '20px 24px',
               background: hoveredIndex === i ? '#222' : '#111',
-              border: '1px solid #333', // 边框不再变色
+              border: '1px solid #333',
               borderRadius: 12,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-start',
-              transition: 'background-color 0.1s', // 仅背景过渡
+              transition: 'background-color 0.1s',
               fontSize: 15,
               fontWeight: 400,
               color: '#ccc',
@@ -132,7 +131,7 @@ export function Step1_Scope() {
               boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
             }}
           >
-            {/* 字母索引 A/B/C/D */}
+            {/* Index A/B/C/D */}
             <div style={{
               width: 24,
               height: 24,
@@ -155,6 +154,6 @@ export function Step1_Scope() {
           </motion.div>
         ))}
       </div>
-    </WizardLayout>
+    </RouterWizardLayout>
   );
 }

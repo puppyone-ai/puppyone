@@ -491,7 +491,7 @@ export function ChatSidebar({
       style={{
         width: isOpen ? chatWidth : 0,
         minWidth: isOpen ? chatWidth : 0,
-        height: '100vh',
+        height: '100%', // 使用 100% 而非 100vh，让高度相对于父容器而非视口
         background: '#111111',
         borderLeft: isOpen ? '1px solid #222' : 'none',
         display: 'flex',

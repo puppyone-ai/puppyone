@@ -257,7 +257,6 @@ export function ProjectsSidebar({
             -apple-system,
             BlinkMacSystemFont,
             sans-serif;
-          border-right: 1px solid #404040;
           transition: ${isResizing ? 'none' : 'width 0.2s ease'};
           position: relative;
           flex-shrink: 0;
@@ -290,13 +289,13 @@ export function ProjectsSidebar({
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0 9px 0 16px;
-          height: 45px;
-          border-bottom: 1px solid #404040;
+          padding: 8px 9px 0 16px;
+          height: 54px;
+          box-sizing: border-box;
         }
 
         .sidebar.collapsed .header {
-          padding: 0;
+          padding: 8px 0 0 0;
           justify-content: center;
         }
 
@@ -381,7 +380,6 @@ export function ProjectsSidebar({
         .content-bottom {
           flex-shrink: 0;
           padding-bottom: 8px;
-          border-top: 1px solid #333;
           margin-top: 8px;
           padding-top: 8px;
         }
@@ -402,20 +400,17 @@ export function ProjectsSidebar({
         }
 
         .collapsed-nav-main {
-          flex: 1;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 4px;
+          gap: 8px;
         }
 
         .collapsed-nav-bottom {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 4px;
-          padding-top: 8px;
-          border-top: 1px solid #333;
+          gap: 8px;
           margin-top: 8px;
         }
 
@@ -439,8 +434,8 @@ export function ProjectsSidebar({
         }
 
         .collapsed-nav-btn.active {
-          background: rgba(59, 130, 246, 0.15);
-          color: #60a5fa;
+          background: rgba(255, 255, 255, 0.1);
+          color: #e2e8f0;
         }
 
         .collapsed-nav-item {
@@ -1111,7 +1106,6 @@ export function ProjectsSidebar({
         .footer {
           height: 45px;
           padding: 0 16px;
-          border-top: 1px solid #333;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -1122,7 +1116,6 @@ export function ProjectsSidebar({
           height: 45px;
           padding: 0 12px;
           justify-content: center;
-          border-top: 1px solid #333;
         }
 
         .sidebar.collapsed .env-badge {
@@ -1147,6 +1140,8 @@ export function ProjectsSidebar({
         .user-avatar {
           width: 28px;
           height: 28px;
+          min-width: 28px;
+          min-height: 28px;
           border-radius: 50%;
           background: #3a3a3a;
           color: #ffffff;
@@ -1158,6 +1153,7 @@ export function ProjectsSidebar({
           overflow: hidden;
           cursor: pointer;
           transition: all 200ms ease;
+          flex-shrink: 0;
         }
 
         .user-avatar:hover {
@@ -1288,406 +1284,58 @@ export function ProjectsSidebar({
 
       {/* Content */}
       <div className='content'>
-        {/* Main Content - Contexts (flex: 1, scrollable) */}
-        <div className='content-main'>
-          {/* Section: Contexts */}
-          <div className='section'>
-            <div
-              className='section-header'
-              onClick={() => toggleSection('contexts')}
-            >
-              <span className='section-title'>Projects</span>
-              <svg
-                className={`section-chevron ${expandedSections.has('contexts') ? 'expanded' : ''}`}
-                viewBox='0 0 12 12'
-                fill='none'
-              >
-                <path
-                  d='M4.5 2.5L8 6L4.5 9.5'
-                  stroke='currentColor'
-                  strokeWidth='1.2'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-              </svg>
-              <button
-                className='section-add-btn'
-                onClick={e => {
-                  e.stopPropagation();
-                  handleCreateProject();
-                }}
-                title='New Project'
-              >
-                <svg width='14' height='14' viewBox='0 0 10 10' fill='none'>
-                  <path
-                    d='M5 1v8M1 5h8'
-                    stroke='currentColor'
-                    strokeWidth='1.3'
-                    strokeLinecap='round'
-                  />
-                </svg>
-              </button>
-            </div>
-
-            {expandedSections.has('contexts') && (
-              <div className='section-content'>
-                {loading ? (
-                  <div className='loading'>
-                    {/* 骨架屏：模拟 2 个项目，每个项目有 2 个子项 */}
-                    <div className='skeleton-item'>
-                      <div className='skeleton-icon' />
-                      <div className='skeleton-text' style={{ width: '65%' }} />
-                    </div>
-                    <div className='skeleton-item skeleton-child'>
-                      <div
-                        className='skeleton-icon'
-                        style={{ width: 14, height: 14 }}
-                      />
-                      <div className='skeleton-text' style={{ width: '55%' }} />
-                    </div>
-                    <div className='skeleton-item skeleton-child'>
-                      <div
-                        className='skeleton-icon'
-                        style={{ width: 14, height: 14 }}
-                      />
-                      <div className='skeleton-text' style={{ width: '70%' }} />
-                    </div>
-                    <div className='skeleton-item' style={{ marginTop: 4 }}>
-                      <div className='skeleton-icon' />
-                      <div className='skeleton-text' style={{ width: '50%' }} />
-                    </div>
-                    <div className='skeleton-item skeleton-child'>
-                      <div
-                        className='skeleton-icon'
-                        style={{ width: 14, height: 14 }}
-                      />
-                      <div className='skeleton-text' style={{ width: '60%' }} />
-                    </div>
-                  </div>
-                ) : projects.length === 0 ? (
-                  <button className='nav-item' onClick={handleCreateProject}>
-                    <span className='nav-icon'>
-                      <svg
-                        width='14'
-                        height='14'
-                        viewBox='0 0 14 14'
-                        fill='none'
-                      >
-                        <path
-                          d='M7 3v8M3 7h8'
-                          stroke='currentColor'
-                          strokeWidth='1.2'
-                          strokeLinecap='round'
-                        />
-                      </svg>
-                    </span>
-                    <span className='nav-label' style={{ color: '#6D7177' }}>
-                      New Project
-                    </span>
-                  </button>
-                ) : (
-                  <div className='projects-list'>
-                    {projects.map(project => {
-                      const isExpanded = expandedBaseIds.has(project.id);
-
-                      return (
-                        <div key={project.id} className='project-item'>
-                          <div
-                            className={`project-row ${contextMenu?.type === 'project' && contextMenu.id === project.id ? 'menu-open' : ''}`}
-                          >
-                            <button
-                              className='project-btn'
-                              onClick={() => onBaseClick(project.id)}
-                            >
-                              <div className='folder-icon-wrapper'>
-                                <svg
-                                  className='folder-icon'
-                                  width='14'
-                                  height='14'
-                                  viewBox='0 0 14 14'
-                                  fill='none'
-                                >
-                                  <path
-                                    d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
-                                    stroke='currentColor'
-                                    strokeWidth='1.2'
-                                  />
-                                </svg>
-                              </div>
-                              <span className='project-name'>
-                                {project.name}
-                              </span>
-                              <svg
-                                className={`project-chevron ${isExpanded ? 'expanded' : ''}`}
-                                viewBox='0 0 12 12'
-                                fill='none'
-                              >
-                                <path
-                                  d='M4.5 2.5L8 6L4.5 9.5'
-                                  stroke='currentColor'
-                                  strokeWidth='1.2'
-                                  strokeLinecap='round'
-                                  strokeLinejoin='round'
-                                />
-                              </svg>
-                            </button>
-                            <button
-                              className='project-action-btn'
-                              onClick={e => {
-                                e.stopPropagation();
-                                const rect =
-                                  e.currentTarget.getBoundingClientRect();
-                                setContextMenu({
-                                  x: rect.right + 4,
-                                  y: rect.top,
-                                  type: 'project',
-                                  id: project.id,
-                                });
-                              }}
-                              title='More options'
-                            >
-                              <svg
-                                width='16'
-                                height='16'
-                                viewBox='0 0 14 14'
-                                fill='none'
-                              >
-                                <circle
-                                  cx='7'
-                                  cy='3'
-                                  r='1.3'
-                                  fill='currentColor'
-                                />
-                                <circle
-                                  cx='7'
-                                  cy='7'
-                                  r='1.3'
-                                  fill='currentColor'
-                                />
-                                <circle
-                                  cx='7'
-                                  cy='11'
-                                  r='1.3'
-                                  fill='currentColor'
-                                />
-                              </svg>
-                            </button>
-                            <button
-                              className='project-action-btn'
-                              onClick={e => {
-                                e.stopPropagation();
-                                handleCreateTable(project.id);
-                              }}
-                              title='New Context'
-                            >
-                              <svg
-                                width='14'
-                                height='14'
-                                viewBox='0 0 10 10'
-                                fill='none'
-                              >
-                                <path
-                                  d='M5 1v8M1 5h8'
-                                  stroke='currentColor'
-                                  strokeWidth='1.3'
-                                  strokeLinecap='round'
-                                />
-                              </svg>
-                            </button>
-                          </div>
-
-                          {isExpanded && (
-                            <div className='tables-wrapper'>
-                              {project.tables.map(table => {
-                                const isProcessing = processingTableIds.has(
-                                  table.id
-                                );
-                                return (
-                                  <div
-                                    key={table.id}
-                                    className={`table-wrapper ${String(table.id) === String(activeTableId) ? 'active' : ''} ${contextMenu?.type === 'table' && contextMenu.id === table.id ? 'menu-open' : ''} ${isProcessing ? 'processing' : ''}`}
-                                  >
-                                    <button
-                                      className='table-btn'
-                                      onClick={() =>
-                                        onTableClick(project.id, table.id)
-                                      }
-                                    >
-                                      {isProcessing ? (
-                                        <svg
-                                          className='table-processing-indicator'
-                                          width='14'
-                                          height='14'
-                                          viewBox='0 0 14 14'
-                                          fill='none'
-                                        >
-                                          <circle
-                                            cx='7'
-                                            cy='7'
-                                            r='5'
-                                            stroke='#60a5fa'
-                                            strokeWidth='2'
-                                            strokeLinecap='round'
-                                            strokeDasharray='24 8'
-                                          />
-                                        </svg>
-                                      ) : (
-                                        <svg
-                                          className='table-icon-svg'
-                                          width='14'
-                                          height='14'
-                                          viewBox='0 0 14 14'
-                                          fill='none'
-                                        >
-                                          <rect
-                                            x='1.5'
-                                            y='1.5'
-                                            width='11'
-                                            height='11'
-                                            rx='1.5'
-                                            stroke='currentColor'
-                                            strokeWidth='1.2'
-                                          />
-                                          <line
-                                            x1='1.5'
-                                            y1='5'
-                                            x2='12.5'
-                                            y2='5'
-                                            stroke='currentColor'
-                                            strokeWidth='1.2'
-                                          />
-                                          <line
-                                            x1='5.5'
-                                            y1='5'
-                                            x2='5.5'
-                                            y2='12.5'
-                                            stroke='currentColor'
-                                            strokeWidth='1.2'
-                                          />
-                                        </svg>
-                                      )}
-                                      <span className='table-name'>
-                                        {table.name}
-                                      </span>
-                                    </button>
-                                    <button
-                                      className='table-more-btn'
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        const rect =
-                                          e.currentTarget.getBoundingClientRect();
-                                        setContextMenu({
-                                          x: rect.right + 4,
-                                          y: rect.top,
-                                          type: 'table',
-                                          id: table.id,
-                                          projectId: project.id,
-                                        });
-                                      }}
-                                      title='More options'
-                                    >
-                                      <svg
-                                        width='16'
-                                        height='16'
-                                        viewBox='0 0 14 14'
-                                        fill='none'
-                                      >
-                                        <circle
-                                          cx='7'
-                                          cy='3'
-                                          r='1.3'
-                                          fill='currentColor'
-                                        />
-                                        <circle
-                                          cx='7'
-                                          cy='7'
-                                          r='1.3'
-                                          fill='currentColor'
-                                        />
-                                        <circle
-                                          cx='7'
-                                          cy='11'
-                                          r='1.3'
-                                          fill='currentColor'
-                                        />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Bottom Content - Deploy & Settings */}
-        <div className='content-bottom'>
-          {/* Section: Deploy */}
-          <div className='section'>
-            <div
-              className='section-header'
-              onClick={() => toggleSection('connect')}
-            >
-              <span className='section-title'>Deploy</span>
-              <svg
-                className={`section-chevron ${expandedSections.has('connect') ? 'expanded' : ''}`}
-                viewBox='0 0 12 12'
-                fill='none'
-              >
-                <path
-                  d='M4.5 2.5L8 6L4.5 9.5'
-                  stroke='currentColor'
-                  strokeWidth='1.2'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-              </svg>
-            </div>
-
-            {expandedSections.has('connect') && (
-              <div className='section-content'>
-                {/* Tools & MCP (Outbound) */}
-                <button
-                  className={`nav-item ${activeView === 'tools' ? 'active' : ''}`}
-                  onClick={() => onUtilityNavClick('tools')}
-                >
-                  <span className='nav-icon'>
-                    {/* External Link / Export style icon */}
-                    <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
-                      <path
-                        d='M9 2.5h2.5V5M11.5 2.5L6 8M11 9v2.5a1.5 1.5 0 01-1.5 1.5H3.5A1.5 1.5 0 012 11.5V5.5A1.5 1.5 0 013.5 4H6'
-                        stroke='currentColor'
-                        strokeWidth='1.2'
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                      />
-                    </svg>
-                  </span>
-                  <span className='nav-label'>Tools & MCP</span>
-                  {toolsCount > 0 && (
-                    <span className='nav-badge'>{toolsCount}</span>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Sidebar Bottom Actions (Fixed Settings) */}
+        {/* All Navigation Items - Aligned to top */}
         <div
           style={{
-            padding: '8px 8px 8px 8px',
-            borderTop: '1px solid #333',
-            flexShrink: 0,
+            padding: '12px 8px 8px 8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
           }}
         >
+          {/* Projects */}
+          <button
+            className={`nav-item ${activeView === 'projects' ? 'active' : ''}`}
+            onClick={() => onUtilityNavClick('projects')}
+          >
+            <span className='nav-icon'>
+              <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+                <path
+                  d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
+                  stroke='currentColor'
+                  strokeWidth='1.2'
+                />
+              </svg>
+            </span>
+            <span className='nav-label'>Projects</span>
+            {projects.length > 0 && (
+              <span className='nav-badge'>{projects.length}</span>
+            )}
+          </button>
+
+          {/* Tools & MCP */}
+          <button
+            className={`nav-item ${activeView === 'tools' ? 'active' : ''}`}
+            onClick={() => onUtilityNavClick('tools')}
+          >
+            <span className='nav-icon'>
+              <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+                <path
+                  d='M9 2.5h2.5V5M11.5 2.5L6 8M11 9v2.5a1.5 1.5 0 01-1.5 1.5H3.5A1.5 1.5 0 012 11.5V5.5A1.5 1.5 0 013.5 4H6'
+                  stroke='currentColor'
+                  strokeWidth='1.2'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                />
+              </svg>
+            </span>
+            <span className='nav-label'>Tools & MCP</span>
+            {toolsCount > 0 && (
+              <span className='nav-badge'>{toolsCount}</span>
+            )}
+          </button>
+
+          {/* Settings */}
           <button
             className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
             onClick={() => onUtilityNavClick('settings')}
@@ -1711,98 +1359,28 @@ export function ProjectsSidebar({
       {/* Collapsed Navigation - Shows only when sidebar is collapsed */}
       <div className='collapsed-nav'>
         <div className='collapsed-nav-main'>
-          {/* Contexts Icon with Hover Popover */}
-          <div className='collapsed-nav-item'>
-            <button
-              className={`collapsed-nav-btn ${activeView === 'projects' ? 'active' : ''}`}
-            >
-              <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
-                <path
-                  d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
-                  stroke='currentColor'
-                  strokeWidth='1.2'
-                />
-              </svg>
-            </button>
+          {/* Projects Icon - Click to navigate to projects sidebar */}
+          <button
+            className={`collapsed-nav-btn ${activeView === 'projects' ? 'active' : ''}`}
+            onClick={() => onUtilityNavClick('projects')}
+            title='Projects'
+          >
+            <svg width='18' height='18' viewBox='0 0 14 14' fill='none'>
+              <path
+                d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
+                stroke='currentColor'
+                strokeWidth='1.2'
+              />
+            </svg>
+          </button>
 
-            {/* Popover showing all contexts */}
-            <div className='collapsed-nav-popover'>
-              {projects.length === 0 ? (
-                <div className='popover-empty'>No projects yet</div>
-              ) : (
-                projects.map(project => (
-                  <div key={project.id} className='popover-section'>
-                    <div className='popover-project'>
-                      <svg
-                        width='12'
-                        height='12'
-                        viewBox='0 0 14 14'
-                        fill='none'
-                      >
-                        <path
-                          d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
-                          stroke='currentColor'
-                          strokeWidth='1.2'
-                        />
-                      </svg>
-                      <span>{project.name}</span>
-                    </div>
-                    {project.tables.map(table => (
-                      <button
-                        key={table.id}
-                        className={`popover-table ${activeTableId === table.id ? 'active' : ''}`}
-                        onClick={() => onTableClick(project.id, table.id)}
-                      >
-                        <svg
-                          width='12'
-                          height='12'
-                          viewBox='0 0 14 14'
-                          fill='none'
-                        >
-                          <rect
-                            x='1.5'
-                            y='1.5'
-                            width='11'
-                            height='11'
-                            rx='1.5'
-                            stroke='currentColor'
-                            strokeWidth='1.2'
-                          />
-                          <line
-                            x1='1.5'
-                            y1='5'
-                            x2='12.5'
-                            y2='5'
-                            stroke='currentColor'
-                            strokeWidth='1.2'
-                          />
-                          <line
-                            x1='5.5'
-                            y1='5'
-                            x2='5.5'
-                            y2='12.5'
-                            stroke='currentColor'
-                            strokeWidth='1.2'
-                          />
-                        </svg>
-                        <span>{table.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className='collapsed-nav-bottom'>
           {/* Tools & MCP Icon (Outbound) */}
           <button
             className={`collapsed-nav-btn ${activeView === 'tools' ? 'active' : ''}`}
             onClick={() => onUtilityNavClick('tools')}
             title='Tools & MCP'
           >
-            <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+            <svg width='18' height='18' viewBox='0 0 14 14' fill='none'>
               <path
                 d='M9 2.5h2.5V5M11.5 2.5L6 8M11 9v2.5a1.5 1.5 0 01-1.5 1.5H3.5A1.5 1.5 0 012 11.5V5.5A1.5 1.5 0 013.5 4H6'
                 stroke='currentColor'
@@ -1819,7 +1397,7 @@ export function ProjectsSidebar({
             onClick={() => onUtilityNavClick('settings')}
             title='Settings'
           >
-            <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+            <svg width='18' height='18' viewBox='0 0 14 14' fill='none'>
               <path
                 d='M7 1.75C7 1.75 7.6 1.75 7.6 2.65C7.6 3.15 8 3.55 8.5 3.55C9.4 3.55 10 3.2 10 3.2C10 3.2 10.5 3.6 10.9 4.1C11.3 4.6 11.3 4.6 11.3 4.6C11.3 4.6 10.75 5.15 10.75 6.05C10.75 7.35 11.85 7.9 11.85 7.9C11.85 7.9 11.6 8.65 11.35 9.15C11.1 9.65 11.1 9.65 11.1 9.65C11.1 9.65 10.2 9.5 9.3 10.4C8.4 11.3 8.7 12.35 8.7 12.35C8.7 12.35 8.1 12.35 7.5 12.35L6.45 12.35C5.85 12.35 5.25 12.35 5.25 12.35C5.25 12.35 5.55 11.3 4.65 10.4C3.75 9.5 2.85 9.65 2.85 9.65C2.85 9.65 2.85 9.65 2.6 9.15C2.35 8.65 2.1 7.9 2.1 7.9C2.1 7.9 3.2 7.35 3.2 6.05C3.2 5.15 2.65 4.6 2.65 4.6C2.65 4.6 2.65 4.6 3.05 4.1C3.45 3.6 3.95 3.2 3.95 3.2C3.95 3.2 4.55 3.55 5.45 3.55C5.95 3.55 6.35 3.15 6.35 2.65C6.35 1.75 6.95 1.75 6.95 1.75L7 1.75ZM7 5.25C5.9 5.25 5 6.15 5 7.25C5 8.35 5.9 9.25 7 9.25C8.1 9.25 9 8.35 9 7.25C9 6.15 8.1 5.25 7 5.25Z'
                 stroke='currentColor'
