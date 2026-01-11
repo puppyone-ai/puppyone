@@ -7,3 +7,4 @@ logs/
 .etl_rules/
 .pytest_cache/
 .uv_cache/
+.uv-cache/
