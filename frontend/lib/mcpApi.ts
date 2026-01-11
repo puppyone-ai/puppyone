@@ -14,7 +14,7 @@ import { apiRequest, get, post, put, del } from './apiClient';
 // 类型定义
 // ============================================
 
-// 后端支持的 8 种工具类型
+// 后端支持的 9 种工具类型 (增加 shell_access)
 export type McpToolType =
   | 'get_data_schema'
   | 'get_all_data'
@@ -23,7 +23,8 @@ export type McpToolType =
   | 'update'
   | 'delete'
   | 'preview'
-  | 'select';
+  | 'select'
+  | 'shell_access';
 
 // MCP 工具权限类型（用于前端状态管理）
 export interface McpToolPermissions {
@@ -35,6 +36,7 @@ export interface McpToolPermissions {
   create?: boolean;
   update?: boolean;
   delete?: boolean;
+  shell_access?: boolean;
 }
 
 // 工具定义（用于自定义工具名称和描述）- 保留用于前端状态
@@ -533,6 +535,7 @@ export function permissionsToRegisterTools(
   if (permissions.create) tools.push('create');
   if (permissions.update) tools.push('update');
   if (permissions.delete) tools.push('delete');
+  if (permissions.shell_access) tools.push('shell_access');
   return tools;
 }
 
@@ -552,6 +555,7 @@ export function registerToolsToPermissions(
     create: tools.includes('create'),
     update: tools.includes('update'),
     delete: tools.includes('delete'),
+    shell_access: tools.includes('shell_access'),
   };
 }
 
@@ -570,6 +574,10 @@ export const TOOL_INFO: Record<
   create: { label: 'Create', description: '创建新元素' },
   update: { label: 'Update', description: '更新现有元素' },
   delete: { label: 'Delete', description: '删除元素' },
+  shell_access: {
+    label: 'Bash / Shell Access',
+    description: 'Provide raw shell access to data via jq/cli',
+  },
 };
 
 // ============================================
