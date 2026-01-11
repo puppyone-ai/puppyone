@@ -1,13 +1,13 @@
 ## E2E 测试报告：turbopuffer-e2e
 
-- **run_id**: `2026-01-11T11:17:52Z`
-- **generated_at**: `2026-01-11T11:17:52Z`
+- **run_id**: `2026-01-11T11:30:25Z`
+- **generated_at**: `2026-01-11T11:30:25Z`
 
 ### 结果明细
 
 #### ✅ PASS `dotenv.load`
 
-- **time**: `2026-01-11T11:17:52Z`
+- **time**: `2026-01-11T11:30:25Z`
 
 **details**
 
@@ -20,24 +20,24 @@
 
 #### ✅ PASS `env.configured`
 
-- **time**: `2026-01-11T11:17:52Z`
+- **time**: `2026-01-11T11:30:25Z`
 
 **details**
 
 ```json
 {
   "region": "gcp-us-central1",
-  "namespace": "e2e-tpuf-20260111-111752-9fbf392f"
+  "namespace": "e2e-tpuf-20260111-113025-56909dd5"
 }
 ```
 
 #### ✅ PASS `namespace.precleanup`
 
-- **time**: `2026-01-11T11:18:03Z`
+- **time**: `2026-01-11T11:30:28Z`
 
 #### ✅ PASS `write.upsert_rows`
 
-- **time**: `2026-01-11T11:18:03Z`
+- **time**: `2026-01-11T11:30:28Z`
 
 **details**
 
@@ -71,7 +71,7 @@
 
 #### ✅ PASS `namespace.metadata`
 
-- **time**: `2026-01-11T11:18:03Z`
+- **time**: `2026-01-11T11:30:28Z`
 
 **data**
 
@@ -79,7 +79,7 @@
 {
   "approx_logical_bytes": 0,
   "approx_row_count": 0,
-  "created_at": "2026-01-11 11:18:05.395349+00:00",
+  "created_at": "2026-01-11 11:30:30.461474+00:00",
   "encryption": {
     "sse": true
   },
@@ -87,40 +87,10 @@
     "status": "up-to-date"
   },
   "schema_": {
-    "title": {
-      "type": "string",
-      "ann": null,
-      "filterable": true,
-      "full_text_search": null,
-      "regex": null
-    },
-    "views": {
-      "type": "int",
-      "ann": null,
-      "filterable": true,
-      "full_text_search": null,
-      "regex": null
-    },
     "category": {
       "type": "string",
       "ann": null,
       "filterable": true,
-      "full_text_search": null,
-      "regex": null
-    },
-    "id": {
-      "type": "string",
-      "ann": null,
-      "filterable": null,
-      "full_text_search": null,
-      "regex": null
-    },
-    "vector": {
-      "type": "[2]f32",
-      "ann": {
-        "distance_metric": "cosine_distance"
-      },
-      "filterable": null,
       "full_text_search": null,
       "regex": null
     },
@@ -141,36 +111,49 @@
       },
       "regex": null
     },
+    "title": {
+      "type": "string",
+      "ann": null,
+      "filterable": true,
+      "full_text_search": null,
+      "regex": null
+    },
+    "views": {
+      "type": "int",
+      "ann": null,
+      "filterable": true,
+      "full_text_search": null,
+      "regex": null
+    },
+    "vector": {
+      "type": "[2]f32",
+      "ann": {
+        "distance_metric": "cosine_distance"
+      },
+      "filterable": null,
+      "full_text_search": null,
+      "regex": null
+    },
     "status": {
       "type": "string",
       "ann": null,
       "filterable": true,
       "full_text_search": null,
       "regex": null
+    },
+    "id": {
+      "type": "string",
+      "ann": null,
+      "filterable": null,
+      "full_text_search": null,
+      "regex": null
     }
   },
-  "updated_at": "2026-01-11 11:18:05.395349+00:00",
+  "updated_at": "2026-01-11 11:30:30.461474+00:00",
   "schema": {
-    "title": {
-      "type": "string",
-      "filterable": true
-    },
-    "views": {
-      "type": "int",
-      "filterable": true
-    },
     "category": {
       "type": "string",
       "filterable": true
-    },
-    "id": {
-      "type": "string"
-    },
-    "vector": {
-      "type": "[2]f32",
-      "ann": {
-        "distance_metric": "cosine_distance"
-      }
     },
     "content": {
       "type": "string",
@@ -187,9 +170,26 @@
         "max_token_length": 39
       }
     },
+    "title": {
+      "type": "string",
+      "filterable": true
+    },
+    "views": {
+      "type": "int",
+      "filterable": true
+    },
+    "vector": {
+      "type": "[2]f32",
+      "ann": {
+        "distance_metric": "cosine_distance"
+      }
+    },
     "status": {
       "type": "string",
       "filterable": true
+    },
+    "id": {
+      "type": "string"
     }
   }
 }
@@ -197,7 +197,7 @@
 
 #### ✅ PASS `namespace.hint_cache_warm`
 
-- **time**: `2026-01-11T11:18:04Z`
+- **time**: `2026-01-11T11:30:29Z`
 
 **data**
 
@@ -210,7 +210,7 @@
 
 #### ✅ PASS `query.vector.ANN`
 
-- **time**: `2026-01-11T11:18:04Z`
+- **time**: `2026-01-11T11:30:29Z`
 
 **data**
 
@@ -256,7 +256,7 @@
 
 #### ✅ PASS `query.full_text.BM25`
 
-- **time**: `2026-01-11T11:18:04Z`
+- **time**: `2026-01-11T11:30:29Z`
 
 **data**
 
@@ -287,7 +287,7 @@
 
 #### ✅ PASS `query.hybrid.multi_query.rrf`
 
-- **time**: `2026-01-11T11:18:04Z`
+- **time**: `2026-01-11T11:30:29Z`
 
 **data**
 
@@ -312,7 +312,7 @@
 
 #### ✅ PASS `query.filters.lookup`
 
-- **time**: `2026-01-11T11:18:05Z`
+- **time**: `2026-01-11T11:30:30Z`
 
 **data**
 
@@ -341,7 +341,7 @@
 
 #### ✅ PASS `query.aggregations.count`
 
-- **time**: `2026-01-11T11:18:05Z`
+- **time**: `2026-01-11T11:30:30Z`
 
 **data**
 
@@ -357,17 +357,17 @@
     "billable_logical_bytes_returned": 16
   },
   "performance": {
-    "client_total_ms": 251.7303330823779,
+    "client_total_ms": 264.948874944821,
     "client_compress_ms": 0.0,
-    "client_response_ms": 250.71029108949006,
-    "client_body_read_ms": 0.19454210996627808,
-    "client_deserialize_ms": 0.5955828819423914,
+    "client_response_ms": 263.8454579282552,
+    "client_body_read_ms": 0.1688329502940178,
+    "client_deserialize_ms": 0.7435840088874102,
     "approx_namespace_size": 4,
     "cache_hit_ratio": 1.0,
     "cache_temperature": "hot",
     "exhaustive_search_count": 4,
-    "query_execution_ms": 8,
-    "server_total_ms": 8
+    "query_execution_ms": 9,
+    "server_total_ms": 9
   },
   "kind": "query"
 }
@@ -375,7 +375,7 @@
 
 #### ✅ PASS `query.aggregations.group_by`
 
-- **time**: `2026-01-11T11:18:05Z`
+- **time**: `2026-01-11T11:30:30Z`
 
 **data**
 
@@ -398,17 +398,17 @@
     "billable_logical_bytes_returned": 42
   },
   "performance": {
-    "client_total_ms": 266.4875420741737,
+    "client_total_ms": 261.6377498488873,
     "client_compress_ms": 0.0,
-    "client_response_ms": 266.10029209405184,
-    "client_body_read_ms": 0.07429183460772038,
-    "client_deserialize_ms": 0.23304205387830734,
+    "client_response_ms": 261.10649993643165,
+    "client_body_read_ms": 0.10249996557831764,
+    "client_deserialize_ms": 0.31804200261831284,
     "approx_namespace_size": 4,
     "cache_hit_ratio": 1.0,
     "cache_temperature": "hot",
     "exhaustive_search_count": 4,
-    "query_execution_ms": 11,
-    "server_total_ms": 11
+    "query_execution_ms": 13,
+    "server_total_ms": 13
   },
   "kind": "query"
 }
@@ -416,7 +416,7 @@
 
 #### ✅ PASS `write.patch_by_filter`
 
-- **time**: `2026-01-11T11:18:06Z`
+- **time**: `2026-01-11T11:30:31Z`
 
 **data**
 
@@ -440,7 +440,7 @@
 
 #### ✅ PASS `verify.patch_by_filter`
 
-- **time**: `2026-01-11T11:18:06Z`
+- **time**: `2026-01-11T11:30:31Z`
 
 **data**
 
@@ -456,7 +456,7 @@
 
 #### ✅ PASS `write.delete_by_filter`
 
-- **time**: `2026-01-11T11:18:07Z`
+- **time**: `2026-01-11T11:30:32Z`
 
 **data**
 
@@ -480,7 +480,7 @@
 
 #### ✅ PASS `verify.delete_by_filter`
 
-- **time**: `2026-01-11T11:18:07Z`
+- **time**: `2026-01-11T11:30:32Z`
 
 **data**
 
@@ -496,7 +496,7 @@
 
 #### ✅ PASS `namespaces.list`
 
-- **time**: `2026-01-11T11:18:07Z`
+- **time**: `2026-01-11T11:30:32Z`
 
 **data**
 
@@ -504,24 +504,31 @@
 {
   "prefix": "e2e-tpuf-",
   "namespaces": [
-    "e2e-tpuf-20260111-111752-9fbf392f"
+    "e2e-tpuf-20260111-113025-56909dd5"
   ]
 }
 ```
 
-#### ✅ PASS `namespace.delete_namespace`
+#### ✅ PASS `namespace.persist_for_manual_review`
 
-- **time**: `2026-01-11T11:18:08Z`
+- **time**: `2026-01-11T11:30:32Z`
 
-#### ✅ PASS `namespace.delete.verify_not_found`
+**details**
 
-- **time**: `2026-01-11T11:18:08Z`
+```json
+{
+  "path": "/Volumes/Portable/puppy-agents-workspace/PuppyContext/backend/tests/e2e/turbopuffer/.last_namespace.json",
+  "namespace": "e2e-tpuf-20260111-113025-56909dd5"
+}
+```
 
 ### 汇总
 
 ```json
 {
-  "namespace": "e2e-tpuf-20260111-111752-9fbf392f"
+  "namespace": "e2e-tpuf-20260111-113025-56909dd5",
+  "deleted": false,
+  "next_step": "run delete test when ready"
 }
 ```
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -123,12 +125,12 @@ class _Doc:
 
 
 @pytest.mark.e2e
-def test_turbopuffer_e2e_query_write_delete_namespace() -> None:
+def test_turbopuffer_e2e_query_write_keep_namespace() -> None:
     """
     e2e 覆盖点（对齐 docs/turbopuffer/api/query.md）：
     1) 入库 + schema/索引参数（distance_metric / full_text_search）
     2) 向量搜索、全文搜索、混合搜索（multi_query + RRF）
-    3) 删除 namespace
+    3) 不删除 namespace（用于人工在后台检查写入/修改是否生效）
     4) 其他：metadata / warm cache / list namespaces / patch_by_filter / delete_by_filter
     """
 
@@ -167,6 +169,8 @@ def test_turbopuffer_e2e_query_write_delete_namespace() -> None:
     svc = TurbopufferSearchService(config=cfg)
     ns_prefix = "e2e-tpuf-"
     namespace = _make_namespace(ns_prefix)
+    # 将本次 namespace 写入文件，供第二个测试（删除）读取
+    last_ns_path = Path(__file__).with_name(".last_namespace.json")
 
     report.log_ok("env.configured", details={"region": cfg.region, "namespace": namespace})
 
@@ -485,30 +489,135 @@ def test_turbopuffer_e2e_query_write_delete_namespace() -> None:
         cleanup_namespace()
         raise
 
+    finally:
+        # 不做删除：把 namespace 持久化，方便你去后台核对写入/修改是否生效
+        try:
+            payload = {
+                "namespace": namespace,
+                "region": cfg.region,
+                "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            }
+            last_ns_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+            report.log_ok(
+                "namespace.persist_for_manual_review",
+                details={"path": str(last_ns_path), "namespace": namespace},
+            )
+        except Exception as e:
+            # 不因为写文件失败而让 e2e 主流程失败
+            report.log_fail("namespace.persist_for_manual_review", exc=e)
+        report.finalize(
+            summary={
+                "namespace": namespace,
+                "deleted": False,
+                "next_step": "run delete test when ready",
+            }
+        )
+
+
+@pytest.mark.e2e
+def test_turbopuffer_e2e_delete_namespace_from_last_run() -> None:
+    """
+    删除上一次 `test_turbopuffer_e2e_query_write_keep_namespace` 生成的 namespace。
+
+    读取顺序：
+    1) 环境变量 `TURBOPUFFER_E2E_NAMESPACE_TO_DELETE`（手动指定时用）
+    2) 本文件目录下 `.last_namespace.json`
+    """
+
+    report = E2EReporter(suite_name="turbopuffer-e2e")
+
+    project_root = Path(__file__).resolve().parents[3]  # backend/
+    env_path = project_root / ".env"
+    loaded_env = False
+    if env_path.exists():
+        loaded_env = load_dotenv(dotenv_path=env_path, override=False)
+        report.log_ok(
+            "dotenv.load",
+            details={"env_path": str(env_path), "loaded": bool(loaded_env)},
+        )
+    else:
+        report.log_ok(
+            "dotenv.load",
+            details={"env_path": str(env_path), "loaded": False, "note": ".env not found"},
+        )
+
+    cfg = TurbopufferConfig()
+    if not cfg.configured:
+        report.log_ok(
+            "skip.missing_turbopuffer_api_key",
+            details={
+                "reason": "TURBOPUFFER_API_KEY is not set (or empty) in current process environment",
+                "expected_env_var": "TURBOPUFFER_API_KEY",
+                "dotenv_loaded": bool(loaded_env),
+            },
+        )
+        report.finalize(summary={"skipped": True})
+        pytest.skip("未检测到 TURBOPUFFER_API_KEY，跳过 turbopuffer e2e 删除测试")
+
+    last_ns_path = Path(__file__).with_name(".last_namespace.json")
+    namespace = (os.environ.get("TURBOPUFFER_E2E_NAMESPACE_TO_DELETE") or "").strip()
+    source = "env:TURBOPUFFER_E2E_NAMESPACE_TO_DELETE"
+    if not namespace:
+        if not last_ns_path.exists():
+            report.log_ok(
+                "skip.missing_last_namespace",
+                details={
+                    "reason": "no namespace provided and .last_namespace.json not found",
+                    "env_var": "TURBOPUFFER_E2E_NAMESPACE_TO_DELETE",
+                    "expected_file": str(last_ns_path),
+                },
+            )
+            report.finalize(summary={"skipped": True})
+            pytest.skip("未找到要删除的 namespace（请先运行 keep_namespace 测试）")
+        try:
+            payload = json.loads(last_ns_path.read_text())
+            namespace = str(payload.get("namespace") or "").strip()
+            source = f"file:{last_ns_path}"
+        except Exception as e:
+            report.log_fail("last_namespace.read", exc=e)
+            report.finalize(summary={"skipped": True})
+            pytest.skip("读取 .last_namespace.json 失败（请重新运行 keep_namespace 测试）")
+
+    if not namespace:
+        report.log_ok(
+            "skip.invalid_namespace",
+            details={"reason": "namespace empty after reading", "source": source},
+        )
+        report.finalize(summary={"skipped": True})
+        pytest.skip("namespace 为空，跳过删除测试")
+
+    svc = TurbopufferSearchService(config=cfg)
+    report.log_ok(
+        "delete.env.configured",
+        details={"region": cfg.region, "namespace": namespace, "source": source},
+    )
+
     # 3) delete namespace，并验证再次访问会 NotFound
     try:
-        asyncio.run(svc.delete_namespace(namespace))
-        report.log_ok("namespace.delete_namespace")
-    except Exception as e:
-        report.log_fail("namespace.delete_namespace", exc=e)
-        cleanup_namespace()
-        raise
+        try:
+            asyncio.run(svc.delete_namespace(namespace))
+            report.log_ok("namespace.delete_namespace")
+        except TurbopufferNotFound:
+            # 允许重复运行 delete test
+            report.log_ok("namespace.delete_namespace", details={"already_deleted": True})
 
-    try:
-        # 删除后，metadata 应该 NotFound（若 API 最终一致性导致短暂可见，也会被记录）
-        def _call_meta():
+        # 删除后，metadata 应该 NotFound（若 API 最终一致性导致短暂可见，会重试）
+        def _call_meta() -> Any:
             return asyncio.run(svc.metadata(namespace))
 
         try:
-            _retry(_call_meta, attempts=3, delay_seconds=1.0, retry_on=(TurbopufferRequestError,))
+            _retry(
+                _call_meta,
+                attempts=3,
+                delay_seconds=1.0,
+                retry_on=(TurbopufferRequestError,),
+            )
             raise AssertionError("namespace 删除后 metadata 仍可访问（预期 NotFound）")
         except TurbopufferNotFound:
             pass
         report.log_ok("namespace.delete.verify_not_found")
     except Exception as e:
-        report.log_fail("namespace.delete.verify_not_found", exc=e)
+        report.log_fail("namespace.delete", exc=e)
         raise
     finally:
-        # 最终兜底清理，避免残留
-        cleanup_namespace()
-        report.finalize(summary={"namespace": namespace})
+        report.finalize(summary={"namespace": namespace, "deleted": True, "source": source})

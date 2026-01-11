@@ -12,11 +12,17 @@
 - `TURBOPUFFER_API_KEY`
 - （可选）`TURBOPUFFER_REGION`
 
-运行（仅示例，以你项目实际命令为准）：
-
+跑两次：
+第一次（留下 namespace，方便你去后台看修改是否生效）：
 ```bash
-pytest -q -s tests/e2e/turbopuffer/test_turbopuffer_e2e.py
+uv run pytest -q -s tests/e2e/turbopuffer/test_turbopuffer_e2e.py -k keep_namespace
 ```
+
+第二次（删除上一次留下的 namespace）：
+```bash
+uv run pytest -q -s tests/e2e/turbopuffer/test_turbopuffer_e2e.py -k delete_namespace_from_last_run
+```
+（我已经本地分别跑过两条命令，两个测试都能单独通过。）
 
 ## 结果输出
 
