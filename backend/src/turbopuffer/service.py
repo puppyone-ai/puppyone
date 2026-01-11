@@ -243,7 +243,9 @@ class TurbopufferSearchService:
             )
             return
 
-        raise TurbopufferConfigError("Invalid turbopuffer client: no delete namespace API")
+        raise TurbopufferConfigError(
+            "Invalid turbopuffer client: no delete namespace API"
+        )
 
     async def delete_all(self, namespace: str) -> None:
         ns = self._get_namespace(namespace)

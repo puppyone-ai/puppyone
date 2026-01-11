@@ -72,7 +72,7 @@ class EmbeddingService:
         )
         try:
             from litellm import aembedding
-            
+
             from litellm import (
                 APIError,
                 AuthenticationError,

@@ -174,12 +174,16 @@ class UrlParser:
             else:
                 # Try Firecrawl first for HTML content
                 if self.firecrawl_client.is_available():
-                    firecrawl_result = await self._parse_with_firecrawl(url, source_type)
+                    firecrawl_result = await self._parse_with_firecrawl(
+                        url, source_type
+                    )
                     if firecrawl_result:
                         return firecrawl_result
                     # If Firecrawl fails, fall back to BeautifulSoup
-                    log_info(f"Firecrawl failed, falling back to BeautifulSoup for {url}")
-                
+                    log_info(
+                        f"Firecrawl failed, falling back to BeautifulSoup for {url}"
+                    )
+
                 return self._parse_html(response.text, url, source_type)
 
         except httpx.HTTPStatusError as e:
@@ -248,7 +252,7 @@ class UrlParser:
         """
         try:
             log_info(f"Attempting to parse URL with Firecrawl: {url}")
-            
+
             # Scrape with Firecrawl (get markdown for clean parsing)
             result = await self.firecrawl_client.scrape_url(
                 url,
@@ -261,11 +265,13 @@ class UrlParser:
 
             # Extract metadata
             metadata = result.get("metadata", {})
-            title = metadata.get("title") or metadata.get("ogTitle") or urlparse(url).netloc
-            
+            title = (
+                metadata.get("title") or metadata.get("ogTitle") or urlparse(url).netloc
+            )
+
             # Get content - prefer markdown for cleaner structure
             markdown_content = result.get("markdown", "")
-            
+
             if not markdown_content:
                 log_warning(f"No markdown content from Firecrawl for {url}")
                 return None
@@ -275,18 +281,18 @@ class UrlParser:
             lines = markdown_content.split("\n")
             data = []
             current_section = {"title": "", "content": ""}
-            
+
             for line in lines:
                 line = line.strip()
                 if not line:
                     continue
-                    
+
                 # Check if it's a heading
                 if line.startswith("#"):
                     # Save previous section if it has content
                     if current_section["content"]:
                         data.append(current_section.copy())
-                    
+
                     # Start new section
                     heading_text = line.lstrip("#").strip()
                     current_section = {"title": heading_text, "content": ""}
@@ -296,17 +302,19 @@ class UrlParser:
                         current_section["content"] += " " + line
                     else:
                         current_section["content"] = line
-            
+
             # Add final section
             if current_section["content"]:
                 data.append(current_section)
-            
+
             # If no structured data was found, create a single entry
             if not data:
                 data = [{"title": title, "content": markdown_content[:500]}]
 
-            log_info(f"Successfully parsed URL with Firecrawl: {url}, found {len(data)} sections")
-            
+            log_info(
+                f"Successfully parsed URL with Firecrawl: {url}, found {len(data)} sections"
+            )
+
             return {
                 "data": data,
                 "source_type": source_type,
@@ -523,7 +531,7 @@ class UrlParser:
                 await provider.close()
             except Exception as e:
                 log_error(f"Error closing provider {provider.__class__.__name__}: {e}")
-        
+
         # Close Firecrawl client
         try:
             await self.firecrawl_client.close()

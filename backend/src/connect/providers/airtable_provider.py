@@ -1,7 +1,7 @@
 """Airtable provider for parsing Airtable base and table URLs."""
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -9,7 +9,7 @@ import httpx
 from src.connect.data_provider import DataProvider, DataProviderResult
 from src.connect.exceptions import AuthenticationError
 from src.oauth.airtable_service import AirtableOAuthService
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error
 
 
 class AirtableProvider(DataProvider):
@@ -17,7 +17,9 @@ class AirtableProvider(DataProvider):
 
     AIRTABLE_API_BASE = "https://api.airtable.com/v0"
 
-    def __init__(self, user_id: str, airtable_service: Optional[AirtableOAuthService] = None):
+    def __init__(
+        self, user_id: str, airtable_service: Optional[AirtableOAuthService] = None
+    ):
         self.user_id = user_id
         self.airtable_service = airtable_service or AirtableOAuthService()
         self.client = httpx.AsyncClient()
@@ -36,22 +38,24 @@ class AirtableProvider(DataProvider):
             raise AuthenticationError(
                 "Not connected to Airtable. Please authorize your Airtable account first.",
                 provider="airtable",
-                requires_auth=True
+                requires_auth=True,
             )
 
         # Check if token is expired and refresh if needed
         if await self.airtable_service.is_token_expired(self.user_id):
-            connection = await self.airtable_service.refresh_token_if_needed(self.user_id)
+            connection = await self.airtable_service.refresh_token_if_needed(
+                self.user_id
+            )
             if not connection:
                 raise AuthenticationError(
                     "Airtable authorization expired. Please reconnect your Airtable account.",
                     provider="airtable",
-                    requires_auth=True
+                    requires_auth=True,
                 )
 
         # Parse URL to extract base ID and table ID
         base_id, table_id = self._parse_airtable_url(url)
-        
+
         if not base_id:
             raise ValueError(f"Could not extract base ID from Airtable URL: {url}")
 
@@ -74,7 +78,7 @@ class AirtableProvider(DataProvider):
                     if table.get("id") == table_id:
                         target_table = table
                         break
-            
+
             if not target_table and tables:
                 # Use first table
                 target_table = tables[0]
@@ -96,16 +100,20 @@ class AirtableProvider(DataProvider):
             # Extract field definitions from schema
             fields_schema = target_table.get("fields", [])
             field_definitions = []
-            
+
             for field in fields_schema:
                 field_name = field.get("name")
-                field_type = self._map_airtable_field_type(field.get("type", "singleLineText"))
-                field_definitions.append({
-                    "name": field_name,
-                    "type": field_type,
-                    "nullable": True,
-                    "description": f"Airtable {field.get('type', 'text')} field"
-                })
+                field_type = self._map_airtable_field_type(
+                    field.get("type", "singleLineText")
+                )
+                field_definitions.append(
+                    {
+                        "name": field_name,
+                        "type": field_type,
+                        "nullable": True,
+                        "description": f"Airtable {field.get('type', 'text')} field",
+                    }
+                )
 
             # Convert records to structured data
             structured_data = []
@@ -128,7 +136,7 @@ class AirtableProvider(DataProvider):
                     "table_name": table_name,
                     "total_records": len(structured_data),
                     "total_fields": len(field_definitions),
-                }
+                },
             )
 
         except httpx.HTTPStatusError as e:
@@ -136,9 +144,11 @@ class AirtableProvider(DataProvider):
                 raise AuthenticationError(
                     "Airtable access denied. Please reconnect your Airtable account.",
                     provider="airtable",
-                    requires_auth=True
+                    requires_auth=True,
                 )
-            log_error(f"Airtable API error: {e.response.status_code} - {e.response.text}")
+            log_error(
+                f"Airtable API error: {e.response.status_code} - {e.response.text}"
+            )
             raise ValueError(f"Failed to fetch Airtable data: {e.response.status_code}")
         except Exception as e:
             log_error(f"Failed to fetch Airtable data: {e}")
@@ -148,17 +158,17 @@ class AirtableProvider(DataProvider):
         """Parse Airtable URL to extract base ID and table ID."""
         # Pattern: https://airtable.com/appXXXXXXXX/tblYYYYYYYY/...
         # or: https://airtable.com/appXXXXXXXX
-        
+
         base_id = None
         table_id = None
 
         # Extract base ID (starts with 'app')
-        base_match = re.search(r'/(app[a-zA-Z0-9]+)', url)
+        base_match = re.search(r"/(app[a-zA-Z0-9]+)", url)
         if base_match:
             base_id = base_match.group(1)
 
         # Extract table ID (starts with 'tbl')
-        table_match = re.search(r'/(tbl[a-zA-Z0-9]+)', url)
+        table_match = re.search(r"/(tbl[a-zA-Z0-9]+)", url)
         if table_match:
             table_id = table_match.group(1)
 
@@ -206,4 +216,3 @@ class AirtableProvider(DataProvider):
         await self.client.aclose()
         if self.airtable_service:
             await self.airtable_service.close()
-

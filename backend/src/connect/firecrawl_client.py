@@ -22,7 +22,9 @@ class FirecrawlClient:
         self._client = None
 
         if not self.api_key:
-            log_warning("FIRECRAWL_API_KEY not found, Firecrawl scraping will be disabled")
+            log_warning(
+                "FIRECRAWL_API_KEY not found, Firecrawl scraping will be disabled"
+            )
 
     def is_available(self) -> bool:
         """Check if Firecrawl is available (API key is set)"""
@@ -71,12 +73,12 @@ class FirecrawlClient:
             )
 
             log_info(f"Successfully scraped URL with Firecrawl: {url}")
-            
+
             # Convert Document object to dict if needed
-            if hasattr(result, 'model_dump'):
+            if hasattr(result, "model_dump"):
                 # Pydantic v2 model
                 return result.model_dump()
-            elif hasattr(result, 'dict'):
+            elif hasattr(result, "dict"):
                 # Pydantic v1 model
                 return result.dict()
             elif isinstance(result, dict):
@@ -97,4 +99,3 @@ class FirecrawlClient:
         """Clean up resources"""
         # AsyncFirecrawl doesn't require explicit cleanup
         self._client = None
-

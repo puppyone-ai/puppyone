@@ -7,7 +7,11 @@ from typing import Optional, Tuple
 import httpx
 
 from src.config import settings
-from src.oauth.models import OAuthConnection, OAuthConnectionCreate, OAuthConnectionUpdate
+from src.oauth.models import (
+    OAuthConnection,
+    OAuthConnectionCreate,
+    OAuthConnectionUpdate,
+)
 from src.oauth.repository import OAuthRepository
 
 
@@ -26,7 +30,9 @@ class GoogleSheetsOAuthService:
         self.repository = OAuthRepository()
         self.client = httpx.AsyncClient()
 
-    async def get_authorization_url(self, state: Optional[str] = None) -> Tuple[str, str]:
+    async def get_authorization_url(
+        self, state: Optional[str] = None
+    ) -> Tuple[str, str]:
         """Generate Google OAuth authorization URL."""
         if not state:
             state = secrets.token_urlsafe(32)
@@ -72,7 +78,9 @@ class GoogleSheetsOAuthService:
         response.raise_for_status()
         return response.json()
 
-    async def handle_callback(self, user_id: str, code: str) -> tuple[bool, str, Optional[dict]]:
+    async def handle_callback(
+        self, user_id: str, code: str
+    ) -> tuple[bool, str, Optional[dict]]:
         """Handle OAuth callback and store connection."""
         try:
             token_data = await self.exchange_code_for_token(code)
@@ -85,7 +93,9 @@ class GoogleSheetsOAuthService:
 
             expires_at = None
             if "expires_in" in token_data and token_data["expires_in"]:
-                expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(token_data["expires_in"]))
+                expires_at = datetime.now(timezone.utc) + timedelta(
+                    seconds=int(token_data["expires_in"])
+                )
 
             metadata = {
                 "scope": token_data.get("scope"),
@@ -112,10 +122,14 @@ class GoogleSheetsOAuthService:
 
             connection = await self.repository.create(connection_create)
 
-            return True, "Successfully connected to Google Sheets", {
-                "email": user_info.get("email"),
-                "connection_id": connection.id,
-            }
+            return (
+                True,
+                "Successfully connected to Google Sheets",
+                {
+                    "email": user_info.get("email"),
+                    "connection_id": connection.id,
+                },
+            )
         except httpx.HTTPStatusError as err:
             error_message = f"Google token exchange failed: {err.response.status_code}"
             try:
@@ -133,7 +147,9 @@ class GoogleSheetsOAuthService:
 
     async def disconnect(self, user_id: str) -> bool:
         """Disconnect Google Sheets for user."""
-        return await self.repository.delete_by_user_and_provider(user_id, "google-sheets")
+        return await self.repository.delete_by_user_and_provider(
+            user_id, "google-sheets"
+        )
 
     async def is_token_expired(self, user_id: str) -> bool:
         """Check if stored token is expired."""
@@ -169,11 +185,14 @@ class GoogleSheetsOAuthService:
 
             expires_at = None
             if "expires_in" in token_data and token_data["expires_in"]:
-                expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(token_data["expires_in"]))
+                expires_at = datetime.now(timezone.utc) + timedelta(
+                    seconds=int(token_data["expires_in"])
+                )
 
             update_data = OAuthConnectionUpdate(
                 access_token=token_data.get("access_token"),
-                refresh_token=token_data.get("refresh_token") or connection.refresh_token,
+                refresh_token=token_data.get("refresh_token")
+                or connection.refresh_token,
                 expires_at=expires_at,
             )
 
@@ -184,4 +203,3 @@ class GoogleSheetsOAuthService:
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
-

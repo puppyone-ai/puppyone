@@ -54,7 +54,9 @@ class Settings(BaseSettings):
     # Google Sheets OAuth 配置
     GOOGLE_SHEETS_CLIENT_ID: str = ""
     GOOGLE_SHEETS_CLIENT_SECRET: str = ""
-    GOOGLE_SHEETS_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/google-sheets"
+    GOOGLE_SHEETS_REDIRECT_URI: str = (
+        "http://localhost:3000/oauth/callback/google-sheets"
+    )
 
     # Linear OAuth 配置
     LINEAR_CLIENT_ID: str = ""

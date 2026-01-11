@@ -58,7 +58,9 @@ class ConnectService:
         log_info("GithubProvider registered")
 
         google_sheets_service = GoogleSheetsOAuthService()
-        google_sheets_provider = GoogleSheetsProvider(self.user_id, google_sheets_service)
+        google_sheets_provider = GoogleSheetsProvider(
+            self.user_id, google_sheets_service
+        )
         self.parser.register_provider(google_sheets_provider)
         log_info("GoogleSheetsProvider registered")
 
@@ -71,7 +73,7 @@ class ConnectService:
         airtable_provider = AirtableProvider(self.user_id, airtable_service)
         self.parser.register_provider(airtable_provider)
         log_info("AirtableProvider registered")
-    
+
     async def parse_url(self, url: str) -> ParseUrlResponse:
         """
         解析 URL 并返回数据预览
