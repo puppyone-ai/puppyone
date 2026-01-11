@@ -71,6 +71,38 @@ def map_external_exception(exc: Exception) -> TurbopufferError:
     if isinstance(exc, TurbopufferError):
         return exc
 
+    # turbopuffer SDK 异常（不强依赖 import，基于类名/模块名做宽松适配）
+    exc_type = type(exc)
+    exc_mod = getattr(exc_type, "__module__", "") or ""
+    exc_name = getattr(exc_type, "__name__", "") or ""
+    if exc_mod.startswith("turbopuffer"):
+        if exc_name in {"AuthenticationError"}:
+            return TurbopufferAuthError()
+        if exc_name in {"RateLimitError"}:
+            return TurbopufferRequestError("Turbopuffer rate limited", status_code=429)
+        if exc_name in {"APIConnectionError"}:
+            return TurbopufferRequestError("Turbopuffer network error", status_code=502)
+        if exc_name in {"NotFoundError"}:
+            return TurbopufferNotFound()
+        if exc_name in {"APIStatusError"}:
+            # 尽量提取 status_code（不同版本字段名可能不同）
+            status = getattr(exc, "status_code", None)
+            if status is None and hasattr(exc, "response"):
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status in (401, 403):
+                return TurbopufferAuthError()
+            if status == 404:
+                return TurbopufferNotFound()
+            if isinstance(status, int):
+                return TurbopufferRequestError(
+                    f"Turbopuffer request failed (status={status})", status_code=502
+                )
+            return TurbopufferRequestError(
+                "Turbopuffer request failed", status_code=502
+            )
+        # APIError / 其它错误：兜底
+        return TurbopufferRequestError("Turbopuffer request failed", status_code=502)
+
     if isinstance(exc, httpx.TimeoutException):
         return TurbopufferRequestError("Turbopuffer request timed out", status_code=504)
 

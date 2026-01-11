@@ -72,7 +72,8 @@ class EmbeddingService:
         )
         try:
             from litellm import aembedding
-            from litellm.exceptions import (
+            
+            from litellm import (
                 APIError,
                 AuthenticationError,
                 RateLimitError as LiteLLMRateLimitError,

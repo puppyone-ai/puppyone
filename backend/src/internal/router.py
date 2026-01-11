@@ -10,6 +10,7 @@ from src.table.dependencies import get_table_service
 from src.config import settings
 from src.exceptions import AppException
 from src.supabase.dependencies import get_supabase_repository
+from src.turbopuffer.internal_router import router as turbopuffer_internal_router
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -26,6 +27,16 @@ async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
     """
     if x_internal_secret != settings.INTERNAL_API_SECRET:
         raise HTTPException(status_code=403, detail="Invalid internal secret")
+
+
+# ============================================================
+# Turbopuffer internal debug endpoints
+# - 仅内部调试使用：统一复用 X-Internal-Secret 鉴权
+# ============================================================
+router.include_router(
+    turbopuffer_internal_router,
+    dependencies=[Depends(verify_internal_secret)],
+)
 
 
 @router.get(

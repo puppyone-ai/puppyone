@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 
 class TurbopufferRow(BaseModel):
     id: int | str
+    # 如果 include_attributes 返回了 vector（float 数组或 base64），这里会透出，便于 export/debug
+    vector: Any | None = None
     distance: float | None = None
     score: float | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
@@ -21,11 +23,19 @@ class TurbopufferRow(BaseModel):
 
 class TurbopufferQueryResponse(BaseModel):
     rows: list[TurbopufferRow] = Field(default_factory=list)
+    aggregations: dict[str, Any] | None = None
+    aggregation_groups: list[dict[str, Any]] | None = None
+    billing: dict[str, Any] | None = None
+    performance: dict[str, Any] | None = None
     kind: Literal["query"] = "query"
 
 
 class TurbopufferMultiQueryItem(BaseModel):
     rows: list[TurbopufferRow] = Field(default_factory=list)
+    aggregations: dict[str, Any] | None = None
+    aggregation_groups: list[dict[str, Any]] | None = None
+    billing: dict[str, Any] | None = None
+    performance: dict[str, Any] | None = None
 
 
 class TurbopufferMultiQueryResponse(BaseModel):
@@ -35,4 +45,19 @@ class TurbopufferMultiQueryResponse(BaseModel):
 
 class TurbopufferWriteResponse(BaseModel):
     kind: Literal["write"] = "write"
-    # turbopuffer 的写入返回可能包含 billing 等字段；本模块默认不暴露，留作扩展
+    rows_affected: int | None = None
+    rows_upserted: int | None = None
+    rows_patched: int | None = None
+    rows_deleted: int | None = None
+    rows_remaining: bool | None = None
+    billing: dict[str, Any] | None = None
+
+
+class TurbopufferNamespaceInfo(BaseModel):
+    id: str
+
+
+class TurbopufferListNamespacesResponse(BaseModel):
+    namespaces: list[TurbopufferNamespaceInfo] = Field(default_factory=list)
+    next_cursor: str | None = None
+    kind: Literal["list_namespaces"] = "list_namespaces"
