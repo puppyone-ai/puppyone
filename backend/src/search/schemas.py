@@ -58,4 +58,3 @@ class SearchResultItem(BaseModel):
 class SearchToolQueryResponse(BaseModel):
     query: str
     results: list[SearchResultItem] = Field(default_factory=list)
-

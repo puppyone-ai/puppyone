@@ -25,4 +25,3 @@ def get_search_service() -> SearchService:
             turbopuffer_service=TurbopufferSearchService(),
         )
     return _search_service
-

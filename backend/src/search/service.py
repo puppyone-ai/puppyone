@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import urllib.parse
 from dataclasses import dataclass
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 from src.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
 from src.chunking.schemas import Chunk, ChunkingConfig
@@ -66,7 +66,10 @@ def reciprocal_rank_fusion(
             items[doc_id] = row
 
     # 按融合分数排序（高到低）
-    return [(items[doc_id], score) for doc_id, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)]
+    return [
+        (items[doc_id], score)
+        for doc_id, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    ]
 
 
 @dataclass(frozen=True)
@@ -145,7 +148,9 @@ class SearchService:
 
         # 没有大文本：保持成功，但无需写入 turbopuffer
         if not nodes:
-            return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
+            return SearchIndexStats(
+                nodes_count=0, chunks_count=0, indexed_chunks_count=0
+            )
 
         # 3) ensure chunks（幂等）
         all_chunks: list[Chunk] = []
@@ -161,7 +166,9 @@ class SearchService:
             all_chunks.extend(list(ensured.chunks))
 
         if not all_chunks:
-            return SearchIndexStats(nodes_count=len(nodes), chunks_count=0, indexed_chunks_count=0)
+            return SearchIndexStats(
+                nodes_count=len(nodes), chunks_count=0, indexed_chunks_count=0
+            )
 
         # 4) embedding（批量）
         texts = [c.chunk_text for c in all_chunks]
@@ -301,8 +308,10 @@ class SearchService:
                         "char_start": int(attrs.get("char_start") or 0),
                         "char_end": int(attrs.get("char_end") or 0),
                         "content_hash": str(attrs.get("content_hash") or ""),
-                        "turbopuffer_namespace": attrs.get("turbopuffer_namespace") or namespace,
-                        "turbopuffer_doc_id": attrs.get("turbopuffer_doc_id") or str(row.id),
+                        "turbopuffer_namespace": attrs.get("turbopuffer_namespace")
+                        or namespace,
+                        "turbopuffer_doc_id": attrs.get("turbopuffer_doc_id")
+                        or str(row.id),
                     },
                 }
             )
@@ -312,4 +321,3 @@ class SearchService:
     @staticmethod
     def now_iso() -> str:
         return dt.datetime.now(tz=dt.timezone.utc).isoformat()
-

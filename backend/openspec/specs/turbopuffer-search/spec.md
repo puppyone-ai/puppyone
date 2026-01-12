@@ -17,7 +17,13 @@ TBD - created by archiving change add-turbopuffer-search-module. Update Purpose 
 
 - **WHEN** 系统启动并注册路由
 - **THEN** 不应新增任何 turbopuffer 相关对外 HTTP 路由
-- **AND** 其它业务模块本版本不依赖 turbopuffer 模块
+
+#### Scenario: 允许业务模块依赖 turbopuffer（用于检索能力集成）
+
+- **GIVEN** 系统需要在业务能力（如 Search Tool）中使用 turbopuffer 进行写入与查询
+- **WHEN** 业务模块通过依赖注入/显式导入使用 `src/turbopuffer/*`
+- **THEN** 该依赖关系 MUST 被允许
+- **AND** 业务模块不应直接依赖 turbopuffer SDK 的异常与数据结构（仍应通过本模块的异常/结果结构隔离）
 
 ### Requirement: Turbopuffer 配置管理
 

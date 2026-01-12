@@ -8,3 +8,4 @@ logs/
 .pytest_cache/
 .uv_cache/
 .uv-cache/
+.cache/

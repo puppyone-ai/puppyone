@@ -6,19 +6,27 @@ Tool 管理 API
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, status
+import asyncio
+import datetime as dt
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from typing import List
 
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
+from src.config import settings
 from src.search.dependencies import get_search_service
+from src.search.index_task import SearchIndexTaskOut, SearchIndexTaskUpsert
+from src.search.index_task_repository import SearchIndexTaskRepository
 from src.search.service import SearchService
+from src.supabase.client import SupabaseClient
 from src.table.dependencies import get_table_service
 from src.table.service import TableService
 from src.tool.dependencies import get_tool_service
 from src.tool.schemas import ToolCreate, ToolOut, ToolUpdate
 from src.tool.service import ToolService
+from src.utils.logger import log_error, log_info
 
 
 router = APIRouter(prefix="/tools", tags=["tools"])
@@ -68,10 +76,7 @@ def list_tools_by_table_id(
     summary="创建 Tool",
     description=(
         "创建一个 Tool。\n\n"
-        "对 `type=search` 的特殊说明（给前端）：\n"
-        "- 服务端会在返回的 `metadata.search_index` 中写入索引构建状态；\n"
-        "- 创建后会同步触发一次最小可用的 indexing（chunking + embedding + upsert）；\n"
-        "- 若 indexing 成功：`status=ready` 且填充 `indexed_at/*_count`；失败则 `status=error` 并写入 `last_error`（不阻断 Tool 创建）。\n"
+        "说明：Search Tool 的索引构建已迁移到独立异步接口（见 `/tools/search`）。\n"
     ),
     status_code=status.HTTP_201_CREATED,
 )
@@ -82,17 +87,9 @@ async def create_tool(
     search_service: SearchService = Depends(get_search_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # 对 search 工具：默认落一份 search_index 结构到 metadata（最小侵入）
-    metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
-    if payload.type == "search":
-        search_index = metadata.get("search_index")
-        if not isinstance(search_index, dict):
-            search_index = {}
-        # 仅在缺失时写入默认字段，避免覆盖调用方自定义配置
-        search_index.setdefault("configured_at", SearchService.now_iso())
-        search_index.setdefault("status", "pending")
-        metadata["search_index"] = search_index
-
+    metadata = (
+        payload.metadata if isinstance(payload.metadata, dict) else payload.metadata
+    )
     tool = tool_service.create(
         user_id=current_user.user_id,
         table_id=payload.table_id,
@@ -106,76 +103,241 @@ async def create_tool(
         metadata=metadata,
     )
 
-    # Search Tool：创建时触发 chunking + indexing（同步最小可用）
-    if payload.type == "search":
-        # 获取 project_id（用于 namespace）
-        table = table_service.get_by_id_with_access_check(payload.table_id, current_user.user_id)
-        # 先把 status 标记为 indexing，便于排障
-        try:
-            cur_meta = tool.metadata if isinstance(tool.metadata, dict) else {}
-            si = cur_meta.get("search_index")
-            if not isinstance(si, dict):
-                si = {}
-            si["status"] = "indexing"
-            cur_meta["search_index"] = si
-            tool = tool_service.update(
-                tool_id=tool.id,
-                user_id=current_user.user_id,
-                patch={"metadata": cur_meta},
-            )
-        except Exception:
-            # best-effort：不阻断创建
-            pass
+    return ApiResponse.success(data=tool, message="创建 Tool 成功")
 
+
+async def _run_search_indexing_background(
+    *,
+    repo: SearchIndexTaskRepository,
+    search_service: SearchService,
+    tool_id: int,
+    user_id: str,
+    project_id: int,
+    table_id: int,
+    json_path: str,
+) -> None:
+    """
+    后台 indexing 执行器：负责写入 search_index_task 状态，并记录日志（不抛出到请求方）。
+    """
+    now = dt.datetime.now(tz=dt.timezone.utc)
+    try:
+        repo.upsert(
+            SearchIndexTaskUpsert(
+                tool_id=tool_id,
+                user_id=user_id,
+                project_id=project_id,
+                table_id=table_id,
+                json_path=json_path or "",
+                status="indexing",
+                started_at=now,
+                finished_at=None,
+                nodes_count=None,
+                chunks_count=None,
+                indexed_chunks_count=None,
+                last_error=None,
+            )
+        )
+    except Exception as e:
+        # best-effort：不阻断 indexing，但要留日志
+        log_error(
+            f"[search_index] failed to mark indexing: tool_id={tool_id} table_id={table_id} json_path='{json_path}' err={e}"
+        )
+
+    try:
+        log_info(
+            f"[search_index] start: tool_id={tool_id} project_id={project_id} table_id={table_id} json_path='{json_path}'"
+        )
+        stats = await asyncio.wait_for(
+            search_service.index_scope(
+                project_id=int(project_id),
+                table_id=int(table_id),
+                json_path=json_path or "",
+            ),
+            timeout=float(settings.SEARCH_INDEX_TIMEOUT_SECONDS),
+        )
+        finished = dt.datetime.now(tz=dt.timezone.utc)
+        repo.upsert(
+            SearchIndexTaskUpsert(
+                tool_id=tool_id,
+                user_id=user_id,
+                project_id=project_id,
+                table_id=table_id,
+                json_path=json_path or "",
+                status="ready",
+                started_at=now,
+                finished_at=finished,
+                nodes_count=int(stats.nodes_count),
+                chunks_count=int(stats.chunks_count),
+                indexed_chunks_count=int(stats.indexed_chunks_count),
+                last_error=None,
+            )
+        )
+        log_info(
+            f"[search_index] done: tool_id={tool_id} nodes={stats.nodes_count} chunks={stats.chunks_count}"
+        )
+    except asyncio.TimeoutError:
+        finished = dt.datetime.now(tz=dt.timezone.utc)
+        msg = f"index_scope timeout after {settings.SEARCH_INDEX_TIMEOUT_SECONDS}s"
         try:
-            stats = await search_service.index_scope(
-                project_id=int(table.project_id),
-                table_id=payload.table_id,
-                json_path=payload.json_path,
-            )
-            cur_meta = tool.metadata if isinstance(tool.metadata, dict) else {}
-            si = cur_meta.get("search_index")
-            if not isinstance(si, dict):
-                si = {}
-            si.update(
-                {
-                    "indexed_at": SearchService.now_iso(),
-                    "nodes_count": stats.nodes_count,
-                    "chunks_count": stats.chunks_count,
-                    "indexed_chunks_count": stats.indexed_chunks_count,
-                    "status": "ready",
-                    "last_error": None,
-                }
-            )
-            cur_meta["search_index"] = si
-            tool = tool_service.update(
-                tool_id=tool.id,
-                user_id=current_user.user_id,
-                patch={"metadata": cur_meta},
+            repo.upsert(
+                SearchIndexTaskUpsert(
+                    tool_id=tool_id,
+                    user_id=user_id,
+                    project_id=project_id,
+                    table_id=table_id,
+                    json_path=json_path or "",
+                    status="error",
+                    started_at=now,
+                    finished_at=finished,
+                    last_error=msg,
+                )
             )
         except Exception as e:
-            cur_meta = tool.metadata if isinstance(tool.metadata, dict) else {}
-            si = cur_meta.get("search_index")
-            if not isinstance(si, dict):
-                si = {}
-            si.update(
-                {
-                    "indexed_at": None,
-                    "status": "error",
-                    "last_error": str(e)[:500],
-                }
+            log_error(
+                f"[search_index] failed to write timeout status: tool_id={tool_id} err={e}"
             )
-            cur_meta["search_index"] = si
-            try:
-                tool = tool_service.update(
-                    tool_id=tool.id,
-                    user_id=current_user.user_id,
-                    patch={"metadata": cur_meta},
+        log_error(
+            f"[search_index] timeout: tool_id={tool_id} project_id={project_id} table_id={table_id} json_path='{json_path}'"
+        )
+    except Exception as e:
+        finished = dt.datetime.now(tz=dt.timezone.utc)
+        err = str(e)[:500]
+        try:
+            repo.upsert(
+                SearchIndexTaskUpsert(
+                    tool_id=tool_id,
+                    user_id=user_id,
+                    project_id=project_id,
+                    table_id=table_id,
+                    json_path=json_path or "",
+                    status="error",
+                    started_at=now,
+                    finished_at=finished,
+                    last_error=err,
                 )
-            except Exception:
-                pass
+            )
+        except Exception as e2:
+            log_error(
+                f"[search_index] failed to write error status: tool_id={tool_id} err={e2}"
+            )
+        log_error(
+            f"[search_index] failed: tool_id={tool_id} project_id={project_id} table_id={table_id} json_path='{json_path}' err={e}"
+        )
 
-    return ApiResponse.success(data=tool, message="创建 Tool 成功")
+
+@router.post(
+    "/search",
+    response_model=ApiResponse[ToolOut],
+    summary="创建 Search Tool（异步 indexing）",
+    description=(
+        "创建 `type=search` 的 Tool，并在响应返回后异步触发 indexing（chunking + embedding + upsert）。\n\n"
+        "索引状态通过 `/tools/{tool_id}/search-index` 轮询获取。"
+    ),
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_search_tool_async(
+    payload: ToolCreate,
+    background_tasks: BackgroundTasks,
+    tool_service: ToolService = Depends(get_tool_service),
+    table_service: TableService = Depends(get_table_service),
+    search_service: SearchService = Depends(get_search_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    if (payload.type or "").strip() != "search":
+        # 这里不复用 AppException，避免引入新的错误类型；保持简单
+        return ApiResponse.error(message="payload.type must be 'search'")
+
+    tool = tool_service.create(
+        user_id=current_user.user_id,
+        table_id=payload.table_id,
+        json_path=payload.json_path,
+        type=payload.type,
+        name=payload.name,
+        alias=payload.alias,
+        description=payload.description,
+        input_schema=payload.input_schema,
+        output_schema=payload.output_schema,
+        metadata=payload.metadata,
+    )
+
+    # project_id 用于 search namespace
+    table = table_service.get_by_id_with_access_check(
+        payload.table_id, current_user.user_id
+    )
+    project_id = int(table.project_id)
+
+    sb_client = SupabaseClient().get_client()
+    repo = SearchIndexTaskRepository(sb_client)
+
+    # 先写入一条 pending（便于轮询端立刻拿到状态）
+    try:
+        repo.upsert(
+            SearchIndexTaskUpsert(
+                tool_id=int(tool.id),
+                user_id=str(current_user.user_id),
+                project_id=project_id,
+                table_id=int(payload.table_id),
+                json_path=payload.json_path or "",
+                status="pending",
+                started_at=None,
+                finished_at=None,
+                last_error=None,
+            )
+        )
+    except Exception as e:
+        log_error(
+            f"[search_index] failed to create task row: tool_id={tool.id} table_id={payload.table_id} json_path='{payload.json_path}' err={e}"
+        )
+
+    background_tasks.add_task(
+        _run_search_indexing_background,
+        repo=repo,
+        search_service=search_service,
+        tool_id=int(tool.id),
+        user_id=str(current_user.user_id),
+        project_id=project_id,
+        table_id=int(payload.table_id),
+        json_path=payload.json_path or "",
+    )
+
+    return ApiResponse.success(
+        data=tool, message="创建 Search Tool 成功（indexing 已异步触发）"
+    )
+
+
+@router.get(
+    "/{tool_id}/search-index",
+    response_model=ApiResponse[SearchIndexTaskOut],
+    summary="查询 Search Tool 索引构建状态",
+    description="返回该 Search Tool 的索引任务状态（来自 search_index_task）。",
+    status_code=status.HTTP_200_OK,
+)
+def get_search_index_status(
+    tool_id: int,
+    tool_service: ToolService = Depends(get_tool_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    tool = tool_service.get_by_id_with_access_check(tool_id, current_user.user_id)
+    if (tool.type or "").strip() != "search":
+        return ApiResponse.error(message="Tool is not a search tool")
+
+    sb_client = SupabaseClient().get_client()
+    repo = SearchIndexTaskRepository(sb_client)
+    task = repo.get_by_tool_id(int(tool_id))
+    if task is None:
+        return ApiResponse.error(message="Search index task not found")
+
+    out = SearchIndexTaskOut(
+        tool_id=int(tool_id),
+        status=task.status,
+        started_at=task.started_at,
+        finished_at=task.finished_at,
+        nodes_count=task.nodes_count,
+        chunks_count=task.chunks_count,
+        indexed_chunks_count=task.indexed_chunks_count,
+        last_error=task.last_error,
+    )
+    return ApiResponse.success(data=out, message="获取索引状态成功")
 
 
 @router.get(

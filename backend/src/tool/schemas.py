@@ -35,21 +35,9 @@ class ToolCreate(BaseModel):
         default=None,
         description=(
             "扩展配置（按 tool.type 约定）。\n\n"
-            "- 对 `type=search`：服务端会写入/更新 `metadata.search_index`，用于标记索引构建状态与统计信息。\n"
-            "  常见字段：\n"
-            "  - configured_at: 创建时写入\n"
-            "  - status: pending/indexing/ready/error\n"
-            "  - indexed_at/nodes_count/chunks_count/indexed_chunks_count\n"
-            "  - last_error: 失败原因（截断）\n"
+            "- 注意：Search Tool 的索引构建状态不再写入 tool.metadata，改由独立索引任务状态表维护。\n"
         ),
-        examples=[
-            {
-                "search_index": {
-                    "configured_at": "2026-01-12T12:00:00+00:00",
-                    "status": "pending",
-                }
-            }
-        ],
+        examples=[{"preview_keys": ["id", "title"]}],
     )
 
 
