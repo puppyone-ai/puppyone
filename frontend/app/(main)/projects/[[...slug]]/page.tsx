@@ -15,13 +15,18 @@ import { ProjectWorkspaceView } from '@/components/ProjectWorkspaceView';
 import { OnboardingView } from '@/components/OnboardingView';
 import { ProjectsHeader, type EditorType } from '@/components/ProjectsHeader';
 import { ChatSidebar } from '@/components/ChatSidebar';
-import {
-  RightAuxiliaryPanel,
-  type RightPanelContent,
-  type EditorTarget,
-  type AccessPoint,
-  type SaveToolsResult,
-} from '@/components/RightAuxiliaryPanel';
+import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
+import { ToolsPanel, type AccessPoint, type SaveToolsResult } from '@/components/RightAuxiliaryPanel/ToolsPanel';
+import { DocumentEditor } from '@/components/RightAuxiliaryPanel/DocumentEditor';
+
+// 面板内容类型
+type RightPanelContent = 'NONE' | 'TOOLS' | 'EDITOR';
+
+// 编辑器目标类型
+interface EditorTarget {
+  path: string;
+  value: string;
+}
 
 // MCP Tools imports
 import {
@@ -354,35 +359,40 @@ export default function ProjectsSlugPage({
           )}
 
           {/* 右侧面板区域 (Tools / Document Editor) */}
-          <RightAuxiliaryPanel
-            content={rightPanelContent}
-            onClose={() => {
-              setRightPanelContent('NONE');
-              setIsEditorFullScreen(false);
-            }}
-            accessPoints={accessPoints}
-            setAccessPoints={setAccessPoints}
-            activeBaseName={activeBase?.name}
-            activeTableName={activeTable?.name}
-            onSaveTools={handleSaveTools}
-            isSaving={isSaving}
-            saveError={saveError}
-            savedResult={savedResult}
-            setSavedResult={setSavedResult}
-            onViewAllMcp={() => router.push('/tools-and-server/tools-list')}
-            editorTarget={editorTarget}
-            onEditorSave={(path, newValue) => {
-              // TODO: 实现保存逻辑 - 通过 path 找到对应的节点并更新
-              console.log('Save document:', path, newValue);
-              setEditorTarget(null);
-              setRightPanelContent('NONE');
-              setIsEditorFullScreen(false);
-            }}
-            isEditorFullScreen={isEditorFullScreen}
-            onToggleEditorFullScreen={() =>
-              setIsEditorFullScreen(!isEditorFullScreen)
-            }
-          />
+          <ResizablePanel isVisible={rightPanelContent !== 'NONE'}>
+            {rightPanelContent === 'TOOLS' && (
+              <ToolsPanel
+                accessPoints={accessPoints}
+                setAccessPoints={setAccessPoints}
+                activeBaseName={activeBase?.name}
+                activeTableName={activeTable?.name}
+                onClose={() => setRightPanelContent('NONE')}
+                onSaveTools={handleSaveTools}
+                isSaving={isSaving}
+                saveError={saveError}
+                savedResult={savedResult}
+                setSavedResult={setSavedResult}
+              />
+            )}
+            {rightPanelContent === 'EDITOR' && editorTarget && (
+              <DocumentEditor
+                path={editorTarget.path}
+                value={editorTarget.value}
+                onSave={(newValue) => {
+                  console.log('Save document:', editorTarget.path, newValue);
+                  setEditorTarget(null);
+                  setRightPanelContent('NONE');
+                  setIsEditorFullScreen(false);
+                }}
+                onClose={() => {
+                  setRightPanelContent('NONE');
+                  setIsEditorFullScreen(false);
+                }}
+                isFullScreen={isEditorFullScreen}
+                onToggleFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
+              />
+            )}
+          </ResizablePanel>
         </div>
       </div>
 
@@ -406,6 +416,7 @@ export default function ProjectsSlugPage({
             }
           }
         }}
+        accessPoints={accessPoints}
       />
     </div>
   );

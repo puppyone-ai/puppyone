@@ -464,7 +464,8 @@ export function ToolsPanel({
   activeBaseName,
   onClose,
 }: ToolsPanelProps) {
-  const [expandedApIds, setExpandedApIds] = useState<Set<string>>(new Set());
+  // 改为存储"收起"的 ID，这样默认就是全部展开
+  const [collapsedApIds, setCollapsedApIds] = useState<Set<string>>(new Set());
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
 
   const handleTogglePermission = (
@@ -489,10 +490,10 @@ export function ToolsPanel({
   };
 
   const toggleApExpansion = (apId: string) => {
-    setExpandedApIds(prev => {
+    setCollapsedApIds(prev => {
       const next = new Set(prev);
-      if (next.has(apId)) next.delete(apId);
-      else next.add(apId);
+      if (next.has(apId)) next.delete(apId);  // 如果已收起，则展开
+      else next.add(apId);  // 如果展开，则收起
       return next;
     });
   };
@@ -507,6 +508,46 @@ export function ToolsPanel({
         overflow: 'hidden',
       }}
     >
+      {/* Header */}
+      <div
+        style={{
+          height: 46,
+          padding: '0 16px',
+          borderBottom: '1px solid #1a1a1c',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexShrink: 0,
+          background: '#0f0f11',
+        }}
+      >
+        <button
+          onClick={onClose}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 4,
+            cursor: 'pointer',
+            color: '#52525b',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4,
+          }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#71717a')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#52525b')}
+          title="Collapse panel"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="13 17 18 12 13 7" />
+            <polyline points="6 17 11 12 6 7" />
+          </svg>
+        </button>
+        <span style={{ fontSize: 12, fontWeight: 500, color: '#71717a' }}>
+          Access Configuration
+        </span>
+      </div>
+
       {/* Content List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {accessPoints.length === 0 ? (
@@ -540,7 +581,7 @@ export function ToolsPanel({
               }
               const safeName = displayName.replace(/[^a-zA-Z0-9_]/g, '');
 
-              const isExpanded = expandedApIds.has(ap.id);
+              const isExpanded = !collapsedApIds.has(ap.id);  // 默认展开，除非在 collapsedApIds 中
               const enabledCount = ALL_TOOLS.filter(
                 t => ap.permissions[t]
               ).length;
@@ -689,41 +730,6 @@ export function ToolsPanel({
         )}
       </div>
 
-      {/* Action Footer */}
-      {accessPoints.length > 0 && (
-        <div
-          style={{
-            padding: '12px 16px',
-            borderTop: '1px solid #1a1a1c',
-            background: '#0f0f11', // Match panel bg
-            flexShrink: 0,
-          }}
-        >
-          <button
-            onClick={() => console.log('Deploy')}
-            style={{
-              width: '100%',
-              height: 32,
-              background: '#2563eb',
-              border: 'none',
-              borderRadius: 6,
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#1d4ed8')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#2563eb')}
-          >
-            Deploy Configuration
-          </button>
-        </div>
-      )}
 
       {/* Styles */}
       <style jsx>{`

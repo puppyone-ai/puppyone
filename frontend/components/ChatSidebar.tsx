@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import BotMessage from './chat/BotMessage';
 import UserMessage from './chat/UserMessage';
-import ChatInputArea, { ChatInputAreaRef } from './chat/ChatInputArea';
+import ChatInputArea, { ChatInputAreaRef, type AccessOption } from './chat/ChatInputArea';
 import {
   useChatSessions,
   useChatMessages,
@@ -35,6 +35,15 @@ interface Message {
   isStreaming?: boolean;
 }
 
+import { type McpToolPermissions } from '../lib/mcpApi';
+
+// AccessPoint 类型（从 ToolsPanel 复用）
+interface AccessPoint {
+  id: string;
+  path: string;
+  permissions: McpToolPermissions;
+}
+
 interface ChatSidebarProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,6 +53,8 @@ interface ChatSidebarProps {
   workingDirectory?: string;
   tableData?: unknown;
   onDataUpdate?: (newData: unknown) => void;
+  // Access 配置 - 直接使用 accessPoints
+  accessPoints?: AccessPoint[];
 }
 
 export function ChatSidebar({
@@ -55,9 +66,37 @@ export function ChatSidebar({
   workingDirectory,
   tableData,
   onDataUpdate,
+  accessPoints = [],
 }: ChatSidebarProps) {
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+  
+  // 从 accessPoints 提取工具列表
+  // shell_access → bash, 其他 → tool
+  const toolTypeLabels: Record<string, string> = {
+    query_data: 'Query',
+    get_all_data: 'Get All',
+    create: 'Create',
+    update: 'Update',
+    delete: 'Delete',
+    shell_access: 'Bash',
+  };
+  
+  // 展开 accessPoints 为工具列表
+  const availableTools: AccessOption[] = [];
+  const allToolTypes = ['shell_access', 'query_data', 'get_all_data', 'create', 'update', 'delete'] as const;
+  
+  accessPoints.forEach(ap => {
+    allToolTypes.forEach(toolType => {
+      if (ap.permissions[toolType]) {
+        availableTools.push({
+          id: `${ap.id}-${toolType}`,  // 唯一 ID
+          label: toolTypeLabels[toolType] || toolType,
+          type: toolType === 'shell_access' ? 'bash' as const : 'tool' as const,
+        });
+      }
+    });
+  });
   const [isResizing, setIsResizing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<ChatMode>('agent');
@@ -849,7 +888,7 @@ export function ChatSidebar({
         ref={inputAreaRef}
         inputValue={inputValue}
         onInputChange={handleInputChange}
-            onKeyDown={handleKeyDown}
+        onKeyDown={handleKeyDown}
         onSend={handleSend}
         isLoading={isLoading}
         showMentionMenu={mention.showMentionMenu}
@@ -858,6 +897,7 @@ export function ChatSidebar({
         onMentionSelect={handleSelectMention}
         onMentionIndexChange={mention.setMentionIndex}
         onBlur={() => setTimeout(() => mention.closeMentionMenu(), 150)}
+        availableTools={availableTools}
       />
 
       <style jsx global>{`
