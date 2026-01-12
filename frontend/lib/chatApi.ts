@@ -26,7 +26,7 @@ export interface MessagePart {
   toolId?: string;
   toolName?: string;
   toolInput?: string;
-  toolOutput?: string;  // 工具执行结果
+  toolOutput?: string; // 工具执行结果
   toolStatus?: 'running' | 'completed' | 'error';
 }
 
@@ -57,7 +57,9 @@ export interface CreateMessageInput {
  * 获取当前用户的所有会话（按更新时间倒序）
  */
 export async function getChatSessions(): Promise<ChatSession[]> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
@@ -73,8 +75,12 @@ export async function getChatSessions(): Promise<ChatSession[]> {
 /**
  * 创建新会话
  */
-export async function createChatSession(input?: CreateSessionInput): Promise<ChatSession> {
-  const { data: { user } } = await supabase.auth.getUser();
+export async function createChatSession(
+  input?: CreateSessionInput
+): Promise<ChatSession> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
@@ -94,7 +100,10 @@ export async function createChatSession(input?: CreateSessionInput): Promise<Cha
 /**
  * 更新会话标题
  */
-export async function updateChatSessionTitle(sessionId: string, title: string): Promise<void> {
+export async function updateChatSessionTitle(
+  sessionId: string,
+  title: string
+): Promise<void> {
   const { error } = await supabase
     .from('chat_sessions')
     .update({ title })
@@ -120,7 +129,9 @@ export async function deleteChatSession(sessionId: string): Promise<void> {
 /**
  * 获取会话的所有消息
  */
-export async function getChatMessages(sessionId: string): Promise<ChatMessage[]> {
+export async function getChatMessages(
+  sessionId: string
+): Promise<ChatMessage[]> {
   const { data, error } = await supabase
     .from('chat_messages')
     .select('*')
@@ -134,7 +145,9 @@ export async function getChatMessages(sessionId: string): Promise<ChatMessage[]>
 /**
  * 添加消息
  */
-export async function addChatMessage(input: CreateMessageInput): Promise<ChatMessage> {
+export async function addChatMessage(
+  input: CreateMessageInput
+): Promise<ChatMessage> {
   const { data, error } = await supabase
     .from('chat_messages')
     .insert({
@@ -154,7 +167,7 @@ export async function addChatMessage(input: CreateMessageInput): Promise<ChatMes
  * 更新消息（用于流式更新 assistant 消息）
  */
 export async function updateChatMessage(
-  messageId: string, 
+  messageId: string,
   updates: { content?: string; parts?: MessagePart[] }
 ): Promise<void> {
   const { error } = await supabase
@@ -182,9 +195,11 @@ export async function deleteChatMessage(messageId: string): Promise<void> {
 /**
  * 从第一条用户消息生成会话标题
  */
-export function generateSessionTitle(firstMessage: string, maxLen = 30): string {
+export function generateSessionTitle(
+  firstMessage: string,
+  maxLen = 30
+): string {
   const cleaned = firstMessage.replace(/\n/g, ' ').trim();
   if (cleaned.length <= maxLen) return cleaned;
   return cleaned.substring(0, maxLen) + '...';
 }
-

@@ -166,283 +166,286 @@ export default function ProjectsLayout({
             transition: isResizing ? 'none' : 'width 0.2s ease',
           }}
         >
-        {/* Header */}
-        <div
-          style={{
-            height: 46,
-            minHeight: 46,
-            maxHeight: 46,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: isCollapsed ? 'center' : 'space-between',
-            padding: isCollapsed ? '0' : '0 9px 0 16px',
-            borderBottom: '1px solid #2a2a2a',
-            boxSizing: 'border-box',
-          }}
-        >
-          {isCollapsed ? (
-            <button
-              onClick={() => setIsCollapsed(false)}
-              title='Expand sidebar'
-              style={{
-                width: 28,
-                height: 28,
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 5,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#6b7280',
-                transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                e.currentTarget.style.color = '#9ca3af';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#6b7280';
-              }}
-            >
-              <svg
-                width='14'
-                height='14'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='1.5'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              >
-                <rect x='3' y='3' width='18' height='18' rx='2' />
-                <line x1='9' y1='3' x2='9' y2='21' />
-              </svg>
-            </button>
-          ) : (
-            <>
-              <span
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#EDEDED',
-                  letterSpacing: '0.3px',
-                }}
-              >
-                Projects
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // TODO: Implement create project logic
-                    console.log('Create new project');
-                  }}
-                  title='New Project'
-                  style={{
-                    width: 28,
-                    height: 28,
-                    background: 'transparent',
-                    border: 'none',
-                    borderRadius: 5,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#6b7280',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                    e.currentTarget.style.color = '#9ca3af';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = '#6b7280';
-                  }}
-                >
-                  <svg
-                    width='18'
-                    height='18'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                  >
-                    <line x1='12' y1='5' x2='12' y2='19' />
-                    <line x1='5' y1='12' x2='19' y2='12' />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setIsCollapsed(true)}
-                  title='Collapse sidebar'
-                  style={{
-                    width: 28,
-                    height: 28,
-                    background: 'transparent',
-                    border: 'none',
-                    borderRadius: 5,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#6b7280',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                    e.currentTarget.style.color = '#9ca3af';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = '#6b7280';
-                  }}
-                >
-                  <svg
-                    width='14'
-                    height='14'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='1.5'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                  >
-                    <rect x='3' y='3' width='18' height='18' rx='2' />
-                    <line x1='9' y1='3' x2='9' y2='21' />
-                  </svg>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Content */}
-        {!isCollapsed ? (
-          <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
-            {/* Projects Section */}
-            <div style={{ marginBottom: 4 }}>
-              <div
-                style={{
-                  padding: '2px 8px 4px 8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1,
-                }}
-              >
-                {isLoading ? (
-                  // Loading skeleton
-                  <div style={{ padding: '8px 6px' }}>
-                    {[1, 2, 3].map(i => (
-                      <div
-                        key={i}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          height: 28,
-                          marginBottom: 4,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 16,
-                            height: 16,
-                            borderRadius: 4,
-                            background: 'rgba(255,255,255,0.06)',
-                          }}
-                        />
-                        <div
-                          style={{
-                            height: 10,
-                            width: `${50 + i * 15}%`,
-                            borderRadius: 4,
-                            background: 'rgba(255,255,255,0.06)',
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : projects.length === 0 ? (
-                  <div
-                    style={{
-                      padding: '12px 6px',
-                      color: '#6D7177',
-                      fontSize: 12,
-                      textAlign: 'center',
-                    }}
-                  >
-                    No projects yet
-                  </div>
-                ) : (
-                  projects.map(project => (
-                    <ProjectItem
-                      key={project.id}
-                      project={project}
-                      isExpanded={expandedProjectIds.has(project.id)}
-                      activeTableId={activeTableId}
-                      processingTableIds={processingTableIds}
-                      onToggle={() => toggleProject(project.id)}
-                      onTableClick={handleTableClick}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          // Collapsed Navigation
+          {/* Header */}
           <div
             style={{
-              flex: 1,
+              height: 46,
+              minHeight: 46,
+              maxHeight: 46,
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              padding: '12px 0',
-              gap: 4,
+              justifyContent: isCollapsed ? 'center' : 'space-between',
+              padding: isCollapsed ? '0' : '0 9px 0 16px',
+              borderBottom: '1px solid #2a2a2a',
+              boxSizing: 'border-box',
             }}
           >
-            {projects.map(project => (
-              <CollapsedProjectItem
-                key={project.id}
-                project={project}
-                activeTableId={activeTableId}
-                onTableClick={handleTableClick}
-              />
-            ))}
+            {isCollapsed ? (
+              <button
+                onClick={() => setIsCollapsed(false)}
+                title='Expand sidebar'
+                style={{
+                  width: 28,
+                  height: 28,
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: 5,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#6b7280',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                  e.currentTarget.style.color = '#9ca3af';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#6b7280';
+                }}
+              >
+                <svg
+                  width='14'
+                  height='14'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='1.5'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                >
+                  <rect x='3' y='3' width='18' height='18' rx='2' />
+                  <line x1='9' y1='3' x2='9' y2='21' />
+                </svg>
+              </button>
+            ) : (
+              <>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: '#EDEDED',
+                    letterSpacing: '0.3px',
+                  }}
+                >
+                  Projects
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      // TODO: Implement create project logic
+                      console.log('Create new project');
+                    }}
+                    title='New Project'
+                    style={{
+                      width: 28,
+                      height: 28,
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: 5,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#6b7280',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background =
+                        'rgba(255,255,255,0.08)';
+                      e.currentTarget.style.color = '#9ca3af';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = '#6b7280';
+                    }}
+                  >
+                    <svg
+                      width='18'
+                      height='18'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='2'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                    >
+                      <line x1='12' y1='5' x2='12' y2='19' />
+                      <line x1='5' y1='12' x2='19' y2='12' />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setIsCollapsed(true)}
+                    title='Collapse sidebar'
+                    style={{
+                      width: 28,
+                      height: 28,
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: 5,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#6b7280',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background =
+                        'rgba(255,255,255,0.08)';
+                      e.currentTarget.style.color = '#9ca3af';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = '#6b7280';
+                    }}
+                  >
+                    <svg
+                      width='14'
+                      height='14'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                    >
+                      <rect x='3' y='3' width='18' height='18' rx='2' />
+                      <line x1='9' y1='3' x2='9' y2='21' />
+                    </svg>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        )}
 
-        {/* Resize Handle */}
-        {!isCollapsed && (
-          <div
-            onMouseDown={handleMouseDown}
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: -2,
-              width: 4,
-              height: '100%',
-              cursor: 'col-resize',
-              zIndex: 10,
-              background: isResizing
-                ? 'rgba(255, 255, 255, 0.1)'
-                : 'transparent',
-              transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => {
-              if (!isResizing)
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-            }}
-            onMouseLeave={e => {
-              if (!isResizing) e.currentTarget.style.background = 'transparent';
-            }}
-          />
-        )}
-      </aside>
+          {/* Content */}
+          {!isCollapsed ? (
+            <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
+              {/* Projects Section */}
+              <div style={{ marginBottom: 4 }}>
+                <div
+                  style={{
+                    padding: '2px 8px 4px 8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                  }}
+                >
+                  {isLoading ? (
+                    // Loading skeleton
+                    <div style={{ padding: '8px 6px' }}>
+                      {[1, 2, 3].map(i => (
+                        <div
+                          key={i}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            height: 28,
+                            marginBottom: 4,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: 4,
+                              background: 'rgba(255,255,255,0.06)',
+                            }}
+                          />
+                          <div
+                            style={{
+                              height: 10,
+                              width: `${50 + i * 15}%`,
+                              borderRadius: 4,
+                              background: 'rgba(255,255,255,0.06)',
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : projects.length === 0 ? (
+                    <div
+                      style={{
+                        padding: '12px 6px',
+                        color: '#6D7177',
+                        fontSize: 12,
+                        textAlign: 'center',
+                      }}
+                    >
+                      No projects yet
+                    </div>
+                  ) : (
+                    projects.map(project => (
+                      <ProjectItem
+                        key={project.id}
+                        project={project}
+                        isExpanded={expandedProjectIds.has(project.id)}
+                        activeTableId={activeTableId}
+                        processingTableIds={processingTableIds}
+                        onToggle={() => toggleProject(project.id)}
+                        onTableClick={handleTableClick}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Collapsed Navigation
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '12px 0',
+                gap: 4,
+              }}
+            >
+              {projects.map(project => (
+                <CollapsedProjectItem
+                  key={project.id}
+                  project={project}
+                  activeTableId={activeTableId}
+                  onTableClick={handleTableClick}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Resize Handle */}
+          {!isCollapsed && (
+            <div
+              onMouseDown={handleMouseDown}
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: -2,
+                width: 4,
+                height: '100%',
+                cursor: 'col-resize',
+                zIndex: 10,
+                background: isResizing
+                  ? 'rgba(255, 255, 255, 0.1)'
+                  : 'transparent',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => {
+                if (!isResizing)
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              }}
+              onMouseLeave={e => {
+                if (!isResizing)
+                  e.currentTarget.style.background = 'transparent';
+              }}
+            />
+          )}
+        </aside>
 
         {/* --- Main Content Area --- */}
         <section
@@ -884,4 +887,3 @@ function PopoverTableItem({
     </button>
   );
 }
-

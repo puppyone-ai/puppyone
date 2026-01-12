@@ -28,10 +28,10 @@ export function OnboardingView({
   // 如果 Wizard 还没开始，显示欢迎页
   if (!showWizard) {
     return (
-      <WelcomeScreen 
-        onStart={handleExplore} 
-        isLoading={false} 
-        userName={userName} 
+      <WelcomeScreen
+        onStart={handleExplore}
+        isLoading={false}
+        userName={userName}
       />
     );
   }
@@ -40,4 +40,3 @@ export function OnboardingView({
   // 这里的 onStart 是真正的进入主界面，会在 Wizard 的最后一步调用
   return <OnboardingWizard onComplete={onStart} />;
 }
-

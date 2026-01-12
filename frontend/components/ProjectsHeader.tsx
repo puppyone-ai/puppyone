@@ -302,5 +302,6 @@ const viewSwitcherBtnStyle: CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   transition: 'all 0.15s',
-  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontFamily:
+    "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
 };

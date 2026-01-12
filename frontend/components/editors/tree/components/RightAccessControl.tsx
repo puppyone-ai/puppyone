@@ -344,7 +344,7 @@ export function RightAccessControl({
                       opacity: isEnabled ? 1 : 0.6,
                       color: isEnabled
                         ? '#fb923c' // Orange
-                        : 'inherit', 
+                        : 'inherit',
                     }}
                   >
                     {/* Terminal Icon */}

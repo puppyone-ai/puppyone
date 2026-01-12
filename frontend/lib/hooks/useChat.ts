@@ -75,7 +75,9 @@ export function refreshChatMessages(sessionId: string) {
 /**
  * 创建新会话
  */
-export async function createSession(input?: CreateSessionInput): Promise<ChatSession> {
+export async function createSession(
+  input?: CreateSessionInput
+): Promise<ChatSession> {
   const session = await createChatSession(input);
   await refreshChatSessions();
   return session;
@@ -84,7 +86,10 @@ export async function createSession(input?: CreateSessionInput): Promise<ChatSes
 /**
  * 更新会话标题
  */
-export async function updateSessionTitle(sessionId: string, title: string): Promise<void> {
+export async function updateSessionTitle(
+  sessionId: string,
+  title: string
+): Promise<void> {
   await updateChatSessionTitle(sessionId, title);
   await refreshChatSessions();
 }
@@ -154,4 +159,3 @@ export async function autoSetSessionTitle(
 
 // Re-export types
 export type { ChatSession, ChatMessage, MessagePart };
-

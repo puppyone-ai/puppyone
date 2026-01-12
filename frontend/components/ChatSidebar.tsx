@@ -3,7 +3,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import BotMessage from './chat/BotMessage';
 import UserMessage from './chat/UserMessage';
-import ChatInputArea, { ChatInputAreaRef, type AccessOption } from './chat/ChatInputArea';
+import ChatInputArea, {
+  ChatInputAreaRef,
+  type AccessOption,
+} from './chat/ChatInputArea';
 import {
   useChatSessions,
   useChatMessages,
@@ -27,7 +30,7 @@ const DEFAULT_CHAT_WIDTH = 400;
 type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
 interface Message {
-  id?: string;  // 数据库 ID
+  id?: string; // 数据库 ID
   role: MessageRole;
   content: string;
   timestamp?: Date;
@@ -70,7 +73,7 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
-  
+
   // 从 accessPoints 提取工具列表
   // shell_access → bash, 其他 → tool
   const toolTypeLabels: Record<string, string> = {
@@ -81,18 +84,26 @@ export function ChatSidebar({
     delete: 'Delete',
     shell_access: 'Bash',
   };
-  
+
   // 展开 accessPoints 为工具列表
   const availableTools: AccessOption[] = [];
-  const allToolTypes = ['shell_access', 'query_data', 'get_all_data', 'create', 'update', 'delete'] as const;
-  
+  const allToolTypes = [
+    'shell_access',
+    'query_data',
+    'get_all_data',
+    'create',
+    'update',
+    'delete',
+  ] as const;
+
   accessPoints.forEach(ap => {
     allToolTypes.forEach(toolType => {
       if (ap.permissions[toolType]) {
         availableTools.push({
-          id: `${ap.id}-${toolType}`,  // 唯一 ID
+          id: `${ap.id}-${toolType}`, // 唯一 ID
           label: toolTypeLabels[toolType] || toolType,
-          type: toolType === 'shell_access' ? 'bash' as const : 'tool' as const,
+          type:
+            toolType === 'shell_access' ? ('bash' as const) : ('tool' as const),
         });
       }
     });
@@ -119,7 +130,9 @@ export function ChatSidebar({
   // 数据库相关状态
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  const [currentAssistantMsgId, setCurrentAssistantMsgId] = useState<string | null>(null);
+  const [currentAssistantMsgId, setCurrentAssistantMsgId] = useState<
+    string | null
+  >(null);
   const historyMenuRef = useRef<HTMLDivElement>(null);
 
   // @ 提及补全 Hook
@@ -127,7 +140,8 @@ export function ChatSidebar({
 
   // 数据库 Hooks
   const { sessions, isLoading: sessionsLoading } = useChatSessions();
-  const { messages: dbMessages, isLoading: messagesLoading } = useChatMessages(currentSessionId);
+  const { messages: dbMessages, isLoading: messagesLoading } =
+    useChatMessages(currentSessionId);
 
   // 跟踪上一次的 sessionId 和是否已加载，用于检测会话切换
   const prevSessionIdRef = useRef<string | null>(null);
@@ -137,7 +151,7 @@ export function ChatSidebar({
   // dbMessages 仅在【切换会话】时作为初始值加载一次
   useEffect(() => {
     const sessionId = currentSessionId;
-    
+
     // 1. 如果没有会话，清空消息
     if (!sessionId) {
       if (prevSessionIdRef.current !== null) {
@@ -186,9 +200,12 @@ export function ChatSidebar({
   useEffect(() => {
     if (!showHistory) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (historyMenuRef.current && !historyMenuRef.current.contains(e.target as Node)) {
+      if (
+        historyMenuRef.current &&
+        !historyMenuRef.current.contains(e.target as Node)
+      ) {
         setShowHistory(false);
-    }
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -197,7 +214,11 @@ export function ChatSidebar({
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, messages[messages.length - 1]?.content, messages[messages.length - 1]?.parts?.length]);
+  }, [
+    messages.length,
+    messages[messages.length - 1]?.content,
+    messages[messages.length - 1]?.parts?.length,
+  ]);
 
   // Resize handling
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -210,7 +231,10 @@ export function ChatSidebar({
     const handleMouseMove = (e: MouseEvent) => {
       const windowWidth = window.innerWidth;
       const newWidth = windowWidth - e.clientX;
-      const clampedWidth = Math.min(Math.max(newWidth, MIN_CHAT_WIDTH), MAX_CHAT_WIDTH);
+      const clampedWidth = Math.min(
+        Math.max(newWidth, MIN_CHAT_WIDTH),
+        MAX_CHAT_WIDTH
+      );
       onChatWidthChange?.(clampedWidth);
     };
     const handleMouseUp = () => setIsResizing(false);
@@ -248,23 +272,26 @@ export function ChatSidebar({
   }, []);
 
   // 删除会话
-  const handleDeleteSession = useCallback(async (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await deleteSession(sessionId);
-      if (currentSessionId === sessionId) {
-        setCurrentSessionId(null);
-        setMessages([]);
-    }
-    } catch (err) {
-      console.error('Failed to delete session:', err);
-    }
-  }, [currentSessionId]);
+  const handleDeleteSession = useCallback(
+    async (sessionId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        await deleteSession(sessionId);
+        if (currentSessionId === sessionId) {
+          setCurrentSessionId(null);
+          setMessages([]);
+        }
+      } catch (err) {
+        console.error('Failed to delete session:', err);
+      }
+    },
+    [currentSessionId]
+  );
 
   // 统一的发送函数 - 调用 /api/agent
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
-    
+
     const currentInput = inputValue;
     setInputValue('');
     setIsLoading(true);
@@ -272,7 +299,7 @@ export function ChatSidebar({
     // 确保有会话
     let sessionId = currentSessionId;
     if (!sessionId) {
-    try {
+      try {
         const session = await createSession({ mode: 'agent' });
         sessionId = session.id;
         setCurrentSessionId(sessionId);
@@ -282,7 +309,11 @@ export function ChatSidebar({
     }
 
     // 添加用户消息
-    const userMessage: Message = { role: 'user', content: currentInput, timestamp: new Date() };
+    const userMessage: Message = {
+      role: 'user',
+      content: currentInput,
+      timestamp: new Date(),
+    };
     setMessages(prev => [...prev, userMessage]);
 
     // 保存用户消息到数据库
@@ -291,7 +322,7 @@ export function ChatSidebar({
         await addUserMessage(sessionId, currentInput);
         if (messages.length === 0) {
           await autoSetSessionTitle(sessionId, currentInput);
-      }
+        }
       } catch (err) {
         console.error('Failed to save user message:', err);
       }
@@ -313,13 +344,16 @@ export function ChatSidebar({
     abortControllerRef.current = new AbortController();
 
     // 添加空的 assistant 消息
-    setMessages(prev => [...prev, { 
-      role: 'assistant', 
-      content: '', 
-      timestamp: new Date(), 
-      parts: [],
-      isStreaming: true 
-    }]);
+    setMessages(prev => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+        parts: [],
+        isStreaming: true,
+      },
+    ]);
 
     let finalParts: MessagePart[] = [];
     let finalContent = '';
@@ -350,8 +384,8 @@ export function ChatSidebar({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: currentInput,
-          chatHistory,           // 新增：历史消息
-          tableData,             // 有数据时用 Bash 工具，无数据时用文件工具
+          chatHistory, // 新增：历史消息
+          tableData, // 有数据时用 Bash 工具，无数据时用文件工具
           workingDirectory,
         }),
         signal: abortControllerRef.current.signal,
@@ -367,19 +401,19 @@ export function ChatSidebar({
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-        
+
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const data = line.slice(6).trim();
           if (!data || data === '[DONE]') continue;
-          
+
           try {
             const event = JSON.parse(data);
-            
+
             setMessages(prev => {
               const newMessages = [...prev];
               const last = newMessages[newMessages.length - 1];
@@ -400,12 +434,14 @@ export function ChatSidebar({
                   });
                   break;
                 case 'tool_end': {
-                  const toolIdx = parts.findIndex(p => p.toolId === String(event.toolId));
+                  const toolIdx = parts.findIndex(
+                    p => p.toolId === String(event.toolId)
+                  );
                   if (toolIdx !== -1) {
                     parts[toolIdx] = {
                       ...parts[toolIdx],
                       toolStatus: event.success ? 'completed' : 'error',
-                      toolOutput: event.output,  // 保存工具执行结果
+                      toolOutput: event.output, // 保存工具执行结果
                     };
                   }
                   break;
@@ -416,14 +452,20 @@ export function ChatSidebar({
                 case 'result':
                   if (event.updatedData && onDataUpdate) {
                     onDataUpdate(event.updatedData);
-                }
+                  }
                   break;
                 case 'error':
-                  parts.push({ type: 'text', content: `Error: ${event.message}` });
+                  parts.push({
+                    type: 'text',
+                    content: `Error: ${event.message}`,
+                  });
                   break;
               }
 
-              const content = parts.filter(p => p.type === 'text').map(p => p.content).join('\n\n');
+              const content = parts
+                .filter(p => p.type === 'text')
+                .map(p => p.content)
+                .join('\n\n');
               finalParts = parts;
               finalContent = content;
               return [...newMessages.slice(0, -1), { ...last, content, parts }];
@@ -453,15 +495,18 @@ export function ChatSidebar({
       // 保存 assistant 消息到数据库，然后刷新 SWR 缓存
       if (assistantMsgId && currentSessionId) {
         try {
-          await updateAssistantMessage(assistantMsgId, finalContent, finalParts);
+          await updateAssistantMessage(
+            assistantMsgId,
+            finalContent,
+            finalParts
+          );
           // 注意：我们只在后台刷新 SWR 缓存，但不让它触发上面的 useEffect
           // hasLoadedForSessionRef 会阻止 useEffect 覆盖本地状态
-          refreshChatMessages(currentSessionId); 
+          refreshChatMessages(currentSessionId);
         } catch (err) {
           console.error('Failed to save assistant message:', err);
         }
       }
-
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
       setMessages(prev => {
@@ -474,7 +519,10 @@ export function ChatSidebar({
               parts[i] = { ...p, toolStatus: 'error' };
             }
           });
-          parts.push({ type: 'text', content: 'An error occurred, please try again.' });
+          parts.push({
+            type: 'text',
+            content: 'An error occurred, please try again.',
+          });
           last.content = 'An error occurred, please try again.';
           last.parts = parts;
           last.isStreaming = false;
@@ -486,7 +534,15 @@ export function ChatSidebar({
       setCurrentAssistantMsgId(null);
       abortControllerRef.current = null;
     }
-  }, [inputValue, isLoading, workingDirectory, tableData, onDataUpdate, currentSessionId, messages.length]);
+  }, [
+    inputValue,
+    isLoading,
+    workingDirectory,
+    tableData,
+    onDataUpdate,
+    currentSessionId,
+    messages.length,
+  ]);
 
   const handleStop = useCallback(() => {
     if (abortControllerRef.current) {
@@ -496,33 +552,52 @@ export function ChatSidebar({
   }, []);
 
   // 处理输入变化（包装 mention hook）
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    mention.handleInputChange(e, inputValue, setInputValue);
-  }, [mention, inputValue]);
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      mention.handleInputChange(e, inputValue, setInputValue);
+    },
+    [mention, inputValue]
+  );
 
   // 选择补全项（包装 mention hook）
-  const handleSelectMention = useCallback((key: string) => {
-    mention.handleSelectMention(key, inputValue, setInputValue, inputAreaRef.current);
-  }, [mention, inputValue]);
+  const handleSelectMention = useCallback(
+    (key: string) => {
+      mention.handleSelectMention(
+        key,
+        inputValue,
+        setInputValue,
+        inputAreaRef.current
+      );
+    },
+    [mention, inputValue]
+  );
 
   // 处理键盘事件
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // 中文输入法组合过程中，不处理任何 Enter 事件
-    if (e.nativeEvent.isComposing) {
-      return;
-    }
-
-    // 补全菜单特殊处理：Enter/Tab 需要选择当前项
-    if (mention.showMentionMenu && mention.filteredMentionOptions.length > 0) {
-      if (e.key === 'Enter' || e.key === 'Tab') {
-      e.preventDefault();
-        handleSelectMention(mention.filteredMentionOptions[mention.mentionIndex]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      // 中文输入法组合过程中，不处理任何 Enter 事件
+      if (e.nativeEvent.isComposing) {
         return;
       }
-    }
-    // 其他键盘事件交给 hook 处理
-    mention.handleKeyDown(e, handleSend);
-  }, [mention, handleSelectMention, handleSend]);
+
+      // 补全菜单特殊处理：Enter/Tab 需要选择当前项
+      if (
+        mention.showMentionMenu &&
+        mention.filteredMentionOptions.length > 0
+      ) {
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          e.preventDefault();
+          handleSelectMention(
+            mention.filteredMentionOptions[mention.mentionIndex]
+          );
+          return;
+        }
+      }
+      // 其他键盘事件交给 hook 处理
+      mention.handleKeyDown(e, handleSend);
+    },
+    [mention, handleSelectMention, handleSend]
+  );
 
   return (
     <aside
@@ -535,7 +610,9 @@ export function ChatSidebar({
         borderLeft: isOpen ? '1px solid #222' : 'none',
         display: 'flex',
         flexDirection: 'column',
-        transition: isResizing ? 'none' : 'width 0.2s ease, min-width 0.2s ease',
+        transition: isResizing
+          ? 'none'
+          : 'width 0.2s ease, min-width 0.2s ease',
         overflow: 'hidden',
         position: 'relative',
         flexShrink: 0,
@@ -546,51 +623,127 @@ export function ChatSidebar({
         <div
           onMouseDown={handleMouseDown}
           style={{
-            position: 'absolute', top: 0, left: -2, width: 4, height: '100%',
-            cursor: 'col-resize', zIndex: 10,
+            position: 'absolute',
+            top: 0,
+            left: -2,
+            width: 4,
+            height: '100%',
+            cursor: 'col-resize',
+            zIndex: 10,
             background: isResizing ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
           }}
-          onMouseEnter={e => { if (!isResizing) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; }}
-          onMouseLeave={e => { if (!isResizing) e.currentTarget.style.background = 'transparent'; }}
+          onMouseEnter={e => {
+            if (!isResizing)
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+          }}
+          onMouseLeave={e => {
+            if (!isResizing) e.currentTarget.style.background = 'transparent';
+          }}
         />
       )}
 
       {/* Header */}
-      <div style={{ height: 45, padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #222', flexShrink: 0, background: '#111111', zIndex: 5 }}>
+      <div
+        style={{
+          height: 45,
+          padding: '0 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid #222',
+          flexShrink: 0,
+          background: '#111111',
+          zIndex: 5,
+        }}
+      >
         <button
           onClick={() => onOpenChange(false)}
           title='Close Panel'
-          style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#9ca3af'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7280'; }}
+          style={{
+            width: 28,
+            height: 28,
+            background: 'transparent',
+            border: 'none',
+            color: '#6b7280',
+            cursor: 'pointer',
+            borderRadius: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+            e.currentTarget.style.color = '#9ca3af';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = '#6b7280';
+          }}
         >
-          <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <rect x='3' y='3' width='18' height='18' rx='2' /><line x1='15' y1='3' x2='15' y2='21' />
+          <svg
+            width='16'
+            height='16'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          >
+            <rect x='3' y='3' width='18' height='18' rx='2' />
+            <line x1='15' y1='3' x2='15' y2='21' />
           </svg>
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <div ref={historyMenuRef} style={{ position: 'relative' }}>
-          <button
+            <button
               onClick={() => setShowHistory(!showHistory)}
-            title='Chat History'
-              style={{ 
-                width: 28, height: 28, 
-                background: showHistory ? 'rgba(255,255,255,0.08)' : 'transparent', 
-                border: 'none', 
-                color: showHistory ? '#9ca3af' : '#6b7280', 
-                cursor: 'pointer', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' 
+              title='Chat History'
+              style={{
+                width: 28,
+                height: 28,
+                background: showHistory
+                  ? 'rgba(255,255,255,0.08)'
+                  : 'transparent',
+                border: 'none',
+                color: showHistory ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.15s',
               }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#9ca3af'; }}
-              onMouseLeave={e => { if (!showHistory) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7280'; }}}
-          >
-            <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-              <circle cx='12' cy='12' r='10' /><polyline points='12 6 12 12 16 14' />
-            </svg>
-          </button>
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = '#9ca3af';
+              }}
+              onMouseLeave={e => {
+                if (!showHistory) {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#6b7280';
+                }
+              }}
+            >
+              <svg
+                width='16'
+                height='16'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              >
+                <circle cx='12' cy='12' r='10' />
+                <polyline points='12 6 12 12 16 14' />
+              </svg>
+            </button>
 
             {/* History Dropdown Menu */}
             {showHistory && (
-              <div 
+              <div
                 style={{
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
@@ -607,9 +760,27 @@ export function ChatSidebar({
               >
                 <div style={{ overflowY: 'auto', padding: '4px' }}>
                   {sessionsLoading ? (
-                    <div style={{ color: '#666', fontSize: 12, textAlign: 'center', padding: 12 }}>Loading...</div>
+                    <div
+                      style={{
+                        color: '#666',
+                        fontSize: 12,
+                        textAlign: 'center',
+                        padding: 12,
+                      }}
+                    >
+                      Loading...
+                    </div>
                   ) : sessions.length === 0 ? (
-                    <div style={{ color: '#555', fontSize: 12, textAlign: 'center', padding: 12 }}>No chat history</div>
+                    <div
+                      style={{
+                        color: '#555',
+                        fontSize: 12,
+                        textAlign: 'center',
+                        padding: 12,
+                      }}
+                    >
+                      No chat history
+                    </div>
                   ) : (
                     sessions.map(session => (
                       <div
@@ -620,42 +791,68 @@ export function ChatSidebar({
                           padding: '0 8px',
                           borderRadius: 4,
                           cursor: 'pointer',
-                          background: currentSessionId === session.id ? 'rgba(255,255,255,0.08)' : 'transparent',
+                          background:
+                            currentSessionId === session.id
+                              ? 'rgba(255,255,255,0.08)'
+                              : 'transparent',
                           display: 'flex',
                           alignItems: 'center',
                           gap: 8,
                           transition: 'background 0.1s',
                         }}
-                        onMouseEnter={e => { if (currentSessionId !== session.id) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                        onMouseLeave={e => { if (currentSessionId !== session.id) e.currentTarget.style.background = 'transparent'; }}
+                        onMouseEnter={e => {
+                          if (currentSessionId !== session.id)
+                            e.currentTarget.style.background =
+                              'rgba(255,255,255,0.04)';
+                        }}
+                        onMouseLeave={e => {
+                          if (currentSessionId !== session.id)
+                            e.currentTarget.style.background = 'transparent';
+                        }}
                       >
-                        <div style={{ 
-                          flex: 1,
-                          fontSize: 12, 
-                          color: currentSessionId === session.id ? '#fff' : '#aaa', 
-                          whiteSpace: 'nowrap', 
-                          overflow: 'hidden', 
-                          textOverflow: 'ellipsis',
-                        }}>
+                        <div
+                          style={{
+                            flex: 1,
+                            fontSize: 12,
+                            color:
+                              currentSessionId === session.id ? '#fff' : '#aaa',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
                           {session.title || 'New Chat'}
                         </div>
                         <button
-                          onClick={(e) => handleDeleteSession(session.id, e)}
-                          style={{ 
-                            background: 'transparent', 
-                            border: 'none', 
-                            color: '#555', 
-                            cursor: 'pointer', 
+                          onClick={e => handleDeleteSession(session.id, e)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#555',
+                            cursor: 'pointer',
                             padding: 2,
                             opacity: 0,
                             transition: 'opacity 0.1s',
                             display: 'flex',
                             flexShrink: 0,
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#ff6b6b'; }}
-                          onMouseLeave={e => { e.currentTarget.style.opacity = '0'; e.currentTarget.style.color = '#555'; }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.opacity = '1';
+                            e.currentTarget.style.color = '#ff6b6b';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.opacity = '0';
+                            e.currentTarget.style.color = '#555';
+                          }}
                         >
-                          <svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                          <svg
+                            width='12'
+                            height='12'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                            strokeWidth='2'
+                          >
                             <path d='M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2' />
                           </svg>
                         </button>
@@ -669,140 +866,203 @@ export function ChatSidebar({
           <button
             onClick={handleNewChat}
             title='New Chat'
-            style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#9ca3af'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7280'; }}
+            style={{
+              width: 28,
+              height: 28,
+              background: 'transparent',
+              border: 'none',
+              color: '#6b7280',
+              cursor: 'pointer',
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.color = '#9ca3af';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#6b7280';
+            }}
           >
-            <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-              <path d='M12 5v14' /><path d='M5 12h14' />
+            <svg
+              width='16'
+              height='16'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <path d='M12 5v14' />
+              <path d='M5 12h14' />
             </svg>
           </button>
         </div>
       </div>
 
-
       {/* Messages Area */}
-      <div 
-        style={{ 
-          flex: 1, 
-          overflowY: 'auto', 
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
           overflowX: 'hidden',
-          padding: '20px 16px', 
-          display: 'flex', 
-          flexDirection: 'column', 
+          padding: '20px 16px',
+          display: 'flex',
+          flexDirection: 'column',
           gap: 24,
           background: '#111111',
-          maskImage: 'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)',
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)',
+          maskImage:
+            'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)',
+          WebkitMaskImage:
+            'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)',
         }}
       >
         {messagesLoading ? (
           // Skeleton loading - 模拟聊天消息骨架屏
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: '10px 0' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 20,
+              padding: '10px 0',
+            }}
+          >
             {/* 用户消息骨架 */}
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <div style={{ 
-                width: '70%', 
-                height: 36, 
-                borderRadius: 12, 
-                background: 'rgba(255, 255, 255, 0.04)',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div className="skeleton-shimmer" />
+              <div
+                style={{
+                  width: '70%',
+                  height: 36,
+                  borderRadius: 12,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div className='skeleton-shimmer' />
               </div>
             </div>
             {/* 助手消息骨架 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ 
-                width: '90%', 
-                height: 14, 
-                borderRadius: 4, 
-                background: 'rgba(255, 255, 255, 0.04)',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div className="skeleton-shimmer" />
+              <div
+                style={{
+                  width: '90%',
+                  height: 14,
+                  borderRadius: 4,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div className='skeleton-shimmer' />
               </div>
-              <div style={{ 
-                width: '75%', 
-                height: 14, 
-                borderRadius: 4, 
-                background: 'rgba(255, 255, 255, 0.04)',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div className="skeleton-shimmer" />
+              <div
+                style={{
+                  width: '75%',
+                  height: 14,
+                  borderRadius: 4,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div className='skeleton-shimmer' />
               </div>
-              <div style={{ 
-                width: '60%', 
-                height: 14, 
-                borderRadius: 4, 
-                background: 'rgba(255, 255, 255, 0.04)',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div className="skeleton-shimmer" />
+              <div
+                style={{
+                  width: '60%',
+                  height: 14,
+                  borderRadius: 4,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div className='skeleton-shimmer' />
               </div>
             </div>
             {/* 第二组消息骨架 */}
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <div style={{ 
-                width: '50%', 
-                height: 28, 
-                borderRadius: 12, 
-                background: 'rgba(255, 255, 255, 0.04)',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div className="skeleton-shimmer" />
+              <div
+                style={{
+                  width: '50%',
+                  height: 28,
+                  borderRadius: 12,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div className='skeleton-shimmer' />
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ 
-                width: '85%', 
-                height: 14, 
-                borderRadius: 4, 
-                background: 'rgba(255, 255, 255, 0.04)',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div className="skeleton-shimmer" />
+              <div
+                style={{
+                  width: '85%',
+                  height: 14,
+                  borderRadius: 4,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div className='skeleton-shimmer' />
               </div>
-              <div style={{ 
-                width: '70%', 
-                height: 14, 
-                borderRadius: 4, 
-                background: 'rgba(255, 255, 255, 0.04)',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div className="skeleton-shimmer" />
+              <div
+                style={{
+                  width: '70%',
+                  height: 14,
+                  borderRadius: 4,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div className='skeleton-shimmer' />
               </div>
             </div>
           </div>
         ) : messages.length === 0 ? (
-          <div style={{ 
-            flex: 1, 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            padding: '20px',
-            opacity: isFullyOpen ? 1 : 0,
-            transition: isFullyOpen ? 'opacity 0.15s ease' : 'none', // 收起时无动画，展开时淡入
-            visibility: isFullyOpen ? 'visible' : 'hidden', // 收起时立即隐藏
-          }}>
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+              opacity: isFullyOpen ? 1 : 0,
+              transition: isFullyOpen ? 'opacity 0.15s ease' : 'none', // 收起时无动画，展开时淡入
+              visibility: isFullyOpen ? 'visible' : 'hidden', // 收起时立即隐藏
+            }}
+          >
             {tableData ? (
               // 有数据时的空状态
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 300, textAlign: 'center' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                  width: '100%',
+                  maxWidth: 300,
+                  textAlign: 'center',
+                }}
+              >
                 {/* 主标题 */}
                 <div style={{ fontSize: 14, color: '#ccc', fontWeight: 500 }}>
                   Ask, modify, or add to your context.
                 </div>
-                
+
                 {/* 快捷操作建议 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+                >
                   {[
                     'What is the value of @[path]?',
                     'Change @[path] to a new value',
@@ -820,10 +1080,21 @@ export function ChatSidebar({
                         textAlign: 'center',
                         transition: 'opacity 0.15s',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
-                      onMouseLeave={e => { e.currentTarget.style.opacity = '0.6'; }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.opacity = '1';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.opacity = '0.6';
+                      }}
                     >
-                      <div style={{ fontSize: 12, color: '#666', lineHeight: 1.4, opacity: 0.6 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: '#666',
+                          lineHeight: 1.4,
+                          opacity: 0.6,
+                        }}
+                      >
                         {text.split('@[path]').map((part, j, arr) => (
                           <span key={j}>
                             {part}
@@ -840,40 +1111,72 @@ export function ChatSidebar({
             ) : (
               // 无数据时的空状态
               <div style={{ textAlign: 'center' }}>
-                <svg width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' style={{ color: '#555', marginBottom: 12 }}>
+                <svg
+                  width='28'
+                  height='28'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='1.5'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  style={{ color: '#555', marginBottom: 12 }}
+                >
                   <path d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' />
                 </svg>
-                <div style={{ fontSize: 13, color: '#666', lineHeight: 1.6, maxWidth: 220 }}>
-                  Select a table to start asking, modifying, or adding to your data.
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: '#666',
+                    lineHeight: 1.6,
+                    maxWidth: 220,
+                  }}
+                >
+                  Select a table to start asking, modifying, or adding to your
+                  data.
                 </div>
               </div>
             )}
           </div>
         ) : (
-          messages.map((msg, idx) => (
+          messages.map((msg, idx) =>
             msg.role === 'user' ? (
-              <UserMessage 
-                key={msg.id || `user-${idx}`} 
-                message={{ content: msg.content, timestamp: msg.timestamp }} 
+              <UserMessage
+                key={msg.id || `user-${idx}`}
+                message={{ content: msg.content, timestamp: msg.timestamp }}
                 showAvatar={false}
               />
             ) : (
-              <BotMessage 
-                key={msg.id || `assistant-${idx}`} 
-                message={{ role: 'assistant', content: msg.content }} 
+              <BotMessage
+                key={msg.id || `assistant-${idx}`}
+                message={{ role: 'assistant', content: msg.content }}
                 parts={msg.parts}
                 isStreaming={msg.isStreaming}
               />
             )
-          ))
+          )
         )}
         <div ref={messagesEndRef} style={{ height: 1 }} />
       </div>
 
       {/* Input Area */}
-      <div style={{ padding: '12px', paddingBottom: 0, flexShrink: 0, background: '#111111' }}>
+      <div
+        style={{
+          padding: '12px',
+          paddingBottom: 0,
+          flexShrink: 0,
+          background: '#111111',
+        }}
+      >
         {/* Mode Selector - Above input */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '8px',
+          }}
+        >
           <ModeSelector mode={mode} onModeChange={setMode} />
           {/* MCPBar placeholder - uncomment when ready */}
           {/* {mode === 'agent' && (
@@ -901,13 +1204,21 @@ export function ChatSidebar({
       />
 
       <style jsx global>{`
-        @keyframes spin { 
-          from { transform: rotate(0deg); } 
-          to { transform: rotate(360deg); } 
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
         }
         @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
         }
         .skeleton-shimmer {
           position: absolute;

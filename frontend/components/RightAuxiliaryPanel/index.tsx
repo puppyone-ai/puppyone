@@ -188,9 +188,10 @@ export function RightAuxiliaryPanel({
           height: '100%',
           cursor: 'col-resize',
           zIndex: 10,
-          background: isResizing || isResizeHovered 
-            ? 'rgba(255, 255, 255, 0.1)' 
-            : 'transparent',
+          background:
+            isResizing || isResizeHovered
+              ? 'rgba(255, 255, 255, 0.1)'
+              : 'transparent',
           transition: 'background 0.15s',
         }}
       />

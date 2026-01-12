@@ -15,32 +15,34 @@ export function Step2_Ingestion() {
   };
 
   return (
-    <WizardLayout 
-      title="Add your data sources"
-      subtitle="Upload files, connect apps, or enter URLs to ingest."
+    <WizardLayout
+      title='Add your data sources'
+      subtitle='Upload files, connect apps, or enter URLs to ingest.'
     >
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: 24, 
-          width: '100%', 
-          maxWidth: 600, 
-          margin: '0 auto' 
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 24,
+          width: '100%',
+          maxWidth: 600,
+          margin: '0 auto',
         }}
       >
         {/* Placeholder content based on data source type */}
-        <div style={{
-          padding: 40,
-          background: '#111',
-          border: '2px dashed #333',
-          borderRadius: 12,
-          textAlign: 'center',
-          color: '#666',
-          fontSize: 14,
-        }}>
+        <div
+          style={{
+            padding: 40,
+            background: '#111',
+            border: '2px dashed #333',
+            borderRadius: 12,
+            textAlign: 'center',
+            color: '#666',
+            fontSize: 14,
+          }}
+        >
           {dataSourceType === 'file' && (
             <div>
               <div style={{ fontSize: 32, marginBottom: 12 }}>📄</div>
@@ -74,12 +76,14 @@ export function Step2_Ingestion() {
         </div>
 
         {/* Navigation */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginTop: 20 
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: 20,
+          }}
+        >
           <button
             onClick={handleBack}
             style={{
@@ -113,8 +117,15 @@ export function Step2_Ingestion() {
             }}
           >
             Continue
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
+            <svg
+              width='16'
+              height='16'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='3'
+            >
+              <path d='M5 12h14M12 5l7 7-7 7' />
             </svg>
           </button>
         </div>

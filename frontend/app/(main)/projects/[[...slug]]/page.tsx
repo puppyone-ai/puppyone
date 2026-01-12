@@ -16,7 +16,11 @@ import { OnboardingView } from '@/components/OnboardingView';
 import { ProjectsHeader, type EditorType } from '@/components/ProjectsHeader';
 import { ChatSidebar } from '@/components/ChatSidebar';
 import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
-import { ToolsPanel, type AccessPoint, type SaveToolsResult } from '@/components/RightAuxiliaryPanel/ToolsPanel';
+import {
+  ToolsPanel,
+  type AccessPoint,
+  type SaveToolsResult,
+} from '@/components/RightAuxiliaryPanel/ToolsPanel';
 import { DocumentEditor } from '@/components/RightAuxiliaryPanel/DocumentEditor';
 
 // 面板内容类型
@@ -216,7 +220,7 @@ export default function ProjectsSlugPage({
   // 7. 处理 Onboarding - 移除自动跳转逻辑
   // 我们不再通过前端粗暴地判断是否跳转 Onboarding，避免与后端预置数据逻辑冲突
   // 如果是空项目状态，应该由 UI (ProjectWorkspaceView) 展示 Empty State 引导用户
-  
+
   // 8. 渲染
   const configuredAccessPoints = useMemo(() => {
     return accessPoints.map(ap => ({
@@ -378,7 +382,7 @@ export default function ProjectsSlugPage({
               <DocumentEditor
                 path={editorTarget.path}
                 value={editorTarget.value}
-                onSave={(newValue) => {
+                onSave={newValue => {
                   console.log('Save document:', editorTarget.path, newValue);
                   setEditorTarget(null);
                   setRightPanelContent('NONE');
@@ -389,7 +393,9 @@ export default function ProjectsSlugPage({
                   setIsEditorFullScreen(false);
                 }}
                 isFullScreen={isEditorFullScreen}
-                onToggleFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
+                onToggleFullScreen={() =>
+                  setIsEditorFullScreen(!isEditorFullScreen)
+                }
               />
             )}
           </ResizablePanel>
@@ -403,7 +409,7 @@ export default function ProjectsSlugPage({
         chatWidth={chatWidth}
         onChatWidthChange={setChatWidth}
         tableData={currentTableData?.data}
-        onDataUpdate={async (newData) => {
+        onDataUpdate={async newData => {
           // 保存到后端
           if (activeBaseId && activeTableId) {
             try {

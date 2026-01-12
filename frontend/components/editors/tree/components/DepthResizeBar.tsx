@@ -60,7 +60,7 @@ export const DepthResizeBar = React.memo(function DepthResizeBar({
       const deltaX = e.clientX - dragStartX.current;
       // 顿挫感核心：量化拖拽距离
       const steppedDeltaX = Math.round(deltaX / RESIZE_STEP) * RESIZE_STEP;
-      
+
       const newKeyWidth = Math.max(
         MIN_KEY_WIDTH,
         Math.min(MAX_KEY_WIDTH, dragStartKeyWidth.current + steppedDeltaX)
@@ -135,7 +135,9 @@ export const DepthResizeBar = React.memo(function DepthResizeBar({
           justify-content: center;
           z-index: 1;
           opacity: 0;
-          transition: opacity 0.15s ease, left 0.1s cubic-bezier(0.2, 0, 0, 1);
+          transition:
+            opacity 0.15s ease,
+            left 0.1s cubic-bezier(0.2, 0, 0, 1);
         }
         .resize-bar:hover .handle,
         .resize-bar.dragging .handle {

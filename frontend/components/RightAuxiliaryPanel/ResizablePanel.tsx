@@ -24,7 +24,10 @@ export function ResizablePanel({
   const [width, setWidth] = useState(defaultWidth);
   const [isResizing, setIsResizing] = useState(false);
   const [isResizeHovered, setIsResizeHovered] = useState(false);
-  const [dragStart, setDragStart] = useState<{ startX: number; startWidth: number } | null>(null);
+  const [dragStart, setDragStart] = useState<{
+    startX: number;
+    startWidth: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!isResizing || !dragStart) return;
@@ -75,7 +78,7 @@ export function ResizablePanel({
     >
       {/* Resize Handle */}
       <div
-        onMouseDown={(e) => {
+        onMouseDown={e => {
           e.preventDefault();
           e.stopPropagation();
           setDragStart({ startX: e.clientX, startWidth: width });
@@ -91,7 +94,10 @@ export function ResizablePanel({
           height: '100%',
           cursor: 'col-resize',
           zIndex: 10,
-          background: isResizing || isResizeHovered ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+          background:
+            isResizing || isResizeHovered
+              ? 'rgba(255, 255, 255, 0.1)'
+              : 'transparent',
           transition: 'background 0.15s',
         }}
       />
@@ -112,4 +118,3 @@ export function ResizablePanel({
     </div>
   );
 }
-

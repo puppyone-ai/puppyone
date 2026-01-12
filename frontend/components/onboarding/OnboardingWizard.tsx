@@ -28,4 +28,3 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       return null;
   }
 }
-

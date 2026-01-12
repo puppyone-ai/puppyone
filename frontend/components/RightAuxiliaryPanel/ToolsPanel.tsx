@@ -39,14 +39,15 @@ interface ToolsPanelProps {
 }
 
 // Define Tool Groups
-const READ_TOOLS = [
-  'query_data',
-  'get_all_data',
-] as McpToolType[];
+const READ_TOOLS = ['query_data', 'get_all_data'] as McpToolType[];
 
 const WRITE_TOOLS = ['create', 'update', 'delete'] as McpToolType[];
 
-const ALL_TOOLS = ['shell_access', ...READ_TOOLS, ...WRITE_TOOLS] as McpToolType[];
+const ALL_TOOLS = [
+  'shell_access',
+  ...READ_TOOLS,
+  ...WRITE_TOOLS,
+] as McpToolType[];
 
 // Tool Config Map for display
 const TOOL_CONFIG: Record<string, { label: string; short: string }> = {
@@ -84,7 +85,7 @@ const AddCapabilityButton = ({
     <>
       <button
         ref={btnRef}
-        onClick={(e) => {
+        onClick={e => {
           e.stopPropagation();
           if (btnRef.current) {
             const rect = btnRef.current.getBoundingClientRect();
@@ -119,74 +120,116 @@ const AddCapabilityButton = ({
           e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
         }}
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round"/>
+        <svg
+          width='12'
+          height='12'
+          viewBox='0 0 24 24'
+          fill='none'
+          stroke='currentColor'
+          strokeWidth='2'
+        >
+          <path
+            d='M12 5v14M5 12h14'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          />
         </svg>
         Add Capability
       </button>
 
-      {showMenu && typeof document !== 'undefined' && createPortal(
-        <>
-          <div 
-            style={{ position: 'fixed', inset: 0, zIndex: 9998 }} 
-            onClick={() => setShowMenu(false)} 
-          />
-          <div
-            style={{
-              position: 'fixed',
-              top: menuPos.top,
-              left: menuPos.left,
-              width: 200,
-              background: '#18181b',
-              border: '1px solid #27272a',
-              borderRadius: 8,
-              padding: 4,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              zIndex: 9999,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-            }}
-          >
-            <div style={{ padding: '4px 8px', fontSize: 10, color: '#525252', fontWeight: 600 }}>AVAILABLE TOOLS</div>
-            {availableTools.map(toolId => (
+      {showMenu &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+              onClick={() => setShowMenu(false)}
+            />
+            <div
+              style={{
+                position: 'fixed',
+                top: menuPos.top,
+                left: menuPos.left,
+                width: 200,
+                background: '#18181b',
+                border: '1px solid #27272a',
+                borderRadius: 8,
+                padding: 4,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                zIndex: 9999,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+              }}
+            >
               <div
-                key={toolId}
-                onClick={() => {
-                  onAdd(toolId);
-                  setShowMenu(false);
-                }}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 8px',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  color: '#e2e8f0',
-                  transition: 'background 0.1s',
+                  padding: '4px 8px',
+                  fontSize: 10,
+                  color: '#525252',
+                  fontWeight: 600,
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = '#27272a'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                <div style={{ color: '#71717a', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {toolId === 'shell_access' ? (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="4 17 10 11 4 5"></polyline>
-                      <line x="12" y1="19" x2="20" y2="19"></line>
-                    </svg>
-                  ) : (
-                    TOOL_ICONS[toolId]
-                  )}
-                </div>
-                {TOOL_CONFIG[toolId]?.short || toolId}
+                AVAILABLE TOOLS
               </div>
-            ))}
-          </div>
-        </>,
-        document.body
-      )}
+              {availableTools.map(toolId => (
+                <div
+                  key={toolId}
+                  onClick={() => {
+                    onAdd(toolId);
+                    setShowMenu(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 8px',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    color: '#e2e8f0',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e =>
+                    (e.currentTarget.style.background = '#27272a')
+                  }
+                  onMouseLeave={e =>
+                    (e.currentTarget.style.background = 'transparent')
+                  }
+                >
+                  <div
+                    style={{
+                      color: '#71717a',
+                      width: 14,
+                      height: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {toolId === 'shell_access' ? (
+                      <svg
+                        width='12'
+                        height='12'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                      >
+                        <polyline points='4 17 10 11 4 5'></polyline>
+                        <line x='12' y1='19' x2='20' y2='19'></line>
+                      </svg>
+                    ) : (
+                      TOOL_ICONS[toolId]
+                    )}
+                  </div>
+                  {TOOL_CONFIG[toolId]?.short || toolId}
+                </div>
+              ))}
+            </div>
+          </>,
+          document.body
+        )}
     </>
   );
 };
@@ -213,14 +256,14 @@ const ToolItem = ({
   const uniqueToolId = `${ap.id}-${toolId}`;
   const isExpanded = expandedToolId === uniqueToolId;
   const [isHovered, setIsHovered] = useState(false);
-  
+
   // Edit States
   const [isEditingName, setIsEditingName] = useState(false);
   const [name, setName] = useState(`${toolId}_${safeName}`);
   const [desc, setDesc] = useState(
     `${TOOL_CONFIG[toolId]?.label || toolId} - ${activeBaseName || 'Project'}`
   );
-  
+
   // Bash Access Level State (Separated into Read/Write)
   const [allowRead, setAllowRead] = useState(true);
   const [allowWrite, setAllowWrite] = useState(false);
@@ -246,8 +289,15 @@ const ToolItem = ({
     }
     if (TOOL_ICONS[toolId]) return TOOL_ICONS[toolId];
     return (
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="3" width="18" height="18" rx="2" />
+      <svg
+        width='12'
+        height='12'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='2'
+      >
+        <rect x='3' y='3' width='18' height='18' rx='2' />
       </svg>
     );
   };
@@ -284,7 +334,7 @@ const ToolItem = ({
             transition: 'background 0.15s',
             flexShrink: 0,
           }}
-          title="Disable Capability"
+          title='Disable Capability'
         >
           <div
             style={{
@@ -311,21 +361,25 @@ const ToolItem = ({
             color: '#e2e8f0',
           }}
         >
-          <div style={{ 
-            width: 14, 
-            height: 14, 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            color: 'currentColor'
-          }}>
-             {renderIcon()}
+          <div
+            style={{
+              width: 14,
+              height: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'currentColor',
+            }}
+          >
+            {renderIcon()}
           </div>
-          <div style={{ 
-            fontSize: 13, 
-            fontWeight: 500,
-            whiteSpace: 'nowrap',
-          }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+            }}
+          >
             {TOOL_CONFIG[toolId]?.short || toolId}
           </div>
         </div>
@@ -334,12 +388,13 @@ const ToolItem = ({
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
           {isEditingName ? (
             <input
-              type="text"
+              type='text'
               value={name}
               onChange={e => setName(e.target.value)}
               onBlur={() => setIsEditingName(false)}
               onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === 'Escape') setIsEditingName(false);
+                if (e.key === 'Enter' || e.key === 'Escape')
+                  setIsEditingName(false);
               }}
               autoFocus
               style={{
@@ -379,7 +434,7 @@ const ToolItem = ({
         </div>
 
         {/* Expand/Config Button (Chevron) */}
-        <div 
+        <div
           onClick={() => setExpandedToolId(isExpanded ? null : uniqueToolId)}
           style={{
             cursor: 'pointer',
@@ -392,9 +447,18 @@ const ToolItem = ({
             transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
             transition: 'all 0.2s',
           }}
-          className="expand-btn"
+          className='expand-btn'
         >
-          <svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round'>
+          <svg
+            width='12'
+            height='12'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='3'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          >
             <path d='M9 18l6-6-6-6' />
           </svg>
         </div>
@@ -405,14 +469,14 @@ const ToolItem = ({
         <div
           style={{
             // REDUCED PADDING: Align with Icon/Text start (44px)
-            padding: '4px 16px 4px 44px', 
+            padding: '4px 16px 4px 44px',
             display: 'flex',
             flexDirection: 'column',
             gap: 12,
           }}
         >
           {/* REMOVED: Duplicate Function Name Input */}
-          
+
           {/* Access Permissions (Bash Only) - Removed as requested */}
           {/* toolId === 'shell_access' logic removed */}
 
@@ -492,8 +556,9 @@ export function ToolsPanel({
   const toggleApExpansion = (apId: string) => {
     setCollapsedApIds(prev => {
       const next = new Set(prev);
-      if (next.has(apId)) next.delete(apId);  // 如果已收起，则展开
-      else next.add(apId);  // 如果展开，则收起
+      if (next.has(apId))
+        next.delete(apId); // 如果已收起，则展开
+      else next.add(apId); // 如果展开，则收起
       return next;
     });
   };
@@ -536,11 +601,20 @@ export function ToolsPanel({
           }}
           onMouseEnter={e => (e.currentTarget.style.color = '#71717a')}
           onMouseLeave={e => (e.currentTarget.style.color = '#52525b')}
-          title="Collapse panel"
+          title='Collapse panel'
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="13 17 18 12 13 7" />
-            <polyline points="6 17 11 12 6 7" />
+          <svg
+            width='14'
+            height='14'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          >
+            <polyline points='13 17 18 12 13 7' />
+            <polyline points='6 17 11 12 6 7' />
           </svg>
         </button>
         <span style={{ fontSize: 12, fontWeight: 500, color: '#71717a' }}>
@@ -570,7 +644,7 @@ export function ToolsPanel({
                 pathSegments.length > 0
                   ? pathSegments[pathSegments.length - 1]
                   : 'root';
-              
+
               let displayName = lastSegment;
               const isNumeric = !isNaN(Number(lastSegment));
               if (isNumeric && pathSegments.length > 1) {
@@ -581,11 +655,11 @@ export function ToolsPanel({
               }
               const safeName = displayName.replace(/[^a-zA-Z0-9_]/g, '');
 
-              const isExpanded = !collapsedApIds.has(ap.id);  // 默认展开，除非在 collapsedApIds 中
+              const isExpanded = !collapsedApIds.has(ap.id); // 默认展开，除非在 collapsedApIds 中
               const enabledCount = ALL_TOOLS.filter(
                 t => ap.permissions[t]
               ).length;
-              
+
               // Calculate used tools for this AP
               const usedTools = new Set(
                 ALL_TOOLS.filter(t => ap.permissions[t])
@@ -593,18 +667,18 @@ export function ToolsPanel({
 
               return (
                 // Block Container with DARKER Background
-                <div 
-                  key={ap.id} 
-                  style={{ 
-                    marginBottom: 12, 
+                <div
+                  key={ap.id}
+                  style={{
+                    marginBottom: 12,
                     padding: '8px 4px 8px 4px',
                     borderRadius: 8,
                     // Darker background for hierarchy (vs Editor)
-                    background: '#141416', 
+                    background: '#141416',
                     border: '1px solid rgba(255, 255, 255, 0.02)',
                     transition: 'background 0.15s, border-color 0.15s',
                   }}
-                  className="access-point-block"
+                  className='access-point-block'
                 >
                   {/* Access Point Header */}
                   <div
@@ -648,33 +722,39 @@ export function ToolsPanel({
                     </div>
 
                     {/* Node Info */}
-                    <div style={{ 
-                      flex: 1, 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 8,
-                      minWidth: 0,
-                    }}>
-                       <span style={{
-                         fontSize: 13,
-                         fontWeight: 600,
-                         color: '#e2e8f0', // Brighter text for card title
-                         whiteSpace: 'nowrap',
-                       }}>
-                         {displayName}
-                       </span>
+                    <div
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        minWidth: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: '#e2e8f0', // Brighter text for card title
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {displayName}
+                      </span>
 
-                       <span style={{
-                         fontSize: 12,
-                         color: '#71717a', // Slightly brighter gray
-                         fontFamily: 'monospace',
-                         whiteSpace: 'nowrap',
-                         overflow: 'hidden',
-                         textOverflow: 'ellipsis',
-                         opacity: 0.5,
-                       }}>
-                         {displayPath}
-                       </span>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color: '#71717a', // Slightly brighter gray
+                          fontFamily: 'monospace',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          opacity: 0.5,
+                        }}
+                      >
+                        {displayPath}
+                      </span>
                     </div>
 
                     {/* Active Count */}
@@ -694,13 +774,15 @@ export function ToolsPanel({
 
                   {/* Expanded Content */}
                   {isExpanded && (
-                    <div style={{ 
-                      paddingTop: 4,
-                      paddingLeft: 12, // Indent for children
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 1,
-                    }}>
+                    <div
+                      style={{
+                        paddingTop: 4,
+                        paddingLeft: 12, // Indent for children
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
+                      }}
+                    >
                       {/* Render Enabled Tools Only */}
                       {ALL_TOOLS.filter(t => ap.permissions[t]).map(toolId => (
                         <ToolItem
@@ -709,17 +791,21 @@ export function ToolsPanel({
                           toolId={toolId}
                           safeName={safeName}
                           activeBaseName={activeBaseName}
-                          onToggle={(apId, tId) => handleTogglePermission(apId, tId, true)} // Disable
+                          onToggle={(apId, tId) =>
+                            handleTogglePermission(apId, tId, true)
+                          } // Disable
                           expandedToolId={expandedToolId}
                           setExpandedToolId={setExpandedToolId}
                         />
                       ))}
-                      
+
                       {/* Add Capability Button */}
-                      <AddCapabilityButton 
-                        ap={ap} 
+                      <AddCapabilityButton
+                        ap={ap}
                         usedTools={usedTools}
-                        onAdd={(toolId) => handleTogglePermission(ap.id, toolId, false)} 
+                        onAdd={toolId =>
+                          handleTogglePermission(ap.id, toolId, false)
+                        }
                       />
                     </div>
                   )}
@@ -730,16 +816,20 @@ export function ToolsPanel({
         )}
       </div>
 
-
       {/* Styles */}
       <style jsx>{`
         .sidebar-item-hover:hover {
-          background: #2C2C2C !important;
+          background: #2c2c2c !important;
         }
         .access-point-block:hover {
-          border-color: rgba(255, 255, 255, 0.08) !important; /* Slightly brighter border on hover */
+          border-color: rgba(
+            255,
+            255,
+            255,
+            0.08
+          ) !important; /* Slightly brighter border on hover */
         }
-        
+
         .detail-input:focus {
           border-bottom-color: #f97316 !important;
         }

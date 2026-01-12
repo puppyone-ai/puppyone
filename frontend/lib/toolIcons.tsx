@@ -108,4 +108,3 @@ export const DEFAULT_TOOL_ICON = (
     />
   </svg>
 );
-

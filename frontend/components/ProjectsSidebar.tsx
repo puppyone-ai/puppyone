@@ -1330,9 +1330,7 @@ export function ProjectsSidebar({
               </svg>
             </span>
             <span className='nav-label'>Tools & MCP</span>
-            {toolsCount > 0 && (
-              <span className='nav-badge'>{toolsCount}</span>
-            )}
+            {toolsCount > 0 && <span className='nav-badge'>{toolsCount}</span>}
           </button>
 
           {/* Settings */}

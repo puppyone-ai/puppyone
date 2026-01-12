@@ -33,4 +33,3 @@ export const TOOL_TYPE_CONFIG: Record<
   update: { label: 'Update', color: '#fbbf24', bg: 'rgba(245, 158, 11, 0.15)' },
   delete: { label: 'Delete', color: '#f87171', bg: 'rgba(239, 68, 68, 0.15)' },
 };
-

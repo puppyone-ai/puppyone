@@ -25,7 +25,8 @@ export function PathMention({ path, onClick }: PathMentionProps) {
         transition: 'background 0.15s',
       }}
       onMouseEnter={e => {
-        if (onClick) e.currentTarget.style.background = 'rgba(107, 179, 248, 0.25)';
+        if (onClick)
+          e.currentTarget.style.background = 'rgba(107, 179, 248, 0.25)';
       }}
       onMouseLeave={e => {
         e.currentTarget.style.background = 'rgba(107, 179, 248, 0.15)';
@@ -47,8 +48,9 @@ export function parsePathMentions(
 ): React.ReactNode[] {
   // 匹配 @path 格式，支持 . 和 [] 嵌套
   // @key, @key.sub, @key[0], @key[0].sub[1].field 等
-  const pathRegex = /@([a-zA-Z_][a-zA-Z0-9_]*(?:(?:\.[a-zA-Z_][a-zA-Z0-9_]*)|(?:\[\d+\]))*)/g;
-  
+  const pathRegex =
+    /@([a-zA-Z_][a-zA-Z0-9_]*(?:(?:\.[a-zA-Z_][a-zA-Z0-9_]*)|(?:\[\d+\]))*)/g;
+
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
@@ -59,27 +61,26 @@ export function parsePathMentions(
     if (match.index > lastIndex) {
       parts.push(text.slice(lastIndex, match.index));
     }
-    
+
     // 添加高亮的 path
     const path = match[1];
     parts.push(
-      <PathMention 
-        key={`path-${keyIndex++}`} 
-        path={path} 
-        onClick={onPathClick} 
+      <PathMention
+        key={`path-${keyIndex++}`}
+        path={path}
+        onClick={onPathClick}
       />
     );
-    
+
     lastIndex = match.index + match[0].length;
   }
-  
+
   // 添加剩余文本
   if (lastIndex < text.length) {
     parts.push(text.slice(lastIndex));
   }
-  
+
   return parts.length > 0 ? parts : [text];
 }
 
 export default PathMention;
-

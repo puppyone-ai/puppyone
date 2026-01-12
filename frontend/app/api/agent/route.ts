@@ -23,7 +23,10 @@ class SandboxClient {
     this.sessionId = sessionId;
   }
 
-  private async call(action: string, extra: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+  private async call(
+    action: string,
+    extra: Record<string, unknown> = {}
+  ): Promise<Record<string, unknown>> {
     const response = await fetch(`${this.baseUrl}/api/sandbox`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -33,15 +36,28 @@ class SandboxClient {
   }
 
   async start(data: unknown): Promise<{ success: boolean; error?: string }> {
-    return this.call('start', { data }) as Promise<{ success: boolean; error?: string }>;
+    return this.call('start', { data }) as Promise<{
+      success: boolean;
+      error?: string;
+    }>;
   }
 
-  async exec(command: string): Promise<{ success: boolean; output?: string; error?: string }> {
-    return this.call('exec', { command }) as Promise<{ success: boolean; output?: string; error?: string }>;
+  async exec(
+    command: string
+  ): Promise<{ success: boolean; output?: string; error?: string }> {
+    return this.call('exec', { command }) as Promise<{
+      success: boolean;
+      output?: string;
+      error?: string;
+    }>;
   }
 
   async read(): Promise<{ success: boolean; data?: unknown; error?: string }> {
-    return this.call('read') as Promise<{ success: boolean; data?: unknown; error?: string }>;
+    return this.call('read') as Promise<{
+      success: boolean;
+      data?: unknown;
+      error?: string;
+    }>;
   }
 
   async stop(): Promise<void> {
@@ -71,7 +87,10 @@ const FILE_TOOLS = [
       type: 'object' as const,
       properties: {
         pattern: { type: 'string', description: 'Glob pattern to match files' },
-        cwd: { type: 'string', description: 'Working directory for the search' },
+        cwd: {
+          type: 'string',
+          description: 'Working directory for the search',
+        },
       },
       required: ['pattern'],
     },
@@ -83,7 +102,10 @@ const FILE_TOOLS = [
       type: 'object' as const,
       properties: {
         pattern: { type: 'string', description: 'Regex pattern to search for' },
-        path: { type: 'string', description: 'File or directory path to search in' },
+        path: {
+          type: 'string',
+          description: 'File or directory path to search in',
+        },
       },
       required: ['pattern'],
     },
@@ -91,7 +113,11 @@ const FILE_TOOLS = [
 ];
 
 // 执行文件工具
-function executeFileTool(name: string, input: Record<string, string>, cwd: string): string {
+function executeFileTool(
+  name: string,
+  input: Record<string, string>,
+  cwd: string
+): string {
   try {
     switch (name) {
       case 'read_file': {
@@ -100,15 +126,16 @@ function executeFileTool(name: string, input: Record<string, string>, cwd: strin
           return `Error: File not found: ${input.path}`;
         }
         const content = fs.readFileSync(filePath, 'utf-8');
-        return content.length > 50000 
+        return content.length > 50000
           ? content.substring(0, 50000) + '\n... (truncated)'
           : content;
       }
       case 'glob_search': {
         const searchCwd = input.cwd ? path.resolve(cwd, input.cwd) : cwd;
         const files = glob.sync(input.pattern, { cwd: searchCwd, nodir: true });
-        return files.length > 0 
-          ? files.slice(0, 100).join('\n') + (files.length > 100 ? `\n... and ${files.length - 100} more` : '')
+        return files.length > 0
+          ? files.slice(0, 100).join('\n') +
+              (files.length > 100 ? `\n... and ${files.length - 100} more` : '')
           : 'No files found';
       }
       case 'grep_search': {
@@ -133,24 +160,27 @@ function executeFileTool(name: string, input: Record<string, string>, cwd: strin
 }
 
 export async function POST(request: NextRequest) {
-  const { prompt, chatHistory, tableData, workingDirectory } = await request.json();
+  const { prompt, chatHistory, tableData, workingDirectory } =
+    await request.json();
 
-    if (!prompt) {
+  if (!prompt) {
     return Response.json({ error: 'Missing prompt' }, { status: 400 });
-    }
+  }
 
   const cwd = workingDirectory || process.cwd();
   const hasTableData = !!tableData;
-    const encoder = new TextEncoder();
-  
+  const encoder = new TextEncoder();
+
   // 如果有 tableData，创建沙盒客户端
   const sandboxSessionId = hasTableData ? `agent-${Date.now()}` : null;
   const sandbox = sandboxSessionId ? new SandboxClient(sandboxSessionId) : null;
 
-    const stream = new ReadableStream({
-      async start(controller) {
+  const stream = new ReadableStream({
+    async start(controller) {
       const sendEvent = (type: string, data: Record<string, unknown>) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type, ...data })}\n\n`));
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ type, ...data })}\n\n`)
+        );
       };
 
       try {
@@ -159,7 +189,9 @@ export async function POST(request: NextRequest) {
           sendEvent('status', { message: 'Starting sandbox...' });
           const startResult = await sandbox.start(tableData);
           if (!startResult.success) {
-            sendEvent('error', { message: `Failed to start sandbox: ${startResult.error}` });
+            sendEvent('error', {
+              message: `Failed to start sandbox: ${startResult.error}`,
+            });
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
             controller.close();
             return;
@@ -167,7 +199,7 @@ export async function POST(request: NextRequest) {
           sendEvent('status', { message: 'Sandbox ready' });
         }
 
-              // 系统提示
+        // 系统提示
         const systemPrompt = hasTableData
           ? `你是一个 JSON 数据编辑助手。
 
@@ -198,23 +230,39 @@ Be concise and helpful.`;
         // 消息历史
         type MessageContent =
           | { type: 'text'; text: string }
-          | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
-          | { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean };
+          | {
+              type: 'tool_use';
+              id: string;
+              name: string;
+              input: Record<string, unknown>;
+            }
+          | {
+              type: 'tool_result';
+              tool_use_id: string;
+              content: string;
+              is_error?: boolean;
+            };
 
-        type Message = { role: 'user' | 'assistant'; content: string | MessageContent[] };
+        type Message = {
+          role: 'user' | 'assistant';
+          content: string | MessageContent[];
+        };
 
         // 构建消息列表：历史消息 + 当前消息
         const messages: Message[] = [];
-        
+
         // 添加历史消息（多轮对话支持）
         if (chatHistory && Array.isArray(chatHistory)) {
           for (const msg of chatHistory) {
-            if ((msg.role === 'user' || msg.role === 'assistant') && msg.content) {
+            if (
+              (msg.role === 'user' || msg.role === 'assistant') &&
+              msg.content
+            ) {
               messages.push({ role: msg.role, content: msg.content });
             }
           }
         }
-        
+
         // 添加当前用户消息
         messages.push({ role: 'user', content: prompt });
         let iterations = 0;
@@ -234,13 +282,21 @@ Be concise and helpful.`;
           });
 
           // 处理响应
-          const toolUses: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
+          const toolUses: Array<{
+            id: string;
+            name: string;
+            input: Record<string, unknown>;
+          }> = [];
 
           for (const block of response.content) {
             if (block.type === 'text') {
               sendEvent('text', { content: block.text });
             } else if (block.type === 'tool_use') {
-              toolUses.push({ id: block.id, name: block.name, input: block.input as Record<string, unknown> });
+              toolUses.push({
+                id: block.id,
+                name: block.name,
+                input: block.input as Record<string, unknown>,
+              });
             }
           }
 
@@ -252,7 +308,7 @@ Be concise and helpful.`;
 
           for (const toolUse of toolUses) {
             const currentToolIndex = toolIndex++;
-            const toolInput = hasTableData 
+            const toolInput = hasTableData
               ? (toolUse.input as { command?: string }).command || ''
               : JSON.stringify(toolUse.input);
 
@@ -268,7 +324,9 @@ Be concise and helpful.`;
             try {
               if (toolUse.name === 'bash' && sandbox) {
                 // Bash 工具 - 调用沙盒 API
-                const execResult = await sandbox.exec((toolUse.input as { command: string }).command);
+                const execResult = await sandbox.exec(
+                  (toolUse.input as { command: string }).command
+                );
                 if (execResult.success) {
                   output = execResult.output || '(no output)';
                 } else {
@@ -277,7 +335,11 @@ Be concise and helpful.`;
                 }
               } else {
                 // 文件工具 - 本地执行
-                output = executeFileTool(toolUse.name, toolUse.input as Record<string, string>, cwd);
+                output = executeFileTool(
+                  toolUse.name,
+                  toolUse.input as Record<string, string>,
+                  cwd
+                );
               }
             } catch (err: unknown) {
               const error = err as { message?: string };
@@ -288,7 +350,8 @@ Be concise and helpful.`;
             sendEvent('tool_end', {
               toolId: currentToolIndex,
               toolName: toolUse.name,
-              output: output.substring(0, 500) + (output.length > 500 ? '...' : ''),
+              output:
+                output.substring(0, 500) + (output.length > 500 ? '...' : ''),
               success,
             });
 
@@ -301,7 +364,10 @@ Be concise and helpful.`;
           }
 
           // 添加到消息历史
-          messages.push({ role: 'assistant', content: response.content as MessageContent[] });
+          messages.push({
+            role: 'assistant',
+            content: response.content as MessageContent[],
+          });
           messages.push({ role: 'user', content: toolResults });
 
           if (response.stop_reason === 'end_turn') break;
@@ -312,7 +378,10 @@ Be concise and helpful.`;
           try {
             const readResult = await sandbox.read();
             if (readResult.success && readResult.data) {
-              sendEvent('result', { success: true, updatedData: readResult.data });
+              sendEvent('result', {
+                success: true,
+                updatedData: readResult.data,
+              });
             } else {
               sendEvent('result', { success: false, error: readResult.error });
             }
@@ -321,16 +390,15 @@ Be concise and helpful.`;
           }
         } else {
           sendEvent('result', { success: true });
-          }
+        }
 
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
       } catch (error: unknown) {
         const err = error as { message?: string };
         sendEvent('error', { message: err.message });
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
+        controller.close();
       } finally {
         // 停止沙盒
         if (sandbox) {
@@ -338,15 +406,15 @@ Be concise and helpful.`;
             await sandbox.stop();
           } catch {}
         }
-        }
-      },
-    });
+      }
+    },
+  });
 
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      },
-    });
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
 }

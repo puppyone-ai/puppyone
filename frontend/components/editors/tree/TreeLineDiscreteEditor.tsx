@@ -192,89 +192,87 @@ function updateJsonAtPath(json: any, path: string, newValue: JsonValue): any {
 // Components (Copied from TreeLineVirtualEditor)
 // ============================================
 
-const LevelConnector = React.memo(
-  function LevelConnector({
-    depth,
-    isLast,
-    parentLines,
-    topOffset = 0,
-    keyWidths,
-  }: {
-    depth: number;
-    isLast: boolean;
-    parentLines: boolean[];
-    topOffset?: number;
-    keyWidths: number[];
-  }) {
-    const branchY = topOffset + ROW_HEIGHT / 2;
-    const branchX = getVerticalLineXDynamic(depth, keyWidths);
-    const r = CORNER_RADIUS;
-    const startY = 0;
+const LevelConnector = React.memo(function LevelConnector({
+  depth,
+  isLast,
+  parentLines,
+  topOffset = 0,
+  keyWidths,
+}: {
+  depth: number;
+  isLast: boolean;
+  parentLines: boolean[];
+  topOffset?: number;
+  keyWidths: number[];
+}) {
+  const branchY = topOffset + ROW_HEIGHT / 2;
+  const branchX = getVerticalLineXDynamic(depth, keyWidths);
+  const r = CORNER_RADIUS;
+  const startY = 0;
 
-    return (
-          <svg
+  return (
+    <svg
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: branchX + BRANCH_WIDTH,
+        height: '100%',
+        pointerEvents: 'none',
+        overflow: 'visible',
+        transition: 'width 0.1s cubic-bezier(0.2, 0, 0, 1)',
+      }}
+      preserveAspectRatio='none'
+    >
+      {parentLines.map((showLine, i) => {
+        if (!showLine) return null;
+        const x = getVerticalLineXDynamic(i, keyWidths);
+        return (
+          <line
+            key={i}
+            x1={0}
+            y1={startY}
+            x2={0}
+            y2='100%'
+            stroke={LINE_COLOR}
+            strokeWidth={1}
+            vectorEffect='non-scaling-stroke'
+            style={{
+              transform: `translateX(${x}px)`,
+              transition: 'transform 0.1s cubic-bezier(0.2, 0, 0, 1)',
+            }}
+          />
+        );
+      })}
+      <line
+        x1={0}
+        y1={startY}
+        x2={0}
+        y2={isLast ? branchY - r : '100%'}
+        stroke={LINE_COLOR}
+        strokeWidth={1}
+        vectorEffect='non-scaling-stroke'
         style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          width: branchX + BRANCH_WIDTH,
-          height: '100%',
-          pointerEvents: 'none',
-          overflow: 'visible',
-          transition: 'width 0.1s cubic-bezier(0.2, 0, 0, 1)',
+          transform: `translateX(${branchX}px)`,
+          transition: 'transform 0.1s cubic-bezier(0.2, 0, 0, 1)',
         }}
-        preserveAspectRatio='none'
-      >
-        {parentLines.map((showLine, i) => {
-          if (!showLine) return null;
-          const x = getVerticalLineXDynamic(i, keyWidths);
-          return (
-            <line
-              key={i}
-              x1={0}
-              y1={startY}
-              x2={0}
-              y2='100%'
-              stroke={LINE_COLOR}
-              strokeWidth={1}
-              vectorEffect='non-scaling-stroke'
-              style={{ 
-                transform: `translateX(${x}px)`,
-                transition: 'transform 0.1s cubic-bezier(0.2, 0, 0, 1)' 
-              }}
-            />
-          );
-        })}
-        <line
-          x1={0}
-          y1={startY}
-          x2={0}
-          y2={isLast ? branchY - r : '100%'}
-          stroke={LINE_COLOR}
-          strokeWidth={1}
-          vectorEffect='non-scaling-stroke'
-          style={{ 
-            transform: `translateX(${branchX}px)`,
-            transition: 'transform 0.1s cubic-bezier(0.2, 0, 0, 1)' 
-          }}
-        />
-        <path
-          d={`M 0 ${branchY - r} Q 0 ${branchY} ${r} ${branchY} L ${
-            BRANCH_WIDTH - LINE_END_GAP
-          } ${branchY}`}
-          stroke={LINE_COLOR}
-          strokeWidth={1}
-          fill='none'
-          vectorEffect='non-scaling-stroke'
-          style={{ 
-            transform: `translateX(${branchX}px)`,
-            transition: 'transform 0.1s cubic-bezier(0.2, 0, 0, 1)' 
-          }}
-        />
-      </svg>
-    );
-  }
-);
+      />
+      <path
+        d={`M 0 ${branchY - r} Q 0 ${branchY} ${r} ${branchY} L ${
+          BRANCH_WIDTH - LINE_END_GAP
+        } ${branchY}`}
+        stroke={LINE_COLOR}
+        strokeWidth={1}
+        fill='none'
+        vectorEffect='non-scaling-stroke'
+        style={{
+          transform: `translateX(${branchX}px)`,
+          transition: 'transform 0.1s cubic-bezier(0.2, 0, 0, 1)',
+        }}
+      />
+    </svg>
+  );
+});
 
 // VirtualRow Component (reused mostly as is, simplified styles)
 interface VirtualRowProps {
@@ -303,246 +301,302 @@ interface VirtualRowProps {
   onOpenDocument?: (path: string, value: string) => void;
 }
 
-const VirtualRow = React.memo(
-  function VirtualRow({
-    node,
-    isSelected,
-    keyWidths,
-    tableId,
-    onToggle,
-    onSelect,
-    onValueChange,
-    onKeyRename,
-    onContextMenu,
-    isSelectingAccessPoint,
-    onAddAccessPoint,
-    configuredAccess,
-    onGutterClick,
-    onRemoveAccessPoint,
-    lockedPopoverPath,
-    onPopoverOpenChange,
-    isContextMenuOpen,
-    onOpenDocument,
-  }: VirtualRowProps) {
-    const isPopoverOwner = lockedPopoverPath === node.path;
-    const [hovered, setHovered] = useState(false);
-    const keyRef = useRef<HTMLSpanElement>(null);
-    const [isEditingKey, setIsEditingKey] = useState(false);
-    const isConfigured = !!configuredAccess && Object.values(configuredAccess).some(Boolean);
-    const isRootNode = node.key === '$root';
-    const extraTopPadding = !isRootNode && node.isExpandable && node.depth >= 0 ? CONTAINER_GAP : 0;
-    const shouldAddBottomGap = !isRootNode && node.depth >= 0 && (node.isExpandable || node.isLast);
-    const extraBottomPadding = shouldAddBottomGap ? CONTAINER_GAP : 0;
-    const contentLeft = isRootNode ? getRootContentLeft() : getContentLeftDynamic(node.depth, keyWidths);
-    const keyWidth = isRootNode ? KEY_WIDTH : getKeyWidthDynamic(node.depth, keyWidths);
+const VirtualRow = React.memo(function VirtualRow({
+  node,
+  isSelected,
+  keyWidths,
+  tableId,
+  onToggle,
+  onSelect,
+  onValueChange,
+  onKeyRename,
+  onContextMenu,
+  isSelectingAccessPoint,
+  onAddAccessPoint,
+  configuredAccess,
+  onGutterClick,
+  onRemoveAccessPoint,
+  lockedPopoverPath,
+  onPopoverOpenChange,
+  isContextMenuOpen,
+  onOpenDocument,
+}: VirtualRowProps) {
+  const isPopoverOwner = lockedPopoverPath === node.path;
+  const [hovered, setHovered] = useState(false);
+  const keyRef = useRef<HTMLSpanElement>(null);
+  const [isEditingKey, setIsEditingKey] = useState(false);
+  const isConfigured =
+    !!configuredAccess && Object.values(configuredAccess).some(Boolean);
+  const isRootNode = node.key === '$root';
+  const extraTopPadding =
+    !isRootNode && node.isExpandable && node.depth >= 0 ? CONTAINER_GAP : 0;
+  const shouldAddBottomGap =
+    !isRootNode && node.depth >= 0 && (node.isExpandable || node.isLast);
+  const extraBottomPadding = shouldAddBottomGap ? CONTAINER_GAP : 0;
+  const contentLeft = isRootNode
+    ? getRootContentLeft()
+    : getContentLeftDynamic(node.depth, keyWidths);
+  const keyWidth = isRootNode
+    ? KEY_WIDTH
+    : getKeyWidthDynamic(node.depth, keyWidths);
 
-    const handleMenuClick = useCallback(
-      (e: React.MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
-        const anchor = e.currentTarget as HTMLElement;
-        const rect = anchor.getBoundingClientRect();
-        onContextMenu(
-          { clientX: rect.left - 164, clientY: rect.top } as React.MouseEvent,
-          node.path,
-          node.value,
-          anchor
-        );
-      },
-      [node.path, node.value, onContextMenu]
-    );
+  const handleMenuClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const anchor = e.currentTarget as HTMLElement;
+      const rect = anchor.getBoundingClientRect();
+      onContextMenu(
+        { clientX: rect.left - 164, clientY: rect.top } as React.MouseEvent,
+        node.path,
+        node.value,
+        anchor
+      );
+    },
+    [node.path, node.value, onContextMenu]
+  );
 
-    const handleRowClick = useCallback(() => {
-      if (isSelectingAccessPoint) {
-        onAddAccessPoint?.(node.path, { query_data: true });
-      } else {
-        onSelect(node.path);
-      }
-    }, [isSelectingAccessPoint, node.path, onSelect, onAddAccessPoint]);
+  const handleRowClick = useCallback(() => {
+    if (isSelectingAccessPoint) {
+      onAddAccessPoint?.(node.path, { query_data: true });
+    } else {
+      onSelect(node.path);
+    }
+  }, [isSelectingAccessPoint, node.path, onSelect, onAddAccessPoint]);
 
-    return (
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        minHeight: ROW_HEIGHT,
+        paddingTop: extraTopPadding,
+        paddingBottom: extraBottomPadding,
+        overflow: 'hidden',
+        background:
+          hovered || isPopoverOwner
+            ? 'rgba(255, 255, 255, 0.08)'
+            : 'transparent',
+        cursor: 'pointer',
+        userSelect: 'none',
+        position: 'relative',
+      }}
+      onClick={handleRowClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {!isRootNode && (
+        <LevelConnector
+          depth={node.depth}
+          isLast={node.isLast}
+          parentLines={node.parentLines}
+          topOffset={extraTopPadding}
+          keyWidths={keyWidths}
+        />
+      )}
+
+      <button
+        style={{
+          position: 'absolute',
+          left:
+            (isRootNode ? contentLeft : contentLeft + keyWidth + SEP_WIDTH) -
+            MENU_WIDTH -
+            MENU_GAP,
+          top: extraTopPadding + (ROW_HEIGHT - MENU_WIDTH) / 2,
+          width: MENU_WIDTH,
+          height: MENU_WIDTH,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background:
+            hovered || !!isContextMenuOpen
+              ? hovered
+                ? 'rgba(255,255,255,0.2)'
+                : 'rgba(255,255,255,0.1)'
+              : 'transparent',
+          border: 'none',
+          borderRadius: 4,
+          cursor: 'pointer',
+          opacity: hovered || !!isContextMenuOpen ? 1 : 0,
+          transition:
+            'opacity 0.12s, background 0.1s, left 0.1s cubic-bezier(0.2, 0, 0, 1)',
+          color: '#9ca3af',
+          zIndex: 1,
+        }}
+        onClick={handleMenuClick}
+      >
+        <svg width='8' height='12' viewBox='0 0 8 12' fill='none'>
+          <circle cx='2' cy='2' r='1.2' fill='currentColor' />
+          <circle cx='2' cy='6' r='1.2' fill='currentColor' />
+          <circle cx='2' cy='10' r='1.2' fill='currentColor' />
+          <circle cx='6' cy='2' r='1.2' fill='currentColor' />
+          <circle cx='6' cy='6' r='1.2' fill='currentColor' />
+          <circle cx='6' cy='10' r='1.2' fill='currentColor' />
+        </svg>
+      </button>
+
       <div
         style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            minHeight: ROW_HEIGHT,
-            paddingTop: extraTopPadding,
-            paddingBottom: extraBottomPadding,
-            overflow: 'hidden',
-            background: hovered || isPopoverOwner ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-            cursor: 'pointer',
-            userSelect: 'none',
-            position: 'relative',
+          display: 'flex',
+          alignItems: 'flex-start',
+          marginLeft: contentLeft,
+          paddingTop: 0,
+          paddingRight: 0,
+          flex: 1,
+          minWidth: 0,
+          overflow: 'hidden',
+          transition: 'margin-left 0.1s cubic-bezier(0.2, 0, 0, 1)',
         }}
-        onClick={handleRowClick}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
       >
         {!isRootNode && (
-          <LevelConnector
-            depth={node.depth}
-            isLast={node.isLast}
-            parentLines={node.parentLines}
-            topOffset={extraTopPadding}
-            keyWidths={keyWidths}
-          />
+          <div
+            style={{
+              width: keyWidth + SEP_WIDTH,
+              display: 'flex',
+              alignItems: 'center',
+              flexShrink: 0,
+              height: ROW_HEIGHT,
+              transition: 'width 0.1s cubic-bezier(0.2, 0, 0, 1)',
+            }}
+          >
+            {typeof node.key === 'number' ? (
+              <span
+                style={{
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: keyWidth,
+                  color: '#6b7280',
+                  fontSize: 14,
+                  transition: 'max-width 0.1s cubic-bezier(0.2, 0, 0, 1)',
+                }}
+              >
+                {node.key}
+              </span>
+            ) : (
+              <span
+                ref={keyRef}
+                contentEditable={isEditingKey}
+                suppressContentEditableWarning
+                style={{
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: keyWidth,
+                  outline: 'none',
+                  borderRadius: 2,
+                  padding: '0 2px',
+                  margin: '0 -2px',
+                  cursor: isSelectingAccessPoint
+                    ? 'pointer'
+                    : isEditingKey
+                      ? 'text'
+                      : 'default',
+                  background: isEditingKey
+                    ? 'rgba(255, 255, 255, 0.1)'
+                    : 'transparent',
+                  boxShadow: isEditingKey
+                    ? '0 0 0 1px rgba(255, 255, 255, 0.2)'
+                    : 'none',
+                  color: '#6b7280',
+                  fontSize: 14,
+                  transition: 'max-width 0.1s cubic-bezier(0.2, 0, 0, 1)',
+                }}
+                onDoubleClick={e => {
+                  if (!isSelectingAccessPoint) {
+                    e.stopPropagation();
+                    setIsEditingKey(true);
+                    setTimeout(() => keyRef.current?.focus(), 0);
+                  }
+                }}
+                onBlur={e => {
+                  if (!isEditingKey) return;
+                  const newKey = e.currentTarget.innerText.trim();
+                  if (newKey && newKey !== node.key)
+                    onKeyRename(node.path, newKey);
+                  else e.currentTarget.innerText = String(node.key);
+                  setIsEditingKey(false);
+                }}
+                onKeyDown={e => {
+                  if (!isEditingKey) return;
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                  } else if (e.key === 'Escape') {
+                    e.currentTarget.innerText = String(node.key);
+                    e.currentTarget.blur();
+                  }
+                }}
+              >
+                {node.key}
+              </span>
+            )}
+            <span
+              style={{
+                flex: 1,
+                height: 1,
+                background: LINE_COLOR,
+                marginLeft: 6,
+                minWidth: 12,
+              }}
+            />
+          </div>
         )}
 
-        <button
+        <div
           style={{
-            position: 'absolute',
-            left: (isRootNode ? contentLeft : contentLeft + keyWidth + SEP_WIDTH) - MENU_WIDTH - MENU_GAP,
-            top: extraTopPadding + (ROW_HEIGHT - MENU_WIDTH) / 2,
-            width: MENU_WIDTH,
-            height: MENU_WIDTH,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            background: (hovered || !!isContextMenuOpen) ? (hovered ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)') : 'transparent',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer',
-            opacity: (hovered || !!isContextMenuOpen) ? 1 : 0,
-            transition: 'opacity 0.12s, background 0.1s, left 0.1s cubic-bezier(0.2, 0, 0, 1)',
-            color: '#9ca3af',
-            zIndex: 1,
-          }}
-          onClick={handleMenuClick}
-        >
-           <svg width='8' height='12' viewBox='0 0 8 12' fill='none'>
-            <circle cx='2' cy='2' r='1.2' fill='currentColor' />
-            <circle cx='2' cy='6' r='1.2' fill='currentColor' />
-            <circle cx='2' cy='10' r='1.2' fill='currentColor' />
-            <circle cx='6' cy='2' r='1.2' fill='currentColor' />
-            <circle cx='6' cy='6' r='1.2' fill='currentColor' />
-            <circle cx='6' cy='10' r='1.2' fill='currentColor' />
-          </svg>
-        </button>
-
-        <div style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            marginLeft: contentLeft,
-            paddingTop: 0,
-            paddingRight: 0,
             flex: 1,
             minWidth: 0,
             overflow: 'hidden',
-            transition: 'margin-left 0.1s cubic-bezier(0.2, 0, 0, 1)',
-        }}>
-          {!isRootNode && (
-            <div style={{
-                width: keyWidth + SEP_WIDTH,
-                display: 'flex',
-                alignItems: 'center',
-                flexShrink: 0,
-                height: ROW_HEIGHT,
-                transition: 'width 0.1s cubic-bezier(0.2, 0, 0, 1)',
-            }}>
-              {typeof node.key === 'number' ? (
-                <span style={{
-                    flexShrink: 0,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    maxWidth: keyWidth,
-                    color: '#6b7280',
-                    fontSize: 14,
-                    transition: 'max-width 0.1s cubic-bezier(0.2, 0, 0, 1)',
-                }}>
-                  {node.key}
-                </span>
-              ) : (
-                <span
-                  ref={keyRef}
-                  contentEditable={isEditingKey}
-                  suppressContentEditableWarning
-                  style={{
-                    flexShrink: 0,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    maxWidth: keyWidth,
-                    outline: 'none',
-                    borderRadius: 2,
-                    padding: '0 2px',
-                    margin: '0 -2px',
-                    cursor: isSelectingAccessPoint ? 'pointer' : isEditingKey ? 'text' : 'default',
-                    background: isEditingKey ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                    boxShadow: isEditingKey ? '0 0 0 1px rgba(255, 255, 255, 0.2)' : 'none',
-                    color: '#6b7280',
-                    fontSize: 14,
-                    transition: 'max-width 0.1s cubic-bezier(0.2, 0, 0, 1)',
-                  }}
-                  onDoubleClick={e => {
-                    if (!isSelectingAccessPoint) {
-                        e.stopPropagation();
-                        setIsEditingKey(true);
-                        setTimeout(() => keyRef.current?.focus(), 0);
-                    }
-                  }}
-                  onBlur={e => {
-                    if (!isEditingKey) return;
-                    const newKey = e.currentTarget.innerText.trim();
-                    if (newKey && newKey !== node.key) onKeyRename(node.path, newKey);
-                    else e.currentTarget.innerText = String(node.key);
-                    setIsEditingKey(false);
-                  }}
-                  onKeyDown={e => {
-                      if (!isEditingKey) return;
-                      if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
-                      else if (e.key === 'Escape') { e.currentTarget.innerText = String(node.key); e.currentTarget.blur(); }
-                  }}
-                >
-                  {node.key}
-                </span>
-              )}
-              <span style={{ flex: 1, height: 1, background: LINE_COLOR, marginLeft: 6, minWidth: 12 }} />
-            </div>
-          )}
-
-          <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              flex: 1,
-              minWidth: 0,
-              overflow: 'hidden',
-              borderRadius: 4,
-              padding: '0 8px',
-              minHeight: 28,
-              transition: 'all 0.12s',
-              background: isPopoverOwner && !isConfigured ? 'rgba(255, 167, 61, 0.12)' : isConfigured ? (isPopoverOwner ? 'rgba(255, 167, 61, 0.18)' : 'rgba(255, 167, 61, 0.1)') : 'transparent',
-          }}>
-            <ValueRenderer
-              value={node.value}
-              path={node.path}
-              nodeKey={String(node.key)}
-              tableId={tableId !== undefined ? String(tableId) : undefined}
-              isExpanded={node.isExpanded}
-              isExpandable={node.isExpandable}
-              isSelectingAccessPoint={isSelectingAccessPoint}
-              onChange={v => onValueChange(node.path, v)}
-              onToggle={() => onToggle(node.path)}
-              onSelect={() => onSelect(node.path)}
-              onOpenDocument={onOpenDocument}
-            />
-          </div>
-        </div>
-
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <RightAccessControl
+            borderRadius: 4,
+            padding: '0 8px',
+            minHeight: 28,
+            transition: 'all 0.12s',
+            background:
+              isPopoverOwner && !isConfigured
+                ? 'rgba(255, 167, 61, 0.12)'
+                : isConfigured
+                  ? isPopoverOwner
+                    ? 'rgba(255, 167, 61, 0.18)'
+                    : 'rgba(255, 167, 61, 0.1)'
+                  : 'transparent',
+          }}
+        >
+          <ValueRenderer
+            value={node.value}
             path={node.path}
-            configuredAccess={configuredAccess ?? null}
-            isActive={(hovered || isPopoverOwner) && !isSelectingAccessPoint}
-            onAccessChange={onGutterClick}
-            onRemove={onRemoveAccessPoint}
-            onPopoverOpenChange={open => onPopoverOpenChange?.(open ? node.path : null)}
+            nodeKey={String(node.key)}
+            tableId={tableId !== undefined ? String(tableId) : undefined}
+            isExpanded={node.isExpanded}
+            isExpandable={node.isExpandable}
+            isSelectingAccessPoint={isSelectingAccessPoint}
+            onChange={v => onValueChange(node.path, v)}
+            onToggle={() => onToggle(node.path)}
+            onSelect={() => onSelect(node.path)}
+            onOpenDocument={onOpenDocument}
           />
         </div>
       </div>
-    );
-  }
-);
+
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <RightAccessControl
+          path={node.path}
+          configuredAccess={configuredAccess ?? null}
+          isActive={(hovered || isPopoverOwner) && !isSelectingAccessPoint}
+          onAccessChange={onGutterClick}
+          onRemove={onRemoveAccessPoint}
+          onPopoverOpenChange={open =>
+            onPopoverOpenChange?.(open ? node.path : null)
+          }
+        />
+      </div>
+    </div>
+  );
+});
 
 // ============================================
 // Main Component: TreeLineDiscreteEditor
@@ -574,7 +628,11 @@ export default function TreeLineDiscreteEditor({
   }, [configuredAccessPoints]);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
-    visible: false, x: 0, y: 0, path: '', value: null,
+    visible: false,
+    x: 0,
+    y: 0,
+    path: '',
+    value: null,
   });
 
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
@@ -582,24 +640,38 @@ export default function TreeLineDiscreteEditor({
     const expand = (obj: any, path: string, depth: number) => {
       if (depth > 1 || obj === null || typeof obj !== 'object') return;
       paths.add(path);
-      const entries = Array.isArray(obj) ? obj.map((v, i) => [i, v]) : Object.entries(obj);
+      const entries = Array.isArray(obj)
+        ? obj.map((v, i) => [i, v])
+        : Object.entries(obj);
       entries.forEach(([k, v]) => expand(v, `${path}/${k}`, depth + 1));
     };
-    const entries = Array.isArray(json) ? json.map((v, i) => [i, v]) : Object.entries(json);
+    const entries = Array.isArray(json)
+      ? json.map((v, i) => [i, v])
+      : Object.entries(json);
     entries.forEach(([k, v]) => {
-        const p = `/${k}`;
-        paths.add(p);
-        expand(v, p, 1);
+      const p = `/${k}`;
+      paths.add(p);
+      expand(v, p, 1);
     });
     return paths;
   });
 
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [lockedPopoverPath, setLockedPopoverPath] = useState<string | null>(null);
-  const [keyWidths, setKeyWidths] = useState<number[]>(() => Array(MAX_DEPTH_LEVELS).fill(DEFAULT_KEY_WIDTH));
+  const [lockedPopoverPath, setLockedPopoverPath] = useState<string | null>(
+    null
+  );
+  const [keyWidths, setKeyWidths] = useState<number[]>(() =>
+    Array(MAX_DEPTH_LEVELS).fill(DEFAULT_KEY_WIDTH)
+  );
 
-  const flatNodes = useMemo(() => flattenJson(json, expandedPaths), [json, expandedPaths]);
-  const maxDepth = useMemo(() => flatNodes.reduce((max, node) => Math.max(max, node.depth), -1), [flatNodes]);
+  const flatNodes = useMemo(
+    () => flattenJson(json, expandedPaths),
+    [json, expandedPaths]
+  );
+  const maxDepth = useMemo(
+    () => flatNodes.reduce((max, node) => Math.max(max, node.depth), -1),
+    [flatNodes]
+  );
 
   // --- 2. Discrete Scrolling Logic ---
   const visibleCount = useMemo(() => {
@@ -623,47 +695,58 @@ export default function TreeLineDiscreteEditor({
   }, []);
 
   // Wheel Handler - The Core of "Discrete" feel
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-    // Threshold for trackpad sensitivity
-    const STEP_THRESHOLD = 40; 
-    let steps = 0;
+      // Threshold for trackpad sensitivity
+      const STEP_THRESHOLD = 40;
+      let steps = 0;
 
-    if (e.deltaMode === 1) {
+      if (e.deltaMode === 1) {
         // Line scrolling (mouse wheel) - direct mapping
         steps = Math.sign(e.deltaY);
-    } else {
+      } else {
         // Pixel scrolling (trackpad) - accumulate
         accumulatedDelta.current += e.deltaY;
         if (Math.abs(accumulatedDelta.current) >= STEP_THRESHOLD) {
-            steps = Math.sign(accumulatedDelta.current) * Math.floor(Math.abs(accumulatedDelta.current) / STEP_THRESHOLD);
-            accumulatedDelta.current %= STEP_THRESHOLD;
+          steps =
+            Math.sign(accumulatedDelta.current) *
+            Math.floor(Math.abs(accumulatedDelta.current) / STEP_THRESHOLD);
+          accumulatedDelta.current %= STEP_THRESHOLD;
         }
-    }
+      }
 
-    if (steps !== 0) {
+      if (steps !== 0) {
         setScrollIndex(prev => {
-            const next = prev + steps;
-            return Math.max(0, Math.min(next, maxScrollIndex));
+          const next = prev + steps;
+          return Math.max(0, Math.min(next, maxScrollIndex));
         });
-    }
-  }, [maxScrollIndex]);
+      }
+    },
+    [maxScrollIndex]
+  );
 
   // Scrollbar dragging
-  const handleScrollbarChange = useCallback((ratio: number) => {
+  const handleScrollbarChange = useCallback(
+    (ratio: number) => {
       setScrollIndex(Math.floor(ratio * maxScrollIndex));
-  }, [maxScrollIndex]);
+    },
+    [maxScrollIndex]
+  );
 
   // --- 3. Data Handlers ---
-  const handleKeyWidthChange = useCallback((depth: number, newKeyWidth: number) => {
-    setKeyWidths(prev => {
+  const handleKeyWidthChange = useCallback(
+    (depth: number, newKeyWidth: number) => {
+      setKeyWidths(prev => {
         const next = [...prev];
         next[depth] = newKeyWidth;
         return next;
-    });
-  }, []);
+      });
+    },
+    []
+  );
 
   const handleToggle = useCallback((path: string) => {
     setExpandedPaths(prev => {
@@ -674,16 +757,23 @@ export default function TreeLineDiscreteEditor({
     });
   }, []);
 
-  const handleSelect = useCallback((path: string) => {
+  const handleSelect = useCallback(
+    (path: string) => {
       setSelectedPath(path);
       onPathChange?.(path);
-  }, [onPathChange]);
+    },
+    [onPathChange]
+  );
 
-  const handleValueChange = useCallback((path: string, newValue: JsonValue) => {
+  const handleValueChange = useCallback(
+    (path: string, newValue: JsonValue) => {
       if (onChange) onChange(updateJsonAtPath(json, path, newValue));
-  }, [json, onChange]);
+    },
+    [json, onChange]
+  );
 
-  const handleKeyRename = useCallback((path: string, newKey: string) => {
+  const handleKeyRename = useCallback(
+    (path: string, newKey: string) => {
       if (!onChange) return;
       const parts = path.split('/').filter(Boolean);
       if (parts.length === 0) return;
@@ -693,115 +783,148 @@ export default function TreeLineDiscreteEditor({
       for (let i = 0; i < parts.length - 1; i++) parent = parent[parts[i]];
       if (Array.isArray(parent) || typeof parent !== 'object') return;
       if (newKey in parent && newKey !== oldKey) return;
-      
-      const entries = Object.entries(parent);
-      const newEntries: [string, unknown][] = entries.map(([k, v]) => k === oldKey ? [newKey, v] : [k, v]);
-      for (const key of Object.keys(parent)) delete parent[key];
-      for (const [k, v] of newEntries) (parent as Record<string, unknown>)[k] = v;
-      onChange(result);
-  }, [json, onChange]);
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, path: string, value: JsonValue, anchorElement?: HTMLElement) => {
+      const entries = Object.entries(parent);
+      const newEntries: [string, unknown][] = entries.map(([k, v]) =>
+        k === oldKey ? [newKey, v] : [k, v]
+      );
+      for (const key of Object.keys(parent)) delete parent[key];
+      for (const [k, v] of newEntries)
+        (parent as Record<string, unknown>)[k] = v;
+      onChange(result);
+    },
+    [json, onChange]
+  );
+
+  const handleContextMenu = useCallback(
+    (
+      e: React.MouseEvent,
+      path: string,
+      value: JsonValue,
+      anchorElement?: HTMLElement
+    ) => {
       if (!anchorElement) return;
       const rect = anchorElement.getBoundingClientRect();
       setContextMenu({
-        visible: true, x: rect.right, y: rect.bottom + 4, path, value,
-        anchorElement, offsetX: rect.width, offsetY: rect.height + 4, align: 'right',
+        visible: true,
+        x: rect.right,
+        y: rect.bottom + 4,
+        path,
+        value,
+        anchorElement,
+        offsetX: rect.width,
+        offsetY: rect.height + 4,
+        align: 'right',
       });
-  }, []);
+    },
+    []
+  );
 
   // --- 4. Render ---
   // Generate the fixed list of rows based on scrollIndex
   const visibleRows = [];
   for (let i = 0; i < visibleCount; i++) {
-      const nodeIndex = scrollIndex + i;
-      if (nodeIndex >= flatNodes.length) break;
-      visibleRows.push({
-          node: flatNodes[nodeIndex],
-          offsetY: i * ROW_HEIGHT,
-          index: nodeIndex
-      });
+    const nodeIndex = scrollIndex + i;
+    if (nodeIndex >= flatNodes.length) break;
+    visibleRows.push({
+      node: flatNodes[nodeIndex],
+      offsetY: i * ROW_HEIGHT,
+      index: nodeIndex,
+    });
   }
 
   return (
-    <div style={{
+    <div
+      style={{
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
         background: 'transparent',
         color: '#d4d4d4',
         overflow: 'hidden',
-        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily:
+          "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
         fontSize: 13,
-    }}>
-      <DepthResizeBar keyWidths={keyWidths} maxDepth={maxDepth} onKeyWidthChange={handleKeyWidthChange} />
-      
-      <div 
+      }}
+    >
+      <DepthResizeBar
+        keyWidths={keyWidths}
+        maxDepth={maxDepth}
+        onKeyWidthChange={handleKeyWidthChange}
+      />
+
+      <div
         ref={containerRef}
         style={{
-            flex: 1,
-            position: 'relative',
-            overflow: 'hidden', // Disable native scroll
-            paddingLeft: 24,
-            paddingRight: 8,
+          flex: 1,
+          position: 'relative',
+          overflow: 'hidden', // Disable native scroll
+          paddingLeft: 24,
+          paddingRight: 8,
         }}
         onWheel={handleWheel}
       >
         {/* Render visible rows at fixed positions */}
         {visibleRows.map(({ node, offsetY }) => (
-            <div
-                key={node.path || '$root'}
-                style={{
-                    position: 'absolute',
-                    top: offsetY,
-                    left: 24, // Matches paddingLeft of container
-                    right: 8,
-                    height: ROW_HEIGHT,
-                }}
-            >
-                <VirtualRow
-                  node={node}
-                  isSelected={selectedPath === node.path}
-                  keyWidths={keyWidths}
-                  tableId={tableId}
-                  onToggle={handleToggle}
-                  onSelect={handleSelect}
-                  onValueChange={handleValueChange}
-                  onKeyRename={handleKeyRename}
-                  onContextMenu={handleContextMenu}
-                  isSelectingAccessPoint={isSelectingAccessPoint}
-                  onAddAccessPoint={onAddAccessPoint}
-                  configuredAccess={configuredAccessMap.get(node.path) || null}
-                  onGutterClick={onAccessPointChange}
-                  onRemoveAccessPoint={onAccessPointRemove}
-                  lockedPopoverPath={lockedPopoverPath}
-                  onPopoverOpenChange={setLockedPopoverPath}
-                  isContextMenuOpen={contextMenu.visible && contextMenu.path === node.path}
-                  onOpenDocument={onOpenDocument}
-                />
-            </div>
+          <div
+            key={node.path || '$root'}
+            style={{
+              position: 'absolute',
+              top: offsetY,
+              left: 24, // Matches paddingLeft of container
+              right: 8,
+              height: ROW_HEIGHT,
+            }}
+          >
+            <VirtualRow
+              node={node}
+              isSelected={selectedPath === node.path}
+              keyWidths={keyWidths}
+              tableId={tableId}
+              onToggle={handleToggle}
+              onSelect={handleSelect}
+              onValueChange={handleValueChange}
+              onKeyRename={handleKeyRename}
+              onContextMenu={handleContextMenu}
+              isSelectingAccessPoint={isSelectingAccessPoint}
+              onAddAccessPoint={onAddAccessPoint}
+              configuredAccess={configuredAccessMap.get(node.path) || null}
+              onGutterClick={onAccessPointChange}
+              onRemoveAccessPoint={onAccessPointRemove}
+              lockedPopoverPath={lockedPopoverPath}
+              onPopoverOpenChange={setLockedPopoverPath}
+              isContextMenuOpen={
+                contextMenu.visible && contextMenu.path === node.path
+              }
+              onOpenDocument={onOpenDocument}
+            />
+          </div>
         ))}
 
         {/* Custom Discrete Scrollbar (Right side) */}
         {flatNodes.length > visibleCount && (
-            <div style={{
+          <div
+            style={{
+              position: 'absolute',
+              right: 2,
+              top: 0,
+              bottom: 0,
+              width: 4,
+              background: 'rgba(255,255,255,0.05)',
+              zIndex: 10,
+            }}
+          >
+            <div
+              style={{
                 position: 'absolute',
-                right: 2,
-                top: 0,
-                bottom: 0,
-                width: 4,
-                background: 'rgba(255,255,255,0.05)',
-                zIndex: 10
-            }}>
-                <div style={{
-                    position: 'absolute',
-                    top: `${(scrollIndex / flatNodes.length) * 100}%`,
-                    height: `${(visibleCount / flatNodes.length) * 100}%`,
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.3)',
-                    borderRadius: 2,
-                }} />
-            </div>
+                top: `${(scrollIndex / flatNodes.length) * 100}%`,
+                height: `${(visibleCount / flatNodes.length) * 100}%`,
+                width: '100%',
+                background: 'rgba(255,255,255,0.3)',
+                borderRadius: 2,
+              }}
+            />
+          </div>
         )}
       </div>
 
@@ -817,4 +940,3 @@ export default function TreeLineDiscreteEditor({
     </div>
   );
 }
-
