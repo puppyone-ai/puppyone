@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
+import time
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Iterable
@@ -12,6 +14,7 @@ from src.llm.embedding_service import EmbeddingService
 from src.table.service import TableService
 from src.turbopuffer.schemas import TurbopufferRow
 from src.turbopuffer.service import TurbopufferSearchService
+from src.utils.logger import log_info
 
 
 def _normalize_json_pointer(pointer: str) -> str:
@@ -131,31 +134,52 @@ class SearchService:
         """
         从 (table_id, json_path) 读取 scope 数据并完成 indexing。
         """
+        t0 = time.perf_counter()
         scope_pointer = _normalize_json_pointer(json_path)
+        log_info(
+            f"[index_scope] start: project_id={project_id} table_id={table_id} json_path='{json_path}'"
+        )
 
-        # 1) 读取 scope 数据（同步 TableService）
-        scope_data = self._table_service.get_context_data(table_id, scope_pointer)
+        # 1) 读取 scope 数据（TableService / Supabase 为同步 IO，避免阻塞事件循环）
+        t1 = time.perf_counter()
+        scope_data = await asyncio.to_thread(
+            self._table_service.get_context_data, table_id, scope_pointer
+        )
+        log_info(
+            f"[index_scope] step1_get_scope_data: table_id={table_id} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
+        )
 
-        # 2) 提取大字符串节点（json_pointer 必须是“绝对指针”）
-        nodes = list(
-            iter_large_string_nodes_for_chunking(
-                self._chunking_service,
-                scope_data,
-                self._chunking_config,
-                base_pointer=scope_pointer,
+        # 2) 提取大字符串节点（json_pointer 必须是"绝对指针"）
+        t2 = time.perf_counter()
+        nodes = await asyncio.to_thread(
+            lambda: list(
+                iter_large_string_nodes_for_chunking(
+                    self._chunking_service,
+                    scope_data,
+                    self._chunking_config,
+                    base_pointer=scope_pointer,
+                )
             )
+        )
+        log_info(
+            f"[index_scope] step2_extract_nodes: table_id={table_id} nodes_count={len(nodes)} elapsed_ms={int((time.perf_counter() - t2) * 1000)}"
         )
 
         # 没有大文本：保持成功，但无需写入 turbopuffer
         if not nodes:
+            log_info(
+                f"[index_scope] done_no_nodes: table_id={table_id} total_ms={int((time.perf_counter() - t0) * 1000)}"
+            )
             return SearchIndexStats(
                 nodes_count=0, chunks_count=0, indexed_chunks_count=0
             )
 
         # 3) ensure chunks（幂等）
+        t3 = time.perf_counter()
         all_chunks: list[Chunk] = []
-        for n in nodes:
-            ensured = ensure_chunks_for_pointer(
+        for i, n in enumerate(nodes):
+            ensured = await asyncio.to_thread(
+                ensure_chunks_for_pointer,
                 repo=self._chunk_repo,
                 service=self._chunking_service,
                 table_id=table_id,
@@ -164,17 +188,35 @@ class SearchService:
                 config=self._chunking_config,
             )
             all_chunks.extend(list(ensured.chunks))
+            if (i + 1) % 10 == 0:
+                log_info(
+                    f"[index_scope] step3_chunking_progress: table_id={table_id} processed={i + 1}/{len(nodes)}"
+                )
+        log_info(
+            f"[index_scope] step3_ensure_chunks: table_id={table_id} chunks_count={len(all_chunks)} elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
+        )
 
         if not all_chunks:
+            log_info(
+                f"[index_scope] done_no_chunks: table_id={table_id} nodes={len(nodes)} total_ms={int((time.perf_counter() - t0) * 1000)}"
+            )
             return SearchIndexStats(
                 nodes_count=len(nodes), chunks_count=0, indexed_chunks_count=0
             )
 
         # 4) embedding（批量）
+        t4 = time.perf_counter()
         texts = [c.chunk_text for c in all_chunks]
+        log_info(
+            f"[index_scope] step4_embedding_start: table_id={table_id} texts_count={len(texts)}"
+        )
         vectors = await self._embedding.generate_embeddings_batch(texts)
+        log_info(
+            f"[index_scope] step4_embedding_done: table_id={table_id} vectors_count={len(vectors)} elapsed_ms={int((time.perf_counter() - t4) * 1000)}"
+        )
 
         # 5) turbopuffer upsert（批量）
+        t5 = time.perf_counter()
         namespace = self.build_namespace(project_id=project_id, table_id=table_id)
         await self.ensure_namespace_schema(namespace=namespace)
 
@@ -194,7 +236,7 @@ class SearchService:
                     "vector": vec,
                     # BM25 字段（全文检索）
                     "content": c.chunk_text,
-                    # 其余 metadata 放 attributes（用于返回“完整 chunk 信息”）
+                    # 其余 metadata 放 attributes（用于返回"完整 chunk 信息"）
                     "table_id": c.table_id,
                     "json_pointer": c.json_pointer,
                     "chunk_index": c.chunk_index,
@@ -208,6 +250,9 @@ class SearchService:
                 }
             )
 
+        log_info(
+            f"[index_scope] step5_turbopuffer_write_start: table_id={table_id} rows_count={len(upsert_rows)}"
+        )
         await self._tp.write(
             namespace,
             upsert_rows=upsert_rows,
@@ -215,25 +260,37 @@ class SearchService:
             # 再带一次 schema，保证首次写入即可用 BM25（与 docs 一致）
             schema={"content": {"type": "string", "full_text_search": True}},
         )
+        log_info(
+            f"[index_scope] step5_turbopuffer_done: table_id={table_id} elapsed_ms={int((time.perf_counter() - t5) * 1000)}"
+        )
 
         # 6) 回写 chunks 表的 turbopuffer 字段（best-effort）
+        t6 = time.perf_counter()
         for c, doc_id in zip(all_chunks, doc_ids, strict=True):
             try:
-                (
-                    self._chunk_repo._client.table("chunks")
-                    .update(
-                        {
-                            "turbopuffer_namespace": namespace,
-                            "turbopuffer_doc_id": doc_id,
-                        }
+                await asyncio.to_thread(
+                    lambda: (
+                        self._chunk_repo._client.table("chunks")
+                        .update(
+                            {
+                                "turbopuffer_namespace": namespace,
+                                "turbopuffer_doc_id": doc_id,
+                            }
+                        )
+                        .eq("id", int(c.id))
+                        .execute()
                     )
-                    .eq("id", int(c.id))
-                    .execute()
                 )
             except Exception:
                 # 不阻断 indexing：后续可通过重建/补齐逻辑再修复
                 pass
+        log_info(
+            f"[index_scope] step6_update_chunks_done: table_id={table_id} elapsed_ms={int((time.perf_counter() - t6) * 1000)}"
+        )
 
+        log_info(
+            f"[index_scope] done: table_id={table_id} nodes={len(nodes)} chunks={len(all_chunks)} total_ms={int((time.perf_counter() - t0) * 1000)}"
+        )
         return SearchIndexStats(
             nodes_count=len(nodes),
             chunks_count=len(all_chunks),

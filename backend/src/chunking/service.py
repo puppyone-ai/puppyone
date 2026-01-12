@@ -82,7 +82,12 @@ class ChunkingService:
                 continue
 
             prev_newline = text.rfind("\n", 0, tentative_start)
-            current_pos = 0 if prev_newline < 0 else prev_newline + 1
+            if prev_newline < 0:
+                # No newline found: fall back to simple overlap without line alignment
+                # This prevents infinite loop when text has no newlines
+                current_pos = tentative_start
+            else:
+                current_pos = prev_newline + 1
 
             # Safety: ensure progress even for edge cases
             if current_pos >= chunk_end:

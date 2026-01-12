@@ -80,7 +80,7 @@ def list_tools_by_table_id(
     ),
     status_code=status.HTTP_201_CREATED,
 )
-async def create_tool(
+def create_tool(
     payload: ToolCreate,
     tool_service: ToolService = Depends(get_tool_service),
     table_service: TableService = Depends(get_table_service),
@@ -120,8 +120,12 @@ async def _run_search_indexing_background(
     后台 indexing 执行器：负责写入 search_index_task 状态，并记录日志（不抛出到请求方）。
     """
     now = dt.datetime.now(tz=dt.timezone.utc)
+    log_info(
+        f"[search_index] background task accepted: tool_id={tool_id} project_id={project_id} table_id={table_id} json_path='{json_path}'"
+    )
     try:
-        repo.upsert(
+        await asyncio.to_thread(
+            repo.upsert,
             SearchIndexTaskUpsert(
                 tool_id=tool_id,
                 user_id=user_id,
@@ -135,7 +139,7 @@ async def _run_search_indexing_background(
                 chunks_count=None,
                 indexed_chunks_count=None,
                 last_error=None,
-            )
+            ),
         )
     except Exception as e:
         # best-effort：不阻断 indexing，但要留日志
@@ -156,7 +160,8 @@ async def _run_search_indexing_background(
             timeout=float(settings.SEARCH_INDEX_TIMEOUT_SECONDS),
         )
         finished = dt.datetime.now(tz=dt.timezone.utc)
-        repo.upsert(
+        await asyncio.to_thread(
+            repo.upsert,
             SearchIndexTaskUpsert(
                 tool_id=tool_id,
                 user_id=user_id,
@@ -170,7 +175,7 @@ async def _run_search_indexing_background(
                 chunks_count=int(stats.chunks_count),
                 indexed_chunks_count=int(stats.indexed_chunks_count),
                 last_error=None,
-            )
+            ),
         )
         log_info(
             f"[search_index] done: tool_id={tool_id} nodes={stats.nodes_count} chunks={stats.chunks_count}"
@@ -179,7 +184,8 @@ async def _run_search_indexing_background(
         finished = dt.datetime.now(tz=dt.timezone.utc)
         msg = f"index_scope timeout after {settings.SEARCH_INDEX_TIMEOUT_SECONDS}s"
         try:
-            repo.upsert(
+            await asyncio.to_thread(
+                repo.upsert,
                 SearchIndexTaskUpsert(
                     tool_id=tool_id,
                     user_id=user_id,
@@ -190,7 +196,7 @@ async def _run_search_indexing_background(
                     started_at=now,
                     finished_at=finished,
                     last_error=msg,
-                )
+                ),
             )
         except Exception as e:
             log_error(
@@ -203,7 +209,8 @@ async def _run_search_indexing_background(
         finished = dt.datetime.now(tz=dt.timezone.utc)
         err = str(e)[:500]
         try:
-            repo.upsert(
+            await asyncio.to_thread(
+                repo.upsert,
                 SearchIndexTaskUpsert(
                     tool_id=tool_id,
                     user_id=user_id,
@@ -214,7 +221,7 @@ async def _run_search_indexing_background(
                     started_at=now,
                     finished_at=finished,
                     last_error=err,
-                )
+                ),
             )
         except Exception as e2:
             log_error(
@@ -235,7 +242,7 @@ async def _run_search_indexing_background(
     ),
     status_code=status.HTTP_201_CREATED,
 )
-async def create_search_tool_async(
+def create_search_tool_async(
     payload: ToolCreate,
     background_tasks: BackgroundTasks,
     tool_service: ToolService = Depends(get_tool_service),
@@ -317,14 +324,40 @@ def get_search_index_status(
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    import time
+
+    t0 = time.perf_counter()
+    log_info(f"[search-index-status] start: tool_id={tool_id}")
+
+    t1 = time.perf_counter()
     tool = tool_service.get_by_id_with_access_check(tool_id, current_user.user_id)
+    log_info(
+        f"[search-index-status] get_tool: tool_id={tool_id} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
+    )
+
     if (tool.type or "").strip() != "search":
+        log_info(
+            f"[search-index-status] not_search_tool: tool_id={tool_id} total_ms={int((time.perf_counter() - t0) * 1000)}"
+        )
         return ApiResponse.error(message="Tool is not a search tool")
 
+    t2 = time.perf_counter()
     sb_client = SupabaseClient().get_client()
+    log_info(
+        f"[search-index-status] get_supabase_client: tool_id={tool_id} elapsed_ms={int((time.perf_counter() - t2) * 1000)}"
+    )
+
+    t3 = time.perf_counter()
     repo = SearchIndexTaskRepository(sb_client)
     task = repo.get_by_tool_id(int(tool_id))
+    log_info(
+        f"[search-index-status] get_task: tool_id={tool_id} found={task is not None} elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
+    )
+
     if task is None:
+        log_info(
+            f"[search-index-status] task_not_found: tool_id={tool_id} total_ms={int((time.perf_counter() - t0) * 1000)}"
+        )
         return ApiResponse.error(message="Search index task not found")
 
     out = SearchIndexTaskOut(
@@ -336,6 +369,9 @@ def get_search_index_status(
         chunks_count=task.chunks_count,
         indexed_chunks_count=task.indexed_chunks_count,
         last_error=task.last_error,
+    )
+    log_info(
+        f"[search-index-status] done: tool_id={tool_id} status={task.status} total_ms={int((time.perf_counter() - t0) * 1000)}"
     )
     return ApiResponse.success(data=out, message="获取索引状态成功")
 
