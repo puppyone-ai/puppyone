@@ -151,8 +151,19 @@ class TurbopufferSearchService:
             return await asyncio.to_thread(fn)
         except Exception as e:
             mapped = map_external_exception(e)
-            # 不输出原始异常文本，避免 request/headers 等敏感信息泄露
-            logger.warning("Turbopuffer call failed: %s", type(mapped).__name__)
+            # 记录更详细的错误信息以便调试
+            error_body = None
+            if hasattr(e, "body"):
+                error_body = getattr(e, "body", None)
+            elif hasattr(e, "response") and hasattr(e.response, "text"):
+                error_body = e.response.text
+            elif hasattr(e, "message"):
+                error_body = getattr(e, "message", None)
+            logger.warning(
+                "Turbopuffer call failed: %s, details: %s",
+                type(mapped).__name__,
+                error_body or str(e)[:500],
+            )
             raise mapped from e
 
     async def list_namespaces(

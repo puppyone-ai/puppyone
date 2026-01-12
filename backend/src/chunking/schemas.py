@@ -13,17 +13,6 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
-class ChunkingConfig(BaseModel):
-    """Chunking behavior configuration (character-based)."""
-
-    chunk_threshold_chars: int = Field(default=10000, ge=0)
-    chunk_size_chars: int = Field(default=1000, ge=1)
-    chunk_overlap_chars: int = Field(default=100, ge=0)
-
-    max_content_size_chars: int = Field(default=500_000, ge=1)
-    max_chunks_per_node: int = Field(default=500, ge=1)
-
-
 class LargeStringNode(BaseModel):
     """A large string node extracted from a JSON tree."""
 

@@ -7,8 +7,9 @@ import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from src.chunking.config import ChunkingConfig
 from src.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
-from src.chunking.schemas import Chunk, ChunkingConfig
+from src.chunking.schemas import Chunk
 from src.chunking.service import ChunkingService, iter_large_string_nodes_for_chunking
 from src.llm.embedding_service import EmbeddingService
 from src.table.service import TableService
@@ -114,8 +115,13 @@ class SearchService:
     def build_doc_id(
         *, table_id: int, json_pointer: str, content_hash: str, chunk_index: int
     ) -> str:
-        pointer_encoded = urllib.parse.quote(json_pointer, safe="")
-        return f"{table_id}:{pointer_encoded}:{content_hash[:12]}:chunk_{chunk_index}"
+        # Turbopuffer 要求 ID 最多 64 字节，所以用 hash 来压缩 json_pointer
+        import hashlib
+
+        pointer_hash = hashlib.md5(json_pointer.encode("utf-8")).hexdigest()[:12]
+        # 格式: {table_id}_{pointer_hash}_{content_hash[:8]}_{chunk_index}
+        # 最大长度估算: 10 + 1 + 12 + 1 + 8 + 1 + 5 = ~38 字节
+        return f"{table_id}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
 
     async def ensure_namespace_schema(self, *, namespace: str) -> None:
         # 最小 schema：为 BM25 启用 full_text_search
@@ -216,9 +222,9 @@ class SearchService:
         )
 
         # 5) turbopuffer upsert（批量）
+        # 注意：write 带 schema 参数会自动创建 namespace，支持增量更新
         t5 = time.perf_counter()
         namespace = self.build_namespace(project_id=project_id, table_id=table_id)
-        await self.ensure_namespace_schema(namespace=namespace)
 
         upsert_rows: list[dict[str, Any]] = []
         doc_ids: list[str] = []

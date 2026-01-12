@@ -10,7 +10,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Iterable
 
-from src.chunking.schemas import ChunkSegment, ChunkingConfig, LargeStringNode
+from src.chunking.config import ChunkingConfig
+from src.chunking.schemas import ChunkSegment, LargeStringNode
 
 
 def compute_content_hash(content: str) -> str:
@@ -75,23 +76,23 @@ class ChunkingService:
                 current_pos = chunk_end
                 continue
 
-            # Overlap, but keep start aligned to a line boundary (beginning of a line)
+            # Overlap: next chunk starts some characters before chunk_end
+            # to provide context continuity
             tentative_start = max(chunk_end - chunk_overlap_chars, 0)
-            if tentative_start == 0:
-                current_pos = 0
-                continue
 
-            prev_newline = text.rfind("\n", 0, tentative_start)
-            if prev_newline < 0:
-                # No newline found: fall back to simple overlap without line alignment
-                # This prevents infinite loop when text has no newlines
-                current_pos = tentative_start
-            else:
-                current_pos = prev_newline + 1
+            # Try to align to a line boundary for better readability
+            if tentative_start > 0:
+                prev_newline = text.rfind("\n", 0, tentative_start)
+                if prev_newline >= 0:
+                    tentative_start = prev_newline + 1
 
-            # Safety: ensure progress even for edge cases
-            if current_pos >= chunk_end:
+            # CRITICAL: Always ensure forward progress to prevent infinite loops
+            # The next position must be strictly greater than the previous start
+            if tentative_start <= current_pos:
+                # No progress would be made; advance to chunk_end instead
                 current_pos = chunk_end
+            else:
+                current_pos = tentative_start
 
         return chunks
 

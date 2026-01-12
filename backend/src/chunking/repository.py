@@ -6,14 +6,17 @@ This layer persists to Supabase/Postgres table: public.chunks
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any, List, Optional
 
 if TYPE_CHECKING:
     pass
 
-from src.chunking.schemas import Chunk, ChunkCreate, ChunkingConfig, EnsureChunksResult
+from src.chunking.config import ChunkingConfig
+from src.chunking.schemas import Chunk, ChunkCreate, EnsureChunksResult
 from src.chunking.service import ChunkingService, compute_content_hash
 from src.supabase.exceptions import handle_supabase_error
+from src.utils.logger import log_info
 
 
 class ChunkRepository:
@@ -54,21 +57,42 @@ def ensure_chunks_for_pointer(
     content: str,
     config: Optional[ChunkingConfig] = None,
 ) -> EnsureChunksResult:
+    t0 = time.perf_counter()
+    log_info(
+        f"[ensure_chunks] start: table_id={table_id} pointer={json_pointer[:50]} content_len={len(content)}"
+    )
+
     cfg = config or ChunkingConfig()
     svc = service or ChunkingService()
 
+    t1 = time.perf_counter()
+    log_info(f"[ensure_chunks] validate_content_limits start: content_len={len(content)}")
     svc.validate_content_limits(
         content,
         max_content_size_chars=cfg.max_content_size_chars,
         max_chunks_per_node=cfg.max_chunks_per_node,
         config=cfg,
     )
+    log_info(
+        f"[ensure_chunks] validate_content_limits done: elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
+    )
 
+    t2 = time.perf_counter()
     content_hash = compute_content_hash(content)
+    log_info(f"[ensure_chunks] hash computed: elapsed_ms={int((time.perf_counter() - t2) * 1000)}")
+
+    t3 = time.perf_counter()
     existing = repo.get_by_hash(
         table_id=table_id, json_pointer=json_pointer, content_hash=content_hash
     )
+    log_info(
+        f"[ensure_chunks] get_by_hash done: found={len(existing)} elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
+    )
+
     if existing:
+        log_info(
+            f"[ensure_chunks] returning existing chunks: count={len(existing)} total_ms={int((time.perf_counter() - t0) * 1000)}"
+        )
         return EnsureChunksResult(
             table_id=table_id,
             json_pointer=json_pointer,
@@ -77,10 +101,15 @@ def ensure_chunks_for_pointer(
             chunks=existing,
         )
 
+    t4 = time.perf_counter()
+    log_info(f"[ensure_chunks] chunk_text start: content_len={len(content)}")
     segments = svc.chunk_text(
         content,
         chunk_size_chars=cfg.chunk_size_chars,
         chunk_overlap_chars=cfg.chunk_overlap_chars,
+    )
+    log_info(
+        f"[ensure_chunks] chunk_text done: segments={len(segments)} elapsed_ms={int((time.perf_counter() - t4) * 1000)}"
     )
 
     total = len(segments)
@@ -99,10 +128,19 @@ def ensure_chunks_for_pointer(
             )
         )
 
+    t5 = time.perf_counter()
+    log_info(f"[ensure_chunks] bulk_create start: count={len(creates)}")
     created = repo.bulk_create(creates)
+    log_info(
+        f"[ensure_chunks] bulk_create done: created={len(created)} elapsed_ms={int((time.perf_counter() - t5) * 1000)}"
+    )
+
     # Ensure stable ordering
     created_sorted = sorted(created, key=lambda c: c.chunk_index)
 
+    log_info(
+        f"[ensure_chunks] done: table_id={table_id} chunks={len(created_sorted)} total_ms={int((time.perf_counter() - t0) * 1000)}"
+    )
     return EnsureChunksResult(
         table_id=table_id,
         json_pointer=json_pointer,
