@@ -11,6 +11,8 @@ from src.config import settings
 from src.exceptions import AppException
 from src.supabase.dependencies import get_supabase_repository
 from src.turbopuffer.internal_router import router as turbopuffer_internal_router
+from src.search.dependencies import get_search_service
+from src.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -282,6 +284,63 @@ async def delete_table_context_data(
             table_id=table_id, json_pointer_path=json_path, keys=keys
         )
         return {"message": "删除成功", "data": data}
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ============================================================
+# Search Tool internal endpoints（供 mcp_service v2 调用）
+# ============================================================
+
+
+@router.post(
+    "/tools/{tool_id}/search",
+    response_model=SearchToolQueryResponse,
+    summary="执行 Search Tool（hybrid retrieval）",
+    description=(
+        "根据 tool_id 执行混合检索（ANN + BM25 + RRF），返回结构化结果。\n\n"
+        "给前端/调用方的关键点：\n"
+        "- 该端点为 Internal API，需要 `X-Internal-Secret` 鉴权；\n"
+        "- tool 必须是 `type=search`，且必须绑定 `table_id/json_path`；\n"
+        "- 返回的 `results[*].json_path` 为 **相对于 tool.json_path 的 RFC6901 路径**，便于前端在 scope 内定位。"
+    ),
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def search_tool(
+    tool_id: int,
+    payload: SearchToolQueryInput,
+    supabase_repo=Depends(get_supabase_repository),
+    table_service=Depends(get_table_service),
+    search_service=Depends(get_search_service),
+):
+    tool = supabase_repo.get_tool(tool_id)
+    if not tool:
+        raise HTTPException(status_code=404, detail="Tool not found")
+
+    if (tool.type or "").strip() != "search":
+        raise HTTPException(status_code=400, detail="Tool is not a search tool")
+
+    table_id = int(tool.table_id or 0)
+    if not table_id:
+        raise HTTPException(status_code=400, detail="tool.table_id is missing")
+
+    table = table_service.get_by_id(table_id)
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+
+    try:
+        results = await search_service.search_scope(
+            project_id=int(table.project_id),
+            table_id=table_id,
+            tool_json_path=tool.json_path or "",
+            query=payload.query,
+            top_k=payload.top_k,
+        )
+        return {"query": payload.query, "results": results}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:

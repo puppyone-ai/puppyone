@@ -12,6 +12,10 @@ from typing import List
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
+from src.search.dependencies import get_search_service
+from src.search.service import SearchService
+from src.table.dependencies import get_table_service
+from src.table.service import TableService
 from src.tool.dependencies import get_tool_service
 from src.tool.schemas import ToolCreate, ToolOut, ToolUpdate
 from src.tool.service import ToolService
@@ -62,13 +66,33 @@ def list_tools_by_table_id(
     "/",
     response_model=ApiResponse[ToolOut],
     summary="创建 Tool",
+    description=(
+        "创建一个 Tool。\n\n"
+        "对 `type=search` 的特殊说明（给前端）：\n"
+        "- 服务端会在返回的 `metadata.search_index` 中写入索引构建状态；\n"
+        "- 创建后会同步触发一次最小可用的 indexing（chunking + embedding + upsert）；\n"
+        "- 若 indexing 成功：`status=ready` 且填充 `indexed_at/*_count`；失败则 `status=error` 并写入 `last_error`（不阻断 Tool 创建）。\n"
+    ),
     status_code=status.HTTP_201_CREATED,
 )
-def create_tool(
+async def create_tool(
     payload: ToolCreate,
     tool_service: ToolService = Depends(get_tool_service),
+    table_service: TableService = Depends(get_table_service),
+    search_service: SearchService = Depends(get_search_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    # 对 search 工具：默认落一份 search_index 结构到 metadata（最小侵入）
+    metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+    if payload.type == "search":
+        search_index = metadata.get("search_index")
+        if not isinstance(search_index, dict):
+            search_index = {}
+        # 仅在缺失时写入默认字段，避免覆盖调用方自定义配置
+        search_index.setdefault("configured_at", SearchService.now_iso())
+        search_index.setdefault("status", "pending")
+        metadata["search_index"] = search_index
+
     tool = tool_service.create(
         user_id=current_user.user_id,
         table_id=payload.table_id,
@@ -79,8 +103,78 @@ def create_tool(
         description=payload.description,
         input_schema=payload.input_schema,
         output_schema=payload.output_schema,
-        metadata=payload.metadata,
+        metadata=metadata,
     )
+
+    # Search Tool：创建时触发 chunking + indexing（同步最小可用）
+    if payload.type == "search":
+        # 获取 project_id（用于 namespace）
+        table = table_service.get_by_id_with_access_check(payload.table_id, current_user.user_id)
+        # 先把 status 标记为 indexing，便于排障
+        try:
+            cur_meta = tool.metadata if isinstance(tool.metadata, dict) else {}
+            si = cur_meta.get("search_index")
+            if not isinstance(si, dict):
+                si = {}
+            si["status"] = "indexing"
+            cur_meta["search_index"] = si
+            tool = tool_service.update(
+                tool_id=tool.id,
+                user_id=current_user.user_id,
+                patch={"metadata": cur_meta},
+            )
+        except Exception:
+            # best-effort：不阻断创建
+            pass
+
+        try:
+            stats = await search_service.index_scope(
+                project_id=int(table.project_id),
+                table_id=payload.table_id,
+                json_path=payload.json_path,
+            )
+            cur_meta = tool.metadata if isinstance(tool.metadata, dict) else {}
+            si = cur_meta.get("search_index")
+            if not isinstance(si, dict):
+                si = {}
+            si.update(
+                {
+                    "indexed_at": SearchService.now_iso(),
+                    "nodes_count": stats.nodes_count,
+                    "chunks_count": stats.chunks_count,
+                    "indexed_chunks_count": stats.indexed_chunks_count,
+                    "status": "ready",
+                    "last_error": None,
+                }
+            )
+            cur_meta["search_index"] = si
+            tool = tool_service.update(
+                tool_id=tool.id,
+                user_id=current_user.user_id,
+                patch={"metadata": cur_meta},
+            )
+        except Exception as e:
+            cur_meta = tool.metadata if isinstance(tool.metadata, dict) else {}
+            si = cur_meta.get("search_index")
+            if not isinstance(si, dict):
+                si = {}
+            si.update(
+                {
+                    "indexed_at": None,
+                    "status": "error",
+                    "last_error": str(e)[:500],
+                }
+            )
+            cur_meta["search_index"] = si
+            try:
+                tool = tool_service.update(
+                    tool_id=tool.id,
+                    user_id=current_user.user_id,
+                    patch={"metadata": cur_meta},
+                )
+            except Exception:
+                pass
+
     return ApiResponse.success(data=tool, message="创建 Tool 成功")
 
 
