@@ -695,7 +695,7 @@ export default function TreeLineDiscreteEditor({
       if (newKey in parent && newKey !== oldKey) return;
       
       const entries = Object.entries(parent);
-      const newEntries = entries.map(([k, v]) => k === oldKey ? [newKey, v] : [k, v]);
+      const newEntries: [string, unknown][] = entries.map(([k, v]) => k === oldKey ? [newKey, v] : [k, v]);
       for (const key of Object.keys(parent)) delete parent[key];
       for (const [k, v] of newEntries) (parent as Record<string, unknown>)[k] = v;
       onChange(result);
