@@ -29,23 +29,22 @@ class SearchToolQueryInput(BaseModel):
 
 
 class SearchChunk(BaseModel):
+    """
+    Search 结果中的 chunk 信息（仅包含对 Agent 有用的字段）。
+
+    内部字段（不暴露给 Agent）：
+    - table_id, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
+    """
+
     # DB id（可选；当前实现主要依赖 turbopuffer attributes）
     id: Optional[int] = None
 
-    table_id: int
     json_pointer: str
 
     chunk_index: int
     total_chunks: int
 
     chunk_text: str
-    char_start: int
-    char_end: int
-
-    content_hash: str
-
-    turbopuffer_namespace: Optional[str] = None
-    turbopuffer_doc_id: Optional[str] = None
 
 
 class SearchResultItem(BaseModel):

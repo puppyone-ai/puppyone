@@ -357,24 +357,18 @@ class SearchService:
             json_pointer = _normalize_json_pointer(json_pointer)
             json_path = _relative_pointer(base=scope_base, absolute=json_pointer)
 
+            # 仅返回对 Agent 有用的字段
+            # 移除内部字段: table_id, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
             out.append(
                 {
                     "score": float(score),
                     "json_path": json_path,
                     "chunk": {
                         "id": attrs.get("chunk_id"),
-                        "table_id": int(attrs.get("table_id") or table_id),
                         "json_pointer": json_pointer,
                         "chunk_index": int(attrs.get("chunk_index") or 0),
                         "total_chunks": int(attrs.get("total_chunks") or 0),
                         "chunk_text": str(attrs.get("content") or ""),
-                        "char_start": int(attrs.get("char_start") or 0),
-                        "char_end": int(attrs.get("char_end") or 0),
-                        "content_hash": str(attrs.get("content_hash") or ""),
-                        "turbopuffer_namespace": attrs.get("turbopuffer_namespace")
-                        or namespace,
-                        "turbopuffer_doc_id": attrs.get("turbopuffer_doc_id")
-                        or str(row.id),
                     },
                 }
             )
