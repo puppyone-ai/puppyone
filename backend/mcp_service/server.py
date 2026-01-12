@@ -124,6 +124,22 @@ def _default_input_schema_for_tool_type(tool_type: str | None) -> dict[str, Any]
             "additionalProperties": False,
         }
 
+    if t == "search":
+        return {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "检索查询文本"},
+                "top_k": {
+                    "type": "integer",
+                    "description": "返回结果条数（默认 5，上限 20）",
+                    "minimum": 1,
+                    "maximum": 20,
+                },
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        }
+
     # 未知 tool.type：保持兼容，允许透传任意参数
     return {"type": "object", "properties": {}, "additionalProperties": True}
 
@@ -281,6 +297,27 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                     keys = arguments.get("keys", [])
                     result = await table_tool.select_tables(
                         table_id=table_id, json_path=json_path, field=field, keys=keys
+                    )
+                elif tool_type == "search":
+                    tool_id = int(tool_obj.get("id") or 0)
+                    if not tool_id:
+                        return [mcp_types.TextContent(type="text", text="错误: tool.id 缺失")]
+                    query = arguments.get("query")
+                    top_k = arguments.get("top_k")
+                    if not isinstance(query, str) or not query.strip():
+                        return [mcp_types.TextContent(type="text", text="错误: query 参数不能为空")]
+                    # 允许 top_k 缺省；主服务会做默认值与上限控制
+                    if top_k is not None:
+                        try:
+                            top_k = int(top_k)
+                        except (TypeError, ValueError):
+                            return [
+                                mcp_types.TextContent(
+                                    type="text", text="错误: top_k 必须是整数（可选）"
+                                )
+                            ]
+                    result = await rpc_client.search_tool(
+                        tool_id, query=query, top_k=top_k
                     )
                 else:
                     return [mcp_types.TextContent(type="text", text=f"错误: 未支持的 tool.type: {tool_type}")]

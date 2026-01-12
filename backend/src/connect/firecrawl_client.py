@@ -79,12 +79,12 @@ class FirecrawlClient:
             )
 
             log_info(f"Successfully scraped URL with Firecrawl: {url}")
-            
+
             # Convert Document object to dict if needed
-            if hasattr(result, 'model_dump'):
+            if hasattr(result, "model_dump"):
                 # Pydantic v2 model
                 return result.model_dump()
-            elif hasattr(result, 'dict'):
+            elif hasattr(result, "dict"):
                 # Pydantic v1 model
                 return result.dict()
             elif isinstance(result, dict):
@@ -264,4 +264,3 @@ class FirecrawlClient:
         """Clean up resources"""
         # AsyncFirecrawl doesn't require explicit cleanup
         self._client = None
-

@@ -54,7 +54,9 @@ class Settings(BaseSettings):
     # Google Sheets OAuth 配置
     GOOGLE_SHEETS_CLIENT_ID: str = ""
     GOOGLE_SHEETS_CLIENT_SECRET: str = ""
-    GOOGLE_SHEETS_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/google-sheets"
+    GOOGLE_SHEETS_REDIRECT_URI: str = (
+        "http://localhost:3000/oauth/callback/google-sheets"
+    )
 
     # Linear OAuth 配置
     LINEAR_CLIENT_ID: str = ""
@@ -80,6 +82,10 @@ class Settings(BaseSettings):
     PUBLISH_DEFAULT_EXPIRES_DAYS: int = 7
     PUBLISH_KEY_LENGTH: int = 16
     PUBLISH_CACHE_TTL_SECONDS: int = 10
+
+    # Search Tool indexing（异步）
+    # - 仅用于异步 indexing 的 wait_for 超时控制，避免后台任务无限挂起
+    SEARCH_INDEX_TIMEOUT_SECONDS: int = 120
 
 
 settings = Settings()

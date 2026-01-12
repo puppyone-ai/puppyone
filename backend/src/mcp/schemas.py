@@ -25,6 +25,7 @@ ToolTypeKey = Literal[
     "delete",
     "preview",
     "select",
+    "search",
 ]
 
 
@@ -89,6 +90,7 @@ class McpCreate(BaseModel):
                 "delete",
                 "preview",
                 "select",
+                "search",
             }
             for key in v.keys():
                 if key not in valid_keys:
@@ -111,6 +113,7 @@ class McpCreate(BaseModel):
                 "delete",
                 "preview",
                 "select",
+                "search",
             }
             invalid_keys = set(v) - valid_keys
             if invalid_keys:
@@ -176,6 +179,7 @@ class McpUpdate(BaseModel):
                 "delete",
                 "preview",
                 "select",
+                "search",
             }
             for key in v.keys():
                 if key not in valid_keys:
@@ -198,6 +202,7 @@ class McpUpdate(BaseModel):
                 "delete",
                 "preview",
                 "select",
+                "search",
             }
             invalid_keys = set(v) - valid_keys
             if invalid_keys:

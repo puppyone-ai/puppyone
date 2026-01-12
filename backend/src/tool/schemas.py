@@ -10,8 +10,16 @@ from src.mcp.schemas import ToolTypeKey
 
 class ToolCreate(BaseModel):
     table_id: int = Field(..., description="Table ID（Context 所属知识库）")
-    json_path: str = Field(default="", description="JSON Pointer 路径（挂载点）")
-    type: ToolTypeKey = Field(..., description="Tool 类型")
+    json_path: str = Field(
+        default="",
+        description="JSON Pointer 路径（挂载点，RFC6901）。空字符串表示根路径。",
+        examples=["", "/articles", "/0/content"],
+    )
+    type: ToolTypeKey = Field(
+        ...,
+        description="Tool 类型",
+        examples=["search", "create", "query_data"],
+    )
 
     name: str = Field(..., description="工具唯一调用名（建议在同一 MCP 内唯一）")
     alias: Optional[str] = Field(default=None, description="前端展示名（可重复）")
@@ -24,7 +32,12 @@ class ToolCreate(BaseModel):
         default=None, description="JSON Schema (output), 非自定义Tool则为空"
     )
     metadata: Optional[Any] = Field(
-        default=None, description="扩展配置（如 preview_keys 等）"
+        default=None,
+        description=(
+            "扩展配置（按 tool.type 约定）。\n\n"
+            "- 注意：Search Tool 的索引构建状态不再写入 tool.metadata，改由独立索引任务状态表维护。\n"
+        ),
+        examples=[{"preview_keys": ["id", "title"]}],
     )
 
 

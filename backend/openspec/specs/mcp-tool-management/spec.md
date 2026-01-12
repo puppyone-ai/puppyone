@@ -62,6 +62,14 @@ TBD - created by archiving change 2025-12-28-refactor-mcp-tools-and-bindings. Up
 - **WHEN** MCP 客户端 call_tool 并提供 `elements`
 - **THEN** 系统在该挂载点创建元素并返回操作结果
 
+#### Scenario: 执行 search 类型 Tool
+- **GIVEN** Tool.type 为 `search` 且 Tool 指向 `table_id/json_path`
+- **WHEN** MCP 客户端 call_tool 并提供 `query` 与可选 `top_k`
+- **THEN** 系统 SHALL 在该 Tool.scope 内执行检索并返回结构化结果
+- **AND** 系统不应要求除 `query/top_k` 之外的其它输入参数才能完成检索
+- **AND** 返回结果 SHALL 包含命中 chunk 的完整信息与定位信息（至少包含 `table_id/json_pointer/chunk_text/char_start/char_end/chunk_index/total_chunks/content_hash`）
+- **AND** 返回结果中的 `json_path`（若返回该字段）SHALL 适配为 Search Tool 视角下、相对于 `tool.json_path` 的路径
+
 ### Requirement: Tool 名称冲突策略
 系统 SHALL 定义并强制执行 Tool 的名称冲突策略，以保证 MCP 的 `call_tool(name)` 路由确定性；系统 SHALL 保证同一 MCP 实例（mcp_v2）内绑定的 Tool.name 唯一。
 
@@ -130,4 +138,36 @@ TBD - created by archiving change 2025-12-28-refactor-mcp-tools-and-bindings. Up
 - **GIVEN** 客户端提供的 `api_key` 不存在于 `mcp_v2` 表
 - **WHEN** 客户端请求 `GET /api/v1/mcp/{api_key}/tools`
 - **THEN** 系统返回 NOT_FOUND（或等价的“实例不存在”错误）
+
+### Requirement: Search Tool 异步索引构建与状态轮询
+系统 SHALL 支持以“快速返回 + 异步 indexing”的方式创建 Search Tool，并提供对外轮询接口查询索引构建状态；索引构建状态 SHALL 持久化在独立的索引任务状态表（例如 `search_index_task`）中。
+
+#### Scenario: 异步创建 Search Tool（快速返回）
+- **GIVEN** 当前用户有权限访问目标 `table_id`
+- **WHEN** 用户通过异步创建接口创建 `type=search` 的 Tool
+- **THEN** 系统创建并返回 Tool 记录（HTTP 201）
+- **AND** 系统 SHALL 在后台异步触发 indexing（chunking + embedding + upsert）
+- **AND** 系统 SHALL 创建一条索引任务状态记录，并将其 status 初始设置为 pending 或 indexing
+
+#### Scenario: 轮询 Search Tool 索引构建状态
+- **GIVEN** 存在 `type=search` 的 Tool，且系统为其维护索引任务状态记录
+- **WHEN** 客户端调用轮询接口查询该 Tool 的索引构建状态
+- **THEN** 系统返回索引任务状态（至少包含 status 字段）
+- **AND** 当 indexing 成功时，status=ready 且包含 indexed_at/*_count
+- **AND** 当 indexing 失败或超时时，status=error 且包含 last_error
+
+### Requirement: Tool.type 支持 search（检索工具）
+系统 SHALL 支持 `Tool.type=search`，用于对 Tool.scope 内的大文本 chunks 执行检索，并返回结构化结果。
+
+#### Scenario: 创建 search 类型 Tool（成功）
+- **GIVEN** 当前用户有权限访问目标 `table_id`
+- **WHEN** 用户创建 `Tool.type=search`
+- **THEN** 系统在 `tool` 表中写入对应记录（含 `table_id/json_path/type/name/...`）
+- **AND** Tool 的执行语义 SHALL 被定义为“检索”（而非 CRUD/query_data）
+
+#### Scenario: search Tool 的配置通过 metadata 扩展（成功）
+- **GIVEN** `tool` 表包含 `metadata`（JSONB）
+- **WHEN** 用户创建或更新 `Tool.type=search`
+- **THEN** 系统 SHOULD 将 search 的索引配置与状态写入 `tool.metadata.search_index`（最小侵入）
+- **AND** 系统 SHOULD 在 `tool.metadata.search_index` 中包含可用于排障的字段（例如 chunks 数量、最后一次索引时间、失败原因）
 

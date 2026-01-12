@@ -58,7 +58,9 @@ class ConnectService:
         log_info("GithubProvider registered")
 
         google_sheets_service = GoogleSheetsOAuthService()
-        google_sheets_provider = GoogleSheetsProvider(self.user_id, google_sheets_service)
+        google_sheets_provider = GoogleSheetsProvider(
+            self.user_id, google_sheets_service
+        )
         self.parser.register_provider(google_sheets_provider)
         log_info("GoogleSheetsProvider registered")
 

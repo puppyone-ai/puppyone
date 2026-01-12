@@ -158,12 +158,3 @@ async def get_user_post(
     worker.add_task(notifications_service.send_email, user["id"])
     return post
 ```
-
-## External Dependencies
-- MCP server: FastMCP
-- Model integration: litellm
-- Model support:
-  - Text models: deepseek-ai/DeepSeek-V3.2-Exp, MiniMaxAI/MiniMax-M2, moonshotai/Kimi-K2-Thinking, google/gemini-3-pro-preview, anthropic/claude-sonnet-4.5, openai/gpt-5-mini
-  - OCR models: DeepSeek-OCR, PaddleOCR-VL-0.9B
-  - Vision-language model: qwen/qwen3-vl-235b-a22b-instruct
-  - Audio model: mistralai/voxtral-small-24b-2507

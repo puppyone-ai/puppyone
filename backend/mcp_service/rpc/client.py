@@ -360,6 +360,35 @@ class InternalApiClient:
             print(f"Error deleting table data: request_failed url={e.request.url} error={e}")
             raise RuntimeError(f"删除元素失败: {str(e)}") from e
 
+    async def search_tool(self, tool_id: int, *, query: str, top_k: int | None = None) -> Any:
+        """
+        执行 Search Tool（通过主服务 internal API）。
+
+        Args:
+            tool_id: Tool ID（必须是 type=search）
+            query: 查询文本
+            top_k: 返回条数（可选）
+        """
+        try:
+            url = f"{self.base_url}/internal/tools/{tool_id}/search"
+            payload: dict[str, Any] = {"query": query}
+            if top_k is not None:
+                payload["top_k"] = top_k
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error searching tool: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"Search Tool 执行失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error searching tool: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"Search Tool 执行失败: {str(e)}") from e
+
 
 # 创建全局客户端实例
 def create_client() -> InternalApiClient:

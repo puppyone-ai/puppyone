@@ -9,7 +9,6 @@ Turbopuffer 配置
 from __future__ import annotations
 
 import logging
-import os
 
 from pydantic import Field
 from pydantic import model_validator
@@ -17,17 +16,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
-_ENV_FILE = ".env"
-_ENV_FILE_FOR_SETTINGS = (
-    _ENV_FILE if (os.path.isfile(_ENV_FILE) and os.access(_ENV_FILE, os.R_OK)) else None
-)
-
 
 class TurbopufferConfig(BaseSettings):
     model_config = SettingsConfigDict(
-        # 在某些受限环境（如沙盒/CI）中 `.env` 可能不可读；此时不应阻断应用启动
-        env_file=_ENV_FILE_FOR_SETTINGS,
-        env_file_encoding="utf-8",
+        # 本项目在 `src.main` 里统一 `load_dotenv()`，这里仅从环境变量读取，避免测试/多环境下出现
+        # “没设置 env var，但被 .env 隐式注入”的不可控行为。
+        env_file=None,
         extra="ignore",
         env_ignore_empty=True,
         populate_by_name=True,

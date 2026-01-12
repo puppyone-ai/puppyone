@@ -31,9 +31,14 @@ dependencies = [
     "uvicorn>=0.38.0",
     "arq>=0.26.3",
     "turbopuffer>=1.12.0",
+    "aiohttp>=3.13.2",
+    "aiohappyeyeballs>=2.6.1",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "e2e: end-to-end tests that may call real external services",
+]

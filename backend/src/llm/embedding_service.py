@@ -1,14 +1,15 @@
 """
 Embedding Service
 
-Core service for generating embeddings via litellm.
+Core service for generating embeddings via OpenRouter (using OpenAI client).
 
-注意：litellm 库的导入非常慢（20秒+），所以我们使用懒加载策略，
-只在实际调用 embedding 时才导入，以提升应用启动和 reload 速度。
+使用 OpenAI 客户端直接调用 OpenRouter 的 embedding API，
+避免 litellm 不支持 OpenRouter embedding 的问题。
 """
 
 import asyncio
 import logging
+import os
 from typing import Any, Optional
 
 from src.llm.config import llm_config
@@ -25,9 +26,12 @@ from src.llm.exceptions import (
 
 logger = logging.getLogger(__name__)
 
+# OpenRouter API base URL
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
 
 class EmbeddingService:
-    """Service for interacting with embedding models."""
+    """Service for interacting with embedding models via OpenRouter."""
 
     # OpenAI 的 embedding token limit 示例（用于输入预检，避免难以定位的批量错误）
     _DEFAULT_MAX_INPUT_TOKENS = 8191
@@ -39,64 +43,55 @@ class EmbeddingService:
         self.dimensions = self.config.embedding_dimensions
         self.default_batch_size = self.config.embedding_batch_size
 
-        self._litellm_loaded = False
-        self._aembedding = None
-
-        # 缓存 litellm 异常类型（懒加载后填充）
-        self._exc_APIError = None
-        self._exc_AuthenticationError = None
-        self._exc_RateLimitError = None
-        self._exc_Timeout = None
+        self._client_loaded = False
+        self._async_client = None
 
         logger.info(
-            "EmbeddingService initialized with default model: %s (litellm not loaded yet)",
+            "EmbeddingService initialized with default model: %s (OpenAI client not loaded yet)",
             self.default_model,
         )
 
-    def _ensure_litellm(self) -> None:
+    def _ensure_client(self) -> None:
         """
-        确保 litellm 已加载（懒加载）
-
-        只在第一次调用 embedding 时才导入 litellm，避免在应用启动时加载这个重量级库。
+        确保 OpenAI 客户端已加载（懒加载）
         """
-        if self._litellm_loaded:
+        if self._client_loaded:
             return
 
-        logger.info(
-            "Lazy-loading litellm library for embeddings (this may take a few seconds on first use)..."
-        )
-        start_time = (
-            asyncio.get_event_loop().time()
-            if asyncio.get_event_loop().is_running()
-            else 0
-        )
+        logger.info("Initializing OpenAI client for OpenRouter embeddings...")
+
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            raise APIKeyError("openrouter")
+
         try:
-            from litellm import aembedding
-            from litellm.exceptions import (
-                APIError,
-                AuthenticationError,
-                RateLimitError as LiteLLMRateLimitError,
-                Timeout,
-            )
+            from openai import AsyncOpenAI
         except ImportError as e:
             raise LLMError(
-                "Missing dependency 'litellm'. Please ensure litellm is installed.",
+                "Missing dependency 'openai'. Please ensure openai is installed.",
                 original_error=e,
             ) from e
 
-        self._aembedding = aembedding
-        self._exc_APIError = APIError
-        self._exc_AuthenticationError = AuthenticationError
-        self._exc_RateLimitError = LiteLLMRateLimitError
-        self._exc_Timeout = Timeout
-        self._litellm_loaded = True
+        self._async_client = AsyncOpenAI(
+            base_url=OPENROUTER_BASE_URL,
+            api_key=api_key,
+            timeout=float(self.config.llm_timeout),
+        )
+        self._client_loaded = True
+        logger.info("OpenAI client initialized for OpenRouter embeddings")
 
-        duration = (
-            (asyncio.get_event_loop().time() - start_time) * 1000 if start_time else 0
-        )
-        logger.info(
-            "litellm loaded successfully for embeddings (took %.2fms)", duration
-        )
+    @staticmethod
+    def _normalize_model_name(model: str) -> str:
+        """
+        将模型名称转换为 OpenRouter 格式。
+        
+        例如：
+        - "openrouter/qwen/qwen3-embedding-8b" -> "qwen/qwen3-embedding-8b"
+        - "qwen/qwen3-embedding-8b" -> "qwen/qwen3-embedding-8b"
+        """
+        if model.startswith("openrouter/"):
+            return model[len("openrouter/"):]
+        return model
 
     @staticmethod
     def _estimate_tokens(text: str) -> int:
@@ -126,14 +121,6 @@ class EmbeddingService:
     def _validate_model(self, model: str) -> None:
         if model not in self.supported_models:
             raise ModelNotFoundError(model, self.supported_models)
-
-    def _maybe_add_dimensions(self, params: dict[str, Any], model: str) -> None:
-        """
-        OpenAI text-embedding-3-* 支持 dimensions 参数降维；其它模型可能不支持。
-        为了避免跨模型失败，这里仅在明确支持的模型上带上 dimensions。
-        """
-        if "text-embedding-3" in model and self.dimensions:
-            params["dimensions"] = self.dimensions
 
     def _extract_embeddings(
         self, response: Any, expected_count: int
@@ -178,85 +165,99 @@ class EmbeddingService:
         self, texts: list[str], model: str
     ) -> list[list[float]]:
         """
-        调用 litellm embedding API（带重试）
+        调用 OpenRouter embedding API（带重试）
         """
-        self._ensure_litellm()
+        self._ensure_client()
 
-        request_params: dict[str, Any] = {
-            "model": model,
-            "input": texts,
-            "timeout": self.config.llm_timeout,
-        }
-        self._maybe_add_dimensions(request_params, model)
+        # 转换模型名称（去掉 openrouter/ 前缀）
+        openrouter_model = self._normalize_model_name(model)
 
         last_error: Exception | None = None
         for attempt in range(self.config.llm_max_retries):
             try:
                 logger.info(
-                    "Calling Embedding API (attempt %s/%s): model=%s, texts=%s",
+                    "Calling OpenRouter Embedding API (attempt %s/%s): model=%s, texts=%s",
                     attempt + 1,
                     self.config.llm_max_retries,
-                    model,
+                    openrouter_model,
                     len(texts),
                 )
 
-                response = await self._aembedding(**request_params)
+                # 构建请求参数
+                create_params: dict[str, Any] = {
+                    "model": openrouter_model,
+                    "input": texts,
+                    "encoding_format": "float",
+                }
+
+                # OpenAI text-embedding-3-* 支持 dimensions 参数
+                if "text-embedding-3" in model and self.dimensions:
+                    create_params["dimensions"] = self.dimensions
+
+                response = await self._async_client.embeddings.create(**create_params)
                 return self._extract_embeddings(response, expected_count=len(texts))
 
-            except self._exc_AuthenticationError as e:
-                provider = model.split("/")[0] if "/" in model else "unknown"
-                logger.error(
-                    "Embedding authentication error for provider %s: %s", provider, e
-                )
-                raise APIKeyError(provider) from e
-
-            except self._exc_Timeout as e:
-                logger.warning("Embedding timeout on attempt %s: %s", attempt + 1, e)
-                last_error = TimeoutError(self.config.llm_timeout)
-                if attempt < self.config.llm_max_retries - 1:
-                    await asyncio.sleep(2**attempt)
-                continue
-
-            except self._exc_RateLimitError as e:
-                retry_after = getattr(e, "retry_after", None)
-                logger.warning(
-                    "Embedding rate limit on attempt %s (retry_after=%s): %s",
-                    attempt + 1,
-                    retry_after,
-                    e,
-                )
-                last_error = RateLimitError(retry_after)
-                if attempt < self.config.llm_max_retries - 1:
-                    wait_time = retry_after if retry_after else (2**attempt)
-                    await asyncio.sleep(wait_time)
-                continue
-
-            except self._exc_APIError as e:
-                status_code = getattr(e, "status_code", None)
-                logger.error(
-                    "Embedding API error on attempt %s: status=%s, error=%s",
-                    attempt + 1,
-                    status_code,
-                    e,
-                    exc_info=True,
+            except Exception as e:
+                from openai import (
+                    APIError,
+                    APITimeoutError,
+                    AuthenticationError,
+                    RateLimitError as OpenAIRateLimitError,
                 )
 
-                # Retry on transient server errors
-                if (
-                    status_code in {500, 502, 503, 504}
-                    and attempt < self.config.llm_max_retries - 1
-                ):
-                    last_error = LLMError(
-                        f"Embedding API error: {str(e)}", original_error=e
+                if isinstance(e, AuthenticationError):
+                    logger.error("OpenRouter authentication error: %s", e)
+                    raise APIKeyError("openrouter") from e
+
+                if isinstance(e, APITimeoutError):
+                    logger.warning(
+                        "OpenRouter timeout on attempt %s: %s", attempt + 1, e
                     )
-                    await asyncio.sleep(2**attempt)
+                    last_error = TimeoutError(self.config.llm_timeout)
+                    if attempt < self.config.llm_max_retries - 1:
+                        await asyncio.sleep(2**attempt)
                     continue
 
-                raise LLMError(
-                    f"Embedding API error: {str(e)}", original_error=e
-                ) from e
+                if isinstance(e, OpenAIRateLimitError):
+                    retry_after = getattr(e, "retry_after", None)
+                    logger.warning(
+                        "OpenRouter rate limit on attempt %s (retry_after=%s): %s",
+                        attempt + 1,
+                        retry_after,
+                        e,
+                    )
+                    last_error = RateLimitError(retry_after)
+                    if attempt < self.config.llm_max_retries - 1:
+                        wait_time = retry_after if retry_after else (2**attempt)
+                        await asyncio.sleep(wait_time)
+                    continue
 
-            except Exception as e:
+                if isinstance(e, APIError):
+                    status_code = getattr(e, "status_code", None)
+                    logger.error(
+                        "OpenRouter API error on attempt %s: status=%s, error=%s",
+                        attempt + 1,
+                        status_code,
+                        e,
+                        exc_info=True,
+                    )
+
+                    # Retry on transient server errors
+                    if (
+                        status_code in {500, 502, 503, 504}
+                        and attempt < self.config.llm_max_retries - 1
+                    ):
+                        last_error = LLMError(
+                            f"OpenRouter API error: {str(e)}", original_error=e
+                        )
+                        await asyncio.sleep(2**attempt)
+                        continue
+
+                    raise LLMError(
+                        f"OpenRouter API error: {str(e)}", original_error=e
+                    ) from e
+
+                # Unexpected error
                 logger.error(
                     "Unexpected embedding error on attempt %s: %s",
                     attempt + 1,
@@ -273,7 +274,7 @@ class EmbeddingService:
         logger.error(
             "All %s embedding retries exhausted: model=%s, texts=%s, last_error=%s",
             self.config.llm_max_retries,
-            model,
+            openrouter_model,
             len(texts),
             repr(last_error),
             exc_info=True,

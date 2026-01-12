@@ -403,6 +403,8 @@ name = "contextbase"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiohappyeyeballs" },
+    { name = "aiohttp" },
     { name = "arq" },
     { name = "beautifulsoup4" },
     { name = "boto3" },
@@ -433,6 +435,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohappyeyeballs", specifier = ">=2.6.1" },
+    { name = "aiohttp", specifier = ">=3.13.2" },
     { name = "arq", specifier = ">=0.26.3" },
     { name = "beautifulsoup4", specifier = ">=4.12.0" },
     { name = "boto3", specifier = ">=1.41.5" },

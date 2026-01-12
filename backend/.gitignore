@@ -6,3 +6,6 @@ logs/
 .mineru_cache/
 .etl_rules/
 .pytest_cache/
+.uv_cache/
+.uv-cache/
+.cache/
