@@ -13,7 +13,13 @@ import {
   removeFailedPlaceholders,
   removeAllPlaceholdersForTable,
 } from './BackgroundTaskNotifier';
-import { parseUrl, importData, type ParseUrlResponse } from '../lib/connectApi';
+import {
+  parseUrl,
+  importData,
+  type ParseUrlResponse,
+  type CrawlOptions,
+} from '../lib/connectApi';
+import CrawlOptionsPanel from './CrawlOptionsPanel';
 
 type StartOption = 'empty' | 'documents' | 'url' | 'connect';
 
@@ -133,6 +139,12 @@ export function TableManageDialog({
   const [importMessage, setImportMessage] = useState('');
   const [urlInput, setUrlInput] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>({
+    limit: 50,
+    maxDepth: 3,
+    crawlEntireDomain: true,
+    sitemap: 'include',
+  });
   const [connectUrlInput, setConnectUrlInput] = useState('');
   const [connectParseResult, setConnectParseResult] =
     useState<ParseUrlResponse | null>(null);
@@ -1329,6 +1341,15 @@ export function TableManageDialog({
                     Paste a URL to import content from any webpage
                   </div>
 
+                  {/* Crawl Options Panel - Always visible */}
+                  <div style={{ marginTop: 20 }}>
+                    <CrawlOptionsPanel
+                      url={urlInput}
+                      options={crawlOptions}
+                      onChange={setCrawlOptions}
+                    />
+                  </div>
+
                   {/* Context Name for URL */}
                   {urlInput.trim() && (
                     <div style={{ marginTop: 20 }}>
@@ -1385,7 +1406,7 @@ export function TableManageDialog({
                   >
                     <input
                       type='text'
-                      placeholder='https://www.notion.so/doc...'
+                      placeholder='https://www.notion.so/...'
                       value={connectUrlInput}
                       onChange={e => setConnectUrlInput(e.target.value)}
                       onKeyDown={e => {
@@ -1433,8 +1454,8 @@ export function TableManageDialog({
                     </button>
                   </div>
                   <div style={{ fontSize: 11, color: '#525252', marginTop: 8 }}>
-                    Works with Notion pages, Google Docs (public), and other
-                    supported sources.
+                    Works with Notion pages, Google Docs, and other supported
+                    sources.
                   </div>
                   <div
                     style={{
@@ -1806,6 +1827,7 @@ export function TableManageDialog({
           mode='create_table'
           tableName={name || 'Imported Content'}
           initialUrl={urlInput}
+          initialCrawlOptions={crawlOptions}
           onClose={() => {
             setShowImportModal(false);
             setUrlInput('');

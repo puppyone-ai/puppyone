@@ -73,13 +73,14 @@ class ConnectService:
         airtable_provider = AirtableProvider(self.user_id, airtable_service)
         self.parser.register_provider(airtable_provider)
         log_info("AirtableProvider registered")
-
-    async def parse_url(self, url: str) -> ParseUrlResponse:
+    
+    async def parse_url(self, url: str, crawl_options: Optional[Dict[str, Any]] = None) -> ParseUrlResponse:
         """
         解析 URL 并返回数据预览
 
         Args:
             url: 要解析的 URL
+            crawl_options: Firecrawl爬取选项（用于多页面爬取）
 
         Returns:
             ParseUrlResponse: 解析结果
@@ -89,9 +90,11 @@ class ConnectService:
         """
         try:
             log_info(f"Parsing URL: {url}")
+            if crawl_options:
+                log_info(f"Using crawl options: {crawl_options}")
 
             # 使用解析器获取数据
-            result = await self.parser.parse(url)
+            result = await self.parser.parse(url, crawl_options)
 
             # 提取数据
             data = result.get("data", [])
