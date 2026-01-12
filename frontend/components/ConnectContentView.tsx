@@ -452,7 +452,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
         isLoading: false,
       });
     } catch (err) {
-      console.error(`Failed to disconnect from ${getPlatformName(platformId)}:`, err);
+      console.error(
+        `Failed to disconnect from ${getPlatformName(platformId)}:`,
+        err
+      );
       updatePlatformState(platformId, {
         status: 'error',
         label: 'Authorization error',

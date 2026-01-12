@@ -199,7 +199,7 @@ export function ImportModal({
   // Crawl options for web scraping
   const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>(
     initialCrawlOptions || {
-      limit: 50,  // Reduced to avoid timeout
+      limit: 50, // Reduced to avoid timeout
       maxDepth: 3,
       crawlEntireDomain: true,
       sitemap: 'include',

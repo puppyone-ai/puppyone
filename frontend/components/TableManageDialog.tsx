@@ -13,7 +13,12 @@ import {
   removeFailedPlaceholders,
   removeAllPlaceholdersForTable,
 } from './BackgroundTaskNotifier';
-import { parseUrl, importData, type ParseUrlResponse, type CrawlOptions } from '../lib/connectApi';
+import {
+  parseUrl,
+  importData,
+  type ParseUrlResponse,
+  type CrawlOptions,
+} from '../lib/connectApi';
 import CrawlOptionsPanel from './CrawlOptionsPanel';
 
 type StartOption = 'empty' | 'documents' | 'url' | 'connect';
@@ -1449,8 +1454,8 @@ export function TableManageDialog({
                     </button>
                   </div>
                   <div style={{ fontSize: 11, color: '#525252', marginTop: 8 }}>
-                    Works with Notion pages, Google Docs, and other
-                    supported sources.
+                    Works with Notion pages, Google Docs, and other supported
+                    sources.
                   </div>
                   <div
                     style={{

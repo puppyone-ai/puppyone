@@ -31,7 +31,7 @@ function isSaaSPlatform(url: string): boolean {
       'linear.app',
       'airtable.com',
     ];
-    return saasPatterns.some((pattern) => hostname.includes(pattern));
+    return saasPatterns.some(pattern => hostname.includes(pattern));
   } catch {
     return false;
   }
@@ -175,21 +175,21 @@ export default function CrawlOptionsPanel({
           }}
         >
           <svg
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
+            width='12'
+            height='12'
+            viewBox='0 0 16 16'
+            fill='none'
             style={{
               transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
               transition: 'transform 0.15s',
             }}
           >
             <path
-              d="M6 12L10 8L6 4"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              d='M6 12L10 8L6 4'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
             />
           </svg>
           Advanced Crawl Options
@@ -234,16 +234,16 @@ export default function CrawlOptionsPanel({
                     marginBottom: 6,
                   }}
                 >
-                  <Tooltip text="Maximum number of pages to crawl (1-10000)">
+                  <Tooltip text='Maximum number of pages to crawl (1-10000)'>
                     Max Pages
                   </Tooltip>
                 </label>
                 <input
-                  type="number"
-                  min="1"
-                  max="10000"
+                  type='number'
+                  min='1'
+                  max='10000'
                   value={options.limit ?? 100}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleChange('limit', parseInt(e.target.value) || 100)
                   }
                   style={{
@@ -257,8 +257,8 @@ export default function CrawlOptionsPanel({
                     outline: 'none',
                     transition: 'border-color 0.15s',
                   }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
                 />
               </div>
 
@@ -273,22 +273,22 @@ export default function CrawlOptionsPanel({
                     marginBottom: 6,
                   }}
                 >
-                  <Tooltip text="Maximum depth to crawl from the starting page">
+                  <Tooltip text='Maximum depth to crawl from the starting page'>
                     Crawl Depth
                   </Tooltip>
                 </label>
                 <input
-                  type="number"
-                  min="1"
-                  max="10"
+                  type='number'
+                  min='1'
+                  max='10'
                   value={options.maxDepth ?? ''}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleChange(
                       'maxDepth',
                       e.target.value ? parseInt(e.target.value) : undefined
                     )
                   }
-                  placeholder="Unlimited"
+                  placeholder='Unlimited'
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -300,8 +300,8 @@ export default function CrawlOptionsPanel({
                     outline: 'none',
                     transition: 'border-color 0.15s',
                   }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
                 />
               </div>
             </div>
@@ -333,7 +333,7 @@ export default function CrawlOptionsPanel({
                   marginBottom: 6,
                 }}
               >
-                <Tooltip text="URL patterns to include (e.g., /docs/, /blog/)">
+                <Tooltip text='URL patterns to include (e.g., /docs/, /blog/)'>
                   Include Paths
                 </Tooltip>
               </label>
@@ -377,13 +377,13 @@ export default function CrawlOptionsPanel({
                           lineHeight: 1,
                           transition: 'color 0.15s',
                         }}
-                        onMouseEnter={(e) =>
+                        onMouseEnter={e =>
                           (e.currentTarget.style.color = '#ff6b6b')
                         }
-                        onMouseLeave={(e) =>
+                        onMouseLeave={e =>
                           (e.currentTarget.style.color = '#8B8B8B')
                         }
-                        title="Remove"
+                        title='Remove'
                       >
                         ×
                       </button>
@@ -395,16 +395,16 @@ export default function CrawlOptionsPanel({
               {/* Add Path Input */}
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
-                  type="text"
+                  type='text'
                   value={newIncludePath}
-                  onChange={(e) => setNewIncludePath(e.target.value)}
-                  onKeyDown={(e) => {
+                  onChange={e => setNewIncludePath(e.target.value)}
+                  onKeyDown={e => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       addIncludePath();
                     }
                   }}
-                  placeholder="/docs/"
+                  placeholder='/docs/'
                   style={{
                     flex: 1,
                     padding: '8px 12px',
@@ -417,8 +417,8 @@ export default function CrawlOptionsPanel({
                     outline: 'none',
                     transition: 'border-color 0.15s',
                   }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
                 />
                 <button
                   onClick={addIncludePath}
@@ -434,10 +434,10 @@ export default function CrawlOptionsPanel({
                     transition: 'background 0.15s',
                     whiteSpace: 'nowrap',
                   }}
-                  onMouseEnter={(e) =>
+                  onMouseEnter={e =>
                     (e.currentTarget.style.background = '#353535')
                   }
-                  onMouseLeave={(e) =>
+                  onMouseLeave={e =>
                     (e.currentTarget.style.background = '#2a2a2a')
                   }
                 >
@@ -457,7 +457,7 @@ export default function CrawlOptionsPanel({
                   marginBottom: 6,
                 }}
               >
-                <Tooltip text="URL patterns to exclude (e.g., /api/, /admin/)">
+                <Tooltip text='URL patterns to exclude (e.g., /api/, /admin/)'>
                   Exclude Paths
                 </Tooltip>
               </label>
@@ -501,13 +501,13 @@ export default function CrawlOptionsPanel({
                           lineHeight: 1,
                           transition: 'color 0.15s',
                         }}
-                        onMouseEnter={(e) =>
+                        onMouseEnter={e =>
                           (e.currentTarget.style.color = '#ff6b6b')
                         }
-                        onMouseLeave={(e) =>
+                        onMouseLeave={e =>
                           (e.currentTarget.style.color = '#8B8B8B')
                         }
-                        title="Remove"
+                        title='Remove'
                       >
                         ×
                       </button>
@@ -519,16 +519,16 @@ export default function CrawlOptionsPanel({
               {/* Add Path Input */}
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
-                  type="text"
+                  type='text'
                   value={newExcludePath}
-                  onChange={(e) => setNewExcludePath(e.target.value)}
-                  onKeyDown={(e) => {
+                  onChange={e => setNewExcludePath(e.target.value)}
+                  onKeyDown={e => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       addExcludePath();
                     }
                   }}
-                  placeholder="/api/"
+                  placeholder='/api/'
                   style={{
                     flex: 1,
                     padding: '8px 12px',
@@ -541,8 +541,8 @@ export default function CrawlOptionsPanel({
                     outline: 'none',
                     transition: 'border-color 0.15s',
                   }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
                 />
                 <button
                   onClick={addExcludePath}
@@ -558,10 +558,10 @@ export default function CrawlOptionsPanel({
                     transition: 'background 0.15s',
                     whiteSpace: 'nowrap',
                   }}
-                  onMouseEnter={(e) =>
+                  onMouseEnter={e =>
                     (e.currentTarget.style.background = '#353535')
                   }
-                  onMouseLeave={(e) =>
+                  onMouseLeave={e =>
                     (e.currentTarget.style.background = '#2a2a2a')
                   }
                 >
@@ -599,9 +599,9 @@ export default function CrawlOptionsPanel({
                 }}
               >
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={options.crawlEntireDomain ?? true}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleChange('crawlEntireDomain', e.target.checked)
                   }
                   style={{
@@ -611,7 +611,7 @@ export default function CrawlOptionsPanel({
                     accentColor: '#404040',
                   }}
                 />
-                <Tooltip text="Allow crawling all paths within the domain">
+                <Tooltip text='Allow crawling all paths within the domain'>
                   Crawl Entire Domain
                 </Tooltip>
               </label>
@@ -629,9 +629,9 @@ export default function CrawlOptionsPanel({
                 }}
               >
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={options.allowSubdomains ?? false}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleChange('allowSubdomains', e.target.checked)
                   }
                   style={{
@@ -641,7 +641,7 @@ export default function CrawlOptionsPanel({
                     accentColor: '#404040',
                   }}
                 />
-                <Tooltip text="Allow crawling subdomains (e.g., blog.example.com)">
+                <Tooltip text='Allow crawling subdomains (e.g., blog.example.com)'>
                   Allow Subdomains
                 </Tooltip>
               </label>
@@ -659,9 +659,9 @@ export default function CrawlOptionsPanel({
                 }}
               >
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={options.allowExternalLinks ?? false}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleChange('allowExternalLinks', e.target.checked)
                   }
                   style={{
@@ -671,7 +671,7 @@ export default function CrawlOptionsPanel({
                     accentColor: '#404040',
                   }}
                 />
-                <Tooltip text="Follow links pointing to external domains">
+                <Tooltip text='Follow links pointing to external domains'>
                   Allow External Links
                 </Tooltip>
               </label>
@@ -710,13 +710,13 @@ export default function CrawlOptionsPanel({
                     marginBottom: 6,
                   }}
                 >
-                  <Tooltip text="How to use sitemap.xml for page discovery">
+                  <Tooltip text='How to use sitemap.xml for page discovery'>
                     Sitemap
                   </Tooltip>
                 </label>
                 <select
                   value={options.sitemap ?? 'include'}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleChange(
                       'sitemap',
                       e.target.value as 'only' | 'include' | 'skip'
@@ -734,16 +734,16 @@ export default function CrawlOptionsPanel({
                     outline: 'none',
                     transition: 'border-color 0.15s',
                   }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
                 >
-                  <option value="include" style={{ background: '#0a0a0a' }}>
+                  <option value='include' style={{ background: '#0a0a0a' }}>
                     Include
                   </option>
-                  <option value="only" style={{ background: '#0a0a0a' }}>
+                  <option value='only' style={{ background: '#0a0a0a' }}>
                     Only
                   </option>
-                  <option value="skip" style={{ background: '#0a0a0a' }}>
+                  <option value='skip' style={{ background: '#0a0a0a' }}>
                     Skip
                   </option>
                 </select>
@@ -760,22 +760,22 @@ export default function CrawlOptionsPanel({
                     marginBottom: 6,
                   }}
                 >
-                  <Tooltip text="Delay between requests in milliseconds">
+                  <Tooltip text='Delay between requests in milliseconds'>
                     Delay (ms)
                   </Tooltip>
                 </label>
                 <input
-                  type="number"
-                  min="0"
-                  max="10000"
+                  type='number'
+                  min='0'
+                  max='10000'
                   value={options.delay ?? ''}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleChange(
                       'delay',
                       e.target.value ? parseInt(e.target.value) : undefined
                     )
                   }
-                  placeholder="0"
+                  placeholder='0'
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -787,8 +787,8 @@ export default function CrawlOptionsPanel({
                     outline: 'none',
                     transition: 'border-color 0.15s',
                   }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
                 />
               </div>
             </div>
