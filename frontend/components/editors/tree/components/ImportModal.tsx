@@ -12,7 +12,9 @@ import {
   parseUrl,
   importData,
   type ParseUrlResponse,
+  type CrawlOptions,
 } from '../../../../lib/connectApi';
+import CrawlOptionsPanel from '../../../CrawlOptionsPanel';
 
 interface ImportModalProps {
   visible: boolean;
@@ -23,6 +25,7 @@ interface ImportModalProps {
   projectId: number;
   mode?: 'create_table' | 'import_to_table'; // New: specify import mode
   initialUrl?: string; // Optional - auto-parse this URL on mount
+  initialCrawlOptions?: CrawlOptions; // Optional - initial crawl options
   onClose: () => void;
   onSuccess: (newData: any) => void;
 }
@@ -179,6 +182,7 @@ export function ImportModal({
   projectId,
   mode = 'import_to_table',
   initialUrl = '',
+  initialCrawlOptions,
   onClose,
   onSuccess,
 }: ImportModalProps) {
@@ -191,6 +195,16 @@ export function ImportModal({
   const [needsAuth, setNeedsAuth] = useState(false);
   const [newTableName, setNewTableName] = useState(tableName);
   const [tableDescription, setTableDescription] = useState('');
+
+  // Crawl options for web scraping
+  const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>(
+    initialCrawlOptions || {
+      limit: 50, // Reduced to avoid timeout
+      maxDepth: 3,
+      crawlEntireDomain: true,
+      sitemap: 'include',
+    }
+  );
 
   // Track if we've already auto-parsed to prevent re-parsing
   const hasAutoParsed = useRef(false);
@@ -207,7 +221,7 @@ export function ImportModal({
     setNeedsAuth(false);
 
     try {
-      const result = await parseUrl(url);
+      const result = await parseUrl(url, crawlOptions);
       setParseResult(result);
 
       // Auto-fill table name if empty (for create_table mode)
@@ -228,7 +242,7 @@ export function ImportModal({
     } finally {
       setIsLoading(false);
     }
-  }, [url, mode, newTableName]);
+  }, [url, mode, newTableName, crawlOptions]);
 
   // Auto-parse initialUrl on mount (only once)
   useEffect(() => {
@@ -419,6 +433,13 @@ export function ImportModal({
                 disabled={isLoading || isImporting}
                 style={styles.input}
                 autoFocus
+              />
+
+              {/* Crawl Options Panel */}
+              <CrawlOptionsPanel
+                url={url}
+                options={crawlOptions}
+                onChange={setCrawlOptions}
               />
 
               {/* Parse Button */}

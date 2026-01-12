@@ -51,10 +51,17 @@ async def parse_url(
     - 支持HTML列表
     - 自动识别数据源类型（GitHub、Notion等）
     - 支持OAuth认证的SaaS平台
+    - 支持Firecrawl多页面爬取（通过crawl_options）
     """
     log_info(f"User parsing URL: {payload.url}")
+    
+    # Convert crawl_options to dict if provided
+    crawl_options_dict = None
+    if payload.crawl_options:
+        crawl_options_dict = payload.crawl_options.model_dump(by_alias=True, exclude_none=True)
+        log_info(f"Crawl options provided: {crawl_options_dict}")
 
-    result = await connect_service.parse_url(str(payload.url))
+    result = await connect_service.parse_url(str(payload.url), crawl_options_dict)
     return ApiResponse.success(data=result, message="URL parsed successfully")
 
 

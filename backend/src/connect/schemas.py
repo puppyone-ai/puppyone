@@ -2,14 +2,32 @@
 Connect 模块的 Pydantic 数据模型
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 from pydantic import BaseModel, Field, HttpUrl
+
+
+class CrawlOptions(BaseModel):
+    """Firecrawl 爬取选项"""
+
+    limit: Optional[int] = Field(None, description="Maximum number of pages to crawl (1-10000)")
+    max_depth: Optional[int] = Field(None, description="Maximum crawl depth", alias="maxDepth")
+    include_paths: Optional[List[str]] = Field(None, description="URL patterns to include", alias="includePaths")
+    exclude_paths: Optional[List[str]] = Field(None, description="URL patterns to exclude", alias="excludePaths")
+    crawl_entire_domain: Optional[bool] = Field(None, description="Allow crawling entire domain", alias="crawlEntireDomain")
+    sitemap: Optional[Literal['only', 'include', 'skip']] = Field(None, description="Sitemap usage strategy")
+    allow_subdomains: Optional[bool] = Field(None, description="Allow crawling subdomains", alias="allowSubdomains")
+    allow_external_links: Optional[bool] = Field(None, description="Follow external links", alias="allowExternalLinks")
+    delay: Optional[int] = Field(None, description="Delay between requests in milliseconds")
+
+    class Config:
+        populate_by_name = True
 
 
 class ParseUrlRequest(BaseModel):
     """解析URL请求"""
 
     url: HttpUrl = Field(..., description="要解析的URL")
+    crawl_options: Optional[CrawlOptions] = Field(None, description="Firecrawl爬取选项（用于多页面爬取）")
 
 
 class DataField(BaseModel):

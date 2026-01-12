@@ -103,7 +103,7 @@ class UrlParser:
         else:
             return "generic"
 
-    async def parse(self, url: str) -> Dict[str, Any]:
+    async def parse(self, url: str, crawl_options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         解析URL并返回结构化数据
 
@@ -174,7 +174,7 @@ class UrlParser:
             else:
                 # Try Firecrawl first for HTML content
                 if self.firecrawl_client.is_available():
-                    firecrawl_result = await self._parse_with_firecrawl(url, source_type)
+                    firecrawl_result = await self._parse_with_firecrawl(url, source_type, crawl_options)
                     if firecrawl_result:
                         return firecrawl_result
                     # If Firecrawl fails, fall back to BeautifulSoup
@@ -234,7 +234,7 @@ class UrlParser:
         }
 
     async def _parse_with_firecrawl(
-        self, url: str, source_type: str
+        self, url: str, source_type: str, crawl_options: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
         """
         使用Firecrawl解析URL
@@ -242,12 +242,18 @@ class UrlParser:
         Args:
             url: 要解析的URL
             source_type: 数据源类型
+            crawl_options: 爬取选项（如果提供，将使用crawl API而非scrape）
 
         Returns:
             解析结果或None（如果失败）
         """
         try:
-            log_info(f"Attempting to parse URL with Firecrawl: {url}")
+            # Check if we should use crawl API (multi-page) or scrape API (single page)
+            if crawl_options:
+                log_info(f"Attempting to crawl URL with Firecrawl: {url}")
+                return await self._crawl_with_firecrawl(url, source_type, crawl_options)
+            
+            log_info(f"Attempting to scrape URL with Firecrawl: {url}")
             
             # Scrape with Firecrawl (get markdown for clean parsing)
             result = await self.firecrawl_client.scrape_url(
@@ -315,6 +321,119 @@ class UrlParser:
 
         except Exception as e:
             log_error(f"Error parsing with Firecrawl for {url}: {e}")
+            return None
+
+    async def _crawl_with_firecrawl(
+        self, url: str, source_type: str, crawl_options: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        使用Firecrawl crawl API爬取多个页面
+
+        Args:
+            url: 起始URL
+            source_type: 数据源类型
+            crawl_options: 爬取选项
+
+        Returns:
+            解析结果或None（如果失败）
+        """
+        try:
+            log_info(f"Starting Firecrawl crawl for {url} with options: {crawl_options}")
+            
+            # Call Firecrawl crawl API
+            result = await self.firecrawl_client.crawl_url(
+                url=url,
+                limit=crawl_options.get("limit", 100),
+                max_depth=crawl_options.get("max_depth") or crawl_options.get("maxDepth"),
+                include_paths=crawl_options.get("include_paths") or crawl_options.get("includePaths"),
+                exclude_paths=crawl_options.get("exclude_paths") or crawl_options.get("excludePaths"),
+                crawl_entire_domain=crawl_options.get("crawl_entire_domain") or crawl_options.get("crawlEntireDomain", True),
+                sitemap=crawl_options.get("sitemap"),
+                allow_subdomains=crawl_options.get("allow_subdomains") or crawl_options.get("allowSubdomains", False),
+                allow_external_links=crawl_options.get("allow_external_links") or crawl_options.get("allowExternalLinks", False),
+                delay=crawl_options.get("delay"),
+                formats=["markdown", "html"],
+                only_main_content=True,
+            )
+
+            if not result:
+                log_warning(f"Firecrawl crawl returned no results for {url}")
+                return None
+
+            # Extract data from crawl result
+            crawl_data = result.get("data", [])
+            if not crawl_data:
+                log_warning(f"No pages found in crawl result for {url}")
+                return None
+
+            log_info(f"Crawled {len(crawl_data)} pages from {url}")
+
+            # Parse each page and combine into structured data
+            all_data = []
+            title = f"Crawled from {urlparse(url).netloc}"
+
+            for i, page in enumerate(crawl_data):
+                page_url = page.get("url") or page.get("metadata", {}).get("sourceURL", f"{url}/page-{i+1}")
+                page_title = page.get("metadata", {}).get("title", f"Page {i+1}")
+                markdown_content = page.get("markdown", "")
+
+                if not markdown_content:
+                    log_warning(f"No markdown content for page: {page_url}")
+                    continue
+
+                # Parse markdown into sections
+                lines = markdown_content.split("\n")
+                page_sections = []
+                current_section = {"title": page_title, "content": "", "url": page_url}
+
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    # Heading
+                    if line.startswith("#"):
+                        # Save previous section
+                        if current_section["content"]:
+                            page_sections.append(current_section.copy())
+                        # Start new section
+                        heading_text = re.sub(r"^#+\s*", "", line)
+                        current_section = {
+                            "title": heading_text,
+                            "content": "",
+                            "url": page_url,
+                            "page_title": page_title,
+                        }
+                    else:
+                        # Add content
+                        if current_section["content"]:
+                            current_section["content"] += " "
+                        current_section["content"] += line
+
+                # Save last section
+                if current_section["content"]:
+                    page_sections.append(current_section)
+
+                all_data.extend(page_sections)
+
+            # Use the title from the first page if available
+            if crawl_data and crawl_data[0].get("metadata", {}).get("title"):
+                title = crawl_data[0]["metadata"]["title"]
+
+            log_info(f"Successfully parsed {len(all_data)} sections from {len(crawl_data)} pages")
+
+            return {
+                "data": all_data,
+                "source_type": source_type,
+                "title": title,
+                "crawl_info": {
+                    "total_pages": len(crawl_data),
+                    "total_sections": len(all_data),
+                },
+            }
+
+        except Exception as e:
+            log_error(f"Error crawling with Firecrawl for {url}: {e}")
             return None
 
     def _parse_json(self, content: str, url: str, source_type: str) -> Dict[str, Any]:
