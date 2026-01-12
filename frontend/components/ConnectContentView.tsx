@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  parseUrl,
-  importData,
-  type ParseUrlResponse,
-  type CrawlOptions,
-} from '../lib/connectApi';
-import CrawlOptionsPanel from './CrawlOptionsPanel';
+// URL parsing功能已移至 TableManageDialog
+// import {
+//   parseUrl,
+//   importData,
+//   type ParseUrlResponse,
+//   type CrawlOptions,
+// } from '../lib/connectApi';
+// import CrawlOptionsPanel from './CrawlOptionsPanel';
 import {
   getNotionStatus,
   connectNotion,
@@ -134,10 +135,11 @@ const statusColors: Record<PlatformStatusType, string> = {
 export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const { projects } = useProjects();
 
-  const [url, setUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [parseResult, setParseResult] = useState<ParseUrlResponse | null>(null);
+  // URL parsing功能已移至 TableManageDialog
+  // const [url, setUrl] = useState('');
+  // const [isLoading, setIsLoading] = useState(false);
+  // const [error, setError] = useState<string | null>(null);
+  // const [parseResult, setParseResult] = useState<ParseUrlResponse | null>(null);
 
   // OAuth states
   const [notionStatus, setNotionStatus] = useState<NotionStatusResponse>({
@@ -174,22 +176,23 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     );
   }, []);
 
-  // Import settings
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
-    null
-  );
-  const [targetTableId, setTargetTableId] = useState<number | null>(null);
-  const [newTableName, setNewTableName] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
-  const [importSuccess, setImportSuccess] = useState(false);
+  // URL parsing和导入功能已移至 TableManageDialog
+  // // Import settings
+  // const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
+  //   null
+  // );
+  // const [targetTableId, setTargetTableId] = useState<number | null>(null);
+  // const [newTableName, setNewTableName] = useState('');
+  // const [isImporting, setIsImporting] = useState(false);
+  // const [importSuccess, setImportSuccess] = useState(false);
 
-  // Crawl options for web scraping
-  const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>({
-    limit: 50,  // Reduced to avoid timeout
-    maxDepth: 3,
-    crawlEntireDomain: true,
-    sitemap: 'include',
-  });
+  // // Crawl options for web scraping
+  // const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>({
+  //   limit: 50,  // Reduced to avoid timeout
+  //   maxDepth: 3,
+  //   crawlEntireDomain: true,
+  //   sitemap: 'include',
+  // });
 
   const updatePlatformState = useCallback(
     (platformId: PlatformId, updates: Partial<PlatformState>) => {
@@ -329,15 +332,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       isLoading: true,
       label: 'Redirecting to Google…',
     });
-    setError(null);
     try {
       await connectGoogleSheets();
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Failed to connect to Google Sheets';
-      setError(message);
+      console.error('Failed to connect to Google Sheets:', err);
       updatePlatformState('google-sheets', {
         status: 'error',
         label: 'Authorization error',
@@ -351,13 +349,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       isLoading: true,
       label: 'Redirecting to Linear…',
     });
-    setError(null);
     try {
       await connectLinear();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to connect to Linear';
-      setError(message);
+      console.error('Failed to connect to Linear:', err);
       updatePlatformState('linear', {
         status: 'error',
         label: 'Authorization error',
@@ -371,13 +366,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       isLoading: true,
       label: 'Redirecting to Airtable…',
     });
-    setError(null);
     try {
       await connectAirtable();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to connect to Airtable';
-      setError(message);
+      console.error('Failed to connect to Airtable:', err);
       updatePlatformState('airtable', {
         status: 'error',
         label: 'Authorization error',
@@ -391,13 +383,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       isLoading: true,
       label: 'Redirecting to Notion…',
     });
-    setError(null);
     try {
       await connectNotion();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to connect to Notion';
-      setError(message);
+      console.error('Failed to connect to Notion:', err);
       updatePlatformState('notion', {
         status: 'error',
         label: 'Authorization error',
@@ -411,13 +400,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       isLoading: true,
       label: 'Redirecting to GitHub…',
     });
-    setError(null);
     try {
       await connectGithub();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to connect to GitHub';
-      setError(message);
+      console.error('Failed to connect to GitHub:', err);
       updatePlatformState('github', {
         status: 'error',
         label: 'Authorization error',
@@ -442,7 +428,6 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       isLoading: true,
       label: 'Disconnecting…',
     });
-    setError(null);
     try {
       if (platformId === 'notion') {
         await disconnectNotion();
@@ -467,11 +452,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
         isLoading: false,
       });
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : `Failed to disconnect from ${getPlatformName(platformId)}`;
-      setError(message);
+      console.error(`Failed to disconnect from ${getPlatformName(platformId)}:`, err);
       updatePlatformState(platformId, {
         status: 'error',
         label: 'Authorization error',
@@ -557,129 +538,130 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const isLinearUrl = (url: string) => url.includes('linear.app');
   const isAirtableUrl = (url: string) => url.includes('airtable.com');
 
-  const handleParse = async () => {
-    if (!url.trim()) {
-      setError('Please enter a URL');
-      return;
-    }
+  // URL parsing和导入功能已移至 TableManageDialog
+  // const handleParse = async () => {
+  //   if (!url.trim()) {
+  //     setError('Please enter a URL');
+  //     return;
+  //   }
 
-    // Check if Notion/GitHub/Google Sheets/Linear/Airtable URL and not authenticated
-    if (isNotionUrl(url) && !notionStatus?.connected) {
-      setError('Please connect Notion before importing this page');
-      return;
-    }
-    if (isGithubUrl(url) && !githubStatus?.connected) {
-      setError('Please connect GitHub before importing this page');
-      return;
-    }
-    if (isGoogleSheetsUrl(url) && !googleSheetsStatus?.connected) {
-      setError(
-        'Please connect Google Sheets before importing this spreadsheet'
-      );
-      return;
-    }
-    if (isLinearUrl(url) && !linearStatus?.connected) {
-      setError('Please connect Linear before importing this page');
-      return;
-    }
-    if (isAirtableUrl(url) && !airtableStatus?.connected) {
-      setError('Please connect Airtable before importing this base');
-      return;
-    }
+  //   // Check if Notion/GitHub/Google Sheets/Linear/Airtable URL and not authenticated
+  //   if (isNotionUrl(url) && !notionStatus?.connected) {
+  //     setError('Please connect Notion before importing this page');
+  //     return;
+  //   }
+  //   if (isGithubUrl(url) && !githubStatus?.connected) {
+  //     setError('Please connect GitHub before importing this page');
+  //     return;
+  //   }
+  //   if (isGoogleSheetsUrl(url) && !googleSheetsStatus?.connected) {
+  //     setError(
+  //       'Please connect Google Sheets before importing this spreadsheet'
+  //     );
+  //     return;
+  //   }
+  //   if (isLinearUrl(url) && !linearStatus?.connected) {
+  //     setError('Please connect Linear before importing this page');
+  //     return;
+  //   }
+  //   if (isAirtableUrl(url) && !airtableStatus?.connected) {
+  //     setError('Please connect Airtable before importing this base');
+  //     return;
+  //   }
 
-    setIsLoading(true);
-    setError(null);
-    setParseResult(null);
-    setImportSuccess(false);
+  //   setIsLoading(true);
+  //   setError(null);
+  //   setParseResult(null);
+  //   setImportSuccess(false);
 
-    try {
-      const result = await parseUrl(url, crawlOptions);
-      setParseResult(result);
+  //   try {
+  //     const result = await parseUrl(url, crawlOptions);
+  //     setParseResult(result);
 
-      // Auto-select first project if available
-      if (projects.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(Number(projects[0].id));
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to parse URL');
+  //     // Auto-select first project if available
+  //     if (projects.length > 0 && !selectedProjectId) {
+  //       setSelectedProjectId(Number(projects[0].id));
+  //     }
+  //   } catch (err) {
+  //     setError(err instanceof Error ? err.message : 'Failed to parse URL');
 
-      // Mark status as error when auth fails
-      if (err instanceof Error && err.message.toLowerCase().includes('auth')) {
-        if (isNotionUrl(url)) {
-          updatePlatformState('notion', {
-            status: 'error',
-            label: 'Authorization error',
-          });
-        }
-        if (isGithubUrl(url)) {
-          updatePlatformState('github', {
-            status: 'error',
-            label: 'Authorization error',
-          });
-        }
-        if (isGoogleSheetsUrl(url)) {
-          updatePlatformState('google-sheets', {
-            status: 'error',
-            label: 'Authorization error',
-          });
-        }
-        if (isLinearUrl(url)) {
-          updatePlatformState('linear', {
-            status: 'error',
-            label: 'Authorization error',
-          });
-        }
-        if (isAirtableUrl(url)) {
-          updatePlatformState('airtable', {
-            status: 'error',
-            label: 'Authorization error',
-          });
-        }
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  //     // Mark status as error when auth fails
+  //     if (err instanceof Error && err.message.toLowerCase().includes('auth')) {
+  //       if (isNotionUrl(url)) {
+  //         updatePlatformState('notion', {
+  //           status: 'error',
+  //           label: 'Authorization error',
+  //         });
+  //       }
+  //       if (isGithubUrl(url)) {
+  //         updatePlatformState('github', {
+  //           status: 'error',
+  //           label: 'Authorization error',
+  //         });
+  //       }
+  //       if (isGoogleSheetsUrl(url)) {
+  //         updatePlatformState('google-sheets', {
+  //           status: 'error',
+  //           label: 'Authorization error',
+  //         });
+  //       }
+  //       if (isLinearUrl(url)) {
+  //         updatePlatformState('linear', {
+  //           status: 'error',
+  //           label: 'Authorization error',
+  //         });
+  //       }
+  //       if (isAirtableUrl(url)) {
+  //         updatePlatformState('airtable', {
+  //           status: 'error',
+  //           label: 'Authorization error',
+  //         });
+  //       }
+  //     }
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
-  const handleImport = async () => {
-    if (!parseResult || !selectedProjectId) {
-      setError('Please select a target project');
-      return;
-    }
+  // const handleImport = async () => {
+  //   if (!parseResult || !selectedProjectId) {
+  //     setError('Please select a target project');
+  //     return;
+  //   }
 
-    // If no table selected and no new table name, use parsed title or default
-    const tableName = targetTableId
-      ? undefined
-      : newTableName || parseResult.title || 'Imported Data';
+  //   // If no table selected and no new table name, use parsed title or default
+  //   const tableName = targetTableId
+  //     ? undefined
+  //     : newTableName || parseResult.title || 'Imported Data';
 
-    setIsImporting(true);
-    setError(null);
+  //   setIsImporting(true);
+  //   setError(null);
 
-    try {
-      await importData({
-        url: parseResult.url,
-        project_id: selectedProjectId,
-        table_id: targetTableId || undefined,
-        table_name: tableName,
-        table_description: `Imported from ${parseResult.source_type}`,
-      });
+  //   try {
+  //     await importData({
+  //       url: parseResult.url,
+  //       project_id: selectedProjectId,
+  //       table_id: targetTableId || undefined,
+  //       table_name: tableName,
+  //       table_description: `Imported from ${parseResult.source_type}`,
+  //     });
 
-      setImportSuccess(true);
+  //     setImportSuccess(true);
 
-      // Reset after 2 seconds
-      setTimeout(() => {
-        setUrl('');
-        setParseResult(null);
-        setTargetTableId(null);
-        setNewTableName('');
-        setImportSuccess(false);
-      }, 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to import data');
-    } finally {
-      setIsImporting(false);
-    }
-  };
+  //     // Reset after 2 seconds
+  //     setTimeout(() => {
+  //       setUrl('');
+  //       setParseResult(null);
+  //       setTargetTableId(null);
+  //       setNewTableName('');
+  //       setImportSuccess(false);
+  //     }, 2000);
+  //   } catch (err) {
+  //     setError(err instanceof Error ? err.message : 'Failed to import data');
+  //   } finally {
+  //     setIsImporting(false);
+  //   }
+  // };
 
   const disconnectPlatformName = disconnectConfirmation.platformId
     ? getPlatformName(disconnectConfirmation.platformId)
@@ -948,7 +930,8 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
             </div>
 
             {/* Connector URL Input Panel */}
-            <div
+            {/* URL parsing功能已移至 TableManageDialog */}
+            {/* <div
               style={{
                 background: '#111111',
                 border: '1px solid #2a2a2a',
@@ -1044,14 +1027,14 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               >
                 Paste a supported SaaS page URL to import its content
               </div>
-            </div>
+            </div> */}
 
             {/* Crawl Options Panel */}
-            <CrawlOptionsPanel
+            {/* <CrawlOptionsPanel
               url={url}
               options={crawlOptions}
               onChange={setCrawlOptions}
-            />
+            /> */}
 
             {disconnectConfirmation.visible && (
               <div
@@ -1132,324 +1115,8 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                 </div>
               </div>
             )}
-            {/* Error Message */}
-            {error && (
-              <div
-                style={{
-                  background: '#2a1a1a',
-                  border: '1px solid #4a2a2a',
-                  borderRadius: 6,
-                  padding: 12,
-                  marginBottom: 16,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: '#f87171',
-                    marginBottom: 4,
-                  }}
-                >
-                  Error
-                </div>
-                <div
-                  style={{
-                    fontSize: 13,
-                    color: '#b91c1c',
-                  }}
-                >
-                  {error}
-                </div>
-              </div>
-            )}
 
-            {/* Parse Result */}
-            {parseResult && (
-              <div
-                style={{
-                  background: '#111111',
-                  border: '1px solid #2a2a2a',
-                  borderRadius: 8,
-                  padding: 20,
-                  marginBottom: 16,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: '#8B8B8B',
-                    marginBottom: 12,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  Preview - {parseResult.title}
-                </div>
-
-                {/* Source Info */}
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 16,
-                    marginBottom: 16,
-                    fontSize: 12,
-                    color: '#8B8B8B',
-                  }}
-                >
-                  <span>Source: {parseResult.source_type}</span>
-                  <span>Items: {parseResult.total_items}</span>
-                  <span>Structure: {parseResult.data_structure}</span>
-                </div>
-
-                {/* Sample Data */}
-                {parseResult.sample_data &&
-                  parseResult.sample_data.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: '#8B8B8B',
-                          marginBottom: 8,
-                        }}
-                      >
-                        Sample Data ({parseResult.sample_data.length} items)
-                      </div>
-
-                      <div
-                        className='connect-preview-scrollbar'
-                        style={{
-                          background: '#0a0a0a',
-                          border: '1px solid #2a2a2a',
-                          borderRadius: 6,
-                          padding: 12,
-                          fontSize: 11,
-                          maxHeight: 200,
-                          overflow: 'auto',
-                        }}
-                      >
-                        <pre
-                          style={{
-                            margin: 0,
-                            whiteSpace: 'pre-wrap',
-                            color: '#CDCDCD',
-                          }}
-                        >
-                          {JSON.stringify(parseResult.sample_data, null, 2)}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-
-                {/* Fields */}
-                {parseResult.fields && parseResult.fields.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: '#8B8B8B',
-                        marginBottom: 8,
-                      }}
-                    >
-                      Detected Fields
-                    </div>
-
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns:
-                          'repeat(auto-fit, minmax(150px, 1fr))',
-                        gap: 8,
-                      }}
-                    >
-                      {parseResult.fields.map((field, index) => (
-                        <div
-                          key={index}
-                          style={{
-                            background: '#0a0a0a',
-                            border: '1px solid #2a2a2a',
-                            borderRadius: 4,
-                            padding: '6px 8px',
-                            fontSize: 11,
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontWeight: 500,
-                              color: '#CDCDCD',
-                              marginBottom: 2,
-                            }}
-                          >
-                            {field.name}
-                          </div>
-                          <div
-                            style={{
-                              color: '#8B8B8B',
-                              fontSize: 10,
-                            }}
-                          >
-                            {field.type}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Import Settings */}
-            {parseResult && (
-              <div
-                style={{
-                  background: '#111111',
-                  border: '1px solid #2a2a2a',
-                  borderRadius: 8,
-                  padding: 20,
-                  marginBottom: 16,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: '#8B8B8B',
-                    marginBottom: 12,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  Import Settings
-                </div>
-
-                {/* Project Selection */}
-                <div style={{ marginBottom: 16 }}>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 500,
-                      color: '#CDCDCD',
-                      marginBottom: 8,
-                    }}
-                  >
-                    Target Project
-                  </div>
-
-                  <select
-                    value={selectedProjectId || ''}
-                    onChange={e => setSelectedProjectId(Number(e.target.value))}
-                    disabled={isImporting}
-                    style={{
-                      width: '100%',
-                      background: '#0a0a0a',
-                      border: '1px solid #2a2a2a',
-                      borderRadius: 6,
-                      padding: '8px 12px',
-                      fontSize: 13,
-                      color: '#CDCDCD',
-                      outline: 'none',
-                    }}
-                  >
-                    {projects.map(project => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Table Name */}
-                <div style={{ marginBottom: 16 }}>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 500,
-                      color: '#CDCDCD',
-                      marginBottom: 8,
-                    }}
-                  >
-                    Table Name
-                  </div>
-
-                  <input
-                    type='text'
-                    value={newTableName}
-                    onChange={e => setNewTableName(e.target.value)}
-                    placeholder={parseResult.title || 'Imported Data'}
-                    disabled={isImporting}
-                    style={{
-                      width: '100%',
-                      background: '#0a0a0a',
-                      border: '1px solid #2a2a2a',
-                      borderRadius: 6,
-                      padding: '8px 12px',
-                      fontSize: 13,
-                      color: '#CDCDCD',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-
-                {/* Import Button */}
-                <button
-                  onClick={handleImport}
-                  disabled={isImporting || !selectedProjectId}
-                  style={{
-                    width: '100%',
-                    background:
-                      isImporting || !selectedProjectId ? '#1a1a1a' : '#2a2a2a',
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: '10px 16px',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color:
-                      isImporting || !selectedProjectId ? '#505050' : '#CDCDCD',
-                    cursor:
-                      isImporting || !selectedProjectId
-                        ? 'not-allowed'
-                        : 'pointer',
-                  }}
-                >
-                  {isImporting
-                    ? 'Importing...'
-                    : `Import ${parseResult.total_items} items`}
-                </button>
-              </div>
-            )}
-
-            {/* Success Message */}
-            {importSuccess && (
-              <div
-                style={{
-                  background: '#1a2a1a',
-                  border: '1px solid #2a4a2a',
-                  borderRadius: 6,
-                  padding: 16,
-                  textAlign: 'center',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 14,
-                    color: '#10b981',
-                    marginBottom: 4,
-                  }}
-                >
-                  Import Successful!
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: '#8B8B8B',
-                  }}
-                >
-                  Data has been imported to your project
-                </div>
-              </div>
-            )}
+            {/* URL parsing, preview, import, and error handling功能已移至 TableManageDialog */}
           </div>
         </div>
       </div>

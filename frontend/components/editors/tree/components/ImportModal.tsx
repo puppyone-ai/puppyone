@@ -25,6 +25,7 @@ interface ImportModalProps {
   projectId: number;
   mode?: 'create_table' | 'import_to_table'; // New: specify import mode
   initialUrl?: string; // Optional - auto-parse this URL on mount
+  initialCrawlOptions?: CrawlOptions; // Optional - initial crawl options
   onClose: () => void;
   onSuccess: (newData: any) => void;
 }
@@ -181,6 +182,7 @@ export function ImportModal({
   projectId,
   mode = 'import_to_table',
   initialUrl = '',
+  initialCrawlOptions,
   onClose,
   onSuccess,
 }: ImportModalProps) {
@@ -195,12 +197,14 @@ export function ImportModal({
   const [tableDescription, setTableDescription] = useState('');
 
   // Crawl options for web scraping
-  const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>({
-    limit: 50,  // Reduced to avoid timeout
-    maxDepth: 3,
-    crawlEntireDomain: true,
-    sitemap: 'include',
-  });
+  const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>(
+    initialCrawlOptions || {
+      limit: 50,  // Reduced to avoid timeout
+      maxDepth: 3,
+      crawlEntireDomain: true,
+      sitemap: 'include',
+    }
+  );
 
   // Track if we've already auto-parsed to prevent re-parsing
   const hasAutoParsed = useRef(false);
@@ -436,7 +440,6 @@ export function ImportModal({
                 url={url}
                 options={crawlOptions}
                 onChange={setCrawlOptions}
-                disabled={isLoading || isImporting}
               />
 
               {/* Parse Button */}
