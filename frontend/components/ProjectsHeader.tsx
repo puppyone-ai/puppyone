@@ -189,7 +189,7 @@ export function ProjectsHeader({
                 fill='currentColor'
               />
             </svg>
-            <span style={{ fontSize: 12, fontWeight: 500 }}>Tools</span>
+            <span style={{ fontSize: 12, fontWeight: 500 }}>Access</span>
           </button>
         </div>
 
@@ -302,5 +302,6 @@ const viewSwitcherBtnStyle: CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   transition: 'all 0.15s',
-  fontFamily: 'inherit',
+  fontFamily:
+    "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
 };

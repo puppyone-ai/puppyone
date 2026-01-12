@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   type McpToolPermissions,
   type McpToolType,
@@ -27,61 +28,540 @@ interface ToolsPanelProps {
   accessPoints: AccessPoint[];
   setAccessPoints: React.Dispatch<React.SetStateAction<AccessPoint[]>>;
   activeBaseName?: string;
-  activeTableName?: string; // 新增：用于显示来源信息
+  activeTableName?: string;
   onClose: () => void;
-  onSaveTools: (toolsDefinition: Record<string, McpToolDefinition>) => void; // 保存 Tools
+  onSaveTools: (toolsDefinition: Record<string, McpToolDefinition>) => void;
   isSaving: boolean;
   saveError: string | null;
   savedResult: SaveToolsResult | null;
   setSavedResult: React.Dispatch<React.SetStateAction<SaveToolsResult | null>>;
-  onViewAllMcp?: () => void; // 跳转到 MCP 管理界面
+  onViewAllMcp?: () => void;
 }
 
-// Tool Definition configuration
-const TOOL_DEFS = [
-  { backendId: 'get_data_schema' as McpToolType, label: 'Get Schema' },
-  { backendId: 'query_data' as McpToolType, label: 'Query' },
-  { backendId: 'get_all_data' as McpToolType, label: 'Get All' },
-  // { backendId: 'preview' as McpToolType, label: 'Preview' },
-  // { backendId: 'select' as McpToolType, label: 'Select' },
-  { backendId: 'create' as McpToolType, label: 'Create' },
-  { backendId: 'update' as McpToolType, label: 'Update' },
-  { backendId: 'delete' as McpToolType, label: 'Delete' },
-];
+// Define Tool Groups
+const READ_TOOLS = ['query_data', 'get_all_data'] as McpToolType[];
+
+const WRITE_TOOLS = ['create', 'update', 'delete'] as McpToolType[];
+
+const ALL_TOOLS = [
+  'shell_access',
+  ...READ_TOOLS,
+  ...WRITE_TOOLS,
+] as McpToolType[];
+
+// Tool Config Map for display
+const TOOL_CONFIG: Record<string, { label: string; short: string }> = {
+  shell_access: { label: 'Bash / Shell Access', short: 'Bash' },
+  get_data_schema: { label: 'Get Schema', short: 'Schema' },
+  query_data: { label: 'Query Data', short: 'Query' },
+  get_all_data: { label: 'Get All Data', short: 'Get All' },
+  create: { label: 'Create Row', short: 'Create' },
+  update: { label: 'Update Row', short: 'Update' },
+  delete: { label: 'Delete Row', short: 'Delete' },
+};
+
+// Theme Color - Consistent Orange
+const ACCENT_COLOR = '#f97316'; // Orange-500
+
+// --- Sub Component: Add Capability Button ---
+const AddCapabilityButton = ({
+  ap,
+  usedTools,
+  onAdd,
+}: {
+  ap: AccessPoint;
+  usedTools: Set<McpToolType>;
+  onAdd: (toolId: McpToolType) => void;
+}) => {
+  const [showMenu, setShowMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const availableTools = ALL_TOOLS.filter(t => !usedTools.has(t));
+
+  if (availableTools.length === 0) return null;
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={e => {
+          e.stopPropagation();
+          if (btnRef.current) {
+            const rect = btnRef.current.getBoundingClientRect();
+            setMenuPos({ top: rect.bottom + 4, left: rect.left });
+          }
+          setShowMenu(!showMenu);
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 12px',
+          background: 'rgba(255, 255, 255, 0.03)',
+          border: '1px dashed rgba(255, 255, 255, 0.1)',
+          borderRadius: 6,
+          color: '#71717a',
+          fontSize: 12,
+          cursor: 'pointer',
+          width: '100%',
+          justifyContent: 'center',
+          marginTop: 8,
+          transition: 'all 0.15s',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+          e.currentTarget.style.color = '#a1a1aa';
+          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+          e.currentTarget.style.color = '#71717a';
+          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+        }}
+      >
+        <svg
+          width='12'
+          height='12'
+          viewBox='0 0 24 24'
+          fill='none'
+          stroke='currentColor'
+          strokeWidth='2'
+        >
+          <path
+            d='M12 5v14M5 12h14'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          />
+        </svg>
+        Add Capability
+      </button>
+
+      {showMenu &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+              onClick={() => setShowMenu(false)}
+            />
+            <div
+              style={{
+                position: 'fixed',
+                top: menuPos.top,
+                left: menuPos.left,
+                width: 200,
+                background: '#18181b',
+                border: '1px solid #27272a',
+                borderRadius: 8,
+                padding: 4,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                zIndex: 9999,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+              }}
+            >
+              <div
+                style={{
+                  padding: '4px 8px',
+                  fontSize: 10,
+                  color: '#525252',
+                  fontWeight: 600,
+                }}
+              >
+                AVAILABLE TOOLS
+              </div>
+              {availableTools.map(toolId => (
+                <div
+                  key={toolId}
+                  onClick={() => {
+                    onAdd(toolId);
+                    setShowMenu(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 8px',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    color: '#e2e8f0',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e =>
+                    (e.currentTarget.style.background = '#27272a')
+                  }
+                  onMouseLeave={e =>
+                    (e.currentTarget.style.background = 'transparent')
+                  }
+                >
+                  <div
+                    style={{
+                      color: '#71717a',
+                      width: 14,
+                      height: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {toolId === 'shell_access' ? (
+                      <svg
+                        width='12'
+                        height='12'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                      >
+                        <polyline points='4 17 10 11 4 5'></polyline>
+                        <line x='12' y1='19' x2='20' y2='19'></line>
+                      </svg>
+                    ) : (
+                      TOOL_ICONS[toolId]
+                    )}
+                  </div>
+                  {TOOL_CONFIG[toolId]?.short || toolId}
+                </div>
+              ))}
+            </div>
+          </>,
+          document.body
+        )}
+    </>
+  );
+};
+
+// --- Sub Component: Tool Item ---
+const ToolItem = ({
+  ap,
+  toolId,
+  safeName,
+  activeBaseName,
+  onToggle,
+  expandedToolId,
+  setExpandedToolId,
+}: {
+  ap: AccessPoint;
+  toolId: McpToolType;
+  safeName: string;
+  activeBaseName?: string;
+  onToggle: (apId: string, toolId: McpToolType, current: boolean) => void;
+  expandedToolId: string | null;
+  setExpandedToolId: (id: string | null) => void;
+}) => {
+  const isEnabled = ap.permissions[toolId];
+  const uniqueToolId = `${ap.id}-${toolId}`;
+  const isExpanded = expandedToolId === uniqueToolId;
+  const [isHovered, setIsHovered] = useState(false);
+
+  // Edit States
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [name, setName] = useState(`${toolId}_${safeName}`);
+  const [desc, setDesc] = useState(
+    `${TOOL_CONFIG[toolId]?.label || toolId} - ${activeBaseName || 'Project'}`
+  );
+
+  // Bash Access Level State (Separated into Read/Write)
+  const [allowRead, setAllowRead] = useState(true);
+  const [allowWrite, setAllowWrite] = useState(false);
+
+  // Special Icon for Bash
+  const renderIcon = () => {
+    if (toolId === 'shell_access') {
+      return (
+        <svg
+          width='14'
+          height='14'
+          viewBox='0 0 24 24'
+          fill='none'
+          stroke='currentColor'
+          strokeWidth='2'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+        >
+          <polyline points='4 17 10 11 4 5'></polyline>
+          <line x1='12' y1='19' x2='20' y2='19'></line>
+        </svg>
+      );
+    }
+    if (TOOL_ICONS[toolId]) return TOOL_ICONS[toolId];
+    return (
+      <svg
+        width='12'
+        height='12'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='2'
+      >
+        <rect x='3' y='3' width='18' height='18' rx='2' />
+      </svg>
+    );
+  };
+
+  return (
+    <div>
+      {/* Main Row */}
+      <div
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          height: 28,
+          padding: '0 4px 0 6px',
+          gap: 8,
+          borderRadius: 6,
+          background: isHovered ? '#2C2C2C' : 'transparent',
+          opacity: isEnabled ? 1 : 0.6,
+          transition: 'background 0.1s, opacity 0.15s',
+          cursor: 'default',
+        }}
+      >
+        {/* Toggle Switch */}
+        <div
+          onClick={() => onToggle(ap.id, toolId, true)} // Disable
+          style={{
+            width: 20,
+            height: 12,
+            borderRadius: 6,
+            background: ACCENT_COLOR, // Always active here
+            position: 'relative',
+            cursor: 'pointer',
+            transition: 'background 0.15s',
+            flexShrink: 0,
+          }}
+          title='Disable Capability'
+        >
+          <div
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#1a1a1c',
+              position: 'absolute',
+              top: 2,
+              left: 10, // Always right
+              transition: 'left 0.15s',
+            }}
+          />
+        </div>
+
+        {/* Icon + Label */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            width: 80,
+            flexShrink: 0,
+            color: '#e2e8f0',
+          }}
+        >
+          <div
+            style={{
+              width: 14,
+              height: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'currentColor',
+            }}
+          >
+            {renderIcon()}
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {TOOL_CONFIG[toolId]?.short || toolId}
+          </div>
+        </div>
+
+        {/* Name Preview / Editor */}
+        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+          {isEditingName ? (
+            <input
+              type='text'
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onBlur={() => setIsEditingName(false)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === 'Escape')
+                  setIsEditingName(false);
+              }}
+              autoFocus
+              style={{
+                width: '100%',
+                background: '#1a1a1c',
+                border: `1px solid ${ACCENT_COLOR}`,
+                borderRadius: 4,
+                padding: '0 4px',
+                color: '#e2e8f0',
+                fontSize: 13,
+                fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+                outline: 'none',
+                height: 22,
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                fontSize: 13,
+                color: '#e2e8f0',
+                cursor: 'text', // Hint editable
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 24,
+              }}
+              onClick={() => setIsEditingName(true)} // Click to Edit
+              title='Click to rename'
+            >
+              {name}
+            </div>
+          )}
+        </div>
+
+        {/* Expand/Config Button (Chevron) */}
+        <div
+          onClick={() => setExpandedToolId(isExpanded ? null : uniqueToolId)}
+          style={{
+            cursor: 'pointer',
+            padding: 4,
+            borderRadius: 4,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#71717a',
+            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+            transition: 'all 0.2s',
+          }}
+          className='expand-btn'
+        >
+          <svg
+            width='12'
+            height='12'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='3'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          >
+            <path d='M9 18l6-6-6-6' />
+          </svg>
+        </div>
+      </div>
+
+      {/* Detail Panel */}
+      {isExpanded && (
+        <div
+          style={{
+            // REDUCED PADDING: Align with Icon/Text start (44px)
+            padding: '4px 16px 4px 44px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          {/* REMOVED: Duplicate Function Name Input */}
+
+          {/* Access Permissions (Bash Only) - Removed as requested */}
+          {/* toolId === 'shell_access' logic removed */}
+
+          {/* Description */}
+          <div className='input-group'>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: '#525252',
+                marginBottom: 2,
+                letterSpacing: '0.5px',
+              }}
+            >
+              DESCRIPTION
+            </div>
+            <textarea
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+              rows={2}
+              placeholder='Description...'
+              style={{
+                width: '100%',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: '1px solid #27272a',
+                borderRadius: 0,
+                padding: '2px 0',
+                color: '#a1a1aa',
+                fontSize: 13,
+                lineHeight: '1.4',
+                outline: 'none',
+                resize: 'none',
+                fontFamily: 'inherit',
+                transition: 'all 0.15s',
+              }}
+              className='detail-input'
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export function ToolsPanel({
   accessPoints,
   setAccessPoints,
   activeBaseName,
-  activeTableName,
   onClose,
-  onSaveTools,
-  isSaving,
-  saveError,
-  savedResult,
-  setSavedResult,
-  onViewAllMcp,
 }: ToolsPanelProps) {
-  // 收起的 path 列表 (默认全部展开)
-  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
+  // 改为存储"收起"的 ID，这样默认就是全部展开
+  const [collapsedApIds, setCollapsedApIds] = useState<Set<string>>(new Set());
+  const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
 
-  // Tool 定义编辑状态
-  const [toolsDefinitionEdits, setToolsDefinitionEdits] = useState<
-    Record<string, { name: string; description: string }>
-  >({});
-  const [editingToolField, setEditingToolField] = useState<{
-    toolId: string;
-    field: 'name' | 'description';
-  } | null>(null);
+  const handleTogglePermission = (
+    apId: string,
+    toolId: McpToolType,
+    currentValue: boolean
+  ) => {
+    setAccessPoints(prev =>
+      prev.map(ap => {
+        if (ap.id === apId) {
+          return {
+            ...ap,
+            permissions: {
+              ...ap.permissions,
+              [toolId]: !currentValue,
+            },
+          };
+        }
+        return ap;
+      })
+    );
+  };
 
-  // Track hovered row for styling
-  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
-
-  // 删除确认状态
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-
-  // 全局序号 (用于列表显示)
-  let globalIndex = 0;
+  const toggleApExpansion = (apId: string) => {
+    setCollapsedApIds(prev => {
+      const next = new Set(prev);
+      if (next.has(apId))
+        next.delete(apId); // 如果已收起，则展开
+      else next.add(apId); // 如果展开，则收起
+      return next;
+    });
+  };
 
   return (
     <div
@@ -101,34 +581,31 @@ export function ToolsPanel({
           borderBottom: '1px solid #1a1a1c',
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
+          gap: 8,
           flexShrink: 0,
           background: '#0f0f11',
         }}
       >
-        {/* 收起按钮 */}
         <button
           onClick={onClose}
           style={{
-            width: 28,
-            height: 28,
-            background: 'transparent',
+            background: 'none',
             border: 'none',
-            color: '#6b7280',
+            padding: 4,
             cursor: 'pointer',
-            padding: 0,
-            borderRadius: 4,
+            color: '#52525b',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            borderRadius: 4,
           }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#e2e8f0')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#6b7280')}
-          title='Collapse sidebar'
+          onMouseEnter={e => (e.currentTarget.style.color = '#71717a')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#52525b')}
+          title='Collapse panel'
         >
           <svg
-            width='16'
-            height='16'
+            width='14'
+            height='14'
             viewBox='0 0 24 24'
             fill='none'
             stroke='currentColor'
@@ -136,532 +613,202 @@ export function ToolsPanel({
             strokeLinecap='round'
             strokeLinejoin='round'
           >
-            <path d='M13 17l5-5-5-5M6 17l5-5-5-5' />
+            <polyline points='13 17 18 12 13 7' />
+            <polyline points='6 17 11 12 6 7' />
           </svg>
         </button>
-
-        <div
-          style={{ fontSize: FONT.primary, fontWeight: 600, color: '#e2e8f0' }}
-        >
-          Tools
-        </div>
+        <span style={{ fontSize: 12, fontWeight: 500, color: '#71717a' }}>
+          Access Configuration
+        </span>
       </div>
 
       {/* Content List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {accessPoints.length === 0 ? (
-          <div
-            style={{
-              padding: '40px 20px',
-              textAlign: 'center',
-            }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                margin: '0 auto 10px',
-                background: 'rgba(255,255,255,0.02)',
-                borderRadius: 8,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg
-                width='18'
-                height='18'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='#525252'
-                strokeWidth='1.5'
-              >
-                <path d='M12 5v14M5 12h14' strokeLinecap='round' />
-              </svg>
-            </div>
+          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
             <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 4 }}>
-              No tools configured
+              No access points
             </div>
-            <div style={{ fontSize: 11, color: '#525252' }}>
-              Click the 🐾 icon on JSON nodes to expose capabilities
+            <div style={{ fontSize: 13, color: '#525252' }}>
+              Select nodes to configure access
             </div>
           </div>
         ) : (
-          <div style={{ paddingBottom: 16 }}>
+          <div style={{ padding: '8px' }}>
             {accessPoints.map(ap => {
-              const enabledTools = TOOL_DEFS.filter(
-                tool => ap.permissions[tool.backendId]
-              );
-              if (enabledTools.length === 0) return null;
-
+              const displayPath = ap.path || '/';
               const pathSegments = ap.path
                 ? ap.path.split('/').filter(Boolean)
                 : [];
-              const displayPath = ap.path || '/';
               const lastSegment =
                 pathSegments.length > 0
                   ? pathSegments[pathSegments.length - 1]
                   : 'root';
-              const safeName = lastSegment.replace(/[^a-zA-Z0-9_]/g, '');
 
-              const isCollapsed = collapsedPaths.has(ap.path);
-              const toggleCollapse = () => {
-                setCollapsedPaths(prev => {
-                  const next = new Set(prev);
-                  if (next.has(ap.path)) {
-                    next.delete(ap.path);
-                  } else {
-                    next.add(ap.path);
-                  }
-                  return next;
-                });
-              };
+              let displayName = lastSegment;
+              const isNumeric = !isNaN(Number(lastSegment));
+              if (isNumeric && pathSegments.length > 1) {
+                const parent = pathSegments[pathSegments.length - 2];
+                displayName = `${parent}[${lastSegment}]`;
+              } else if (isNumeric) {
+                displayName = `#${lastSegment}`;
+              }
+              const safeName = displayName.replace(/[^a-zA-Z0-9_]/g, '');
+
+              const isExpanded = !collapsedApIds.has(ap.id); // 默认展开，除非在 collapsedApIds 中
+              const enabledCount = ALL_TOOLS.filter(
+                t => ap.permissions[t]
+              ).length;
+
+              // Calculate used tools for this AP
+              const usedTools = new Set(
+                ALL_TOOLS.filter(t => ap.permissions[t])
+              );
 
               return (
-                <div key={ap.id}>
-                  {/* Path Group Header - No Interaction */}
+                // Block Container with DARKER Background
+                <div
+                  key={ap.id}
+                  style={{
+                    marginBottom: 12,
+                    padding: '8px 4px 8px 4px',
+                    borderRadius: 8,
+                    // Darker background for hierarchy (vs Editor)
+                    background: '#141416',
+                    border: '1px solid rgba(255, 255, 255, 0.02)',
+                    transition: 'background 0.15s, border-color 0.15s',
+                  }}
+                  className='access-point-block'
+                >
+                  {/* Access Point Header */}
                   <div
+                    onClick={() => toggleApExpansion(ap.id)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 8,
-                      padding: '6px 16px', // Reduced padding height
-                      background: '#0f0f11',
-                      borderBottom: '1px solid #141416',
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 10,
+                      height: 28,
+                      padding: '0 4px 0 6px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
                     }}
+                    className='sidebar-item-hover'
                   >
-                    {/* Spacer to align with Type column (20px Index + 12px Gap) */}
-                    <div style={{ width: 32, flexShrink: 0 }} />
-
-                    <span
+                    {/* Chevron */}
+                    <div
                       style={{
-                        fontSize: FONT.tertiary, // Use FONT.tertiary (11px)
-                        color: '#3f3f46', // Match darker color from LibraryView
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
+                        width: 20,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        color: '#6b7280',
+                        transform: isExpanded
+                          ? 'rotate(90deg)'
+                          : 'rotate(0deg)',
+                        transition: 'transform 0.15s',
+                        marginRight: 8,
+                      }}
+                    >
+                      <svg
+                        width='10'
+                        height='10'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='3'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                      >
+                        <path d='M9 18l6-6-6-6' />
+                      </svg>
+                    </div>
+
+                    {/* Node Info */}
+                    <div
+                      style={{
                         flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        minWidth: 0,
                       }}
-                      title={displayPath}
                     >
-                      {displayPath}
-                    </span>
-                    <span
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: '#e2e8f0', // Brighter text for card title
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {displayName}
+                      </span>
+
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color: '#71717a', // Slightly brighter gray
+                          fontFamily: 'monospace',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          opacity: 0.5,
+                        }}
+                      >
+                        {displayPath}
+                      </span>
+                    </div>
+
+                    {/* Active Count */}
+                    {enabledCount > 0 && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: '#71717a',
+                          marginLeft: 8,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {enabledCount}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div
                       style={{
-                        fontSize: 10,
-                        color: '#525252',
-                        background: 'rgba(255,255,255,0.05)',
-                        padding: '1px 6px',
-                        borderRadius: 4,
+                        paddingTop: 4,
+                        paddingLeft: 12, // Indent for children
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
                       }}
                     >
-                      {enabledTools.length}
-                    </span>
-                  </div>
+                      {/* Render Enabled Tools Only */}
+                      {ALL_TOOLS.filter(t => ap.permissions[t]).map(toolId => (
+                        <ToolItem
+                          key={toolId}
+                          ap={ap}
+                          toolId={toolId}
+                          safeName={safeName}
+                          activeBaseName={activeBaseName}
+                          onToggle={(apId, tId) =>
+                            handleTogglePermission(apId, tId, true)
+                          } // Disable
+                          expandedToolId={expandedToolId}
+                          setExpandedToolId={setExpandedToolId}
+                        />
+                      ))}
 
-                  {/* Tools List - 卡片式 */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      padding: '8px 12px',
-                    }}
-                  >
-                    {enabledTools.map(tool => {
-                      globalIndex++; // Increment global index for each tool
-                      const typeConfig = TOOL_TYPE_CONFIG[tool.backendId] || {
-                        label: tool.label,
-                        color: '#9ca3af',
-                        bg: 'rgba(255,255,255,0.05)',
-                      };
-
-                      const editKey = `${ap.path}::${tool.backendId}`;
-                      const defaultToolName = `${tool.backendId}_${safeName}`;
-                      const defaultDescription = `${tool.label} - ${activeBaseName || 'Project'}`;
-
-                      const currentDef = toolsDefinitionEdits[editKey] || {
-                        name: defaultToolName,
-                        description: defaultDescription,
-                      };
-
-                      const toolFieldId = `${ap.path}::${tool.backendId}`;
-                      const isEditingName =
-                        editingToolField?.toolId === toolFieldId &&
-                        editingToolField?.field === 'name';
-                      const isEditingDesc =
-                        editingToolField?.toolId === toolFieldId &&
-                        editingToolField?.field === 'description';
-                      const isHovered = hoveredRowId === toolFieldId;
-
-                      return (
-                        <div
-                          key={tool.backendId}
-                          onMouseEnter={() => setHoveredRowId(toolFieldId)}
-                          onMouseLeave={() => setHoveredRowId(null)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: 10,
-                            padding: '10px 16px',
-                            marginBottom: 8,
-                            borderRadius: 8,
-                            border: '1px solid #1f1f22',
-                            background: isHovered ? '#18181b' : '#131315',
-                            transition: 'all 0.1s',
-                          }}
-                        >
-                          {/* 左侧固定列：# Index */}
-                          <div
-                            style={{
-                              width: 20,
-                              textAlign: 'center',
-                              color: '#3f3f46',
-                              fontSize: FONT.secondary, // 12px
-                              marginTop: 3, // Align with icon center
-                              flexShrink: 0,
-                            }}
-                          >
-                            {globalIndex}
-                          </div>
-
-                          {/* 右侧主内容区域 */}
-                          <div
-                            style={{
-                              flex: 1,
-                              minWidth: 0,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 6,
-                            }}
-                          >
-                            {/* 第一行：图标+类型 (Badge) + 名字 + 删除按钮 */}
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8,
-                              }}
-                            >
-                              {/* Unified Badge: Icon + Type */}
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 6,
-                                  padding: '3px 8px 3px 6px',
-                                  borderRadius: 4,
-                                  fontSize: FONT.tertiary, // 11px
-                                  fontWeight: 600,
-                                  // 单色化逻辑：如果是 delete 则保留红色警示，否则统一使用橙色图标+灰色背景
-                                  color:
-                                    tool.backendId === 'delete'
-                                      ? '#f87171'
-                                      : '#a1a1aa', // 文字保持灰色，避免太刺眼
-                                  background:
-                                    tool.backendId === 'delete'
-                                      ? 'rgba(127, 29, 29, 0.2)'
-                                      : 'rgba(255, 255, 255, 0.06)',
-                                  border:
-                                    tool.backendId === 'delete'
-                                      ? '1px solid rgba(248, 113, 113, 0.2)'
-                                      : '1px solid rgba(255, 255, 255, 0.08)',
-                                  whiteSpace: 'nowrap',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    width: 14,
-                                    height: 14,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    opacity: 0.9,
-                                    // 核心修改：图标颜色设为橙色（除非是 delete）
-                                    color:
-                                      tool.backendId === 'delete'
-                                        ? 'inherit'
-                                        : '#fb923c',
-                                  }}
-                                >
-                                  {TOOL_ICONS[tool.backendId]}
-                                </div>
-                                <div>{typeConfig.label}</div>
-                              </div>
-
-                              {/* Name (Editable) - 占据剩余空间 */}
-                              <div
-                                style={{
-                                  flex: 1,
-                                  minWidth: 0,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                }}
-                              >
-                                {isEditingName ? (
-                                  <input
-                                    type='text'
-                                    value={currentDef.name}
-                                    onChange={e =>
-                                      setToolsDefinitionEdits(prev => ({
-                                        ...prev,
-                                        [editKey]: {
-                                          ...currentDef,
-                                          name: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                    onBlur={() => setEditingToolField(null)}
-                                    onKeyDown={e => {
-                                      if (e.key === 'Enter')
-                                        setEditingToolField(null);
-                                      if (e.key === 'Escape')
-                                        setEditingToolField(null);
-                                    }}
-                                    autoFocus
-                                    style={{
-                                      width: '100%',
-                                      fontSize: FONT.primary, // 13px
-                                      fontWeight: 500,
-                                      color: '#e2e8f0',
-                                      background: '#0a0a0c',
-                                      border: '1px solid #1a1a1c',
-                                      borderRadius: 4,
-                                      padding: '0 6px',
-                                      height: 22,
-                                      outline: 'none',
-                                    }}
-                                  />
-                                ) : (
-                                  <div
-                                    onClick={() =>
-                                      setEditingToolField({
-                                        toolId: toolFieldId,
-                                        field: 'name',
-                                      })
-                                    }
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: 6,
-                                      cursor: 'pointer',
-                                      minWidth: 0,
-                                      width: '100%',
-                                    }}
-                                    title='Click to edit name'
-                                  >
-                                    <span
-                                      style={{
-                                        fontSize: FONT.primary,
-                                        fontWeight: 500,
-                                        color: isHovered ? '#fff' : '#e2e8f0',
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                      }}
-                                    >
-                                      {currentDef.name}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Delete Action - 放在第一行最右侧 */}
-                              {confirmDeleteId === toolFieldId ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  <button
-                                    onClick={e => {
-                                      e.stopPropagation();
-                                      setAccessPoints(prev => {
-                                        return prev
-                                          .map(existingAp => {
-                                            if (existingAp.path === ap.path) {
-                                              const newPermissions = {
-                                                ...existingAp.permissions,
-                                                [tool.backendId]: false,
-                                              };
-                                              const hasAny =
-                                                Object.values(
-                                                  newPermissions
-                                                ).some(Boolean);
-                                              if (!hasAny) return null as any;
-                                              return {
-                                                ...existingAp,
-                                                permissions: newPermissions,
-                                              };
-                                            }
-                                            return existingAp;
-                                          })
-                                          .filter(Boolean);
-                                      });
-                                      setToolsDefinitionEdits(prev => {
-                                        const newEdits = { ...prev };
-                                        delete newEdits[editKey];
-                                        return newEdits;
-                                      });
-                                      setConfirmDeleteId(null);
-                                    }}
-                                    style={{
-                                      height: 20,
-                                      padding: '0 6px',
-                                      background: 'rgba(239, 68, 68, 0.15)',
-                                      border:
-                                        '1px solid rgba(239, 68, 68, 0.3)',
-                                      borderRadius: 4,
-                                      color: '#ef4444',
-                                      fontSize: 10,
-                                      fontWeight: 500,
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    Del
-                                  </button>
-                                  <button
-                                    onClick={e => {
-                                      e.stopPropagation();
-                                      setConfirmDeleteId(null);
-                                    }}
-                                    style={{
-                                      height: 20,
-                                      padding: '0 4px',
-                                      background: 'transparent',
-                                      border: '1px solid #3f3f46',
-                                      borderRadius: 4,
-                                      color: '#71717a',
-                                      fontSize: 10,
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    setConfirmDeleteId(toolFieldId);
-                                  }}
-                                  style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    padding: 4,
-                                    cursor: 'pointer',
-                                    color: '#525252',
-                                    borderRadius: 4,
-                                    opacity: isHovered ? 1 : 0,
-                                    transition: 'all 0.15s',
-                                    flexShrink: 0,
-                                  }}
-                                  onMouseEnter={e => {
-                                    e.currentTarget.style.background =
-                                      'rgba(239, 68, 68, 0.15)';
-                                    e.currentTarget.style.color = '#ef4444';
-                                  }}
-                                  onMouseLeave={e => {
-                                    e.currentTarget.style.background =
-                                      'transparent';
-                                    e.currentTarget.style.color = '#525252';
-                                  }}
-                                  title='Remove tool'
-                                >
-                                  <svg
-                                    width='14'
-                                    height='14'
-                                    viewBox='0 0 24 24'
-                                    fill='none'
-                                    stroke='currentColor'
-                                    strokeWidth='2'
-                                    strokeLinecap='round'
-                                    strokeLinejoin='round'
-                                  >
-                                    <path d='M18 6L6 18M6 6l12 12' />
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-
-                            {/* 第二行：Description */}
-                            <div style={{ minWidth: 0 }}>
-                              {isEditingDesc ? (
-                                <input
-                                  type='text'
-                                  value={currentDef.description}
-                                  onChange={e =>
-                                    setToolsDefinitionEdits(prev => ({
-                                      ...prev,
-                                      [editKey]: {
-                                        ...currentDef,
-                                        description: e.target.value,
-                                      },
-                                    }))
-                                  }
-                                  onBlur={() => setEditingToolField(null)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter')
-                                      setEditingToolField(null);
-                                    if (e.key === 'Escape')
-                                      setEditingToolField(null);
-                                  }}
-                                  autoFocus
-                                  style={{
-                                    width: '100%',
-                                    fontSize: FONT.secondary, // 12px
-                                    color: '#9ca3af',
-                                    background: '#0a0a0c',
-                                    border: '1px solid #1a1a1c',
-                                    borderRadius: 4,
-                                    padding: '0 6px',
-                                    height: 22,
-                                    outline: 'none',
-                                  }}
-                                />
-                              ) : (
-                                <div
-                                  onClick={() =>
-                                    setEditingToolField({
-                                      toolId: toolFieldId,
-                                      field: 'description',
-                                    })
-                                  }
-                                  style={{ cursor: 'pointer', width: '100%' }}
-                                  title='Click to edit description'
-                                >
-                                  <div
-                                    style={{
-                                      fontSize: FONT.secondary,
-                                      color: currentDef.description
-                                        ? '#71717a'
-                                        : '#3f3f46', // Darker text for description
-                                      whiteSpace: 'nowrap',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      fontStyle: currentDef.description
-                                        ? 'normal'
-                                        : 'italic',
-                                      lineHeight: '1.4',
-                                    }}
-                                  >
-                                    {currentDef.description ||
-                                      'Add description...'}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                      {/* Add Capability Button */}
+                      <AddCapabilityButton
+                        ap={ap}
+                        usedTools={usedTools}
+                        onAdd={toolId =>
+                          handleTogglePermission(ap.id, toolId, false)
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -669,71 +816,23 @@ export function ToolsPanel({
         )}
       </div>
 
-      {/* Action Footer - Create & Test */}
-      {accessPoints.length > 0 && (
-        <div
-          style={{
-            padding: '16px 20px', // 增加一点 padding
-            borderTop: '1px solid #1a1a1c',
-            background: '#0f0f11',
-            flexShrink: 0,
-          }}
-        >
-          <button
-            onClick={() => {
-              console.log('Create & Test clicked');
-              // TODO: Implement create server and open chat logic
-            }}
-            style={{
-              width: '100%',
-              height: 36,
-              background: '#10b981', // Green for Action/Run
-              border: 'none',
-              borderRadius: 6,
-              color: '#fff',
-              fontSize: FONT.primary,
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              transition: 'background 0.15s',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#059669')} // Darker green on hover
-            onMouseLeave={e => (e.currentTarget.style.background = '#10b981')}
-          >
-            <span>Create & Test</span>
-            <span
-              style={{
-                fontSize: FONT.secondary,
-                fontWeight: 400,
-                opacity: 0.8,
-                background: 'rgba(255,255,255,0.15)',
-                padding: '1px 6px',
-                borderRadius: 4,
-              }}
-            >
-              {accessPoints.reduce(
-                (sum, ap) =>
-                  sum +
-                  TOOL_DEFS.filter(tool => ap.permissions[tool.backendId])
-                    .length,
-                0
-              )}{' '}
-              tools
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* 嵌入 CSS */}
-      <style>{`
-        @keyframes spin { 
-          to { transform: rotate(360deg); } 
+      {/* Styles */}
+      <style jsx>{`
+        .sidebar-item-hover:hover {
+          background: #2c2c2c !important;
         }
-        /* 自定义滚动条 */
+        .access-point-block:hover {
+          border-color: rgba(
+            255,
+            255,
+            255,
+            0.08
+          ) !important; /* Slightly brighter border on hover */
+        }
+
+        .detail-input:focus {
+          border-bottom-color: #f97316 !important;
+        }
         ::-webkit-scrollbar {
           width: 8px;
         }

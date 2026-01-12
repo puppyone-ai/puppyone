@@ -65,95 +65,57 @@ export default function SettingsLayout({
         display: 'flex',
         width: '100%',
         height: '100%',
-        backgroundColor: '#040404',
+        backgroundColor: '#202020', // 一级 sidebar 的背景色作为整个页面底色
       }}
     >
-      {/* --- Settings Sidebar --- */}
-      <aside
-        ref={sidebarRef}
+      {/* --- 右侧浮动容器：包含二级 sidebar + 主内容区 --- */}
+      <div
         style={{
-          width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
-          borderRight: '1px solid #404040',
+          flex: 1,
           display: 'flex',
-          flexDirection: 'column',
-          background: '#181818',
-          fontFamily:
-            "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-          boxSizing: 'border-box',
-          position: 'relative',
-          flexShrink: 0,
-          transition: isResizing ? 'none' : 'width 0.2s ease',
+          margin: 8,
+          marginLeft: 0,
+          borderRadius: 12,
+          border: '1px solid #2a2a2a',
+          background: '#0e0e0e',
+          overflow: 'hidden',
         }}
       >
-        {/* Header */}
-        <div
+        {/* --- Settings Sidebar --- */}
+        <aside
+          ref={sidebarRef}
           style={{
-            height: 46,
-            minHeight: 46,
-            maxHeight: 46,
+            width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
+            borderRight: '1px solid #2a2a2a',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: isCollapsed ? 'center' : 'space-between',
-            padding: isCollapsed ? '0' : '0 9px 0 16px',
-            borderBottom: '1px solid #404040',
+            flexDirection: 'column',
+            background: '#141414',
+            fontFamily:
+              "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
             boxSizing: 'border-box',
+            position: 'relative',
+            flexShrink: 0,
+            transition: isResizing ? 'none' : 'width 0.2s ease',
           }}
         >
-          {isCollapsed ? (
-            <button
-              onClick={() => setIsCollapsed(false)}
-              title='Expand sidebar'
-              style={{
-                width: 28,
-                height: 28,
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 5,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#6b7280',
-                transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                e.currentTarget.style.color = '#9ca3af';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#6b7280';
-              }}
-            >
-              <svg
-                width='14'
-                height='14'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='1.5'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              >
-                <rect x='3' y='3' width='18' height='18' rx='2' />
-                <line x1='9' y1='3' x2='9' y2='21' />
-              </svg>
-            </button>
-          ) : (
-            <>
-              <span
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#EDEDED',
-                  letterSpacing: '0.3px',
-                }}
-              >
-                Settings
-              </span>
+          {/* Header */}
+          <div
+            style={{
+              height: 46,
+              minHeight: 46,
+              maxHeight: 46,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: isCollapsed ? 'center' : 'space-between',
+              padding: isCollapsed ? '0' : '0 9px 0 16px',
+              borderBottom: '1px solid #2a2a2a',
+              boxSizing: 'border-box',
+            }}
+          >
+            {isCollapsed ? (
               <button
-                onClick={() => setIsCollapsed(true)}
-                title='Collapse sidebar'
+                onClick={() => setIsCollapsed(false)}
+                title='Expand sidebar'
                 style={{
                   width: 28,
                   height: 28,
@@ -190,121 +152,158 @@ export default function SettingsLayout({
                   <line x1='9' y1='3' x2='9' y2='21' />
                 </svg>
               </button>
-            </>
-          )}
-        </div>
-
-        {/* Expanded Content */}
-        {!isCollapsed && (
-          <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
-            <div style={{ marginBottom: 4 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '0 12px',
-                  height: 28,
-                }}
-              >
+            ) : (
+              <>
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: 600,
-                    color: '#6D7177',
+                    color: '#EDEDED',
+                    letterSpacing: '0.3px',
                   }}
                 >
-                  Workspace
+                  Settings
                 </span>
-              </div>
-              <div
-                style={{
-                  padding: '2px 8px 4px 8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1,
-                }}
-              >
-                <NavItem
-                  href='/settings/connect'
-                  active={pathname?.startsWith('/settings/connect')}
-                  label='Import Settings'
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Collapsed Navigation */}
-        {isCollapsed && (
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              padding: '12px 0',
-              gap: 4,
-            }}
-          >
-            <CollapsedNavItem
-              href='/settings/connect'
-              active={pathname?.startsWith('/settings/connect')}
-              title='Import Settings'
-              icon={
-                <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
-                  <path
-                    d='M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7'
+                <button
+                  onClick={() => setIsCollapsed(true)}
+                  title='Collapse sidebar'
+                  style={{
+                    width: 28,
+                    height: 28,
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: 5,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#6b7280',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                    e.currentTarget.style.color = '#9ca3af';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#6b7280';
+                  }}
+                >
+                  <svg
+                    width='14'
+                    height='14'
+                    viewBox='0 0 24 24'
+                    fill='none'
                     stroke='currentColor'
-                    strokeWidth='1.2'
+                    strokeWidth='1.5'
                     strokeLinecap='round'
                     strokeLinejoin='round'
-                  />
-                </svg>
-              }
-            />
+                  >
+                    <rect x='3' y='3' width='18' height='18' rx='2' />
+                    <line x1='9' y1='3' x2='9' y2='21' />
+                  </svg>
+                </button>
+              </>
+            )}
           </div>
-        )}
 
-        {/* Resize Handle */}
-        {!isCollapsed && (
-          <div
-            onMouseDown={handleMouseDown}
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: -2,
-              width: 4,
-              height: '100%',
-              cursor: 'col-resize',
-              zIndex: 10,
-              background: isResizing
-                ? 'rgba(255, 255, 255, 0.1)'
-                : 'transparent',
-              transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => {
-              if (!isResizing)
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-            }}
-            onMouseLeave={e => {
-              if (!isResizing) e.currentTarget.style.background = 'transparent';
-            }}
-          />
-        )}
-      </aside>
+          {/* Expanded Content */}
+          {!isCollapsed && (
+            <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
+              <div style={{ marginBottom: 4 }}>
+                <div
+                  style={{
+                    padding: '2px 8px 4px 8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                  }}
+                >
+                  <NavItem
+                    href='/settings/connect'
+                    active={pathname?.startsWith('/settings/connect')}
+                    label='Import Settings'
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
-      {/* --- Main Content Area --- */}
-      <section
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {children}
-      </section>
+          {/* Collapsed Navigation */}
+          {isCollapsed && (
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '12px 0',
+                gap: 4,
+              }}
+            >
+              <CollapsedNavItem
+                href='/settings/connect'
+                active={pathname?.startsWith('/settings/connect')}
+                title='Import Settings'
+                icon={
+                  <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+                    <path
+                      d='M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7'
+                      stroke='currentColor'
+                      strokeWidth='1.2'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                    />
+                  </svg>
+                }
+              />
+            </div>
+          )}
+
+          {/* Resize Handle */}
+          {!isCollapsed && (
+            <div
+              onMouseDown={handleMouseDown}
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: -2,
+                width: 4,
+                height: '100%',
+                cursor: 'col-resize',
+                zIndex: 10,
+                background: isResizing
+                  ? 'rgba(255, 255, 255, 0.1)'
+                  : 'transparent',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => {
+                if (!isResizing)
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              }}
+              onMouseLeave={e => {
+                if (!isResizing)
+                  e.currentTarget.style.background = 'transparent';
+              }}
+            />
+          )}
+        </aside>
+
+        {/* --- Main Content Area --- */}
+        <section
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: '100%', // 确保高度传递给子组件
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#0a0a0a',
+          }}
+        >
+          {children}
+        </section>
+      </div>
     </div>
   );
 }

@@ -104,95 +104,57 @@ export default function ToolsLayout({
         display: 'flex',
         width: '100%',
         height: '100%',
-        backgroundColor: '#040404',
+        backgroundColor: '#202020', // 一级 sidebar 的背景色作为整个页面底色
       }}
     >
-      {/* --- Tools Sidebar --- */}
-      <aside
-        ref={sidebarRef}
+      {/* --- 右侧浮动容器：包含二级 sidebar + 主内容区 --- */}
+      <div
         style={{
-          width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
-          borderRight: '1px solid #404040',
+          flex: 1,
           display: 'flex',
-          flexDirection: 'column',
-          background: '#181818',
-          fontFamily:
-            "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-          boxSizing: 'border-box',
-          position: 'relative',
-          flexShrink: 0,
-          transition: isResizing ? 'none' : 'width 0.2s ease',
+          margin: 8,
+          marginLeft: 0,
+          borderRadius: 12,
+          border: '1px solid #2a2a2a',
+          background: '#0e0e0e',
+          overflow: 'hidden',
         }}
       >
-        {/* Header */}
-        <div
+        {/* --- Tools Sidebar --- */}
+        <aside
+          ref={sidebarRef}
           style={{
-            height: 46,
-            minHeight: 46,
-            maxHeight: 46,
+            width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
+            borderRight: '1px solid #2a2a2a',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: isCollapsed ? 'center' : 'space-between',
-            padding: isCollapsed ? '0' : '0 9px 0 16px',
-            borderBottom: '1px solid #404040',
+            flexDirection: 'column',
+            background: '#141414',
+            fontFamily:
+              "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
             boxSizing: 'border-box',
+            position: 'relative',
+            flexShrink: 0,
+            transition: isResizing ? 'none' : 'width 0.2s ease',
           }}
         >
-          {isCollapsed ? (
-            <button
-              onClick={() => setIsCollapsed(false)}
-              title='Expand sidebar'
-              style={{
-                width: 28,
-                height: 28,
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 5,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#6b7280',
-                transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                e.currentTarget.style.color = '#9ca3af';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#6b7280';
-              }}
-            >
-              <svg
-                width='14'
-                height='14'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='1.5'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              >
-                <rect x='3' y='3' width='18' height='18' rx='2' />
-                <line x1='9' y1='3' x2='9' y2='21' />
-              </svg>
-            </button>
-          ) : (
-            <>
-              <span
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#EDEDED',
-                  letterSpacing: '0.3px',
-                }}
-              >
-                Tools & MCP
-              </span>
+          {/* Header */}
+          <div
+            style={{
+              height: 46,
+              minHeight: 46,
+              maxHeight: 46,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: isCollapsed ? 'center' : 'space-between',
+              padding: isCollapsed ? '0' : '0 9px 0 16px',
+              borderBottom: '1px solid #2a2a2a',
+              boxSizing: 'border-box',
+            }}
+          >
+            {isCollapsed ? (
               <button
-                onClick={() => setIsCollapsed(true)}
-                title='Collapse sidebar'
+                onClick={() => setIsCollapsed(false)}
+                title='Expand sidebar'
                 style={{
                   width: 28,
                   height: 28,
@@ -229,287 +191,327 @@ export default function ToolsLayout({
                   <line x1='9' y1='3' x2='9' y2='21' />
                 </svg>
               </button>
-            </>
-          )}
-        </div>
-
-        {/* Content */}
-        {!isCollapsed ? (
-          <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
-            {/* Library Section */}
-            <div style={{ marginBottom: 4 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '0 12px',
-                  height: 28,
-                }}
-              >
+            ) : (
+              <>
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: 600,
-                    color: '#6D7177',
+                    color: '#EDEDED',
+                    letterSpacing: '0.3px',
                   }}
                 >
-                  Library
-                </span>
-              </div>
-              <div
-                style={{
-                  padding: '2px 8px 4px 8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1,
-                }}
-              >
-                <NavItem
-                  href='/tools-and-server/tools-list'
-                  active={pathname?.startsWith('/tools-and-server/tools-list')}
-                  label='Tools List'
-                  count={tools.length}
-                />
-              </div>
-            </div>
-
-            {/* Servers Section */}
-            <div
-              style={{
-                marginTop: 8,
-                paddingTop: 8,
-                borderTop: '1px solid #333',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0 12px',
-                  height: 28,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: '#6D7177',
-                  }}
-                >
-                  Deployed Servers
+                  Tools & MCP
                 </span>
                 <button
-                  onClick={() => setShowCreateModal(true)}
+                  onClick={() => setIsCollapsed(true)}
+                  title='Collapse sidebar'
                   style={{
+                    width: 28,
+                    height: 28,
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: 5,
+                    cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: 26,
-                    height: 26,
-                    background: 'transparent',
-                    border: 'none',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                    color: '#5D6065',
+                    color: '#6b7280',
                     transition: 'all 0.15s',
                   }}
-                  title='New Server'
                   onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                    e.currentTarget.style.color = '#EDEDED';
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                    e.currentTarget.style.color = '#9ca3af';
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = '#5D6065';
+                    e.currentTarget.style.color = '#6b7280';
                   }}
                 >
-                  <svg width='14' height='14' viewBox='0 0 10 10' fill='none'>
-                    <path
-                      d='M5 1v8M1 5h8'
-                      stroke='currentColor'
-                      strokeWidth='1.3'
-                      strokeLinecap='round'
-                    />
+                  <svg
+                    width='14'
+                    height='14'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth='1.5'
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                  >
+                    <rect x='3' y='3' width='18' height='18' rx='2' />
+                    <line x1='9' y1='3' x2='9' y2='21' />
                   </svg>
                 </button>
+              </>
+            )}
+          </div>
+
+          {/* Content */}
+          {!isCollapsed ? (
+            <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
+              {/* Library Section */}
+              <div style={{ marginBottom: 4 }}>
+                <div
+                  style={{
+                    padding: '2px 8px 4px 8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                  }}
+                >
+                  <NavItem
+                    href='/tools-and-server/tools-list'
+                    active={pathname?.startsWith(
+                      '/tools-and-server/tools-list'
+                    )}
+                    label='Tools List'
+                    count={tools.length}
+                  />
+                </div>
               </div>
+
+              {/* Servers Section */}
               <div
                 style={{
-                  padding: '2px 8px 4px 8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1,
+                  marginTop: 8,
+                  paddingTop: 8,
+                  borderTop: '1px solid #333',
                 }}
               >
-                {instances.map(mcp => (
-                  <NavItem
-                    key={mcp.api_key}
-                    href={`/tools-and-server/servers/${mcp.api_key}`}
-                    active={pathname?.startsWith(
-                      `/tools-and-server/servers/${mcp.api_key}`
-                    )}
-                    label={mcp.name || 'Unnamed'}
-                    isServer
-                    status={mcp.status}
-                  />
-                ))}
-
-                {instances.length === 0 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0 12px',
+                    height: 28,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#6D7177',
+                    }}
+                  >
+                    Deployed Servers
+                  </span>
                   <button
                     onClick={() => setShowCreateModal(true)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 8,
-                      height: 28,
-                      padding: '0 4px 0 6px',
+                      justifyContent: 'center',
+                      width: 26,
+                      height: 26,
                       background: 'transparent',
                       border: 'none',
-                      borderRadius: 5,
+                      borderRadius: 4,
                       cursor: 'pointer',
-                      width: '100%',
-                      textAlign: 'left',
-                      transition: 'background 0.15s',
+                      color: '#5D6065',
+                      transition: 'all 0.15s',
                     }}
-                    onMouseEnter={e =>
-                      (e.currentTarget.style.background = '#2C2C2C')
-                    }
-                    onMouseLeave={e =>
-                      (e.currentTarget.style.background = 'transparent')
-                    }
+                    title='New Server'
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background =
+                        'rgba(255,255,255,0.1)';
+                      e.currentTarget.style.color = '#EDEDED';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = '#5D6065';
+                    }}
                   >
-                    <span
+                    <svg width='14' height='14' viewBox='0 0 10 10' fill='none'>
+                      <path
+                        d='M5 1v8M1 5h8'
+                        stroke='currentColor'
+                        strokeWidth='1.3'
+                        strokeLinecap='round'
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div
+                  style={{
+                    padding: '2px 8px 4px 8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                  }}
+                >
+                  {instances.map(mcp => (
+                    <NavItem
+                      key={mcp.api_key}
+                      href={`/tools-and-server/servers/${mcp.api_key}`}
+                      active={pathname?.startsWith(
+                        `/tools-and-server/servers/${mcp.api_key}`
+                      )}
+                      label={mcp.name || 'Unnamed'}
+                      isServer
+                      status={mcp.status}
+                    />
+                  ))}
+
+                  {instances.length === 0 && (
+                    <button
+                      onClick={() => setShowCreateModal(true)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 16,
-                        height: 16,
-                        color: '#6D7177',
+                        gap: 8,
+                        height: 28,
+                        padding: '0 4px 0 6px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderRadius: 5,
+                        cursor: 'pointer',
+                        width: '100%',
+                        textAlign: 'left',
+                        transition: 'background 0.15s',
                       }}
+                      onMouseEnter={e =>
+                        (e.currentTarget.style.background = '#2C2C2C')
+                      }
+                      onMouseLeave={e =>
+                        (e.currentTarget.style.background = 'transparent')
+                      }
                     >
-                      <svg
-                        width='14'
-                        height='14'
-                        viewBox='0 0 14 14'
-                        fill='none'
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 16,
+                          height: 16,
+                          color: '#6D7177',
+                        }}
                       >
-                        <path
-                          d='M7 3v8M3 7h8'
-                          stroke='currentColor'
-                          strokeWidth='1.2'
-                          strokeLinecap='round'
-                        />
-                      </svg>
-                    </span>
-                    <span style={{ fontSize: 13, color: '#6D7177' }}>
-                      New Server
-                    </span>
-                  </button>
-                )}
+                        <svg
+                          width='14'
+                          height='14'
+                          viewBox='0 0 14 14'
+                          fill='none'
+                        >
+                          <path
+                            d='M7 3v8M3 7h8'
+                            stroke='currentColor'
+                            strokeWidth='1.2'
+                            strokeLinecap='round'
+                          />
+                        </svg>
+                      </span>
+                      <span style={{ fontSize: 13, color: '#6D7177' }}>
+                        New Server
+                      </span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          // Collapsed Navigation
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              padding: '12px 0',
-              gap: 4,
-            }}
-          >
-            <CollapsedNavItem
-              href='/tools-and-server/tools-list'
-              active={pathname?.startsWith('/tools-and-server/tools-list')}
-              title='Tools List'
-              icon={
-                <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
-                  <path
-                    d='M8.5 3.5a1 1 0 0 0 0 1l1 1a1 1 0 0 0 1 0l2.5-2.5a4 4 0 0 1-5.3 5.3L4 12a1.4 1.4 0 0 1-2-2l3.7-3.7a4 4 0 0 1 5.3-5.3L8.5 3.5z'
-                    stroke='currentColor'
-                    strokeWidth='1.2'
-                    strokeLinejoin='round'
-                  />
-                </svg>
-              }
-            />
-            {instances.map(mcp => (
+          ) : (
+            // Collapsed Navigation
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '12px 0',
+                gap: 4,
+              }}
+            >
               <CollapsedNavItem
-                key={mcp.api_key}
-                href={`/tools-and-server/servers/${mcp.api_key}`}
-                active={pathname?.startsWith(
-                  `/tools-and-server/servers/${mcp.api_key}`
-                )}
-                title={mcp.name || 'Unnamed Server'}
-                status={mcp.status}
+                href='/tools-and-server/tools-list'
+                active={pathname?.startsWith('/tools-and-server/tools-list')}
+                title='Tools List'
                 icon={
                   <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
                     <path
-                      d='M7 1L12.2 4v6L7 13L1.8 10V4L7 1z'
+                      d='M8.5 3.5a1 1 0 0 0 0 1l1 1a1 1 0 0 0 1 0l2.5-2.5a4 4 0 0 1-5.3 5.3L4 12a1.4 1.4 0 0 1-2-2l3.7-3.7a4 4 0 0 1 5.3-5.3L8.5 3.5z'
                       stroke='currentColor'
                       strokeWidth='1.2'
                       strokeLinejoin='round'
-                      fill='none'
-                    />
-                    <circle cx='7' cy='7' r='1.5' fill='currentColor' />
-                    <path
-                      d='M7 5.5V3.5M5.7 8L4 9.5M8.3 8L10 9.5'
-                      stroke='currentColor'
-                      strokeWidth='1.2'
-                      strokeLinecap='round'
                     />
                   </svg>
                 }
               />
-            ))}
-          </div>
-        )}
+              {instances.map(mcp => (
+                <CollapsedNavItem
+                  key={mcp.api_key}
+                  href={`/tools-and-server/servers/${mcp.api_key}`}
+                  active={pathname?.startsWith(
+                    `/tools-and-server/servers/${mcp.api_key}`
+                  )}
+                  title={mcp.name || 'Unnamed Server'}
+                  status={mcp.status}
+                  icon={
+                    <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+                      <path
+                        d='M7 1L12.2 4v6L7 13L1.8 10V4L7 1z'
+                        stroke='currentColor'
+                        strokeWidth='1.2'
+                        strokeLinejoin='round'
+                        fill='none'
+                      />
+                      <circle cx='7' cy='7' r='1.5' fill='currentColor' />
+                      <path
+                        d='M7 5.5V3.5M5.7 8L4 9.5M8.3 8L10 9.5'
+                        stroke='currentColor'
+                        strokeWidth='1.2'
+                        strokeLinecap='round'
+                      />
+                    </svg>
+                  }
+                />
+              ))}
+            </div>
+          )}
 
-        {/* Resize Handle */}
-        {!isCollapsed && (
-          <div
-            onMouseDown={handleMouseDown}
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: -2,
-              width: 4,
-              height: '100%',
-              cursor: 'col-resize',
-              zIndex: 10,
-              background: isResizing
-                ? 'rgba(255, 255, 255, 0.1)'
-                : 'transparent',
-              transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => {
-              if (!isResizing)
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-            }}
-            onMouseLeave={e => {
-              if (!isResizing) e.currentTarget.style.background = 'transparent';
-            }}
-          />
-        )}
-      </aside>
+          {/* Resize Handle */}
+          {!isCollapsed && (
+            <div
+              onMouseDown={handleMouseDown}
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: -2,
+                width: 4,
+                height: '100%',
+                cursor: 'col-resize',
+                zIndex: 10,
+                background: isResizing
+                  ? 'rgba(255, 255, 255, 0.1)'
+                  : 'transparent',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => {
+                if (!isResizing)
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              }}
+              onMouseLeave={e => {
+                if (!isResizing)
+                  e.currentTarget.style.background = 'transparent';
+              }}
+            />
+          )}
+        </aside>
 
-      {/* --- Main Content Area --- */}
-      <section
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {children}
-      </section>
+        {/* --- Main Content Area --- */}
+        <section
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: '100%', // 确保高度传递给子组件
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#0a0a0a',
+          }}
+        >
+          {children}
+        </section>
+      </div>
 
       {/* --- Create Server Modal --- */}
       {showCreateModal && (

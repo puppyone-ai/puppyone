@@ -8,18 +8,29 @@ import {
   refreshProjects,
   useTableTools,
   refreshTableTools,
+  useTable,
 } from '@/lib/hooks/useData';
+import { updateTableData } from '@/lib/projectsApi';
 import { ProjectWorkspaceView } from '@/components/ProjectWorkspaceView';
 import { OnboardingView } from '@/components/OnboardingView';
 import { ProjectsHeader, type EditorType } from '@/components/ProjectsHeader';
 import { ChatSidebar } from '@/components/ChatSidebar';
+import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
 import {
-  RightAuxiliaryPanel,
-  type RightPanelContent,
-  type EditorTarget,
+  ToolsPanel,
   type AccessPoint,
   type SaveToolsResult,
-} from '@/components/RightAuxiliaryPanel';
+} from '@/components/RightAuxiliaryPanel/ToolsPanel';
+import { DocumentEditor } from '@/components/RightAuxiliaryPanel/DocumentEditor';
+
+// 面板内容类型
+type RightPanelContent = 'NONE' | 'TOOLS' | 'EDITOR';
+
+// 编辑器目标类型
+interface EditorTarget {
+  path: string;
+  value: string;
+}
 
 // MCP Tools imports
 import {
@@ -51,6 +62,11 @@ export default function ProjectsSlugPage({
   const { projects, isLoading: projectsLoading } = useProjects();
   // 获取当前 table 的 Tools（用于 sidebar 显示）
   const { tools: tableTools, isLoading: toolsLoading } = useTableTools(
+    activeTableId || tableId
+  );
+  // 获取当前 table 的数据（用于 ChatSidebar）
+  const { tableData: currentTableData, refresh: refreshTable } = useTable(
+    activeBaseId || projectId,
     activeTableId || tableId
   );
 
@@ -133,9 +149,6 @@ export default function ProjectsSlugPage({
     return segments;
   }, [activeBase, activeTable]);
 
-  // 7. 处理 Onboarding
-  const showOnboarding = !slug || slug.length === 0;
-
   // 保存 Tools
   const handleSaveTools = async (
     customDefinitions: Record<string, McpToolDefinition>
@@ -204,26 +217,11 @@ export default function ProjectsSlugPage({
     }
   };
 
-  if (showOnboarding) {
-    return (
-      <OnboardingView
-        userName={session?.user?.email?.split('@')[0] || 'User'}
-        onStart={async () => {
-          setIsOnboardingLoading(true);
-          await new Promise(r => setTimeout(r, 500));
-          if (projects.length > 0) {
-            const p = projects[0];
-            router.push(`/projects/${p.id}/${p.tables?.[0]?.id || ''}`);
-          } else {
-            router.push('/settings/connect');
-          }
-        }}
-        isLoading={isOnboardingLoading}
-      />
-    );
-  }
+  // 7. 处理 Onboarding - 移除自动跳转逻辑
+  // 我们不再通过前端粗暴地判断是否跳转 Onboarding，避免与后端预置数据逻辑冲突
+  // 如果是空项目状态，应该由 UI (ProjectWorkspaceView) 展示 Empty State 引导用户
 
-  // 将 accessPoints 转换为 configuredAccessPoints 格式
+  // 8. 渲染
   const configuredAccessPoints = useMemo(() => {
     return accessPoints.map(ap => ({
       path: ap.path,
@@ -365,35 +363,42 @@ export default function ProjectsSlugPage({
           )}
 
           {/* 右侧面板区域 (Tools / Document Editor) */}
-          <RightAuxiliaryPanel
-            content={rightPanelContent}
-            onClose={() => {
-              setRightPanelContent('NONE');
-              setIsEditorFullScreen(false);
-            }}
-            accessPoints={accessPoints}
-            setAccessPoints={setAccessPoints}
-            activeBaseName={activeBase?.name}
-            activeTableName={activeTable?.name}
-            onSaveTools={handleSaveTools}
-            isSaving={isSaving}
-            saveError={saveError}
-            savedResult={savedResult}
-            setSavedResult={setSavedResult}
-            onViewAllMcp={() => router.push('/tools-and-server/tools-list')}
-            editorTarget={editorTarget}
-            onEditorSave={(path, newValue) => {
-              // TODO: 实现保存逻辑 - 通过 path 找到对应的节点并更新
-              console.log('Save document:', path, newValue);
-              setEditorTarget(null);
-              setRightPanelContent('NONE');
-              setIsEditorFullScreen(false);
-            }}
-            isEditorFullScreen={isEditorFullScreen}
-            onToggleEditorFullScreen={() =>
-              setIsEditorFullScreen(!isEditorFullScreen)
-            }
-          />
+          <ResizablePanel isVisible={rightPanelContent !== 'NONE'}>
+            {rightPanelContent === 'TOOLS' && (
+              <ToolsPanel
+                accessPoints={accessPoints}
+                setAccessPoints={setAccessPoints}
+                activeBaseName={activeBase?.name}
+                activeTableName={activeTable?.name}
+                onClose={() => setRightPanelContent('NONE')}
+                onSaveTools={handleSaveTools}
+                isSaving={isSaving}
+                saveError={saveError}
+                savedResult={savedResult}
+                setSavedResult={setSavedResult}
+              />
+            )}
+            {rightPanelContent === 'EDITOR' && editorTarget && (
+              <DocumentEditor
+                path={editorTarget.path}
+                value={editorTarget.value}
+                onSave={newValue => {
+                  console.log('Save document:', editorTarget.path, newValue);
+                  setEditorTarget(null);
+                  setRightPanelContent('NONE');
+                  setIsEditorFullScreen(false);
+                }}
+                onClose={() => {
+                  setRightPanelContent('NONE');
+                  setIsEditorFullScreen(false);
+                }}
+                isFullScreen={isEditorFullScreen}
+                onToggleFullScreen={() =>
+                  setIsEditorFullScreen(!isEditorFullScreen)
+                }
+              />
+            )}
+          </ResizablePanel>
         </div>
       </div>
 
@@ -403,6 +408,21 @@ export default function ProjectsSlugPage({
         onOpenChange={setIsChatOpen}
         chatWidth={chatWidth}
         onChatWidthChange={setChatWidth}
+        tableData={currentTableData?.data}
+        onDataUpdate={async newData => {
+          // 保存到后端
+          if (activeBaseId && activeTableId) {
+            try {
+              const dataToSave = Array.isArray(newData) ? newData : [newData];
+              await updateTableData(activeBaseId, activeTableId, dataToSave);
+              // 刷新数据
+              refreshTable();
+            } catch (err) {
+              console.error('[ChatSidebar] Failed to save:', err);
+            }
+          }
+        }}
+        accessPoints={accessPoints}
       />
     </div>
   );

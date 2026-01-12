@@ -160,133 +160,79 @@ export function RightAuxiliaryPanel({
       style={{
         width: isVisible ? width : 0,
         display: 'flex',
-        flexDirection: 'row',
+        flexDirection: 'column',
         height: '100%',
-        // borderLeft: isVisible ? '1px solid #2a2a2a' : 'none', // 移除边框，由子组件控制
-        // background: '#161618', // 移除背景色，由子组件控制
+        borderLeft: isVisible ? '1px solid #2a2a2a' : 'none',
+        background: '#111111',
         position: 'relative',
         flexShrink: 0,
-        overflow: 'visible', // 允许子组件的阴影溢出
-        // 滑动动画 - 和左侧 Sidebar 保持一致
+        overflow: 'hidden',
         transition: isResizing ? 'none' : 'width 0.2s ease',
       }}
     >
-      {/* 左边缘 - 仅拖拽手柄 */}
+      {/* 简化的 Resize Handle - 和左侧 Sidebar 风格一致 */}
       <div
+        onMouseDown={e => {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragStart({ startX: e.clientX, startWidth: width });
+          setIsResizing(true);
+        }}
         onMouseEnter={() => setIsResizeHovered(true)}
         onMouseLeave={() => !isResizing && setIsResizeHovered(false)}
         style={{
-          width: 20,
           position: 'absolute',
-          left: 0,
+          left: -2,
           top: 0,
-          bottom: 0,
+          width: 4,
+          height: '100%',
+          cursor: 'col-resize',
           zIndex: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: isResizing || isResizeHovered ? 1 : 0,
-          transition: 'opacity 0.15s ease',
+          background:
+            isResizing || isResizeHovered
+              ? 'rgba(255, 255, 255, 0.1)'
+              : 'transparent',
+          transition: 'background 0.15s',
         }}
-      >
-        {/* 拖拽手柄 */}
-        <div
-          onMouseDown={e => {
-            e.preventDefault();
-            e.stopPropagation();
-            // 记录拖拽开始时的鼠标位置和当前宽度
-            setDragStart({ startX: e.clientX, startWidth: width });
-            setIsResizing(true);
-          }}
-          style={{
-            width: 12,
-            height: 40,
-            borderRadius: 6,
-            background: isResizing
-              ? 'rgba(59, 130, 246, 0.4)'
-              : 'rgba(255, 255, 255, 0.08)',
-            border: isResizing
-              ? '1px solid rgba(59, 130, 246, 0.5)'
-              : '1px solid rgba(255, 255, 255, 0.06)',
-            cursor: 'col-resize',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 3,
-            transition: 'all 0.15s',
-          }}
-        >
-          {/* 纹理线 */}
-          {[0, 1, 2].map(i => (
-            <div
-              key={i}
-              style={{
-                width: 4,
-                height: 1,
-                background: isResizing
-                  ? 'rgba(59, 130, 246, 0.8)'
-                  : 'rgba(255, 255, 255, 0.3)',
-                borderRadius: 1,
-              }}
-            />
-          ))}
-        </div>
-      </div>
+      />
 
-      {/* Content Container - 外层 Padding 制造浮动卡片效果 */}
+      {/* Content - 全宽无额外 padding */}
       <div
         style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          padding: 12, // 外层 Padding，让卡片悬浮
-          // 内容淡入动画
           opacity: isVisible ? 1 : 0,
           transition: 'opacity 0.15s ease',
         }}
       >
-        {/* 浮动卡片容器 - 所有子组件共享 */}
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            background: '#0f0f11',
-            borderRadius: 12,
-            border: '1px solid #1a1a1c',
-            overflow: 'hidden',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          }}
-        >
-          {content === 'TOOLS' && (
-            <ToolsPanel
-              accessPoints={accessPoints}
-              setAccessPoints={setAccessPoints}
-              activeBaseName={activeBaseName}
-              activeTableName={activeTableName}
-              onClose={onClose}
-              onSaveTools={onSaveTools}
-              isSaving={isSaving}
-              saveError={saveError}
-              savedResult={savedResult}
-              setSavedResult={setSavedResult}
-              onViewAllMcp={onViewAllMcp}
-            />
-          )}
+        {content === 'TOOLS' && (
+          <ToolsPanel
+            accessPoints={accessPoints}
+            setAccessPoints={setAccessPoints}
+            activeBaseName={activeBaseName}
+            activeTableName={activeTableName}
+            onClose={onClose}
+            onSaveTools={onSaveTools}
+            isSaving={isSaving}
+            saveError={saveError}
+            savedResult={savedResult}
+            setSavedResult={setSavedResult}
+            onViewAllMcp={onViewAllMcp}
+          />
+        )}
 
-          {content === 'EDITOR' && editorTarget && (
-            <DocumentEditor
-              path={editorTarget.path}
-              value={editorTarget.value}
-              onSave={newValue => onEditorSave(editorTarget.path, newValue)}
-              onClose={onClose}
-              isFullScreen={isEditorFullScreen}
-              onToggleFullScreen={onToggleEditorFullScreen}
-            />
-          )}
-        </div>
+        {content === 'EDITOR' && editorTarget && (
+          <DocumentEditor
+            path={editorTarget.path}
+            value={editorTarget.value}
+            onSave={newValue => onEditorSave(editorTarget.path, newValue)}
+            onClose={onClose}
+            isFullScreen={isEditorFullScreen}
+            onToggleFullScreen={onToggleEditorFullScreen}
+          />
+        )}
       </div>
     </div>
   );

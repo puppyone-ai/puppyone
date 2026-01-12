@@ -1,4 +1,4 @@
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, ChevronDown, ChevronRight, Terminal } from 'lucide-react';
 import { useState } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -8,7 +8,8 @@ export interface MessagePart {
   content?: string;
   toolId?: string;
   toolName?: string;
-  toolInput?: string; // 工具输入参数（如搜索 query）
+  toolInput?: string; // 工具输入参数（如命令）
+  toolOutput?: string; // 工具执行结果
   toolStatus?: 'running' | 'completed' | 'error';
 }
 
@@ -23,6 +24,172 @@ export interface BotMessageProps {
   isStreaming?: boolean; // 是否正在生成中
 }
 
+// 截断命令显示
+function truncateCommand(cmd: string, maxLen = 50): string {
+  if (!cmd) return '';
+  // 简化：只取主命令部分
+  const simplified = cmd
+    .replace(/\/workspace\/data\.json/g, 'data.json')
+    .replace(/\/tmp\/temp\.json/g, 'temp.json')
+    .replace(
+      /> \/tmp\/temp\.json && mv \/tmp\/temp\.json \/workspace\/data\.json/g,
+      '→ save'
+    );
+
+  if (simplified.length <= maxLen) return simplified;
+  return simplified.substring(0, maxLen) + '...';
+}
+
+// 单个 Tool 组件
+function ToolItem({
+  part,
+  isExpanded,
+  onToggle,
+}: {
+  part: MessagePart;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const isRunning = part.toolStatus === 'running';
+  const isCompleted = part.toolStatus === 'completed';
+  const isError = part.toolStatus === 'error';
+
+  return (
+    <div style={{ marginBottom: '4px' }}>
+      <div
+        onClick={onToggle}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          height: '26px',
+          padding: '0 8px',
+          fontSize: '11px',
+          color: isError ? '#ff8a8a' : 'rgba(255,255,255,0.6)',
+          backgroundColor: 'rgba(255,255,255,0.04)',
+          borderRadius: '4px',
+          cursor: part.toolInput ? 'pointer' : 'default',
+          maxWidth: '100%',
+          transition: 'background 0.15s',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+        }}
+      >
+        {/* 状态指示器 */}
+        {isRunning ? (
+          <div
+            style={{
+              width: '10px',
+              height: '10px',
+              border: '1.5px solid rgba(255,255,255,0.2)',
+              borderTopColor: 'rgba(255,255,255,0.6)',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              flexShrink: 0,
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '10px',
+              height: '10px',
+              borderRadius: '50%',
+              border: `1.5px solid ${isError ? '#ff6b6b' : '#444'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {isCompleted && (
+              <Check size={6} strokeWidth={3} style={{ color: '#555' }} />
+            )}
+          </div>
+        )}
+
+        {/* 工具名 */}
+        <Terminal size={11} style={{ color: '#666', flexShrink: 0 }} />
+
+        {/* 命令（截断） */}
+        <span
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontFamily: 'ui-monospace, monospace',
+            fontSize: '10px',
+            opacity: 0.7,
+          }}
+        >
+          {truncateCommand(part.toolInput || '', 60)}
+        </span>
+
+        {/* 展开箭头 - 有内容可展开时显示 */}
+        {(part.toolInput || part.toolOutput) &&
+          (isExpanded ? (
+            <ChevronDown size={12} style={{ color: '#666', flexShrink: 0 }} />
+          ) : (
+            <ChevronRight size={12} style={{ color: '#666', flexShrink: 0 }} />
+          ))}
+      </div>
+
+      {/* 展开的详情：命令 + 输出 */}
+      {isExpanded && (part.toolInput || part.toolOutput) && (
+        <div
+          style={{
+            marginTop: '4px',
+            marginLeft: '20px',
+            padding: '8px 10px',
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            borderRadius: '4px',
+            fontSize: '10px',
+            fontFamily: 'ui-monospace, monospace',
+            lineHeight: '1.5',
+            maxHeight: '200px',
+            overflowY: 'auto',
+          }}
+        >
+          {/* 命令输入 */}
+          {part.toolInput && (
+            <div
+              style={{
+                color: 'rgba(255,255,255,0.5)',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+              }}
+            >
+              <span style={{ color: '#6b7280', marginRight: '6px' }}>$</span>
+              {part.toolInput}
+            </div>
+          )}
+
+          {/* 执行结果 */}
+          {part.toolOutput && (
+            <div
+              style={{
+                color: 'rgba(255,255,255,0.7)',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+                marginTop: part.toolInput ? '8px' : 0,
+                paddingTop: part.toolInput ? '8px' : 0,
+                borderTop: part.toolInput
+                  ? '1px solid rgba(255,255,255,0.1)'
+                  : 'none',
+              }}
+            >
+              {part.toolOutput}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BotMessage({
   message,
   parts = [],
@@ -30,6 +197,7 @@ export default function BotMessage({
 }: BotMessageProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 
   const handleCopy = async () => {
     try {
@@ -41,7 +209,15 @@ export default function BotMessage({
     } catch {}
   };
 
-  // 如果没有 parts，回退到简单的 content 渲染
+  const toggleTool = (toolId: string) => {
+    setExpandedTools(prev => {
+      const next = new Set(prev);
+      if (next.has(toolId)) next.delete(toolId);
+      else next.add(toolId);
+      return next;
+    });
+  };
+
   const hasParts = parts.length > 0;
 
   return (
@@ -55,13 +231,13 @@ export default function BotMessage({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* 按顺序渲染所有 parts */}
+      {/* 按原顺序渲染所有 parts */}
       {hasParts ? (
         parts.map((part, index) => {
           if (part.type === 'text' && part.content) {
             return (
               <div
-                key={index}
+                key={`text-${index}`}
                 style={{
                   fontSize: '13px',
                   color: '#d2d2d2',
@@ -79,72 +255,14 @@ export default function BotMessage({
           }
 
           if (part.type === 'tool') {
-            const isRunning = part.toolStatus === 'running';
-            const isCompleted = part.toolStatus === 'completed';
-            const isError = part.toolStatus === 'error';
-
+            const toolKey = part.toolId || `tool-${index}`;
             return (
-              <div
-                key={part.toolId || index}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  height: '28px',
-                  padding: '0 10px',
-                  fontSize: '12px',
-                  color: isError ? '#ff8a8a' : 'rgba(255,255,255,0.6)',
-                  backgroundColor: 'rgba(255,255,255,0.05)',
-                  borderRadius: '6px',
-                  marginBottom: '8px',
-                }}
-              >
-                {/* 状态指示器 */}
-                {isRunning ? (
-                  <div
-                    style={{
-                      width: '12px',
-                      height: '12px',
-                      border: '1.5px solid rgba(255,255,255,0.2)',
-                      borderTopColor: 'rgba(255,255,255,0.6)',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite',
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '50%',
-                      border: `1.5px solid ${isError ? '#ff6b6b' : '#555'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {isCompleted && (
-                      <Check
-                        size={7}
-                        strokeWidth={2.5}
-                        style={{ color: '#666' }}
-                      />
-                    )}
-                  </div>
-                )}
-
-                {/* 工具名 + query */}
-                <span>
-                  {part.toolName}
-                  {part.toolInput && (
-                    <span style={{ opacity: 0.5, marginLeft: '6px' }}>
-                      {part.toolInput}
-                    </span>
-                  )}
-                </span>
-              </div>
+              <ToolItem
+                key={toolKey}
+                part={part}
+                isExpanded={expandedTools.has(toolKey)}
+                onToggle={() => toggleTool(toolKey)}
+              />
             );
           }
 

@@ -12,7 +12,8 @@ const VALUE_GAP = 12;
 const BASE_INDENT = ROOT_ICON_WIDTH / 2;
 const DEFAULT_KEY_WIDTH = KEY_WIDTH;
 const MIN_KEY_WIDTH = KEY_WIDTH;
-const MAX_KEY_WIDTH = 200;
+const MAX_KEY_WIDTH = 400;
+const RESIZE_STEP = 28; // 顿挫感步进值，与行高保持节奏一致
 
 /** 计算一层的总宽度 */
 const getLevelIndent = (keyWidth: number) =>
@@ -57,9 +58,12 @@ export const DepthResizeBar = React.memo(function DepthResizeBar({
 
     const handleMouseMove = (e: MouseEvent) => {
       const deltaX = e.clientX - dragStartX.current;
+      // 顿挫感核心：量化拖拽距离
+      const steppedDeltaX = Math.round(deltaX / RESIZE_STEP) * RESIZE_STEP;
+
       const newKeyWidth = Math.max(
         MIN_KEY_WIDTH,
-        Math.min(MAX_KEY_WIDTH, dragStartKeyWidth.current + deltaX)
+        Math.min(MAX_KEY_WIDTH, dragStartKeyWidth.current + steppedDeltaX)
       );
       onKeyWidthChange(draggingDepth - 1, newKeyWidth);
     };
@@ -131,7 +135,9 @@ export const DepthResizeBar = React.memo(function DepthResizeBar({
           justify-content: center;
           z-index: 1;
           opacity: 0;
-          transition: opacity 0.15s ease;
+          transition:
+            opacity 0.15s ease,
+            left 0.1s cubic-bezier(0.2, 0, 0, 1);
         }
         .resize-bar:hover .handle,
         .resize-bar.dragging .handle {

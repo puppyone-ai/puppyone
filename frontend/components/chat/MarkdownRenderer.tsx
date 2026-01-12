@@ -1,7 +1,58 @@
-import { CSSProperties, memo, useMemo, useRef } from 'react';
+import { CSSProperties, memo, useMemo, useRef, ReactNode } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+
+// @path 高亮样式
+const PATH_MENTION_STYLE: CSSProperties = {
+  background: 'rgba(107, 179, 248, 0.15)',
+  color: '#6bb3f8',
+  padding: '1px 5px',
+  borderRadius: 4,
+  fontFamily: 'monospace',
+  fontSize: '0.9em',
+  cursor: 'pointer',
+  transition: 'background 0.15s',
+};
+
+// 解析文本中的 @path
+function parseTextWithPathMentions(text: string): ReactNode[] {
+  const pathRegex =
+    /@([a-zA-Z_][a-zA-Z0-9_]*(?:(?:\.[a-zA-Z_][a-zA-Z0-9_]*)|(?:\[\d+\]))*)/g;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  let keyIndex = 0;
+
+  while ((match = pathRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const path = match[1];
+    parts.push(
+      <span
+        key={`path-${keyIndex++}`}
+        style={PATH_MENTION_STYLE}
+        title={`JSON Path: ${path}`}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(107, 179, 248, 0.25)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'rgba(107, 179, 248, 0.15)';
+        }}
+      >
+        @{path}
+      </span>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
+}
 
 // Define default styles as a constant to avoid recreation
 const DEFAULT_STYLES: Record<string, CSSProperties> = {
@@ -99,12 +150,38 @@ function MarkdownRenderer({
   const stylesRef = useRef(componentsStyle || DEFAULT_STYLES);
   stylesRef.current = componentsStyle || DEFAULT_STYLES;
 
+  // 处理 children，解析其中的 @path
+  const processChildren = (children: ReactNode): ReactNode => {
+    if (typeof children === 'string') {
+      const parsed = parseTextWithPathMentions(children);
+      return parsed.length === 1 && typeof parsed[0] === 'string' ? (
+        parsed[0]
+      ) : (
+        <>{parsed}</>
+      );
+    }
+    if (Array.isArray(children)) {
+      return children.map((child, i) => {
+        if (typeof child === 'string') {
+          const parsed = parseTextWithPathMentions(child);
+          return parsed.length === 1 && typeof parsed[0] === 'string' ? (
+            parsed[0]
+          ) : (
+            <span key={i}>{parsed}</span>
+          );
+        }
+        return child;
+      });
+    }
+    return children;
+  };
+
   // Memoize components once. They will read from refs to get latest data.
   const components: Components = useMemo(() => {
     return {
       p: ({ children, node, ...props }) => (
         <p style={stylesRef.current.p ?? DEFAULT_STYLES.p} {...props}>
-          {children}
+          {processChildren(children)}
         </p>
       ),
       h1: ({ node, ...props }) => (
@@ -122,8 +199,10 @@ function MarkdownRenderer({
       ol: ({ node, ...props }) => (
         <ol style={stylesRef.current.ol ?? DEFAULT_STYLES.ol} {...props} />
       ),
-      li: ({ node, ...props }) => (
-        <li style={stylesRef.current.li ?? DEFAULT_STYLES.li} {...props} />
+      li: ({ children, node, ...props }) => (
+        <li style={stylesRef.current.li ?? DEFAULT_STYLES.li} {...props}>
+          {processChildren(children)}
+        </li>
       ),
       table: ({ node, ...props }) => (
         <table

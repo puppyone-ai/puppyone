@@ -3,7 +3,9 @@
  *
  * - JsonEditorComponent: Original jsoneditor library wrapper
  * - TreeLineVirtualEditor: High-performance virtual scrolling version
+ * - TreeLineDiscreteEditor: Discrete scrolling (no pixel-scrolling, fixed DOM slots)
  */
 
 export { default as JsonEditorComponent } from './JsonEditorComponent';
 export { default as TreeLineVirtualEditor } from './TreeLineVirtualEditor';
+export { default as TreeLineDiscreteEditor } from './TreeLineDiscreteEditor';

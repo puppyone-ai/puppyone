@@ -41,8 +41,8 @@ export default function MainLayout({
     }
   }, [pathname]);
 
-  // 侧边栏状态
-  const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  // 侧边栏状态 - 默认收起，让用户聚焦于二级 sidebar
+  const [isNavCollapsed, setIsNavCollapsed] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [expandedBaseIds, setExpandedBaseIds] = useState<Set<string>>(
     new Set()
@@ -99,7 +99,16 @@ export default function MainLayout({
   };
 
   const handleUtilityNavClick = (id: string) => {
-    if (id === 'tools') {
+    if (id === 'projects') {
+      // Navigate to first project's first table if available, otherwise just /projects
+      if (projects.length > 0 && projects[0].tables?.length > 0) {
+        router.push(`/projects/${projects[0].id}/${projects[0].tables[0].id}`);
+      } else if (projects.length > 0) {
+        router.push(`/projects/${projects[0].id}`);
+      } else {
+        router.push('/projects');
+      }
+    } else if (id === 'tools') {
       router.push('/tools-and-server/tools-list');
     } else if (id === 'settings') {
       router.push('/settings/connect');
@@ -143,6 +152,8 @@ export default function MainLayout({
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,
+          height: '100%', // 确保高度传递给子组件
+          overflow: 'hidden', // 防止子元素溢出
         }}
       >
         {children}

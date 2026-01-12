@@ -9,9 +9,12 @@ import { TOOL_TYPE_CONFIG } from '../../../../lib/toolConfig';
 // 重新导出类型供其他组件使用
 export type { McpToolPermissions };
 
+// Shell Access Tool Definition
+const SHELL_TOOL = { id: 'shell_access', label: 'Bash' };
+
 // MCP 工具列表定义
 const MCP_TOOLS = [
-  { id: 'get_data_schema', label: 'Get Schema' },
+  // { id: 'get_data_schema', label: 'Get Schema' }, // TODO: 暂时隐藏，之后再用
   { id: 'query_data', label: 'Query' },
   { id: 'get_all_data', label: 'Get All' },
   { id: 'create', label: 'Create' },
@@ -183,6 +186,34 @@ export function RightAccessControl({
               width: '100%',
             }}
           >
+            {/* Show Shell Icon if enabled - Unified Orange Color */}
+            {(configuredAccess as any)?.['shell_access'] && (
+              <div
+                style={{
+                  color: '#fb923c', // Unified Orange
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 14,
+                  height: 14,
+                }}
+              >
+                <svg
+                  width='14'
+                  height='14'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                >
+                  <polyline points='4 17 10 11 4 5'></polyline>
+                  <line x1='12' y1='19' x2='20' y2='19'></line>
+                </svg>
+              </div>
+            )}
+
             {MCP_TOOLS.filter(t => (configuredAccess as any)?.[t.id]).map(
               tool => {
                 // const config = TOOL_TYPE_CONFIG[tool.id] // 不再使用彩色配置
@@ -256,18 +287,123 @@ export function RightAccessControl({
             <div style={{ padding: '8px 12px 4px' }}>
               <div
                 style={{
-                  fontSize: 10,
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
+                  fontSize: 11, // Increased size slightly
+                  fontWeight: 500, // Medium weight
+                  color: '#71717a', // Neutral gray
                   marginBottom: 2,
                 }}
               >
-                Agent is allowed to
+                Agent Access
               </div>
             </div>
 
             {/* 工具列表 */}
+            {/* 1. Shell Access (Top Priority) - Unified Style */}
+            {(() => {
+              const tool = SHELL_TOOL;
+              const isEnabled = (configuredAccess as any)?.[tool.id] || false;
+              return (
+                <button
+                  key={tool.id}
+                  onClick={e => {
+                    e.stopPropagation();
+                    handleToggle(tool.id, !isEnabled);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    height: 28,
+                    padding: '0 12px',
+                    background: 'transparent', // No purple bg
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    color: isEnabled ? '#e2e8f0' : '#9ca3af',
+                    fontSize: 12,
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
+                    transition: 'all 0.1s',
+                    marginBottom: 4, // Spacing from divider
+                  }}
+                  onMouseEnter={e =>
+                    (e.currentTarget.style.background =
+                      'rgba(255,255,255,0.05)')
+                  }
+                  onMouseLeave={e =>
+                    (e.currentTarget.style.background = 'transparent')
+                  }
+                >
+                  <span
+                    style={{
+                      width: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: isEnabled ? 1 : 0.6,
+                      color: isEnabled
+                        ? '#fb923c' // Orange
+                        : 'inherit',
+                    }}
+                  >
+                    {/* Terminal Icon */}
+                    <svg
+                      width='14'
+                      height='14'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='2'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                    >
+                      <polyline points='4 17 10 11 4 5'></polyline>
+                      <line x1='12' y1='19' x2='20' y2='19'></line>
+                    </svg>
+                  </span>
+                  <span style={{ flex: 1 }}>{tool.label}</span>
+                  <span
+                    style={{
+                      width: 16,
+                      height: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 3,
+                      background: isEnabled
+                        ? 'rgba(251, 146, 60, 0.1)' // Orange bg (faint)
+                        : 'rgba(255,255,255,0.05)',
+                      border: isEnabled
+                        ? `1px solid rgba(251, 146, 60, 0.4)` // Orange border
+                        : '1px solid rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    {isEnabled && (
+                      <svg
+                        width='10'
+                        height='10'
+                        viewBox='0 0 10 10'
+                        fill='none'
+                      >
+                        <path
+                          d='M2 5l2.5 2.5L8 3'
+                          stroke='#fb923c' // Orange check
+                          strokeWidth='1.5'
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                        />
+                      </svg>
+                    )}
+                  </span>
+                </button>
+              );
+            })()}
+
+            {/* Divider */}
+            <div style={{ height: 1, background: '#333', margin: '4px 0' }} />
+
+            {/* 2. Standard MCP Tools */}
             {MCP_TOOLS.map(tool => {
               const isEnabled = (configuredAccess as any)?.[tool.id] || false;
               return (
@@ -402,12 +538,14 @@ export function RightAccessControl({
                         stroke='currentColor'
                         strokeWidth='1.2'
                         strokeLinecap='round'
+                        strokeLinejoin='round'
                       />
                       <path
                         d='M5.5 7v4M8.5 7v4'
                         stroke='currentColor'
                         strokeWidth='1.2'
                         strokeLinecap='round'
+                        strokeLinejoin='round'
                       />
                     </svg>
                   </span>

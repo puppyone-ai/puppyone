@@ -33,7 +33,8 @@
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "swr": "^2.3.7",
-    "vanilla-jsoneditor": "^3.10.0"
+    "vanilla-jsoneditor": "^3.10.0",
+    "zustand": "^5.0.9"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",
