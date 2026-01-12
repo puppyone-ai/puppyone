@@ -1385,7 +1385,7 @@ export function TableManageDialog({
                   >
                     <input
                       type='text'
-                      placeholder='https://www.notion.so/doc...'
+                      placeholder='https://www.notion.so/...'
                       value={connectUrlInput}
                       onChange={e => setConnectUrlInput(e.target.value)}
                       onKeyDown={e => {
@@ -1433,7 +1433,7 @@ export function TableManageDialog({
                     </button>
                   </div>
                   <div style={{ fontSize: 11, color: '#525252', marginTop: 8 }}>
-                    Works with Notion pages, Google Docs (public), and other
+                    Works with Notion pages, Google Docs, and other
                     supported sources.
                   </div>
                   <div

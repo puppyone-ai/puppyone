@@ -1,7 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { parseUrl, importData, type ParseUrlResponse } from '../lib/connectApi';
+import {
+  parseUrl,
+  importData,
+  type ParseUrlResponse,
+  type CrawlOptions,
+} from '../lib/connectApi';
+import CrawlOptionsPanel from './CrawlOptionsPanel';
 import {
   getNotionStatus,
   connectNotion,
@@ -78,7 +84,7 @@ const platformConfigs: PlatformConfig[] = [
     isEnabled: true,
     icon: (
       <svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-        <path d='M19.5 3H4.5C3.12 3 2 4.12 2 5.5v13C2 19.88 3.12 21 4.5 21h15c1.38 0 2.5-1.12 2.5-2.5v-13C22 4.12 20.88 3 19.5 3zM9 17H6v-2h3v2zm0-4H6v-2h3v2zm0-4H6V7h3v2zm9 8h-6v-2h6v2zm0-4h-6v-2h6v2zm0-4h-6V7h6v2z' />
+        <path d='M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z' />
       </svg>
     ),
   },
@@ -88,17 +94,8 @@ const platformConfigs: PlatformConfig[] = [
     description: 'Issues, projects, roadmaps',
     isEnabled: true,
     icon: (
-      <svg
-        width='20'
-        height='20'
-        viewBox='0 0 24 24'
-        fill='none'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      >
-        <path d='M21 3L3 21M21 3L21 10M21 3L14 3' />
+      <svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
+        <path d='M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z' />
       </svg>
     ),
   },
@@ -109,7 +106,7 @@ const platformConfigs: PlatformConfig[] = [
     isEnabled: true,
     icon: (
       <svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-        <path d='M11.992 1.966L2.847 5.478a.75.75 0 0 0 0 1.394l9.145 3.512a.75.75 0 0 0 .533 0l9.145-3.512a.75.75 0 0 0 0-1.394l-9.145-3.512a.75.75 0 0 0-.533 0zM3 9.5v7.25a.75.75 0 0 0 .463.693l8.287 3.432a.75.75 0 0 0 .75-.134V12.5L3 9.5zm18 0l-9.5 3v8.241a.75.75 0 0 0 .75.134l8.287-3.432a.75.75 0 0 0 .463-.693V9.5z' />
+        <path d='M11.992 1.966c-.434 0-.87.086-1.28.257L1.779 5.917c-.503.208-.49.908.012 1.116l8.982 3.558a3.266 3.266 0 0 0 2.454 0l8.982-3.558c.503-.196.503-.908.012-1.116l-8.957-3.694a3.255 3.255 0 0 0-1.272-.257zM23.4 8.056a.589.589 0 0 0-.222.045l-10.012 3.877a.612.612 0 0 0-.38.564v8.896a.6.6 0 0 0 .821.552L23.62 18.1a.583.583 0 0 0 .38-.551V8.653a.6.6 0 0 0-.6-.596zM.676 8.095a.644.644 0 0 0-.48.19C.086 8.396 0 8.53 0 8.69v8.355c0 .442.515.737.908.54l6.27-3.006.307-.147 2.969-1.436c.466-.22.43-.908-.061-1.092L.883 8.138a.57.57 0 0 0-.207-.044z' />
       </svg>
     ),
   },
@@ -169,6 +166,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     visible: false,
     platformId: null,
   });
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const getPlatformName = useCallback((platformId: PlatformId) => {
     return (
       platformConfigs.find(platform => platform.id === platformId)?.name ??
@@ -184,6 +182,14 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const [newTableName, setNewTableName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState(false);
+
+  // Crawl options for web scraping
+  const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>({
+    limit: 50,  // Reduced to avoid timeout
+    maxDepth: 3,
+    crawlEntireDomain: true,
+    sitemap: 'include',
+  });
 
   const updatePlatformState = useCallback(
     (platformId: PlatformId, updates: Partial<PlatformState>) => {
@@ -521,11 +527,19 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   };
 
   useEffect(() => {
-    void checkNotionStatus();
-    void checkGithubStatus();
-    void checkGoogleSheetsStatus();
-    void checkLinearStatus();
-    void checkAirtableStatus();
+    const checkAllPlatformStatus = async () => {
+      setIsInitialLoading(true);
+      await Promise.allSettled([
+        checkNotionStatus(),
+        checkGithubStatus(),
+        checkGoogleSheetsStatus(),
+        checkLinearStatus(),
+        checkAirtableStatus(),
+      ]);
+      setIsInitialLoading(false);
+    };
+
+    void checkAllPlatformStatus();
   }, [
     checkNotionStatus,
     checkGithubStatus,
@@ -579,7 +593,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     setImportSuccess(false);
 
     try {
-      const result = await parseUrl(url);
+      const result = await parseUrl(url, crawlOptions);
       setParseResult(result);
 
       // Auto-select first project if available
@@ -802,7 +816,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                   const lampColor =
                     statusColors[state?.status ?? 'disconnected'];
                   const isToggleDisabled =
-                    !platform.isEnabled || state?.isLoading;
+                    !platform.isEnabled || state?.isLoading || isInitialLoading;
 
                   return (
                     <div
@@ -882,7 +896,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {state?.label}
+                          {isInitialLoading ? 'Checking...' : state?.label}
                         </span>
                       </div>
 
@@ -966,7 +980,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                       handleParse();
                     }
                   }}
-                  placeholder='https://workspace.notion.so/page-id or other SaaS URL'
+                  placeholder='https://www.notion.so/...'
                   disabled={isLoading || isImporting}
                   style={{
                     flex: 1,
@@ -1031,6 +1045,13 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                 Paste a supported SaaS page URL to import its content
               </div>
             </div>
+
+            {/* Crawl Options Panel */}
+            <CrawlOptionsPanel
+              url={url}
+              options={crawlOptions}
+              onChange={setCrawlOptions}
+            />
 
             {disconnectConfirmation.visible && (
               <div
