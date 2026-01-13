@@ -4,6 +4,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useProjects } from '@/lib/hooks/useData';
 import { getProcessingTableIds } from '@/components/BackgroundTaskNotifier';
+import { ProjectManageDialog } from '@/components/ProjectManageDialog';
+import { TableManageDialog } from '@/components/TableManageDialog';
+import { TableRenameDialog } from '@/components/TableRenameDialog';
+import { TableDeleteDialog } from '@/components/TableDeleteDialog';
 
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 320;
@@ -20,6 +24,33 @@ export default function ProjectsLayout({
 
   // Data fetching
   const { projects, isLoading } = useProjects();
+
+  // Dialog state
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [projectDialogDeleteMode, setProjectDialogDeleteMode] = useState(false);
+  const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const [tableDialogProjectId, setTableDialogProjectId] = useState<string | null>(
+    null
+  );
+  const [editingTableId, setEditingTableId] = useState<string | null>(null);
+  const [tableRenameDialogOpen, setTableRenameDialogOpen] = useState(false);
+  const [tableDeleteDialogOpen, setTableDeleteDialogOpen] = useState(false);
+  const [tableModalProjectId, setTableModalProjectId] = useState<string | null>(
+    null
+  );
+  const [tableModalTableId, setTableModalTableId] = useState<string | null>(null);
+  const [tableContextMenu, setTableContextMenu] = useState<{
+    x: number;
+    y: number;
+    projectId: string;
+    tableId: string;
+  } | null>(null);
+  const [projectContextMenu, setProjectContextMenu] = useState<{
+    x: number;
+    y: number;
+    projectId: string;
+  } | null>(null);
 
   // Layout state
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
@@ -72,6 +103,17 @@ export default function ProjectsLayout({
       clearInterval(interval);
     };
   }, []);
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!tableContextMenu && !projectContextMenu) return;
+    const handleClick = () => {
+      setTableContextMenu(null);
+      setProjectContextMenu(null);
+    };
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [tableContextMenu, projectContextMenu]);
 
   // Handle resize
   const handleMouseDown = useCallback(
@@ -236,8 +278,9 @@ export default function ProjectsLayout({
                   <button
                     onClick={e => {
                       e.stopPropagation();
-                      // TODO: Implement create project logic
-                      console.log('Create new project');
+                      setEditingProjectId(null);
+                      setProjectDialogDeleteMode(false);
+                      setProjectDialogOpen(true);
                     }}
                     title='New Project'
                     style={{
@@ -389,6 +432,30 @@ export default function ProjectsLayout({
                         processingTableIds={processingTableIds}
                         onToggle={() => toggleProject(project.id)}
                         onTableClick={handleTableClick}
+                        onCreateTable={() => {
+                          setTableDialogProjectId(project.id);
+                          setEditingTableId(null);
+                          setTableDialogOpen(true);
+                        }}
+                        onProjectContextMenu={e => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setProjectContextMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            projectId: project.id,
+                          });
+                        }}
+                        onTableContextMenu={(e, tableId) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setTableContextMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            projectId: project.id,
+                            tableId: String(tableId),
+                          });
+                        }}
                       />
                     ))
                   )}
@@ -462,6 +529,300 @@ export default function ProjectsLayout({
           {children}
         </section>
       </div>
+
+      {projectDialogOpen && (
+        <ProjectManageDialog
+          projectId={editingProjectId}
+          projects={projects}
+          deleteMode={projectDialogDeleteMode}
+          onClose={() => {
+            setProjectDialogOpen(false);
+            setEditingProjectId(null);
+            setProjectDialogDeleteMode(false);
+          }}
+        />
+      )}
+
+      {tableDialogOpen && tableDialogProjectId && (
+        <TableManageDialog
+          projectId={tableDialogProjectId}
+          tableId={editingTableId}
+          projects={projects}
+          onClose={() => {
+            setTableDialogOpen(false);
+            setTableDialogProjectId(null);
+            setEditingTableId(null);
+          }}
+        />
+      )}
+
+      {tableRenameDialogOpen && tableModalProjectId && tableModalTableId && (
+        <TableRenameDialog
+          projectId={tableModalProjectId}
+          tableId={tableModalTableId}
+          projects={projects}
+          onClose={() => {
+            setTableRenameDialogOpen(false);
+            setTableModalProjectId(null);
+            setTableModalTableId(null);
+          }}
+        />
+      )}
+
+      {tableDeleteDialogOpen && tableModalProjectId && tableModalTableId && (
+        <TableDeleteDialog
+          projectId={tableModalProjectId}
+          tableId={tableModalTableId}
+          projects={projects}
+          onClose={() => {
+            setTableDeleteDialogOpen(false);
+            setTableModalProjectId(null);
+            setTableModalTableId(null);
+          }}
+        />
+      )}
+
+      {tableContextMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            left: tableContextMenu.x,
+            top: tableContextMenu.y,
+            minWidth: 140,
+            background: '#1a1a1e',
+            border: '1px solid #333',
+            borderRadius: 8,
+            padding: 4,
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              setTableModalProjectId(tableContextMenu.projectId);
+              setTableModalTableId(tableContextMenu.tableId);
+              setTableRenameDialogOpen(true);
+              setTableContextMenu(null);
+            }}
+            style={{
+              width: '100%',
+              height: 28,
+              padding: '0 12px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 12,
+              color: '#d4d4d4',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+              e.currentTarget.style.color = '#ffffff';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#d4d4d4';
+            }}
+          >
+            <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+              <path
+                d='M10.889 0L14 3.111L7 10.111L3.889 7L10.889 0Z'
+                fill='currentColor'
+              />
+              <path
+                d='M3.111 7.778L6.222 10.889L1.556 12.444L3.111 7.778Z'
+                fill='currentColor'
+              />
+            </svg>
+            Rename
+          </button>
+
+          <div
+            style={{
+              height: 1,
+              background: '#333',
+              margin: '4px 0',
+            }}
+          />
+
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              setTableModalProjectId(tableContextMenu.projectId);
+              setTableModalTableId(tableContextMenu.tableId);
+              setTableDeleteDialogOpen(true);
+              setTableContextMenu(null);
+            }}
+            style={{
+              width: '100%',
+              height: 28,
+              padding: '0 12px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 12,
+              color: '#f87171',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(248, 113, 113, 0.1)';
+              e.currentTarget.style.color = '#f87171';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#f87171';
+            }}
+          >
+            <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+              <path
+                d='M12 2L2 12'
+                stroke='currentColor'
+                strokeWidth='1.5'
+                strokeLinecap='round'
+              />
+              <path
+                d='M12 12L2 2'
+                stroke='currentColor'
+                strokeWidth='1.5'
+                strokeLinecap='round'
+              />
+            </svg>
+            Delete
+          </button>
+        </div>
+      )}
+
+      {projectContextMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            left: projectContextMenu.x,
+            top: projectContextMenu.y,
+            minWidth: 140,
+            background: '#1a1a1e',
+            border: '1px solid #333',
+            borderRadius: 8,
+            padding: 4,
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              setEditingProjectId(projectContextMenu.projectId);
+              setProjectDialogDeleteMode(false);
+              setProjectDialogOpen(true);
+              setProjectContextMenu(null);
+            }}
+            style={{
+              width: '100%',
+              height: 28,
+              padding: '0 12px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 12,
+              color: '#d4d4d4',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+              e.currentTarget.style.color = '#ffffff';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#d4d4d4';
+            }}
+          >
+            <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+              <path
+                d='M10.889 0L14 3.111L7 10.111L3.889 7L10.889 0Z'
+                fill='currentColor'
+              />
+              <path
+                d='M3.111 7.778L6.222 10.889L1.556 12.444L3.111 7.778Z'
+                fill='currentColor'
+              />
+            </svg>
+            Rename
+          </button>
+
+          <div
+            style={{
+              height: 1,
+              background: '#333',
+              margin: '4px 0',
+            }}
+          />
+
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              setEditingProjectId(projectContextMenu.projectId);
+              setProjectDialogDeleteMode(true);
+              setProjectDialogOpen(true);
+              setProjectContextMenu(null);
+            }}
+            style={{
+              width: '100%',
+              height: 28,
+              padding: '0 12px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 12,
+              color: '#f87171',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(248, 113, 113, 0.1)';
+              e.currentTarget.style.color = '#f87171';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#f87171';
+            }}
+          >
+            <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+              <path
+                d='M12 2L2 12'
+                stroke='currentColor'
+                strokeWidth='1.5'
+                strokeLinecap='round'
+              />
+              <path
+                d='M12 12L2 2'
+                stroke='currentColor'
+                strokeWidth='1.5'
+                strokeLinecap='round'
+              />
+            </svg>
+            Delete
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -475,6 +836,9 @@ function ProjectItem({
   processingTableIds,
   onToggle,
   onTableClick,
+  onCreateTable,
+  onProjectContextMenu,
+  onTableContextMenu,
 }: {
   project: any;
   isExpanded: boolean;
@@ -482,6 +846,9 @@ function ProjectItem({
   processingTableIds: Set<string>;
   onToggle: () => void;
   onTableClick: (projectId: string, tableId: string) => void;
+  onCreateTable: () => void;
+  onProjectContextMenu: (e: React.MouseEvent) => void;
+  onTableContextMenu: (e: React.MouseEvent, tableId: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -490,6 +857,7 @@ function ProjectItem({
       {/* Project Row */}
       <div
         onClick={onToggle}
+        onContextMenu={onProjectContextMenu}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
@@ -543,27 +911,76 @@ function ProjectItem({
           {project.name}
         </span>
 
-        {/* Chevron */}
-        <svg
-          width='10'
-          height='10'
-          viewBox='0 0 12 12'
-          fill='none'
-          style={{
-            color: hovered ? '#9B9B9B' : '#5D6065',
-            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-            transition: 'transform 0.15s, color 0.15s',
-            flexShrink: 0,
-          }}
-        >
-          <path
-            d='M4.5 2.5L8 6L4.5 9.5'
-            stroke='currentColor'
-            strokeWidth='1.2'
-            strokeLinecap='round'
-            strokeLinejoin='round'
-          />
-        </svg>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {/* + (new context) */}
+          <button
+            type='button'
+            title='New context'
+            onClick={e => {
+              e.preventDefault();
+              e.stopPropagation();
+              onCreateTable();
+            }}
+            style={{
+              width: 26,
+              height: 26,
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer',
+              display: hovered ? 'flex' : 'none',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: hovered ? '#9B9B9B' : '#5D6065',
+              transition: 'all 0.15s',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.color = '#EDEDED';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = hovered ? '#9B9B9B' : '#5D6065';
+            }}
+          >
+            <svg
+              width='14'
+              height='14'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <line x1='12' y1='5' x2='12' y2='19' />
+              <line x1='5' y1='12' x2='19' y2='12' />
+            </svg>
+          </button>
+
+          {/* Chevron */}
+          <svg
+            width='10'
+            height='10'
+            viewBox='0 0 12 12'
+            fill='none'
+            style={{
+              color: hovered ? '#9B9B9B' : '#5D6065',
+              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: 'transform 0.15s, color 0.15s',
+              flexShrink: 0,
+            }}
+          >
+            <path
+              d='M4.5 2.5L8 6L4.5 9.5'
+              stroke='currentColor'
+              strokeWidth='1.2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            />
+          </svg>
+        </div>
       </div>
 
       {/* Tables */}
@@ -579,6 +996,7 @@ function ProjectItem({
                 isActive={String(table.id) === String(activeTableId)}
                 isProcessing={isProcessing}
                 onClick={() => onTableClick(project.id, table.id)}
+                onContextMenu={e => onTableContextMenu(e, String(table.id))}
               />
             );
           })}
@@ -594,18 +1012,21 @@ function TableItem({
   isActive,
   isProcessing,
   onClick,
+  onContextMenu,
 }: {
   table: any;
   projectId: string;
   isActive: boolean;
   isProcessing: boolean;
   onClick: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
   return (
     <div
       onClick={onClick}
+      onContextMenu={onContextMenu}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
