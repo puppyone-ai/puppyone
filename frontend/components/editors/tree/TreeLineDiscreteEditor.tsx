@@ -609,6 +609,7 @@ export default function TreeLineDiscreteEditor({
   const [scrollIndex, setScrollIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0); // 追踪容器宽度
   const accumulatedDelta = useRef(0); // For trackpad smoothing
 
   const configuredAccessMap = useMemo(() => {
@@ -681,6 +682,7 @@ export default function TreeLineDiscreteEditor({
     const observer = new ResizeObserver(entries => {
       for (const entry of entries) {
         setContainerHeight(entry.contentRect.height);
+        setContainerWidth(entry.contentRect.width); // 同时追踪宽度
       }
     });
     observer.observe(containerRef.current);
@@ -910,6 +912,7 @@ export default function TreeLineDiscreteEditor({
           isSelectingAccessPoint={isSelectingAccessPoint}
           hoveredRowPath={hoveredRowPath}
           onHoverRow={setHoveredRowPath}
+          containerWidth={containerWidth} // 传递容器宽度
         />
 
         {/* Custom Discrete Scrollbar (Moved to far right) */}

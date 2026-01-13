@@ -43,6 +43,7 @@ interface RightAccessSidebarProps {
   isSelectingAccessPoint?: boolean;
   hoveredRowPath: string | null;
   onHoverRow?: (path: string | null) => void; // 通知父组件 hover 状态
+  containerWidth?: number; // 容器宽度，用于响应式布局
 }
 
 // Menu Panel Component - 只渲染一个，在展开时显示
@@ -210,6 +211,7 @@ const MenuPanel = React.memo(function MenuPanel({
         padding: '8px 4px',
         fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
         width: 300,
+        boxSizing: 'border-box', // 确保 padding 和 border 包含在宽度内
       }}
       onClick={e => e.stopPropagation()}
     >
@@ -547,11 +549,16 @@ export function RightAccessSidebar({
   isSelectingAccessPoint,
   hoveredRowPath,
   onHoverRow,
+  containerWidth,
 }: RightAccessSidebarProps) {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const menuColumnRef = useRef<HTMLDivElement>(null);
   const buttonColumnRef = useRef<HTMLDivElement>(null);
   
+  // 响应式布局：窄屏时使用 overlay 模式
+  const OVERLAY_THRESHOLD = 900;
+  const isOverlayMode = (containerWidth || 0) < OVERLAY_THRESHOLD && (containerWidth || 0) > 0;
+
   // Menu 区域的虚拟 hover 路径（当鼠标在 menu 区域移动时计算）
   const [menuAreaHoveredPath, setMenuAreaHoveredPath] = useState<string | null>(null);
   // 按钮列区域的虚拟 hover 路径
@@ -648,8 +655,9 @@ export function RightAccessSidebar({
         flexShrink: 0,
         marginLeft: 8,
         paddingRight: 24, // 增加到 24px，给 Menu 右侧留出充足的呼吸空间
-        // 宽度：按钮列 (54 = 26 + 2 + 26) + menu 列（当展开时） + padding
-        width: hasExpandedPopover ? (54 + 8 + 300 + 24) : (54 + 24),
+        // 宽度：按钮列 (54 = 26 + 2 + 26) + menu 列（当展开时）+ padding
+        // Overlay 模式下，宽度不变，Menu 浮在上面
+        width: hasExpandedPopover && !isOverlayMode ? (54 + 8 + 300 + 24) : (54 + 24),
         transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
@@ -689,30 +697,43 @@ export function RightAccessSidebar({
       </div>
 
       {/* Menu 列 - 只渲染一个 menu，同时监听鼠标位置 */}
+      {/* Overlay 模式下：在按钮下方展开，右边缘对齐；正常模式：flex 布局 */}
       <div
         ref={menuColumnRef}
         onMouseMove={handleMenuAreaMouseMove}
         onMouseLeave={handleMenuAreaMouseLeave}
         style={{
           width: 300,
-          marginLeft: 8,
+          marginLeft: isOverlayMode ? 0 : 8,
           flexShrink: 0,
-          position: 'relative',
+          // Overlay 模式：absolute 定位，在按钮下方展开
+          position: isOverlayMode ? 'absolute' : 'relative',
+          ...(isOverlayMode ? {
+            // 展开行的位置 + 一行高度 = Menu 顶部位置
+            top: menuTop + rowHeight + 4, // +4 留一点间距
+            // 右边缘对齐按钮列右边缘
+            right: 24, // paddingRight 的位置
+            left: 'auto',
+            zIndex: 100,
+            boxShadow: hasExpandedPopover ? '0 8px 32px rgba(0,0,0,0.5)' : 'none',
+          } : {}),
           opacity: hasExpandedPopover ? 1 : 0,
-          transform: hasExpandedPopover ? 'translateX(0)' : 'translateX(-10px)',
-          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'opacity 0.15s ease-out', // 只做淡入淡出
           pointerEvents: hasExpandedPopover ? 'auto' : 'none',
         }}
       >
         {hasExpandedPopover && expandedRowInfo && (
           <div
             style={{
-              position: 'absolute',
-              top: menuTop,
+              // Overlay 模式：外层已定位，内部用 top:0
+              // 正常模式：内部用 top:menuTop 对齐行
+              position: isOverlayMode ? 'relative' : 'absolute',
+              top: isOverlayMode ? 0 : menuTop,
               left: 0,
               // 限制 menu 不超出容器底部
               maxHeight: 'calc(100vh - 200px)',
               overflowY: 'auto',
+              overflowX: 'hidden', // 防止水平滚动条
             }}
           >
             <MenuPanel
