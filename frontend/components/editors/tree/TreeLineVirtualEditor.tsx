@@ -776,19 +776,19 @@ const VirtualRow = React.memo(
           </div>
         </div>
 
-        {/* MCP 按钮容器 - position: relative 用于 popover 定位 */}
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <RightAccessControl
-            path={node.path}
-            configuredAccess={configuredAccess ?? null}
-            isActive={(hovered || isPopoverOwner) && !isSelectingAccessPoint}
-            onAccessChange={onGutterClick}
-            onRemove={onRemoveAccessPoint}
-            onPopoverOpenChange={open => {
-              onPopoverOpenChange?.(open ? node.path : null);
-            }}
-          />
-        </div>
+        {/* MCP 按钮 + Menu 容器 */}
+        <RightAccessControl
+          path={node.path}
+          configuredAccess={configuredAccess ?? null}
+          isActive={(hovered || isPopoverOwner) && !isSelectingAccessPoint}
+          onAccessChange={onGutterClick}
+          onRemove={onRemoveAccessPoint}
+          isExpanded={lockedPopoverPath === node.path}
+          isAnyExpanded={lockedPopoverPath !== null}
+          onExpandChange={expanded => {
+            onPopoverOpenChange?.(expanded ? node.path : null);
+          }}
+        />
       </div>
     );
   },
@@ -1113,7 +1113,7 @@ export function TreeLineVirtualEditor({
   const isMenuOpen = contextMenu.visible || lockedPopoverPath !== null;
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} data-editor-container>
       {/* 顶部可拖拽调整 key 宽度的 resize bar */}
       <DepthResizeBar
         keyWidths={keyWidths}

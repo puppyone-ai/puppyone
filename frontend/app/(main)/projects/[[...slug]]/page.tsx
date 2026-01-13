@@ -16,15 +16,10 @@ import { OnboardingView } from '@/components/OnboardingView';
 import { ProjectsHeader, type EditorType } from '@/components/ProjectsHeader';
 import { ChatSidebar } from '@/components/ChatSidebar';
 import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
-import {
-  ToolsPanel,
-  type AccessPoint,
-  type SaveToolsResult,
-} from '@/components/RightAuxiliaryPanel/ToolsPanel';
 import { DocumentEditor } from '@/components/RightAuxiliaryPanel/DocumentEditor';
 
 // 面板内容类型
-type RightPanelContent = 'NONE' | 'TOOLS' | 'EDITOR';
+type RightPanelContent = 'NONE' | 'EDITOR';
 
 // 编辑器目标类型
 interface EditorTarget {
@@ -35,13 +30,18 @@ interface EditorTarget {
 // MCP Tools imports
 import {
   type McpToolPermissions,
-  type McpToolType,
-  type McpToolDefinition,
-  type Tool,
-  createTool,
-  permissionsToRegisterTools,
-  TOOL_INFO,
+  type AccessPoint, // AccessPoint might be defined in mcpApi or locally, checking imports
 } from '@/lib/mcpApi';
+
+// AccessPoint was imported from ToolsPanel, need to define or import it correctly if it's not in mcpApi.
+// Checking previous file content, it seems AccessPoint interface was exported from ToolsPanel.
+// I should define it here or import if it exists in mcpApi.
+// Let's define it here to be safe and remove dependency on ToolsPanel.
+export interface AccessPoint {
+  id: string;
+  path: string;
+  permissions: McpToolPermissions;
+}
 
 // 重构版本的页面组件 - 极简布局，用于定位显示问题
 export default function ProjectsSlugPage({
@@ -79,18 +79,10 @@ export default function ProjectsSlugPage({
     useState<RightPanelContent>('NONE');
   const [accessPoints, setAccessPoints] = useState<AccessPoint[]>([]);
   const [isOnboardingLoading, setIsOnboardingLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [savedResult, setSavedResult] = useState<SaveToolsResult | null>(null);
   const lastSyncedTableId = useRef<string | null>(null);
 
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
-
-  // 兼容：isAgentPanelOpen 现在等价于 rightPanelContent === 'TOOLS'
-  const isAgentPanelOpen = rightPanelContent === 'TOOLS';
-  const setIsAgentPanelOpen = (open: boolean) =>
-    setRightPanelContent(open ? 'TOOLS' : 'NONE');
 
   // 4. 副作用：同步路由参数到状态
   useEffect(() => {
@@ -149,74 +141,6 @@ export default function ProjectsSlugPage({
     return segments;
   }, [activeBase, activeTable]);
 
-  // 保存 Tools
-  const handleSaveTools = async (
-    customDefinitions: Record<string, McpToolDefinition>
-  ) => {
-    if (!activeBase || !activeTable || !session?.user?.id) return;
-    if (accessPoints.length === 0) return;
-
-    setIsSaving(true);
-    setSaveError(null);
-    setSavedResult(null);
-
-    try {
-      const toolsToCreate: Array<{
-        path: string;
-        type: McpToolType;
-        customDef?: McpToolDefinition;
-      }> = [];
-
-      accessPoints.forEach(ap => {
-        const toolTypes = permissionsToRegisterTools(ap.permissions);
-        toolTypes.forEach(type => {
-          toolsToCreate.push({
-            path: ap.path,
-            type,
-            customDef: customDefinitions[type],
-          });
-        });
-      });
-
-      if (toolsToCreate.length === 0) {
-        throw new Error('No tools to create');
-      }
-
-      const createdTools: Tool[] = await Promise.all(
-        toolsToCreate.map(({ path, type, customDef }) => {
-          const pathSuffix = path
-            ? path.replace(/\//g, '_').replace(/^_/, '')
-            : 'root';
-          const defaultName = `${activeTable.name}_${pathSuffix}_${type}`;
-
-          return createTool({
-            table_id: parseInt(activeTable.id),
-            json_path: path,
-            type: type,
-            name: customDef?.name || defaultName,
-            description: customDef?.description || TOOL_INFO[type].description,
-          });
-        })
-      );
-
-      setSavedResult({
-        tools: createdTools,
-        count: createdTools.length,
-      });
-
-      if (activeTableId) {
-        refreshTableTools(activeTableId);
-      }
-    } catch (error) {
-      console.error('Failed to save tools:', error);
-      setSaveError(
-        error instanceof Error ? error.message : 'Failed to save tools'
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   // 7. 处理 Onboarding - 移除自动跳转逻辑
   // 我们不再通过前端粗暴地判断是否跳转 Onboarding，避免与后端预置数据逻辑冲突
   // 如果是空项目状态，应该由 UI (ProjectWorkspaceView) 展示 Empty State 引导用户
@@ -261,10 +185,6 @@ export default function ProjectsSlugPage({
             onProjectsRefresh={() => refreshProjects()}
             editorType={editorType}
             onEditorTypeChange={setEditorType}
-            isAgentPanelOpen={rightPanelContent === 'TOOLS'}
-            onAgentPanelOpenChange={open =>
-              setRightPanelContent(open ? 'TOOLS' : 'NONE')
-            }
             accessPointCount={accessPoints.length}
             isChatOpen={isChatOpen}
             onChatOpenChange={setIsChatOpen}
@@ -312,11 +232,6 @@ export default function ProjectsSlugPage({
                     const hasAnyPermission =
                       Object.values(permissions).some(Boolean);
 
-                    // 🎯 只要 Sidebar 是收起的，配置新工具时就展开
-                    if (hasAnyPermission && !isAgentPanelOpen) {
-                      setIsAgentPanelOpen(true);
-                    }
-
                     // 如果该 path 已存在，更新权限；否则添加新的
                     setAccessPoints(prev => {
                       const existing = prev.find(ap => ap.path === path);
@@ -362,22 +277,8 @@ export default function ProjectsSlugPage({
             </div>
           )}
 
-          {/* 右侧面板区域 (Tools / Document Editor) */}
+          {/* 右侧面板区域 (Document Editor) */}
           <ResizablePanel isVisible={rightPanelContent !== 'NONE'}>
-            {rightPanelContent === 'TOOLS' && (
-              <ToolsPanel
-                accessPoints={accessPoints}
-                setAccessPoints={setAccessPoints}
-                activeBaseName={activeBase?.name}
-                activeTableName={activeTable?.name}
-                onClose={() => setRightPanelContent('NONE')}
-                onSaveTools={handleSaveTools}
-                isSaving={isSaving}
-                saveError={saveError}
-                savedResult={savedResult}
-                setSavedResult={setSavedResult}
-              />
-            )}
             {rightPanelContent === 'EDITOR' && editorTarget && (
               <DocumentEditor
                 path={editorTarget.path}

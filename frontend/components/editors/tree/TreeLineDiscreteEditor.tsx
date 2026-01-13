@@ -6,11 +6,10 @@ import React, {
   useMemo,
   useRef,
   useEffect,
-  CSSProperties,
 } from 'react';
 import { ContextMenu, type ContextMenuState } from './components/ContextMenu';
 import { NodeContextMenu } from './components/NodeContextMenu';
-import { RightAccessControl } from './components/RightAccessControl';
+import { RightAccessSidebar } from './components/RightAccessSidebar';
 import { ValueRenderer } from './components/ValueRenderer';
 import { DepthResizeBar } from './components/DepthResizeBar';
 import { McpToolPermissions } from '../../../lib/mcpApi';
@@ -293,12 +292,13 @@ interface VirtualRowProps {
   isSelectingAccessPoint?: boolean;
   onAddAccessPoint?: (path: string, permissions: McpToolPermissions) => void;
   configuredAccess?: McpToolPermissions | null;
-  onGutterClick?: (path: string, permissions: McpToolPermissions) => void;
-  onRemoveAccessPoint?: (path: string) => void;
-  lockedPopoverPath?: string | null;
-  onPopoverOpenChange?: (path: string | null) => void;
   isContextMenuOpen?: boolean;
   onOpenDocument?: (path: string, value: string) => void;
+  // 新增：hover 状态通知
+  onHoverChange?: (path: string | null) => void;
+  isPopoverOpen?: boolean;
+  // 新增：外部 hover 状态（来自 sidebar menu 区域）
+  isHoveredExternal?: boolean;
 }
 
 const VirtualRow = React.memo(function VirtualRow({
@@ -314,25 +314,24 @@ const VirtualRow = React.memo(function VirtualRow({
   isSelectingAccessPoint,
   onAddAccessPoint,
   configuredAccess,
-  onGutterClick,
-  onRemoveAccessPoint,
-  lockedPopoverPath,
-  onPopoverOpenChange,
   isContextMenuOpen,
   onOpenDocument,
+  onHoverChange,
+  isPopoverOpen,
+  isHoveredExternal,
 }: VirtualRowProps) {
-  const isPopoverOwner = lockedPopoverPath === node.path;
+  const isPopoverOwner = isPopoverOpen || false;
   const [hovered, setHovered] = useState(false);
+  // 合并本地 hover 和外部 hover
+  const isHovered = hovered || isHoveredExternal;
   const keyRef = useRef<HTMLSpanElement>(null);
   const [isEditingKey, setIsEditingKey] = useState(false);
   const isConfigured =
     !!configuredAccess && Object.values(configuredAccess).some(Boolean);
   const isRootNode = node.key === '$root';
-  const extraTopPadding =
-    !isRootNode && node.isExpandable && node.depth >= 0 ? CONTAINER_GAP : 0;
-  const shouldAddBottomGap =
-    !isRootNode && node.depth >= 0 && (node.isExpandable || node.isLast);
-  const extraBottomPadding = shouldAddBottomGap ? CONTAINER_GAP : 0;
+  // 统一行高，不再根据类型添加额外 padding
+  const extraTopPadding = 0;
+  const extraBottomPadding = 0;
   const contentLeft = isRootNode
     ? getRootContentLeft()
     : getContentLeftDynamic(node.depth, keyWidths);
@@ -368,13 +367,11 @@ const VirtualRow = React.memo(function VirtualRow({
     <div
       style={{
         display: 'flex',
-        alignItems: 'flex-start',
-        minHeight: ROW_HEIGHT,
-        paddingTop: extraTopPadding,
-        paddingBottom: extraBottomPadding,
+        alignItems: 'center', // 改为垂直居中
+        height: ROW_HEIGHT,   // 固定高度 28px
         overflow: 'hidden',
         background:
-          hovered || isPopoverOwner
+          isHovered || isPopoverOwner
             ? 'rgba(255, 255, 255, 0.08)'
             : 'transparent',
         cursor: 'pointer',
@@ -382,8 +379,14 @@ const VirtualRow = React.memo(function VirtualRow({
         position: 'relative',
       }}
       onClick={handleRowClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => {
+        setHovered(true);
+        onHoverChange?.(node.path);
+      }}
+      onMouseLeave={() => {
+        setHovered(false);
+        onHoverChange?.(null);
+      }}
     >
       {!isRootNode && (
         <LevelConnector
@@ -561,8 +564,8 @@ const VirtualRow = React.memo(function VirtualRow({
                 ? 'rgba(255, 167, 61, 0.12)'
                 : isConfigured
                   ? isPopoverOwner
-                    ? 'rgba(255, 167, 61, 0.18)'
-                    : 'rgba(255, 167, 61, 0.1)'
+                    ? 'rgba(255, 167, 61, 0.18)' // 激活态
+                    : 'rgba(255, 167, 61, 0.12)' // 默认已配置 - 更明显
                   : 'transparent',
           }}
         >
@@ -580,19 +583,6 @@ const VirtualRow = React.memo(function VirtualRow({
             onOpenDocument={onOpenDocument}
           />
         </div>
-      </div>
-
-      <div style={{ position: 'relative', flexShrink: 0 }}>
-        <RightAccessControl
-          path={node.path}
-          configuredAccess={configuredAccess ?? null}
-          isActive={(hovered || isPopoverOwner) && !isSelectingAccessPoint}
-          onAccessChange={onGutterClick}
-          onRemove={onRemoveAccessPoint}
-          onPopoverOpenChange={open =>
-            onPopoverOpenChange?.(open ? node.path : null)
-          }
-        />
       </div>
     </div>
   );
@@ -660,6 +650,8 @@ export default function TreeLineDiscreteEditor({
   const [lockedPopoverPath, setLockedPopoverPath] = useState<string | null>(
     null
   );
+  // 新增：追踪当前 hover 的行路径
+  const [hoveredRowPath, setHoveredRowPath] = useState<string | null>(null);
   const [keyWidths, setKeyWidths] = useState<number[]>(() =>
     Array(MAX_DEPTH_LEVELS).fill(DEFAULT_KEY_WIDTH)
   );
@@ -677,7 +669,8 @@ export default function TreeLineDiscreteEditor({
   const visibleCount = useMemo(() => {
     if (containerHeight === 0) return 0;
     // Calculate how many rows fit in the container (rounding up to fill partial space)
-    return Math.ceil(containerHeight / ROW_HEIGHT) + 1;
+    // +2 buffer to ensure bottom row is fully visible
+    return Math.ceil(containerHeight / ROW_HEIGHT) + 2;
   }, [containerHeight]);
 
   const maxScrollIndex = Math.max(0, flatNodes.length - visibleCount + 1);
@@ -724,14 +717,6 @@ export default function TreeLineDiscreteEditor({
           return Math.max(0, Math.min(next, maxScrollIndex));
         });
       }
-    },
-    [maxScrollIndex]
-  );
-
-  // Scrollbar dragging
-  const handleScrollbarChange = useCallback(
-    (ratio: number) => {
-      setScrollIndex(Math.floor(ratio * maxScrollIndex));
     },
     [maxScrollIndex]
   );
@@ -835,6 +820,7 @@ export default function TreeLineDiscreteEditor({
 
   return (
     <div
+      data-editor-container
       style={{
         height: '100%',
         display: 'flex',
@@ -853,75 +839,114 @@ export default function TreeLineDiscreteEditor({
         onKeyWidthChange={handleKeyWidthChange}
       />
 
+      {/* Main content area: Editor + Sidebar */}
       <div
-        ref={containerRef}
         style={{
           flex: 1,
+          display: 'flex',
+          flexDirection: 'row',
+          overflow: 'hidden',
           position: 'relative',
-          overflow: 'hidden', // Disable native scroll
-          paddingLeft: 24,
-          paddingRight: 8,
         }}
-        onWheel={handleWheel}
       >
-        {/* Render visible rows at fixed positions */}
-        {visibleRows.map(({ node, offsetY }) => (
-          <div
-            key={node.path || '$root'}
-            style={{
-              position: 'absolute',
-              top: offsetY,
-              left: 24, // Matches paddingLeft of container
-              right: 8,
-              height: ROW_HEIGHT,
-            }}
-          >
-            <VirtualRow
-              node={node}
-              isSelected={selectedPath === node.path}
-              keyWidths={keyWidths}
-              tableId={tableId}
-              onToggle={handleToggle}
-              onSelect={handleSelect}
-              onValueChange={handleValueChange}
-              onKeyRename={handleKeyRename}
-              onContextMenu={handleContextMenu}
-              isSelectingAccessPoint={isSelectingAccessPoint}
-              onAddAccessPoint={onAddAccessPoint}
-              configuredAccess={configuredAccessMap.get(node.path) || null}
-              onGutterClick={onAccessPointChange}
-              onRemoveAccessPoint={onAccessPointRemove}
-              lockedPopoverPath={lockedPopoverPath}
-              onPopoverOpenChange={setLockedPopoverPath}
-              isContextMenuOpen={
-                contextMenu.visible && contextMenu.path === node.path
-              }
-              onOpenDocument={onOpenDocument}
-            />
-          </div>
-        ))}
+        {/* Editor container */}
+        <div
+          ref={containerRef}
+          style={{
+            flex: 1,
+            position: 'relative',
+            overflow: 'hidden', // Disable native scroll
+            paddingLeft: 24,
+            paddingRight: 8,
+          }}
+          onWheel={handleWheel}
+        >
+          {/* Render visible rows at fixed positions */}
+          {visibleRows.map(({ node, offsetY }) => (
+            <div
+              key={node.path || '$root'}
+              style={{
+                position: 'absolute',
+                top: offsetY,
+                left: 24, // Matches paddingLeft of container
+                right: 8,
+                height: ROW_HEIGHT,
+              }}
+            >
+              <VirtualRow
+                node={node}
+                isSelected={selectedPath === node.path}
+                keyWidths={keyWidths}
+                tableId={tableId}
+                onToggle={handleToggle}
+                onSelect={handleSelect}
+                onValueChange={handleValueChange}
+                onKeyRename={handleKeyRename}
+                onContextMenu={handleContextMenu}
+                isSelectingAccessPoint={isSelectingAccessPoint}
+                onAddAccessPoint={onAddAccessPoint}
+                configuredAccess={configuredAccessMap.get(node.path) || null}
+                isContextMenuOpen={
+                  contextMenu.visible && contextMenu.path === node.path
+                }
+                onOpenDocument={onOpenDocument}
+                onHoverChange={setHoveredRowPath}
+                isPopoverOpen={lockedPopoverPath === node.path}
+                isHoveredExternal={hoveredRowPath === node.path}
+              />
+            </div>
+          ))}
+        </div>
 
-        {/* Custom Discrete Scrollbar (Right side) */}
+        {/* Right Access Sidebar - 独立的右侧面板 */}
+        <RightAccessSidebar
+          visibleRows={visibleRows}
+          rowHeight={ROW_HEIGHT}
+          configuredAccessMap={configuredAccessMap}
+          lockedPopoverPath={lockedPopoverPath}
+          onPopoverOpenChange={setLockedPopoverPath}
+          onAccessChange={onAccessPointChange}
+          onRemove={onAccessPointRemove}
+          isSelectingAccessPoint={isSelectingAccessPoint}
+          hoveredRowPath={hoveredRowPath}
+          onHoverRow={setHoveredRowPath}
+        />
+
+        {/* Custom Discrete Scrollbar (Moved to far right) */}
         {flatNodes.length > visibleCount && (
           <div
+            className="custom-scrollbar-track"
             style={{
               position: 'absolute',
-              right: 2,
-              top: 0,
-              bottom: 0,
-              width: 4,
-              background: 'rgba(255,255,255,0.05)',
-              zIndex: 10,
+              right: 4, // 稍微离右边远一点点
+              top: 4,   // 上下留白
+              bottom: 4,
+              width: 6, // 加宽到 6px
+              background: 'rgba(255,255,255,0.03)', // 轨道颜色更淡
+              borderRadius: 3,
+              zIndex: 20,
+              transition: 'background 0.2s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              const thumb = e.currentTarget.firstElementChild as HTMLElement;
+              if (thumb) thumb.style.background = 'rgba(255,255,255,0.5)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+              const thumb = e.currentTarget.firstElementChild as HTMLElement;
+              if (thumb) thumb.style.background = 'rgba(255,255,255,0.3)';
             }}
           >
             <div
               style={{
                 position: 'absolute',
                 top: `${(scrollIndex / flatNodes.length) * 100}%`,
-                height: `${(visibleCount / flatNodes.length) * 100}%`,
+                height: `${Math.max((visibleCount / flatNodes.length) * 100, 5)}%`, // 确保最小高度，避免太小看不见
                 width: '100%',
                 background: 'rgba(255,255,255,0.3)',
-                borderRadius: 2,
+                borderRadius: 3,
+                transition: 'background 0.2s',
               }}
             />
           </div>

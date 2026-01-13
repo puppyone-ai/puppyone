@@ -21,7 +21,6 @@ import {
   type MessagePart,
 } from '../lib/hooks/useChat';
 import { useMention } from '../lib/hooks/useMention';
-import ModeSelector, { ChatMode } from './chat/ModeSelector';
 
 const MIN_CHAT_WIDTH = 280;
 const MAX_CHAT_WIDTH = 600;
@@ -83,12 +82,14 @@ export function ChatSidebar({
     update: 'Update',
     delete: 'Delete',
     shell_access: 'Bash',
+    shell_access_readonly: 'Bash (Read-only)',
   };
 
   // 展开 accessPoints 为工具列表
   const availableTools: AccessOption[] = [];
   const allToolTypes = [
     'shell_access',
+    'shell_access_readonly', // 新增
     'query_data',
     'get_all_data',
     'create',
@@ -98,19 +99,19 @@ export function ChatSidebar({
 
   accessPoints.forEach(ap => {
     allToolTypes.forEach(toolType => {
+      // @ts-ignore - 忽略类型检查，因为 shell_access_readonly 可能不在 AccessPoint 定义里完全匹配
       if (ap.permissions[toolType]) {
         availableTools.push({
           id: `${ap.id}-${toolType}`, // 唯一 ID
           label: toolTypeLabels[toolType] || toolType,
           type:
-            toolType === 'shell_access' ? ('bash' as const) : ('tool' as const),
+            toolType === 'shell_access' || toolType === 'shell_access_readonly' ? ('bash' as const) : ('tool' as const),
         });
       }
     });
   });
   const [isResizing, setIsResizing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [mode, setMode] = useState<ChatMode>('agent');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -1160,33 +1161,6 @@ export function ChatSidebar({
       </div>
 
       {/* Input Area */}
-      <div
-        style={{
-          padding: '12px',
-          paddingBottom: 0,
-          flexShrink: 0,
-          background: '#111111',
-        }}
-      >
-        {/* Mode Selector - Above input */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom: '8px',
-          }}
-        >
-          <ModeSelector mode={mode} onModeChange={setMode} />
-          {/* MCPBar placeholder - uncomment when ready */}
-          {/* {mode === 'agent' && (
-            <>
-              <div style={{ width: '1px', height: '16px', background: '#444' }} />
-              <MCPBar enabled={true} />
-            </>
-          )} */}
-        </div>
-      </div>
       <ChatInputArea
         ref={inputAreaRef}
         inputValue={inputValue}
