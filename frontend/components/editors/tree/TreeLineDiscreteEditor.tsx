@@ -608,8 +608,9 @@ export default function TreeLineDiscreteEditor({
   // --- 1. State & Setup ---
   const [scrollIndex, setScrollIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null); // 包含 Editor + Sidebar 的父容器
   const [containerHeight, setContainerHeight] = useState(0);
-  const [containerWidth, setContainerWidth] = useState(0); // 追踪容器宽度
+  const [mainContentWidth, setMainContentWidth] = useState(0); // 追踪父容器宽度（稳定，不受 Menu 影响）
   const accumulatedDelta = useRef(0); // For trackpad smoothing
 
   const configuredAccessMap = useMemo(() => {
@@ -676,16 +677,27 @@ export default function TreeLineDiscreteEditor({
 
   const maxScrollIndex = Math.max(0, flatNodes.length - visibleCount + 1);
 
-  // Resize Observer for Container
+  // Resize Observer for Container Height
   useEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver(entries => {
       for (const entry of entries) {
         setContainerHeight(entry.contentRect.height);
-        setContainerWidth(entry.contentRect.width); // 同时追踪宽度
       }
     });
     observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Resize Observer for Main Content Width (稳定，不受 Menu 展开影响)
+  useEffect(() => {
+    if (!mainContentRef.current) return;
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setMainContentWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(mainContentRef.current);
     return () => observer.disconnect();
   }, []);
 
@@ -843,6 +855,7 @@ export default function TreeLineDiscreteEditor({
 
       {/* Main content area: Editor + Sidebar */}
       <div
+        ref={mainContentRef}
         style={{
           flex: 1,
           display: 'flex',
@@ -912,7 +925,7 @@ export default function TreeLineDiscreteEditor({
           isSelectingAccessPoint={isSelectingAccessPoint}
           hoveredRowPath={hoveredRowPath}
           onHoverRow={setHoveredRowPath}
-          containerWidth={containerWidth} // 传递容器宽度
+          containerWidth={mainContentWidth} // 传递稳定的父容器宽度
         />
 
         {/* Custom Discrete Scrollbar (Moved to far right) */}
