@@ -30,16 +30,18 @@ export default function ProjectsLayout({
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectDialogDeleteMode, setProjectDialogDeleteMode] = useState(false);
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
-  const [tableDialogProjectId, setTableDialogProjectId] = useState<string | null>(
-    null
-  );
+  const [tableDialogProjectId, setTableDialogProjectId] = useState<
+    string | null
+  >(null);
   const [editingTableId, setEditingTableId] = useState<string | null>(null);
   const [tableRenameDialogOpen, setTableRenameDialogOpen] = useState(false);
   const [tableDeleteDialogOpen, setTableDeleteDialogOpen] = useState(false);
   const [tableModalProjectId, setTableModalProjectId] = useState<string | null>(
     null
   );
-  const [tableModalTableId, setTableModalTableId] = useState<string | null>(null);
+  const [tableModalTableId, setTableModalTableId] = useState<string | null>(
+    null
+  );
   const [tableContextMenu, setTableContextMenu] = useState<{
     x: number;
     y: number;

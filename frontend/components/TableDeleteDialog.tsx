@@ -62,8 +62,7 @@ export function TableDeleteDialog({
           borderRadius: 12,
           width: 480,
           maxWidth: '90vw',
-          boxShadow:
-            '0 24px 48px rgba(0,0,0,0.4), 0 12px 24px rgba(0,0,0,0.4)',
+          boxShadow: '0 24px 48px rgba(0,0,0,0.4), 0 12px 24px rgba(0,0,0,0.4)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -125,12 +124,13 @@ export function TableDeleteDialog({
 
         <div style={{ padding: '24px' }}>
           <p style={{ color: '#EDEDED', marginBottom: 8, fontSize: 14 }}>
-            Are you sure you want to delete context "{table?.name || 'this context'}
+            Are you sure you want to delete context "
+            {table?.name || 'this context'}
             "?
           </p>
           <p style={{ color: '#9ca3af', fontSize: 13, lineHeight: '1.5' }}>
-            This will permanently delete the context and all data inside it. This
-            action cannot be undone.
+            This will permanently delete the context and all data inside it.
+            This action cannot be undone.
           </p>
         </div>
 
@@ -178,4 +178,3 @@ const buttonStyle = (primary: boolean): React.CSSProperties => ({
   transition: 'all 0.1s',
   fontFamily: 'inherit',
 });
-

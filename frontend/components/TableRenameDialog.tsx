@@ -70,8 +70,7 @@ export function TableRenameDialog({
           borderRadius: 12,
           width: 480,
           maxWidth: '90vw',
-          boxShadow:
-            '0 24px 48px rgba(0,0,0,0.4), 0 12px 24px rgba(0,0,0,0.4)',
+          boxShadow: '0 24px 48px rgba(0,0,0,0.4), 0 12px 24px rgba(0,0,0,0.4)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -202,4 +201,3 @@ const buttonStyle = (primary: boolean): React.CSSProperties => ({
   transition: 'all 0.1s',
   fontFamily: 'inherit',
 });
-
