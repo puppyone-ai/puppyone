@@ -1,16 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import {
-  ToolsPanel,
-  type AccessPoint,
-  type SaveToolsResult,
-} from './ToolsPanel';
 import { DocumentEditor } from './DocumentEditor';
 import { type McpToolDefinition } from '../../lib/mcpApi';
 
 // 面板类型
-export type RightPanelContent = 'NONE' | 'TOOLS' | 'EDITOR';
+export type RightPanelContent = 'NONE' | 'EDITOR';
 
 // 编辑器目标类型
 export interface EditorTarget {
@@ -18,24 +13,9 @@ export interface EditorTarget {
   value: string;
 }
 
-// 重新导出类型
-export type { AccessPoint, SaveToolsResult };
-
 interface RightAuxiliaryPanelProps {
   content: RightPanelContent;
   onClose: () => void;
-
-  // Tools 面板相关
-  accessPoints: AccessPoint[];
-  setAccessPoints: React.Dispatch<React.SetStateAction<AccessPoint[]>>;
-  activeBaseName?: string;
-  activeTableName?: string;
-  onSaveTools: (toolsDefinition: Record<string, McpToolDefinition>) => void; // 保存 Tools
-  isSaving: boolean;
-  saveError: string | null;
-  savedResult: SaveToolsResult | null;
-  setSavedResult: React.Dispatch<React.SetStateAction<SaveToolsResult | null>>;
-  onViewAllMcp?: () => void;
 
   // 文档编辑器相关
   editorTarget: EditorTarget | null;
@@ -53,17 +33,6 @@ const DEFAULT_WIDTH = 450;
 export function RightAuxiliaryPanel({
   content,
   onClose,
-  // Tools props
-  accessPoints,
-  setAccessPoints,
-  activeBaseName,
-  activeTableName,
-  onSaveTools,
-  isSaving,
-  saveError,
-  savedResult,
-  setSavedResult,
-  onViewAllMcp,
   // Editor props
   editorTarget,
   onEditorSave,
@@ -207,22 +176,6 @@ export function RightAuxiliaryPanel({
           transition: 'opacity 0.15s ease',
         }}
       >
-        {content === 'TOOLS' && (
-          <ToolsPanel
-            accessPoints={accessPoints}
-            setAccessPoints={setAccessPoints}
-            activeBaseName={activeBaseName}
-            activeTableName={activeTableName}
-            onClose={onClose}
-            onSaveTools={onSaveTools}
-            isSaving={isSaving}
-            saveError={saveError}
-            savedResult={savedResult}
-            setSavedResult={setSavedResult}
-            onViewAllMcp={onViewAllMcp}
-          />
-        )}
-
         {content === 'EDITOR' && editorTarget && (
           <DocumentEditor
             path={editorTarget.path}
@@ -239,5 +192,4 @@ export function RightAuxiliaryPanel({
 }
 
 // 导出子组件以便独立使用
-export { ToolsPanel } from './ToolsPanel';
 export { DocumentEditor } from './DocumentEditor';

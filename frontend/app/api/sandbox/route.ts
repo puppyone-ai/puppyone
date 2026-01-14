@@ -14,6 +14,7 @@ const activeSandboxes = new Map<
     containerId: string;
     tempFilePath: string;
     createdAt: number;
+    readonly: boolean; // 新增：记录是否为只读模式
   }
 >();
 
@@ -38,10 +39,11 @@ function cleanupExpiredSandboxes() {
   }
 }
 
-// 启动沙盒
+// 启动沙盒 - 支持只读模式
 async function startSandbox(
   sessionId: string,
-  data: unknown
+  data: unknown,
+  readonly: boolean = false
 ): Promise<{ success: boolean; error?: string }> {
   cleanupExpiredSandboxes();
 
@@ -55,19 +57,24 @@ async function startSandbox(
   const jsonContent = JSON.stringify(data, null, 2);
   fs.writeFileSync(tempFilePath, jsonContent, 'utf-8');
 
+  // Docker 挂载选项：只读模式使用 :ro 标志
+  const mountOption = readonly
+    ? `"${tempFilePath}":/workspace/data.json:ro`
+    : `"${tempFilePath}":/workspace/data.json`;
+
   let containerId: string;
 
   try {
     // 尝试使用自定义镜像
     containerId = execSync(
-      `docker run -d --rm -v "${tempFilePath}":/workspace/data.json json-sandbox`,
+      `docker run -d --rm -v ${mountOption} json-sandbox`,
       { encoding: 'utf-8', timeout: 30000 }
     ).trim();
   } catch {
     // 降级到 alpine
     try {
       containerId = execSync(
-        `docker run -d --rm -v "${tempFilePath}":/workspace/data.json alpine:3.19 sh -c "apk add --no-cache jq bash >/dev/null 2>&1 && tail -f /dev/null"`,
+        `docker run -d --rm -v ${mountOption} alpine:3.19 sh -c "apk add --no-cache jq bash >/dev/null 2>&1 && tail -f /dev/null"`,
         { encoding: 'utf-8', timeout: 60000 }
       ).trim();
       // 等待 apk 安装完成
@@ -85,10 +92,11 @@ async function startSandbox(
     containerId,
     tempFilePath,
     createdAt: Date.now(),
+    readonly,
   });
 
   console.log(
-    `[Sandbox] Started session ${sessionId}, container: ${containerId.substring(0, 12)}`
+    `[Sandbox] Started session ${sessionId}, container: ${containerId.substring(0, 12)}, readonly: ${readonly}`
   );
   return { success: true };
 }
@@ -175,18 +183,23 @@ async function stopSandbox(sessionId: string): Promise<{ success: boolean }> {
 function getStatus(sessionId: string): {
   active: boolean;
   containerId?: string;
+  readonly?: boolean;
 } {
   const sandbox = activeSandboxes.get(sessionId);
   if (!sandbox) {
     return { active: false };
   }
-  return { active: true, containerId: sandbox.containerId.substring(0, 12) };
+  return {
+    active: true,
+    containerId: sandbox.containerId.substring(0, 12),
+    readonly: sandbox.readonly,
+  };
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, sessionId, command, data } = body;
+    const { action, sessionId, command, data, readonly } = body;
 
     if (!sessionId) {
       return Response.json({ error: 'sessionId is required' }, { status: 400 });
@@ -194,13 +207,18 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'start':
-        if (!data) {
+        if (data === undefined || data === null) {
           return Response.json(
             { error: 'data is required for start action' },
             { status: 400 }
           );
         }
-        const startResult = await startSandbox(sessionId, data);
+        // 支持 readonly 参数
+        const startResult = await startSandbox(
+          sessionId,
+          data,
+          readonly === true
+        );
         return Response.json(startResult);
 
       case 'exec':

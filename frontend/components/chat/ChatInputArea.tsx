@@ -60,7 +60,7 @@ const BashIcon = () => (
   </svg>
 );
 
-// Tool 图标
+// Tool 图标 (扳手)
 const ToolIcon = () => (
   <svg
     width='12'
@@ -72,8 +72,7 @@ const ToolIcon = () => (
     strokeLinecap='round'
     strokeLinejoin='round'
   >
-    <circle cx='12' cy='12' r='3' />
-    <path d='M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24' />
+    <path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' />
   </svg>
 );
 
@@ -175,368 +174,357 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
 
     const defaultPlaceholder = 'Ask a question or let Agent help...';
 
-    // 是否有任何工具可用
-    const hasAnyTools = bashTools.length > 0 || mcpTools.length > 0;
+    // 是否有对应类型的工具
+    const hasBashTools = bashTools.length > 0;
+    const hasMcpTools = mcpTools.length > 0;
 
     return (
       <div style={{ padding: '12px', flexShrink: 0, background: '#111111' }}>
-        {/* Access 选择器 - 统一容器 */}
-        {hasAnyTools && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0,
-              marginBottom: 8,
-              padding: '4px 6px',
-              background: '#1a1a1a',
-              borderRadius: 8,
-              border: '1px solid #262626',
-            }}
-          >
-            {/* Bash 选择器 */}
-            {bashTools.length > 0 && (
-              <div style={{ position: 'relative' }}>
-                <button
-                  type='button'
-                  onClick={() => setShowBashMenu(!showBashMenu)}
+        {/* Access 选择器 - 简化版 (移除外层框) */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8, // 增加间距，让按钮独立
+            marginBottom: 8,
+            padding: '0 2px', // 微调对齐
+            // 移除所有背景和边框
+            background: 'transparent',
+            border: 'none',
+          }}
+        >
+          {/* Bash 选择器 - 始终显示 */}
+          <div style={{ position: 'relative' }}>
+            <button
+              type='button'
+              onClick={() => hasBashTools && setShowBashMenu(!showBashMenu)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 26,
+                padding: '0 10px',
+                fontSize: 12,
+                fontWeight: 500,
+                borderRadius: 6,
+                border: 'none',
+                cursor: hasBashTools ? 'pointer' : 'default',
+                transition: 'all 0.15s',
+                background:
+                  activeBashCount > 0
+                    ? 'rgba(255, 167, 61, 0.12)' // 金橙色 - 和 Editor 统一
+                    : 'transparent',
+                color: !hasBashTools
+                  ? '#444'
+                  : activeBashCount > 0
+                    ? '#ffa73d'
+                    : '#666',
+                opacity: hasBashTools ? 1 : 0.5,
+              }}
+              onMouseEnter={e => {
+                if (hasBashTools && activeBashCount === 0) {
+                  e.currentTarget.style.background = 'rgba(255, 167, 61, 0.08)';
+                  e.currentTarget.style.color = '#d4a574';
+                }
+              }}
+              onMouseLeave={e => {
+                if (hasBashTools && activeBashCount === 0) {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#666';
+                }
+              }}
+            >
+              <BashIcon />
+              <span>Bash</span>
+              {activeBashCount > 0 && (
+                <span
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    height: 26,
-                    padding: '0 10px',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    borderRadius: 6,
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    background:
-                      activeBashCount > 0
-                        ? 'rgba(255,255,255,0.08)'
-                        : 'transparent',
-                    color: activeBashCount > 0 ? '#e5e5e5' : '#666',
-                  }}
-                  onMouseEnter={e => {
-                    if (activeBashCount === 0) {
-                      e.currentTarget.style.background =
-                        'rgba(255,255,255,0.05)';
-                      e.currentTarget.style.color = '#999';
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (activeBashCount === 0) {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#666';
-                    }
+                    fontSize: 10,
+                    color: '#ffa73d',
+                    background: 'rgba(255, 167, 61, 0.15)',
+                    padding: '1px 5px',
+                    borderRadius: 4,
                   }}
                 >
-                  <BashIcon />
-                  <span>Bash</span>
-                  {activeBashCount > 0 && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: '#a3a3a3',
-                        background: 'rgba(255,255,255,0.1)',
-                        padding: '1px 5px',
-                        borderRadius: 4,
-                      }}
-                    >
-                      {activeBashCount}
-                    </span>
-                  )}
-                  <svg
-                    width='10'
-                    height='10'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='2.5'
+                  {activeBashCount}
+                </span>
+              )}
+              {hasBashTools && (
+                <svg
+                  width='10'
+                  height='10'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2.5'
+                  style={{
+                    transform: showBashMenu ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s',
+                    opacity: 0.5,
+                  }}
+                >
+                  <path d='M6 9l6 6 6-6' />
+                </svg>
+              )}
+            </button>
+
+            {/* Bash Menu */}
+            {showBashMenu && hasBashTools && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                  onClick={() => setShowBashMenu(false)}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: 0,
+                    marginBottom: 8,
+                    width: 200,
+                    background: '#1a1a1a',
+                    border: '1px solid #333',
+                    borderRadius: 8,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    padding: 4,
+                    zIndex: 100,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                  }}
+                >
+                  <div
                     style={{
-                      transform: showBashMenu
-                        ? 'rotate(180deg)'
-                        : 'rotate(0deg)',
-                      transition: 'transform 0.2s',
-                      opacity: 0.5,
+                      padding: '4px 8px',
+                      fontSize: 10,
+                      color: '#525252',
+                      fontWeight: 600,
                     }}
                   >
-                    <path d='M6 9l6 6 6-6' />
-                  </svg>
-                </button>
-
-                {/* Bash Menu */}
-                {showBashMenu && (
-                  <>
+                    BASH
+                  </div>
+                  {bashTools.map(tool => (
                     <div
-                      style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-                      onClick={() => setShowBashMenu(false)}
-                    />
-                    <div
+                      key={tool.id}
+                      onClick={() => toggleAccess(tool.id)}
                       style={{
-                        position: 'absolute',
-                        bottom: '100%',
-                        left: 0,
-                        marginBottom: 8,
-                        width: 200,
-                        background: '#1a1a1a',
-                        border: '1px solid #333',
-                        borderRadius: 8,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                        padding: 4,
-                        zIndex: 100,
                         display: 'flex',
-                        flexDirection: 'column',
-                        gap: 2,
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        padding: '6px 8px',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: selected.has(tool.id) ? '#e5e5e5' : '#737373',
+                        background: selected.has(tool.id)
+                          ? '#262626'
+                          : 'transparent',
+                        transition: 'all 0.1s',
+                      }}
+                      onMouseEnter={e => {
+                        if (!selected.has(tool.id))
+                          e.currentTarget.style.background = '#1f1f1f';
+                      }}
+                      onMouseLeave={e => {
+                        if (!selected.has(tool.id))
+                          e.currentTarget.style.background = 'transparent';
                       }}
                     >
                       <div
                         style={{
-                          padding: '4px 8px',
-                          fontSize: 10,
-                          color: '#525252',
-                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
                         }}
                       >
-                        SANDBOX
+                        <BashIcon />
+                        {tool.label}
                       </div>
-                      {bashTools.map(tool => (
+                      {selected.has(tool.id) && (
                         <div
-                          key={tool.id}
-                          onClick={() => toggleAccess(tool.id)}
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 8,
-                            padding: '6px 8px',
-                            borderRadius: 4,
-                            cursor: 'pointer',
-                            fontSize: 12,
-                            color: selected.has(tool.id)
-                              ? '#e5e5e5'
-                              : '#737373',
-                            background: selected.has(tool.id)
-                              ? '#262626'
-                              : 'transparent',
-                            transition: 'all 0.1s',
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: '#e5e5e5',
                           }}
-                          onMouseEnter={e => {
-                            if (!selected.has(tool.id))
-                              e.currentTarget.style.background = '#1f1f1f';
-                          }}
-                          onMouseLeave={e => {
-                            if (!selected.has(tool.id))
-                              e.currentTarget.style.background = 'transparent';
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                            }}
-                          >
-                            <BashIcon />
-                            {tool.label}
-                          </div>
-                          {selected.has(tool.id) && (
-                            <div
-                              style={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: '50%',
-                                background: '#e5e5e5',
-                              }}
-                            />
-                          )}
-                        </div>
-                      ))}
+                        />
+                      )}
                     </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Divider - 只在两者都有时显示 */}
-            {bashTools.length > 0 && mcpTools.length > 0 && (
-              <div
-                style={{
-                  width: 1,
-                  height: 16,
-                  background: '#333',
-                  margin: '0 4px',
-                }}
-              />
-            )}
-
-            {/* MCP Tools 选择器 */}
-            {mcpTools.length > 0 && (
-              <div style={{ position: 'relative' }}>
-                <button
-                  type='button'
-                  onClick={() => setShowToolsMenu(!showToolsMenu)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    height: 26,
-                    padding: '0 10px',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    borderRadius: 6,
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    background:
-                      activeToolsCount > 0
-                        ? 'rgba(255,255,255,0.08)'
-                        : 'transparent',
-                    color: activeToolsCount > 0 ? '#e5e5e5' : '#666',
-                  }}
-                  onMouseEnter={e => {
-                    if (activeToolsCount === 0) {
-                      e.currentTarget.style.background =
-                        'rgba(255,255,255,0.05)';
-                      e.currentTarget.style.color = '#999';
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (activeToolsCount === 0) {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#666';
-                    }
-                  }}
-                >
-                  <ToolIcon />
-                  <span>Tools</span>
-                  {activeToolsCount > 0 && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: '#a3a3a3',
-                        background: 'rgba(255,255,255,0.1)',
-                        padding: '1px 5px',
-                        borderRadius: 4,
-                      }}
-                    >
-                      {activeToolsCount}
-                    </span>
-                  )}
-                  <svg
-                    width='10'
-                    height='10'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='2.5'
-                    style={{
-                      transform: showToolsMenu
-                        ? 'rotate(180deg)'
-                        : 'rotate(0deg)',
-                      transition: 'transform 0.2s',
-                      opacity: 0.5,
-                    }}
-                  >
-                    <path d='M6 9l6 6 6-6' />
-                  </svg>
-                </button>
-
-                {/* Tools Menu Popup */}
-                {showToolsMenu && (
-                  <>
-                    <div
-                      style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-                      onClick={() => setShowToolsMenu(false)}
-                    />
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: '100%',
-                        left: 0,
-                        marginBottom: 8,
-                        width: 180,
-                        background: '#1a1a1a',
-                        border: '1px solid #333',
-                        borderRadius: 8,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                        padding: 4,
-                        zIndex: 100,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 2,
-                      }}
-                    >
-                      <div
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: 10,
-                          color: '#525252',
-                          fontWeight: 600,
-                        }}
-                      >
-                        MCP TOOLS
-                      </div>
-                      {mcpTools.map(tool => (
-                        <div
-                          key={tool.id}
-                          onClick={() => toggleAccess(tool.id)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 8,
-                            padding: '6px 8px',
-                            borderRadius: 4,
-                            cursor: 'pointer',
-                            fontSize: 12,
-                            color: selected.has(tool.id)
-                              ? '#e5e5e5'
-                              : '#737373',
-                            background: selected.has(tool.id)
-                              ? '#262626'
-                              : 'transparent',
-                            transition: 'all 0.1s',
-                          }}
-                          onMouseEnter={e => {
-                            if (!selected.has(tool.id))
-                              e.currentTarget.style.background = '#1f1f1f';
-                          }}
-                          onMouseLeave={e => {
-                            if (!selected.has(tool.id))
-                              e.currentTarget.style.background = 'transparent';
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                            }}
-                          >
-                            {tool.icon || <ToolIcon />}
-                            {tool.label}
-                          </div>
-                          {selected.has(tool.id) && (
-                            <div
-                              style={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: '50%',
-                                background: '#e5e5e5',
-                              }}
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
-        )}
+
+          {/* MCP Tools 选择器 - 始终显示 */}
+          <div style={{ position: 'relative' }}>
+            <button
+              type='button'
+              onClick={() => hasMcpTools && setShowToolsMenu(!showToolsMenu)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 26,
+                padding: '0 10px',
+                fontSize: 12,
+                fontWeight: 500,
+                borderRadius: 6,
+                border: 'none',
+                cursor: hasMcpTools ? 'pointer' : 'default',
+                transition: 'all 0.15s',
+                background:
+                  activeToolsCount > 0
+                    ? 'rgba(255, 167, 61, 0.12)' // 金橙色 - 和 Editor 统一
+                    : 'transparent',
+                color: !hasMcpTools
+                  ? '#444'
+                  : activeToolsCount > 0
+                    ? '#ffa73d'
+                    : '#666',
+                opacity: hasMcpTools ? 1 : 0.5,
+              }}
+              onMouseEnter={e => {
+                if (hasMcpTools && activeToolsCount === 0) {
+                  e.currentTarget.style.background = 'rgba(255, 167, 61, 0.08)';
+                  e.currentTarget.style.color = '#d4a574';
+                }
+              }}
+              onMouseLeave={e => {
+                if (hasMcpTools && activeToolsCount === 0) {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#666';
+                }
+              }}
+            >
+              <ToolIcon />
+              <span>Tools</span>
+              {activeToolsCount > 0 && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: '#ffa73d',
+                    background: 'rgba(255, 167, 61, 0.15)',
+                    padding: '1px 5px',
+                    borderRadius: 4,
+                  }}
+                >
+                  {activeToolsCount}
+                </span>
+              )}
+              {hasMcpTools && (
+                <svg
+                  width='10'
+                  height='10'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2.5'
+                  style={{
+                    transform: showToolsMenu
+                      ? 'rotate(180deg)'
+                      : 'rotate(0deg)',
+                    transition: 'transform 0.2s',
+                    opacity: 0.5,
+                  }}
+                >
+                  <path d='M6 9l6 6 6-6' />
+                </svg>
+              )}
+            </button>
+
+            {/* Tools Menu Popup */}
+            {showToolsMenu && hasMcpTools && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                  onClick={() => setShowToolsMenu(false)}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: 0,
+                    marginBottom: 8,
+                    width: 180,
+                    background: '#1a1a1a',
+                    border: '1px solid #333',
+                    borderRadius: 8,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    padding: 4,
+                    zIndex: 100,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: 10,
+                      color: '#525252',
+                      fontWeight: 600,
+                    }}
+                  >
+                    MCP TOOLS
+                  </div>
+                  {mcpTools.map(tool => (
+                    <div
+                      key={tool.id}
+                      onClick={() => toggleAccess(tool.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        padding: '6px 8px',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: selected.has(tool.id) ? '#e5e5e5' : '#737373',
+                        background: selected.has(tool.id)
+                          ? '#262626'
+                          : 'transparent',
+                        transition: 'all 0.1s',
+                      }}
+                      onMouseEnter={e => {
+                        if (!selected.has(tool.id))
+                          e.currentTarget.style.background = '#1f1f1f';
+                      }}
+                      onMouseLeave={e => {
+                        if (!selected.has(tool.id))
+                          e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        {tool.icon || <ToolIcon />}
+                        {tool.label}
+                      </div>
+                      {selected.has(tool.id) && (
+                        <div
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: '#e5e5e5',
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
         {/* Input Container - 上下排布 */}
         <div
