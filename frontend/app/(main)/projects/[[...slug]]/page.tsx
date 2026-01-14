@@ -28,10 +28,7 @@ interface EditorTarget {
 }
 
 // MCP Tools imports
-import {
-  type McpToolPermissions,
-  type AccessPoint, // AccessPoint might be defined in mcpApi or locally, checking imports
-} from '@/lib/mcpApi';
+import { type McpToolPermissions } from '@/lib/mcpApi';
 
 // AccessPoint was imported from ToolsPanel, need to define or import it correctly if it's not in mcpApi.
 // Checking previous file content, it seems AccessPoint interface was exported from ToolsPanel.

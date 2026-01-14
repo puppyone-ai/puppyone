@@ -131,7 +131,8 @@ const MenuPanel = React.memo(function MenuPanel({
         }
       } else {
         // 其他 MCP Tools: 正常切换
-        newTools[toolId] = enabled;
+        const key = toolId as keyof McpToolPermissions;
+        newTools[key] = enabled;
       }
 
       onAccessChange?.(path, newTools as McpToolPermissions);

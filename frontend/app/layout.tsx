@@ -1,3 +1,4 @@
+import './globals.css';
 import type { ReactNode } from 'react';
 import { SupabaseAuthProvider } from './supabase/SupabaseAuthProvider';
 import { BackgroundTaskNotifier } from '../components/BackgroundTaskNotifier';

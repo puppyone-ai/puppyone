@@ -1,0 +1,47 @@
+/* Linear Style - Minimal overrides */
+
+/* Sidebar text: 14px */
+.nextra-sidebar-container a,
+.nextra-sidebar-container span,
+.nextra-sidebar-container button {
+  font-size: 14px !important;
+}
+
+/* Sidebar links: 28px height */
+.nextra-sidebar-container a {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Body content: 16px */
+.nextra-content main {
+  font-size: 16px;
+}
+
+/* Buttons: 28px height */
+button,
+.nextra-button,
+a.nextra-card {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Search button: 28px */
+.nextra-search button {
+  height: 28px !important;
+}
+
+/* Theme toggle button: 28px */
+nav button[aria-label] {
+  height: 28px !important;
+  width: 28px !important;
+}
+

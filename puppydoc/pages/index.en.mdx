@@ -1,0 +1,47 @@
+# PuppyOne
+
+> **The #1 Context Base for AI Agents.**
+
+PuppyOne is a **structured, agent-native context platform** designed specifically for AI agents.  
+It solves one core problem: **make your agents work reliably on precise data, instead of hallucinating after fuzzy retrieval.**
+
+## Why PuppyOne?
+
+| Traditional Approach | Problem | PuppyOne's Solution |
+|---------------------|---------|---------------------|
+| Knowledge Base (Notion, Confluence) | Designed for humans, messy formatting | Agent-native structured indexing |
+| Vector Database | Probabilistic retrieval, hallucinations on SKUs/prices | Deterministic JSON access |
+| Manual JSON files | No versioning, no permissions, no distribution | Complete context lifecycle management |
+
+## Core Capabilities
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   IMPORT    │ →  │  STRUCTURE  │ →  │    INDEX    │ →  │ DISTRIBUTE  │
+├─────────────┤    ├─────────────┤    ├─────────────┤    ├─────────────┤
+│ PDF, Notion │    │ Visual JSON │    │ Vector +    │    │ MCP Protocol│
+│ Airtable    │    │ Tree Editor │    │ Semantic +  │    │ REST API    │
+│ Web Crawl   │    │             │    │ Exact Path  │    │ Public Link │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+1. **Import** — Ingest data from PDF, Notion, Airtable, websites, and more. Auto ETL cleaning.
+2. **Structure** — Visual JSON editor to maintain clean, organized context.
+3. **Index** — Hybrid indexing: vector + semantic + deterministic path lookup.
+4. **Distribute** — Serve to agents via MCP protocol, REST API, or public links.
+
+## Quick Start
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="Cloud (2 min)" href="/quickstart/cloud" />
+  <Card title="Self-Hosted (Docker)" href="/quickstart/self-hosted" />
+</Cards>
+
+## Who is this for?
+
+- **AI Engineers** building agents that need reliable context
+- **Developers** tired of RAG hallucinations on structured data
+- **Teams** wanting a single source of truth for agent knowledge
+
