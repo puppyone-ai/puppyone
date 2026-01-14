@@ -379,6 +379,20 @@ export function ChatSidebar({
         })
         .filter(m => m.content); // 过滤空消息
 
+      // 从 accessPoints 提取 bash 权限配置
+      // 找到配置了 shell_access 或 shell_access_readonly 的节点
+      const bashAccessPoints = accessPoints
+        .filter(ap => {
+          const perms = ap.permissions as Record<string, boolean>;
+          return perms['shell_access'] || perms['shell_access_readonly'];
+        })
+        .map(ap => ({
+          path: ap.path,
+          mode: (ap.permissions as Record<string, boolean>)['shell_access'] 
+            ? 'full' as const 
+            : 'readonly' as const,
+        }));
+
       // 统一调用 /api/agent
       const response = await fetch('/api/agent', {
         method: 'POST',
@@ -388,6 +402,8 @@ export function ChatSidebar({
           chatHistory, // 新增：历史消息
           tableData, // 有数据时用 Bash 工具，无数据时用文件工具
           workingDirectory,
+          // 新增：传递 bash 权限配置
+          bashAccessPoints,
         }),
         signal: abortControllerRef.current.signal,
       });

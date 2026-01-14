@@ -14,7 +14,7 @@ import { apiRequest, get, post, put, del } from './apiClient';
 // 类型定义
 // ============================================
 
-// 后端支持的 9 种工具类型 (增加 shell_access)
+// 后端支持的工具类型 (增加 shell_access 和 shell_access_readonly)
 export type McpToolType =
   | 'get_data_schema'
   | 'get_all_data'
@@ -24,7 +24,8 @@ export type McpToolType =
   | 'delete'
   | 'preview'
   | 'select'
-  | 'shell_access';
+  | 'shell_access'
+  | 'shell_access_readonly';
 
 // MCP 工具权限类型（用于前端状态管理）
 export interface McpToolPermissions {
@@ -37,6 +38,7 @@ export interface McpToolPermissions {
   update?: boolean;
   delete?: boolean;
   shell_access?: boolean;
+  shell_access_readonly?: boolean; // Bash 只读模式
 }
 
 // 工具定义（用于自定义工具名称和描述）- 保留用于前端状态

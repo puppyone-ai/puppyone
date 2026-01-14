@@ -12,13 +12,18 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// Bash 权限配置类型
+interface BashAccessPoint {
+  path: string; // JSON 路径，如 "" (根), "/articles", "/0/content"
+  mode: 'readonly' | 'full';
+}
+
 // 沙盒 API 调用封装
 class SandboxClient {
   private baseUrl: string;
   private sessionId: string;
 
   constructor(sessionId: string) {
-    // 使用内部 API 调用
     this.baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     this.sessionId = sessionId;
   }
@@ -35,8 +40,12 @@ class SandboxClient {
     return response.json();
   }
 
-  async start(data: unknown): Promise<{ success: boolean; error?: string }> {
-    return this.call('start', { data }) as Promise<{
+  // 启动沙盒，支持只读模式
+  async start(
+    data: unknown,
+    readonly: boolean = false
+  ): Promise<{ success: boolean; error?: string }> {
+    return this.call('start', { data, readonly }) as Promise<{
       success: boolean;
       error?: string;
     }>;
@@ -65,7 +74,8 @@ class SandboxClient {
   }
 }
 
-// 工具定义
+// 工具定义 - 使用 Claude 官方 bash tool 类型
+// 参考: https://platform.claude.com/docs/en/agents-and-tools/tool-use/bash-tool
 const BASH_TOOL = { type: 'bash_20250124' as const, name: 'bash' as const };
 
 const FILE_TOOLS = [
@@ -111,6 +121,72 @@ const FILE_TOOLS = [
     },
   },
 ];
+
+// 根据 JSON 路径从数据中提取节点
+// 路径格式: "" (根), "/articles", "/0/content", "/users/0/name"
+function extractDataByPath(data: unknown, jsonPath: string): unknown {
+  if (!jsonPath || jsonPath === '' || jsonPath === '/') {
+    return data;
+  }
+
+  const segments = jsonPath.split('/').filter(Boolean);
+  let current: unknown = data;
+
+  for (const segment of segments) {
+    if (current === null || current === undefined) {
+      return undefined;
+    }
+
+    if (Array.isArray(current)) {
+      const index = parseInt(segment, 10);
+      if (isNaN(index) || index < 0 || index >= current.length) {
+        return undefined;
+      }
+      current = current[index];
+    } else if (typeof current === 'object') {
+      current = (current as Record<string, unknown>)[segment];
+    } else {
+      return undefined;
+    }
+  }
+
+  return current;
+}
+
+// 将修改后的节点数据合并回原数据
+function mergeDataByPath(
+  originalData: unknown,
+  jsonPath: string,
+  newNodeData: unknown
+): unknown {
+  if (!jsonPath || jsonPath === '' || jsonPath === '/') {
+    return newNodeData;
+  }
+
+  // 深拷贝原数据
+  const result = JSON.parse(JSON.stringify(originalData));
+  const segments = jsonPath.split('/').filter(Boolean);
+
+  let current: unknown = result;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const segment = segments[i];
+    if (Array.isArray(current)) {
+      current = current[parseInt(segment, 10)];
+    } else if (typeof current === 'object' && current !== null) {
+      current = (current as Record<string, unknown>)[segment];
+    }
+  }
+
+  // 设置最后一个节点的值
+  const lastSegment = segments[segments.length - 1];
+  if (Array.isArray(current)) {
+    (current as unknown[])[parseInt(lastSegment, 10)] = newNodeData;
+  } else if (typeof current === 'object' && current !== null) {
+    (current as Record<string, unknown>)[lastSegment] = newNodeData;
+  }
+
+  return result;
+}
 
 // 执行文件工具
 function executeFileTool(
@@ -159,51 +235,37 @@ function executeFileTool(
   }
 }
 
-export async function POST(request: NextRequest) {
-  const { prompt, chatHistory, tableData, workingDirectory } =
-    await request.json();
+// 生成系统提示 - 根据权限模式
+function generateSystemPrompt(isReadonly: boolean, nodePath: string): string {
+  const pathDesc = nodePath ? `节点路径: ${nodePath}` : '根节点';
 
-  if (!prompt) {
-    return Response.json({ error: 'Missing prompt' }, { status: 400 });
-  }
-
-  const cwd = workingDirectory || process.cwd();
-  const hasTableData = !!tableData;
-  const encoder = new TextEncoder();
-
-  // 如果有 tableData，创建沙盒客户端
-  const sandboxSessionId = hasTableData ? `agent-${Date.now()}` : null;
-  const sandbox = sandboxSessionId ? new SandboxClient(sandboxSessionId) : null;
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      const sendEvent = (type: string, data: Record<string, unknown>) => {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type, ...data })}\n\n`)
-        );
-      };
-
-      try {
-        // 启动沙盒（如果需要）
-        if (sandbox && tableData) {
-          sendEvent('status', { message: 'Starting sandbox...' });
-          const startResult = await sandbox.start(tableData);
-          if (!startResult.success) {
-            sendEvent('error', {
-              message: `Failed to start sandbox: ${startResult.error}`,
-            });
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            controller.close();
-            return;
-          }
-          sendEvent('status', { message: 'Sandbox ready' });
-        }
-
-        // 系统提示
-        const systemPrompt = hasTableData
-          ? `你是一个 JSON 数据编辑助手。
+  if (isReadonly) {
+    return `你是一个 JSON 数据查看助手。
 
 当前 JSON 数据文件位于: /workspace/data.json
+${pathDesc}
+
+⚠️ 重要：你只有【只读权限】，不能修改数据！
+
+【查看数据】
+- 查看原始内容: cat /workspace/data.json
+- 格式化查看: cat /workspace/data.json | jq '.'
+- 查看特定字段: cat /workspace/data.json | jq '.fieldName'
+- 查看数组长度: cat /workspace/data.json | jq 'length'
+- 查看所有键: cat /workspace/data.json | jq 'keys'
+
+【禁止操作】
+- 不能使用任何写入命令（如 >, >>, mv, rm 等）
+- 不能修改 /workspace/data.json 文件
+- 如果用户要求修改数据，请告知没有修改权限
+
+请用中文回复用户。`;
+  }
+
+  return `你是一个 JSON 数据编辑助手。
+
+当前 JSON 数据文件位于: /workspace/data.json
+${pathDesc}
 
 你可以使用 bash 工具来查看和修改数据：
 
@@ -218,14 +280,89 @@ export async function POST(request: NextRequest) {
 - 删除字段: jq 'del(.fieldName)' /workspace/data.json > /tmp/temp.json && mv /tmp/temp.json /workspace/data.json
 
 修改完成后，请用 cat /workspace/data.json | jq '.' 展示最终结果。
-请用中文回复用户。`
+请用中文回复用户。`;
+}
+
+export async function POST(request: NextRequest) {
+  const {
+    prompt,
+    chatHistory,
+    tableData,
+    workingDirectory,
+    bashAccessPoints,
+  } = await request.json();
+
+  if (!prompt) {
+    return Response.json({ error: 'Missing prompt' }, { status: 400 });
+  }
+
+  const cwd = workingDirectory || process.cwd();
+  const encoder = new TextEncoder();
+
+  // 解析 bash 权限配置
+  const accessPoints: BashAccessPoint[] = bashAccessPoints || [];
+
+  // 确定是否有 bash 权限，以及权限模式
+  // 如果有多个节点配置了 bash，取第一个（后续可以支持多节点）
+  const bashAccess = accessPoints.length > 0 ? accessPoints[0] : null;
+  const hasBashAccess = !!bashAccess;
+  const isReadonly = bashAccess?.mode === 'readonly';
+  const nodePath = bashAccess?.path || '';
+
+  // 提取对应节点的数据
+  let nodeData: unknown = null;
+  if (hasBashAccess && tableData) {
+    nodeData = extractDataByPath(tableData, nodePath);
+    if (nodeData === undefined) {
+      return Response.json(
+        { error: `Invalid path: ${nodePath}` },
+        { status: 400 }
+      );
+    }
+  }
+
+  // 决定是否使用沙盒
+  const useSandbox = hasBashAccess && nodeData !== null;
+  const sandboxSessionId = useSandbox ? `agent-${Date.now()}` : null;
+  const sandbox = sandboxSessionId ? new SandboxClient(sandboxSessionId) : null;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendEvent = (type: string, data: Record<string, unknown>) => {
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ type, ...data })}\n\n`)
+        );
+      };
+
+      try {
+        // 启动沙盒（如果需要）
+        if (sandbox && nodeData !== null) {
+          sendEvent('status', {
+            message: `Starting sandbox (${isReadonly ? 'read-only' : 'full access'})...`,
+          });
+          // 传递只读模式给 sandbox
+          const startResult = await sandbox.start(nodeData, isReadonly);
+          if (!startResult.success) {
+            sendEvent('error', {
+              message: `Failed to start sandbox: ${startResult.error}`,
+            });
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            controller.close();
+            return;
+          }
+          sendEvent('status', { message: 'Sandbox ready' });
+        }
+
+        // 系统提示 - 根据权限模式生成
+        const systemPrompt = useSandbox
+          ? generateSystemPrompt(isReadonly, nodePath)
           : `You are Puppy 🐶, a helpful AI assistant.
 You can read files, search for files, and search content in files.
 Always respond in the same language the user uses.
 Be concise and helpful.`;
 
         // 选择工具
-        const tools = hasTableData ? [BASH_TOOL] : FILE_TOOLS;
+        const tools = useSandbox ? [BASH_TOOL] : FILE_TOOLS;
 
         // 消息历史
         type MessageContent =
@@ -308,7 +445,7 @@ Be concise and helpful.`;
 
           for (const toolUse of toolUses) {
             const currentToolIndex = toolIndex++;
-            const toolInput = hasTableData
+            const toolInput = useSandbox
               ? (toolUse.input as { command?: string }).command || ''
               : JSON.stringify(toolUse.input);
 
@@ -373,14 +510,31 @@ Be concise and helpful.`;
           if (response.stop_reason === 'end_turn') break;
         }
 
-        // 如果有 tableData，读取最终 JSON
+        // 读取最终数据并返回
         if (sandbox) {
           try {
             const readResult = await sandbox.read();
-            if (readResult.success && readResult.data) {
+            if (readResult.success && readResult.data !== undefined) {
+              // 如果是只读模式，返回原始数据（不应该有修改）
+              // 如果是完整模式，将修改后的节点数据合并回原始数据
+              let updatedData: unknown;
+              if (isReadonly) {
+                // 只读模式：返回原始 tableData，不做任何修改
+                updatedData = tableData;
+              } else {
+                // 完整模式：将修改后的节点数据合并回原始数据
+                updatedData = mergeDataByPath(
+                  tableData,
+                  nodePath,
+                  readResult.data
+                );
+              }
+
               sendEvent('result', {
                 success: true,
-                updatedData: readResult.data,
+                updatedData,
+                // 额外信息：告知是哪个节点被修改了
+                modifiedPath: isReadonly ? null : nodePath,
               });
             } else {
               sendEvent('result', { success: false, error: readResult.error });
