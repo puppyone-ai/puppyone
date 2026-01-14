@@ -1,0 +1,60 @@
+# Connect Agent
+
+Integrate PuppyOne with your AI agent.
+
+## Cursor
+
+1. Open Cursor Settings → MCP
+2. Add a new MCP server:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx -y mcp-remote https://api.puppyone.ai/mcp?api_key=YOUR_KEY"
+    }
+  }
+}
+```
+
+3. Restart Cursor
+4. Your agent now has access to PuppyOne tools
+
+## Claude Desktop
+
+1. Edit `~/Library/Application Support/Claude/claude_desktop_config.json`
+2. Add:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx -y mcp-remote https://api.puppyone.ai/mcp?api_key=YOUR_KEY"
+    }
+  }
+}
+```
+
+3. Restart Claude Desktop
+
+## Custom Agents
+
+For custom agents, use the REST API:
+
+```bash
+# Query data
+curl -X POST https://api.puppyone.ai/api/v1/tables/{table_id}/query \
+  -H "Authorization: Bearer YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/products", "filter": {"category": "electronics"}}'
+```
+
+See [API Reference](/en/api) for full documentation.
+
+## Getting Your API Key
+
+1. Go to PuppyOne dashboard
+2. Click **Settings** → **API Keys**
+3. Click **Create New Key**
+4. Copy and store securely
+

@@ -1,0 +1,54 @@
+# Configure Tools
+
+Set up which tools your AI agents can access.
+
+## Access Control Panel
+
+1. Open your table in PuppyOne
+2. Click the **Access** tab
+3. Configure permissions for each path
+
+## Available Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `query_data` | Allow querying with filters |
+| `get_all_data` | Allow fetching entire table |
+| `create` | Allow adding new entries |
+| `update` | Allow modifying entries |
+| `delete` | Allow removing entries |
+
+## Setting Up Permissions
+
+### For Read-Only Access
+
+Enable only:
+- `query_data`
+- `get_all_data`
+
+### For Full Access
+
+Enable all permissions.
+
+### For Scoped Access
+
+1. Click **Add Path**
+2. Enter the JSON path (e.g., `/products`)
+3. Select permissions for that path only
+
+## Example: Product Catalog
+
+```
+/products          → query_data, get_all_data
+/products/*/price  → update (allow price updates only)
+/internal          → (no access)
+```
+
+## Testing Permissions
+
+After configuring:
+
+1. Click **Test** in the Access panel
+2. Try different operations
+3. Verify access is correctly restricted
+

@@ -1,0 +1,70 @@
+# PuppyOne
+
+**The Single Source of Context for AI Agents.**
+
+> **Converge scattered knowledge. Empower every agent.**
+
+```
+┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
+│  Notion  │  │  GitHub  │  │ Airtable │  │   Files  │
+└─────┬────┘  └─────┬────┘  └─────┬────┘  └─────┬────┘
+      │             │             │             │
+      └─────────────▼─────────────▼─────────────┘
+                    │
+            ╔═══════▼═══════╗
+            ║   PuppyOne    ║  ◄── Context Base
+            ║ (Index/Sync)  ║
+            ╚═══════▲═══════╝
+                    │
+      ┌─────────────┼─────────────┐
+      │             │             │
+  ┌───▼───┐     ┌───▼───┐     ┌───▼───┐
+  │  MCP  │     │  API  │     │Skills │
+  └───┬───┘     └───┬───┘     └───┬───┘
+      │             │             │
+┌─────▼────┐  ┌─────▼────┐  ┌─────▼────┐
+│Cursor/IDE│  │ Custom   │  │ Cloud    │
+│ Agent    │  │ Workflow │  │ Agent    │
+└──────────┘  └──────────┘  └──────────┘
+```
+
+---
+
+## What PuppyOne Does
+
+PuppyOne unifies your organization's scattered data into a **single, structured Context Base**, and serves it to any AI agent in real-time.
+
+### 1. Centralize Context (The "One" Base)
+Instead of connecting every agent to every data source individually, connect them all to PuppyOne.
+- **Connectors**: Notion, GitHub, Airtable, Google Sheets, Linear, Slack.
+- **Files**: PDF, DOCX, Markdown, Codebases.
+- **Structure**: Auto-ETL pipelines clean and organize raw data into structured JSON.
+
+### 2. Distribute Everywhere (The Interface)
+We provide the right interface for every type of agent:
+
+| Interface | Best For |
+|-----------|----------|
+| **MCP Server** | **Cursor, Claude Desktop**. Native integration, no code required. |
+| **REST API** | **Custom Agents (Python/Node)**. Full programmatic access. |
+| **Cloud Skills** | **ChatGPT, Coze**. Plug-and-play skills for hosted agents. |
+| **Sandbox** | **Safe Execution**. Let agents run code against your data securely. |
+
+### 3. Agent-Native Control
+- **Deterministic Indexing**: Agents need exact paths and structured queries, not just fuzzy vector search.
+- **Permission Scoping**: Give your Support Agent read-only access to `/docs`, but give your Dev Agent write access to `/code`.
+
+---
+
+## Why You Need This
+
+- **Eliminate Hallucinations**: Structured context beats vector soup for pricing, specs, and code.
+- **Unify Agent Memory**: When your Dev Agent updates a spec, your QA Agent sees it instantly.
+- **Security & Governance**: One place to manage what all your agents can see and do.
+
+---
+
+## Quick Start
+
+- **[Cloud →](/en/quickstart/cloud)**
+- **[Self-Hosted →](/en/quickstart/self-hosted)**

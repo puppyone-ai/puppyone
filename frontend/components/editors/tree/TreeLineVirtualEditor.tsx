@@ -534,6 +534,25 @@ const VirtualRow = React.memo(
       }
     }, [isSelectingAccessPoint, node.path, onSelect, onAddAccessPoint]);
 
+    // Quick add (same as ContextMenu -> add-child)
+    const handleQuickAdd = useCallback(() => {
+      // 避免 root path（updateJsonAtPath 无法处理空 path）
+      if (!node.path) return;
+      if (!node.isExpandable) return;
+      if (node.value === null || typeof node.value !== 'object') return;
+
+      if (Array.isArray(node.value)) {
+        const next = [...node.value, null] as any;
+        onValueChange(node.path, next);
+        return;
+      }
+
+      const obj = node.value as Record<string, any>;
+      const newKey = `newKey${Object.keys(obj).length}`;
+      const next = { ...obj, [newKey]: null } as any;
+      onValueChange(node.path, next);
+    }, [node.path, node.isExpandable, node.value, onValueChange]);
+
     return (
       <div
         style={{
@@ -768,6 +787,8 @@ const VirtualRow = React.memo(
               isExpanded={node.isExpanded}
               isExpandable={node.isExpandable}
               isSelectingAccessPoint={isSelectingAccessPoint}
+              showQuickAdd={hovered && node.isExpandable && !isRootNode}
+              onQuickAdd={handleQuickAdd}
               onChange={v => onValueChange(node.path, v)}
               onToggle={() => onToggle(node.path)}
               onSelect={() => onSelect(node.path)}

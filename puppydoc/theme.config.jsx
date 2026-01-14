@@ -1,29 +1,4 @@
-import { useRouter } from 'next/router'
-
-const TITLE = {
-  en: 'PuppyOne',
-  zh: 'PuppyOne',
-}
-
-const EDIT_TEXT = {
-  en: 'Edit this page on GitHub →',
-  zh: '在 GitHub 上编辑此页 →',
-}
-
-const FEEDBACK_TEXT = {
-  en: 'Question? Give us feedback →',
-  zh: '有问题？给我们反馈 →',
-}
-
-const TOC_TITLE = {
-  en: 'On This Page',
-  zh: '目录',
-}
-
-const SEARCH_PLACEHOLDER = {
-  en: 'Search documentation...',
-  zh: '搜索文档...',
-}
+import { LanguageSwitcher } from './components/LanguageSwitcher'
 
 export default {
   logo: <span style={{ fontWeight: 600 }}>PuppyOne</span>,
@@ -34,11 +9,10 @@ export default {
   
   docsRepositoryBase: 'https://github.com/puppyone-ai/puppyone/tree/main/puppydoc/pages',
 
-  // 语言切换下拉框 - 显示在 Header 右侧
-  i18n: [
-    { locale: 'en', text: 'English' },
-    { locale: 'zh', text: '中文' },
-  ],
+  // 语言切换器放在 Header 右侧
+  navbar: {
+    extraContent: <LanguageSwitcher />
+  },
 
   footer: {
     text: (
@@ -52,37 +26,8 @@ export default {
   },
 
   useNextSeoProps() {
-    const { locale } = useRouter()
     return {
-      titleTemplate: `%s – ${TITLE[locale] || TITLE.en}`
-    }
-  },
-
-  search: {
-    placeholder: function usePlaceholder() {
-      const { locale } = useRouter()
-      return SEARCH_PLACEHOLDER[locale] || SEARCH_PLACEHOLDER.en
-    }
-  },
-
-  toc: {
-    title: function useTitle() {
-      const { locale } = useRouter()
-      return TOC_TITLE[locale] || TOC_TITLE.en
-    }
-  },
-
-  editLink: {
-    text: function useText() {
-      const { locale } = useRouter()
-      return EDIT_TEXT[locale] || EDIT_TEXT.en
-    }
-  },
-
-  feedback: {
-    content: function useContent() {
-      const { locale } = useRouter()
-      return FEEDBACK_TEXT[locale] || FEEDBACK_TEXT.en
+      titleTemplate: '%s – PuppyOne'
     }
   },
 

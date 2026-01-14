@@ -1,0 +1,63 @@
+# API 参考
+
+PuppyOne REST API 文档。
+
+## 基础 URL
+
+```
+https://api.puppyone.ai/api/v1
+```
+
+自托管版本：
+```
+http://localhost:9090/api/v1
+```
+
+## 认证
+
+所有 API 请求需要通过 Bearer token 认证：
+
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  https://api.puppyone.ai/api/v1/projects
+```
+
+详见 [认证](/zh/api/authentication)。
+
+## 端点
+
+| 端点 | 描述 |
+|-----|------|
+| `/projects` | 管理 Project |
+| `/projects/{id}/tables` | 管理 Project 内的 Table |
+| `/tables/{id}` | Table 操作 |
+| `/mcp` | MCP 服务器管理 |
+
+## 响应格式
+
+所有响应为 JSON：
+
+```json
+{
+  "data": { ... },
+  "error": null
+}
+```
+
+错误时：
+
+```json
+{
+  "data": null,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Project not found"
+  }
+}
+```
+
+## 速率限制
+
+- 云端版：100 请求/分钟
+- 自托管：无限制
+

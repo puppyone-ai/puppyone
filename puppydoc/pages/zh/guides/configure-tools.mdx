@@ -1,0 +1,54 @@
+# 配置工具
+
+设置你的 AI Agent 可以访问哪些工具。
+
+## 访问控制面板
+
+1. 在 PuppyOne 中打开你的 Table
+2. 点击 **Access** 标签
+3. 为每个路径配置权限
+
+## 可用权限
+
+| 权限 | 描述 |
+|-----|------|
+| `query_data` | 允许按条件查询 |
+| `get_all_data` | 允许获取整个 Table |
+| `create` | 允许添加新条目 |
+| `update` | 允许修改条目 |
+| `delete` | 允许删除条目 |
+
+## 设置权限
+
+### 只读访问
+
+只启用：
+- `query_data`
+- `get_all_data`
+
+### 完全访问
+
+启用所有权限。
+
+### 路径限定访问
+
+1. 点击 **Add Path**
+2. 输入 JSON 路径（如 `/products`）
+3. 只为该路径选择权限
+
+## 示例：产品目录
+
+```
+/products          → query_data, get_all_data
+/products/*/price  → update（只允许更新价格）
+/internal          → （无访问权限）
+```
+
+## 测试权限
+
+配置完成后：
+
+1. 在 Access 面板点击 **Test**
+2. 尝试不同操作
+3. 验证访问是否正确限制
+

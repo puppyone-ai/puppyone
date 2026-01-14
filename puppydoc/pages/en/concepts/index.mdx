@@ -1,0 +1,30 @@
+# Core Concepts
+
+Understanding PuppyOne's architecture and data model.
+
+## Overview
+
+PuppyOne organizes your context into a simple hierarchy:
+
+```
+Workspace (your account)
+└── Project (a context namespace)
+    └── Table (a JSON document)
+        └── Data (structured JSON)
+```
+
+## Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Project** | Top-level container. One project = one context namespace. |
+| **Table** | A structured JSON document within a project. |
+| **MCP** | Protocol for serving context to AI agents. |
+| **Tools** | Operations agents can perform (query, create, update, delete). |
+
+## Learn More
+
+- [Project & Table](/en/concepts/project-table) — Data organization
+- [MCP Protocol](/en/concepts/mcp) — How agents access your data
+- [Tools & Permissions](/en/concepts/tools) — Access control model
+
