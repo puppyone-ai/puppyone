@@ -176,16 +176,7 @@ function flattenJson(json: any, expandedPaths: Set<string>): FlatNode[] {
   return result;
 }
 
-function updateJsonAtPath(json: any, path: string, newValue: JsonValue): any {
-  const parts = path.split('/').filter(Boolean);
-  const result = JSON.parse(JSON.stringify(json));
-  let current = result;
-  for (let i = 0; i < parts.length - 1; i++) {
-    current = current[parts[i]];
-  }
-  current[parts[parts.length - 1]] = newValue;
-  return result;
-}
+// updateJsonAtPath removed - logic moved to useJsonTreeActions
 
 // ============================================
 // Components (Copied from TreeLineVirtualEditor)
@@ -283,6 +274,8 @@ interface VirtualRowProps {
   onSelect: (path: string) => void;
   onValueChange: (path: string, value: JsonValue) => void;
   onKeyRename: (path: string, newKey: string) => void;
+  // 新增：快速添加回调
+  onAddChild?: (path: string) => void;
   onContextMenu: (
     e: React.MouseEvent,
     path: string,
@@ -310,6 +303,7 @@ const VirtualRow = React.memo(function VirtualRow({
   onSelect,
   onValueChange,
   onKeyRename,
+  onAddChild,
   onContextMenu,
   isSelectingAccessPoint,
   onAddAccessPoint,
@@ -363,24 +357,12 @@ const VirtualRow = React.memo(function VirtualRow({
     }
   }, [isSelectingAccessPoint, node.path, onSelect, onAddAccessPoint]);
 
-  // Quick add (same as ContextMenu -> add-child)
+  // Quick add: delegate to parent's onAddChild (which uses the hook)
   const handleQuickAdd = useCallback(() => {
-    // 避免 root path（空 path 的更新逻辑较特殊）
-    if (!node.path) return;
-    if (!node.isExpandable) return;
-    if (node.value === null || typeof node.value !== 'object') return;
-
-    if (Array.isArray(node.value)) {
-      const next = [...node.value, null] as any;
-      onValueChange(node.path, next);
-      return;
-    }
-
-    const obj = node.value as Record<string, any>;
-    const newKey = `newKey${Object.keys(obj).length}`;
-    const next = { ...obj, [newKey]: null } as any;
-    onValueChange(node.path, next);
-  }, [node.path, node.isExpandable, node.value, onValueChange]);
+    if (node.path === undefined) return;
+    // Pass the path to the parent handler
+    onAddChild?.(node.path);
+  }, [node.path, onAddChild]);
 
   return (
     <div
@@ -609,6 +591,11 @@ const VirtualRow = React.memo(function VirtualRow({
   );
 });
 
+import {
+  useJsonTreeActions,
+  updateJsonAtPath,
+} from './hooks/useJsonTreeActions';
+
 // ============================================
 // Main Component: TreeLineDiscreteEditor
 // ============================================
@@ -629,10 +616,16 @@ export default function TreeLineDiscreteEditor({
   // --- 1. State & Setup ---
   const [scrollIndex, setScrollIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const mainContentRef = useRef<HTMLDivElement>(null); // 包含 Editor + Sidebar 的父容器
+  const mainContentRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(0);
-  const [mainContentWidth, setMainContentWidth] = useState(0); // 追踪父容器宽度（稳定，不受 Menu 影响）
-  const accumulatedDelta = useRef(0); // For trackpad smoothing
+  const [mainContentWidth, setMainContentWidth] = useState(0);
+  const accumulatedDelta = useRef(0);
+
+  // Use the shared actions hook
+  const { onValueChange, onKeyRename, onAddChild } = useJsonTreeActions({
+    json,
+    onChange,
+  });
 
   const configuredAccessMap = useMemo(() => {
     const map = new Map<string, McpToolPermissions>();
@@ -785,36 +778,7 @@ export default function TreeLineDiscreteEditor({
     [onPathChange]
   );
 
-  const handleValueChange = useCallback(
-    (path: string, newValue: JsonValue) => {
-      if (onChange) onChange(updateJsonAtPath(json, path, newValue));
-    },
-    [json, onChange]
-  );
-
-  const handleKeyRename = useCallback(
-    (path: string, newKey: string) => {
-      if (!onChange) return;
-      const parts = path.split('/').filter(Boolean);
-      if (parts.length === 0) return;
-      const oldKey = parts[parts.length - 1];
-      const result = JSON.parse(JSON.stringify(json));
-      let parent = result;
-      for (let i = 0; i < parts.length - 1; i++) parent = parent[parts[i]];
-      if (Array.isArray(parent) || typeof parent !== 'object') return;
-      if (newKey in parent && newKey !== oldKey) return;
-
-      const entries = Object.entries(parent);
-      const newEntries: [string, unknown][] = entries.map(([k, v]) =>
-        k === oldKey ? [newKey, v] : [k, v]
-      );
-      for (const key of Object.keys(parent)) delete parent[key];
-      for (const [k, v] of newEntries)
-        (parent as Record<string, unknown>)[k] = v;
-      onChange(result);
-    },
-    [json, onChange]
-  );
+  // onValueChange, onKeyRename are now provided by useJsonTreeActions
 
   const handleContextMenu = useCallback(
     (
@@ -916,8 +880,9 @@ export default function TreeLineDiscreteEditor({
                 tableId={tableId}
                 onToggle={handleToggle}
                 onSelect={handleSelect}
-                onValueChange={handleValueChange}
-                onKeyRename={handleKeyRename}
+                onValueChange={onValueChange}
+                onKeyRename={onKeyRename}
+                onAddChild={onAddChild}
                 onContextMenu={handleContextMenu}
                 isSelectingAccessPoint={isSelectingAccessPoint}
                 onAddAccessPoint={onAddAccessPoint}
