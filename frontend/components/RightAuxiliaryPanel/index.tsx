@@ -166,30 +166,30 @@ export function RightAuxiliaryPanel({
       />
 
       {/* Content - 全宽无额外 padding */}
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            opacity: isVisible ? 1 : 0,
-            transition: 'opacity 0.15s ease',
-          }}
-        >
-          {content === 'EDITOR' && editorTarget && (
-            <DocumentEditor
-              path={editorTarget.path}
-              value={editorTarget.value}
-              onSave={newValue => onEditorSave(editorTarget.path, newValue)}
-              onClose={onClose}
-              isFullScreen={isEditorFullScreen}
-              onToggleFullScreen={onToggleEditorFullScreen}
-            />
-          )}
-        </div>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          opacity: isVisible ? 1 : 0,
+          transition: 'opacity 0.15s ease',
+        }}
+      >
+        {content === 'EDITOR' && editorTarget && (
+          <DocumentEditor
+            path={editorTarget.path}
+            value={editorTarget.value}
+            onSave={newValue => onEditorSave(editorTarget.path, newValue)}
+            onClose={onClose}
+            isFullScreen={isEditorFullScreen}
+            onToggleFullScreen={onToggleEditorFullScreen}
+          />
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // 导出子组件以便独立使用
-  export { DocumentEditor } from './DocumentEditor';
+// 导出子组件以便独立使用
+export { DocumentEditor } from './DocumentEditor';

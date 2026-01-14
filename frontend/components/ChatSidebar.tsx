@@ -105,7 +105,9 @@ export function ChatSidebar({
           id: `${ap.id}-${toolType}`, // 唯一 ID
           label: toolTypeLabels[toolType] || toolType,
           type:
-            toolType === 'shell_access' || toolType === 'shell_access_readonly' ? ('bash' as const) : ('tool' as const),
+            toolType === 'shell_access' || toolType === 'shell_access_readonly'
+              ? ('bash' as const)
+              : ('tool' as const),
         });
       }
     });
@@ -388,9 +390,9 @@ export function ChatSidebar({
         })
         .map(ap => ({
           path: ap.path,
-          mode: (ap.permissions as Record<string, boolean>)['shell_access'] 
-            ? 'full' as const 
-            : 'readonly' as const,
+          mode: (ap.permissions as Record<string, boolean>)['shell_access']
+            ? ('full' as const)
+            : ('readonly' as const),
         }));
 
       // 统一调用 /api/agent

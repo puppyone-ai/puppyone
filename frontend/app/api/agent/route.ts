@@ -284,13 +284,8 @@ ${pathDesc}
 }
 
 export async function POST(request: NextRequest) {
-  const {
-    prompt,
-    chatHistory,
-    tableData,
-    workingDirectory,
-    bashAccessPoints,
-  } = await request.json();
+  const { prompt, chatHistory, tableData, workingDirectory, bashAccessPoints } =
+    await request.json();
 
   if (!prompt) {
     return Response.json({ error: 'Missing prompt' }, { status: 400 });

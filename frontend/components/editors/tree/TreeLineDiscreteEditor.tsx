@@ -368,7 +368,7 @@ const VirtualRow = React.memo(function VirtualRow({
       style={{
         display: 'flex',
         alignItems: 'center', // 改为垂直居中
-        height: ROW_HEIGHT,   // 固定高度 28px
+        height: ROW_HEIGHT, // 固定高度 28px
         overflow: 'hidden',
         background:
           isHovered || isPopoverOwner
@@ -931,11 +931,11 @@ export default function TreeLineDiscreteEditor({
         {/* Custom Discrete Scrollbar (Moved to far right) */}
         {flatNodes.length > visibleCount && (
           <div
-            className="custom-scrollbar-track"
+            className='custom-scrollbar-track'
             style={{
               position: 'absolute',
               right: 4, // 稍微离右边远一点点
-              top: 4,   // 上下留白
+              top: 4, // 上下留白
               bottom: 4,
               width: 6, // 加宽到 6px
               background: 'rgba(255,255,255,0.03)', // 轨道颜色更淡
