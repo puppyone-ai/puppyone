@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, status, Depends
 from fastapi.responses import JSONResponse
 from src.common_schemas import ApiResponse
+from src.sandbox.dependencies import get_sandbox_service
 
 router = APIRouter(
     prefix="/sandboxes",
@@ -18,7 +19,9 @@ router = APIRouter(
     summary="Sandbox action endpoint (placeholder)",
     status_code=status.HTTP_501_NOT_IMPLEMENTED,
 )
-async def sandbox_action(request: Request):
+async def sandbox_action(
+    request: Request, sandbox_service=Depends(get_sandbox_service)
+):
     payload = await request.json()
     session_id = payload.get("session_id") if isinstance(payload, dict) else None
     if not session_id:
@@ -28,7 +31,29 @@ async def sandbox_action(request: Request):
                 code=400, message="session_id is required"
             ).model_dump(),
         )
-    return ApiResponse.error(code=501, message="Not implemented")
+    action = payload.get("action")
+    if action == "start":
+        result = await sandbox_service.start(
+            session_id=session_id,
+            data=payload.get("data"),
+            readonly=payload.get("readonly", False),
+        )
+        return ApiResponse.success(data=result)
+    if action == "exec":
+        result = await sandbox_service.exec(
+            session_id=session_id, command=payload.get("command", "")
+        )
+        return ApiResponse.success(data=result)
+    if action == "read":
+        result = await sandbox_service.read(session_id=session_id)
+        return ApiResponse.success(data=result)
+    if action == "stop":
+        result = await sandbox_service.stop(session_id=session_id)
+        return ApiResponse.success(data=result)
+    if action == "status":
+        result = await sandbox_service.status(session_id=session_id)
+        return ApiResponse.success(data=result)
+    return ApiResponse.error(code=400, message="Invalid action")
 
 
 @router.get(
