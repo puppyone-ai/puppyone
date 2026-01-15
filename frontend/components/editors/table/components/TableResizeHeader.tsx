@@ -31,7 +31,7 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
     (depth: number) => {
       let x = 0;
       for (let i = 0; i <= depth; i++) {
-        x += (keyWidths[i] ?? DEFAULT_KEY_WIDTH);
+        x += keyWidths[i] ?? DEFAULT_KEY_WIDTH;
       }
       return x;
     },
@@ -44,12 +44,12 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
 
     const handleMouseMove = (e: MouseEvent) => {
       const deltaX = e.clientX - dragStartX.current;
-      
+
       const newKeyWidth = Math.max(
         MIN_KEY_WIDTH,
         Math.min(MAX_KEY_WIDTH, dragStartKeyWidth.current + deltaX)
       );
-      
+
       onKeyWidthChange(draggingDepth, newKeyWidth);
     };
 
@@ -61,7 +61,7 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = 'col-resize';
-    
+
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
@@ -98,22 +98,26 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
           align-items: center;
           border-bottom: 1px solid rgba(255, 255, 255, 0.06);
           background: transparent;
-          font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+          font-family:
+            'Plus Jakarta Sans',
+            -apple-system,
+            BlinkMacSystemFont,
+            sans-serif;
           font-size: 11px;
           font-weight: 500;
           color: #6b7280;
           user-select: none;
         }
-        
+
         .header-cell {
-            padding-left: 12px;
-            display: flex;
-            align-items: center;
-            height: 100%;
-            position: relative;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+          padding-left: 12px;
+          display: flex;
+          align-items: center;
+          height: 100%;
+          position: relative;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .resize-handle {
@@ -127,60 +131,63 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
           display: flex;
           justify-content: center;
         }
-        
+
         .resize-handle::after {
-            content: '';
-            width: 2px;
-            height: 12px; /* Shorten to look like a handle/tick mark */
-            border-radius: 1px;
-            background: rgba(255, 255, 255, 0.2);
-            transition: all 0.15s;
+          content: '';
+          width: 2px;
+          height: 12px; /* Shorten to look like a handle/tick mark */
+          border-radius: 1px;
+          background: rgba(255, 255, 255, 0.2);
+          transition: all 0.15s;
         }
 
         /* Show handles more clearly when hovering the header area */
         .table-header:hover .resize-handle::after {
-            background: rgba(255, 255, 255, 0.4);
-            height: 16px; /* Grow slightly on hover hint */
+          background: rgba(255, 255, 255, 0.4);
+          height: 16px; /* Grow slightly on hover hint */
         }
 
         .resize-handle:hover::after,
         .resize-handle.active::after {
-            background: #528bff !important;
-            width: 3px; /* Thicker on interaction */
-            height: 100%; /* Full height when dragging for precision visual */
-            border-radius: 0;
-            box-shadow: 0 0 4px rgba(82, 139, 255, 0.5);
+          background: #528bff !important;
+          width: 3px; /* Thicker on interaction */
+          height: 100%; /* Full height when dragging for precision visual */
+          border-radius: 0;
+          box-shadow: 0 0 4px rgba(82, 139, 255, 0.5);
         }
       `}</style>
-      
-      <div className="table-header">
+
+      <div className='table-header'>
         {/* Render "KEY" labels for each depth level if enough space? 
             Actually, just showing "KEY" at the first column is cleaner, 
             or maybe "KEY (L0)", "KEY (L1)"... 
             Let's simply render the resizing handles and maybe column labels.
         */}
-        
+
         {/* We need to render actual divs for the headers so they fill the space visually? */}
         {Array.from({ length: handleCount }, (_, depth) => {
-             const width = keyWidths[depth] ?? DEFAULT_KEY_WIDTH;
-             return (
-                 <div key={depth} style={{ width, flexShrink: 0 }} className="header-cell">
-                     {/* KEY label removed */}
-                     <div 
-                        className={`resize-handle ${draggingDepth === depth ? 'active' : ''}`}
-                        style={{ right: -4 }} /* Center on border */
-                        onMouseDown={(e) => handleMouseDown(e, depth)}
-                     />
-                 </div>
-             );
+          const width = keyWidths[depth] ?? DEFAULT_KEY_WIDTH;
+          return (
+            <div
+              key={depth}
+              style={{ width, flexShrink: 0 }}
+              className='header-cell'
+            >
+              {/* KEY label removed */}
+              <div
+                className={`resize-handle ${draggingDepth === depth ? 'active' : ''}`}
+                style={{ right: -4 }} /* Center on border */
+                onMouseDown={e => handleMouseDown(e, depth)}
+              />
+            </div>
+          );
         })}
-        
+
         {/* The VALUE column takes the rest */}
-        <div className="header-cell" style={{ flex: 1 }}>
-            {/* VALUE label removed */}
+        <div className='header-cell' style={{ flex: 1 }}>
+          {/* VALUE label removed */}
         </div>
       </div>
     </>
   );
 });
-

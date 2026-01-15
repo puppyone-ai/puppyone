@@ -17,7 +17,11 @@ type ProjectsHeaderProps = {
   onChatOpenChange?: (open: boolean) => void;
 };
 
-const editorOptions: { id: EditorType; label: string; icon: React.ReactNode }[] = [
+const editorOptions: {
+  id: EditorType;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
   {
     id: 'table',
     label: 'Table',

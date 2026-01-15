@@ -4,7 +4,12 @@ import React from 'react';
 import { type McpToolType } from '../../../lib/mcpApi';
 import { TOOL_ICONS } from '../../../lib/toolIcons';
 import { type AccessPoint } from './types';
-import { TOOL_CONFIG, ACCENT_COLOR, BashIcon, DefaultToolIcon } from './constants';
+import {
+  TOOL_CONFIG,
+  ACCENT_COLOR,
+  BashIcon,
+  DefaultToolIcon,
+} from './constants';
 
 interface ToolItemProps {
   ap: AccessPoint;
@@ -30,9 +35,7 @@ export function ToolItem({
   const isBash = toolId === 'shell_access';
 
   // 生成工具名称
-  const toolName = isBash
-    ? `${toolId}_${safeName}`
-    : `${toolId}_${safeName}`;
+  const toolName = isBash ? `${toolId}_${safeName}` : `${toolId}_${safeName}`;
 
   const handleToggle = () => {
     setExpandedToolId(isExpanded ? null : `${ap.id}-${toolId}`);
@@ -65,7 +68,7 @@ export function ToolItem({
           cursor: 'pointer',
           borderRadius: 6,
         }}
-        className="tool-item-hover"
+        className='tool-item-hover'
       >
         {/* Icon */}
         <span
@@ -129,28 +132,28 @@ export function ToolItem({
             opacity: 0.6,
             transition: 'opacity 0.15s, color 0.15s',
           }}
-          onMouseEnter={(e) => {
+          onMouseEnter={e => {
             e.currentTarget.style.opacity = '1';
             e.currentTarget.style.color = '#ef4444';
           }}
-          onMouseLeave={(e) => {
+          onMouseLeave={e => {
             e.currentTarget.style.opacity = '0.6';
             e.currentTarget.style.color = '#52525b';
           }}
-          title="Remove capability"
+          title='Remove capability'
         >
           <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            width='12'
+            height='12'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
           >
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1='18' y1='6' x2='6' y2='18' />
+            <line x1='6' y1='6' x2='18' y2='18' />
           </svg>
         </button>
       </div>

@@ -1,10 +1,20 @@
 import { useCallback } from 'react';
 
 // Common JSON Value type
-type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: JsonValue }
+  | JsonValue[];
 
 // Helper to update JSON at a path
-export function updateJsonAtPath(json: any, path: string, newValue: JsonValue): any {
+export function updateJsonAtPath(
+  json: any,
+  path: string,
+  newValue: JsonValue
+): any {
   const parts = path.split('/').filter(Boolean);
   // Special case for root update (path is empty)
   if (parts.length === 0) {
@@ -43,11 +53,11 @@ export function useJsonTreeActions({
       const parts = path.split('/').filter(Boolean);
       if (parts.length === 0) return;
       const oldKey = parts[parts.length - 1];
-      
+
       const result = JSON.parse(JSON.stringify(json));
       let parent = result;
       for (let i = 0; i < parts.length - 1; i++) parent = parent[parts[i]];
-      
+
       if (Array.isArray(parent) || typeof parent !== 'object') return;
       if (newKey in parent && newKey !== oldKey) return;
 
@@ -55,10 +65,11 @@ export function useJsonTreeActions({
       const newEntries: [string, unknown][] = entries.map(([k, v]) =>
         k === oldKey ? [newKey, v] : [k, v]
       );
-      
+
       for (const key of Object.keys(parent)) delete parent[key];
-      for (const [k, v] of newEntries) (parent as Record<string, unknown>)[k] = v;
-      
+      for (const [k, v] of newEntries)
+        (parent as Record<string, unknown>)[k] = v;
+
       onChange(result);
     },
     [json, onChange]
@@ -99,4 +110,3 @@ export function useJsonTreeActions({
     onAddChild,
   };
 }
-

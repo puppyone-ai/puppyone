@@ -61,7 +61,9 @@ const MenuPanel = React.memo(function MenuPanel({
   onClose: () => void;
 }) {
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
-  const [toolConfigs, setToolConfigs] = useState<Record<string, { name: string; desc: string }>>({});
+  const [toolConfigs, setToolConfigs] = useState<
+    Record<string, { name: string; desc: string }>
+  >({});
 
   const isConfigured =
     !!configuredAccess && Object.values(configuredAccess).some(Boolean);

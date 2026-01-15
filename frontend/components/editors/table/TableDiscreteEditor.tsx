@@ -84,7 +84,7 @@ const getTableIndent = (depth: number, keyWidths: number[]) => {
   // So it starts at KW0.
   // Depth 2 (child of Depth 1): Starts at KW0 + KW1.
   for (let i = 0; i < depth; i++) {
-    x += (keyWidths[i] ?? DEFAULT_KEY_WIDTH);
+    x += keyWidths[i] ?? DEFAULT_KEY_WIDTH;
   }
   return x;
 };
@@ -191,7 +191,7 @@ const TableGridLines = React.memo(function TableGridLines({
   for (let i = 0; i < depth - 1; i++) {
     const width = keyWidths[i] ?? DEFAULT_KEY_WIDTH;
     currentX += width;
-    
+
     // Line i is the left border of Depth i+1
     const isHighlighted = highlightedDepths.has(i); // Fix: Check depth i (parent), not i+1
     const lineColor = isHighlighted ? 'rgba(255, 167, 61, 0.4)' : BORDER_COLOR;
@@ -218,19 +218,19 @@ const TableGridLines = React.memo(function TableGridLines({
     // This is the left border of Depth 0. It belongs to Root's scope.
     const isHighlighted = highlightedDepths.has(-1);
     const lineColor = isHighlighted ? 'rgba(255, 167, 61, 0.4)' : BORDER_COLOR;
-    
+
     lines.push(
       <div
-          key="start"
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 1,
-            background: lineColor,
-            zIndex: isHighlighted ? 2 : 0,
-          }}
+        key='start'
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 1,
+          background: lineColor,
+          zIndex: isHighlighted ? 2 : 0,
+        }}
       />
     );
   }
@@ -297,16 +297,16 @@ const VirtualRow = React.memo(function VirtualRow({
   const isConfigured =
     !!configuredAccess && Object.values(configuredAccess).some(Boolean);
   const isRootNode = node.key === '$root';
-  
+
   // Table Layout Calculations
   // depth -1 for root? flattenJson says depth -1.
   // If root, we treat it as depth 0 effectively for layout if we want to show it?
   // Or usually root is hidden/special.
   // Let's assume depth starts at 0 for visible top-level items in standard table,
-  // but if we show root, it might be different. 
+  // but if we show root, it might be different.
   // The provided flattenJson produces depth 0 for children of root.
   // The root itself is depth -1.
-  
+
   const effectiveDepth = Math.max(0, node.depth);
   const indent = getTableIndent(effectiveDepth, keyWidths);
   const currentKeyWidth = keyWidths[effectiveDepth] ?? DEFAULT_KEY_WIDTH;
@@ -314,7 +314,7 @@ const VirtualRow = React.memo(function VirtualRow({
   // Calculate highlighted depths based on ancestor configuration
   const highlightedDepths = useMemo(() => {
     const depths = new Set<number>();
-    
+
     // Check Root path ('')
     if (configuredAccessMap.has('')) {
       depths.add(-1);
@@ -324,15 +324,15 @@ const VirtualRow = React.memo(function VirtualRow({
 
     const segments = node.path.split('/').filter(Boolean);
     let currentPath = '';
-    
+
     // Check each segment path
     for (let i = 0; i < segments.length; i++) {
-        currentPath += '/' + segments[i];
-        if (configuredAccessMap.has(currentPath)) {
-            // Depth i corresponds to this path level
-            // For path /a (Depth 0), we highlight Depth 0 border
-            depths.add(i);
-        }
+      currentPath += '/' + segments[i];
+      if (configuredAccessMap.has(currentPath)) {
+        // Depth i corresponds to this path level
+        // For path /a (Depth 0), we highlight Depth 0 border
+        depths.add(i);
+      }
     }
     return depths;
   }, [node.path, configuredAccessMap]);
@@ -381,13 +381,13 @@ const VirtualRow = React.memo(function VirtualRow({
 
   // 2. Configured Highlight (Value Cell Only) - Overlays on top of base background
   let valueOverlayBg = 'transparent';
-  
+
   if (isPopoverOwner) {
     valueOverlayBg = 'rgba(255, 167, 61, 0.2)'; // Active sidebar highlight
   } else if (isConfigured) {
     // Configured state
-    valueOverlayBg = isHovered 
-      ? 'rgba(255, 167, 61, 0.15)' 
+    valueOverlayBg = isHovered
+      ? 'rgba(255, 167, 61, 0.15)'
       : 'rgba(255, 167, 61, 0.08)';
   }
 
@@ -404,7 +404,9 @@ const VirtualRow = React.memo(function VirtualRow({
 
   // Border Logic
   const isKeyBorderHighlighted = highlightedDepths.has(effectiveDepth - 1);
-  const keyBorderLeftColor = isKeyBorderHighlighted ? 'rgba(255, 167, 61, 0.4)' : BORDER_COLOR;
+  const keyBorderLeftColor = isKeyBorderHighlighted
+    ? 'rgba(255, 167, 61, 0.4)'
+    : BORDER_COLOR;
   const keyBorderLeftWidth = isKeyBorderHighlighted ? 1 : 1;
 
   if (isRootNode) {
@@ -436,21 +438,21 @@ const VirtualRow = React.memo(function VirtualRow({
             background: valueOverlayBg, // Apply configured highlight to Root value area
           }}
         >
-           <ValueRenderer
-              value={node.value}
-              path={node.path}
-              nodeKey={String(node.key)}
-              tableId={tableId !== undefined ? String(tableId) : undefined}
-              isExpanded={node.isExpanded}
-              isExpandable={node.isExpandable}
-              isSelectingAccessPoint={isSelectingAccessPoint}
-              showQuickAdd={isHovered && node.isExpandable}
-              onQuickAdd={handleQuickAdd}
-              onChange={v => onValueChange(node.path, v)}
-              onToggle={() => onToggle(node.path)}
-              onSelect={() => onSelect(node.path)}
-              onOpenDocument={onOpenDocument}
-            />
+          <ValueRenderer
+            value={node.value}
+            path={node.path}
+            nodeKey={String(node.key)}
+            tableId={tableId !== undefined ? String(tableId) : undefined}
+            isExpanded={node.isExpanded}
+            isExpandable={node.isExpandable}
+            isSelectingAccessPoint={isSelectingAccessPoint}
+            showQuickAdd={isHovered && node.isExpandable}
+            onQuickAdd={handleQuickAdd}
+            onChange={v => onValueChange(node.path, v)}
+            onToggle={() => onToggle(node.path)}
+            onSelect={() => onSelect(node.path)}
+            onOpenDocument={onOpenDocument}
+          />
         </div>
       </div>
     );
@@ -475,9 +477,9 @@ const VirtualRow = React.memo(function VirtualRow({
       }}
     >
       {/* Grid Lines - Rendered behind content, visible in the indented area */}
-      <TableGridLines 
-        depth={effectiveDepth} 
-        keyWidths={keyWidths} 
+      <TableGridLines
+        depth={effectiveDepth}
+        keyWidths={keyWidths}
         highlightedDepths={highlightedDepths}
       />
 
@@ -505,98 +507,103 @@ const VirtualRow = React.memo(function VirtualRow({
             paddingLeft: CELL_PADDING_X,
             paddingRight: 8, // Space for menu button
             borderLeft: `${keyBorderLeftWidth}px solid ${keyBorderLeftColor}`, // Dynamic Left border
-            borderTop: `1px solid ${BORDER_COLOR}`,  // Top border for Key
-            borderBottom: node.isExpanded ? 'none' : `1px solid ${BORDER_COLOR}`,
+            borderTop: `1px solid ${BORDER_COLOR}`, // Top border for Key
+            borderBottom: node.isExpanded
+              ? 'none'
+              : `1px solid ${BORDER_COLOR}`,
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
           }}
         >
           {/* Key Name */}
-           {typeof node.key === 'number' ? (
-              <span
-                style={{
-                  flex: 1,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  color: '#8b949e', // More subtle gray
-                  fontSize: 13,
-                }}
-              >
-                {node.key}
-              </span>
-            ) : (
-              <span
-                ref={keyRef}
-                contentEditable={isEditingKey && !isRootNode}
-                suppressContentEditableWarning
-                style={{
-                  flex: 1,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  outline: 'none',
-                  color: isRootNode ? '#e2e8f0' : '#8b949e', // Root key slightly brighter
-                  fontWeight: isRootNode ? 500 : 400,
-                  fontSize: 13,
-                  cursor: isEditingKey && !isRootNode ? 'text' : 'pointer',
-                  background: isEditingKey && !isRootNode ? 'rgba(255,255,255,0.1)' : 'transparent',
-                }}
-                onDoubleClick={e => {
-                    if (!isSelectingAccessPoint && !isRootNode) {
-                      e.stopPropagation();
-                      setIsEditingKey(true);
-                      setTimeout(() => keyRef.current?.focus(), 0);
-                    }
-                }}
-                onBlur={e => {
-                    if (!isEditingKey) return;
-                    const newKey = e.currentTarget.innerText.trim();
-                    if (newKey && newKey !== node.key)
-                      onKeyRename(node.path, newKey);
-                    else e.currentTarget.innerText = String(node.key);
-                    setIsEditingKey(false);
-                }}
-                onKeyDown={e => {
-                    if (!isEditingKey) return;
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      e.currentTarget.blur();
-                    } else if (e.key === 'Escape') {
-                      e.currentTarget.innerText = String(node.key);
-                      e.currentTarget.blur();
-                    }
-                }}
-              >
-                {isRootNode ? '/' : node.key}
-              </span>
-            )}
-            
-            {/* Context Menu Button (Only visible on hover) */}
-            <button
+          {typeof node.key === 'number' ? (
+            <span
               style={{
-                position: 'absolute',
-                right: 2,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: 20,
-                height: 20,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                opacity: hovered || !!isContextMenuOpen ? 1 : 0,
-                color: '#9ca3af',
-                transition: 'opacity 0.1s',
+                flex: 1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                color: '#8b949e', // More subtle gray
+                fontSize: 13,
               }}
-              onClick={handleMenuClick}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
-            </button>
+              {node.key}
+            </span>
+          ) : (
+            <span
+              ref={keyRef}
+              contentEditable={isEditingKey && !isRootNode}
+              suppressContentEditableWarning
+              style={{
+                flex: 1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                outline: 'none',
+                color: isRootNode ? '#e2e8f0' : '#8b949e', // Root key slightly brighter
+                fontWeight: isRootNode ? 500 : 400,
+                fontSize: 13,
+                cursor: isEditingKey && !isRootNode ? 'text' : 'pointer',
+                background:
+                  isEditingKey && !isRootNode
+                    ? 'rgba(255,255,255,0.1)'
+                    : 'transparent',
+              }}
+              onDoubleClick={e => {
+                if (!isSelectingAccessPoint && !isRootNode) {
+                  e.stopPropagation();
+                  setIsEditingKey(true);
+                  setTimeout(() => keyRef.current?.focus(), 0);
+                }
+              }}
+              onBlur={e => {
+                if (!isEditingKey) return;
+                const newKey = e.currentTarget.innerText.trim();
+                if (newKey && newKey !== node.key)
+                  onKeyRename(node.path, newKey);
+                else e.currentTarget.innerText = String(node.key);
+                setIsEditingKey(false);
+              }}
+              onKeyDown={e => {
+                if (!isEditingKey) return;
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                } else if (e.key === 'Escape') {
+                  e.currentTarget.innerText = String(node.key);
+                  e.currentTarget.blur();
+                }
+              }}
+            >
+              {isRootNode ? '/' : node.key}
+            </span>
+          )}
+
+          {/* Context Menu Button (Only visible on hover) */}
+          <button
+            style={{
+              position: 'absolute',
+              right: 2,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 20,
+              height: 20,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              opacity: hovered || !!isContextMenuOpen ? 1 : 0,
+              color: '#9ca3af',
+              transition: 'opacity 0.1s',
+            }}
+            onClick={handleMenuClick}
+          >
+            <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor'>
+              <path d='M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z' />
+            </svg>
+          </button>
         </div>
 
         {/* VALUE CELL */}
@@ -609,26 +616,26 @@ const VirtualRow = React.memo(function VirtualRow({
             minWidth: 0,
             position: 'relative',
             borderLeft: `1px solid ${BORDER_COLOR}`, // Left border for Value (separates from Key)
-            borderTop: `1px solid ${BORDER_COLOR}`,  // Top border for Value
+            borderTop: `1px solid ${BORDER_COLOR}`, // Top border for Value
             background: valueOverlayBg, // Apply configured highlight only to Value cell
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
-               <ValueRenderer
-                  value={node.value}
-                  path={node.path}
-                  nodeKey={String(node.key)}
-                  tableId={tableId !== undefined ? String(tableId) : undefined}
-                  isExpanded={node.isExpanded}
-                  isExpandable={node.isExpandable}
-                  isSelectingAccessPoint={isSelectingAccessPoint}
-                  showQuickAdd={isHovered && node.isExpandable && !isRootNode}
-                  onQuickAdd={handleQuickAdd}
-                  onChange={v => onValueChange(node.path, v)}
-                  onToggle={() => onToggle(node.path)}
-                  onSelect={() => onSelect(node.path)}
-                  onOpenDocument={onOpenDocument}
-                />
+            <ValueRenderer
+              value={node.value}
+              path={node.path}
+              nodeKey={String(node.key)}
+              tableId={tableId !== undefined ? String(tableId) : undefined}
+              isExpanded={node.isExpanded}
+              isExpandable={node.isExpandable}
+              isSelectingAccessPoint={isSelectingAccessPoint}
+              showQuickAdd={isHovered && node.isExpandable && !isRootNode}
+              onQuickAdd={handleQuickAdd}
+              onChange={v => onValueChange(node.path, v)}
+              onToggle={() => onToggle(node.path)}
+              onSelect={() => onSelect(node.path)}
+              onOpenDocument={onOpenDocument}
+            />
           </div>
         </div>
       </div>
@@ -860,10 +867,10 @@ export default function TableDiscreteEditor({
             handleToggle(node.path);
             return; // Don't move selection yet
           } else if (currentIndex < flatNodes.length - 1) {
-             // If already expanded or leaf, move down (standard tree nav behavior)
-             // But usually Right on expanded node moves to first child.
-             // Since flatNodes is flattened, next node IS first child if expanded.
-             nextIndex = currentIndex + 1;
+            // If already expanded or leaf, move down (standard tree nav behavior)
+            // But usually Right on expanded node moves to first child.
+            // Since flatNodes is flattened, next node IS first child if expanded.
+            nextIndex = currentIndex + 1;
           }
           break;
         }
@@ -890,7 +897,7 @@ export default function TableDiscreteEditor({
           // Maybe enter edit mode? For now just toggle if expandable
           const node = flatNodes[currentIndex];
           if (node.isExpandable) {
-             handleToggle(node.path);
+            handleToggle(node.path);
           }
           break;
       }
@@ -898,22 +905,29 @@ export default function TableDiscreteEditor({
       if (nextIndex !== currentIndex) {
         const nextPath = flatNodes[nextIndex].path;
         handleSelect(nextPath);
-        
+
         // Ensure visible
         // We know visible range is [scrollIndex, scrollIndex + visibleCount]
         // If nextIndex is outside, update scrollIndex
         if (nextIndex < scrollIndex) {
           setScrollIndex(nextIndex);
         } else if (nextIndex >= scrollIndex + visibleCount - 2) {
-           // -2 buffer
-           setScrollIndex(nextIndex - visibleCount + 3);
+          // -2 buffer
+          setScrollIndex(nextIndex - visibleCount + 3);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedPath, flatNodes, handleSelect, handleToggle, scrollIndex, visibleCount]);
+  }, [
+    selectedPath,
+    flatNodes,
+    handleSelect,
+    handleToggle,
+    scrollIndex,
+    visibleCount,
+  ]);
 
   // onValueChange, onKeyRename are now provided by useJsonTreeActions
 
@@ -1056,11 +1070,11 @@ export default function TableDiscreteEditor({
         {/* Custom Discrete Scrollbar (Moved to far right) */}
         {flatNodes.length > visibleCount && (
           <div
-            className="custom-scrollbar-track"
+            className='custom-scrollbar-track'
             style={{
               position: 'absolute',
               right: 4, // 稍微离右边远一点点
-              top: 4,   // 上下留白
+              top: 4, // 上下留白
               bottom: 4,
               width: 6, // 加宽到 6px
               background: 'rgba(255,255,255,0.03)', // 轨道颜色更淡

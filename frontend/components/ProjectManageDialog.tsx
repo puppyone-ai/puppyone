@@ -186,10 +186,7 @@ export function ProjectManageDialog({
                 gap: 12,
               }}
             >
-              <button
-                onClick={onClose}
-                style={buttonStyle(false)}
-              >
+              <button onClick={onClose} style={buttonStyle(false)}>
                 Cancel
               </button>
               <button

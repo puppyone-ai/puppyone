@@ -442,6 +442,3 @@ export function ProjectsSidebar({
     </aside>
   );
 }
-
- 
-

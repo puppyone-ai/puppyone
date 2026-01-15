@@ -73,8 +73,11 @@ export function RightAccessControl({
     }));
   };
 
-  const isConfigured = !!configuredAccess && Object.values(configuredAccess).some(Boolean);
-  const enabledCount = Object.values(configuredAccess || {}).filter(Boolean).length;
+  const isConfigured =
+    !!configuredAccess && Object.values(configuredAccess).some(Boolean);
+  const enabledCount = Object.values(configuredAccess || {}).filter(
+    Boolean
+  ).length;
 
   // 点击外部关闭
   useEffect(() => {

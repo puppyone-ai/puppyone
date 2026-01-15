@@ -439,7 +439,12 @@ export function TableManageDialog({
 
         // 5. 后台上传 ETL 文件（弹窗已关闭，用户可以继续其他操作）
         //    注意：裸 Table（projectId 为 null）暂不支持 ETL 上传
-        if (etlFiles.length > 0 && projectId && session?.access_token && newTableId) {
+        if (
+          etlFiles.length > 0 &&
+          projectId &&
+          session?.access_token &&
+          newTableId
+        ) {
           // 创建文件名映射：后端返回的 filename -> 前端的 file.name
           // 这样即使后端返回的文件名格式不同，也能正确匹配
           const filenameMap = new Map<string, string>();
@@ -759,10 +764,7 @@ export function TableManageDialog({
             <div
               style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}
             >
-              <button
-                onClick={onClose}
-                style={buttonStyle(false)}
-              >
+              <button onClick={onClose} style={buttonStyle(false)}>
                 Cancel
               </button>
               <button
@@ -1743,60 +1745,60 @@ export function TableManageDialog({
                 background: '#202020',
               }}
             >
-                <button
-                  type='button'
-                  onClick={onClose}
-                  style={buttonStyle(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type={
-                    startOption === 'url' || startOption === 'connect'
-                      ? 'button'
-                      : 'submit'
-                  }
-                  onClick={
-                    startOption === 'url'
-                      ? urlInput.trim()
-                        ? () => setShowImportModal(true)
+              <button
+                type='button'
+                onClick={onClose}
+                style={buttonStyle(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type={
+                  startOption === 'url' || startOption === 'connect'
+                    ? 'button'
+                    : 'submit'
+                }
+                onClick={
+                  startOption === 'url'
+                    ? urlInput.trim()
+                      ? () => setShowImportModal(true)
+                      : undefined
+                    : startOption === 'connect'
+                      ? connectParseResult
+                        ? () => void handleConnectImport()
                         : undefined
-                      : startOption === 'connect'
-                        ? connectParseResult
-                          ? () => void handleConnectImport()
-                          : undefined
-                        : undefined
-                  }
-                  disabled={
-                    loading ||
-                    isImporting ||
-                    connectImporting ||
-                    (startOption === 'empty' && !name.trim()) ||
-                    (startOption === 'documents' &&
-                      (!selectedFiles ||
-                        selectedFiles.length === 0 ||
-                        !name.trim())) ||
-                    (startOption === 'url' && !urlInput.trim()) ||
-                    (startOption === 'connect' && !connectParseResult)
-                  }
-                  style={buttonStyle(true)}
-                >
-                  {connectImporting
-                    ? 'Importing...'
-                    : loading || isImporting
-                      ? isImporting
-                        ? 'Importing...'
-                        : 'Creating...'
-                      : mode === 'edit'
-                        ? 'Save Changes'
-                        : startOption === 'documents'
-                          ? 'Import & Create'
-                          : startOption === 'url'
-                            ? 'Import from URL'
-                            : startOption === 'connect'
-                              ? 'Import from Connector'
-                              : 'Create Context'}
-                </button>
+                      : undefined
+                }
+                disabled={
+                  loading ||
+                  isImporting ||
+                  connectImporting ||
+                  (startOption === 'empty' && !name.trim()) ||
+                  (startOption === 'documents' &&
+                    (!selectedFiles ||
+                      selectedFiles.length === 0 ||
+                      !name.trim())) ||
+                  (startOption === 'url' && !urlInput.trim()) ||
+                  (startOption === 'connect' && !connectParseResult)
+                }
+                style={buttonStyle(true)}
+              >
+                {connectImporting
+                  ? 'Importing...'
+                  : loading || isImporting
+                    ? isImporting
+                      ? 'Importing...'
+                      : 'Creating...'
+                    : mode === 'edit'
+                      ? 'Save Changes'
+                      : startOption === 'documents'
+                        ? 'Import & Create'
+                        : startOption === 'url'
+                          ? 'Import from URL'
+                          : startOption === 'connect'
+                            ? 'Import from Connector'
+                            : 'Create Context'}
+              </button>
             </div>
           </form>
         )}

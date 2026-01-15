@@ -26,9 +26,20 @@ export const TOOL_ICONS: Record<string, React.ReactNode> = {
   query_data: (
     <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
       {/* 搜索圆圈 */}
-      <circle cx='5.5' cy='5.5' r='3.5' stroke='currentColor' strokeWidth='1.2' />
+      <circle
+        cx='5.5'
+        cy='5.5'
+        r='3.5'
+        stroke='currentColor'
+        strokeWidth='1.2'
+      />
       {/* 搜索手柄 */}
-      <path d='M8.5 8.5l3 3' stroke='currentColor' strokeWidth='1.2' strokeLinecap='round' />
+      <path
+        d='M8.5 8.5l3 3'
+        stroke='currentColor'
+        strokeWidth='1.2'
+        strokeLinecap='round'
+      />
       {/* 向量点 - 代表语义搜索 */}
       <circle cx='4.5' cy='4.5' r='0.8' fill='currentColor' />
       <circle cx='6.5' cy='5.5' r='0.8' fill='currentColor' />
