@@ -4,10 +4,17 @@ from fastapi.responses import JSONResponse
 from src.common_schemas import ApiResponse
 from src.agent.schemas import AgentRequest
 from src.agent.dependencies import get_agent_service
-from src.auth.dependencies import get_current_user
-from src.table.dependencies import get_table_service
 from src.sandbox.dependencies import get_sandbox_service
 from fastapi.responses import StreamingResponse
+
+def _get_current_user_optional():
+    try:
+        from src.auth.dependencies import get_current_user_optional
+
+        return get_current_user_optional()
+    except Exception:
+        return None
+
 
 router = APIRouter(
     prefix="/agents",
@@ -21,14 +28,13 @@ router = APIRouter(
 
 @router.post(
     "",
-    response_model=ApiResponse[None],
-    summary="Agent SSE endpoint (placeholder)",
+    summary="Agent SSE endpoint",
+    response_class=StreamingResponse,
 )
 async def create_agent_session(
     request: Request,
-    current_user=Depends(get_current_user),
+    current_user=Depends(_get_current_user_optional),
     agent_service=Depends(get_agent_service),
-    table_service=Depends(get_table_service),
     sandbox_service=Depends(get_sandbox_service),
 ):
     payload = await request.json()
@@ -41,6 +47,11 @@ async def create_agent_session(
     agent_request = AgentRequest(**payload)
     async def event_stream():
         try:
+            table_service = None
+            if agent_request.table_id and current_user:
+                from src.table.dependencies import get_table_service
+
+                table_service = get_table_service()
             async for event in agent_service.stream_events(
                 request=agent_request,
                 current_user=current_user,
