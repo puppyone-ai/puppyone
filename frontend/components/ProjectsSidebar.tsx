@@ -230,10 +230,24 @@ export function ProjectsSidebar({
             >
               <span className={navIconClass(activeView === 'projects')}>
                 <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+                  {/* Box Icon - Cube Style */}
                   <path
-                    d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
+                    d='M7 0.5L1 3.5V10.5L7 13.5L13 10.5V3.5L7 0.5Z'
                     stroke='currentColor'
                     strokeWidth='1.2'
+                    strokeLinejoin='round'
+                  />
+                  <path
+                    d='M1 3.5L7 6.5L13 3.5'
+                    stroke='currentColor'
+                    strokeWidth='1.2'
+                    strokeLinejoin='round'
+                  />
+                  <path
+                    d='M7 6.5V13.5'
+                    stroke='currentColor'
+                    strokeWidth='1.2'
+                    strokeLinejoin='round'
                   />
                 </svg>
               </span>
@@ -312,11 +326,25 @@ export function ProjectsSidebar({
               title='Projects'
               aria-label='Projects'
             >
-              <svg width='18' height='18' viewBox='0 0 14 14' fill='none'>
+              <svg width='16' height='16' viewBox='0 0 14 14' fill='none'>
+                {/* Box Icon - Cube Style */}
                 <path
-                  d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
+                  d='M7 0.5L1 3.5V10.5L7 13.5L13 10.5V3.5L7 0.5Z'
                   stroke='currentColor'
                   strokeWidth='1.2'
+                  strokeLinejoin='round'
+                />
+                <path
+                  d='M1 3.5L7 6.5L13 3.5'
+                  stroke='currentColor'
+                  strokeWidth='1.2'
+                  strokeLinejoin='round'
+                />
+                <path
+                  d='M7 6.5V13.5'
+                  stroke='currentColor'
+                  strokeWidth='1.2'
+                  strokeLinejoin='round'
                 />
               </svg>
             </button>
@@ -416,3 +444,4 @@ export function ProjectsSidebar({
 }
 
  
+

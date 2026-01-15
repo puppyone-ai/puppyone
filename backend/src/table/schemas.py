@@ -6,9 +6,9 @@ from typing import List, Any, Optional
 class TableCreate(BaseModel):
     """创建Table的请求"""
 
-    project_id: int = Field(..., description="项目ID")
+    project_id: Optional[int] = Field(None, description="项目ID（可选，不传则创建裸Table）")
     name: str = Field(..., description="Table名称")
-    description: str = Field(..., description="Table描述")
+    description: str = Field(default="", description="Table描述")
     data: Any = Field(
         default_factory=dict, description="Table数据（可以是Dict、List或其他JSON类型）"
     )
@@ -30,6 +30,7 @@ class TableOut(BaseModel):
     id: int = Field(..., description="Table ID")
     name: Optional[str] = Field(None, description="Table名称")
     project_id: Optional[int] = Field(None, description="项目ID")
+    user_id: Optional[str] = Field(None, description="用户ID")
     description: Optional[str] = Field(None, description="Table描述")
     data: Optional[Any] = Field(
         None, description="Table数据（JSON数据，可以是Dict、List或其他JSON类型）"

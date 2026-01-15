@@ -9,28 +9,28 @@ import {
 } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
 
+type DialogMode = 'create' | 'edit' | 'delete';
+
 type ProjectManageDialogProps = {
+  mode: DialogMode;
   projectId: string | null;
   projects: ProjectInfo[];
   onClose: () => void;
-  onProjectsChange?: (projects: ProjectInfo[]) => void;
-  deleteMode?: boolean;
+  onModeChange?: (mode: DialogMode) => void;
 };
 
 export function ProjectManageDialog({
+  mode,
   projectId,
   projects,
   onClose,
-  deleteMode = false,
+  onModeChange,
 }: ProjectManageDialogProps) {
-  const isEdit = projectId !== null;
-  const project = isEdit ? projects.find(p => p.id === projectId) : null;
+  const project = projectId ? projects.find(p => p.id === projectId) : null;
 
   const [name, setName] = useState(project?.name || '');
-  // description 虽然不显示，但为了兼容后端 API，如果已有则保留，新建则为空
   const [description] = useState(project?.description || '');
   const [loading, setLoading] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(deleteMode);
 
   useEffect(() => {
     if (project) {
@@ -44,7 +44,7 @@ export function ProjectManageDialog({
 
     try {
       setLoading(true);
-      if (isEdit && projectId) {
+      if (mode === 'edit' && projectId) {
         await updateProject(projectId, name.trim(), description);
       } else {
         await createProject(name.trim(), '');
@@ -78,7 +78,6 @@ export function ProjectManageDialog({
       );
     } finally {
       setLoading(false);
-      setShowDeleteConfirm(false);
     }
   };
 
@@ -134,41 +133,39 @@ export function ProjectManageDialog({
           }}
         >
           <div style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>
-            {showDeleteConfirm
+            {mode === 'delete'
               ? 'Delete Project'
-              : isEdit
+              : mode === 'edit'
                 ? 'Edit Project'
                 : 'New Project'}
           </div>
-          {!showDeleteConfirm && (
-            <button
-              onClick={onClose}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#666',
-                cursor: 'pointer',
-                padding: 4,
-              }}
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#666',
+              cursor: 'pointer',
+              padding: 4,
+            }}
+          >
+            <svg
+              width='16'
+              height='16'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
             >
-              <svg
-                width='16'
-                height='16'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='2'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              >
-                <line x1='18' y1='6' x2='6' y2='18' />
-                <line x1='6' y1='6' x2='18' y2='18' />
-              </svg>
-            </button>
-          )}
+              <line x1='18' y1='6' x2='6' y2='18' />
+              <line x1='6' y1='6' x2='18' y2='18' />
+            </svg>
+          </button>
         </div>
 
-        {showDeleteConfirm ? (
+        {mode === 'delete' ? (
           <div>
             <div style={{ padding: '24px' }}>
               <p style={{ color: '#EDEDED', marginBottom: 8, fontSize: 14 }}>
@@ -190,7 +187,7 @@ export function ProjectManageDialog({
               }}
             >
               <button
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={onClose}
                 style={buttonStyle(false)}
               >
                 Cancel
@@ -248,48 +245,28 @@ export function ProjectManageDialog({
                 background: '#202020',
                 borderTop: '1px solid #333',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 12,
               }}
             >
-              {isEdit ? (
-                <button
-                  type='button'
-                  onClick={() => setShowDeleteConfirm(true)}
-                  style={{
-                    ...buttonStyle(false),
-                    color: '#ef4444',
-                    border: 'none',
-                    background: 'transparent',
-                    padding: 0,
-                  }}
-                >
-                  Delete project
-                </button>
-              ) : (
-                <div />
-              )}
-
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button
-                  type='button'
-                  onClick={onClose}
-                  style={buttonStyle(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type='submit'
-                  disabled={loading || !name.trim()}
-                  style={buttonStyle(true)}
-                >
-                  {loading
-                    ? 'Saving...'
-                    : isEdit
-                      ? 'Save Changes'
-                      : 'Create Project'}
-                </button>
-              </div>
+              <button
+                type='button'
+                onClick={onClose}
+                style={buttonStyle(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type='submit'
+                disabled={loading || !name.trim()}
+                style={buttonStyle(true)}
+              >
+                {loading
+                  ? 'Saving...'
+                  : mode === 'edit'
+                    ? 'Save Changes'
+                    : 'Create Project'}
+              </button>
             </div>
           </form>
         )}
@@ -299,7 +276,8 @@ export function ProjectManageDialog({
 }
 
 const buttonStyle = (primary: boolean): React.CSSProperties => ({
-  padding: '8px 16px',
+  height: 28,
+  padding: '0 12px',
   borderRadius: 6,
   border: primary ? '1px solid rgba(255,255,255,0.1)' : '1px solid #333',
   background: primary ? '#EDEDED' : 'transparent',
@@ -309,4 +287,7 @@ const buttonStyle = (primary: boolean): React.CSSProperties => ({
   cursor: 'pointer',
   transition: 'all 0.1s',
   fontFamily: 'inherit',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 });

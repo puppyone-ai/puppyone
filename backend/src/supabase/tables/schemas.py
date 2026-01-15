@@ -14,6 +14,7 @@ class TableBase(BaseModel):
 
     name: Optional[str] = None
     project_id: Optional[int] = None
+    user_id: Optional[str] = None  # 直接关联用户，支持裸 Table
     description: Optional[str] = None
     data: Optional[Any] = None  # 支持任意JSON类型（Dict, List, str, int等）
 

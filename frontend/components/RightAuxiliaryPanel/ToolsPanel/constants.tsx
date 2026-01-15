@@ -44,3 +44,4 @@ export const DefaultToolIcon = ({ size = 12 }: { size?: number }): React.JSX.Ele
   </svg>
 );
 
+

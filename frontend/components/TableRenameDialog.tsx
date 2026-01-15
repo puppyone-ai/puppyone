@@ -190,7 +190,8 @@ export function TableRenameDialog({
 }
 
 const buttonStyle = (primary: boolean): React.CSSProperties => ({
-  padding: '8px 16px',
+  height: 28,
+  padding: '0 12px',
   borderRadius: 6,
   border: primary ? '1px solid rgba(255,255,255,0.1)' : '1px solid #333',
   background: primary ? '#EDEDED' : 'transparent',
@@ -200,4 +201,7 @@ const buttonStyle = (primary: boolean): React.CSSProperties => ({
   cursor: 'pointer',
   transition: 'all 0.1s',
   fontFamily: 'inherit',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 });

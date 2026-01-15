@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react';
 import { useState, useEffect, useRef } from 'react';
 
-export type EditorType = 'treeline-virtual' | 'monaco';
+export type EditorType = 'treeline-virtual' | 'monaco' | 'table';
 
 type ProjectsHeaderProps = {
   pathSegments: string[];
@@ -19,6 +19,7 @@ type ProjectsHeaderProps = {
 
 const editorOptions: { id: EditorType; label: string; icon: string }[] = [
   { id: 'treeline-virtual', label: 'Tree', icon: '☷' },
+  { id: 'table', label: 'Table', icon: '▦' },
   { id: 'monaco', label: 'Raw', icon: '{ }' },
 ];
 

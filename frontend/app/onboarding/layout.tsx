@@ -5,3 +5,4 @@ export default function OnboardingLayout({
 }) {
   return <section>{children}</section>;
 }
+

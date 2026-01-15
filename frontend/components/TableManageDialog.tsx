@@ -22,14 +22,15 @@ import {
 import CrawlOptionsPanel from './CrawlOptionsPanel';
 
 type StartOption = 'empty' | 'documents' | 'url' | 'connect';
+type DialogMode = 'create' | 'edit' | 'delete';
 
 type TableManageDialogProps = {
-  projectId: string;
+  mode: DialogMode;
+  projectId: string | null;
   tableId: string | null;
   projects: ProjectInfo[];
   onClose: () => void;
-  onProjectsChange?: (projects: ProjectInfo[]) => void;
-  deleteMode?: boolean;
+  onModeChange?: (mode: DialogMode) => void;
 };
 
 // Helper functions
@@ -116,21 +117,20 @@ function sanitizeUnicode(s: string): string {
 }
 
 export function TableManageDialog({
+  mode,
   projectId,
   tableId,
   projects,
   onClose,
-  deleteMode = false,
+  onModeChange,
 }: TableManageDialogProps) {
   const { session } = useAuth();
-  const isEdit = tableId !== null;
-  const project = projects.find(p => p.id === projectId);
+  const project = projectId ? projects.find(p => p.id === projectId) : null;
   const table =
-    isEdit && project ? project.tables.find(t => t.id === tableId) : null;
+    tableId && project ? project.tables.find(t => t.id === tableId) : null;
 
   const [name, setName] = useState(table?.name || '');
   const [loading, setLoading] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(deleteMode);
   const [startOption, setStartOption] = useState<StartOption>('empty');
   const [isDragging, setIsDragging] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -292,7 +292,7 @@ export function TableManageDialog({
   }, [connectUrlInput, name]);
 
   const handleConnectImport = useCallback(async () => {
-    if (!connectParseResult) {
+    if (!connectParseResult || !projectId) {
       return;
     }
 
@@ -394,9 +394,9 @@ export function TableManageDialog({
 
     try {
       setLoading(true);
-      if (isEdit && tableId) {
+      if (mode === 'edit' && tableId) {
         // 编辑模式：只更新名称
-        await updateTable(projectId, tableId, name.trim());
+        await updateTable(projectId || '', tableId, name.trim());
         await refreshProjects();
         onClose();
       } else if (
@@ -418,9 +418,10 @@ export function TableManageDialog({
         const newTable = await createTable(projectId, finalName, structure);
         const newTableId = newTable.id;
 
-        // 3. 如果有 ETL 文件，先预先添加"准备上传"状态的任务
+        // 3. 如果有 ETL 文件且有 projectId，先预先添加"准备上传"状态的任务
         //    这样侧边栏能立即显示转圈样式
-        if (etlFiles.length > 0) {
+        //    注意：裸 Table（projectId 为 null）暂不支持 ETL 上传
+        if (etlFiles.length > 0 && projectId) {
           const placeholderTasks = etlFiles.map((file, index) => ({
             taskId: -(Date.now() + index), // 负数临时 ID，后面会被替换
             projectId: projectId,
@@ -437,7 +438,8 @@ export function TableManageDialog({
         onClose();
 
         // 5. 后台上传 ETL 文件（弹窗已关闭，用户可以继续其他操作）
-        if (etlFiles.length > 0 && session?.access_token && newTableId) {
+        //    注意：裸 Table（projectId 为 null）暂不支持 ETL 上传
+        if (etlFiles.length > 0 && projectId && session?.access_token && newTableId) {
           // 创建文件名映射：后端返回的 filename -> 前端的 file.name
           // 这样即使后端返回的文件名格式不同，也能正确匹配
           const filenameMap = new Map<string, string>();
@@ -527,8 +529,7 @@ export function TableManageDialog({
 
     try {
       setLoading(true);
-      await deleteTable(projectId, tableId);
-      // 使用 SWR 刷新项目列表
+      await deleteTable(projectId || '', tableId);
       await refreshProjects();
       onClose();
     } catch (error) {
@@ -539,13 +540,8 @@ export function TableManageDialog({
       );
     } finally {
       setLoading(false);
-      setShowDeleteConfirm(false);
     }
   };
-
-  if (!project) {
-    return null;
-  }
 
   return (
     <div
@@ -690,29 +686,35 @@ export function TableManageDialog({
                 />
               </svg>
             </div>
-            <span>to project</span>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                color: '#E1E1E1',
-                fontWeight: 500,
-                background: '#2A2A2A',
-                padding: '2px 8px',
-                borderRadius: 4,
-                marginLeft: 2,
-              }}
-            >
-              <svg width='12' height='12' viewBox='0 0 14 14' fill='none'>
-                <path
-                  d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
-                  stroke='currentColor'
-                  strokeWidth='1.2'
-                />
-              </svg>
-              {project.name}
-            </div>
+            {project ? (
+              <>
+                <span>to project</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    color: '#E1E1E1',
+                    fontWeight: 500,
+                    background: '#2A2A2A',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    marginLeft: 2,
+                  }}
+                >
+                  <svg width='12' height='12' viewBox='0 0 14 14' fill='none'>
+                    <path
+                      d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
+                      stroke='currentColor'
+                      strokeWidth='1.2'
+                    />
+                  </svg>
+                  {project.name}
+                </div>
+              </>
+            ) : (
+              <span style={{ color: '#666' }}>(unorganized)</span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -736,7 +738,7 @@ export function TableManageDialog({
           </button>
         </div>
 
-        {showDeleteConfirm ? (
+        {mode === 'delete' ? (
           <div style={{ padding: 32 }}>
             <h3 style={{ color: '#EDEDED', margin: '0 0 12px', fontSize: 18 }}>
               Delete Context?
@@ -758,7 +760,7 @@ export function TableManageDialog({
               style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}
             >
               <button
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={onClose}
                 style={buttonStyle(false)}
               >
                 Cancel
@@ -1736,29 +1738,11 @@ export function TableManageDialog({
                 padding: '16px 20px',
                 borderTop: '1px solid #333',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 12,
                 background: '#202020',
               }}
             >
-              {isEdit ? (
-                <button
-                  type='button'
-                  onClick={() => setShowDeleteConfirm(true)}
-                  style={{
-                    ...buttonStyle(false, true),
-                    border: 'none',
-                    background: 'transparent',
-                    padding: 0,
-                  }}
-                >
-                  Delete context
-                </button>
-              ) : (
-                <div /> /* Spacer */
-              )}
-
-              <div style={{ display: 'flex', gap: 12 }}>
                 <button
                   type='button'
                   onClick={onClose}
@@ -1803,7 +1787,7 @@ export function TableManageDialog({
                       ? isImporting
                         ? 'Importing...'
                         : 'Creating...'
-                      : isEdit
+                      : mode === 'edit'
                         ? 'Save Changes'
                         : startOption === 'documents'
                           ? 'Import & Create'
@@ -1813,7 +1797,6 @@ export function TableManageDialog({
                               ? 'Import from Connector'
                               : 'Create Context'}
                 </button>
-              </div>
             </div>
           </form>
         )}
