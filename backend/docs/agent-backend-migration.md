@@ -138,6 +138,11 @@
 - 请求体 `tableData` → `table_id`
 - 其余字段与 SSE 事件协议保持不变
 
+## 环境变量
+- `ANTHROPIC_API_KEY`: Anthropic SDK key
+- `ANTHROPIC_MODEL`: 默认模型（可选，未设置时使用后端默认）
+- `E2B_API_KEY`: e2b sandbox SDK key
+
 ## 风险与注意事项
 - **只读模式**：e2b 不提供原生只读挂载时，需依赖系统提示与“不回写 DB”的逻辑保证。
 - **大体积 JSON**：上传/下载成本与超时风险需监控（可在后续版本考虑分块或增量同步）。
