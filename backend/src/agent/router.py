@@ -1,4 +1,5 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from src.common_schemas import ApiResponse
 
 router = APIRouter(
@@ -15,7 +16,13 @@ router = APIRouter(
     "",
     response_model=ApiResponse[None],
     summary="Agent SSE endpoint (placeholder)",
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
 )
-async def create_agent_session():
+async def create_agent_session(request: Request):
+    payload = await request.json()
+    prompt = payload.get("prompt") if isinstance(payload, dict) else None
+    if not prompt:
+        return JSONResponse(
+            status_code=400,
+            content=ApiResponse.error(code=400, message="Missing prompt").model_dump(),
+        )
     return ApiResponse.error(code=501, message="Not implemented")
