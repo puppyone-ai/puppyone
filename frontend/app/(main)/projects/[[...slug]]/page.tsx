@@ -73,7 +73,7 @@ export default function ProjectsSlugPage({
 
   // 3. 状态管理
   const [currentTreePath, setCurrentTreePath] = useState<string | null>(null);
-  const [editorType, setEditorType] = useState<EditorType>('treeline-virtual');
+  const [editorType, setEditorType] = useState<EditorType>('table');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(340);
   const [rightPanelContent, setRightPanelContent] =

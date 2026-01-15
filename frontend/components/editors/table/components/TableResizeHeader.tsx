@@ -92,7 +92,7 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
         .table-header {
           position: relative;
           height: 32px;
-          margin-left: 24px; /* Matches editor padding */
+          margin-left: 32px; /* Matches editor padding */
           margin-right: 8px;
           display: flex;
           align-items: center;
@@ -130,16 +130,26 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
         
         .resize-handle::after {
             content: '';
-            width: 1px;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.06);
-            transition: background 0.15s;
+            width: 2px;
+            height: 12px; /* Shorten to look like a handle/tick mark */
+            border-radius: 1px;
+            background: rgba(255, 255, 255, 0.2);
+            transition: all 0.15s;
+        }
+
+        /* Show handles more clearly when hovering the header area */
+        .table-header:hover .resize-handle::after {
+            background: rgba(255, 255, 255, 0.4);
+            height: 16px; /* Grow slightly on hover hint */
         }
 
         .resize-handle:hover::after,
         .resize-handle.active::after {
-            background: #528bff;
-            width: 2px;
+            background: #528bff !important;
+            width: 3px; /* Thicker on interaction */
+            height: 100%; /* Full height when dragging for precision visual */
+            border-radius: 0;
+            box-shadow: 0 0 4px rgba(82, 139, 255, 0.5);
         }
       `}</style>
       
@@ -155,7 +165,7 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
              const width = keyWidths[depth] ?? DEFAULT_KEY_WIDTH;
              return (
                  <div key={depth} style={{ width, flexShrink: 0 }} className="header-cell">
-                     KEY
+                     {/* KEY label removed */}
                      <div 
                         className={`resize-handle ${draggingDepth === depth ? 'active' : ''}`}
                         style={{ right: -4 }} /* Center on border */
@@ -167,7 +177,7 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
         
         {/* The VALUE column takes the rest */}
         <div className="header-cell" style={{ flex: 1 }}>
-            VALUE
+            {/* VALUE label removed */}
         </div>
       </div>
     </>

@@ -22,7 +22,7 @@ export function ProjectWorkspaceView({
   projectId,
   activeTableId,
   onActiveTableChange,
-  editorType = 'treeline-virtual',
+  editorType = 'table',
   ...props // 忽略其他非核心 props
 }: any) {
   // 1. 数据获取

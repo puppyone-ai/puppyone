@@ -17,9 +17,25 @@ type ProjectsHeaderProps = {
   onChatOpenChange?: (open: boolean) => void;
 };
 
-const editorOptions: { id: EditorType; label: string; icon: string }[] = [
-  { id: 'treeline-virtual', label: 'Tree', icon: '☷' },
-  { id: 'table', label: 'Table', icon: '▦' },
+const editorOptions: { id: EditorType; label: string; icon: React.ReactNode }[] = [
+  {
+    id: 'table',
+    label: 'Table',
+    icon: (
+      <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor'>
+        <path d='M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z' />
+      </svg>
+    ),
+  },
+  {
+    id: 'treeline-virtual',
+    label: 'Tree',
+    icon: (
+      <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor'>
+        <path d='M22 11V3h-7v3H9V3H2v8h7v-3h2v10h4v3h7v-8h-7v3h-2V8h2v3z' />
+      </svg>
+    ),
+  },
   { id: 'monaco', label: 'Raw', icon: '{ }' },
 ];
 
