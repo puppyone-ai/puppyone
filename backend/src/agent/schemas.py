@@ -15,7 +15,7 @@ class ChatHistoryItem(BaseModel):
 
 
 class AgentRequest(BaseModel):
-    prompt: str
+    prompt: str = Field(..., min_length=1)
     chatHistory: Optional[List[ChatHistoryItem]] = None
     table_id: Optional[int] = None
     workingDirectory: Optional[str] = None
