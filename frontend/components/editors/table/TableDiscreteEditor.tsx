@@ -177,9 +177,11 @@ function flattenJson(json: any, expandedPaths: Set<string>): FlatNode[] {
 const TableGridLines = React.memo(function TableGridLines({
   depth,
   keyWidths,
+  highlightedDepths,
 }: {
   depth: number;
   keyWidths: number[];
+  highlightedDepths: Set<number>;
 }) {
   const lines = [];
   let currentX = 0;
@@ -190,6 +192,11 @@ const TableGridLines = React.memo(function TableGridLines({
     const width = keyWidths[i] ?? DEFAULT_KEY_WIDTH;
     currentX += width;
     
+    // Line i is the left border of Depth i+1
+    const isHighlighted = highlightedDepths.has(i); // Fix: Check depth i (parent), not i+1
+    const lineColor = isHighlighted ? 'rgba(255, 167, 61, 0.4)' : BORDER_COLOR;
+    const lineWidth = isHighlighted ? 1 : 1;
+
     lines.push(
       <div
         key={i}
@@ -198,15 +205,20 @@ const TableGridLines = React.memo(function TableGridLines({
           left: currentX, // Right border of the column
           top: 0,
           bottom: 0,
-          width: 1,
-          background: BORDER_COLOR,
+          width: lineWidth,
+          background: lineColor,
+          zIndex: isHighlighted ? 2 : 0,
         }}
       />
     );
   }
 
-  // Add the first left border (0px) - ONLY if depth > 0 (otherwise overlaps with Key cell border)
+  // Add the first left border (0px) - ONLY if depth > 0
   if (depth > 0) {
+    // This is the left border of Depth 0. It belongs to Root's scope.
+    const isHighlighted = highlightedDepths.has(-1);
+    const lineColor = isHighlighted ? 'rgba(255, 167, 61, 0.4)' : BORDER_COLOR;
+    
     lines.push(
       <div
           key="start"
@@ -216,7 +228,8 @@ const TableGridLines = React.memo(function TableGridLines({
             top: 0,
             bottom: 0,
             width: 1,
-            background: BORDER_COLOR,
+            background: lineColor,
+            zIndex: isHighlighted ? 2 : 0,
           }}
       />
     );
@@ -246,6 +259,7 @@ interface VirtualRowProps {
   isSelectingAccessPoint?: boolean;
   onAddAccessPoint?: (path: string, permissions: McpToolPermissions) => void;
   configuredAccess?: McpToolPermissions | null;
+  configuredAccessMap: Map<string, McpToolPermissions>; // Added prop
   isContextMenuOpen?: boolean;
   onOpenDocument?: (path: string, value: string) => void;
   onHoverChange?: (path: string | null) => void;
@@ -268,6 +282,7 @@ const VirtualRow = React.memo(function VirtualRow({
   isSelectingAccessPoint,
   onAddAccessPoint,
   configuredAccess,
+  configuredAccessMap,
   isContextMenuOpen,
   onOpenDocument,
   onHoverChange,
@@ -295,6 +310,32 @@ const VirtualRow = React.memo(function VirtualRow({
   const effectiveDepth = Math.max(0, node.depth);
   const indent = getTableIndent(effectiveDepth, keyWidths);
   const currentKeyWidth = keyWidths[effectiveDepth] ?? DEFAULT_KEY_WIDTH;
+
+  // Calculate highlighted depths based on ancestor configuration
+  const highlightedDepths = useMemo(() => {
+    const depths = new Set<number>();
+    
+    // Check Root path ('')
+    if (configuredAccessMap.has('')) {
+      depths.add(-1);
+    }
+
+    if (!node.path) return depths;
+
+    const segments = node.path.split('/').filter(Boolean);
+    let currentPath = '';
+    
+    // Check each segment path
+    for (let i = 0; i < segments.length; i++) {
+        currentPath += '/' + segments[i];
+        if (configuredAccessMap.has(currentPath)) {
+            // Depth i corresponds to this path level
+            // For path /a (Depth 0), we highlight Depth 0 border
+            depths.add(i);
+        }
+    }
+    return depths;
+  }, [node.path, configuredAccessMap]);
 
   const handleMenuClick = useCallback(
     (e: React.MouseEvent) => {
@@ -360,6 +401,11 @@ const VirtualRow = React.memo(function VirtualRow({
   //      <path d="M1 3L5 7L9 3" stroke="currentColor" strokeWidth="1.5" fill="none" />
   //   </svg>
   // );
+
+  // Border Logic
+  const isKeyBorderHighlighted = highlightedDepths.has(effectiveDepth - 1);
+  const keyBorderLeftColor = isKeyBorderHighlighted ? 'rgba(255, 167, 61, 0.4)' : BORDER_COLOR;
+  const keyBorderLeftWidth = isKeyBorderHighlighted ? 1 : 1;
 
   if (isRootNode) {
     return (
@@ -429,7 +475,11 @@ const VirtualRow = React.memo(function VirtualRow({
       }}
     >
       {/* Grid Lines - Rendered behind content, visible in the indented area */}
-      <TableGridLines depth={effectiveDepth} keyWidths={keyWidths} />
+      <TableGridLines 
+        depth={effectiveDepth} 
+        keyWidths={keyWidths} 
+        highlightedDepths={highlightedDepths}
+      />
 
       {/* Indented Content Wrapper */}
       <div
@@ -454,10 +504,9 @@ const VirtualRow = React.memo(function VirtualRow({
             flexShrink: 0,
             paddingLeft: CELL_PADDING_X,
             paddingRight: 8, // Space for menu button
-            borderLeft: `1px solid ${BORDER_COLOR}`, // Left border for Key
+            borderLeft: `${keyBorderLeftWidth}px solid ${keyBorderLeftColor}`, // Dynamic Left border
             borderTop: `1px solid ${BORDER_COLOR}`,  // Top border for Key
-            // borderBottom: removed in favor of borderTop model
-            // borderRight: removed in favor of next cell's borderLeft
+            borderBottom: node.isExpanded ? 'none' : `1px solid ${BORDER_COLOR}`,
             position: 'relative',
             overflow: 'hidden'
           }}
@@ -976,6 +1025,7 @@ export default function TableDiscreteEditor({
                 isSelectingAccessPoint={isSelectingAccessPoint}
                 onAddAccessPoint={onAddAccessPoint}
                 configuredAccess={configuredAccessMap.get(node.path) || null}
+                configuredAccessMap={configuredAccessMap} // Pass map
                 isContextMenuOpen={
                   contextMenu.visible && contextMenu.path === node.path
                 }

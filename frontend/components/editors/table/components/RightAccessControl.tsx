@@ -38,7 +38,6 @@ export function RightAccessControl({
   onExpandChange,
 }: RightAccessControlProps) {
   const [hovered, setHovered] = useState(false);
-  const [showNlsMenu, setShowNlsMenu] = useState(false);
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -60,8 +59,6 @@ export function RightAccessControl({
     }));
   };
 
-  const [nlsState, setNlsState] = useState({ view: true, edit: false, extend: false, destruct: false });
-
   const isConfigured = !!configuredAccess && Object.values(configuredAccess).some(Boolean);
   const enabledCount = Object.values(configuredAccess || {}).filter(Boolean).length;
 
@@ -71,7 +68,6 @@ export function RightAccessControl({
     const handleClickOutside = (e: MouseEvent) => {
       if (!containerRef.current?.contains(e.target as Node)) {
         onExpandChange(false);
-        setShowNlsMenu(false);
         setExpandedToolId(null);
       }
     };
@@ -189,7 +185,7 @@ export function RightAccessControl({
               </div>
               {isConfigured && <div style={{ fontSize: 11, color: '#71717a', marginLeft: 8, fontWeight: 500 }}>{enabledCount}</div>}
               <div
-                onClick={(e) => { e.stopPropagation(); onExpandChange(false); setShowNlsMenu(false); setExpandedToolId(null); }}
+                onClick={(e) => { e.stopPropagation(); onExpandChange(false); setExpandedToolId(null); }}
                 style={{ cursor: 'pointer', padding: 4, borderRadius: 4, marginLeft: 4, color: '#6b7280', display: 'flex', alignItems: 'center' }}
                 onMouseEnter={e => e.currentTarget.style.color = '#e2e8f0'}
                 onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}
@@ -268,44 +264,6 @@ export function RightAccessControl({
                   </div>
                 );
               })}
-            </div>
-
-            <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '8px 8px' }} />
-
-            {/* NLS Security */}
-            <div style={{ paddingLeft: 8 }}>
-              <div
-                onClick={() => setShowNlsMenu(!showNlsMenu)}
-                style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 4px 0 6px', gap: 8, borderRadius: 6, cursor: 'pointer', transition: 'background 0.1s' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#2C2C2C'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <div style={{ width: 20, display: 'flex', justifyContent: 'center', color: '#8b5cf6' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                </div>
-                <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: '#e2e8f0' }}>Security (NLS)</span>
-                <span style={{ color: '#6b7280', transform: showNlsMenu ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'flex' }}>
-                  <svg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3'><path d='M9 18l6-6-6-6' /></svg>
-                </span>
-              </div>
-              {showNlsMenu && (
-                <div style={{ paddingTop: 4, paddingLeft: 28, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {[{ key: 'view', label: 'View' }, { key: 'edit', label: 'Edit' }, { key: 'extend', label: 'Extend' }, { key: 'destruct', label: 'Destruct' }].map((opt) => (
-                    <div
-                      key={opt.key}
-                      onClick={() => setNlsState(prev => ({ ...prev, [opt.key]: !prev[opt.key as keyof typeof prev] }))}
-                      style={{ display: 'flex', alignItems: 'center', height: 24, padding: '0 8px', gap: 8, borderRadius: 4, cursor: 'pointer', transition: 'background 0.1s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <div style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${nlsState[opt.key as keyof typeof nlsState] ? '#8b5cf6' : '#3f3f46'}`, background: nlsState[opt.key as keyof typeof nlsState] ? '#8b5cf6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                        {nlsState[opt.key as keyof typeof nlsState] && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>}
-                      </div>
-                      <span style={{ fontSize: 11, color: '#9ca3af' }}>{opt.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Add Capability */}
