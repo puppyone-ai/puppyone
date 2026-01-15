@@ -1,4 +1,5 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
+from fastapi.responses import JSONResponse
 from src.common_schemas import ApiResponse
 
 router = APIRouter(
@@ -17,7 +18,16 @@ router = APIRouter(
     summary="Sandbox action endpoint (placeholder)",
     status_code=status.HTTP_501_NOT_IMPLEMENTED,
 )
-async def sandbox_action():
+async def sandbox_action(request: Request):
+    payload = await request.json()
+    session_id = payload.get("session_id") if isinstance(payload, dict) else None
+    if not session_id:
+        return JSONResponse(
+            status_code=400,
+            content=ApiResponse.error(
+                code=400, message="session_id is required"
+            ).model_dump(),
+        )
     return ApiResponse.error(code=501, message="Not implemented")
 
 
