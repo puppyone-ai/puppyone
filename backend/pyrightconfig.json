@@ -1,21 +1,25 @@
 {
   "include": [
     "src",
-    "tests",
     "mcp_service"
   ],
   "exclude": [
     "**/__pycache__",
     "**/.pytest_cache",
+    "**/.mypy_cache",
+    "**/.ruff_cache",
     "**/.venv",
     "**/venv",
     "**/node_modules",
     "**/.git",
     ".claude",
     ".cursor",
+    "docs",
     "openspec",
     "example",
-    "sql"
+    "sql",
+    "script",
+    "tests"
   ],
   "ignore": [
     "**/test_*.py"

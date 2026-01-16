@@ -468,6 +468,9 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info
 - `LOG_JSON_CONSOLE`: 默认“本地终端为 `0`（彩色文本），非终端为 `1`（JSON）”，可手动强制
 - `LOG_JSON_FILE`: 默认 `1`
 - `DISABLE_UVICORN_ACCESS_LOG`: 默认 `1`
+- `ANTHROPIC_API_KEY`: Anthropic SDK key
+- `ANTHROPIC_MODEL`: 默认模型（可选）
+- `E2B_API_KEY`: e2b sandbox SDK key
 
 ### MCP Config Example
 

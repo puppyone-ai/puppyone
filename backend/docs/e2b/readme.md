@@ -1,0 +1,89 @@
+# E2B Docs
+
+## Docs
+
+- [E2B Documentation](https://e2b.mintlify.app/docs.md)
+- [API Key](https://e2b.mintlify.app/docs/api-key.md)
+- [BYOC (Bring Your Own Cloud)](https://e2b.mintlify.app/docs/byoc.md)
+- [E2B CLI](https://e2b.mintlify.app/docs/cli.md)
+- [Authentication in CLI](https://e2b.mintlify.app/docs/cli/auth.md)
+- [List sandboxes](https://e2b.mintlify.app/docs/cli/list-sandboxes.md)
+- [Shutdown running sandboxes](https://e2b.mintlify.app/docs/cli/shutdown-sandboxes.md)
+- [Analyze data with AI](https://e2b.mintlify.app/docs/code-interpreting/analyze-data-with-ai.md)
+- [Pre-installed libraries](https://e2b.mintlify.app/docs/code-interpreting/analyze-data-with-ai/pre-installed-libraries.md)
+- [Code Contexts](https://e2b.mintlify.app/docs/code-interpreting/contexts.md)
+- [Create charts & visualizations](https://e2b.mintlify.app/docs/code-interpreting/create-charts-visualizations.md)
+- [Interactive charts](https://e2b.mintlify.app/docs/code-interpreting/create-charts-visualizations/interactive-charts.md)
+- [Static charts](https://e2b.mintlify.app/docs/code-interpreting/create-charts-visualizations/static-charts.md)
+- [Streaming](https://e2b.mintlify.app/docs/code-interpreting/streaming.md)
+- [Supported languages](https://e2b.mintlify.app/docs/code-interpreting/supported-languages.md)
+- [Run bash code](https://e2b.mintlify.app/docs/code-interpreting/supported-languages/bash.md)
+- [Run Java code](https://e2b.mintlify.app/docs/code-interpreting/supported-languages/java.md)
+- [Run JavaScript and TypeScript code](https://e2b.mintlify.app/docs/code-interpreting/supported-languages/javascript.md)
+- [Run Python code](https://e2b.mintlify.app/docs/code-interpreting/supported-languages/python.md)
+- [Run R code](https://e2b.mintlify.app/docs/code-interpreting/supported-languages/r.md)
+- [Running commands in sandbox](https://e2b.mintlify.app/docs/commands.md)
+- [Running commands in background](https://e2b.mintlify.app/docs/commands/background.md)
+- [Streaming command output](https://e2b.mintlify.app/docs/commands/streaming.md)
+- [Cookbook](https://e2b.mintlify.app/docs/cookbook.md)
+- [Filesystem](https://e2b.mintlify.app/docs/filesystem.md)
+- [Download data from sandbox](https://e2b.mintlify.app/docs/filesystem/download.md)
+- [Get information about a file or directory](https://e2b.mintlify.app/docs/filesystem/info.md)
+- [Read & write files](https://e2b.mintlify.app/docs/filesystem/read-write.md)
+- [Upload data to sandbox](https://e2b.mintlify.app/docs/filesystem/upload.md)
+- [Watch sandbox directory for changes](https://e2b.mintlify.app/docs/filesystem/watch.md)
+- [Overview](https://e2b.mintlify.app/docs/mcp.md): Connect to 200+ tools through the Model Context Protocol
+- [Available Servers](https://e2b.mintlify.app/docs/mcp/available-servers.md): Browse available MCP servers
+- [Custom Servers](https://e2b.mintlify.app/docs/mcp/custom-servers.md): Use custom MCP servers from GitHub repositories
+- [Custom Templates](https://e2b.mintlify.app/docs/mcp/custom-templates.md): Use MCP servers with custom sandbox templates
+- [Examples](https://e2b.mintlify.app/docs/mcp/examples.md): Example projects using MCP servers in E2B sandboxes
+- [Quickstart](https://e2b.mintlify.app/docs/mcp/quickstart.md): Get started with MCP integration
+- [SDK v2 Migration Guide](https://e2b.mintlify.app/docs/migration/v2.md)
+- [Running your first Sandbox](https://e2b.mintlify.app/docs/quickstart.md): This guide will show you how to start your first E2B Sandbox.
+- [Connect LLMs to E2B](https://e2b.mintlify.app/docs/quickstart/connect-llms.md)
+- [Install custom packages](https://e2b.mintlify.app/docs/quickstart/install-custom-packages.md)
+- [Upload & downloads files](https://e2b.mintlify.app/docs/quickstart/upload-download-files.md)
+- [Sandbox lifecycle](https://e2b.mintlify.app/docs/sandbox.md)
+- [Sandbox templates](https://e2b.mintlify.app/docs/sandbox-template.md)
+- [Customize sandbox CPU & RAM](https://e2b.mintlify.app/docs/sandbox-template/customize-cpu-ram.md)
+- [Ready Command](https://e2b.mintlify.app/docs/sandbox-template/ready-cmd.md)
+- [Start Command](https://e2b.mintlify.app/docs/sandbox-template/start-cmd.md)
+- [Connect to running sandbox](https://e2b.mintlify.app/docs/sandbox/connect.md)
+- [Connecting storage bucket to the sandbox](https://e2b.mintlify.app/docs/sandbox/connect-bucket.md)
+- [Environment variables](https://e2b.mintlify.app/docs/sandbox/environment-variables.md)
+- [Internet access](https://e2b.mintlify.app/docs/sandbox/internet-access.md)
+- [Monitor sandbox lifecycle Events](https://e2b.mintlify.app/docs/sandbox/lifecycle-events-api.md)
+- [Sandbox lifecycle webhooks](https://e2b.mintlify.app/docs/sandbox/lifecycle-events-webhooks.md)
+- [List sandboxes](https://e2b.mintlify.app/docs/sandbox/list.md)
+- [Sandbox metadata](https://e2b.mintlify.app/docs/sandbox/metadata.md)
+- [Sandbox metrics](https://e2b.mintlify.app/docs/sandbox/metrics.md)
+- [Sandbox persistence](https://e2b.mintlify.app/docs/sandbox/persistence.md)
+- [Rate Limits](https://e2b.mintlify.app/docs/sandbox/rate-limits.md)
+- [Secured access](https://e2b.mintlify.app/docs/sandbox/secured-access.md)
+- [Need help?](https://e2b.mintlify.app/docs/support.md)
+- [Template Aliases](https://e2b.mintlify.app/docs/template/aliases.md): Understanding and managing template aliases
+- [Base Image](https://e2b.mintlify.app/docs/template/base-image.md): How to define a base image for your template
+- [Build](https://e2b.mintlify.app/docs/template/build.md): How to build the template
+- [Caching](https://e2b.mintlify.app/docs/template/caching.md): How the caching process works
+- [Defining Template](https://e2b.mintlify.app/docs/template/defining-template.md): How to create your own template
+- [Error Handling](https://e2b.mintlify.app/docs/template/error-handling.md): Handle errors in your template
+- [Claude Code](https://e2b.mintlify.app/docs/template/examples/claude-code.md): Claude Code Agent available in a sandbox
+- [Desktop](https://e2b.mintlify.app/docs/template/examples/desktop.md): Sandbox with Ubuntu Desktop and VNC access
+- [Expo App](https://e2b.mintlify.app/docs/template/examples/expo.md): Expo web app running in the sandbox using Node.js
+- [Next.js App](https://e2b.mintlify.app/docs/template/examples/nextjs.md): Next.js web app running in the sandbox using Node.js
+- [Next.js App (Bun)](https://e2b.mintlify.app/docs/template/examples/nextjs-bun.md): Next.js web app running in the sandbox using Bun
+- [How It Works](https://e2b.mintlify.app/docs/template/how-it-works.md): How the template building process works
+- [Logging](https://e2b.mintlify.app/docs/template/logging.md): How to view logs from the template build
+- [V2 Migration Guide](https://e2b.mintlify.app/docs/template/migration-v2.md): How to migrate from the legacy template definition
+- [Private Registries](https://e2b.mintlify.app/docs/template/private-registries.md): Access private registries as the base image
+- [Quickstart](https://e2b.mintlify.app/docs/template/quickstart.md): Start with custom sandbox templates
+- [Start & Ready Commands](https://e2b.mintlify.app/docs/template/start-ready-command.md): Define running processes for the sandbox
+- [User And Workdir](https://e2b.mintlify.app/docs/template/user-and-workdir.md): Default user and working directory in the sandbox and template
+- [Vercel Edge Runtime and Cloudflare Workers](https://e2b.mintlify.app/docs/troubleshooting/sdks/workers-edge-runtime.md)
+- [The sandbox is running but port is not open - 49999](https://e2b.mintlify.app/docs/troubleshooting/templates/49999-port-not-open.md)
+- [Docker push authentication error](https://e2b.mintlify.app/docs/troubleshooting/templates/build-authentication-error.md)
+
+
+## Optional
+
+- [SDK Reference](https://e2b.dev/docs/sdk-reference)
