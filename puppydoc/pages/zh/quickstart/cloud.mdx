@@ -1,0 +1,34 @@
+# 云端版快速开始
+
+2 分钟上手 PuppyOne Cloud。
+
+## 第一步：创建账号
+
+访问 [puppyone.ai](https://puppyone.ai) 并注册。
+
+## 第二步：创建项目
+
+点击 **New Project**，给项目起个名字。
+
+## 第三步：导入数据
+
+上传你的第一个文档，或连接数据源。
+
+## 第四步：接入 Agent
+
+复制 MCP 端点，添加到你的 Agent 配置中：
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx -y mcp-remote https://api.puppyone.ai/mcp?api_key=YOUR_KEY"
+    }
+  }
+}
+```
+
+完成！你的 Agent 现在可以访问结构化上下文了。
+
+
+

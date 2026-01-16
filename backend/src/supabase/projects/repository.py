@@ -141,11 +141,23 @@ class ProjectRepository:
         """
         删除项目
 
+        注意：需要先在 Supabase 执行以下 SQL 去掉外键约束：
+        ALTER TABLE public.etl_task DROP CONSTRAINT etl_task_project_id_fkey;
+        
+        这样 etl_task 的历史记录会保留原始 project_id 值。
+
         Args:
             project_id: 项目 ID
 
         Returns:
             是否删除成功
         """
-        response = self._client.table("project").delete().eq("id", project_id).execute()
-        return len(response.data) > 0
+        try:
+            # 1. 删除关联的 context_table（数据跟随 project 删除）
+            self._client.table("context_table").delete().eq("project_id", project_id).execute()
+            
+            # 2. 删除 project（etl_task 历史记录保留，project_id 保持原值）
+            response = self._client.table("project").delete().eq("id", project_id).execute()
+            return len(response.data) > 0
+        except Exception as e:
+            raise handle_supabase_error(e, "删除项目")

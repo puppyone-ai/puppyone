@@ -8,8 +8,10 @@ import useSWR, { mutate } from 'swr';
 import {
   getProjects,
   getTable,
+  getOrphanTables,
   type ProjectInfo,
   type TableData,
+  type TableInfo,
 } from '../projectsApi';
 import { getTools, getToolsByTableId, type Tool } from '../mcpApi';
 
@@ -77,9 +79,30 @@ export function useTable(projectId: string, tableId: string | undefined) {
 }
 
 /**
+ * 获取裸 Table 列表（不属于任何 Project）
+ */
+export function useOrphanTables() {
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: revalidate,
+  } = useSWR<TableInfo[]>('orphan-tables', getOrphanTables, defaultConfig);
+
+  return {
+    orphanTables: data ?? [],
+    isLoading,
+    error,
+    refresh: revalidate,
+  };
+}
+
+/**
  * 手动刷新项目列表（用于创建/删除项目后）
  */
 export function refreshProjects() {
+  // 同时刷新孤儿 tables
+  mutate('orphan-tables');
   return mutate('projects');
 }
 

@@ -1,0 +1,48 @@
+# Import Data
+
+Bring your data into PuppyOne from various sources.
+
+## Supported Sources
+
+| Source | Method |
+|--------|--------|
+| **Files** | Upload PDF, DOC, DOCX, images |
+| **Notion** | OAuth connect |
+| **Airtable** | OAuth connect |
+| **GitHub** | OAuth connect |
+| **Google Sheets** | OAuth connect |
+| **Web Pages** | URL crawl |
+
+## File Upload
+
+1. Go to your project
+2. Click **Import** → **Upload Files**
+3. Select files (PDF, DOC, images)
+4. PuppyOne automatically extracts and structures the content
+
+## Connectors
+
+For third-party services:
+
+1. Go to **Settings** → **Connections**
+2. Click the service you want to connect
+3. Authorize via OAuth
+4. Select what data to sync
+
+## ETL Process
+
+When you import data, PuppyOne:
+
+1. **Parses** the source (OCR for images, markdown extraction for docs)
+2. **Cleans** the content (removes noise, normalizes format)
+3. **Structures** into JSON (using LLM-assisted transformation)
+4. **Stores** in your table
+
+## Coming Soon
+
+- Slack integration
+- Linear integration  
+- Custom API sources
+
+
+

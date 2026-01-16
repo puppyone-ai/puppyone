@@ -1,0 +1,59 @@
+# Self-Hosting
+
+Run PuppyOne on your own infrastructure.
+
+## Why Self-Host?
+
+- **Data privacy** — Keep all data on your servers
+- **No limits** — No rate limits or storage caps
+- **Customization** — Modify and extend as needed
+
+## Requirements
+
+| Component | Minimum |
+|-----------|---------|
+| Docker | v20+ |
+| RAM | 4GB |
+| Storage | 10GB |
+| CPU | 2 cores |
+
+## Quick Start
+
+```bash
+git clone https://github.com/puppyone-ai/puppyone.git
+cd puppyone
+cp .env.example .env
+docker-compose up -d
+```
+
+Open `http://localhost:3000` to access the dashboard.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────┐
+│              Load Balancer              │
+└────────────────┬────────────────────────┘
+                 │
+    ┌────────────┴────────────┐
+    │                         │
+┌───▼───┐               ┌─────▼─────┐
+│Frontend│               │  Backend  │
+│Next.js │               │  FastAPI  │
+└───┬───┘               └─────┬─────┘
+    │                         │
+    └──────────┬──────────────┘
+               │
+    ┌──────────▼──────────┐
+    │      Supabase       │
+    │   (DB + Auth + S3)  │
+    └─────────────────────┘
+```
+
+## Next Steps
+
+- [Docker Deploy](/en/self-hosting/docker) — Detailed deployment guide
+- [Configuration](/en/self-hosting/configuration) — Environment variables
+
+
+

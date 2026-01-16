@@ -538,6 +538,7 @@ export function permissionsToRegisterTools(
   if (permissions.update) tools.push('update');
   if (permissions.delete) tools.push('delete');
   if (permissions.shell_access) tools.push('shell_access');
+  if (permissions.shell_access_readonly) tools.push('shell_access_readonly');
   return tools;
 }
 
@@ -558,6 +559,7 @@ export function registerToolsToPermissions(
     update: tools.includes('update'),
     delete: tools.includes('delete'),
     shell_access: tools.includes('shell_access'),
+    shell_access_readonly: tools.includes('shell_access_readonly'),
   };
 }
 
@@ -579,6 +581,10 @@ export const TOOL_INFO: Record<
   shell_access: {
     label: 'Bash / Shell Access',
     description: 'Provide raw shell access to data via jq/cli',
+  },
+  shell_access_readonly: {
+    label: 'Bash / Shell Access (Read-only)',
+    description: 'Provide read-only shell access to data via jq/cli',
   },
 };
 

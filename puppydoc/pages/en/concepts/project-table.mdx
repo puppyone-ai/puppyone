@@ -1,0 +1,48 @@
+# Project & Table
+
+How PuppyOne organizes your context data.
+
+## Project
+
+A **Project** is the top-level container for your context. Think of it as a namespace or workspace.
+
+- Each project has a unique ID
+- Projects contain multiple Tables
+- Access control is set at project level
+
+## Table
+
+A **Table** is a structured JSON document within a project.
+
+- Tables store your actual context data as JSON
+- Each table can have nested objects and arrays
+- Version history is tracked automatically
+- Access permissions can be set per-table
+
+## Example Structure
+
+```json
+{
+  "products": [
+    {
+      "id": "SKU-001",
+      "name": "Widget Pro",
+      "price": 99.99,
+      "specs": {
+        "weight": "250g",
+        "dimensions": "10x5x3 cm"
+      }
+    }
+  ],
+  "categories": ["Electronics", "Tools"]
+}
+```
+
+## Best Practices
+
+1. **One project per domain** — e.g., "Product Catalog", "Support Knowledge"
+2. **Tables for logical groupings** — e.g., "products", "categories", "faqs"
+3. **Keep nesting shallow** — Agents work better with flatter structures
+
+
+

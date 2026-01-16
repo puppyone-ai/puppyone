@@ -9,10 +9,8 @@ import {
   type ProjectInfo,
 } from '../lib/projectsApi';
 import { EditorSkeleton } from './Skeleton';
-import TreeLineVirtualEditor from './editors/tree/TreeLineVirtualEditor';
 import TreeLineDiscreteEditor from './editors/tree/TreeLineDiscreteEditor';
-
-const USE_DISCRETE_SCROLLING = true; // 开启"顿挫感"滚动模式试验
+import TableDiscreteEditor from './editors/table/TableDiscreteEditor';
 
 import MonacoJsonEditor from './editors/code/MonacoJsonEditor';
 import type { EditorType } from './ProjectsHeader';
@@ -24,7 +22,7 @@ export function ProjectWorkspaceView({
   projectId,
   activeTableId,
   onActiveTableChange,
-  editorType = 'treeline-virtual',
+  editorType = 'table',
   ...props // 忽略其他非核心 props
 }: any) {
   // 1. 数据获取
@@ -142,37 +140,36 @@ export function ProjectWorkspaceView({
         ) : localData || tableData ? (
           editorType === 'treeline-virtual' ? (
             <div style={{ position: 'absolute', inset: 0 }}>
-              {USE_DISCRETE_SCROLLING ? (
-                <TreeLineDiscreteEditor
-                  json={localData || tableData}
-                  onChange={handleDataChange}
-                  // 传递所有业务回调
-                  onPathChange={props.onTreePathChange}
-                  onAddAccessPoint={props.onAddAccessPoint}
-                  onAccessPointChange={props.onAccessPointChange}
-                  onAccessPointRemove={props.onAccessPointRemove}
-                  configuredAccessPoints={props.configuredAccessPoints}
-                  projectId={Number(projectId)}
-                  tableId={validTableId ? Number(validTableId) : undefined}
-                  onImportSuccess={props.onImportSuccess}
-                  onOpenDocument={props.onOpenDocument}
-                />
-              ) : (
-                <TreeLineVirtualEditor
-                  json={localData || tableData}
-                  onChange={handleDataChange}
-                  // 传递所有业务回调
-                  onPathChange={props.onTreePathChange}
-                  onAddAccessPoint={props.onAddAccessPoint}
-                  onAccessPointChange={props.onAccessPointChange}
-                  onAccessPointRemove={props.onAccessPointRemove}
-                  configuredAccessPoints={props.configuredAccessPoints}
-                  projectId={Number(projectId)}
-                  tableId={validTableId ? Number(validTableId) : undefined}
-                  onImportSuccess={props.onImportSuccess}
-                  onOpenDocument={props.onOpenDocument}
-                />
-              )}
+              <TreeLineDiscreteEditor
+                json={localData || tableData}
+                onChange={handleDataChange}
+                // 传递所有业务回调
+                onPathChange={props.onTreePathChange}
+                onAddAccessPoint={props.onAddAccessPoint}
+                onAccessPointChange={props.onAccessPointChange}
+                onAccessPointRemove={props.onAccessPointRemove}
+                configuredAccessPoints={props.configuredAccessPoints}
+                projectId={Number(projectId)}
+                tableId={validTableId ? Number(validTableId) : undefined}
+                onImportSuccess={props.onImportSuccess}
+                onOpenDocument={props.onOpenDocument}
+              />
+            </div>
+          ) : editorType === 'table' ? (
+            <div style={{ position: 'absolute', inset: 0 }}>
+              <TableDiscreteEditor
+                json={localData || tableData}
+                onChange={handleDataChange}
+                onPathChange={props.onTreePathChange}
+                onAddAccessPoint={props.onAddAccessPoint}
+                onAccessPointChange={props.onAccessPointChange}
+                onAccessPointRemove={props.onAccessPointRemove}
+                configuredAccessPoints={props.configuredAccessPoints}
+                projectId={Number(projectId)}
+                tableId={validTableId ? Number(validTableId) : undefined}
+                onImportSuccess={props.onImportSuccess}
+                onOpenDocument={props.onOpenDocument}
+              />
             </div>
           ) : (
             <div style={{ position: 'absolute', inset: 0 }}>

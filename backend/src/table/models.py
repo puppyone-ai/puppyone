@@ -30,6 +30,9 @@ class Table(BaseModel):
     project_id: Optional[int] = Field(
         None, description="外键，对应项目表，表示知识库所属的项目ID"
     )
+    user_id: Optional[str] = Field(
+        None, description="直接关联用户ID，支持裸Table（不属于任何Project）"
+    )
     description: Optional[str] = Field(
         None, description="知识库的描述，在MCP服务中可以提供给Agent"
     )

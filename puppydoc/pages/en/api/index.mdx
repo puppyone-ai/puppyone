@@ -1,0 +1,65 @@
+# API Reference
+
+PuppyOne REST API documentation.
+
+## Base URL
+
+```
+https://api.puppyone.ai/api/v1
+```
+
+For self-hosted:
+```
+http://localhost:9090/api/v1
+```
+
+## Authentication
+
+All API requests require authentication via Bearer token:
+
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  https://api.puppyone.ai/api/v1/projects
+```
+
+See [Authentication](/en/api/authentication) for details.
+
+## Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `/projects` | Manage projects |
+| `/projects/{id}/tables` | Manage tables within a project |
+| `/tables/{id}` | Table operations |
+| `/mcp` | MCP server management |
+
+## Response Format
+
+All responses are JSON:
+
+```json
+{
+  "data": { ... },
+  "error": null
+}
+```
+
+On error:
+
+```json
+{
+  "data": null,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Project not found"
+  }
+}
+```
+
+## Rate Limits
+
+- Cloud: 100 requests/minute
+- Self-hosted: No limits
+
+
+

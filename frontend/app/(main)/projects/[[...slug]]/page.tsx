@@ -27,10 +27,7 @@ interface EditorTarget {
 }
 
 // MCP Tools imports
-import {
-  type McpToolPermissions,
-  type AccessPoint, // AccessPoint might be defined in mcpApi or locally, checking imports
-} from '@/lib/mcpApi';
+import { type McpToolPermissions } from '@/lib/mcpApi';
 
 // AccessPoint was imported from ToolsPanel, need to define or import it correctly if it's not in mcpApi.
 // Checking previous file content, it seems AccessPoint interface was exported from ToolsPanel.
@@ -54,7 +51,11 @@ export default function ProjectsSlugPage({
 
   // 1. 解析路由参数
   const [projectId, tableId] = slug || [];
-  const [activeBaseId, setActiveBaseId] = useState<string>(projectId || '');
+  // projectId === '-' 表示裸 Table（不属于任何 Project）
+  const isOrphanTable = projectId === '-';
+  const [activeBaseId, setActiveBaseId] = useState<string>(
+    isOrphanTable ? '' : projectId || ''
+  );
   const [activeTableId, setActiveTableId] = useState<string>(tableId || '');
 
   // 2. 数据获取
@@ -71,7 +72,7 @@ export default function ProjectsSlugPage({
 
   // 3. 状态管理
   const [currentTreePath, setCurrentTreePath] = useState<string | null>(null);
-  const [editorType, setEditorType] = useState<EditorType>('treeline-virtual');
+  const [editorType, setEditorType] = useState<EditorType>('table');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(340);
   const [rightPanelContent, setRightPanelContent] =
@@ -85,7 +86,7 @@ export default function ProjectsSlugPage({
 
   // 4. 副作用：同步路由参数到状态
   useEffect(() => {
-    if (projectId) setActiveBaseId(projectId);
+    if (projectId && projectId !== '-') setActiveBaseId(projectId);
     if (tableId) setActiveTableId(tableId);
   }, [projectId, tableId]);
 
@@ -134,11 +135,16 @@ export default function ProjectsSlugPage({
 
   // 6. 路径片段
   const pathSegments = useMemo(() => {
-    const segments = ['Projects'];
-    if (activeBase) segments.push(activeBase.name);
-    if (activeTable) segments.push(activeTable.name);
+    const segments = ['Contexts'];
+    if (isOrphanTable) {
+      // 裸 Table 只显示 table name
+      if (currentTableData) segments.push(currentTableData.name);
+    } else {
+      if (activeBase) segments.push(activeBase.name);
+      if (activeTable) segments.push(activeTable.name);
+    }
     return segments;
-  }, [activeBase, activeTable]);
+  }, [activeBase, activeTable, isOrphanTable, currentTableData]);
 
   // 7. 处理 Onboarding - 移除自动跳转逻辑
   // 我们不再通过前端粗暴地判断是否跳转 Onboarding，避免与后端预置数据逻辑冲突
@@ -212,14 +218,32 @@ export default function ProjectsSlugPage({
                 // borderRight 已移除 - 浮动卡片样式的 sidebar 不需要分隔线
               }}
             >
-              {activeBase ? (
+              {activeBase || isOrphanTable ? (
                 <ProjectWorkspaceView
-                  projectId={activeBase.id}
-                  project={activeBase}
+                  projectId={activeBase?.id || '-'}
+                  project={
+                    activeBase || {
+                      id: '-',
+                      name: currentTableData?.name || 'Context',
+                      tables: currentTableData
+                        ? [
+                            {
+                              id: String(currentTableData.id),
+                              name: currentTableData.name,
+                              rows: currentTableData.rows,
+                            },
+                          ]
+                        : [],
+                    }
+                  }
                   activeTableId={activeTableId}
                   onActiveTableChange={(id: string) => {
                     setActiveTableId(id);
-                    router.push(`/projects/${activeBaseId}/${id}`);
+                    if (isOrphanTable) {
+                      router.push(`/projects/-/${id}`);
+                    } else {
+                      router.push(`/projects/${activeBaseId}/${id}`);
+                    }
                   }}
                   onTreePathChange={setCurrentTreePath}
                   editorType={editorType}

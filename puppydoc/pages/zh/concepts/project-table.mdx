@@ -1,0 +1,48 @@
+# Project & Table
+
+PuppyOne 如何组织你的上下文数据。
+
+## Project
+
+**Project** 是上下文的顶层容器，类似于命名空间或工作区。
+
+- 每个 Project 有唯一 ID
+- Project 包含多个 Table
+- 访问控制在 Project 级别设置
+
+## Table
+
+**Table** 是 Project 中的结构化 JSON 文档。
+
+- Table 以 JSON 格式存储实际的上下文数据
+- 支持嵌套对象和数组
+- 自动追踪版本历史
+- 可按 Table 设置访问权限
+
+## 示例结构
+
+```json
+{
+  "products": [
+    {
+      "id": "SKU-001",
+      "name": "Widget Pro",
+      "price": 99.99,
+      "specs": {
+        "weight": "250g",
+        "dimensions": "10x5x3 cm"
+      }
+    }
+  ],
+  "categories": ["Electronics", "Tools"]
+}
+```
+
+## 最佳实践
+
+1. **一个 Project 对应一个领域** — 如 "产品目录"、"客服知识库"
+2. **用 Table 做逻辑分组** — 如 "products"、"categories"、"faqs"
+3. **保持嵌套层级浅** — Agent 处理扁平结构更有效
+
+
+

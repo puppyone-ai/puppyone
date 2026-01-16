@@ -1,0 +1,42 @@
+# Tools & Permissions
+
+Control what your AI agents can do with your data.
+
+## Tool Types
+
+PuppyOne provides fine-grained control over agent capabilities:
+
+| Tool | Type | Description |
+|------|------|-------------|
+| `query_data` | Read | Query data with JSON path filters |
+| `get_all_data` | Read | Fetch entire table contents |
+| `create` | Write | Add new entries to the table |
+| `update` | Write | Modify existing entries |
+| `delete` | Write | Remove entries from the table |
+
+## Permission Model
+
+Permissions are set per **path** within a table:
+
+```
+/                    → Can query root level
+/products            → Can query products array
+/products/*/price    → Can read individual product prices
+```
+
+## Example Configuration
+
+In the PuppyOne dashboard, you can configure:
+
+1. **Read-only access** — Agent can only query, not modify
+2. **Full access** — Agent can read and write
+3. **Path-scoped access** — Agent can only access specific paths
+
+## Best Practices
+
+1. **Start with read-only** — Add write permissions only when needed
+2. **Scope to specific paths** — Don't give agents access to entire tables
+3. **Use separate tables** — Split public/private data into different tables
+
+
+

@@ -1,0 +1,32 @@
+# 核心概念
+
+理解 PuppyOne 的架构和数据模型。
+
+## 概述
+
+PuppyOne 将你的上下文组织成简单的层级结构：
+
+```
+Workspace (你的账户)
+└── Project (上下文命名空间)
+    └── Table (JSON 文档)
+        └── Data (结构化 JSON)
+```
+
+## 关键概念
+
+| 概念 | 描述 |
+|-----|------|
+| **Project** | 顶层容器。一个 project = 一个上下文命名空间 |
+| **Table** | 项目中的结构化 JSON 文档 |
+| **MCP** | 向 AI Agent 提供上下文的协议 |
+| **Tools** | Agent 可执行的操作（查询、创建、更新、删除） |
+
+## 了解更多
+
+- [Project & Table](/zh/concepts/project-table) — 数据组织方式
+- [MCP 协议](/zh/concepts/mcp) — Agent 如何访问你的数据
+- [工具与权限](/zh/concepts/tools) — 访问控制模型
+
+
+

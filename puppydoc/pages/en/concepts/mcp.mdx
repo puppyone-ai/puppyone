@@ -1,0 +1,57 @@
+# MCP Protocol
+
+How AI agents access your PuppyOne data.
+
+## What is MCP?
+
+**MCP (Model Context Protocol)** is an open protocol that allows LLMs to access external tools and data sources. It's supported by:
+
+- Cursor
+- Claude Desktop
+- Many other AI tools
+
+PuppyOne provides hosted MCP servers for each of your tables.
+
+## How It Works
+
+```
+┌─────────────┐     MCP Protocol     ┌─────────────┐
+│   AI Agent  │ ◄──────────────────► │  PuppyOne   │
+│  (Cursor)   │     tools/prompts    │ MCP Server  │
+└─────────────┘                      └─────────────┘
+```
+
+1. You configure the MCP endpoint in your agent
+2. Agent discovers available tools (query, create, update, etc.)
+3. Agent calls tools to read/write your context data
+
+## Configuration Example
+
+Add to your `mcp.json` or Cursor settings:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx -y mcp-remote https://api.puppyone.ai/mcp?api_key=YOUR_KEY"
+    }
+  }
+}
+```
+
+## Available Tools
+
+When connected, your agent gets access to these tools:
+
+| Tool | Description |
+|------|-------------|
+| `query_data` | Query data with filters |
+| `get_all_data` | Fetch entire table |
+| `create` | Add new entries |
+| `update` | Modify existing entries |
+| `delete` | Remove entries |
+
+See [Tools & Permissions](/en/concepts/tools) for details.
+
+
+

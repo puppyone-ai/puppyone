@@ -80,17 +80,23 @@ class TableService:
 
     def create(
         self,
-        project_id: int,
+        user_id: str,
         name: str,
         description: str,
         data: dict,
+        project_id: Optional[int] = None,
     ) -> Table:
         return self.repo.create(
-            project_id,
-            name,
-            description,
-            data,
+            user_id=user_id,
+            name=name,
+            description=description,
+            data=data,
+            project_id=project_id,
         )
+
+    def get_orphan_tables_by_user_id(self, user_id: str) -> List[Table]:
+        """获取用户的所有裸 Table（不属于任何 Project）"""
+        return self.repo.get_orphan_tables_by_user_id(user_id)
 
     def update(
         self,

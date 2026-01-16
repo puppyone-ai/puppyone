@@ -95,25 +95,31 @@ export async function getTable(
 }
 
 export async function createTable(
-  projectId: string,
+  projectId: string | null,
   name: string,
   data?: Record<string, any> | Array<Record<string, any>>
 ): Promise<TableData> {
+  const body: Record<string, any> = {
+    name,
+    description: '',
+    data: data ?? {},
+  };
+  // 只有 projectId 存在时才传
+  if (projectId) {
+    body.project_id = Number(projectId);
+  }
+
   const result = await apiRequest<{
     id: number;
     name: string | null;
     project_id: number | null;
+    user_id: string | null;
     description: string | null;
     data: any;
     created_at: string;
   }>('/api/v1/tables/', {
     method: 'POST',
-    body: JSON.stringify({
-      project_id: Number(projectId),
-      name,
-      description: '',
-      data: data ?? {},
-    }),
+    body: JSON.stringify(body),
   });
 
   const tableData = result.data;
@@ -215,4 +221,31 @@ export async function updateTableData(
     rows,
     data: tableData ?? [],
   };
+}
+
+// 获取用户的裸 Table（不属于任何 Project）
+export async function getOrphanTables(): Promise<TableInfo[]> {
+  const result = await apiRequest<
+    Array<{
+      id: number;
+      name: string | null;
+      project_id: number | null;
+      user_id: string | null;
+      description: string | null;
+      data: any;
+      created_at: string;
+    }>
+  >('/api/v1/tables/orphan');
+
+  return result.map(item => ({
+    id: String(item.id),
+    name: item.name || '',
+    rows: item.data
+      ? Array.isArray(item.data)
+        ? item.data.length
+        : typeof item.data === 'object'
+          ? Object.keys(item.data).length
+          : 0
+      : 0,
+  }));
 }

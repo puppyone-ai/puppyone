@@ -21,7 +21,10 @@
  */
 
 // Tree-based editors
-export { JsonEditorComponent, TreeLineVirtualEditor } from './tree';
+export {
+  JsonEditorComponent,
+  TreeLineDiscreteEditor as TreeLineVirtualEditor,
+} from './tree';
 
 // Code-based editors
 export { MonacoJsonEditor, CodeMirrorJsonEditor } from './code';

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useProjects } from '@/lib/hooks/useData';
+import { useProjects, useOrphanTables } from '@/lib/hooks/useData';
 import { getProcessingTableIds } from '@/components/BackgroundTaskNotifier';
 import { ProjectManageDialog } from '@/components/ProjectManageDialog';
 import { TableManageDialog } from '@/components/TableManageDialog';
@@ -24,12 +24,13 @@ export default function ProjectsLayout({
 
   // Data fetching
   const { projects, isLoading } = useProjects();
+  const { orphanTables } = useOrphanTables();
 
-  // Dialog state
-  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  // Dialog state - mode: null (closed), 'create', 'edit', 'delete'
+  type DialogMode = 'create' | 'edit' | 'delete' | null;
+  const [projectDialogMode, setProjectDialogMode] = useState<DialogMode>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-  const [projectDialogDeleteMode, setProjectDialogDeleteMode] = useState(false);
-  const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const [tableDialogMode, setTableDialogMode] = useState<DialogMode>(null);
   const [tableDialogProjectId, setTableDialogProjectId] = useState<
     string | null
   >(null);
@@ -106,16 +107,19 @@ export default function ProjectsLayout({
     };
   }, []);
 
+  const [headerDropdownOpen, setHeaderDropdownOpen] = useState(false);
+
   // Close context menu on outside click
   useEffect(() => {
-    if (!tableContextMenu && !projectContextMenu) return;
+    if (!tableContextMenu && !projectContextMenu && !headerDropdownOpen) return;
     const handleClick = () => {
       setTableContextMenu(null);
       setProjectContextMenu(null);
+      setHeaderDropdownOpen(false);
     };
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
-  }, [tableContextMenu, projectContextMenu]);
+  }, [tableContextMenu, projectContextMenu, headerDropdownOpen]);
 
   // Handle resize
   const handleMouseDown = useCallback(
@@ -276,52 +280,283 @@ export default function ProjectsLayout({
                 >
                   Projects
                 </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      setEditingProjectId(null);
-                      setProjectDialogDeleteMode(false);
-                      setProjectDialogOpen(true);
-                    }}
-                    title='New Project'
-                    style={{
-                      width: 28,
-                      height: 28,
-                      background: 'transparent',
-                      border: 'none',
-                      borderRadius: 5,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#6b7280',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.background =
-                        'rgba(255,255,255,0.08)';
-                      e.currentTarget.style.color = '#9ca3af';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#6b7280';
-                    }}
-                  >
-                    <svg
-                      width='18'
-                      height='18'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      stroke='currentColor'
-                      strokeWidth='2'
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
+                <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {/* Split Button Container - group for shared hover state */}
+                  <div className='flex items-center rounded-[5px] transition-colors duration-150 hover:bg-[rgba(255,255,255,0.04)]'>
+                    {/* Main + Button (New Context) */}
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        // 默认创建裸 Table（不属于任何 Project）
+                        setTableDialogProjectId(null);
+                        setEditingTableId(null);
+                        setTableDialogMode('create');
+                      }}
+                      title='New Context'
+                      style={{
+                        width: 28,
+                        height: 28,
+                        background: 'transparent',
+                        border: 'none',
+                        borderTopLeftRadius: 5,
+                        borderBottomLeftRadius: 5,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#6b7280',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => {
+                        // 更明显的 hover
+                        e.currentTarget.style.background =
+                          'rgba(255,255,255,0.08)';
+                        e.currentTarget.style.color = '#EDEDED';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'transparent';
+                        // 恢复颜色时，如果父级 hover，保持稍微亮一点的颜色，或者回到默认
+                        e.currentTarget.style.color = '#6b7280';
+                      }}
                     >
-                      <line x1='12' y1='5' x2='12' y2='19' />
-                      <line x1='5' y1='12' x2='19' y2='12' />
-                    </svg>
-                  </button>
+                      <svg
+                        width='16'
+                        height='16'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                      >
+                        <line x1='12' y1='5' x2='12' y2='19' />
+                        <line x1='5' y1='12' x2='19' y2='12' />
+                      </svg>
+                    </button>
+
+                    {/* Dropdown Arrow - Wrapper for relative positioning */}
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          setHeaderDropdownOpen(!headerDropdownOpen);
+                        }}
+                        title='More creation options'
+                        style={{
+                          width: 14,
+                          height: 28,
+                          background: 'transparent',
+                          border: 'none',
+                          borderTopRightRadius: 5,
+                          borderBottomRightRadius: 5,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#6b7280',
+                          transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={e => {
+                          // 更明显的 hover
+                          e.currentTarget.style.background =
+                            'rgba(255,255,255,0.08)';
+                          e.currentTarget.style.color = '#EDEDED';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = '#6b7280';
+                        }}
+                      >
+                        {/* 缩小下拉箭头尺寸 */}
+                        <svg
+                          width='8'
+                          height='8'
+                          viewBox='0 0 12 12'
+                          fill='none'
+                          stroke='currentColor'
+                          strokeWidth='2'
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                        >
+                          <path d='M2 4L6 8L10 4' />
+                        </svg>
+                      </button>
+
+                      {/* Dropdown Menu */}
+                      {headerDropdownOpen && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0, // 改为左对齐
+                            marginTop: 4,
+                            background: '#1a1a1e',
+                            border: '1px solid #333',
+                            borderRadius: 6,
+                            padding: 4,
+                            zIndex: 50,
+                            minWidth: 140,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                          }}
+                        >
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setHeaderDropdownOpen(false);
+                              // Create Project
+                              setEditingProjectId(null);
+                              setProjectDialogMode('create');
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '6px 12px',
+                              background: 'transparent',
+                              border: 'none',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                              color: '#d4d4d4',
+                              fontSize: 13,
+                              textAlign: 'left',
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background =
+                                'rgba(255,255,255,0.05)';
+                              e.currentTarget.style.color = '#fff';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = 'transparent';
+                              e.currentTarget.style.color = '#d4d4d4';
+                            }}
+                          >
+                            {/* Project Icon - 与 ProjectItem 样式一致，带蓝色背景 */}
+                            <span
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 20,
+                                height: 20,
+                                borderRadius: 4,
+                                background: 'rgba(59, 130, 246, 0.15)',
+                                color: '#3b82f6',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <svg
+                                width='12'
+                                height='12'
+                                viewBox='0 0 14 14'
+                                fill='none'
+                              >
+                                <path
+                                  d='M7 0.5L1 3.5V10.5L7 13.5L13 10.5V3.5L7 0.5Z'
+                                  stroke='currentColor'
+                                  strokeWidth='1.2'
+                                  strokeLinejoin='round'
+                                />
+                                <path
+                                  d='M1 3.5L7 6.5L13 3.5'
+                                  stroke='currentColor'
+                                  strokeWidth='1.2'
+                                  strokeLinejoin='round'
+                                />
+                                <path
+                                  d='M7 6.5V13.5'
+                                  stroke='currentColor'
+                                  strokeWidth='1.2'
+                                  strokeLinejoin='round'
+                                />
+                              </svg>
+                            </span>
+                            New Project
+                          </button>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setHeaderDropdownOpen(false);
+                              // Create Context
+                              setTableDialogProjectId(null);
+                              setEditingTableId(null);
+                              setTableDialogMode('create');
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '6px 12px',
+                              background: 'transparent',
+                              border: 'none',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                              color: '#d4d4d4',
+                              fontSize: 13,
+                              textAlign: 'left',
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background =
+                                'rgba(255,255,255,0.05)';
+                              e.currentTarget.style.color = '#fff';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = 'transparent';
+                              e.currentTarget.style.color = '#d4d4d4';
+                            }}
+                          >
+                            {/* Table Icon - 宽度与 Project 图标容器一致以对齐 */}
+                            <span
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 20,
+                                height: 20,
+                                flexShrink: 0,
+                              }}
+                            >
+                              <svg
+                                width='14'
+                                height='14'
+                                viewBox='0 0 14 14'
+                                fill='none'
+                              >
+                                <rect
+                                  x='1.5'
+                                  y='1.5'
+                                  width='11'
+                                  height='11'
+                                  rx='1.5'
+                                  stroke='currentColor'
+                                  strokeWidth='1.2'
+                                />
+                                <line
+                                  x1='1.5'
+                                  y1='5'
+                                  x2='12.5'
+                                  y2='5'
+                                  stroke='currentColor'
+                                  strokeWidth='1.2'
+                                />
+                                <line
+                                  x1='5.5'
+                                  y1='5'
+                                  x2='5.5'
+                                  y2='12.5'
+                                  stroke='currentColor'
+                                  strokeWidth='1.2'
+                                />
+                              </svg>
+                            </span>
+                            New Context
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <button
                     onClick={() => setIsCollapsed(true)}
                     title='Collapse sidebar'
@@ -413,7 +648,7 @@ export default function ProjectsLayout({
                         </div>
                       ))}
                     </div>
-                  ) : projects.length === 0 ? (
+                  ) : projects.length === 0 && orphanTables.length === 0 ? (
                     <div
                       style={{
                         padding: '12px 6px',
@@ -422,44 +657,287 @@ export default function ProjectsLayout({
                         textAlign: 'center',
                       }}
                     >
-                      No projects yet
+                      No contexts yet
                     </div>
                   ) : (
-                    projects.map(project => (
-                      <ProjectItem
-                        key={project.id}
-                        project={project}
-                        isExpanded={expandedProjectIds.has(project.id)}
-                        activeTableId={activeTableId}
-                        processingTableIds={processingTableIds}
-                        onToggle={() => toggleProject(project.id)}
-                        onTableClick={handleTableClick}
-                        onCreateTable={() => {
-                          setTableDialogProjectId(project.id);
-                          setEditingTableId(null);
-                          setTableDialogOpen(true);
-                        }}
-                        onProjectContextMenu={e => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setProjectContextMenu({
-                            x: e.clientX,
-                            y: e.clientY,
-                            projectId: project.id,
-                          });
-                        }}
-                        onTableContextMenu={(e, tableId) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setTableContextMenu({
-                            x: e.clientX,
-                            y: e.clientY,
-                            projectId: project.id,
-                            tableId: String(tableId),
-                          });
-                        }}
-                      />
-                    ))
+                    <>
+                      {/* Projects */}
+                      {projects.map(project => (
+                        <ProjectItem
+                          key={project.id}
+                          project={project}
+                          isExpanded={expandedProjectIds.has(project.id)}
+                          activeTableId={activeTableId}
+                          processingTableIds={processingTableIds}
+                          onToggle={() => toggleProject(project.id)}
+                          onTableClick={handleTableClick}
+                          onCreateTable={() => {
+                            setTableDialogProjectId(project.id);
+                            setEditingTableId(null);
+                            setTableDialogMode('create');
+                          }}
+                          onProjectContextMenu={e => {
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            // Toggle: 如果当前菜单已为此 project 打开，则关闭
+                            if (projectContextMenu?.projectId === project.id) {
+                              setProjectContextMenu(null);
+                              return;
+                            }
+
+                            let x = e.clientX;
+                            let y = e.clientY;
+
+                            // 如果是点击事件（来自"..."按钮），则相对于按钮定位
+                            if (e.type === 'click') {
+                              const rect = (
+                                e.currentTarget as Element
+                              ).getBoundingClientRect();
+                              // 菜单在按钮下方，左对齐
+                              x = rect.left;
+                              y = rect.bottom + 6; // 加一点间距
+                            }
+
+                            setProjectContextMenu({
+                              x,
+                              y,
+                              projectId: project.id,
+                            });
+                          }}
+                          onTableContextMenu={(e, tableId) => {
+                            if (e.preventDefault) e.preventDefault();
+                            if (e.stopPropagation) e.stopPropagation();
+
+                            // Toggle: 如果当前菜单已为此 table 打开，则关闭
+                            if (tableContextMenu?.tableId === String(tableId)) {
+                              setTableContextMenu(null);
+                              return;
+                            }
+
+                            setTableContextMenu({
+                              x: e.clientX,
+                              y: e.clientY,
+                              projectId: project.id,
+                              tableId: String(tableId),
+                            });
+                          }}
+                        />
+                      ))}
+
+                      {/* Orphan Tables (不属于任何 Project) */}
+                      {orphanTables.length > 0 && (
+                        <>
+                          {/* Divider */}
+                          <div
+                            style={{
+                              height: 1,
+                              background: '#2a2a2a', // 调亮颜色，与 header border 一致
+                              margin: '12px 0 8px 0', // 移除左右 margin，实现贯穿
+                            }}
+                          />
+
+                          {orphanTables.map(table => (
+                            <div
+                              key={`orphan-${table.id}`}
+                              className='group' // 添加 group 类以支持 hover 控制
+                              onClick={() => handleTableClick('-', table.id)}
+                              onContextMenu={e => {
+                                e.preventDefault();
+                                e.stopPropagation();
+
+                                let x = e.clientX;
+                                let y = e.clientY;
+
+                                // 如果是点击事件（来自"..."按钮），则相对于按钮定位
+                                if (e.type === 'click') {
+                                  const rect = (
+                                    e.currentTarget as Element
+                                  ).getBoundingClientRect();
+                                  x = rect.left;
+                                  y = rect.bottom + 6;
+                                }
+
+                                setTableContextMenu({
+                                  x,
+                                  y,
+                                  projectId: '-',
+                                  tableId: table.id,
+                                });
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                height: 28, // 统一高度
+                                padding: '0 4px 0 6px', // 统一 padding
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                background:
+                                  activeTableId === table.id
+                                    ? '#2C2C2C' // 统一选中背景色
+                                    : 'transparent',
+                                transition: 'background 0.15s',
+                              }}
+                              onMouseEnter={e => {
+                                if (activeTableId !== table.id) {
+                                  e.currentTarget.style.background = '#2C2C2C'; // 统一 hover 背景色
+                                }
+                              }}
+                              onMouseLeave={e => {
+                                if (activeTableId !== table.id) {
+                                  e.currentTarget.style.background =
+                                    'transparent';
+                                }
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: 16,
+                                  height: 16,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <svg
+                                  width='14'
+                                  height='14'
+                                  viewBox='0 0 14 14'
+                                  fill='none'
+                                >
+                                  <rect
+                                    x='1.5'
+                                    y='1.5'
+                                    width='11'
+                                    height='11'
+                                    rx='1.5'
+                                    stroke={
+                                      activeTableId === table.id
+                                        ? '#CDCDCD'
+                                        : '#5D6065'
+                                    }
+                                    strokeWidth='1.2'
+                                  />
+                                  <line
+                                    x1='1.5'
+                                    y1='5'
+                                    x2='12.5'
+                                    y2='5'
+                                    stroke={
+                                      activeTableId === table.id
+                                        ? '#CDCDCD'
+                                        : '#5D6065'
+                                    }
+                                    strokeWidth='1.2'
+                                  />
+                                  <line
+                                    x1='5.5'
+                                    y1='5'
+                                    x2='5.5'
+                                    y2='12.5'
+                                    stroke={
+                                      activeTableId === table.id
+                                        ? '#CDCDCD'
+                                        : '#5D6065'
+                                    }
+                                    strokeWidth='1.2'
+                                  />
+                                </svg>
+                              </span>
+                              <span
+                                style={{
+                                  flex: 1,
+                                  fontSize: 13,
+                                  fontWeight:
+                                    activeTableId === table.id ? 500 : 400,
+                                  color:
+                                    activeTableId === table.id
+                                      ? '#FFFFFF'
+                                      : '#9B9B9B',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  transition: 'color 0.15s',
+                                }}
+                              >
+                                {table.name}
+                              </span>
+
+                              {/* More Options (...) */}
+                              <button
+                                type='button'
+                                title='More options'
+                                onClick={e => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+
+                                  // Toggle: 如果当前菜单已为此 table 打开，则关闭
+                                  if (tableContextMenu?.tableId === table.id) {
+                                    setTableContextMenu(null);
+                                    return;
+                                  }
+
+                                  const rect = (
+                                    e.currentTarget as Element
+                                  ).getBoundingClientRect();
+                                  setTableContextMenu({
+                                    x: rect.left,
+                                    y: rect.bottom + 6,
+                                    projectId: '-',
+                                    tableId: table.id,
+                                  });
+                                }}
+                                style={{
+                                  width: 26,
+                                  height: 26,
+                                  background: 'transparent',
+                                  border: 'none',
+                                  borderRadius: 4,
+                                  cursor: 'pointer',
+                                  display:
+                                    activeTableId === table.id
+                                      ? 'flex'
+                                      : 'none', // 选中时也显示
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#5D6065',
+                                  transition: 'all 0.15s',
+                                  flexShrink: 0,
+                                }}
+                                className='group-hover:flex' // 通过 CSS 类控制 hover 显示
+                                onMouseEnter={e => {
+                                  e.currentTarget.style.background =
+                                    'rgba(255,255,255,0.08)';
+                                  e.currentTarget.style.color = '#EDEDED';
+                                }}
+                                onMouseLeave={e => {
+                                  e.currentTarget.style.background =
+                                    'transparent';
+                                  e.currentTarget.style.color = '#5D6065';
+                                }}
+                              >
+                                <svg
+                                  width='14'
+                                  height='14'
+                                  viewBox='0 0 24 24'
+                                  fill='none'
+                                  stroke='currentColor'
+                                  strokeWidth='2'
+                                  strokeLinecap='round'
+                                  strokeLinejoin='round'
+                                >
+                                  <circle cx='12' cy='12' r='1' />
+                                  <circle cx='19' cy='12' r='1' />
+                                  <circle cx='5' cy='12' r='1' />
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -484,6 +962,54 @@ export default function ProjectsLayout({
                   onTableClick={handleTableClick}
                 />
               ))}
+              {/* Collapsed orphan tables - 放在最后 */}
+              {orphanTables.length > 0 && (
+                <>
+                  <div
+                    style={{
+                      width: '100%', // 确保宽度占满
+                      height: 1,
+                      background: '#2a2a2a', // 调亮颜色
+                      margin: '8px 0',
+                    }}
+                  />
+                  {orphanTables.map(table => (
+                    <div
+                      key={`orphan-${table.id}`}
+                      onClick={() => handleTableClick('-', table.id)}
+                      title={table.name}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 6,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        background:
+                          activeTableId === table.id
+                            ? 'rgba(255,255,255,0.15)'
+                            : 'transparent',
+                        color: activeTableId === table.id ? '#fff' : '#6b7280',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <svg
+                        width='16'
+                        height='16'
+                        viewBox='0 0 16 16'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='1.3'
+                      >
+                        <rect x='2' y='2' width='12' height='12' rx='2' />
+                        <line x1='2' y1='6' x2='14' y2='6' />
+                        <line x1='6' y1='6' x2='6' y2='14' />
+                      </svg>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
 
@@ -532,29 +1058,31 @@ export default function ProjectsLayout({
         </section>
       </div>
 
-      {projectDialogOpen && (
+      {projectDialogMode && (
         <ProjectManageDialog
+          mode={projectDialogMode}
           projectId={editingProjectId}
           projects={projects}
-          deleteMode={projectDialogDeleteMode}
           onClose={() => {
-            setProjectDialogOpen(false);
+            setProjectDialogMode(null);
             setEditingProjectId(null);
-            setProjectDialogDeleteMode(false);
           }}
+          onModeChange={setProjectDialogMode}
         />
       )}
 
-      {tableDialogOpen && tableDialogProjectId && (
+      {tableDialogMode && (
         <TableManageDialog
+          mode={tableDialogMode}
           projectId={tableDialogProjectId}
           tableId={editingTableId}
           projects={projects}
           onClose={() => {
-            setTableDialogOpen(false);
+            setTableDialogMode(null);
             setTableDialogProjectId(null);
             setEditingTableId(null);
           }}
+          onModeChange={setTableDialogMode}
         />
       )}
 
@@ -726,8 +1254,7 @@ export default function ProjectsLayout({
             onClick={e => {
               e.stopPropagation();
               setEditingProjectId(projectContextMenu.projectId);
-              setProjectDialogDeleteMode(false);
-              setProjectDialogOpen(true);
+              setProjectDialogMode('edit');
               setProjectContextMenu(null);
             }}
             style={{
@@ -779,8 +1306,7 @@ export default function ProjectsLayout({
             onClick={e => {
               e.stopPropagation();
               setEditingProjectId(projectContextMenu.projectId);
-              setProjectDialogDeleteMode(true);
-              setProjectDialogOpen(true);
+              setProjectDialogMode('delete');
               setProjectContextMenu(null);
             }}
             style={{
@@ -874,7 +1400,7 @@ function ProjectItem({
           transition: 'background 0.15s',
         }}
       >
-        {/* Folder Icon */}
+        {/* Toggle Icon Container */}
         <span
           style={{
             display: 'flex',
@@ -886,15 +1412,53 @@ function ProjectItem({
             background: 'rgba(59, 130, 246, 0.15)',
             color: '#3b82f6',
             flexShrink: 0,
+            transition: 'all 0.15s',
           }}
         >
-          <svg width='12' height='12' viewBox='0 0 14 14' fill='none'>
-            <path
-              d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
-              stroke='currentColor'
-              strokeWidth='1.2'
-            />
-          </svg>
+          {hovered ? (
+            // Chevron Icon (hover 时显示)
+            <svg
+              width='10'
+              height='10'
+              viewBox='0 0 12 12'
+              fill='none'
+              style={{
+                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                transition: 'transform 0.15s',
+              }}
+            >
+              <path
+                d='M4.5 2.5L8 6L4.5 9.5'
+                stroke='currentColor'
+                strokeWidth='1.5'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              />
+            </svg>
+          ) : (
+            // Box Icon (默认显示)
+            <svg width='12' height='12' viewBox='0 0 14 14' fill='none'>
+              {/* Box Icon - Cube Style */}
+              <path
+                d='M7 0.5L1 3.5V10.5L7 13.5L13 10.5V3.5L7 0.5Z'
+                stroke='currentColor'
+                strokeWidth='1.2'
+                strokeLinejoin='round'
+              />
+              <path
+                d='M1 3.5L7 6.5L13 3.5'
+                stroke='currentColor'
+                strokeWidth='1.2'
+                strokeLinejoin='round'
+              />
+              <path
+                d='M7 6.5V13.5'
+                stroke='currentColor'
+                strokeWidth='1.2'
+                strokeLinejoin='round'
+              />
+            </svg>
+          )}
         </span>
 
         {/* Name */}
@@ -914,6 +1478,54 @@ function ProjectItem({
         </span>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {/* More Options (...) */}
+          <button
+            type='button'
+            title='More options'
+            onClick={e => {
+              e.preventDefault();
+              e.stopPropagation();
+              onProjectContextMenu(e);
+            }}
+            style={{
+              width: 26, // 调整为与 + 按钮一致
+              height: 26, // 调整为与 + 按钮一致
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer',
+              display: hovered ? 'flex' : 'none',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: hovered ? '#9B9B9B' : '#5D6065',
+              transition: 'all 0.15s',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.color = '#EDEDED';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = hovered ? '#9B9B9B' : '#5D6065';
+            }}
+          >
+            <svg
+              width='14'
+              height='14'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <circle cx='12' cy='12' r='1' />
+              <circle cx='19' cy='12' r='1' />
+              <circle cx='5' cy='12' r='1' />
+            </svg>
+          </button>
+
           {/* + (new context) */}
           <button
             type='button'
@@ -960,28 +1572,6 @@ function ProjectItem({
               <line x1='5' y1='12' x2='19' y2='12' />
             </svg>
           </button>
-
-          {/* Chevron */}
-          <svg
-            width='10'
-            height='10'
-            viewBox='0 0 12 12'
-            fill='none'
-            style={{
-              color: hovered ? '#9B9B9B' : '#5D6065',
-              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-              transition: 'transform 0.15s, color 0.15s',
-              flexShrink: 0,
-            }}
-          >
-            <path
-              d='M4.5 2.5L8 6L4.5 9.5'
-              stroke='currentColor'
-              strokeWidth='1.2'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            />
-          </svg>
         </div>
       </div>
 
@@ -998,7 +1588,27 @@ function ProjectItem({
                 isActive={String(table.id) === String(activeTableId)}
                 isProcessing={isProcessing}
                 onClick={() => onTableClick(project.id, table.id)}
-                onContextMenu={e => onTableContextMenu(e, String(table.id))}
+                onContextMenu={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+
+                  let x = e.clientX;
+                  let y = e.clientY;
+
+                  // 如果是点击事件（来自"..."按钮），则相对于按钮定位
+                  if (e.type === 'click') {
+                    const rect = (
+                      e.currentTarget as Element
+                    ).getBoundingClientRect();
+                    x = rect.left;
+                    y = rect.bottom + 6;
+                  }
+
+                  onTableContextMenu(
+                    { ...e, clientX: x, clientY: y } as any,
+                    String(table.id)
+                  );
+                }}
               />
             );
           })}
@@ -1125,6 +1735,54 @@ function TableItem({
         {table.name}
       </span>
 
+      {/* More Options (...) */}
+      <button
+        type='button'
+        title='More options'
+        onClick={e => {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu(e);
+        }}
+        style={{
+          width: 26,
+          height: 26,
+          background: 'transparent',
+          border: 'none',
+          borderRadius: 4,
+          cursor: 'pointer',
+          display: hovered ? 'flex' : 'none',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: hovered ? '#9B9B9B' : '#5D6065',
+          transition: 'all 0.15s',
+          flexShrink: 0,
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+          e.currentTarget.style.color = '#EDEDED';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.color = hovered ? '#9B9B9B' : '#5D6065';
+        }}
+      >
+        <svg
+          width='14'
+          height='14'
+          viewBox='0 0 24 24'
+          fill='none'
+          stroke='currentColor'
+          strokeWidth='2'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+        >
+          <circle cx='12' cy='12' r='1' />
+          <circle cx='19' cy='12' r='1' />
+          <circle cx='5' cy='12' r='1' />
+        </svg>
+      </button>
+
       <style jsx>{`
         @keyframes spin {
           from {
@@ -1159,7 +1817,7 @@ function CollapsedProjectItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Project Icon */}
+      {/* Project Icon -> Box Icon */}
       <div
         style={{
           width: 28,
@@ -1179,10 +1837,24 @@ function CollapsedProjectItem({
         }}
       >
         <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+          {/* Box Icon - Cube Style */}
           <path
-            d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
+            d='M7 0.5L1 3.5V10.5L7 13.5L13 10.5V3.5L7 0.5Z'
             stroke='currentColor'
             strokeWidth='1.2'
+            strokeLinejoin='round'
+          />
+          <path
+            d='M1 3.5L7 6.5L13 3.5'
+            stroke='currentColor'
+            strokeWidth='1.2'
+            strokeLinejoin='round'
+          />
+          <path
+            d='M7 6.5V13.5'
+            stroke='currentColor'
+            strokeWidth='1.2'
+            strokeLinejoin='round'
           />
         </svg>
       </div>
@@ -1217,10 +1889,24 @@ function CollapsedProjectItem({
             }}
           >
             <svg width='12' height='12' viewBox='0 0 14 14' fill='none'>
+              {/* Box Icon - Cube Style */}
               <path
-                d='M1 4C1 3.44772 1.44772 3 2 3H5.17157C5.43679 3 5.69114 3.10536 5.87868 3.29289L6.70711 4.12132C6.89464 4.30886 7.149 4.41421 7.41421 4.41421H12C12.5523 4.41421 13 4.86193 13 5.41421V11C13 11.5523 12.5523 12 12 12H2C1.44772 12 1 11.5523 1 11V4Z'
+                d='M7 0.5L1 3.5V10.5L7 13.5L13 10.5V3.5L7 0.5Z'
                 stroke='currentColor'
                 strokeWidth='1.2'
+                strokeLinejoin='round'
+              />
+              <path
+                d='M1 3.5L7 6.5L13 3.5'
+                stroke='currentColor'
+                strokeWidth='1.2'
+                strokeLinejoin='round'
+              />
+              <path
+                d='M7 6.5V13.5'
+                stroke='currentColor'
+                strokeWidth='1.2'
+                strokeLinejoin='round'
               />
             </svg>
             <span>{project.name}</span>

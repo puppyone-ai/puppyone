@@ -7,5 +7,5 @@
  */
 
 export { default as JsonEditorComponent } from './JsonEditorComponent';
-export { default as TreeLineVirtualEditor } from './TreeLineVirtualEditor';
+// TreeLineVirtualEditor removed in favor of TreeLineDiscreteEditor (unified)
 export { default as TreeLineDiscreteEditor } from './TreeLineDiscreteEditor';

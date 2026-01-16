@@ -1,0 +1,40 @@
+# 自托管快速开始
+
+在你自己的基础设施上运行 PuppyOne。
+
+## 前置条件
+
+- Docker & Docker Compose
+- 至少 4GB 内存
+
+## 第一步：克隆仓库
+
+```bash
+git clone https://github.com/puppyone-ai/puppyone.git
+cd puppyone
+```
+
+## 第二步：配置环境变量
+
+```bash
+cp .env.example .env
+# 编辑 .env，填入你的 API 密钥
+```
+
+## 第三步：启动服务
+
+```bash
+docker-compose up -d
+```
+
+## 第四步：访问控制台
+
+在浏览器打开 `http://localhost:3000`。
+
+## 下一步
+
+- [核心概念](/zh/concepts)
+- [API 参考](/zh/api)
+
+
+
