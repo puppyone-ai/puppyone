@@ -119,9 +119,6 @@ json_received.json
 # Tree directories
 .tree/
 
-# Git worktrees
-.worktrees/
-
 # LLM documentation files
 *llms.txt
 *llms-full.txt
