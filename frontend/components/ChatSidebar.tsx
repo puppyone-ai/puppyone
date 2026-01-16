@@ -21,6 +21,8 @@ import {
   type MessagePart,
 } from '../lib/hooks/useChat';
 import { useMention } from '../lib/hooks/useMention';
+import { API_BASE_URL } from '../config/api';
+import { getApiAccessToken } from '../lib/apiClient';
 
 const MIN_CHAT_WIDTH = 280;
 const MAX_CHAT_WIDTH = 600;
@@ -54,6 +56,7 @@ interface ChatSidebarProps {
   contextData?: unknown;
   workingDirectory?: string;
   tableData?: unknown;
+  tableId?: number | string;
   onDataUpdate?: (newData: unknown) => void;
   // Access 配置 - 直接使用 accessPoints
   accessPoints?: AccessPoint[];
@@ -67,6 +70,7 @@ export function ChatSidebar({
   contextData,
   workingDirectory,
   tableData,
+  tableId,
   onDataUpdate,
   accessPoints = [],
 }: ChatSidebarProps) {
@@ -291,7 +295,7 @@ export function ChatSidebar({
     [currentSessionId]
   );
 
-  // 统一的发送函数 - 调用 /api/agent
+  // 统一的发送函数 - 调用后端 /api/v1/agents
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -395,14 +399,23 @@ export function ChatSidebar({
             : ('readonly' as const),
         }));
 
-      // 统一调用 /api/agent
-      const response = await fetch('/api/agent', {
+      const token = await getApiAccessToken();
+      const parsedTableId = tableId !== undefined ? Number(tableId) : NaN;
+      const tableIdValue = Number.isFinite(parsedTableId)
+        ? parsedTableId
+        : undefined;
+
+      // 统一调用后端 /api/v1/agents
+      const response = await fetch(`${API_BASE_URL}/api/v1/agents`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           prompt: currentInput,
           chatHistory, // 新增：历史消息
-          tableData, // 有数据时用 Bash 工具，无数据时用文件工具
+          ...(tableIdValue !== undefined ? { table_id: tableIdValue } : {}),
           workingDirectory,
           // 新增：传递 bash 权限配置
           bashAccessPoints,
@@ -558,6 +571,7 @@ export function ChatSidebar({
     isLoading,
     workingDirectory,
     tableData,
+    tableId,
     onDataUpdate,
     currentSessionId,
     messages.length,
