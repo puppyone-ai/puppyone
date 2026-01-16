@@ -751,7 +751,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
             </svg>
           </button>
           <span style={{ fontSize: 13, color: '#CDCDCD', fontWeight: 500 }}>
-            Connect
+            Integrations
           </span>
         </div>
 
@@ -772,26 +772,9 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
             {/* SaaS Platforms */}
             <div
               style={{
-                background: '#111111',
-                border: '1px solid #2a2a2a',
-                borderRadius: 8,
-                padding: 20,
                 marginBottom: 16,
               }}
             >
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: '#8B8B8B',
-                  marginBottom: 12,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                }}
-              >
-                Integrations
-              </div>
-
               <div
                 style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
               >
