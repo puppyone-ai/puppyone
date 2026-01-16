@@ -119,8 +119,8 @@ def get_current_user_optional(
     if settings.SKIP_AUTH:
         log_warning("SKIP_AUTH is enabled - returning mock test user")
         return CurrentUser(
-            user_id="13dbaab6-b173-4909-8355-6df5c6f31278",
-            email="1655929802@qq.com",
+            user_id="c389d596-e7c1-4fd7-900b-f760a0f1c89f",
+            email="cagurzhan@gmail.com",
             phone=None,
             role="authenticated",
             is_anonymous=False,

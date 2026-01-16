@@ -10,6 +10,23 @@ class Settings(BaseSettings):
         env_file=".env", case_sensitive=True, extra="ignore", env_file_encoding="utf-8"
     )
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        # 让项目级 .env 优先生效，覆盖全局环境变量
+        return (
+            init_settings,
+            dotenv_settings,
+            env_settings,
+            file_secret_settings,
+        )
+
     # 服务配置
     APP_NAME: str = "ContextBase"
     DEBUG: bool = True
@@ -25,6 +42,11 @@ class Settings(BaseSettings):
     # JWT配置
     JWT_SECRET: str = "ContextBase-256-bit-secret"
     JWT_ALGORITHM: str = "HS256"
+
+    # Anthropic 配置
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_BASE_URL: str = ""
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-5-20250929"
 
     # 测试配置
     SKIP_AUTH: bool = False  # 是否跳过鉴权（仅用于测试环境）

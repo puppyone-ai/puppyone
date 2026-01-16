@@ -6,6 +6,7 @@ import time
 from typing import Any, AsyncGenerator, Iterable
 
 from src.agent.schemas import AgentRequest
+from src.config import settings
 
 BASH_TOOL = {"type": "bash_20250124", "name": "bash"}
 FILE_TOOLS = [
@@ -135,9 +136,7 @@ class AgentService:
         while iterations < max_iterations:
             iterations += 1
             response = await self._anthropic.messages.create(
-                model=os.getenv(
-                    "ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"
-                ),
+                model=settings.ANTHROPIC_MODEL,
                 max_tokens=4096,
                 system=system_prompt,
                 tools=tools,
@@ -367,7 +366,9 @@ def _deep_copy_json(data):
 def _default_anthropic_client():
     from anthropic import AsyncAnthropic
 
-    return AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    api_key = settings.ANTHROPIC_API_KEY or None
+    base_url = settings.ANTHROPIC_BASE_URL or None
+    return AsyncAnthropic(api_key=api_key, base_url=base_url)
 
 
 def _get_attr(obj, name: str, default=None):

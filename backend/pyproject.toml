@@ -33,6 +33,9 @@ dependencies = [
     "turbopuffer>=1.12.0",
     "aiohttp>=3.13.2",
     "aiohappyeyeballs>=2.6.1",
+    "anthropic>=0.76.0",
+    "e2b-code-interpreter>=2.4.1",
+    "rich>=14.2.0",
 ]
 
 [tool.pytest.ini_options]

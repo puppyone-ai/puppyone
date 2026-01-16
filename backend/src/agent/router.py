@@ -1,7 +1,5 @@
 import json
-from fastapi import APIRouter, Request, Depends
-from fastapi.responses import JSONResponse
-from src.common_schemas import ApiResponse
+from fastapi import APIRouter, Depends
 from src.agent.schemas import AgentRequest
 from src.agent.dependencies import get_agent_service
 from src.sandbox.dependencies import get_sandbox_service
@@ -32,19 +30,11 @@ router = APIRouter(
     response_class=StreamingResponse,
 )
 async def create_agent_session(
-    request: Request,
+    agent_request: AgentRequest,
     current_user=Depends(_get_current_user_optional),
     agent_service=Depends(get_agent_service),
     sandbox_service=Depends(get_sandbox_service),
 ):
-    payload = await request.json()
-    prompt = payload.get("prompt") if isinstance(payload, dict) else None
-    if not prompt:
-        return JSONResponse(
-            status_code=400,
-            content=ApiResponse.error(code=400, message="Missing prompt").model_dump(),
-        )
-    agent_request = AgentRequest(**payload)
     async def event_stream():
         try:
             table_service = None
