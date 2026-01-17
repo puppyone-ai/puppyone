@@ -34,20 +34,10 @@ export function ProjectWorkspaceView({
     error,
   } = useTable(projectId, validTableId);
 
-  // 2. 数据处理
+  // 2. 数据处理 - 直接使用原始数据，不做任何转换
   const tableData = useMemo(() => {
     if (!rawTableData?.data) return undefined;
-    let data = rawTableData.data as any;
-    // 兼容处理：如果最外层包裹了数组且只有一个对象，取出来
-    if (
-      Array.isArray(data) &&
-      data.length === 1 &&
-      typeof data[0] === 'object' &&
-      !Array.isArray(data[0])
-    ) {
-      data = data[0];
-    }
-    return data as ProjectTableJSON;
+    return rawTableData.data as ProjectTableJSON;
   }, [rawTableData]);
 
   // 3. 本地状态
@@ -77,13 +67,11 @@ export function ProjectWorkspaceView({
 
       setIsSaving(true);
       try {
-        // 确保数据是数组格式 (兼容后端要求)
-        const dataToSave = Array.isArray(newData) ? newData : [newData];
-        await updateTableData(projectId, validTableId, dataToSave);
+        // 直接保存原始数据，不做任何转换
+        await updateTableData(projectId, validTableId, newData);
         console.log('[AutoSave] Saved successfully');
       } catch (err) {
         console.error('[AutoSave] Failed:', err);
-        // 这里后续可以对接全局 Toast 报错
       } finally {
         setIsSaving(false);
       }

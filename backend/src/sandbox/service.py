@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import asyncio
 import inspect
 import json
+import os
 from typing import Any, Callable, Optional
 
 
@@ -26,7 +27,21 @@ class SandboxService:
             return {"success": False, "error": "data is required"}
         await self.stop(session_id)
         # Create a fresh sandbox instance for this session.
-        sandbox = await _call_maybe_async(self._sandbox_factory)
+        try:
+            sandbox = await _call_maybe_async(self._sandbox_factory)
+        except Exception as e:
+            msg = str(e)
+            # e2b-code-interpreter 会在未配置认证信息时抛出该类错误：
+            # "Could not resolve authentication method. Expected either api_key or auth_token ..."
+            if "Could not resolve authentication method" in msg:
+                hint = (
+                    "E2B sandbox auth is not configured.\n"
+                    "- Set `E2B_API_KEY` in `backend/.env` (or export it) and restart the backend, OR\n"
+                    "- Disable bash access in the chat access points (shell_access / shell_access_readonly).\n"
+                    f"- Detected E2B_API_KEY={'set' if os.getenv('E2B_API_KEY') else 'missing'}"
+                )
+                msg = f"{hint}\nOriginal error: {msg}"
+            return {"success": False, "error": msg}
         # Persist JSON data so bash tools can operate on it.
         payload = json.dumps(data, ensure_ascii=False, indent=2)
         await _call_maybe_async(sandbox.files.write, "/workspace/data.json", payload)

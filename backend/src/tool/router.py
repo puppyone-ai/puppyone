@@ -70,6 +70,23 @@ def list_tools_by_table_id(
     return ApiResponse.success(data=tools, message="获取 Tool 列表成功")
 
 
+@router.get(
+    "/by-project/{project_id}",
+    response_model=ApiResponse[List[ToolOut]],
+    summary="获取某个 project_id 下的 Tool 列表（聚合所有 tables）",
+    status_code=status.HTTP_200_OK,
+)
+def list_tools_by_project_id(
+    project_id: int,
+    tool_service: ToolService = Depends(get_tool_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    tools = tool_service.list_user_tools_by_project_id(
+        current_user.user_id, project_id=int(project_id)
+    )
+    return ApiResponse.success(data=tools, message="获取 Tool 列表成功")
+
+
 @router.post(
     "/",
     response_model=ApiResponse[ToolOut],

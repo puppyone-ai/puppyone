@@ -340,6 +340,13 @@ export async function getToolsByTableId(
 }
 
 /**
+ * 获取指定 project 下的所有 Tool（聚合所有 tables）
+ */
+export async function getToolsByProjectId(projectId: number): Promise<Tool[]> {
+  return get<Tool[]>(`/api/v1/tools/by-project/${projectId}`);
+}
+
+/**
  * 获取单个 Tool
  */
 export async function getTool(toolId: number): Promise<Tool> {

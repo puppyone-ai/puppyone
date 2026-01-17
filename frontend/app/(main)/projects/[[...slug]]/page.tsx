@@ -9,6 +9,8 @@ import {
   useTableTools,
   refreshTableTools,
   useTable,
+  useProjectTools,
+  refreshProjectTools,
 } from '@/lib/hooks/useData';
 import { ProjectWorkspaceView } from '@/components/ProjectWorkspaceView';
 import { OnboardingView } from '@/components/OnboardingView';
@@ -27,7 +29,13 @@ interface EditorTarget {
 }
 
 // MCP Tools imports
-import { type McpToolPermissions } from '@/lib/mcpApi';
+import {
+  createTool,
+  deleteTool,
+  type McpToolPermissions,
+  type McpToolType,
+  type Tool,
+} from '@/lib/mcpApi';
 
 // AccessPoint was imported from ToolsPanel, need to define or import it correctly if it's not in mcpApi.
 // Checking previous file content, it seems AccessPoint interface was exported from ToolsPanel.
@@ -63,6 +71,10 @@ export default function ProjectsSlugPage({
   // 获取当前 table 的 Tools（用于 sidebar 显示）
   const { tools: tableTools, isLoading: toolsLoading } = useTableTools(
     activeTableId || tableId
+  );
+  // 获取当前 project 下的所有 Tools（用于 ChatSidebar 项目级展示）
+  const { tools: projectTools } = useProjectTools(
+    !isOrphanTable ? (activeBaseId || projectId) : undefined
   );
   // 获取当前 table 的数据（用于 ChatSidebar）
   const { tableData: currentTableData, refresh: refreshTable } = useTable(
@@ -117,6 +129,94 @@ export default function ProjectsSlugPage({
     lastSyncedTableId.current = currentTableId;
   }, [activeTableId, tableId, toolsLoading, tableTools]);
 
+  const TOOL_TYPES: McpToolType[] = [
+    'shell_access',
+    'shell_access_readonly',
+    'query_data',
+    'get_all_data',
+    'create',
+    'update',
+    'delete',
+  ];
+
+  function normalizeJsonPath(p: string) {
+    if (!p || p === '/') return '';
+    return p;
+  }
+
+  async function syncToolsForPath(params: {
+    tableId: number;
+    path: string;
+    permissions: McpToolPermissions;
+    existingTools: Tool[];
+  }) {
+    const { tableId, path, permissions, existingTools } = params;
+    const jsonPath = normalizeJsonPath(path);
+
+    // group existing tools by type at this scope
+    const byType = new Map<string, Tool>();
+    for (const t of existingTools) {
+      if (t.table_id !== tableId) continue;
+      if ((t.json_path || '') !== jsonPath) continue;
+      byType.set(t.type, t);
+    }
+
+    // Desired: one row per enabled type
+    // Note: bash mutual-exclusion is handled in UI, but we keep it safe here too.
+    const wantShellReadonly = !!(permissions as any)?.shell_access_readonly;
+    const wantShellFull = !!(permissions as any)?.shell_access;
+    const effectivePermissions: Record<string, boolean> = { ...(permissions as any) };
+    if (wantShellReadonly) effectivePermissions['shell_access'] = false;
+    if (wantShellFull) effectivePermissions['shell_access_readonly'] = false;
+
+    // 先删除不需要的工具（包括互斥的 bash 类型）
+    const toDelete: number[] = [];
+    const toCreate: string[] = [];
+
+    for (const type of TOOL_TYPES) {
+      const enabled = !!effectivePermissions[type];
+      const existing = byType.get(type);
+
+      if (!enabled && existing) {
+        toDelete.push(existing.id);
+      }
+      if (enabled && !existing) {
+        toCreate.push(type);
+      }
+    }
+
+    // 先执行删除（确保互斥的 bash 类型被先删除）
+    for (const id of toDelete) {
+      await deleteTool(id);
+    }
+
+    // 再执行创建
+    for (const type of toCreate) {
+      await createTool({
+        table_id: tableId,
+        json_path: jsonPath,
+        type,
+        name: `${type}_${tableId}_${jsonPath ? jsonPath.replaceAll('/', '_') : 'root'}`,
+        description: undefined,
+      });
+    }
+  }
+
+  async function deleteAllToolsForPath(params: {
+    tableId: number;
+    path: string;
+    existingTools: Tool[];
+  }) {
+    const { tableId, path, existingTools } = params;
+    const jsonPath = normalizeJsonPath(path);
+    const toDelete = existingTools.filter(
+      t => t.table_id === tableId && (t.json_path || '') === jsonPath
+    );
+    for (const t of toDelete) {
+      await deleteTool(t.id);
+    }
+  }
+
   // 5. 计算当前上下文
   const activeBase = useMemo(
     () =>
@@ -157,6 +257,22 @@ export default function ProjectsSlugPage({
       permissions: ap.permissions,
     }));
   }, [accessPoints]);
+
+  const tableNameById = useMemo(() => {
+    const map: Record<number, string> = {};
+    if (activeBase?.tables) {
+      activeBase.tables.forEach(t => {
+        const idNum = Number(t.id);
+        if (Number.isFinite(idNum)) map[idNum] = t.name;
+      });
+    }
+    // orphan table
+    if (currentTableData?.id && currentTableData?.name) {
+      const idNum = Number(currentTableData.id);
+      if (Number.isFinite(idNum)) map[idNum] = currentTableData.name;
+    }
+    return map;
+  }, [activeBase?.tables, currentTableData?.id, currentTableData?.name]);
 
   // 8. 渲染
   // 使用显式的背景色块布局，确保容器撑开
@@ -279,11 +395,44 @@ export default function ProjectsSlugPage({
                       }
                       return prev;
                     });
+
+                    // Persist to backend (best-effort, async)
+                    const currentTableId = Number(activeTableId || tableId);
+                    if (Number.isFinite(currentTableId)) {
+                      syncToolsForPath({
+                        tableId: currentTableId,
+                        path,
+                        permissions,
+                        existingTools: tableTools as any,
+                      })
+                        .then(() => {
+                          refreshTableTools(String(currentTableId));
+                          // 同步刷新 project tools，保证 ChatSidebar 菜单立刻看到最新配置
+                          refreshProjectTools(activeBaseId || projectId);
+                        })
+                        .catch(err => console.error('Failed to persist tools:', err));
+                    }
                   }}
                   onAccessPointRemove={(path: string) => {
                     setAccessPoints(prev =>
                       prev.filter(ap => ap.path !== path)
                     );
+
+                    const currentTableId = Number(activeTableId || tableId);
+                    if (Number.isFinite(currentTableId)) {
+                      deleteAllToolsForPath({
+                        tableId: currentTableId,
+                        path,
+                        existingTools: tableTools as any,
+                      })
+                        .then(() => {
+                          refreshTableTools(String(currentTableId));
+                          refreshProjectTools(activeBaseId || projectId);
+                        })
+                        .catch(err =>
+                          console.error('Failed to remove tools for path:', err)
+                        );
+                    }
                   }}
                   onOpenDocument={(path: string, value: string) => {
                     setEditorTarget({ path, value });
@@ -334,10 +483,13 @@ export default function ProjectsSlugPage({
         onChatWidthChange={setChatWidth}
         tableData={currentTableData?.data}
         tableId={activeTableId || tableId}
+        projectId={!isOrphanTable ? activeBase?.id ?? null : null}
         onDataUpdate={async () => {
           refreshTable();
         }}
         accessPoints={accessPoints}
+        projectTools={!isOrphanTable ? projectTools : tableTools}
+        tableNameById={tableNameById}
       />
     </div>
   );

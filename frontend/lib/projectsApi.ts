@@ -21,7 +21,7 @@ export type TableData = {
   id: string;
   name: string;
   rows: number;
-  data: Array<Record<string, any>>;
+  data: any; // 任意 JSON 数据（对象、数组、字符串、数字等）
 };
 
 // 项目相关API
@@ -90,7 +90,7 @@ export async function getTable(
     id: String(result.id),
     name: result.name || '',
     rows,
-    data: data ?? [],
+    data: data ?? null,
   };
 }
 
@@ -136,7 +136,7 @@ export async function createTable(
     id: String(result.id),
     name: result.name || '',
     rows,
-    data: tableData ?? [],
+    data: tableData ?? null,
   };
 }
 
@@ -172,7 +172,7 @@ export async function updateTable(
     id: String(result.id),
     name: result.name || '',
     rows,
-    data: data ?? [],
+    data: data ?? null,
   };
 }
 
@@ -189,7 +189,7 @@ export async function deleteTable(
 export async function updateTableData(
   projectId: string,
   tableId: string,
-  data: Array<Record<string, any>>
+  data: any // 任意 JSON 数据
 ): Promise<TableData> {
   // projectId 参数保留以兼容调用方
   // 使用 PUT /tables/{id} 更新整个 data 字段
@@ -219,7 +219,7 @@ export async function updateTableData(
     id: String(result.id),
     name: result.name || '',
     rows,
-    data: tableData ?? [],
+    data: tableData ?? null,
   };
 }
 

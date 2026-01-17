@@ -10,12 +10,8 @@ import ChatInputArea, {
 import {
   useChatSessions,
   useChatMessages,
-  createSession,
   deleteSession,
-  addUserMessage,
-  addAssistantMessage,
-  updateAssistantMessage,
-  autoSetSessionTitle,
+  refreshChatSessions,
   refreshChatMessages,
   type ChatSession,
   type MessagePart,
@@ -39,7 +35,7 @@ interface Message {
   isStreaming?: boolean;
 }
 
-import { type McpToolPermissions } from '../lib/mcpApi';
+import { type McpToolPermissions, type Tool as DbTool } from '../lib/mcpApi';
 
 // AccessPoint 类型（从 ToolsPanel 复用）
 interface AccessPoint {
@@ -57,9 +53,13 @@ interface ChatSidebarProps {
   workingDirectory?: string;
   tableData?: unknown;
   tableId?: number | string;
+  projectId?: number | string;
   onDataUpdate?: (newData: unknown) => void;
   // Access 配置 - 直接使用 accessPoints
   accessPoints?: AccessPoint[];
+  // 项目级 tools（聚合所有 tables）——用于 ChatSidebar 展示/选择
+  projectTools?: DbTool[];
+  tableNameById?: Record<number, string>;
 }
 
 export function ChatSidebar({
@@ -71,8 +71,11 @@ export function ChatSidebar({
   workingDirectory,
   tableData,
   tableId,
+  projectId,
   onDataUpdate,
   accessPoints = [],
+  projectTools,
+  tableNameById,
 }: ChatSidebarProps) {
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -89,8 +92,9 @@ export function ChatSidebar({
     shell_access_readonly: 'Bash (Read-only)',
   };
 
-  // 展开 accessPoints 为工具列表
+  // 展开 accessPoints / projectTools 为工具列表
   const availableTools: AccessOption[] = [];
+  const optionIdToTool = new Map<string, DbTool>();
   const allToolTypes = [
     'shell_access',
     'shell_access_readonly', // 新增
@@ -101,23 +105,48 @@ export function ChatSidebar({
     'delete',
   ] as const;
 
-  accessPoints.forEach(ap => {
-    allToolTypes.forEach(toolType => {
-      // @ts-ignore - 忽略类型检查，因为 shell_access_readonly 可能不在 AccessPoint 定义里完全匹配
-      if (ap.permissions[toolType]) {
-        availableTools.push({
-          id: `${ap.id}-${toolType}`, // 唯一 ID
-          label: toolTypeLabels[toolType] || toolType,
-          type:
-            toolType === 'shell_access' || toolType === 'shell_access_readonly'
-              ? ('bash' as const)
-              : ('tool' as const),
-        });
-      }
+  if (projectTools && projectTools.length > 0) {
+    // 项目级：直接使用 DB tools 列表
+    for (const t of projectTools) {
+      const type = (t.type || '').trim();
+      const isBash = type === 'shell_access' || type === 'shell_access_readonly';
+      const tid = typeof t.table_id === 'number' ? t.table_id : null;
+      const tableName =
+        tid && tableNameById?.[tid] ? tableNameById[tid] : tid ? `Table ${tid}` : 'Table';
+      const scopePath = (t.json_path || '').trim() || 'root';
+      const labelBase = toolTypeLabels[type] || type || 'tool';
+      const label = `${tableName} · ${labelBase} · ${scopePath}`;
+      const optionId = `tool:${t.id}`;
+      availableTools.push({
+        id: optionId,
+        label,
+        type: isBash ? ('bash' as const) : ('tool' as const),
+        tableId: tid ?? undefined,
+        tableName: tableName,
+      });
+      optionIdToTool.set(optionId, t);
+    }
+  } else {
+    // 兼容旧逻辑：从 accessPoints 推导
+    accessPoints.forEach(ap => {
+      allToolTypes.forEach(toolType => {
+        // @ts-ignore - 忽略类型检查，因为 shell_access_readonly 可能不在 AccessPoint 定义里完全匹配
+        if (ap.permissions[toolType]) {
+          availableTools.push({
+            id: `${ap.id}-${toolType}`, // 唯一 ID
+            label: toolTypeLabels[toolType] || toolType,
+            type:
+              toolType === 'shell_access' || toolType === 'shell_access_readonly'
+                ? ('bash' as const)
+                : ('tool' as const),
+          });
+        }
+      });
     });
-  });
+  }
   const [isResizing, setIsResizing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedAccess, setSelectedAccess] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -137,9 +166,6 @@ export function ChatSidebar({
   // 数据库相关状态
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  const [currentAssistantMsgId, setCurrentAssistantMsgId] = useState<
-    string | null
-  >(null);
   const historyMenuRef = useRef<HTMLDivElement>(null);
 
   // @ 提及补全 Hook
@@ -259,17 +285,10 @@ export function ChatSidebar({
 
   // 新建会话
   const handleNewChat = useCallback(async () => {
-    try {
-      const session = await createSession({ mode: 'agent' });
-      setCurrentSessionId(session.id);
-      setMessages([]);
-      setShowHistory(false);
-    } catch (err) {
-      console.error('Failed to create session:', err);
-      // 降级：不创建数据库会话，只清空本地
-      setCurrentSessionId(null);
-      setMessages([]);
-    }
+    // 服务端会在第一次发送消息时创建会话并持久化
+    setCurrentSessionId(null);
+    setMessages([]);
+    setShowHistory(false);
   }, []);
 
   // 选择历史会话
@@ -303,18 +322,6 @@ export function ChatSidebar({
     setInputValue('');
     setIsLoading(true);
 
-    // 确保有会话
-    let sessionId = currentSessionId;
-    if (!sessionId) {
-      try {
-        const session = await createSession({ mode: 'agent' });
-        sessionId = session.id;
-        setCurrentSessionId(sessionId);
-      } catch (err) {
-        console.error('Failed to create session:', err);
-      }
-    }
-
     // 添加用户消息
     const userMessage: Message = {
       role: 'user',
@@ -322,30 +329,6 @@ export function ChatSidebar({
       timestamp: new Date(),
     };
     setMessages(prev => [...prev, userMessage]);
-
-    // 保存用户消息到数据库
-    if (sessionId) {
-      try {
-        await addUserMessage(sessionId, currentInput);
-        if (messages.length === 0) {
-          await autoSetSessionTitle(sessionId, currentInput);
-        }
-      } catch (err) {
-        console.error('Failed to save user message:', err);
-      }
-    }
-
-    // 创建数据库中的 assistant 消息
-    let assistantMsgId: string | null = null;
-    if (sessionId) {
-      try {
-        const msg = await addAssistantMessage(sessionId);
-        assistantMsgId = msg.id;
-        setCurrentAssistantMsgId(assistantMsgId);
-      } catch (err) {
-        console.error('Failed to create assistant message:', err);
-      }
-    }
 
     if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
@@ -364,6 +347,7 @@ export function ChatSidebar({
 
     let finalParts: MessagePart[] = [];
     let finalContent = '';
+    let effectiveSessionId: string | null = currentSessionId;
 
     try {
       // 构建聊天历史（提取文本内容）
@@ -385,27 +369,22 @@ export function ChatSidebar({
         })
         .filter(m => m.content); // 过滤空消息
 
-      // 从 accessPoints 提取 bash 权限配置
-      // 找到配置了 shell_access 或 shell_access_readonly 的节点
-      const bashAccessPoints = accessPoints
-        .filter(ap => {
-          const perms = ap.permissions as Record<string, boolean>;
-          return perms['shell_access'] || perms['shell_access_readonly'];
-        })
-        .map(ap => ({
-          path: ap.path,
-          mode: (ap.permissions as Record<string, boolean>)['shell_access']
-            ? ('full' as const)
-            : ('readonly' as const),
-        }));
+      // ========== 简化版：只传 tool IDs ==========
+      // 从 selectedAccess 中提取数字 ID（格式是 "tool:35" -> 35）
+      const activeToolIds: number[] = [];
+      for (const optionId of selectedAccess) {
+        // optionId 格式是 "tool:35"
+        const match = optionId.match(/^tool:(\d+)$/);
+        if (match) {
+          activeToolIds.push(parseInt(match[1], 10));
+        }
+      }
+      
+      console.log('[ChatSidebar] Sending active_tool_ids:', activeToolIds);
 
       const token = await getApiAccessToken();
-      const parsedTableId = tableId !== undefined ? Number(tableId) : NaN;
-      const tableIdValue = Number.isFinite(parsedTableId)
-        ? parsedTableId
-        : undefined;
 
-      // 统一调用后端 /api/v1/agents
+      // 统一调用后端 /api/v1/agents - 只传 active_tool_ids
       const response = await fetch(`${API_BASE_URL}/api/v1/agents`, {
         method: 'POST',
         headers: {
@@ -414,11 +393,9 @@ export function ChatSidebar({
         },
         body: JSON.stringify({
           prompt: currentInput,
-          chatHistory, // 新增：历史消息
-          ...(tableIdValue !== undefined ? { table_id: tableIdValue } : {}),
-          workingDirectory,
-          // 新增：传递 bash 权限配置
-          bashAccessPoints,
+          session_id: effectiveSessionId,
+          chatHistory,
+          active_tool_ids: activeToolIds.length > 0 ? activeToolIds : undefined,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -445,6 +422,19 @@ export function ChatSidebar({
 
           try {
             const event = JSON.parse(data);
+
+            // session 事件：后端创建新会话后回传 sessionId
+            if (event.type === 'session') {
+              if (event.sessionId && typeof event.sessionId === 'string') {
+                effectiveSessionId = event.sessionId;
+                // 防止 sessionId 切换触发 useEffect 清空本地消息（本次对话仍是同一条流）
+                prevSessionIdRef.current = event.sessionId;
+                hasLoadedForSessionRef.current = event.sessionId;
+                setCurrentSessionId(event.sessionId);
+                refreshChatSessions();
+              }
+              continue;
+            }
 
             setMessages(prev => {
               const newMessages = [...prev];
@@ -524,20 +514,10 @@ export function ChatSidebar({
         return newMessages;
       });
 
-      // 保存 assistant 消息到数据库，然后刷新 SWR 缓存
-      if (assistantMsgId && currentSessionId) {
-        try {
-          await updateAssistantMessage(
-            assistantMsgId,
-            finalContent,
-            finalParts
-          );
-          // 注意：我们只在后台刷新 SWR 缓存，但不让它触发上面的 useEffect
-          // hasLoadedForSessionRef 会阻止 useEffect 覆盖本地状态
-          refreshChatMessages(currentSessionId);
-        } catch (err) {
-          console.error('Failed to save assistant message:', err);
-        }
+      // 后端会负责持久化；这里仅刷新 SWR 缓存供历史列表/切换会话使用
+      if (effectiveSessionId) {
+        refreshChatMessages(effectiveSessionId);
+        refreshChatSessions();
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
@@ -563,7 +543,6 @@ export function ChatSidebar({
       });
     } finally {
       setIsLoading(false);
-      setCurrentAssistantMsgId(null);
       abortControllerRef.current = null;
     }
   }, [
@@ -575,6 +554,9 @@ export function ChatSidebar({
     onDataUpdate,
     currentSessionId,
     messages.length,
+    selectedAccess,
+    projectId,
+    projectTools?.length,
   ]);
 
   const handleStop = useCallback(() => {
@@ -1207,6 +1189,9 @@ export function ChatSidebar({
         onMentionIndexChange={mention.setMentionIndex}
         onBlur={() => setTimeout(() => mention.closeMentionMenu(), 150)}
         availableTools={availableTools}
+        selectedAccess={selectedAccess}
+        onAccessChange={setSelectedAccess}
+        currentTableId={tableId ? Number(tableId) : undefined}
       />
 
       <style jsx global>{`

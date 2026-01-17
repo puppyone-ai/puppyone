@@ -129,6 +129,15 @@ class ToolService:
         # 强校验：table 必须属于当前用户
         self.table_service.get_by_id_with_access_check(table_id, user_id)
 
+        # 约束：同一 scope（user_id + table_id + json_path）下，Bash 只能配置一个（rw/ro 二选一）
+        self._assert_bash_unique_in_scope(
+            user_id=user_id,
+            table_id=int(table_id),
+            json_path=json_path,
+            tool_type=str(type or ""),
+            exclude_tool_id=None,
+        )
+
         # 默认工具描述：当未传 description（或仅空白）时，根据 type 自动填充默认值
         if description is None or not str(description).strip():
             description = _get_default_tool_description(str(type))
@@ -161,6 +170,23 @@ class ToolService:
         if table_id is not None:
             self.table_service.get_by_id_with_access_check(int(table_id), user_id)
 
+        # 约束：如果更新后 tool 变为 Bash（或仍为 Bash），确保同 scope 仍然只有一个 bash
+        next_table_id = int(table_id) if table_id is not None else int(existing.table_id or 0)
+        next_json_path = patch.get("json_path")
+        if next_json_path is None:
+            next_json_path = existing.json_path or ""
+        next_type = patch.get("type")
+        if next_type is None:
+            next_type = existing.type or ""
+
+        self._assert_bash_unique_in_scope(
+            user_id=user_id,
+            table_id=int(next_table_id) if next_table_id else 0,
+            json_path=str(next_json_path or ""),
+            tool_type=str(next_type or ""),
+            exclude_tool_id=int(tool_id),
+        )
+
         updated = self.repo.update(
             tool_id,
             SbToolUpdate(
@@ -191,6 +217,70 @@ class ToolService:
         self._invalidate_bound_mcps(tool_id)
 
         return updated
+
+    def list_user_tools_by_project_id(
+        self,
+        user_id: str,
+        *,
+        project_id: int,
+        limit_per_table: int = 1000,
+    ) -> List[Tool]:
+        """
+        项目级聚合：返回该 project 下所有 table 的 tools（包含 shell_access*）。
+        """
+        if not self.table_service.verify_project_access(int(project_id), user_id):
+            raise NotFoundException(
+                f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
+            )
+        tables = self._sb.get_tables(project_id=int(project_id), limit=1000)
+        out: list[Tool] = []
+        for t in tables:
+            table_id = int(getattr(t, "id", 0) or 0)
+            if not table_id:
+                continue
+            out.extend(
+                self.repo.get_by_user_id(
+                    user_id, table_id=table_id, skip=0, limit=int(limit_per_table)
+                )
+            )
+        return out
+
+    def _assert_bash_unique_in_scope(
+        self,
+        *,
+        user_id: str,
+        table_id: int,
+        json_path: str,
+        tool_type: str,
+        exclude_tool_id: Optional[int],
+    ) -> None:
+        """
+        规则：
+        - 同一 scope（user_id + table_id + json_path）下，Bash 只能配置一条
+          （type in {'shell_access','shell_access_readonly'} 二选一）。
+        """
+        bash_types = {"shell_access", "shell_access_readonly"}
+        tool_type = (tool_type or "").strip()
+        if tool_type not in bash_types:
+            return
+        if not table_id:
+            return
+        scope_path = (json_path or "").strip()  # 保持与现有存储一致：空字符串表示根
+
+        # 读取该 table 下所有 tools（同 user），再在内存中过滤 scope + bash types
+        siblings = self.repo.get_by_user_id(user_id, table_id=int(table_id), skip=0, limit=2000)
+        for sib in siblings:
+            if exclude_tool_id is not None and int(sib.id) == int(exclude_tool_id):
+                continue
+            if (sib.type or "").strip() not in bash_types:
+                continue
+            if (sib.json_path or "").strip() != scope_path:
+                continue
+            raise BusinessException(
+                f"Only one bash is allowed per scope: table_id={table_id} json_path='{scope_path}'. "
+                f"Existing='{sib.type}', attempted='{tool_type}'.",
+                code=ErrorCode.VALIDATION_ERROR,
+            )
 
     def delete(self, tool_id: int, user_id: str) -> None:
         _ = self.get_by_id_with_access_check(tool_id, user_id)

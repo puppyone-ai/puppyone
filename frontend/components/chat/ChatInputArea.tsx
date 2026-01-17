@@ -14,6 +14,8 @@ export interface AccessOption {
   label: string;
   type: 'bash' | 'tool'; // bash = shell_access, tool = MCP tools
   icon?: React.ReactNode;
+  tableId?: number; // 所属 table 的 ID
+  tableName?: string; // 所属 table 的名称
 }
 
 interface ChatInputAreaProps {
@@ -36,6 +38,8 @@ interface ChatInputAreaProps {
   availableTools?: AccessOption[];
   selectedAccess?: Set<string>;
   onAccessChange?: (selected: Set<string>) => void;
+  // 当前 table ID（用于分组显示）
+  currentTableId?: number;
 }
 
 export interface ChatInputAreaRef {
@@ -76,6 +80,110 @@ const ToolIcon = () => (
   </svg>
 );
 
+// Bash 菜单项组件
+const BashMenuItem = ({
+  tool,
+  isSelected,
+  onClick,
+  showTableName = true,
+}: {
+  tool: AccessOption;
+  isSelected: boolean;
+  onClick: () => void;
+  showTableName?: boolean;
+}) => {
+  // 解析 label: "TableName · Bash (Read-only) · path"
+  const parts = tool.label.split(' · ');
+  const tableName = parts[0] || '';
+  const bashType = parts[1] || 'Bash';
+  const path = parts[2] || 'root';
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+        padding: '6px 8px',
+        borderRadius: 4,
+        cursor: 'pointer',
+        fontSize: 12,
+        color: isSelected ? '#e5e5e5' : '#737373',
+        background: isSelected ? '#262626' : 'transparent',
+        transition: 'all 0.1s',
+      }}
+      onMouseEnter={e => {
+        if (!isSelected) e.currentTarget.style.background = '#1f1f1f';
+      }}
+      onMouseLeave={e => {
+        if (!isSelected) e.currentTarget.style.background = 'transparent';
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          minWidth: 0,
+          flex: 1,
+        }}
+      >
+        <BashIcon />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          {showTableName && (
+            <div
+              style={{
+                fontSize: 11,
+                color: isSelected ? '#a3a3a3' : '#525252',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {tableName}
+            </div>
+          )}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            <span>{bashType}</span>
+            <span style={{ color: '#525252' }}>·</span>
+            <span
+              style={{
+                fontFamily: 'monospace',
+                fontSize: 11,
+                color: isSelected ? '#737373' : '#525252',
+              }}
+            >
+              {path}
+            </span>
+          </div>
+        </div>
+      </div>
+      {isSelected && (
+        <div
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: '#ffa73d',
+            flexShrink: 0,
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
 const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
   function ChatInputArea(
     {
@@ -95,6 +203,7 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
       availableTools = [],
       selectedAccess,
       onAccessChange,
+      currentTableId,
     },
     ref
   ) {
@@ -102,10 +211,33 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
     const mentionMenuRef = useRef<HTMLDivElement>(null);
     const [showBashMenu, setShowBashMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
+    const [hoveredOtherTable, setHoveredOtherTable] = useState<number | null>(null);
 
     // 分离 Bash (shell_access) 和 MCP Tools
     const bashTools = availableTools.filter(t => t.type === 'bash');
     const mcpTools = availableTools.filter(t => t.type === 'tool');
+
+    // 分组 Bash 工具：当前 table vs 其他 tables
+    const currentTableBashTools = bashTools.filter(
+      t => t.tableId === currentTableId
+    );
+    const otherTableBashTools = bashTools.filter(
+      t => t.tableId !== currentTableId
+    );
+
+    // 按 tableId 分组其他 tables 的 bash 工具
+    const otherTableGroups = new Map<number, { tableName: string; tools: AccessOption[] }>();
+    otherTableBashTools.forEach(tool => {
+      if (tool.tableId != null) {
+        if (!otherTableGroups.has(tool.tableId)) {
+          otherTableGroups.set(tool.tableId, {
+            tableName: tool.tableName || `Table ${tool.tableId}`,
+            tools: [],
+          });
+        }
+        otherTableGroups.get(tool.tableId)!.tools.push(tool);
+      }
+    });
 
     // 内部管理选中状态（如果外部没有传入）
     // 默认不选中任何工具，用户需要主动启用
@@ -133,11 +265,25 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
     // 切换选中状态
     const toggleAccess = (id: string) => {
       const newSelected = new Set(selected);
-      if (newSelected.has(id)) {
+      const isEnabled = newSelected.has(id);
+
+      if (isEnabled) {
         newSelected.delete(id);
-      } else {
-        newSelected.add(id);
+        setSelected(newSelected);
+        return;
       }
+
+      // Enable
+      newSelected.add(id);
+
+      // Bash 互斥：一次只能选中一个 bash（但 tools 可多选）
+      const isBash = bashTools.some(t => t.id === id);
+      if (isBash) {
+        bashTools.forEach(t => {
+          if (t.id !== id) newSelected.delete(t.id);
+        });
+      }
+
       setSelected(newSelected);
     };
 
@@ -268,12 +414,15 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
               )}
             </button>
 
-            {/* Bash Menu */}
+            {/* Bash Menu - 分组显示 */}
             {showBashMenu && hasBashTools && (
               <>
                 <div
                   style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-                  onClick={() => setShowBashMenu(false)}
+                  onClick={() => {
+                    setShowBashMenu(false);
+                    setHoveredOtherTable(null);
+                  }}
                 />
                 <div
                   style={{
@@ -281,7 +430,7 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
                     bottom: '100%',
                     left: 0,
                     marginBottom: 8,
-                    width: 200,
+                    width: 220,
                     background: '#1a1a1a',
                     border: '1px solid #333',
                     borderRadius: 8,
@@ -293,66 +442,161 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
                     gap: 2,
                   }}
                 >
-                  <div
-                    style={{
-                      padding: '4px 8px',
-                      fontSize: 10,
-                      color: '#525252',
-                      fontWeight: 600,
-                    }}
-                  >
-                    BASH
-                  </div>
-                  {bashTools.map(tool => (
-                    <div
-                      key={tool.id}
-                      onClick={() => toggleAccess(tool.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 8,
-                        padding: '6px 8px',
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        color: selected.has(tool.id) ? '#e5e5e5' : '#737373',
-                        background: selected.has(tool.id)
-                          ? '#262626'
-                          : 'transparent',
-                        transition: 'all 0.1s',
-                      }}
-                      onMouseEnter={e => {
-                        if (!selected.has(tool.id))
-                          e.currentTarget.style.background = '#1f1f1f';
-                      }}
-                      onMouseLeave={e => {
-                        if (!selected.has(tool.id))
-                          e.currentTarget.style.background = 'transparent';
-                      }}
-                    >
+                  {/* 当前 Table 的 Bash 工具 */}
+                  {currentTableBashTools.length > 0 && (
+                    <>
                       <div
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
+                          padding: '4px 8px',
+                          fontSize: 10,
+                          color: '#525252',
+                          fontWeight: 600,
                         }}
                       >
-                        <BashIcon />
-                        {tool.label}
+                        THIS TABLE
                       </div>
-                      {selected.has(tool.id) && (
+                      {currentTableBashTools.map(tool => (
+                        <BashMenuItem
+                          key={tool.id}
+                          tool={tool}
+                          isSelected={selected.has(tool.id)}
+                          onClick={() => toggleAccess(tool.id)}
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {/* 其他 Tables 的 Bash 工具 - 带子菜单 */}
+                  {otherTableGroups.size > 0 && (
+                    <>
+                      {currentTableBashTools.length > 0 && (
                         <div
                           style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            background: '#e5e5e5',
+                            height: 1,
+                            background: '#333',
+                            margin: '4px 0',
                           }}
                         />
                       )}
-                    </div>
-                  ))}
+                      <div
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: 10,
+                          color: '#525252',
+                          fontWeight: 600,
+                        }}
+                      >
+                        OTHER TABLES
+                      </div>
+                      {Array.from(otherTableGroups.entries()).map(
+                        ([tableId, { tableName, tools }]) => (
+                          <div
+                            key={tableId}
+                            style={{ position: 'relative' }}
+                            onMouseEnter={() => setHoveredOtherTable(tableId)}
+                            onMouseLeave={() => setHoveredOtherTable(null)}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '6px 8px',
+                                borderRadius: 4,
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                color:
+                                  tools.some(t => selected.has(t.id))
+                                    ? '#ffa73d'
+                                    : '#737373',
+                                background:
+                                  hoveredOtherTable === tableId
+                                    ? '#1f1f1f'
+                                    : 'transparent',
+                                transition: 'all 0.1s',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                }}
+                              >
+                                <BashIcon />
+                                <span>{tableName}</span>
+                                {tools.some(t => selected.has(t.id)) && (
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      color: '#ffa73d',
+                                      background: 'rgba(255, 167, 61, 0.15)',
+                                      padding: '1px 5px',
+                                      borderRadius: 4,
+                                    }}
+                                  >
+                                    active
+                                  </span>
+                                )}
+                              </div>
+                              <svg
+                                width='10'
+                                height='10'
+                                viewBox='0 0 24 24'
+                                fill='none'
+                                stroke='currentColor'
+                                strokeWidth='2.5'
+                                style={{ opacity: 0.5 }}
+                              >
+                                <path d='M9 18l6-6-6-6' />
+                              </svg>
+                            </div>
+
+                            {/* 子菜单 */}
+                            {hoveredOtherTable === tableId && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  left: '100%',
+                                  top: 0,
+                                  marginLeft: 4,
+                                  width: 200,
+                                  background: '#1a1a1a',
+                                  border: '1px solid #333',
+                                  borderRadius: 8,
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                                  padding: 4,
+                                  zIndex: 101,
+                                }}
+                              >
+                                {tools.map(tool => (
+                                  <BashMenuItem
+                                    key={tool.id}
+                                    tool={tool}
+                                    isSelected={selected.has(tool.id)}
+                                    onClick={() => toggleAccess(tool.id)}
+                                    showTableName={false}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      )}
+                    </>
+                  )}
+
+                  {/* 如果没有当前 table 的工具，直接显示所有 */}
+                  {currentTableBashTools.length === 0 &&
+                    otherTableGroups.size === 0 &&
+                    bashTools.map(tool => (
+                      <BashMenuItem
+                        key={tool.id}
+                        tool={tool}
+                        isSelected={selected.has(tool.id)}
+                        onClick={() => toggleAccess(tool.id)}
+                      />
+                    ))}
                 </div>
               </>
             )}
