@@ -143,7 +143,9 @@ export function ProjectWorkspaceView({
                   '0 24px 48px rgba(0,0,0,0.35), 0 12px 24px rgba(0,0,0,0.35)',
               }}
             >
-              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+              <div
+                style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}
+              >
                 <div
                   style={{
                     width: 40,
@@ -188,7 +190,8 @@ export function ProjectWorkspaceView({
                       marginBottom: 10,
                     }}
                   >
-                    The table data failed to load. Try again later, or check your network connection.
+                    The table data failed to load. Try again later, or check
+                    your network connection.
                   </div>
                   <div
                     style={{

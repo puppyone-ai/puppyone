@@ -185,7 +185,8 @@ export default function CrawlOptionsPanel({
           font-size: inherit;
         }
         .crawlMono {
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          font-family:
+            ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
             'Liberation Mono', 'Courier New', monospace;
         }
         /* 让 include/exclude 的占位符字体风格和其它输入一致（不要 monospace） */
