@@ -103,7 +103,7 @@ async def get_mcp_v2_instance_and_tools(
         # 默认只返回启用的 binding（禁用的在 mcp_service 不展示，也不允许执行）
         if b.status is False:
             continue
-        tool_id = int(b.tool_id or 0)
+        tool_id = b.tool_id or ""
         if not tool_id:
             continue
         tool = supabase_repo.get_tool(tool_id)
@@ -309,7 +309,7 @@ async def delete_table_context_data(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def search_tool(
-    tool_id: int,
+    tool_id: str,
     payload: SearchToolQueryInput,
     supabase_repo=Depends(get_supabase_repository),
     table_service=Depends(get_table_service),
@@ -322,7 +322,7 @@ async def search_tool(
     if (tool.type or "").strip() != "search":
         raise HTTPException(status_code=400, detail="Tool is not a search tool")
 
-    table_id = int(tool.table_id or 0)
+    table_id = tool.table_id or ""
     if not table_id:
         raise HTTPException(status_code=400, detail="tool.table_id is missing")
 

@@ -302,7 +302,7 @@ export function TableManageDialog({
 
       await importData({
         url: connectParseResult.url,
-        project_id: Number(projectId),
+        project_id: projectId,
         table_id: undefined,
         table_name: name.trim() || connectParseResult.title || 'Imported Data',
         table_description: `Imported from ${connectParseResult.source_type}`,

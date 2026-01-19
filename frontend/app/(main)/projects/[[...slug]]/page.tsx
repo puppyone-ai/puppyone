@@ -145,7 +145,7 @@ export default function ProjectsSlugPage({
   }
 
   async function syncToolsForPath(params: {
-    tableId: number;
+    tableId: string;
     path: string;
     permissions: McpToolPermissions;
     existingTools: Tool[];
@@ -172,7 +172,7 @@ export default function ProjectsSlugPage({
     if (wantShellFull) effectivePermissions['shell_access_readonly'] = false;
 
     // 先删除不需要的工具（包括互斥的 bash 类型）
-    const toDelete: number[] = [];
+    const toDelete: string[] = [];
     const toCreate: McpToolType[] = [];
 
     for (const type of TOOL_TYPES) {
@@ -205,7 +205,7 @@ export default function ProjectsSlugPage({
   }
 
   async function deleteAllToolsForPath(params: {
-    tableId: number;
+    tableId: string;
     path: string;
     existingTools: Tool[];
   }) {
@@ -399,8 +399,8 @@ export default function ProjectsSlugPage({
                     });
 
                     // Persist to backend (best-effort, async)
-                    const currentTableId = Number(activeTableId || tableId);
-                    if (Number.isFinite(currentTableId)) {
+                    const currentTableId = activeTableId || tableId;
+                    if (currentTableId) {
                       syncToolsForPath({
                         tableId: currentTableId,
                         path,
@@ -422,8 +422,8 @@ export default function ProjectsSlugPage({
                       prev.filter(ap => ap.path !== path)
                     );
 
-                    const currentTableId = Number(activeTableId || tableId);
-                    if (Number.isFinite(currentTableId)) {
+                    const currentTableId = activeTableId || tableId;
+                    if (currentTableId) {
                       deleteAllToolsForPath({
                         tableId: currentTableId,
                         path,

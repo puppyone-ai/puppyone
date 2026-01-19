@@ -59,7 +59,7 @@ interface ChatSidebarProps {
   accessPoints?: AccessPoint[];
   // 项目级 tools（聚合所有 tables）——用于 ChatSidebar 展示/选择
   projectTools?: DbTool[];
-  tableNameById?: Record<number, string>;
+  tableNameById?: Record<string, string>;
 }
 
 export function ChatSidebar({
@@ -111,7 +111,7 @@ export function ChatSidebar({
       const type = (t.type || '').trim();
       const isBash =
         type === 'shell_access' || type === 'shell_access_readonly';
-      const tid = typeof t.table_id === 'number' ? t.table_id : null;
+      const tid = t.table_id || null;
       const tableName =
         tid && tableNameById?.[tid]
           ? tableNameById[tid]
@@ -376,13 +376,13 @@ export function ChatSidebar({
         .filter(m => m.content); // 过滤空消息
 
       // ========== 简化版：只传 tool IDs ==========
-      // 从 selectedAccess 中提取数字 ID（格式是 "tool:35" -> 35）
-      const activeToolIds: number[] = [];
+      // 从 selectedAccess 中提取 ID（格式是 "tool:xxx" -> xxx，xxx 可能是 UUID 或数字）
+      const activeToolIds: string[] = [];
       for (const optionId of selectedAccess) {
-        // optionId 格式是 "tool:35"
-        const match = optionId.match(/^tool:(\d+)$/);
+        // optionId 格式是 "tool:xxx"（xxx 是 UUID 或旧数字 ID）
+        const match = optionId.match(/^tool:(.+)$/);
         if (match) {
-          activeToolIds.push(parseInt(match[1], 10));
+          activeToolIds.push(match[1]);
         }
       }
 
@@ -1197,7 +1197,7 @@ export function ChatSidebar({
         availableTools={availableTools}
         selectedAccess={selectedAccess}
         onAccessChange={setSelectedAccess}
-        currentTableId={tableId ? Number(tableId) : undefined}
+        currentTableId={tableId ? String(tableId) : undefined}
       />
 
       <style jsx global>{`

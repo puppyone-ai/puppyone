@@ -6,7 +6,9 @@ import {
   forwardRef,
   useImperativeHandle,
   useState,
+  useCallback,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 // Access 选项类型
 export interface AccessOption {
@@ -14,7 +16,7 @@ export interface AccessOption {
   label: string;
   type: 'bash' | 'tool'; // bash = shell_access, tool = MCP tools
   icon?: React.ReactNode;
-  tableId?: number; // 所属 table 的 ID
+  tableId?: string; // 所属 table 的 ID
   tableName?: string; // 所属 table 的名称
 }
 
@@ -39,7 +41,7 @@ interface ChatInputAreaProps {
   selectedAccess?: Set<string>;
   onAccessChange?: (selected: Set<string>) => void;
   // 当前 table ID（用于分组显示）
-  currentTableId?: number;
+  currentTableId?: string;
 }
 
 export interface ChatInputAreaRef {
@@ -209,11 +211,27 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
   ) {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const mentionMenuRef = useRef<HTMLDivElement>(null);
+    const otherTablesRef = useRef<HTMLDivElement>(null);
     const [showBashMenu, setShowBashMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
-    const [hoveredOtherTable, setHoveredOtherTable] = useState<number | null>(
+    const [hoveredOtherTable, setHoveredOtherTable] = useState<string | null>(
       null
     );
+    const [submenuPosition, setSubmenuPosition] = useState<{
+      top: number;
+      right: number;
+    } | null>(null);
+
+    // 计算 submenu 位置
+    const updateSubmenuPosition = useCallback(() => {
+      if (otherTablesRef.current) {
+        const rect = otherTablesRef.current.getBoundingClientRect();
+        setSubmenuPosition({
+          top: rect.top,
+          right: window.innerWidth - rect.left + 4,
+        });
+      }
+    }, []);
 
     // 分离 Bash (shell_access) 和 MCP Tools
     const bashTools = availableTools.filter(t => t.type === 'bash');
@@ -229,7 +247,7 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
 
     // 按 tableId 分组其他 tables 的 bash 工具
     const otherTableGroups = new Map<
-      number,
+      string,
       { tableName: string; tools: AccessOption[] }
     >();
     otherTableBashTools.forEach(tool => {
@@ -441,156 +459,195 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
                     borderRadius: 8,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                     padding: 4,
-                    zIndex: 100,
+                    zIndex: 9999,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 2,
                   }}
                 >
-                  {/* 当前 Table 的 Bash 工具 */}
-                  {currentTableBashTools.length > 0 && (
-                    <>
-                      <div
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: 10,
-                          color: '#525252',
-                          fontWeight: 600,
-                        }}
-                      >
-                        THIS TABLE
-                      </div>
-                      {currentTableBashTools.map(tool => (
-                        <BashMenuItem
-                          key={tool.id}
-                          tool={tool}
-                          isSelected={selected.has(tool.id)}
-                          onClick={() => toggleAccess(tool.id)}
-                        />
-                      ))}
-                    </>
-                  )}
-
-                  {/* 其他 Tables 的 Bash 工具 - 带子菜单 */}
+                  {/* 其他 Tables - submenu 展开 (使用 Portal) */}
                   {otherTableGroups.size > 0 && (
-                    <>
-                      {currentTableBashTools.length > 0 && (
-                        <div
-                          style={{
-                            height: 1,
-                            background: '#333',
-                            margin: '4px 0',
-                          }}
-                        />
-                      )}
+                    <div
+                      ref={otherTablesRef}
+                      style={{ position: 'relative' }}
+                      onMouseEnter={() => {
+                        updateSubmenuPosition();
+                        setHoveredOtherTable('__others__');
+                      }}
+                      onMouseLeave={() => setHoveredOtherTable(null)}
+                    >
                       <div
                         style={{
-                          padding: '4px 8px',
-                          fontSize: 10,
-                          color: '#525252',
-                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 8px',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          color: Array.from(otherTableGroups.values()).some(g =>
+                            g.tools.some(t => selected.has(t.id))
+                          )
+                            ? '#ffa73d'
+                            : '#737373',
+                          background:
+                            hoveredOtherTable === '__others__'
+                              ? '#1f1f1f'
+                              : 'transparent',
+                          transition: 'all 0.1s',
                         }}
                       >
-                        OTHER TABLES
+                        <svg
+                          width='10'
+                          height='10'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          stroke='currentColor'
+                          strokeWidth='2.5'
+                          style={{ opacity: 0.5 }}
+                        >
+                          <path d='M15 6l-6 6 6 6' />
+                        </svg>
+                        <span>Other Tables</span>
                       </div>
-                      {Array.from(otherTableGroups.entries()).map(
-                        ([tableId, { tableName, tools }]) => (
+
+                      {/* 子菜单: 使用 Portal 渲染到 body */}
+                      {hoveredOtherTable &&
+                        hoveredOtherTable !== null &&
+                        submenuPosition &&
+                        typeof document !== 'undefined' &&
+                        createPortal(
                           <div
-                            key={tableId}
-                            style={{ position: 'relative' }}
-                            onMouseEnter={() => setHoveredOtherTable(tableId)}
+                            style={{
+                              position: 'fixed',
+                              top: submenuPosition.top,
+                              right: submenuPosition.right,
+                              minWidth: 160,
+                              background: '#1a1a1a',
+                              border: '1px solid #333',
+                              borderRadius: 8,
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                              padding: 4,
+                              zIndex: 10000,
+                            }}
+                            onMouseEnter={() =>
+                              setHoveredOtherTable(hoveredOtherTable)
+                            }
                             onMouseLeave={() => setHoveredOtherTable(null)}
                           >
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '6px 8px',
-                                borderRadius: 4,
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                color: tools.some(t => selected.has(t.id))
-                                  ? '#ffa73d'
-                                  : '#737373',
-                                background:
-                                  hoveredOtherTable === tableId
-                                    ? '#1f1f1f'
-                                    : 'transparent',
-                                transition: 'all 0.1s',
-                              }}
-                            >
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 8,
-                                }}
-                              >
-                                <BashIcon />
-                                <span>{tableName}</span>
-                                {tools.some(t => selected.has(t.id)) && (
-                                  <span
+                            {Array.from(otherTableGroups.entries()).map(
+                              ([tableId, { tableName, tools }]) => (
+                                <div
+                                  key={tableId}
+                                  style={{ position: 'relative' }}
+                                  onMouseEnter={() =>
+                                    setHoveredOtherTable(tableId)
+                                  }
+                                >
+                                  <div
                                     style={{
-                                      fontSize: 10,
-                                      color: '#ffa73d',
-                                      background: 'rgba(255, 167, 61, 0.15)',
-                                      padding: '1px 5px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      padding: '6px 8px',
                                       borderRadius: 4,
+                                      cursor: 'pointer',
+                                      fontSize: 12,
+                                      color: tools.some(t => selected.has(t.id))
+                                        ? '#ffa73d'
+                                        : '#a3a3a3',
+                                      background:
+                                        hoveredOtherTable === tableId
+                                          ? '#262626'
+                                          : 'transparent',
+                                      transition: 'all 0.1s',
                                     }}
                                   >
-                                    active
-                                  </span>
-                                )}
-                              </div>
-                              <svg
-                                width='10'
-                                height='10'
-                                viewBox='0 0 24 24'
-                                fill='none'
-                                stroke='currentColor'
-                                strokeWidth='2.5'
-                                style={{ opacity: 0.5 }}
-                              >
-                                <path d='M9 18l6-6-6-6' />
-                              </svg>
-                            </div>
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                      }}
+                                    >
+                                      <BashIcon />
+                                      <span>{tableName}</span>
+                                    </div>
+                                    {tools.some(t => selected.has(t.id)) && (
+                                      <span
+                                        style={{
+                                          fontSize: 9,
+                                          color: '#ffa73d',
+                                          marginLeft: 4,
+                                        }}
+                                      >
+                                        ●
+                                      </span>
+                                    )}
+                                  </div>
 
-                            {/* 子菜单 */}
-                            {hoveredOtherTable === tableId && (
-                              <div
-                                style={{
-                                  position: 'absolute',
-                                  left: '100%',
-                                  top: 0,
-                                  marginLeft: 4,
-                                  width: 200,
-                                  background: '#1a1a1a',
-                                  border: '1px solid #333',
-                                  borderRadius: 8,
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                                  padding: 4,
-                                  zIndex: 101,
-                                }}
-                              >
-                                {tools.map(tool => (
-                                  <BashMenuItem
-                                    key={tool.id}
-                                    tool={tool}
-                                    isSelected={selected.has(tool.id)}
-                                    onClick={() => toggleAccess(tool.id)}
-                                    showTableName={false}
-                                  />
-                                ))}
-                              </div>
+                                  {/* 第二级子菜单: 该 table 的 bash tools - 向左展开 */}
+                                  {hoveredOtherTable === tableId && (
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        right: '100%',
+                                        top: 0,
+                                        marginRight: 4,
+                                        minWidth: 140,
+                                        background: '#1a1a1a',
+                                        border: '1px solid #333',
+                                        borderRadius: 8,
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                                        padding: 4,
+                                        zIndex: 10001,
+                                      }}
+                                    >
+                                      {tools.map(tool => (
+                                        <BashMenuItem
+                                          key={tool.id}
+                                          tool={tool}
+                                          isSelected={selected.has(tool.id)}
+                                          onClick={() => toggleAccess(tool.id)}
+                                          showTableName={false}
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
                             )}
-                          </div>
-                        )
-                      )}
-                    </>
+                          </div>,
+                          document.body
+                        )}
+                    </div>
                   )}
 
-                  {/* 如果没有当前 table 的工具，直接显示所有 */}
+                  {/* 分隔线 */}
+                  {otherTableGroups.size > 0 &&
+                    currentTableBashTools.length > 0 && (
+                      <div
+                        style={{
+                          height: 1,
+                          background: '#333',
+                          margin: '4px 0',
+                        }}
+                      />
+                    )}
+
+                  {/* 当前 Table 的 Bash 工具 - 简洁显示 */}
+                  {currentTableBashTools.length > 0 &&
+                    currentTableBashTools.map(tool => (
+                      <BashMenuItem
+                        key={tool.id}
+                        tool={tool}
+                        isSelected={selected.has(tool.id)}
+                        onClick={() => toggleAccess(tool.id)}
+                        showTableName={false}
+                      />
+                    ))}
+
+                  {/* 如果没有当前 table 的工具也没有其他，直接显示所有 */}
                   {currentTableBashTools.length === 0 &&
                     otherTableGroups.size === 0 &&
                     bashTools.map(tool => (

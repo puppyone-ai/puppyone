@@ -189,7 +189,7 @@ def bind_tool(
 )
 def update_binding(
     api_key: str,
-    tool_id: int,
+    tool_id: str,
     payload: UpdateBindingRequest,
     svc: McpV2Service = Depends(get_mcp_v2_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -210,7 +210,7 @@ def update_binding(
 )
 def unbind_tool(
     api_key: str,
-    tool_id: int,
+    tool_id: str,
     svc: McpV2Service = Depends(get_mcp_v2_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):

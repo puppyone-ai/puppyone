@@ -7,11 +7,11 @@ from pydantic import BaseModel, Field
 
 
 class Tool(BaseModel):
-    id: int
+    id: str
     created_at: datetime
 
     user_id: str
-    table_id: Optional[int] = None
+    table_id: Optional[str] = None
     json_path: str = ""
 
     type: str

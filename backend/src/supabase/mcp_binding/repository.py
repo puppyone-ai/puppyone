@@ -41,7 +41,7 @@ class McpBindingRepository:
         return None
 
     def get_by_mcp_and_tool(
-        self, mcp_id: int, tool_id: int
+        self, mcp_id: int, tool_id: str
     ) -> Optional[McpBindingResponse]:
         response = (
             self._client.table("mcp_binding")
@@ -72,7 +72,7 @@ class McpBindingRepository:
 
     def get_list_by_tool_id(
         self,
-        tool_id: int,
+        tool_id: str,
         *,
         skip: int = 0,
         limit: int = 1000,

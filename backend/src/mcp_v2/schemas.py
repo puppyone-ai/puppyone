@@ -27,7 +27,7 @@ class McpV2Out(BaseModel):
 
 
 class BindToolRequest(BaseModel):
-    tool_id: int = Field(..., description="要绑定的 Tool ID")
+    tool_id: str = Field(..., description="要绑定的 Tool ID")
     status: bool = Field(default=True, description="绑定是否启用")
 
 
@@ -75,11 +75,11 @@ class McpV2CreateWithBindings(BaseModel):
 class McpV2CreateWithBindingsOut(BaseModel):
     id: int
     api_key: str
-    tool_ids: List[int]
+    tool_ids: List[str]
 
 
 class BoundToolOut(BaseModel):
-    tool_id: int
+    tool_id: str
     binding_id: int
     binding_status: bool
 
@@ -88,7 +88,7 @@ class BoundToolOut(BaseModel):
 
     name: str
     type: str
-    table_id: Optional[int] = None
+    table_id: Optional[str] = None
     json_path: str = ""
 
     alias: Optional[str] = None

@@ -11,7 +11,7 @@ const STORAGE_KEY = 'etl_pending_tasks';
  * 任务记录（存储在 sessionStorage 中，刷新即消失）
  */
 export interface PendingTask {
-  taskId: number;
+  taskId: string;
   projectId: string;
   tableId?: string;
   tableName?: string;

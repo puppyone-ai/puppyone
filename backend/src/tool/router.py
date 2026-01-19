@@ -297,10 +297,10 @@ def create_search_tool_async(
     try:
         repo.upsert(
             SearchIndexTaskUpsert(
-                tool_id=int(tool.id),
+                tool_id=str(tool.id),
                 user_id=str(current_user.user_id),
                 project_id=project_id,
-                table_id=int(payload.table_id),
+                table_id=str(payload.table_id),
                 json_path=payload.json_path or "",
                 status="pending",
                 started_at=None,
@@ -317,10 +317,10 @@ def create_search_tool_async(
         _run_search_indexing_background,
         repo=repo,
         search_service=search_service,
-        tool_id=int(tool.id),
+        tool_id=str(tool.id),
         user_id=str(current_user.user_id),
         project_id=project_id,
-        table_id=int(payload.table_id),
+        table_id=str(payload.table_id),
         json_path=payload.json_path or "",
     )
 
@@ -366,7 +366,7 @@ def get_search_index_status(
 
     t3 = time.perf_counter()
     repo = SearchIndexTaskRepository(sb_client)
-    task = repo.get_by_tool_id(int(tool_id))
+    task = repo.get_by_tool_id(tool_id)
     log_info(
         f"[search-index-status] get_task: tool_id={tool_id} found={task is not None} elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
     )
@@ -378,7 +378,7 @@ def get_search_index_status(
         return ApiResponse.error(message="Search index task not found")
 
     out = SearchIndexTaskOut(
-        tool_id=int(tool_id),
+        tool_id=tool_id,
         status=task.status,
         started_at=task.started_at,
         finished_at=task.finished_at,

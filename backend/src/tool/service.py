@@ -67,7 +67,7 @@ class ToolService:
             # 拉取该 mcp_id 下所有绑定的 tool，检查 name 冲突
             siblings = self._sb.get_mcp_bindings_by_mcp_id(mcp_id)
             for sb in siblings:
-                sib_tool_id = int(sb.tool_id or 0)
+                sib_tool_id = sb.tool_id or ""
                 if not sib_tool_id or sib_tool_id == tool_id:
                     continue
                 sib = self.repo.get_by_id(sib_tool_id)
@@ -181,10 +181,10 @@ class ToolService:
 
         self._assert_bash_unique_in_scope(
             user_id=user_id,
-            table_id=int(next_table_id) if next_table_id else 0,
+            table_id=str(next_table_id) if next_table_id else "",
             json_path=str(next_json_path or ""),
             tool_type=str(next_type or ""),
-            exclude_tool_id=int(tool_id),
+            exclude_tool_id=tool_id,
         )
 
         updated = self.repo.update(
@@ -268,9 +268,9 @@ class ToolService:
         scope_path = (json_path or "").strip()  # 保持与现有存储一致：空字符串表示根
 
         # 读取该 table 下所有 tools（同 user），再在内存中过滤 scope + bash types
-        siblings = self.repo.get_by_user_id(user_id, table_id=int(table_id), skip=0, limit=2000)
+        siblings = self.repo.get_by_user_id(user_id, table_id=str(table_id), skip=0, limit=2000)
         for sib in siblings:
-            if exclude_tool_id is not None and int(sib.id) == int(exclude_tool_id):
+            if exclude_tool_id is not None and sib.id == exclude_tool_id:
                 continue
             if (sib.type or "").strip() not in bash_types:
                 continue

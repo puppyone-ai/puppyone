@@ -16,7 +16,7 @@ class ToolBase(BaseModel):
     """Tool 基础模型"""
 
     user_id: Optional[str] = None
-    table_id: Optional[int] = None
+    table_id: Optional[str] = None
     json_path: Optional[str] = None
 
     type: Optional[str] = None
@@ -38,7 +38,7 @@ class ToolCreate(ToolBase):
 class ToolUpdate(BaseModel):
     """更新 Tool 模型"""
 
-    table_id: Optional[int] = None
+    table_id: Optional[str] = None
     json_path: Optional[str] = None
 
     type: Optional[str] = None
@@ -54,7 +54,7 @@ class ToolUpdate(BaseModel):
 class ToolResponse(ToolBase):
     """Tool 响应模型"""
 
-    id: int
+    id: str
     created_at: datetime
 
     class Config:

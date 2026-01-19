@@ -42,8 +42,8 @@ export interface ParseUrlResponse {
 
 export interface ImportDataRequest {
   url: string;
-  project_id: number;
-  table_id?: number;
+  project_id: string;
+  table_id?: string;
   table_name?: string;
   table_description?: string;
   target_path?: string; // Legacy
@@ -53,8 +53,8 @@ export interface ImportDataRequest {
 
 export interface ImportDataResponse {
   success: boolean;
-  project_id: number;
-  table_id: number;
+  project_id: string;
+  table_id: string;
   table_name: string;
   items_imported: number;
   message: string;
