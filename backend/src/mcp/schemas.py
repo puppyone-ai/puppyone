@@ -26,6 +26,9 @@ ToolTypeKey = Literal[
     "preview",
     "select",
     "search",
+    # Batch / Bash access (stored in public.tool, used by Agent UI)
+    "shell_access",
+    "shell_access_readonly",
 ]
 
 
@@ -91,6 +94,8 @@ class McpCreate(BaseModel):
                 "preview",
                 "select",
                 "search",
+                "shell_access",
+                "shell_access_readonly",
             }
             for key in v.keys():
                 if key not in valid_keys:
@@ -114,6 +119,8 @@ class McpCreate(BaseModel):
                 "preview",
                 "select",
                 "search",
+                "shell_access",
+                "shell_access_readonly",
             }
             invalid_keys = set(v) - valid_keys
             if invalid_keys:
@@ -180,6 +187,8 @@ class McpUpdate(BaseModel):
                 "preview",
                 "select",
                 "search",
+                "shell_access",
+                "shell_access_readonly",
             }
             for key in v.keys():
                 if key not in valid_keys:
@@ -203,6 +212,8 @@ class McpUpdate(BaseModel):
                 "preview",
                 "select",
                 "search",
+                "shell_access",
+                "shell_access_readonly",
             }
             invalid_keys = set(v) - valid_keys
             if invalid_keys:

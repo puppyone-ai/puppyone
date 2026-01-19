@@ -331,6 +331,8 @@ async def health_check(mcp_service=Depends(get_mcp_instance_service)):
         ),
         "s3_configured": bool(os.getenv("S3_BUCKET_NAME")),
         "mineru_configured": bool(os.getenv("MINERU_API_KEY")),
+        "anthropic_configured": bool(os.getenv("ANTHROPIC_API_KEY")),
+        "e2b_configured": bool(os.getenv("E2B_API_KEY")),
     }
 
     health_result = await mcp_service.check_mcp_server_health()

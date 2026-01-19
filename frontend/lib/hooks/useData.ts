@@ -13,7 +13,12 @@ import {
   type TableData,
   type TableInfo,
 } from '../projectsApi';
-import { getTools, getToolsByTableId, type Tool } from '../mcpApi';
+import {
+  getTools,
+  getToolsByProjectId,
+  getToolsByTableId,
+  type Tool,
+} from '../mcpApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
 const defaultConfig = {
@@ -162,6 +167,47 @@ export function useTableTools(tableId: string | undefined) {
     error,
     refresh: revalidate,
   };
+}
+
+/**
+ * 获取指定项目下的所有 Tools（聚合所有 tables）
+ */
+export function useProjectTools(projectId: string | undefined) {
+  const pid = projectId ? Number(projectId) : NaN;
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: revalidate,
+  } = useSWR<Tool[]>(
+    Number.isFinite(pid) ? ['tools-by-project', pid] : null,
+    () => getToolsByProjectId(pid),
+    {
+      ...defaultConfig,
+      dedupingInterval: 10000,
+      // 用户经常在左侧配置完权限再打开 Chat；允许聚焦时自动刷新一次，避免“第一次不显示”
+      revalidateOnFocus: true,
+    }
+  );
+
+  return {
+    tools: data ?? [],
+    isLoading,
+    error,
+    refresh: revalidate,
+  };
+}
+
+/**
+ * 手动刷新指定项目的 Tools（用于：用户在 editor 侧栏配置权限后，ChatSidebar 立刻可见）
+ */
+export function refreshProjectTools(projectId?: string | number | null) {
+  const pid =
+    projectId !== undefined && projectId !== null ? Number(projectId) : NaN;
+  if (Number.isFinite(pid)) {
+    return mutate(['tools-by-project', pid]);
+  }
+  return Promise.resolve(undefined);
 }
 
 /**
