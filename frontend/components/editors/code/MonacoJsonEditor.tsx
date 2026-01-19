@@ -20,7 +20,7 @@ export function MonacoJsonEditor({
     editorRef.current = editor;
 
     // Set up cursor position change listener for path tracking
-    editor.onDidChangeCursorPosition(e => {
+    editor.onDidChangeCursorPosition((e: any) => {
       if (!onPathChange) return;
 
       try {

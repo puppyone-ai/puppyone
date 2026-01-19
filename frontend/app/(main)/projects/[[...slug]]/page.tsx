@@ -171,7 +171,7 @@ export default function ProjectsSlugPage({
 
     // 先删除不需要的工具（包括互斥的 bash 类型）
     const toDelete: number[] = [];
-    const toCreate: string[] = [];
+    const toCreate: McpToolType[] = [];
 
     for (const type of TOOL_TYPES) {
       const enabled = !!effectivePermissions[type];
@@ -483,7 +483,7 @@ export default function ProjectsSlugPage({
         onChatWidthChange={setChatWidth}
         tableData={currentTableData?.data}
         tableId={activeTableId || tableId}
-        projectId={!isOrphanTable ? activeBase?.id ?? null : null}
+        projectId={!isOrphanTable ? activeBase?.id : undefined}
         onDataUpdate={async () => {
           refreshTable();
         }}
