@@ -1427,6 +1427,8 @@ export function TableManageDialog({
                         padding: '10px 12px',
                         fontSize: 14,
                         color: '#e2e8f0',
+                        outline: 'none',
+                        boxShadow: 'none',
                       }}
                       autoFocus
                     />

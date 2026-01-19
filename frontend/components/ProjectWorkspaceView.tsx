@@ -122,8 +122,96 @@ export function ProjectWorkspaceView({
             <EditorSkeleton />
           </div>
         ) : error ? (
-          <div style={{ padding: 40, color: 'red', textAlign: 'center' }}>
-            Failed to load table data: {error.message}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 24,
+            }}
+          >
+            <div
+              style={{
+                width: 'min(560px, 100%)',
+                background: '#111111',
+                border: '1px solid #2a2a2a',
+                borderRadius: 12,
+                padding: '22px 20px',
+                boxShadow:
+                  '0 24px 48px rgba(0,0,0,0.35), 0 12px 24px rgba(0,0,0,0.35)',
+              }}
+            >
+              <div
+                style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 999,
+                    background: '#1a1a1a',
+                    border: '1px solid #333',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg width='18' height='18' viewBox='0 0 24 24' fill='none'>
+                    <path
+                      d='M12 9v4m0 4h.01M10.29 3.86l-8.2 14.2A2 2 0 0 0 3.82 21h16.36a2 2 0 0 0 1.73-2.94l-8.2-14.2a2 2 0 0 0-3.42 0Z'
+                      stroke='#9ca3af'
+                      strokeWidth='1.6'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                    />
+                  </svg>
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: '#e5e7eb',
+                      marginBottom: 6,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    This page isn’t working
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: '#9ca3af',
+                      lineHeight: 1.5,
+                      marginBottom: 10,
+                    }}
+                  >
+                    The table data failed to load. Try again later, or check
+                    your network connection.
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: '#6b7280',
+                      background: '#0b0b0b',
+                      border: '1px solid #202020',
+                      borderRadius: 8,
+                      padding: '10px 12px',
+                      fontFamily:
+                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {String(error.message || error)}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         ) : localData || tableData ? (
           editorType === 'treeline-virtual' ? (
