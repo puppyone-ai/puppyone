@@ -57,7 +57,7 @@ function Tooltip({ text, children }: TooltipProps) {
       <div
         style={{
           cursor: 'help',
-          borderBottom: '1px dotted #5D6065',
+          borderBottom: 'none',
         }}
       >
         {children}
@@ -148,8 +148,52 @@ export default function CrawlOptionsPanel({
     handleChange('excludePaths', newPaths.length > 0 ? newPaths : undefined);
   };
 
+  const baseInputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '8px 12px',
+    background: '#1a1a1a',
+    border: '1px solid #333',
+    borderRadius: 6,
+    color: '#e2e8f0',
+    fontSize: 13,
+    outline: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color 0.15s, background 0.15s',
+  };
+
+  const baseSelectStyle: React.CSSProperties = {
+    ...baseInputStyle,
+    cursor: 'pointer',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    MozAppearance: 'none',
+    paddingRight: 34,
+    backgroundImage:
+      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%238B8B8B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 12px center',
+    backgroundSize: '12px 12px',
+  };
+
   return (
     <div style={{ marginTop: 20 }}>
+      <style jsx>{`
+        .crawlInput::placeholder {
+          color: #5d6065;
+          opacity: 1;
+          font-family: inherit;
+          font-size: inherit;
+        }
+        .crawlMono {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+            'Liberation Mono', 'Courier New', monospace;
+        }
+        /* 让 include/exclude 的占位符字体风格和其它输入一致（不要 monospace） */
+        .crawlMono::placeholder {
+          font-family: inherit;
+        }
+      `}</style>
+
       {/* Header */}
       <div
         style={{
@@ -194,9 +238,6 @@ export default function CrawlOptionsPanel({
           </svg>
           Advanced Crawl Options
         </div>
-        <span style={{ fontSize: 11, color: '#5D6065' }}>
-          {isExpanded ? 'Collapse' : 'Expand'}
-        </span>
       </div>
 
       {/* Content */}
@@ -246,19 +287,10 @@ export default function CrawlOptionsPanel({
                   onChange={e =>
                     handleChange('limit', parseInt(e.target.value) || 100)
                   }
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    background: '#0a0a0a',
-                    border: '1px solid #2a2a2a',
-                    borderRadius: 6,
-                    color: '#CDCDCD',
-                    fontSize: 13,
-                    outline: 'none',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  className='crawlInput'
+                  style={baseInputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
                 />
               </div>
 
@@ -289,19 +321,10 @@ export default function CrawlOptionsPanel({
                     )
                   }
                   placeholder='Unlimited'
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    background: '#0a0a0a',
-                    border: '1px solid #2a2a2a',
-                    borderRadius: 6,
-                    color: '#CDCDCD',
-                    fontSize: 13,
-                    outline: 'none',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  className='crawlInput'
+                  style={baseInputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
                 />
               </div>
             </div>
@@ -405,20 +428,10 @@ export default function CrawlOptionsPanel({
                     }
                   }}
                   placeholder='/docs/'
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    background: '#0a0a0a',
-                    border: '1px solid #2a2a2a',
-                    borderRadius: 6,
-                    color: '#CDCDCD',
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    outline: 'none',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  className='crawlInput crawlMono'
+                  style={{ ...baseInputStyle, flex: 1 }}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
                 />
                 <button
                   onClick={addIncludePath}
@@ -529,20 +542,10 @@ export default function CrawlOptionsPanel({
                     }
                   }}
                   placeholder='/api/'
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    background: '#0a0a0a',
-                    border: '1px solid #2a2a2a',
-                    borderRadius: 6,
-                    color: '#CDCDCD',
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    outline: 'none',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  className='crawlInput crawlMono'
+                  style={{ ...baseInputStyle, flex: 1 }}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
                 />
                 <button
                   onClick={addExcludePath}
@@ -722,28 +725,18 @@ export default function CrawlOptionsPanel({
                       e.target.value as 'only' | 'include' | 'skip'
                     )
                   }
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    background: '#0a0a0a',
-                    border: '1px solid #2a2a2a',
-                    borderRadius: 6,
-                    color: '#CDCDCD',
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    outline: 'none',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  className='crawlInput'
+                  style={baseSelectStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
                 >
-                  <option value='include' style={{ background: '#0a0a0a' }}>
+                  <option value='include' style={{ background: '#1a1a1a' }}>
                     Include
                   </option>
-                  <option value='only' style={{ background: '#0a0a0a' }}>
+                  <option value='only' style={{ background: '#1a1a1a' }}>
                     Only
                   </option>
-                  <option value='skip' style={{ background: '#0a0a0a' }}>
+                  <option value='skip' style={{ background: '#1a1a1a' }}>
                     Skip
                   </option>
                 </select>
@@ -776,19 +769,10 @@ export default function CrawlOptionsPanel({
                     )
                   }
                   placeholder='0'
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    background: '#0a0a0a',
-                    border: '1px solid #2a2a2a',
-                    borderRadius: 6,
-                    color: '#CDCDCD',
-                    fontSize: 13,
-                    outline: 'none',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  className='crawlInput'
+                  style={baseInputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
                 />
               </div>
             </div>

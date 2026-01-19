@@ -444,10 +444,196 @@ export default function ProjectsSlugPage({
                   }}
                 />
               ) : (
-                <div style={{ color: '#666', padding: 20 }}>
-                  {projectsLoading
-                    ? 'Loading Projects...'
-                    : 'Project Not Found'}
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 24,
+                  }}
+                >
+                  <style jsx>{`
+                    @keyframes pc-spin {
+                      from {
+                        transform: rotate(0deg);
+                      }
+                      to {
+                        transform: rotate(360deg);
+                      }
+                    }
+                    .pcSpinner {
+                      width: 28px;
+                      height: 28px;
+                      border-radius: 999px;
+                      border: 2px solid rgba(255, 255, 255, 0.12);
+                      border-top-color: rgba(226, 232, 240, 0.85);
+                      animation: pc-spin 0.9s linear infinite;
+                    }
+                  `}</style>
+
+                  {projectsLoading ? (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 12,
+                        color: '#9ca3af',
+                      }}
+                    >
+                      <div className='pcSpinner' />
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>
+                        Loading projects…
+                      </div>
+                      <div style={{ fontSize: 12, color: '#6b7280' }}>
+                        Getting things ready
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: 'min(640px, 100%)',
+                        background: '#111111',
+                        border: '1px solid #2a2a2a',
+                        borderRadius: 12,
+                        padding: '22px 20px',
+                        boxShadow:
+                          '0 24px 48px rgba(0,0,0,0.35), 0 12px 24px rgba(0,0,0,0.35)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 14,
+                          alignItems: 'flex-start',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 999,
+                            background: '#1a1a1a',
+                            border: '1px solid #333',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <svg
+                            width='14'
+                            height='14'
+                            viewBox='0 0 14 14'
+                            fill='none'
+                          >
+                            <rect
+                              x='1.5'
+                              y='1.5'
+                              width='11'
+                              height='11'
+                              rx='1.5'
+                              stroke='#9ca3af'
+                              strokeWidth='1.2'
+                            />
+                            <line
+                              x1='1.5'
+                              y1='5'
+                              x2='12.5'
+                              y2='5'
+                              stroke='#9ca3af'
+                              strokeWidth='1.2'
+                            />
+                            <line
+                              x1='5.5'
+                              y1='5'
+                              x2='5.5'
+                              y2='12.5'
+                              stroke='#9ca3af'
+                              strokeWidth='1.2'
+                            />
+                          </svg>
+                        </div>
+
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: 16,
+                              fontWeight: 600,
+                              color: '#e5e7eb',
+                              marginBottom: 6,
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            Let’s get you set up
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              color: '#9ca3af',
+                              lineHeight: 1.5,
+                              marginBottom: 14,
+                            }}
+                          >
+                            Create your first context, or pick an existing one
+                            from the left sidebar.
+                          </div>
+
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: 10,
+                              marginBottom: 14,
+                            }}
+                          >
+                            <button
+                              type='button'
+                              onClick={() => {
+                                window.dispatchEvent(
+                                  new CustomEvent('pc:open-table-dialog', {
+                                    detail: { projectId: null },
+                                  })
+                                );
+                              }}
+                              style={{
+                                height: 32,
+                                padding: '0 12px',
+                                borderRadius: 8,
+                                border: '1px solid transparent',
+                                background: '#EDEDED',
+                                color: '#1a1a1a',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Create a new context
+                            </button>
+
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                height: 32,
+                                padding: '0 12px',
+                                borderRadius: 8,
+                                border: '1px solid #2a2a2a',
+                                background: 'rgba(255,255,255,0.03)',
+                                color: '#9ca3af',
+                                fontSize: 13,
+                              }}
+                            >
+                              Or open a context from the sidebar
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -55,6 +55,27 @@ export default function ProjectsLayout({
     projectId: string;
   } | null>(null);
 
+  // Allow nested pages to open TableManageDialog without prop-drilling.
+  // Example: onboarding empty-state in `projects/[[...slug]]/page.tsx`.
+  useEffect(() => {
+    const handler = (
+      evt: Event & { detail?: { projectId?: string | null } }
+    ) => {
+      const projectId = evt?.detail?.projectId ?? null;
+      setTableDialogProjectId(projectId);
+      setEditingTableId(null);
+      setTableDialogMode('create');
+    };
+
+    window.addEventListener('pc:open-table-dialog', handler as EventListener);
+    return () => {
+      window.removeEventListener(
+        'pc:open-table-dialog',
+        handler as EventListener
+      );
+    };
+  }, []);
+
   // Layout state
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const [isCollapsed, setIsCollapsed] = useState(false);
