@@ -78,7 +78,7 @@ class McpService:
     # ============================================================
 
     def generate_mcp_token(
-        self, user_id: str, project_id: int, table_id: int, json_pointer: str = ""
+        self, user_id: str, project_id: str, table_id: str, json_pointer: str = ""
     ) -> str:
         """
         根据用户ID、项目ID、表格ID、JSON路径 生成代表MCP实例的JWT token
@@ -138,8 +138,8 @@ class McpService:
     async def create_mcp_instance(
         self,
         user_id: str,
-        project_id: int,
-        table_id: int,
+        project_id: str,
+        table_id: str,
         name: str,
         json_pointer: str = "",
         tools_definition: Optional[Dict[str, Any]] = None,
@@ -370,7 +370,7 @@ class McpService:
         return self.instance_repo.get_by_api_key(api_key)
 
     async def get_mcp_instance_by_id(
-        self, mcp_instance_id: int
+        self, mcp_instance_id: str
     ) -> Optional[McpInstance]:
         """根据实例ID获取 MCP 实例"""
         return self.instance_repo.get_by_id(mcp_instance_id)

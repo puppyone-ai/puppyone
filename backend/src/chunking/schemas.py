@@ -32,7 +32,7 @@ class ChunkSegment(BaseModel):
 class ChunkBase(BaseModel):
     """Database-facing chunk record base."""
 
-    table_id: int
+    table_id: str
     json_pointer: str
 
     chunk_index: int
@@ -68,7 +68,7 @@ class Chunk(ChunkBase):
 class EnsureChunksResult(BaseModel):
     """Result for idempotent ensure operation."""
 
-    table_id: int
+    table_id: str
     json_pointer: str
     content_hash: str
 

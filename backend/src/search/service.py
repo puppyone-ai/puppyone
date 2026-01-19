@@ -108,12 +108,12 @@ class SearchService:
         self._tp = turbopuffer_service or TurbopufferSearchService()
 
     @staticmethod
-    def build_namespace(*, project_id: int, table_id: int) -> str:
+    def build_namespace(*, project_id: str, table_id: str) -> str:
         return f"project_{project_id}_table_{table_id}"
 
     @staticmethod
     def build_doc_id(
-        *, table_id: int, json_pointer: str, content_hash: str, chunk_index: int
+        *, table_id: str, json_pointer: str, content_hash: str, chunk_index: int
     ) -> str:
         # Turbopuffer 要求 ID 最多 64 字节，所以用 hash 来压缩 json_pointer
         import hashlib
@@ -133,8 +133,8 @@ class SearchService:
     async def index_scope(
         self,
         *,
-        project_id: int,
-        table_id: int,
+        project_id: str,
+        table_id: str,
         json_path: str,
     ) -> SearchIndexStats:
         """
@@ -306,8 +306,8 @@ class SearchService:
     async def search_scope(
         self,
         *,
-        project_id: int,
-        table_id: int,
+        project_id: str,
+        table_id: str,
         tool_json_path: str,
         query: str,
         top_k: int = 5,

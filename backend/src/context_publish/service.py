@@ -52,7 +52,7 @@ class ContextPublishService:
         self,
         *,
         user_id: str,
-        table_id: int,
+        table_id: str,
         json_path: str,
         expires_at: Optional[datetime],
     ) -> ContextPublish:

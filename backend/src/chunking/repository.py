@@ -24,7 +24,7 @@ class ChunkRepository:
         self._client = client
 
     def get_by_hash(
-        self, *, table_id: int, json_pointer: str, content_hash: str
+        self, *, table_id: str, json_pointer: str, content_hash: str
     ) -> list[Chunk]:
         resp = (
             self._client.table("chunks")
@@ -52,7 +52,7 @@ def ensure_chunks_for_pointer(
     *,
     repo: ChunkRepository,
     service: Optional[ChunkingService] = None,
-    table_id: int,
+    table_id: str,
     json_pointer: str,
     content: str,
     config: Optional[ChunkingConfig] = None,

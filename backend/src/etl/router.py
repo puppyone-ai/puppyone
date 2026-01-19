@@ -56,13 +56,13 @@ router = APIRouter(prefix="/etl", tags=["etl"])
     "/upload_and_submit", response_model=UploadAndSubmitResponse, status_code=201
 )
 async def upload_and_submit(
-    project_id: int = Form(..., description="Project ID"),
+    project_id: str = Form(..., description="Project ID (UUID)"),
     files: list[UploadFile] = File(
         ..., description="Files to upload (single or multiple)"
     ),
     rule_id: Optional[int] = Form(None, description="Optional ETL rule id"),
-    table_id: Optional[int] = Form(
-        None, description="Optional target table id to mount results"
+    table_id: Optional[str] = Form(
+        None, description="Optional target table id to mount results (UUID)"
     ),
     json_path: Optional[str] = Form(
         None, description="Optional JSON Pointer mount path (default: root)"

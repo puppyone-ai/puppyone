@@ -39,7 +39,7 @@ def get_table_service() -> TableService:
 
 
 def get_verified_table(
-    table_id: int = Path(..., description="表格ID"),
+    table_id: str = Path(..., description="表格ID (UUID)"),
     table_service: TableService = Depends(get_table_service),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> Table:

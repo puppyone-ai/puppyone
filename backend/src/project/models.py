@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 class Project(BaseModel):
     """项目领域模型"""
 
-    id: int = Field(..., description="项目ID")
+    id: str = Field(..., description="项目ID (UUID)")
     name: str = Field(..., description="项目名称")
     description: Optional[str] = Field(None, description="项目描述")
     user_id: Optional[str] = Field(None, description="所属用户ID")

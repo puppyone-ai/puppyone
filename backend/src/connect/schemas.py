@@ -56,9 +56,9 @@ class ImportDataRequest(BaseModel):
     """导入数据请求"""
 
     url: HttpUrl = Field(..., description="数据源URL")
-    project_id: int = Field(..., description="目标项目ID")
-    table_id: Optional[int] = Field(
-        None, description="目标表格ID，如果为空则创建新表格"
+    project_id: str = Field(..., description="目标项目ID (UUID)")
+    table_id: Optional[str] = Field(
+        None, description="目标表格ID (UUID)，如果为空则创建新表格"
     )
     table_name: Optional[str] = Field(
         None, description="新表格名称（仅当table_id为空时有效）"
@@ -83,8 +83,8 @@ class ImportDataResponse(BaseModel):
     """导入数据响应"""
 
     success: bool = Field(..., description="是否导入成功")
-    project_id: int = Field(..., description="项目ID")
-    table_id: int = Field(..., description="表格ID")
+    project_id: str = Field(..., description="项目ID (UUID)")
+    table_id: str = Field(..., description="表格ID (UUID)")
     table_name: str = Field(..., description="表格名称")
     items_imported: int = Field(0, description="成功导入的数据条数")
     message: str = Field("", description="结果消息")

@@ -20,7 +20,7 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     """创建项目模型"""
 
-    pass
+    id: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
@@ -34,7 +34,7 @@ class ProjectUpdate(BaseModel):
 class ProjectResponse(ProjectBase):
     """项目响应模型"""
 
-    id: int
+    id: str
     created_at: datetime
 
     class Config:

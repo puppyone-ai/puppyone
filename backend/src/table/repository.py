@@ -9,7 +9,7 @@ class TableRepositoryBase(ABC):
     """抽象Table仓库接口"""
 
     @abstractmethod
-    def get_by_user_id(self, user_id: int) -> List[Table]:
+    def get_by_user_id(self, user_id: str) -> List[Table]:
         """通过用户ID获取所有Tables（通过project关联）"""
         pass
 
@@ -21,13 +21,13 @@ class TableRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_by_id(self, table_id: int) -> Optional[Table]:
+    def get_by_id(self, table_id: str) -> Optional[Table]:
         pass
 
     @abstractmethod
     def update(
         self,
-        table_id: int,
+        table_id: str,
         name: Optional[str],
         description: Optional[str],
         data: Optional[dict],
@@ -35,7 +35,7 @@ class TableRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def delete(self, table_id: int) -> bool:
+    def delete(self, table_id: str) -> bool:
         pass
 
     @abstractmethod
@@ -45,7 +45,7 @@ class TableRepositoryBase(ABC):
         name: str,
         description: str,
         data: dict,
-        project_id: Optional[int] = None,
+        project_id: Optional[str] = None,
     ) -> Table:
         pass
 
@@ -55,12 +55,12 @@ class TableRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def update_context_data(self, table_id: int, data: dict) -> Optional[Table]:
+    def update_context_data(self, table_id: str, data: dict) -> Optional[Table]:
         """更新 data 字段"""
         pass
 
     @abstractmethod
-    def verify_table_access(self, table_id: int, user_id: str) -> bool:
+    def verify_table_access(self, table_id: str, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的表格
 
@@ -76,7 +76,7 @@ class TableRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def verify_project_access(self, project_id: int, user_id: str) -> bool:
+    def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的项目
 
@@ -111,7 +111,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         else:
             self._supabase_repo = supabase_repo
 
-    def get_by_user_id(self, user_id: int) -> List[Table]:
+    def get_by_user_id(self, user_id: str) -> List[Table]:
         """
         通过用户ID获取所有Tables（通过project关联）
 
@@ -186,7 +186,7 @@ class TableRepositorySupabase(TableRepositoryBase):
 
         return result
 
-    def get_by_id(self, table_id: int) -> Optional[Table]:
+    def get_by_id(self, table_id: str) -> Optional[Table]:
         """
         根据ID获取Table
 
@@ -207,7 +207,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         name: str,
         description: str,
         data: dict,
-        project_id: Optional[int] = None,
+        project_id: Optional[str] = None,
     ) -> Table:
         """
         创建新的Table
@@ -223,8 +223,10 @@ class TableRepositorySupabase(TableRepositoryBase):
             创建的Table对象
         """
         from src.supabase.tables.schemas import TableCreate
+        from src.utils.id_generator import generate_uuid_v7
 
         table_data = TableCreate(
+            id=generate_uuid_v7(),
             name=name,
             project_id=project_id,
             user_id=user_id,
@@ -261,7 +263,7 @@ class TableRepositorySupabase(TableRepositoryBase):
 
     def update(
         self,
-        table_id: int,
+        table_id: str,
         name: Optional[str],
         description: Optional[str],
         data: Optional[dict],
@@ -290,7 +292,7 @@ class TableRepositorySupabase(TableRepositoryBase):
             return self._table_response_to_table(table_response)
         return None
 
-    def delete(self, table_id: int) -> bool:
+    def delete(self, table_id: str) -> bool:
         """
         删除Table
 
@@ -302,7 +304,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         """
         return self._supabase_repo.delete_table(table_id)
 
-    def update_context_data(self, table_id: int, data: dict) -> Optional[Table]:
+    def update_context_data(self, table_id: str, data: dict) -> Optional[Table]:
         """
         更新Table的data字段
 
@@ -321,7 +323,7 @@ class TableRepositorySupabase(TableRepositoryBase):
             return self._table_response_to_table(table_response)
         return None
 
-    def verify_table_access(self, table_id: int, user_id: str) -> bool:
+    def verify_table_access(self, table_id: str, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的表格
 
@@ -340,7 +342,7 @@ class TableRepositorySupabase(TableRepositoryBase):
 
         return table.user_id == user_id
 
-    def verify_project_access(self, project_id: int, user_id: str) -> bool:
+    def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的项目
 

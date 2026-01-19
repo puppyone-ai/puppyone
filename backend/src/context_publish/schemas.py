@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class PublishCreate(BaseModel):
-    table_id: int = Field(..., description="目标 table_id")
+    table_id: str = Field(..., description="目标 table_id (UUID)")
     json_path: str = Field(default="", description="JSON Pointer 路径")
     expires_at: Optional[datetime] = Field(
         default=None, description="可选过期时间；不传则默认 7 天"
@@ -24,7 +24,7 @@ class PublishOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     user_id: str
-    table_id: int
+    table_id: str
     json_path: str
     publish_key: str
     status: bool

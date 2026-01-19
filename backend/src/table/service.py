@@ -32,10 +32,10 @@ class TableService:
         """
         return self.repo.get_projects_with_tables_by_user_id(user_id)
 
-    def get_by_id(self, table_id: int) -> Optional[Table]:
+    def get_by_id(self, table_id: str) -> Optional[Table]:
         return self.repo.get_by_id(table_id)
 
-    def get_by_id_with_access_check(self, table_id: int, user_id: str) -> Table:
+    def get_by_id_with_access_check(self, table_id: str, user_id: str) -> Table:
         """
         获取表格并验证用户权限
 
@@ -65,7 +65,7 @@ class TableService:
 
         return table
 
-    def verify_project_access(self, project_id: int, user_id: str) -> bool:
+    def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的项目
 
@@ -84,7 +84,7 @@ class TableService:
         name: str,
         description: str,
         data: dict,
-        project_id: Optional[int] = None,
+        project_id: Optional[str] = None,
     ) -> Table:
         return self.repo.create(
             user_id=user_id,
@@ -100,7 +100,7 @@ class TableService:
 
     def update(
         self,
-        table_id: int,
+        table_id: str,
         name: Optional[str],
         description: Optional[str],
         data: Optional[dict],
@@ -112,7 +112,7 @@ class TableService:
             )
         return updated
 
-    def delete(self, table_id: int) -> None:
+    def delete(self, table_id: str) -> None:
         success = self.repo.delete(table_id)
         if not success:
             raise NotFoundException(
@@ -120,7 +120,7 @@ class TableService:
             )
 
     def create_context_data(
-        self, table_id: int, mounted_json_pointer_path: str, elements: List[Dict]
+        self, table_id: str, mounted_json_pointer_path: str, elements: List[Dict]
     ) -> Any:
         """
         在 data 字段的指定路径下创建新数据
@@ -217,7 +217,7 @@ class TableService:
         result = resolve_pointer(updated_table.data or {}, mounted_json_pointer_path)
         return result
 
-    def get_context_data(self, table_id: int, json_pointer_path: str) -> Any:
+    def get_context_data(self, table_id: str, json_pointer_path: str) -> Any:
         """
         获取 data 字段中指定路径的数据
         """
@@ -243,7 +243,7 @@ class TableService:
             )
 
     def update_context_data(
-        self, table_id: int, json_pointer_path: str, elements: List[Dict]
+        self, table_id: str, json_pointer_path: str, elements: List[Dict]
     ) -> Any:
         """
         更新 data 字段中指定路径的数据
@@ -335,7 +335,7 @@ class TableService:
         return result
 
     def delete_context_data(
-        self, table_id: int, json_pointer_path: str, keys: List[str]
+        self, table_id: str, json_pointer_path: str, keys: List[str]
     ) -> Any:
         """
         删除 data 字段中指定路径下的 keys
@@ -407,7 +407,7 @@ class TableService:
         return result
 
     def query_context_data_with_jmespath(
-        self, table_id: int, json_pointer_path: str, query: str
+        self, table_id: str, json_pointer_path: str, query: str
     ) -> Optional[Any]:
         """
         使用 JMESPath 查询 data 字段中指定路径的数据
@@ -444,7 +444,7 @@ class TableService:
                 f"Query failed: {str(e)}", code=ErrorCode.BAD_REQUEST
             )
 
-    def get_context_structure(self, table_id: int, json_pointer_path: str) -> Dict:
+    def get_context_structure(self, table_id: str, json_pointer_path: str) -> Dict:
         """
         获取 data 字段中指定路径的数据结构（不包含实际数据值）
         """

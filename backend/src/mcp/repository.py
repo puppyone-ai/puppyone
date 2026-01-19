@@ -7,6 +7,7 @@ from src.mcp.models import McpInstance
 from src.mcp.schemas import McpToolsDefinition, ToolTypeKey
 from src.utils.logger import log_error
 from src.supabase.mcps.schemas import McpCreate, McpUpdate
+from src.utils.id_generator import generate_uuid_v7
 
 
 DATA_PATH = Path("./data/mcp_instances.json")
@@ -166,10 +167,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
     ) -> McpInstance:
         instances = self._read_data()
         # 生成新的 ID
-        existing_ids = [
-            int(i.mcp_instance_id) for i in instances if i.mcp_instance_id.isdigit()
-        ]
-        new_id = str(max(existing_ids, default=0) + 1) if existing_ids else "1"
+        new_id = generate_uuid_v7()
 
         new_instance = McpInstance(
             mcp_instance_id=new_id,

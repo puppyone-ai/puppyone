@@ -38,7 +38,7 @@ class ToolService:
         self.table_service = table_service
         self._sb = get_supabase_repository()
 
-    def _invalidate_bound_mcps(self, tool_id: int) -> None:
+    def _invalidate_bound_mcps(self, tool_id: str) -> None:
         """
         best-effort：当 tool 发生变化时，通知所有绑定到它的 mcp_v2 使缓存失效。
         """
@@ -53,7 +53,7 @@ class ToolService:
             invalidate_mcp_cache(mcp.api_key)
 
     def _assert_name_update_no_conflict(
-        self, tool_id: int, user_id: str, new_name: str
+        self, tool_id: str, user_id: str, new_name: str
     ) -> None:
         """
         如果该 tool 已绑定到任意 mcp_v2，则更新 name 前需要保证
@@ -91,7 +91,7 @@ class ToolService:
         self,
         user_id: str,
         *,
-        table_id: int,
+        table_id: str,
         skip: int = 0,
         limit: int = 1000,
     ) -> List[Tool]:
@@ -101,10 +101,10 @@ class ToolService:
             user_id, skip=skip, limit=limit, table_id=table_id
         )
 
-    def get_by_id(self, tool_id: int) -> Optional[Tool]:
+    def get_by_id(self, tool_id: str) -> Optional[Tool]:
         return self.repo.get_by_id(tool_id)
 
-    def get_by_id_with_access_check(self, tool_id: int, user_id: str) -> Tool:
+    def get_by_id_with_access_check(self, tool_id: str, user_id: str) -> Tool:
         tool = self.repo.get_by_id(tool_id)
         if not tool or tool.user_id != user_id:
             raise NotFoundException(
@@ -116,7 +116,7 @@ class ToolService:
         self,
         *,
         user_id: str,
-        table_id: int,
+        table_id: str,
         json_path: str,
         type: str,
         name: str,
@@ -158,7 +158,7 @@ class ToolService:
         )
         return created
 
-    def update(self, *, tool_id: int, user_id: str, patch: dict[str, Any]) -> Tool:
+    def update(self, *, tool_id: str, user_id: str, patch: dict[str, Any]) -> Tool:
         existing = self.get_by_id_with_access_check(tool_id, user_id)
 
         # 只处理传入的字段（路由层已用 exclude_unset 生成 patch）
@@ -222,7 +222,7 @@ class ToolService:
         self,
         user_id: str,
         *,
-        project_id: int,
+        project_id: str,
         limit_per_table: int = 1000,
     ) -> List[Tool]:
         """
@@ -249,10 +249,10 @@ class ToolService:
         self,
         *,
         user_id: str,
-        table_id: int,
+        table_id: str,
         json_path: str,
         tool_type: str,
-        exclude_tool_id: Optional[int],
+        exclude_tool_id: Optional[str],
     ) -> None:
         """
         规则：
@@ -282,7 +282,7 @@ class ToolService:
                 code=ErrorCode.VALIDATION_ERROR,
             )
 
-    def delete(self, tool_id: int, user_id: str) -> None:
+    def delete(self, tool_id: str, user_id: str) -> None:
         _ = self.get_by_id_with_access_check(tool_id, user_id)
         ok = self.repo.delete(tool_id)
         if not ok:
