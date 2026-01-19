@@ -30,12 +30,12 @@ from src.supabase.dependencies import get_supabase_client
 logger = logging.getLogger(__name__)
 
 
-def _artifact_markdown_key(task_id: int, user_id: str, project_id: int) -> str:
+def _artifact_markdown_key(task_id: int, user_id: str, project_id: str) -> str:
     # Avoid using filename here (can have special chars). Use deterministic keys.
     return f"users/{user_id}/etl_artifacts/{project_id}/{task_id}/mineru.md"
 
 
-def _output_json_key(task_id: int, user_id: str, project_id: int) -> str:
+def _output_json_key(task_id: int, user_id: str, project_id: str) -> str:
     return f"users/{user_id}/processed/{project_id}/{task_id}.json"
 
 

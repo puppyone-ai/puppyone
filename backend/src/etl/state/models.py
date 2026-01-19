@@ -28,7 +28,7 @@ class ETLRuntimeState(BaseModel):
 
     # Identifiers needed for access-check without DB round-trip
     user_id: str
-    project_id: int
+    project_id: str
     filename: str
     rule_id: int
 

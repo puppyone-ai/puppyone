@@ -38,9 +38,9 @@ class McpCreate(BaseModel):
     """
 
     name: str = Field(..., description="MCP实例名称（必填）")
-    project_id: int = Field(..., description="项目ID")
-    table_id: int = Field(
-        ..., description="TableID, 对应前端'Table'的概念, 表示一整个JSON对象."
+    project_id: str = Field(..., description="项目ID (UUID)")
+    table_id: str = Field(
+        ..., description="TableID (UUID), 对应前端'Table'的概念, 表示一整个JSON对象."
     )
     json_pointer: str = Field(
         default="",
@@ -225,8 +225,8 @@ class McpUpdate(BaseModel):
 
 class McpTokenPayload(BaseModel):
     user_id: str
-    project_id: int
-    table_id: int
+    project_id: str
+    table_id: str
     json_pointer: str = ""
 
 

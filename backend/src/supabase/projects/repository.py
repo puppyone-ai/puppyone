@@ -42,15 +42,15 @@ class ProjectRepository:
         """
         try:
             data = project_data.model_dump(exclude_none=True)
-            # 确保不包含 id 和 created_at（这些由数据库自动生成）
-            data.pop("id", None)
+            # 确保不包含 created_at（由数据库自动生成）
+            # 注意：id 现在由后端生成，所以需要包含在 insert 数据中
             data.pop("created_at", None)
             response = self._client.table("project").insert(data).execute()
             return ProjectResponse(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建项目")
 
-    def get_by_id(self, project_id: int) -> Optional[ProjectResponse]:
+    def get_by_id(self, project_id: str) -> Optional[ProjectResponse]:
         """
         根据 ID 获取项目
 
@@ -63,7 +63,7 @@ class ProjectRepository:
         response = (
             self._client.table("project")
             .select("*")
-            .eq("id", str(project_id))
+            .eq("id", project_id)
             .execute()
         )
         if response.data:
@@ -101,7 +101,7 @@ class ProjectRepository:
         return [ProjectResponse(**item) for item in response.data]
 
     def update(
-        self, project_id: int, project_data: ProjectUpdate
+        self, project_id: str, project_data: ProjectUpdate
     ) -> Optional[ProjectResponse]:
         """
         更新项目
@@ -128,7 +128,7 @@ class ProjectRepository:
             response = (
                 self._client.table("project")
                 .update(data)
-                .eq("id", str(project_id))
+                .eq("id", project_id)
                 .execute()
             )
             if response.data:
@@ -137,7 +137,7 @@ class ProjectRepository:
         except Exception as e:
             raise handle_supabase_error(e, "更新项目")
 
-    def delete(self, project_id: int) -> bool:
+    def delete(self, project_id: str) -> bool:
         """
         删除项目
 

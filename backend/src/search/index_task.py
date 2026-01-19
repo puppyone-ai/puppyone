@@ -14,10 +14,10 @@ class SearchIndexTask(BaseModel):
     created_at: dt.datetime
     updated_at: dt.datetime
 
-    tool_id: int
+    tool_id: str
     user_id: Optional[str] = None
-    project_id: Optional[int] = None
-    table_id: int
+    project_id: Optional[str] = None
+    table_id: str
     json_path: str = ""
 
     status: SearchIndexStatus = "pending"
@@ -32,10 +32,10 @@ class SearchIndexTask(BaseModel):
 
 
 class SearchIndexTaskUpsert(BaseModel):
-    tool_id: int
+    tool_id: str
     user_id: Optional[str] = None
-    project_id: Optional[int] = None
-    table_id: int
+    project_id: Optional[str] = None
+    table_id: str
     json_path: str = ""
 
     status: SearchIndexStatus = "pending"
@@ -60,7 +60,7 @@ class SearchIndexTaskUpsert(BaseModel):
 
 
 class SearchIndexTaskOut(BaseModel):
-    tool_id: int = Field(..., description="Search Tool ID")
+    tool_id: str = Field(..., description="Search Tool ID (UUID)")
     status: SearchIndexStatus
     started_at: Optional[dt.datetime] = None
     finished_at: Optional[dt.datetime] = None

@@ -9,7 +9,7 @@ from src.mcp.schemas import ToolTypeKey
 
 
 class ToolCreate(BaseModel):
-    table_id: int = Field(..., description="Table ID（Context 所属知识库）")
+    table_id: str = Field(..., description="Table ID（Context 所属知识库，UUID）")
     json_path: str = Field(
         default="",
         description="JSON Pointer 路径（挂载点，RFC6901）。空字符串表示根路径。",
@@ -42,7 +42,7 @@ class ToolCreate(BaseModel):
 
 
 class ToolUpdate(BaseModel):
-    table_id: Optional[int] = None
+    table_id: Optional[str] = None
     json_path: Optional[str] = None
     type: Optional[ToolTypeKey] = None
 
@@ -56,11 +56,11 @@ class ToolUpdate(BaseModel):
 
 
 class ToolOut(BaseModel):
-    id: int
+    id: str
     created_at: datetime
 
     user_id: str
-    table_id: Optional[int] = None
+    table_id: Optional[str] = None
     json_path: str = ""
 
     type: ToolTypeKey

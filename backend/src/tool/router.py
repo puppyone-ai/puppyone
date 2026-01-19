@@ -55,7 +55,7 @@ def list_tools(
     status_code=status.HTTP_200_OK,
 )
 def list_tools_by_table_id(
-    table_id: int,
+    table_id: str,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=1000, ge=1, le=1000),
     tool_service: ToolService = Depends(get_tool_service),
@@ -77,7 +77,7 @@ def list_tools_by_table_id(
     status_code=status.HTTP_200_OK,
 )
 def list_tools_by_project_id(
-    project_id: int,
+    project_id: str,
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -127,10 +127,10 @@ async def _run_search_indexing_background(
     *,
     repo: SearchIndexTaskRepository,
     search_service: SearchService,
-    tool_id: int,
+    tool_id: str,
     user_id: str,
-    project_id: int,
-    table_id: int,
+    project_id: str,
+    table_id: str,
     json_path: str,
 ) -> None:
     """
@@ -337,7 +337,7 @@ def create_search_tool_async(
     status_code=status.HTTP_200_OK,
 )
 def get_search_index_status(
-    tool_id: int,
+    tool_id: str,
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -400,7 +400,7 @@ def get_search_index_status(
     status_code=status.HTTP_200_OK,
 )
 def get_tool(
-    tool_id: int,
+    tool_id: str,
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -415,7 +415,7 @@ def get_tool(
     status_code=status.HTTP_200_OK,
 )
 def update_tool(
-    tool_id: int,
+    tool_id: str,
     payload: ToolUpdate,
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -435,7 +435,7 @@ def update_tool(
     status_code=status.HTTP_200_OK,
 )
 def delete_tool(
-    tool_id: int,
+    tool_id: str,
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):

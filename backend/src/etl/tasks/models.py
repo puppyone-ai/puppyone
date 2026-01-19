@@ -38,7 +38,7 @@ class ETLTask(BaseModel):
         None, description="Unique task identifier (None for new tasks)"
     )
     user_id: str = Field(..., description="User ID who created the task")
-    project_id: int = Field(..., description="Project ID")
+    project_id: str = Field(..., description="Project ID (UUID)")
     filename: str = Field(..., description="Original filename")
     rule_id: int = Field(..., description="Rule ID to apply")
     status: ETLTaskStatus = Field(

@@ -134,7 +134,7 @@ async def get_mcp_v2_instance_and_tools(
     description="根据table_id获取表格的元数据（不包含数据内容）",
     dependencies=[Depends(verify_internal_secret)],
 )
-async def get_table_metadata(table_id: int, table_service=Depends(get_table_service)):
+async def get_table_metadata(table_id: str, table_service=Depends(get_table_service)):
     """
     获取表格元数据
 
@@ -172,7 +172,7 @@ async def get_table_metadata(table_id: int, table_service=Depends(get_table_serv
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_table_context_schema(
-    table_id: int,
+    table_id: str,
     json_path: str = Query(default="", description="挂载点 JSON Pointer 路径"),
     table_service=Depends(get_table_service),
 ):
@@ -194,7 +194,7 @@ async def get_table_context_schema(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_table_context_data(
-    table_id: int,
+    table_id: str,
     json_path: str = Query(default="", description="挂载点 JSON Pointer 路径"),
     query: Optional[str] = Query(
         default=None, description="JMESPath 查询表达式（可选）"
@@ -223,7 +223,7 @@ async def get_table_context_data(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def create_table_context_data(
-    table_id: int,
+    table_id: str,
     payload: Dict[str, Any],
     table_service=Depends(get_table_service),
 ):
@@ -249,7 +249,7 @@ async def create_table_context_data(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def update_table_context_data(
-    table_id: int,
+    table_id: str,
     payload: Dict[str, Any],
     table_service=Depends(get_table_service),
 ):
@@ -273,7 +273,7 @@ async def update_table_context_data(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def delete_table_context_data(
-    table_id: int,
+    table_id: str,
     payload: Dict[str, Any],
     table_service=Depends(get_table_service),
 ):

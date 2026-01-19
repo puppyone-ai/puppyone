@@ -17,7 +17,7 @@ class ToolRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_by_id(self, tool_id: int) -> Optional[Tool]:
+    def get_by_id(self, tool_id: str) -> Optional[Tool]:
         pass
 
     @abstractmethod
@@ -27,16 +27,16 @@ class ToolRepositoryBase(ABC):
         *,
         skip: int = 0,
         limit: int = 100,
-        table_id: Optional[int] = None,
+        table_id: Optional[str] = None,
     ) -> List[Tool]:
         pass
 
     @abstractmethod
-    def update(self, tool_id: int, tool: SbToolUpdate) -> Optional[Tool]:
+    def update(self, tool_id: str, tool: SbToolUpdate) -> Optional[Tool]:
         pass
 
     @abstractmethod
-    def delete(self, tool_id: int) -> bool:
+    def delete(self, tool_id: str) -> bool:
         pass
 
 
@@ -64,7 +64,7 @@ class ToolRepositorySupabase(ToolRepositoryBase):
         resp = self._repo.create_tool(tool)
         return self._to_model(resp)
 
-    def get_by_id(self, tool_id: int) -> Optional[Tool]:
+    def get_by_id(self, tool_id: str) -> Optional[Tool]:
         resp = self._repo.get_tool(tool_id)
         if not resp:
             return None
@@ -76,18 +76,18 @@ class ToolRepositorySupabase(ToolRepositoryBase):
         *,
         skip: int = 0,
         limit: int = 100,
-        table_id: Optional[int] = None,
+        table_id: Optional[str] = None,
     ) -> List[Tool]:
         resps = self._repo.get_tools(
             skip=skip, limit=limit, user_id=user_id, table_id=table_id
         )
         return [self._to_model(r) for r in resps]
 
-    def update(self, tool_id: int, tool: SbToolUpdate) -> Optional[Tool]:
+    def update(self, tool_id: str, tool: SbToolUpdate) -> Optional[Tool]:
         resp = self._repo.update_tool(tool_id, tool)
         if not resp:
             return None
         return self._to_model(resp)
 
-    def delete(self, tool_id: int) -> bool:
+    def delete(self, tool_id: str) -> bool:
         return self._repo.delete_tool(tool_id)

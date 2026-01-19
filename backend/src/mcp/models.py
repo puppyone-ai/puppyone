@@ -7,8 +7,8 @@ class McpInstance(BaseModel):
     mcp_instance_id: str
     api_key: str
     user_id: str
-    project_id: int
-    table_id: int
+    project_id: str
+    table_id: str
     name: Optional[str] = Field(default=None, description="MCP实例名称")
     json_path: str = Field(
         default="",

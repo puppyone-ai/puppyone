@@ -40,7 +40,7 @@ class McpService:
     ### API_KEY生成和解析逻辑 ###
 
     def generate_mcp_token(
-        self, user_id: str, project_id: int, table_id: int, json_pointer: str = ""
+        self, user_id: str, project_id: str, table_id: str, json_pointer: str = ""
     ) -> str:
         """
         根据用户ID、项目ID、表格ID、JSON路径 生成代表MCP实例的JWT token
@@ -98,8 +98,8 @@ class McpService:
     async def create_mcp_instance(
         self,
         user_id: str,
-        project_id: int,
-        table_id: int,
+        project_id: str,
+        table_id: str,
         json_pointer: str = "",
         tools_definition: Optional[Dict[str, Any]] = None,
         register_tools: Optional[List[str]] = None,

@@ -79,7 +79,7 @@ class ETLService:
     async def submit_etl_task(
         self,
         user_id: str,
-        project_id: int,
+        project_id: str,
         filename: str,
         rule_id: int | None,
         s3_key: str | None = None,

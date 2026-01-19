@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class TableInfo:
     """表信息"""
 
-    id: int
+    id: str
     name: str
     rows: Optional[int] = None
 
@@ -30,19 +30,19 @@ class ProjectService:
     def __init__(self, repo: ProjectRepositoryBase):
         self.repo = repo
 
-    def get_by_id(self, project_id: int) -> Optional[Project]:
+    def get_by_id(self, project_id: str) -> Optional[Project]:
         """
         根据ID获取项目
 
         Args:
-            project_id: 项目ID
+            project_id: 项目ID (UUID)
 
         Returns:
             Project对象，如果不存在则返回None
         """
         return self.repo.get_by_id(project_id)
 
-    def get_by_id_with_access_check(self, project_id: int, user_id: str) -> Project:
+    def get_by_id_with_access_check(self, project_id: str, user_id: str) -> Project:
         """
         获取项目并验证用户权限
 
@@ -109,7 +109,7 @@ class ProjectService:
 
     def update(
         self,
-        project_id: int,
+        project_id: str,
         name: Optional[str],
         description: Optional[str],
     ) -> Project:
@@ -138,12 +138,12 @@ class ProjectService:
             )
         return updated
 
-    def delete(self, project_id: int) -> None:
+    def delete(self, project_id: str) -> None:
         """
         删除项目
 
         Args:
-            project_id: 项目ID
+            project_id: 项目ID (UUID)
 
         Raises:
             NotFoundException: 如果项目不存在
@@ -154,7 +154,7 @@ class ProjectService:
                 f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
             )
 
-    def verify_project_access(self, project_id: int, user_id: str) -> bool:
+    def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的项目
 

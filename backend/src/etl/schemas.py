@@ -36,7 +36,7 @@ class ETLTaskResponse(BaseModel):
 
     task_id: int
     user_id: str
-    project_id: int
+    project_id: str
     filename: str
     rule_id: int
     status: ETLTaskStatus

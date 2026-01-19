@@ -90,7 +90,7 @@ class SupabaseRepository:
         """
         return self._project_repo.create(project_data)
 
-    def get_project(self, project_id: int) -> Optional[ProjectResponse]:
+    def get_project(self, project_id: str) -> Optional[ProjectResponse]:
         """
         根据 ID 获取项目
 
@@ -106,7 +106,7 @@ class SupabaseRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         name: Optional[str] = None,
     ) -> List[ProjectResponse]:
         """
@@ -126,7 +126,7 @@ class SupabaseRepository:
         )
 
     def update_project(
-        self, project_id: int, project_data: ProjectUpdate
+        self, project_id: str, project_data: ProjectUpdate
     ) -> Optional[ProjectResponse]:
         """
         更新项目
@@ -143,7 +143,7 @@ class SupabaseRepository:
         """
         return self._project_repo.update(project_id, project_data)
 
-    def delete_project(self, project_id: int) -> bool:
+    def delete_project(self, project_id: str) -> bool:
         """
         删除项目
 
@@ -172,7 +172,7 @@ class SupabaseRepository:
         """
         return self._table_repo.create(table_data)
 
-    def get_table(self, table_id: int) -> Optional[TableResponse]:
+    def get_table(self, table_id: str) -> Optional[TableResponse]:
         """
         根据 ID 获取表
 
@@ -188,7 +188,7 @@ class SupabaseRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        project_id: Optional[int] = None,
+        project_id: Optional[str] = None,
         name: Optional[str] = None,
     ) -> List[TableResponse]:
         """
@@ -208,7 +208,7 @@ class SupabaseRepository:
         )
 
     def update_table(
-        self, table_id: int, table_data: TableUpdate
+        self, table_id: str, table_data: TableUpdate
     ) -> Optional[TableResponse]:
         """
         更新表
@@ -225,7 +225,7 @@ class SupabaseRepository:
         """
         return self._table_repo.update(table_id, table_data)
 
-    def delete_table(self, table_id: int) -> bool:
+    def delete_table(self, table_id: str) -> bool:
         """
         删除表
 
@@ -254,7 +254,7 @@ class SupabaseRepository:
         """
         return self._mcp_repo.create(mcp_data)
 
-    def get_mcp(self, mcp_id: int) -> Optional[McpResponse]:
+    def get_mcp(self, mcp_id: str) -> Optional[McpResponse]:
         """
         根据 ID 获取 MCP 实例
 
@@ -283,8 +283,8 @@ class SupabaseRepository:
         skip: int = 0,
         limit: int = 100,
         user_id: Optional[str] = None,
-        project_id: Optional[int] = None,
-        table_id: Optional[int] = None,
+        project_id: Optional[str] = None,
+        table_id: Optional[str] = None,
     ) -> List[McpResponse]:
         """
         获取 MCP 实例列表
@@ -307,7 +307,7 @@ class SupabaseRepository:
             table_id=table_id,
         )
 
-    def update_mcp(self, mcp_id: int, mcp_data: McpUpdate) -> Optional[McpResponse]:
+    def update_mcp(self, mcp_id: str, mcp_data: McpUpdate) -> Optional[McpResponse]:
         """
         更新 MCP 实例
 
@@ -341,7 +341,7 @@ class SupabaseRepository:
         """
         return self._mcp_repo.update_by_api_key(api_key, mcp_data)
 
-    def delete_mcp(self, mcp_id: int) -> bool:
+    def delete_mcp(self, mcp_id: str) -> bool:
         """
         删除 MCP 实例
 
@@ -370,7 +370,7 @@ class SupabaseRepository:
     def create_tool(self, tool_data: ToolCreate) -> ToolResponse:
         return self._tool_repo.create(tool_data)
 
-    def get_tool(self, tool_id: int) -> Optional[ToolResponse]:
+    def get_tool(self, tool_id: str) -> Optional[ToolResponse]:
         return self._tool_repo.get_by_id(tool_id)
 
     def get_tools(
@@ -379,18 +379,18 @@ class SupabaseRepository:
         skip: int = 0,
         limit: int = 100,
         user_id: Optional[str] = None,
-        table_id: Optional[int] = None,
+        table_id: Optional[str] = None,
     ) -> List[ToolResponse]:
         return self._tool_repo.get_list(
             skip=skip, limit=limit, user_id=user_id, table_id=table_id
         )
 
     def update_tool(
-        self, tool_id: int, tool_data: ToolUpdate
+        self, tool_id: str, tool_data: ToolUpdate
     ) -> Optional[ToolResponse]:
         return self._tool_repo.update(tool_id, tool_data)
 
-    def delete_tool(self, tool_id: int) -> bool:
+    def delete_tool(self, tool_id: str) -> bool:
         return self._tool_repo.delete(tool_id)
 
     # ==================== MCP v2 相关操作 ====================
@@ -398,7 +398,7 @@ class SupabaseRepository:
     def create_mcp_v2(self, data: McpV2Create) -> McpV2Response:
         return self._mcp_v2_repo.create(data)
 
-    def get_mcp_v2(self, mcp_id: int) -> Optional[McpV2Response]:
+    def get_mcp_v2(self, mcp_id: str) -> Optional[McpV2Response]:
         return self._mcp_v2_repo.get_by_id(mcp_id)
 
     def get_mcp_v2_by_api_key(self, api_key: str) -> Optional[McpV2Response]:
@@ -413,10 +413,10 @@ class SupabaseRepository:
     ) -> List[McpV2Response]:
         return self._mcp_v2_repo.get_list(skip=skip, limit=limit, user_id=user_id)
 
-    def update_mcp_v2(self, mcp_id: int, data: McpV2Update) -> Optional[McpV2Response]:
+    def update_mcp_v2(self, mcp_id: str, data: McpV2Update) -> Optional[McpV2Response]:
         return self._mcp_v2_repo.update(mcp_id, data)
 
-    def delete_mcp_v2(self, mcp_id: int) -> bool:
+    def delete_mcp_v2(self, mcp_id: str) -> bool:
         return self._mcp_v2_repo.delete(mcp_id)
 
     # ==================== MCP Binding 相关操作 ====================
@@ -424,17 +424,17 @@ class SupabaseRepository:
     def create_mcp_binding(self, data: McpBindingCreate) -> McpBindingResponse:
         return self._mcp_binding_repo.create(data)
 
-    def get_mcp_binding(self, binding_id: int) -> Optional[McpBindingResponse]:
+    def get_mcp_binding(self, binding_id: str) -> Optional[McpBindingResponse]:
         return self._mcp_binding_repo.get_by_id(binding_id)
 
     def get_mcp_binding_by_mcp_and_tool(
-        self, mcp_id: int, tool_id: int
+        self, mcp_id: str, tool_id: str
     ) -> Optional[McpBindingResponse]:
         return self._mcp_binding_repo.get_by_mcp_and_tool(mcp_id, tool_id)
 
     def get_mcp_bindings_by_mcp_id(
         self,
-        mcp_id: int,
+        mcp_id: str,
         *,
         skip: int = 0,
         limit: int = 1000,
@@ -443,7 +443,7 @@ class SupabaseRepository:
 
     def get_mcp_bindings_by_tool_id(
         self,
-        tool_id: int,
+        tool_id: str,
         *,
         skip: int = 0,
         limit: int = 1000,
@@ -453,11 +453,11 @@ class SupabaseRepository:
         )
 
     def update_mcp_binding(
-        self, binding_id: int, data: McpBindingUpdate
+        self, binding_id: str, data: McpBindingUpdate
     ) -> Optional[McpBindingResponse]:
         return self._mcp_binding_repo.update(binding_id, data)
 
-    def delete_mcp_binding(self, binding_id: int) -> bool:
+    def delete_mcp_binding(self, binding_id: str) -> bool:
         return self._mcp_binding_repo.delete(binding_id)
 
     # ==================== Context Publish 相关操作 ====================
@@ -467,7 +467,7 @@ class SupabaseRepository:
     ) -> ContextPublishResponse:
         return self._context_publish_repo.create(data)
 
-    def get_context_publish(self, publish_id: int) -> Optional[ContextPublishResponse]:
+    def get_context_publish(self, publish_id: str) -> Optional[ContextPublishResponse]:
         return self._context_publish_repo.get_by_id(publish_id)
 
     def get_context_publish_by_key(
@@ -487,9 +487,9 @@ class SupabaseRepository:
         )
 
     def update_context_publish(
-        self, publish_id: int, data: ContextPublishUpdate
+        self, publish_id: str, data: ContextPublishUpdate
     ) -> Optional[ContextPublishResponse]:
         return self._context_publish_repo.update(publish_id, data)
 
-    def delete_context_publish(self, publish_id: int) -> bool:
+    def delete_context_publish(self, publish_id: str) -> bool:
         return self._context_publish_repo.delete(publish_id)

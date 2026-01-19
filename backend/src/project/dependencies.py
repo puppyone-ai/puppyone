@@ -43,7 +43,7 @@ def get_project_service() -> ProjectService:
 
 
 def get_verified_project(
-    project_id: int = Path(..., description="项目ID"),
+    project_id: str = Path(..., description="项目ID (UUID)"),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> Project:
