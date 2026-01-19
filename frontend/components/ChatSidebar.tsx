@@ -477,6 +477,25 @@ export function ChatSidebar({
                 case 'text':
                   parts.push({ type: 'text', content: event.content });
                   break;
+                case 'text_delta': {
+                  // 流式增量文本：追加到最后一个 text part
+                  let lastTextIdx = -1;
+                  for (let i = parts.length - 1; i >= 0; i--) {
+                    if (parts[i].type === 'text') {
+                      lastTextIdx = i;
+                      break;
+                    }
+                  }
+                  if (lastTextIdx !== -1) {
+                    parts[lastTextIdx] = {
+                      ...parts[lastTextIdx],
+                      content: (parts[lastTextIdx].content || '') + event.content,
+                    };
+                  } else {
+                    parts.push({ type: 'text', content: event.content });
+                  }
+                  break;
+                }
                 case 'result':
                   if (event.updatedData && onDataUpdate) {
                     onDataUpdate(event.updatedData);

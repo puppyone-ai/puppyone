@@ -71,6 +71,8 @@ class AgentService:
         created_session = False
         should_persist = current_user is not None and chat_service is not None
         
+        logger.info(f"[Chat Persist] should_persist={should_persist}, current_user={current_user is not None}, chat_service={chat_service is not None}")
+        
         if should_persist:
             try:
                 persisted_session_id, created_session = chat_service.ensure_session(
@@ -78,9 +80,11 @@ class AgentService:
                     session_id=request.session_id,
                     mode="agent",
                 )
+                logger.info(f"[Chat Persist] Session ready: id={persisted_session_id}, created={created_session}")
                 if created_session and persisted_session_id:
                     yield {"type": "session", "sessionId": persisted_session_id}
-            except Exception:
+            except Exception as e:
+                logger.error(f"[Chat Persist] Failed to ensure session: {e}")
                 persisted_session_id = None
                 should_persist = False
 
@@ -105,14 +109,15 @@ class AgentService:
         if should_persist and persisted_session_id:
             try:
                 chat_service.add_user_message(session_id=persisted_session_id, content=request.prompt)
+                logger.info(f"[Chat Persist] User message saved to session {persisted_session_id}")
                 if created_session:
                     chat_service.maybe_set_title_on_first_message(
                         user_id=current_user.user_id,
                         session_id=persisted_session_id,
                         first_message=request.prompt,
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"[Chat Persist] Failed to save user message: {e}")
 
         # ========== 3. 如果有 bash tool，查表数据、启动沙盒 ==========
         use_bash = bash_tool is not None
@@ -166,9 +171,9 @@ class AgentService:
         tools = [BASH_TOOL] if use_bash else []
         
         system_prompt = (
-            "你是 Puppy 🐶，一个 JSON 数据处理助手。使用 bash 工具来查看和操作数据。"
+            "You are an AI agent specialized in JSON data processing. Use the bash tool to view and manipulate data."
             if use_bash
-            else "You are Puppy 🐶, a helpful AI assistant."
+            else "You are an AI agent, a helpful assistant."
         )
 
         # 构建用户消息：如果使用 bash，添加数据上下文
@@ -187,7 +192,7 @@ class AgentService:
         
         messages.append({"role": "user", "content": user_content})
 
-        # ========== 5. 调用 Claude，处理工具调用 ==========
+        # ========== 5. 调用 Claude (流式)，处理工具调用 ==========
         persisted_parts: list[dict[str, Any]] = []
         tool_index = 0
         iterations = 0
@@ -195,21 +200,91 @@ class AgentService:
         while iterations < max_iterations:
             iterations += 1
             
-            logger.info(f"[CLAUDE REQUEST] Iteration {iterations}:\n{json.dumps({'model': settings.ANTHROPIC_MODEL, 'system': system_prompt, 'tools': tools, 'messages': messages}, ensure_ascii=False, indent=2)}")
+            logger.info(f"[CLAUDE REQUEST] Iteration {iterations} (streaming)")
             
             try:
-                response = await self._anthropic.messages.create(
+                # ===== 流式调用 Claude =====
+                current_text_content = ""
+                tool_uses: list[dict[str, Any]] = []
+                current_tool: dict[str, Any] | None = None
+                current_tool_input_json = ""
+                stop_reason = None
+                response_content: list[Any] = []
+                
+                async with self._anthropic.messages.stream(
                     model=settings.ANTHROPIC_MODEL,
                     max_tokens=4096,
                     system=system_prompt,
                     tools=tools,
                     messages=messages,
-                )
+                ) as stream:
+                    async for event in stream:
+                        event_type = getattr(event, "type", None)
+                        
+                        if event_type == "content_block_start":
+                            block = getattr(event, "content_block", None)
+                            block_type = getattr(block, "type", None) if block else None
+                            
+                            if block_type == "text":
+                                current_text_content = ""
+                            elif block_type == "tool_use":
+                                current_tool = {
+                                    "id": getattr(block, "id", ""),
+                                    "name": getattr(block, "name", ""),
+                                    "input": {},
+                                }
+                                current_tool_input_json = ""
+                        
+                        elif event_type == "content_block_delta":
+                            delta = getattr(event, "delta", None)
+                            delta_type = getattr(delta, "type", None) if delta else None
+                            
+                            if delta_type == "text_delta":
+                                text = getattr(delta, "text", "")
+                                if text:
+                                    current_text_content += text
+                                    # 实时 yield 每个文本片段！
+                                    yield {"type": "text_delta", "content": text}
+                            
+                            elif delta_type == "input_json_delta":
+                                partial_json = getattr(delta, "partial_json", "")
+                                if partial_json:
+                                    current_tool_input_json += partial_json
+                        
+                        elif event_type == "content_block_stop":
+                            if current_text_content:
+                                # 文本块结束，保存完整文本
+                                persisted_parts.append({"type": "text", "content": current_text_content})
+                                response_content.append({"type": "text", "text": current_text_content})
+                                current_text_content = ""
+                            
+                            if current_tool:
+                                # 工具块结束，解析 JSON 输入
+                                try:
+                                    current_tool["input"] = json.loads(current_tool_input_json) if current_tool_input_json else {}
+                                except json.JSONDecodeError:
+                                    current_tool["input"] = {"raw": current_tool_input_json}
+                                
+                                tool_uses.append(current_tool)
+                                response_content.append({
+                                    "type": "tool_use",
+                                    "id": current_tool["id"],
+                                    "name": current_tool["name"],
+                                    "input": current_tool["input"],
+                                })
+                                current_tool = None
+                                current_tool_input_json = ""
+                        
+                        elif event_type == "message_delta":
+                            delta = getattr(event, "delta", None)
+                            if delta:
+                                stop_reason = getattr(delta, "stop_reason", None)
                 
-                logger.info(f"[CLAUDE RESPONSE] Iteration {iterations}: stop_reason={response.stop_reason}")
+                logger.info(f"[CLAUDE RESPONSE] Iteration {iterations}: stop_reason={stop_reason}, tool_uses={len(tool_uses)}")
                 
             except Exception as e:
                 msg = str(e)
+                logger.error(f"[CLAUDE ERROR] {msg}")
                 yield {"type": "error", "message": msg}
                 if should_persist and persisted_session_id:
                     try:
@@ -227,17 +302,7 @@ class AgentService:
                         pass
                 return
 
-            # 处理响应
-            tool_uses = []
-            for block in response.content:
-                block_type = _get_attr(block, "type")
-                if block_type == "text":
-                    text = _get_attr(block, "text")
-                    yield {"type": "text", "content": text}
-                    persisted_parts.append({"type": "text", "content": text})
-                elif block_type == "tool_use":
-                    tool_uses.append(block)
-
+            # 没有工具调用，结束循环
             if not tool_uses:
                 break
 
@@ -246,8 +311,8 @@ class AgentService:
             for tool in tool_uses:
                 current_tool_index = tool_index
                 tool_index += 1
-                tool_name = _get_attr(tool, "name")
-                tool_input = _get_attr(tool, "input")
+                tool_name = tool.get("name", "")
+                tool_input = tool.get("input", {})
                 
                 yield {
                     "type": "tool_start",
@@ -298,18 +363,19 @@ class AgentService:
 
                 tool_results.append({
                     "type": "tool_result",
-                    "tool_use_id": _get_attr(tool, "id"),
+                    "tool_use_id": tool.get("id", ""),
                     "content": output,
                     "is_error": not success,
                 })
 
-            messages.append({"role": "assistant", "content": _normalize_content(response.content)})
+            messages.append({"role": "assistant", "content": response_content})
             messages.append({"role": "user", "content": tool_results})
             
-            if getattr(response, "stop_reason", None) == "end_turn":
+            if stop_reason == "end_turn":
                 break
 
         # ========== 6. 保存结果、清理沙盒 ==========
+        logger.info(f"[Chat Persist] Attempting to save assistant message: should_persist={should_persist}, session_id={persisted_session_id}, parts_count={len(persisted_parts)}")
         if should_persist and persisted_session_id:
             try:
                 for p in persisted_parts:
@@ -318,11 +384,15 @@ class AgentService:
                 final_content = "\n\n".join(
                     [p.get("content", "") for p in persisted_parts if p.get("type") == "text"]
                 ).strip()
+                logger.info(f"[Chat Persist] Saving assistant message: content_length={len(final_content)}, parts={persisted_parts}")
                 chat_service.add_assistant_message(
                     session_id=persisted_session_id, content=final_content, parts=persisted_parts
                 )
-            except Exception:
-                pass
+                logger.info(f"[Chat Persist] Assistant message saved successfully!")
+            except Exception as e:
+                logger.error(f"[Chat Persist] Failed to save assistant message: {e}")
+        else:
+            logger.warning(f"[Chat Persist] Skipping assistant message save: should_persist={should_persist}, session_id={persisted_session_id}")
 
         if use_bash and sandbox_service and sandbox_session_id:
             # 读取沙盒数据并更新数据库

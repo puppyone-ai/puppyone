@@ -22,11 +22,9 @@ class ChatRepositorySupabase:
             resp = (
                 self._client.table("chat_sessions")
                 .insert(input.model_dump(exclude_none=True))
-                .select("*")
-                .single()
                 .execute()
             )
-            return ChatSession(**(resp.data or {}))
+            return ChatSession(**resp.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建 chat session")
 
@@ -72,11 +70,9 @@ class ChatRepositorySupabase:
             resp = (
                 self._client.table("chat_messages")
                 .insert(payload)
-                .select("*")
-                .single()
                 .execute()
             )
-            return ChatMessage(**(resp.data or {}))
+            return ChatMessage(**resp.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建 chat message")
 
