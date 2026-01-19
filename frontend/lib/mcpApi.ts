@@ -55,11 +55,11 @@ export interface McpToolDefinition {
  * Tool 实体 - 独立的工具定义
  */
 export interface Tool {
-  id: number;
+  id: string;
   user_id: string;
   created_at: string;
 
-  table_id: number | null;
+  table_id: string | null;
   json_path: string;
   type: McpToolType;
   name: string;
@@ -75,7 +75,7 @@ export interface Tool {
  * 创建 Tool 请求
  */
 export interface ToolCreateRequest {
-  table_id: number;
+  table_id: string;
   json_path?: string; // 默认 ""
   type: McpToolType;
   name: string;
@@ -90,7 +90,7 @@ export interface ToolCreateRequest {
  * 更新 Tool 请求
  */
 export interface ToolUpdateRequest {
-  table_id?: number;
+  table_id?: string;
   json_path?: string;
   type?: McpToolType;
   name?: string;
@@ -137,7 +137,7 @@ export interface McpV2UpdateRequest {
  * Binding 请求项
  */
 export interface BindingRequest {
-  tool_id: number;
+  tool_id: string;
   status: boolean;
 }
 
@@ -155,7 +155,7 @@ export interface McpV2CreateWithBindingsRequest {
 export interface McpV2CreateWithBindingsResponse {
   id: number;
   api_key: string;
-  tool_ids: number[];
+  tool_ids: string[];
 }
 
 /**
@@ -163,7 +163,7 @@ export interface McpV2CreateWithBindingsResponse {
  * 对应后端 BoundToolOut schema
  */
 export interface BoundTool {
-  tool_id: number;
+  tool_id: string;
   binding_id: number;
   binding_status: boolean;
 
@@ -172,7 +172,7 @@ export interface BoundTool {
 
   name: string;
   type: McpToolType;
-  table_id: number | null;
+  table_id: string | null;
   json_path: string;
 
   alias?: string | null;
@@ -195,8 +195,8 @@ export interface McpInstance {
   api_key: string;
   url?: string; // MCP 服务的完整 URL（从 POST /api/v1/mcp 响应获取）
   user_id: string; // UUID 字符串格式
-  project_id: number;
-  table_id: number;
+  project_id: string;
+  table_id: string;
   name: string | null;
   json_pointer: string;
   status: number; // 0=关闭, 1=开启
@@ -213,8 +213,8 @@ export interface McpInstance {
  */
 export interface McpCreateRequest {
   user_id: string; // UUID 字符串格式
-  project_id: number;
-  table_id: number;
+  project_id: string;
+  table_id: string;
   name: string; // 必填
   json_pointer?: string;
   tools_definition: Record<McpToolType, McpToolDefinition>;
@@ -364,7 +364,7 @@ export async function createTool(request: ToolCreateRequest): Promise<Tool> {
  * 更新 Tool
  */
 export async function updateTool(
-  toolId: number,
+  toolId: string,
   request: ToolUpdateRequest
 ): Promise<Tool> {
   return put<Tool>(`/api/v1/tools/${toolId}`, request);
@@ -373,7 +373,7 @@ export async function updateTool(
 /**
  * 删除 Tool
  */
-export async function deleteTool(toolId: number): Promise<void> {
+export async function deleteTool(toolId: string): Promise<void> {
   return del<void>(`/api/v1/tools/${toolId}`);
 }
 
@@ -412,8 +412,8 @@ export async function createMcpV2(
  */
 export interface McpLegacyCreateRequest {
   name: string;
-  project_id: number;
-  table_id: number;
+  project_id: string;
+  table_id: string;
   json_pointer?: string;
   tools_definition?: Record<string, unknown>;
   register_tools?: string[];

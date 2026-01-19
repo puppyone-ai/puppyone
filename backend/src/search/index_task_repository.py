@@ -14,11 +14,11 @@ class SearchIndexTaskRepository:
     def __init__(self, client: Any):
         self._client = client
 
-    def get_by_tool_id(self, tool_id: int) -> Optional[SearchIndexTask]:
+    def get_by_tool_id(self, tool_id: str) -> Optional[SearchIndexTask]:
         resp = (
             self._client.table("search_index_task")
             .select("*")
-            .eq("tool_id", int(tool_id))
+            .eq("tool_id", tool_id)
             .limit(1)
             .execute()
         )

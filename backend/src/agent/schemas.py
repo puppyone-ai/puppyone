@@ -18,7 +18,7 @@ class AgentRequest(BaseModel):
         None, description="历史对话消息"
     )
     # 新版：只传 tool IDs，后端自动处理一切
-    active_tool_ids: Optional[List[int]] = Field(
+    active_tool_ids: Optional[List[str]] = Field(
         None, description="用户选中的 Tool ID 列表（后端自动查库获取配置）"
     )
 

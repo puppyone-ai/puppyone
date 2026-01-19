@@ -43,7 +43,7 @@ ALTER TABLE public.old_mcp_instance DROP CONSTRAINT IF EXISTS mcp_instance_table
 -- ============================================================
 -- 2. 修改 project.id 为 text
 -- ============================================================
-ALTER TABLE public.project ALTER COLUMN id DROP IDENTITY IF EXISTS;
+ALTER TABLE public.project ALTER COLUMN id DROP IDENTITY IF EXISTS; 
 ALTER TABLE public.project ALTER COLUMN id TYPE text USING id::text;
 
 -- ============================================================

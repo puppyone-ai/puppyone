@@ -109,7 +109,7 @@ class McpV2Service:
         bindings = self._repo.get_mcp_bindings_by_mcp_id(mcp_id)
         out: list[tuple[int, Tool]] = []
         for b in bindings:
-            tool = self._tool_repo.get_by_id(int(b.tool_id or 0))
+            tool = self._tool_repo.get_by_id(b.tool_id or "")
             if not tool:
                 continue
             out.append((b.id, tool))
@@ -132,7 +132,7 @@ class McpV2Service:
             if (not include_disabled) and (binding_status is False):
                 continue
 
-            tool_id = int(b.tool_id or 0)
+            tool_id = b.tool_id or ""
             if not tool_id:
                 continue
             tool = self._tool_repo.get_by_id(tool_id)
@@ -172,7 +172,7 @@ class McpV2Service:
         )
 
     def bind_tool(
-        self, *, api_key: str, user_id: str, tool_id: int, status: bool
+        self, *, api_key: str, user_id: str, tool_id: str, status: bool
     ) -> None:
         inst = self.get_by_api_key_with_access_check(api_key, user_id)
 
@@ -350,7 +350,7 @@ class McpV2Service:
         invalidate_mcp_cache(api_key)
         return inst
 
-    def unbind_tool(self, *, api_key: str, user_id: str, tool_id: int) -> None:
+    def unbind_tool(self, *, api_key: str, user_id: str, tool_id: str) -> None:
         inst = self.get_by_api_key_with_access_check(api_key, user_id)
         binding = self._repo.get_mcp_binding_by_mcp_and_tool(inst.id, tool_id)
         if not binding:
@@ -363,7 +363,7 @@ class McpV2Service:
         invalidate_mcp_cache(api_key)
 
     def update_binding_status(
-        self, *, api_key: str, user_id: str, tool_id: int, status: bool
+        self, *, api_key: str, user_id: str, tool_id: str, status: bool
     ) -> None:
         inst = self.get_by_api_key_with_access_check(api_key, user_id)
         binding = self._repo.get_mcp_binding_by_mcp_and_tool(inst.id, tool_id)

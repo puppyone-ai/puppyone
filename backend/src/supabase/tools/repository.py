@@ -12,6 +12,7 @@ from supabase import Client
 
 from src.supabase.exceptions import handle_supabase_error
 from src.supabase.tools.schemas import ToolCreate, ToolUpdate, ToolResponse
+from src.utils.id_generator import generate_uuid_v7
 
 
 class ToolRepository:
@@ -25,12 +26,14 @@ class ToolRepository:
             data = tool_data.model_dump(exclude_none=True)
             data.pop("id", None)
             data.pop("created_at", None)
+            # 生成 UUID v7 作为主键
+            data["id"] = generate_uuid_v7()
             response = self._client.table("tool").insert(data).execute()
             return ToolResponse(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建 Tool")
 
-    def get_by_id(self, tool_id: int) -> Optional[ToolResponse]:
+    def get_by_id(self, tool_id: str) -> Optional[ToolResponse]:
         response = self._client.table("tool").select("*").eq("id", tool_id).execute()
         if response.data:
             return ToolResponse(**response.data[0])
@@ -42,7 +45,7 @@ class ToolRepository:
         skip: int = 0,
         limit: int = 100,
         user_id: Optional[str] = None,
-        table_id: Optional[int] = None,
+        table_id: Optional[str] = None,
     ) -> List[ToolResponse]:
         query = self._client.table("tool").select("*")
         if user_id is not None:
@@ -52,7 +55,7 @@ class ToolRepository:
         response = query.range(skip, skip + limit - 1).execute()
         return [ToolResponse(**item) for item in response.data]
 
-    def update(self, tool_id: int, tool_data: ToolUpdate) -> Optional[ToolResponse]:
+    def update(self, tool_id: str, tool_data: ToolUpdate) -> Optional[ToolResponse]:
         try:
             data = tool_data.model_dump(exclude_none=True)
             if not data:
@@ -68,6 +71,6 @@ class ToolRepository:
         except Exception as e:
             raise handle_supabase_error(e, "更新 Tool")
 
-    def delete(self, tool_id: int) -> bool:
+    def delete(self, tool_id: str) -> bool:
         response = self._client.table("tool").delete().eq("id", tool_id).execute()
         return len(response.data) > 0

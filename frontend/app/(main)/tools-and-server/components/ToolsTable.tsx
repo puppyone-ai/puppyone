@@ -42,8 +42,8 @@ export const TOOL_TYPE_CONFIG: Record<
 };
 
 export type ToolItem = {
-  id: number;
-  tool_id?: number; // for bound tools
+  id: string;
+  tool_id?: string; // for bound tools
   name: string;
   type: string;
   description?: string;

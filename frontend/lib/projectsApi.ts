@@ -106,7 +106,7 @@ export async function createTable(
   };
   // 只有 projectId 存在时才传
   if (projectId) {
-    body.project_id = Number(projectId);
+    body.project_id = projectId;
   }
 
   const result = await apiRequest<{

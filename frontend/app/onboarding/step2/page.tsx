@@ -286,7 +286,7 @@ export default function Step2Page() {
         } else {
           updateTrackedFile(globalIndex, {
             state: 'pending',
-            taskId: item.task_id,
+            taskId: String(item.task_id),
           });
         }
       });

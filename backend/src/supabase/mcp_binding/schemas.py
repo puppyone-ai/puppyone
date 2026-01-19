@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 class McpBindingBase(BaseModel):
     mcp_id: Optional[int] = None
-    tool_id: Optional[int] = None
+    tool_id: Optional[str] = None
     status: Optional[bool] = None
 
 

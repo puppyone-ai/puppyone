@@ -20,7 +20,7 @@ export type ETLTaskState =
 export interface TrackedFile {
   file: File;
   state: ETLTaskState;
-  taskId?: number;
+  taskId?: string;
   progress?: number;
   error?: string;
   result?: any;

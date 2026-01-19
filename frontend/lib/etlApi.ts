@@ -15,11 +15,11 @@ export type ETLStatus =
   | 'cancelled';
 
 export interface ETLTaskStatus {
-  task_id: number;
+  task_id: string;
   user_id: string;
-  project_id: number;
+  project_id: string;
   filename: string;
-  rule_id: number;
+  rule_id: string;
   status: ETLStatus;
   progress: number;
   created_at: string;
@@ -147,7 +147,7 @@ export async function uploadAndSubmit(
  * 批量查询 ETL 任务状态
  */
 export async function batchGetETLTaskStatus(
-  taskIds: number[],
+  taskIds: string[],
   accessToken: string
 ): Promise<BatchETLTaskStatusResponse> {
   const response = await fetch(
@@ -171,7 +171,7 @@ export async function batchGetETLTaskStatus(
  * 查询单个 ETL 任务状态
  */
 export async function getETLTaskStatus(
-  taskId: number,
+  taskId: string,
   accessToken: string
 ): Promise<ETLTaskStatus> {
   const response = await fetch(`${API_URL}/api/v1/etl/tasks/${taskId}`, {
