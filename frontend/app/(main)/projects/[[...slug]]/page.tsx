@@ -74,7 +74,7 @@ export default function ProjectsSlugPage({
   );
   // 获取当前 project 下的所有 Tools（用于 ChatSidebar 项目级展示）
   const { tools: projectTools } = useProjectTools(
-    !isOrphanTable ? (activeBaseId || projectId) : undefined
+    !isOrphanTable ? activeBaseId || projectId : undefined
   );
   // 获取当前 table 的数据（用于 ChatSidebar）
   const { tableData: currentTableData, refresh: refreshTable } = useTable(
@@ -165,7 +165,9 @@ export default function ProjectsSlugPage({
     // Note: bash mutual-exclusion is handled in UI, but we keep it safe here too.
     const wantShellReadonly = !!(permissions as any)?.shell_access_readonly;
     const wantShellFull = !!(permissions as any)?.shell_access;
-    const effectivePermissions: Record<string, boolean> = { ...(permissions as any) };
+    const effectivePermissions: Record<string, boolean> = {
+      ...(permissions as any),
+    };
     if (wantShellReadonly) effectivePermissions['shell_access'] = false;
     if (wantShellFull) effectivePermissions['shell_access_readonly'] = false;
 
@@ -410,7 +412,9 @@ export default function ProjectsSlugPage({
                           // 同步刷新 project tools，保证 ChatSidebar 菜单立刻看到最新配置
                           refreshProjectTools(activeBaseId || projectId);
                         })
-                        .catch(err => console.error('Failed to persist tools:', err));
+                        .catch(err =>
+                          console.error('Failed to persist tools:', err)
+                        );
                     }
                   }}
                   onAccessPointRemove={(path: string) => {
