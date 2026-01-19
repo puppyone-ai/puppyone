@@ -109,10 +109,15 @@ export function ChatSidebar({
     // 项目级：直接使用 DB tools 列表
     for (const t of projectTools) {
       const type = (t.type || '').trim();
-      const isBash = type === 'shell_access' || type === 'shell_access_readonly';
+      const isBash =
+        type === 'shell_access' || type === 'shell_access_readonly';
       const tid = typeof t.table_id === 'number' ? t.table_id : null;
       const tableName =
-        tid && tableNameById?.[tid] ? tableNameById[tid] : tid ? `Table ${tid}` : 'Table';
+        tid && tableNameById?.[tid]
+          ? tableNameById[tid]
+          : tid
+            ? `Table ${tid}`
+            : 'Table';
       const scopePath = (t.json_path || '').trim() || 'root';
       const labelBase = toolTypeLabels[type] || type || 'tool';
       const label = `${tableName} · ${labelBase} · ${scopePath}`;
@@ -136,7 +141,8 @@ export function ChatSidebar({
             id: `${ap.id}-${toolType}`, // 唯一 ID
             label: toolTypeLabels[toolType] || toolType,
             type:
-              toolType === 'shell_access' || toolType === 'shell_access_readonly'
+              toolType === 'shell_access' ||
+              toolType === 'shell_access_readonly'
                 ? ('bash' as const)
                 : ('tool' as const),
           });
@@ -379,7 +385,7 @@ export function ChatSidebar({
           activeToolIds.push(parseInt(match[1], 10));
         }
       }
-      
+
       console.log('[ChatSidebar] Sending active_tool_ids:', activeToolIds);
 
       const token = await getApiAccessToken();

@@ -13,7 +13,12 @@ import {
   type TableData,
   type TableInfo,
 } from '../projectsApi';
-import { getTools, getToolsByProjectId, getToolsByTableId, type Tool } from '../mcpApi';
+import {
+  getTools,
+  getToolsByProjectId,
+  getToolsByTableId,
+  type Tool,
+} from '../mcpApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
 const defaultConfig = {
@@ -197,7 +202,8 @@ export function useProjectTools(projectId: string | undefined) {
  * 手动刷新指定项目的 Tools（用于：用户在 editor 侧栏配置权限后，ChatSidebar 立刻可见）
  */
 export function refreshProjectTools(projectId?: string | number | null) {
-  const pid = projectId !== undefined && projectId !== null ? Number(projectId) : NaN;
+  const pid =
+    projectId !== undefined && projectId !== null ? Number(projectId) : NaN;
   if (Number.isFinite(pid)) {
     return mutate(['tools-by-project', pid]);
   }

@@ -211,7 +211,9 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
     const mentionMenuRef = useRef<HTMLDivElement>(null);
     const [showBashMenu, setShowBashMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
-    const [hoveredOtherTable, setHoveredOtherTable] = useState<number | null>(null);
+    const [hoveredOtherTable, setHoveredOtherTable] = useState<number | null>(
+      null
+    );
 
     // 分离 Bash (shell_access) 和 MCP Tools
     const bashTools = availableTools.filter(t => t.type === 'bash');
@@ -226,7 +228,10 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
     );
 
     // 按 tableId 分组其他 tables 的 bash 工具
-    const otherTableGroups = new Map<number, { tableName: string; tools: AccessOption[] }>();
+    const otherTableGroups = new Map<
+      number,
+      { tableName: string; tools: AccessOption[] }
+    >();
     otherTableBashTools.forEach(tool => {
       if (tool.tableId != null) {
         if (!otherTableGroups.has(tool.tableId)) {
@@ -505,10 +510,9 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
                                 borderRadius: 4,
                                 cursor: 'pointer',
                                 fontSize: 12,
-                                color:
-                                  tools.some(t => selected.has(t.id))
-                                    ? '#ffa73d'
-                                    : '#737373',
+                                color: tools.some(t => selected.has(t.id))
+                                  ? '#ffa73d'
+                                  : '#737373',
                                 background:
                                   hoveredOtherTable === tableId
                                     ? '#1f1f1f'
