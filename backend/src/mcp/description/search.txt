@@ -1,4 +1,4 @@
-在指定 scope（table_id + json_path）内对大段文本做混合检索（语义向量 ANN + 关键词 BM25），返回命中 chunk 的完整内容与精确定位信息。
+在指定 scope（table_id + json_path）内对大段文本做语义向量检索（ANN），返回命中 chunk 的完整内容与精确定位信息。
 
 表格：{table_name}
 {table_description}

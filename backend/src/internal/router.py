@@ -298,9 +298,9 @@ async def delete_table_context_data(
 @router.post(
     "/tools/{tool_id}/search",
     response_model=SearchToolQueryResponse,
-    summary="执行 Search Tool（hybrid retrieval）",
+    summary="执行 Search Tool（ANN retrieval）",
     description=(
-        "根据 tool_id 执行混合检索（ANN + BM25 + RRF），返回结构化结果。\n\n"
+        "根据 tool_id 执行语义向量检索（ANN），返回结构化结果。\n\n"
         "给前端/调用方的关键点：\n"
         "- 该端点为 Internal API，需要 `X-Internal-Secret` 鉴权；\n"
         "- tool 必须是 `type=search`，且必须绑定 `table_id/json_path`；\n"

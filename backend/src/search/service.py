@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import time
-import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -87,7 +86,7 @@ class SearchService:
     """
     Search Tool 核心能力：
     - index_tool: (table_id, json_path) scope -> chunking -> embedding -> turbopuffer upsert
-    - search_tool: hybrid (ANN + BM25) -> RRF -> 结构化输出
+    - search_tool: ANN -> 结构化输出（chunk_text 通过 DB 回填）
     """
 
     def __init__(
@@ -124,11 +123,10 @@ class SearchService:
         return f"{table_id}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
 
     async def ensure_namespace_schema(self, *, namespace: str) -> None:
-        # 最小 schema：为 BM25 启用 full_text_search
-        await self._tp.update_schema(
-            namespace,
-            schema={"content": {"type": "string", "full_text_search": True}},
-        )
+        # 兼容保留：当前实现不再依赖 turbopuffer 的 BM25，因此无需 schema。
+        # 若未来重新引入 BM25，可在此恢复 update_schema。
+        _ = namespace
+        return None
 
     async def index_scope(
         self,
@@ -240,18 +238,13 @@ class SearchService:
                 {
                     "id": doc_id,
                     "vector": vec,
-                    # BM25 字段（全文检索）
-                    "content": c.chunk_text,
-                    # 其余 metadata 放 attributes（用于返回"完整 chunk 信息"）
-                    "table_id": c.table_id,
+                    # metadata（用于回填 chunk_text 与定位）
                     "json_pointer": c.json_pointer,
                     "chunk_index": c.chunk_index,
                     "total_chunks": c.total_chunks,
                     "char_start": c.char_start,
                     "char_end": c.char_end,
                     "content_hash": c.content_hash,
-                    "turbopuffer_namespace": namespace,
-                    "turbopuffer_doc_id": doc_id,
                     "chunk_id": int(c.id),
                 }
             )
@@ -263,8 +256,6 @@ class SearchService:
             namespace,
             upsert_rows=upsert_rows,
             distance_metric="cosine_distance",
-            # 再带一次 schema，保证首次写入即可用 BM25（与 docs 一致）
-            schema={"content": {"type": "string", "full_text_search": True}},
         )
         log_info(
             f"[index_scope] step5_turbopuffer_done: table_id={table_id} elapsed_ms={int((time.perf_counter() - t5) * 1000)}"
@@ -313,7 +304,7 @@ class SearchService:
         top_k: int = 5,
     ) -> list[dict[str, Any]]:
         """
-        在 namespace 上执行 hybrid search，返回融合后的 rows（含 attributes）。
+        在 namespace 上执行向量 ANN 检索，返回 rows（chunk_text 通过 DB 回填）。
         """
         q = (query or "").strip()
         if not q:
@@ -328,47 +319,72 @@ class SearchService:
         namespace = self.build_namespace(project_id=project_id, table_id=table_id)
 
         query_vec = await self._embedding.generate_embedding(q)
-        resp = await self._tp.multi_query(
+        resp = await self._tp.query(
             namespace,
-            queries=[
-                {
-                    "rank_by": ("vector", "ANN", query_vec),
-                    "top_k": top_k,
-                    "include_attributes": True,
-                },
-                {
-                    "rank_by": ("content", "BM25", q),
-                    "top_k": top_k,
-                    "include_attributes": True,
-                },
-            ],
+            rank_by=("vector", "ANN", query_vec),
+            top_k=top_k,
+            include_attributes=True,
         )
-
-        vector_rows = resp.results[0].rows if len(resp.results) > 0 else []
-        bm25_rows = resp.results[1].rows if len(resp.results) > 1 else []
-
-        fused = reciprocal_rank_fusion([vector_rows, bm25_rows], k=60)
+        rows = resp.rows or []
         scope_base = _normalize_json_pointer(tool_json_path)
 
+        # 批量回填 chunk_text（避免在 turbopuffer 存储冗余大字段）
+        chunk_ids: list[int] = []
+        for r in rows[:top_k]:
+            attrs = r.attributes or {}
+            cid = attrs.get("chunk_id")
+            try:
+                if cid is not None:
+                    chunk_ids.append(int(cid))
+            except (TypeError, ValueError):
+                pass
+        chunks = await asyncio.to_thread(self._chunk_repo.get_by_ids, chunk_ids)
+        chunk_text_by_id = {int(c.id): c.chunk_text for c in chunks}
+
         out: list[dict[str, Any]] = []
-        for row, score in fused[:top_k]:
-            attrs = row.attributes or {}
+        for r in rows[:top_k]:
+            attrs = r.attributes or {}
             json_pointer = str(attrs.get("json_pointer") or "")
             json_pointer = _normalize_json_pointer(json_pointer)
             json_path = _relative_pointer(base=scope_base, absolute=json_pointer)
 
             # 仅返回对 Agent 有用的字段
             # 移除内部字段: table_id, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
+            cid = attrs.get("chunk_id")
+            chunk_id_int: int | None = None
+            try:
+                if cid is not None:
+                    chunk_id_int = int(cid)
+            except (TypeError, ValueError):
+                chunk_id_int = None
+
+            # 尽量用 score；否则用距离构造一个单调分数（越接近越大）
+            score = None
+            if r.score is not None:
+                score = float(r.score)
+            elif r.distance is not None:
+                try:
+                    dist = float(r.distance)
+                    score = 1.0 / (1.0 + dist)
+                except (TypeError, ValueError):
+                    score = 0.0
+            else:
+                score = 0.0
+
             out.append(
                 {
                     "score": float(score),
                     "json_path": json_path,
                     "chunk": {
-                        "id": attrs.get("chunk_id"),
+                        "id": chunk_id_int,
                         "json_pointer": json_pointer,
                         "chunk_index": int(attrs.get("chunk_index") or 0),
                         "total_chunks": int(attrs.get("total_chunks") or 0),
-                        "chunk_text": str(attrs.get("content") or ""),
+                        "chunk_text": (
+                            chunk_text_by_id.get(chunk_id_int, "")
+                            if chunk_id_int is not None
+                            else ""
+                        ),
                     },
                 }
             )
