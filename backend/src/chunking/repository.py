@@ -23,6 +23,35 @@ class ChunkRepository:
     def __init__(self, client: Any):
         self._client = client
 
+    def get_by_ids(self, ids: list[int]) -> list[Chunk]:
+        """
+        批量按 chunks.id 读取记录。
+
+        说明：
+        - Supabase SDK 的过滤 API 在不同版本里可能略有差异，这里优先使用 `in_`；
+          若不可用则降级为逐条查询（top_k <= 20 时可接受）。
+        """
+        if not ids:
+            return []
+
+        uniq: list[int] = sorted({int(x) for x in ids if x is not None})
+        if not uniq:
+            return []
+
+        q = self._client.table("chunks").select("*")
+        if hasattr(q, "in_"):
+            resp = q.in_("id", uniq).execute()
+            return [Chunk(**row) for row in (resp.data or [])]
+
+        # fallback：逐条读取（避免依赖不存在的批量 API）
+        out: list[Chunk] = []
+        for cid in uniq:
+            resp = self._client.table("chunks").select("*").eq("id", cid).execute()
+            rows = resp.data or []
+            if rows:
+                out.append(Chunk(**rows[0]))
+        return out
+
     def get_by_hash(
         self, *, table_id: str, json_pointer: str, content_hash: str
     ) -> list[Chunk]:
@@ -66,7 +95,9 @@ def ensure_chunks_for_pointer(
     svc = service or ChunkingService()
 
     t1 = time.perf_counter()
-    log_info(f"[ensure_chunks] validate_content_limits start: content_len={len(content)}")
+    log_info(
+        f"[ensure_chunks] validate_content_limits start: content_len={len(content)}"
+    )
     svc.validate_content_limits(
         content,
         max_content_size_chars=cfg.max_content_size_chars,
@@ -79,7 +110,9 @@ def ensure_chunks_for_pointer(
 
     t2 = time.perf_counter()
     content_hash = compute_content_hash(content)
-    log_info(f"[ensure_chunks] hash computed: elapsed_ms={int((time.perf_counter() - t2) * 1000)}")
+    log_info(
+        f"[ensure_chunks] hash computed: elapsed_ms={int((time.perf_counter() - t2) * 1000)}"
+    )
 
     t3 = time.perf_counter()
     existing = repo.get_by_hash(
