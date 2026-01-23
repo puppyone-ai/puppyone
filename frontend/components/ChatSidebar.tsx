@@ -37,6 +37,495 @@ interface Message {
 
 import { type McpToolPermissions, type Tool as DbTool } from '../lib/mcpApi';
 
+// --- Icons ---
+
+const ChevronDownIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 9l6 6 6-6" />
+  </svg>
+);
+
+const PlusIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+
+const LockIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+const ZapIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </svg>
+);
+
+const DatabaseIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <ellipse cx="12" cy="5" rx="9" ry="3" />
+    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+  </svg>
+);
+
+const BoxIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+    <line x1="12" y1="22.08" x2="12" y2="12" />
+  </svg>
+);
+
+const MessageSquareIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+const ToolIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+  </svg>
+);
+
+// --- Components ---
+
+// Button Component for Context Bar
+const ContextButton = ({
+  icon,
+  label,
+  value,
+  onClick,
+  active,
+  disabled,
+  flex,
+  hasDropdown = false,
+}: {
+  icon?: React.ReactNode;
+  label?: string;
+  value?: React.ReactNode;
+  onClick?: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  flex?: boolean;
+  hasDropdown?: boolean;
+}) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    style={{
+      height: 28,
+      padding: '0 8px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
+      border: '1px solid transparent',
+      borderRadius: 6, // Slightly rounded for Linear feel
+      color: active ? '#eee' : '#999', // Softer secondary color
+      fontSize: 13, // Strict 13px
+      fontWeight: 400, // Regular weight, let color define hierarchy
+      cursor: disabled ? 'default' : 'pointer',
+      transition: 'all 0.15s ease',
+      whiteSpace: 'nowrap',
+      flex: flex ? 1 : 'initial',
+      minWidth: 0,
+      maxWidth: '100%',
+      justifyContent: flex ? 'flex-start' : 'center', // Align left if flex
+    }}
+    onMouseEnter={e => {
+      if (!disabled && !active) {
+        e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+        e.currentTarget.style.color = '#ccc';
+      }
+    }}
+    onMouseLeave={e => {
+      if (!disabled && !active) {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = '#999';
+      }
+    }}
+  >
+    {icon && <span style={{ opacity: 0.7, flexShrink: 0, display: 'flex' }}>{icon}</span>}
+    {label && <span style={{ fontSize: 12, fontWeight: 500, color: '#888', flexShrink: 0 }}>{label}</span>}
+    {value && (
+      <span
+        style={{
+          color: active ? '#fff' : '#ccc',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontSize: 13,
+        }}
+      >
+        {value}
+      </span>
+    )}
+    {hasDropdown && !disabled && (
+      <span style={{ opacity: 0.4, marginTop: 1, flexShrink: 0, marginLeft: 'auto' }}><ChevronDownIcon /></span>
+    )}
+  </button>
+);
+
+// Agent Context Bar
+const AgentContextBar = ({
+  currentFileName,
+  capabilitiesCount,
+  isLocked,
+  onConfigChange,
+  availableTools,
+  selectedAccess,
+  onToggleAccess,
+  currentTableId,
+}: {
+  currentFileName: string;
+  capabilitiesCount: number;
+  isLocked: boolean;
+  onConfigChange: () => void;
+  availableTools: AccessOption[];
+  selectedAccess: Set<string>;
+  onToggleAccess: (id: string) => void;
+  currentTableId?: string;
+}) => {
+  const [openDropdown, setOpenDropdown] = useState<'capabilities' | null>(null);
+
+  const toggleDropdown = (name: 'capabilities') => {
+    if (isLocked) {
+        onConfigChange(); // Prompt to unlock
+        return;
+    }
+    setOpenDropdown(openDropdown === name ? null : name);
+  };
+
+  useEffect(() => {
+    if (!openDropdown) return;
+    const handleClick = () => setOpenDropdown(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [openDropdown]);
+
+  // Filter tools
+  const currentContextTools = availableTools.filter(t => 
+    (t.tableId?.toString() === currentTableId) || (!t.tableId && !currentTableId)
+  );
+
+  return (
+    <div
+      style={{
+        height: 36, // Slightly taller for better touch target but keeps compact feel
+        padding: '0 8px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+        borderBottom: '1px solid #222',
+        background: '#111',
+        flexShrink: 0,
+        position: 'relative',
+        width: '100%',
+        overflow: 'visible',
+        zIndex: 10,
+      }}
+      onClick={e => e.stopPropagation()}
+    >
+      {/* Capabilities - Full Width */}
+      <div style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex' }}>
+        <ContextButton
+          icon={<BoxIcon />}
+          label="CAPABILITIES" // Uppercase for label (Linear style)
+          value={capabilitiesCount > 0 ? `${capabilitiesCount} Enabled` : 'None'}
+          active={openDropdown === 'capabilities'}
+          disabled={false}
+          onClick={() => toggleDropdown('capabilities')}
+          hasDropdown={!isLocked}
+          flex={true}
+        />
+        {/* Capabilities Dropdown */}
+        {openDropdown === 'capabilities' && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              left: 0,
+              right: 0, // Full width dropdown
+              maxHeight: 320,
+              overflowY: 'auto',
+              background: '#161616', // Slightly lighter than bg
+              border: '1px solid #333',
+              borderRadius: 8,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              zIndex: 100,
+              padding: '6px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+          >
+            <div style={{ padding: '6px 8px', fontSize: 11, color: '#666', fontWeight: 600, letterSpacing: '0.02em' }}>
+              {currentFileName} CAPABILITIES
+            </div>
+            {currentContextTools.map(tool => (
+              <div
+                key={tool.id}
+                onClick={() => onToggleAccess(tool.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: selectedAccess.has(tool.id) ? '#eee' : '#888',
+                  background: selectedAccess.has(tool.id) ? '#262626' : 'transparent',
+                  transition: 'all 0.1s',
+                }}
+                onMouseEnter={e => {
+                  if (!selectedAccess.has(tool.id)) e.currentTarget.style.background = '#1f1f1f';
+                }}
+                onMouseLeave={e => {
+                  if (!selectedAccess.has(tool.id)) e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+                  <span style={{ opacity: 0.7, flexShrink: 0, color: selectedAccess.has(tool.id) ? '#fff' : '#666' }}>
+                    {tool.type === 'bash' ? <span style={{ fontFamily: 'monospace' }}>&gt;_</span> : <ToolIcon />}
+                  </span>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {tool.label.split(' · ').slice(1).join(' · ')} 
+                  </span>
+                </div>
+                {selectedAccess.has(tool.id) && (
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', flexShrink: 0 }} />
+                )}
+              </div>
+            ))}
+            {currentContextTools.length === 0 && (
+              <div style={{ padding: '16px', color: '#555', fontSize: 12, textAlign: 'center', lineHeight: 1.5 }}>
+                No capabilities found.<br/>
+                <span style={{ opacity: 0.7 }}>Enable Agent Access in the table context menu.</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+// Instance Switcher Header
+const InstanceSwitcherHeader = ({
+  title,
+  status,
+  onSwitch,
+  onSave,
+  onClose,
+  isDraft,
+}: {
+  title: string;
+  status: 'draft' | 'active' | 'saved';
+  onSwitch: () => void;
+  onSave: () => void;
+  onClose: () => void;
+  isDraft: boolean;
+}) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handleClick = () => setShowDropdown(false);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [showDropdown]);
+
+  return (
+    <div
+      style={{
+        height: 44,
+        padding: '0 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        borderBottom: '1px solid #222',
+        background: '#111',
+        flexShrink: 0,
+      }}
+    >
+      {/* Close Button */}
+      <button
+        onClick={onClose}
+        title='Close Panel'
+        style={{
+          width: 28,
+          height: 28,
+          background: 'transparent',
+          border: 'none',
+          color: '#6b7280',
+          cursor: 'pointer',
+          borderRadius: 6,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.15s',
+          flexShrink: 0,
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+          e.currentTarget.style.color = '#9ca3af';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.color = '#6b7280';
+        }}
+      >
+        <svg
+          width='16'
+          height='16'
+          viewBox='0 0 24 24'
+          fill='none'
+          stroke='currentColor'
+          strokeWidth='2'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+        >
+          <rect x='3' y='3' width='18' height='18' rx='2' />
+          <line x1='15' y1='3' x2='15' y2='21' />
+        </svg>
+      </button>
+
+      {/* Instance Switcher */}
+      <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDropdown(!showDropdown);
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            width: '100%',
+            background: 'transparent',
+            border: 'none',
+            padding: '4px 8px',
+            borderRadius: 6,
+            cursor: 'pointer',
+            color: '#eee',
+            transition: 'background 0.1s',
+            overflow: 'hidden',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          <div style={{ 
+            width: 8, 
+            height: 8, 
+            borderRadius: '50%', 
+            background: status === 'active' ? '#4ade80' : status === 'saved' ? '#fbbf24' : '#666',
+            flexShrink: 0,
+          }} />
+          <span style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+          <span style={{ color: '#666', marginTop: 2, flexShrink: 0 }}><ChevronDownIcon /></span>
+        </button>
+
+        {/* Dropdown Menu */}
+        {showDropdown && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              left: 0,
+              width: 220,
+              background: '#1a1a1a',
+              border: '1px solid #333',
+              borderRadius: 8,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+              zIndex: 100,
+              padding: '4px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+          >
+            <div style={{ padding: '4px 8px', fontSize: 11, color: '#666', fontWeight: 600 }}>
+              DRAFTS
+            </div>
+            <div
+              onClick={() => {
+                onSwitch(); // For now, just reset to draft
+                setShowDropdown(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 8px',
+                borderRadius: 4,
+                cursor: 'pointer',
+                fontSize: 13,
+                color: isDraft ? '#fff' : '#aaa',
+                background: isDraft ? '#262626' : 'transparent',
+              }}
+              onMouseEnter={e => {
+                if (!isDraft) e.currentTarget.style.background = '#1f1f1f';
+              }}
+              onMouseLeave={e => {
+                if (!isDraft) e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#666' }} />
+              New Chat
+            </div>
+
+            <div style={{ padding: '4px 8px', marginTop: 4, fontSize: 11, color: '#666', fontWeight: 600 }}>
+              SERVICES
+            </div>
+            <div style={{ padding: '8px', color: '#555', fontSize: 12, fontStyle: 'italic' }}>
+              No active services
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      {isDraft && (
+        <button
+          onClick={onSave}
+          style={{
+            fontSize: 13,
+            color: '#ccc',
+            background: 'transparent',
+            border: '1px solid #333',
+            padding: '4px 10px',
+            borderRadius: 6,
+            cursor: 'pointer',
+            transition: 'all 0.1s',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            fontWeight: 400,
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.borderColor = '#555';
+            e.currentTarget.style.color = '#eee';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.borderColor = '#333';
+            e.currentTarget.style.color = '#ccc';
+          }}
+        >
+          Save as Service
+        </button>
+      )}
+    </div>
+  );
+};
+
 // AccessPoint 类型（从 ToolsPanel 复用）
 interface AccessPoint {
   id: string;
@@ -639,6 +1128,40 @@ export function ChatSidebar({
     [mention, handleSelectMention, handleSend]
   );
 
+  const [agentMode, setAgentMode] = useState<'draft' | 'saved' | 'service'>('draft');
+  const [agentName, setAgentName] = useState('New Chat');
+  const [triggerMode, setTriggerMode] = useState('Manual');
+
+  // ... existing handlers ...
+
+  const handleToggleAccess = useCallback((id: string) => {
+    setSelectedAccess(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(id)) {
+        newSelected.delete(id);
+      } else {
+        newSelected.add(id);
+        
+        // Handle Bash exclusivity (if needed, though 'capabilities' list implies free mix)
+        // Keeping it flexible: if it's a bash tool, we might want to ensure only one bash is active per table?
+        // For now, let's keep it simple: just toggle. 
+        // If we want to enforce logic:
+        const tool = availableTools.find(t => t.id === id);
+        if (tool?.type === 'bash') {
+           // Find other bash tools for SAME table and deselect them?
+           // Let's assume multi-selection is fine unless strictly prohibited.
+        }
+      }
+      return newSelected;
+    });
+  }, [availableTools]);
+
+  // Determine current context name
+  const currentContextName =
+    tableId && tableNameById?.[tableId]
+      ? tableNameById[tableId]
+      : 'data.json';
+
   return (
     <aside
       ref={sidebarRef}
@@ -682,268 +1205,47 @@ export function ChatSidebar({
         />
       )}
 
-      {/* Header */}
-      <div
-        style={{
-          height: 45,
-          padding: '0 12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: '1px solid #222',
-          flexShrink: 0,
-          background: '#111111',
-          zIndex: 5,
+      {/* Header with Instance Switcher */}
+      <InstanceSwitcherHeader 
+        title={agentName}
+        status={agentMode === 'service' ? 'active' : agentMode === 'saved' ? 'saved' : 'draft'}
+        isDraft={agentMode === 'draft'}
+        onSwitch={() => {
+          // TODO: Show switcher dropdown
+          if (agentMode !== 'draft') {
+            setAgentMode('draft');
+            setAgentName('New Chat');
+          }
         }}
-      >
-        <button
-          onClick={() => onOpenChange(false)}
-          title='Close Panel'
-          style={{
-            width: 28,
-            height: 28,
-            background: 'transparent',
-            border: 'none',
-            color: '#6b7280',
-            cursor: 'pointer',
-            borderRadius: 6,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-            e.currentTarget.style.color = '#9ca3af';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#6b7280';
-          }}
-        >
-          <svg
-            width='16'
-            height='16'
-            viewBox='0 0 24 24'
-            fill='none'
-            stroke='currentColor'
-            strokeWidth='2'
-            strokeLinecap='round'
-            strokeLinejoin='round'
-          >
-            <rect x='3' y='3' width='18' height='18' rx='2' />
-            <line x1='15' y1='3' x2='15' y2='21' />
-          </svg>
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div ref={historyMenuRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              title='Chat History'
-              style={{
-                width: 28,
-                height: 28,
-                background: showHistory
-                  ? 'rgba(255,255,255,0.08)'
-                  : 'transparent',
-                border: 'none',
-                color: showHistory ? '#9ca3af' : '#6b7280',
-                cursor: 'pointer',
-                borderRadius: 6,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                e.currentTarget.style.color = '#9ca3af';
-              }}
-              onMouseLeave={e => {
-                if (!showHistory) {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#6b7280';
-                }
-              }}
-            >
-              <svg
-                width='16'
-                height='16'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='2'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              >
-                <circle cx='12' cy='12' r='10' />
-                <polyline points='12 6 12 12 16 14' />
-              </svg>
-            </button>
+        onSave={() => {
+          // Simple transition simulation
+          const name = prompt('Name your service:', 'Daily Cleaner');
+          if (name) {
+            setAgentName(name);
+            setAgentMode('service'); // Skip saved state for simplicity in demo
+          }
+        }}
+        onClose={() => onOpenChange(false)}
+      />
 
-            {/* History Dropdown Menu */}
-            {showHistory && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  right: 0,
-                  width: 240,
-                  maxHeight: 320,
-                  background: '#1a1a1a',
-                  border: '1px solid #333',
-                  borderRadius: 8,
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                  zIndex: 100,
-                  overflow: 'hidden',
-                }}
-              >
-                <div style={{ overflowY: 'auto', padding: '4px' }}>
-                  {sessionsLoading ? (
-                    <div
-                      style={{
-                        color: '#666',
-                        fontSize: 12,
-                        textAlign: 'center',
-                        padding: 12,
-                      }}
-                    >
-                      Loading...
-                    </div>
-                  ) : sessions.length === 0 ? (
-                    <div
-                      style={{
-                        color: '#555',
-                        fontSize: 12,
-                        textAlign: 'center',
-                        padding: 12,
-                      }}
-                    >
-                      No chat history
-                    </div>
-                  ) : (
-                    sessions.map(session => (
-                      <div
-                        key={session.id}
-                        onClick={() => handleSelectSession(session)}
-                        style={{
-                          height: 28,
-                          padding: '0 8px',
-                          borderRadius: 4,
-                          cursor: 'pointer',
-                          background:
-                            currentSessionId === session.id
-                              ? 'rgba(255,255,255,0.08)'
-                              : 'transparent',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          transition: 'background 0.1s',
-                        }}
-                        onMouseEnter={e => {
-                          if (currentSessionId !== session.id)
-                            e.currentTarget.style.background =
-                              'rgba(255,255,255,0.04)';
-                        }}
-                        onMouseLeave={e => {
-                          if (currentSessionId !== session.id)
-                            e.currentTarget.style.background = 'transparent';
-                        }}
-                      >
-                        <div
-                          style={{
-                            flex: 1,
-                            fontSize: 12,
-                            color:
-                              currentSessionId === session.id ? '#fff' : '#aaa',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {session.title || 'New Chat'}
-                        </div>
-                        <button
-                          onClick={e => handleDeleteSession(session.id, e)}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#555',
-                            cursor: 'pointer',
-                            padding: 2,
-                            opacity: 0,
-                            transition: 'opacity 0.1s',
-                            display: 'flex',
-                            flexShrink: 0,
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.opacity = '1';
-                            e.currentTarget.style.color = '#ff6b6b';
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.opacity = '0';
-                            e.currentTarget.style.color = '#555';
-                          }}
-                        >
-                          <svg
-                            width='12'
-                            height='12'
-                            viewBox='0 0 24 24'
-                            fill='none'
-                            stroke='currentColor'
-                            strokeWidth='2'
-                          >
-                            <path d='M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2' />
-                          </svg>
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          <button
-            onClick={handleNewChat}
-            title='New Chat'
-            style={{
-              width: 28,
-              height: 28,
-              background: 'transparent',
-              border: 'none',
-              color: '#6b7280',
-              cursor: 'pointer',
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-              e.currentTarget.style.color = '#9ca3af';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#6b7280';
-            }}
-          >
-            <svg
-              width='16'
-              height='16'
-              viewBox='0 0 24 24'
-              fill='none'
-              stroke='currentColor'
-              strokeWidth='2'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            >
-              <path d='M12 5v14' />
-              <path d='M5 12h14' />
-            </svg>
-          </button>
-        </div>
-      </div>
+      {/* Agent Context Bar (The Trinity Console) */}
+      <AgentContextBar 
+        currentFileName={currentContextName}
+        capabilitiesCount={selectedAccess.size}
+        isLocked={agentMode === 'service'}
+        onConfigChange={() => {
+          if (agentMode === 'service') {
+            // Unlock flow
+            if (confirm('Edit configuration? This will pause the live service.')) {
+              setAgentMode('saved');
+            }
+          }
+        }}
+        availableTools={availableTools}
+        selectedAccess={selectedAccess}
+        onToggleAccess={handleToggleAccess}
+        currentTableId={tableId ? String(tableId) : undefined}
+      />
 
       {/* Messages Area */}
       <div
@@ -1213,10 +1515,6 @@ export function ChatSidebar({
         onMentionSelect={handleSelectMention}
         onMentionIndexChange={mention.setMentionIndex}
         onBlur={() => setTimeout(() => mention.closeMentionMenu(), 150)}
-        availableTools={availableTools}
-        selectedAccess={selectedAccess}
-        onAccessChange={setSelectedAccess}
-        currentTableId={tableId ? String(tableId) : undefined}
       />
 
       <style jsx global>{`

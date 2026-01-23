@@ -189,21 +189,22 @@ export default function ProjectsLayout({
         style={{
           flex: 1,
           display: 'flex',
-          margin: 8,
-          marginLeft: 0,
-          borderRadius: 12,
-          border: '1px solid #2a2a2a',
+          // margin: 8, // Finder 模式：去除外边距
+          // marginLeft: 0,
+          // borderRadius: 12, // Finder 模式：去除圆角
+          // border: '1px solid #2a2a2a', // Finder 模式：去除边框
           background: '#0e0e0e',
           overflow: 'hidden',
         }}
       >
-        {/* --- Projects Sidebar --- */}
+        {/* --- Projects Sidebar (Hidden for Finder View) --- */}
         <aside
           ref={sidebarRef}
           style={{
+            display: 'none', // Finder 模式：隐藏侧边栏
             width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
             borderRight: '1px solid #2a2a2a',
-            display: 'flex',
+            // display: 'flex',
             flexDirection: 'column',
             background: '#141414',
             fontFamily:

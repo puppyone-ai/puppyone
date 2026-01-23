@@ -2,16 +2,24 @@
 
 import type { CSSProperties } from 'react';
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 
 export type EditorType = 'treeline-virtual' | 'monaco' | 'table';
 
+export type BreadcrumbSegment = {
+  label: string;
+  href?: string;
+  icon?: React.ReactNode;
+};
+
 type ProjectsHeaderProps = {
-  pathSegments: string[];
+  pathSegments: BreadcrumbSegment[];
   projectId: string | null;
   onProjectsRefresh?: () => void;
   editorType?: EditorType;
   onEditorTypeChange?: (type: EditorType) => void;
   accessPointCount?: number; // 已配置的 Access Points 数量
+  showViewSwitcher?: boolean; // 是否显示视图切换器
   // Chat (Global Level)
   isChatOpen?: boolean;
   onChatOpenChange?: (open: boolean) => void;
@@ -50,6 +58,7 @@ export function ProjectsHeader({
   editorType = 'treeline-virtual',
   onEditorTypeChange,
   accessPointCount = 0,
+  showViewSwitcher = true,
   isChatOpen = false,
   onChatOpenChange,
 }: ProjectsHeaderProps) {
@@ -90,30 +99,79 @@ export function ProjectsHeader({
       {/* LEFT SIDE: Context Definition (Breadcrumbs + View Switcher) */}
       <div style={headerLeftStyle}>
         {/* Breadcrumbs */}
-        <span style={pathStyle}>{pathSegments.join(' / ')}</span>
-
-        {/* View Switcher - Segmented Control Style */}
-        <div style={viewSwitcherContainerStyle}>
-          {editorOptions.map(option => {
-            const isSelected = option.id === editorType;
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {pathSegments.map((segment, index) => {
+            const isLast = index === pathSegments.length - 1;
             return (
-              <button
-                key={option.id}
-                onClick={() => onEditorTypeChange?.(option.id)}
-                style={{
-                  ...viewSwitcherBtnStyle,
-                  background: isSelected
-                    ? 'rgba(255,255,255,0.1)'
-                    : 'transparent',
-                  color: isSelected ? '#e2e8f0' : '#6b7280',
-                }}
-              >
-                <span style={{ fontSize: 11 }}>{option.icon}</span>
-                <span style={{ fontSize: 10 }}>{option.label}</span>
-              </button>
+              <div key={index} style={{ display: 'flex', alignItems: 'center' }}>
+                {index > 0 && (
+                  <span style={{ margin: '0 8px', color: '#444' }}>/</span>
+                )}
+                {segment.href && !isLast ? (
+                  <Link
+                    href={segment.href}
+                    style={{
+                      ...pathStyle,
+                      color: '#888',
+                      cursor: 'pointer',
+                      transition: 'color 0.15s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = '#fff';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = '#888';
+                    }}
+                  >
+                    {segment.icon && <span style={{ display: 'flex', color: 'inherit', opacity: 0.8 }}>{segment.icon}</span>}
+                    {segment.label}
+                  </Link>
+                ) : (
+                  <span
+                    style={{
+                      ...pathStyle,
+                      color: isLast ? '#CDCDCD' : '#888',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    {segment.icon && <span style={{ display: 'flex', color: 'inherit', opacity: 0.8 }}>{segment.icon}</span>}
+                    {segment.label}
+                  </span>
+                )}
+              </div>
             );
           })}
         </div>
+
+        {/* View Switcher - Segmented Control Style */}
+        {showViewSwitcher && (
+          <div style={viewSwitcherContainerStyle}>
+            {editorOptions.map(option => {
+              const isSelected = option.id === editorType;
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => onEditorTypeChange?.(option.id)}
+                  style={{
+                    ...viewSwitcherBtnStyle,
+                    background: isSelected
+                      ? 'rgba(255,255,255,0.1)'
+                      : 'transparent',
+                    color: isSelected ? '#e2e8f0' : '#6b7280',
+                  }}
+                >
+                  <span style={{ fontSize: 11 }}>{option.icon}</span>
+                  <span style={{ fontSize: 10 }}>{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* RIGHT SIDE: Context Actions (Sync + Publish) + Chat Toggle */}
