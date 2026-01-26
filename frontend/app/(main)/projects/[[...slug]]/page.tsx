@@ -14,8 +14,9 @@ import {
 } from '@/lib/hooks/useData';
 import { ProjectWorkspaceView } from '@/components/ProjectWorkspaceView';
 import { OnboardingView } from '@/components/OnboardingView';
-import { ProjectsHeader, type EditorType, type BreadcrumbSegment } from '@/components/ProjectsHeader';
+import { ProjectsHeader, type EditorType, type ViewType, type BreadcrumbSegment } from '@/components/ProjectsHeader';
 import { ChatSidebar } from '@/components/ChatSidebar';
+import { ContextSidebar } from '@/components/ContextSidebar';
 import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
 import { DocumentEditor } from '@/components/RightAuxiliaryPanel/DocumentEditor';
 
@@ -37,6 +38,11 @@ import {
   type Tool,
 } from '@/lib/mcpApi';
 
+import { ProjectManageDialog } from '@/components/ProjectManageDialog';
+import { TableManageDialog } from '@/components/TableManageDialog';
+import { FolderManageDialog } from '@/components/FolderManageDialog';
+import { listNodes, type NodeInfo } from '@/lib/contentNodesApi';
+
 export interface AccessPoint {
   id: string;
   path: string;
@@ -51,16 +57,17 @@ function GridItem({
   onClick,
   type = 'folder',
 }: {
-  icon: React.ReactNode;
+  icon: React.ReactNode | ((props: { hovered: boolean }) => React.ReactNode);
   label: string;
-  onClick: () => void;
-  type?: 'folder' | 'file';
+  onClick: (e: React.MouseEvent) => void;
+  type?: 'folder' | 'file' | 'create';
 }) {
   const [hovered, setHovered] = useState(false);
+  const isCreate = type === 'create';
   
   return (
     <div
-      onClick={onClick}
+      onClick={(e) => onClick(e)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -69,39 +76,207 @@ function GridItem({
         alignItems: 'center',
         justifyContent: 'flex-start',
         width: 120,
-        height: 110,
-        padding: 12,
+        height: 136,
+        padding: '22px 10px 10px 10px', // 改为顶部对齐，通过 padding 固定图标位置，确保新建按钮与普通图标对齐
+        gap: 10,
         borderRadius: 8,
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.08)' : 'transparent',
-        transition: 'background 0.15s',
+        background: hovered && !isCreate ? 'rgba(255,255,255,0.04)' : 'transparent',
+        transition: 'all 0.15s',
       }}
     >
       <div style={{ 
-        fontSize: 48, 
-        marginBottom: 8,
-        // Folder 保持蓝色，File (Table) 使用类似 Excel 的绿色或更亮的白色，这里选 emerald-400 风格的绿
-        color: type === 'folder' ? '#3b82f6' : '#34d399',
-        opacity: hovered ? 1 : 0.9,
+        width: isCreate ? 48 : 'auto',
+        height: isCreate ? 48 : 48, // 固定高度以对齐
+        borderRadius: isCreate ? 12 : 0,
+        // Create 按钮：平时全透明无边框，hover 时才显示微弱背景
+        background: isCreate ? (hovered ? 'rgba(255,255,255,0.05)' : 'transparent') : 'transparent',
+        // Create 按钮：平时虚线边框，hover 时实线或更亮
+        border: isCreate ? (hovered ? '1px dashed rgba(255,255,255,0.3)' : '1px dashed rgba(255,255,255,0.15)') : 'none',
+        fontSize: isCreate ? 20 : 48, 
+        // Folder 改为中性灰白色，去除"AI蓝"；File (Table) 保持绿色
+        color: type === 'folder' ? (hovered ? '#e4e4e7' : '#a1a1aa') : type === 'file' ? '#34d399' : (hovered ? '#fff' : '#444'),
+        opacity: hovered ? 1 : (isCreate ? 1 : 0.9),
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        transition: 'all 0.15s',
+        // 移除了 translateY 上浮效果，避免 AR 味太重
+        transform: 'none',
+        boxShadow: isCreate && hovered ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
       }}>
-        {icon}
+        {typeof icon === 'function' ? icon({ hovered }) : icon}
       </div>
+      {!isCreate && (
+        <div style={{
+          fontSize: 13,
+          color: hovered ? '#fff' : '#a1a1aa', // 更柔和的灰色
+          textAlign: 'center',
+          wordBreak: 'break-word',
+          lineHeight: '1.4em',
+          height: '2.8em', // 强制两行高度以保持网格对齐
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          padding: '0 2px',
+        }}>
+          {label}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Create Menu Component
+function CreateMenu({
+  x,
+  y,
+  onClose,
+  onCreateFolder,
+  onCreateContext,
+}: {
+  x: number;
+  y: number;
+  onClose: () => void;
+  onCreateFolder: () => void;
+  onCreateContext: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: y,
+        left: x,
+        zIndex: 1000,
+        background: 'rgba(28, 28, 30, 0.98)',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 10,
+        padding: '6px 0',
+        minWidth: 180,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+      }}
+    >
+      <div
+        onClick={() => {
+          onCreateFolder();
+          onClose();
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 14px',
+          cursor: 'pointer',
+          color: '#e4e4e7',
+          fontSize: 14,
+          transition: 'background 0.1s',
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#a1a1aa" fillOpacity="0.2" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <span>New Folder</span>
+      </div>
+      
+      <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 8px' }} />
+      
+      <div
+        onClick={() => {
+          onCreateContext();
+          onClose();
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 14px',
+          cursor: 'pointer',
+          color: '#e4e4e7',
+          fontSize: 14,
+          transition: 'background 0.1s',
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="#34d399" fillOpacity="0.1"/>
+          <path d="M3 9H21" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M3 15H21" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M9 3V21" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <span>New Context</span>
+      </div>
+    </div>
+  );
+}
+
+// List View Item Component
+function ListItem({
+  icon,
+  label,
+  onClick,
+  type = 'folder',
+  description,
+}: {
+  icon: React.ReactNode | ((props: { hovered: boolean }) => React.ReactNode);
+  label: string;
+  onClick: (e: React.MouseEvent) => void;
+  type?: 'folder' | 'file' | 'create';
+  description?: string;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const isCreate = type === 'create';
+
+  return (
+    <div
+      onClick={(e) => onClick(e)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '8px 16px',
+        gap: 12,
+        borderRadius: 6,
+        cursor: 'pointer',
+        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+        borderBottom: '1px solid rgba(255,255,255,0.03)',
+        transition: 'all 0.1s',
+      }}
+    >
       <div style={{
-        fontSize: 13,
-        color: hovered ? '#fff' : '#d4d4d4',
-        textAlign: 'center',
-        wordBreak: 'break-word',
-        lineHeight: 1.4,
-        maxHeight: 36,
-        overflow: 'hidden',
-        display: '-webkit-box',
-        WebkitLineClamp: 2,
-        WebkitBoxOrient: 'vertical',
+        width: 32,
+        height: 32,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: type === 'folder' ? (hovered ? '#e4e4e7' : '#a1a1aa') : type === 'file' ? '#34d399' : '#666',
+        fontSize: 20,
       }}>
-        {label}
+        {typeof icon === 'function' ? icon({ hovered }) : icon}
+      </div>
+      
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ 
+          fontSize: 14, 
+          color: hovered || isCreate ? '#fff' : '#d4d4d8',
+          fontWeight: 500
+        }}>
+          {label}
+        </div>
+        {description && (
+          <div style={{ fontSize: 12, color: '#71717a' }}>
+            {description}
+          </div>
+        )}
+      </div>
+
+      <div style={{ color: '#52525b', fontSize: 12 }}>
+        {type === 'folder' ? 'Folder' : type === 'file' ? 'Context' : 'Action'}
       </div>
     </div>
   );
@@ -125,6 +300,10 @@ export default function ProjectsSlugPage({
     isOrphanTable ? '' : projectId || ''
   );
   const [activeTableId, setActiveTableId] = useState<string>(tableId || '');
+  
+  // View State
+  const [viewType, setViewType] = useState<ViewType>('grid');
+  const [expandedBaseIds, setExpandedBaseIds] = useState<Set<string>>(new Set());
 
   // 2. 数据获取
   const { projects, isLoading: projectsLoading } = useProjects();
@@ -154,6 +333,49 @@ export default function ProjectsSlugPage({
 
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
+
+  // Dialog states
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [createTableOpen, setCreateTableOpen] = useState(false);
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  
+  // Current folder context for nested navigation
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [currentFolderPath, setCurrentFolderPath] = useState<string>('/');
+  const [contentNodes, setContentNodes] = useState<NodeInfo[]>([]);
+  const [contentNodesLoading, setContentNodesLoading] = useState(false);
+  
+  // Create menu state
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [createMenuPosition, setCreateMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const createMenuRef = useRef<HTMLDivElement>(null);
+  
+  // Close create menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (createMenuRef.current && !createMenuRef.current.contains(e.target as Node)) {
+        setCreateMenuOpen(false);
+      }
+    };
+    if (createMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [createMenuOpen]);
+
+  // 加载内容节点（用于嵌套文件夹导航）
+  const loadContentNodes = async (parentId: string | null) => {
+    try {
+      setContentNodesLoading(true);
+      const result = await listNodes(parentId);
+      setContentNodes(result.nodes);
+    } catch (error) {
+      console.error('Failed to load content nodes:', error);
+      setContentNodes([]);
+    } finally {
+      setContentNodesLoading(false);
+    }
+  };
 
   // 4. 副作用：同步路由参数到状态
   useEffect(() => {
@@ -303,6 +525,16 @@ export default function ProjectsSlugPage({
     [activeBase, activeTableId]
   );
 
+  const toggleBaseExpansion = (baseId: string) => {
+    const newSet = new Set(expandedBaseIds);
+    if (newSet.has(baseId)) {
+      newSet.delete(baseId);
+    } else {
+      newSet.add(baseId);
+    }
+    setExpandedBaseIds(newSet);
+  };
+
   // 6. 路径片段 - 用于导航
   const pathSegments = useMemo<BreadcrumbSegment[]>(() => {
     // 1. Home Segment
@@ -396,6 +628,17 @@ export default function ProjectsSlugPage({
   // View 3: Root View (All Projects)
   const isRootView = !activeBaseId && !activeTableId;
 
+  // 当进入项目文件夹时，加载 content_nodes
+  useEffect(() => {
+    if (isProjectFolderView && activeBase) {
+      // 设置当前文件夹路径
+      setCurrentFolderPath(`/${activeBase.name}`);
+      setCurrentFolderId(null); // 重置为根目录（项目级别）
+      // 加载该项目根目录的 content_nodes
+      loadContentNodes(null);
+    }
+  }, [isProjectFolderView, activeBase?.id]);
+
   return (
     <div
       style={{
@@ -407,7 +650,18 @@ export default function ProjectsSlugPage({
         overflow: 'hidden',
       }}
     >
-      {/* 左侧主要区域 */}
+      {/* View 3: Sidebar (Column Mode) */}
+      {viewType === 'column' && (
+        <ContextSidebar
+          project={activeBase}
+          allProjects={projects}
+          activeTableId={activeTableId}
+          onTableSelect={(id) => router.push(`/projects/${activeBaseId}/${id}`)}
+          onBackToProjects={() => router.push('/projects')}
+        />
+      )}
+
+      {/* 左侧主要区域 (Header + Content) */}
       <div
         style={{
           flex: 1,
@@ -427,10 +681,11 @@ export default function ProjectsSlugPage({
             editorType={editorType}
             onEditorTypeChange={setEditorType}
             accessPointCount={accessPoints.length}
-            showViewSwitcher={isEditorView}
+            showEditorSwitcher={isEditorView}
+            viewType={viewType}
+            onViewTypeChange={setViewType}
             isChatOpen={isChatOpen}
             onChatOpenChange={setIsChatOpen}
-            // Add custom back handling if needed, but breadcrumbs usually handle it
           />
         </div>
 
@@ -442,8 +697,8 @@ export default function ProjectsSlugPage({
             minHeight: 0,
             position: 'relative',
             background: '#050607',
-            overflowY: isEditorView ? 'hidden' : 'auto', // Scroll for grid, hidden for editor
-            padding: isEditorView ? 0 : 24, // Padding for grid
+            overflowY: isEditorView ? 'hidden' : 'auto', // Scroll for grid/list, hidden for editor
+            padding: isEditorView ? 0 : 24, // Padding for browser
           }}
         >
           {/* VIEW 1: EDITOR */}
@@ -548,68 +803,195 @@ export default function ProjectsSlugPage({
           {/* VIEW 2: PROJECT FOLDER CONTENTS */}
           {isProjectFolderView && activeBase && (
             <div style={{ width: '100%' }}>
-              <h2 style={{ color: '#fff', marginBottom: 20, fontSize: 18, fontWeight: 600 }}>
-                {activeBase.name}
-              </h2>
-              {(!activeBase.tables || activeBase.tables.length === 0) ? (
-                 <div style={{ color: '#666', fontStyle: 'italic' }}>No contexts in this folder.</div>
-              ) : (
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', 
-                  gap: 16 
-                }}>
-                  {activeBase.tables.map(table => (
+              <div style={{ 
+                display: viewType === 'list' ? 'flex' : 'grid',
+                flexDirection: 'column',
+                gridTemplateColumns: viewType === 'list' ? undefined : 'repeat(auto-fill, minmax(120px, 1fr))',
+                gap: viewType === 'list' ? 0 : 16 
+              }}>
+                {/* Content Nodes - Folders (from new content_nodes API) */}
+                {contentNodes.filter(node => node.type === 'folder').map(folder => (
+                  viewType === 'list' ? (
+                    <ListItem
+                      key={folder.id}
+                      type="folder"
+                      icon={
+                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      }
+                      label={folder.name}
+                      onClick={() => {
+                        setCurrentFolderId(folder.id);
+                        setCurrentFolderPath(folder.path);
+                        loadContentNodes(folder.id);
+                      }}
+                      description="Folder"
+                    />
+                  ) : (
+                    <GridItem
+                      key={folder.id}
+                      type="folder"
+                      icon={
+                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      }
+                      label={folder.name}
+                      onClick={() => {
+                        setCurrentFolderId(folder.id);
+                        setCurrentFolderPath(folder.path);
+                        loadContentNodes(folder.id);
+                      }}
+                    />
+                  )
+                ))}
+
+                {/* Contexts (from old project/table structure) */}
+                {activeBase.tables && activeBase.tables.map(table => (
+                   viewType === 'list' ? (
+                    <ListItem
+                      key={table.id}
+                      type="file"
+                      icon={
+                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="currentColor" fillOpacity="0.05"/>
+                          <path d="M3 9H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M3 15H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M9 3V21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      }
+                      label={table.name}
+                      onClick={() => router.push(`/projects/${activeBase.id}/${table.id}`)}
+                      description={`${table.rows?.length || 0} rows`}
+                    />
+                   ) : (
                     <GridItem
                       key={table.id}
                       type="file"
                       icon={
-                        // 表格图标 (Table Icon) - 类似 Excel/Database 的隐喻
                         <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          {/* 外框 */}
-                          <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2"/>
-                          {/* 表头分隔线 */}
-                          <path d="M3 9H21" stroke="currentColor" strokeWidth="2"/>
-                          {/* 竖向分隔线 */}
-                          <path d="M9 21V9" stroke="currentColor" strokeWidth="2"/>
+                          <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="currentColor" fillOpacity="0.05"/>
+                          <path d="M3 9H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M3 15H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M9 3V21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       }
                       label={table.name}
                       onClick={() => router.push(`/projects/${activeBase.id}/${table.id}`)}
                     />
-                  ))}
-                </div>
-              )}
+                   )
+                ))}
+
+                {/* Create New Item Card - At the end */}
+                {viewType === 'list' ? (
+                  <ListItem
+                    type="create"
+                    icon={
+                      <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 6V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M6 12H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    }
+                    label="New..."
+                    onClick={(e: React.MouseEvent) => {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+                      setCreateMenuOpen(true);
+                    }}
+                  />
+                ) : (
+                  <GridItem
+                    type="create"
+                    icon={
+                      <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 6V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M6 12H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    }
+                    label="New..."
+                    onClick={(e: React.MouseEvent) => {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+                      setCreateMenuOpen(true);
+                    }}
+                  />
+                )}
+              </div>
             </div>
           )}
           
           {/* VIEW 3: ROOT FOLDER CONTENTS */}
           {isRootView && (
             <div style={{ width: '100%' }}>
-              <h2 style={{ color: '#fff', marginBottom: 20, fontSize: 18, fontWeight: 600 }}>
-                Projects
-              </h2>
               {projectsLoading ? (
                 <div style={{ color: '#666' }}>Loading...</div>
               ) : (
                 <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', 
-                  gap: 16 
+                  display: viewType === 'list' ? 'flex' : 'grid',
+                  flexDirection: 'column', 
+                  gridTemplateColumns: viewType === 'list' ? undefined : 'repeat(auto-fill, minmax(120px, 1fr))', 
+                  gap: viewType === 'list' ? 0 : 16 
                 }}>
                   {projects.map(project => (
-                    <GridItem
-                      key={project.id}
-                      type="folder"
+                    viewType === 'list' ? (
+                      <ListItem
+                        key={project.id}
+                        type="folder"
+                        icon={
+                          <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        }
+                        label={project.name}
+                        onClick={() => router.push(`/projects/${project.id}`)}
+                        description={`${project.tables?.length || 0} items`}
+                      />
+                    ) : (
+                      <GridItem
+                        key={project.id}
+                        type="folder"
+                        icon={
+                          <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        }
+                        label={project.name}
+                        onClick={() => router.push(`/projects/${project.id}`)}
+                      />
+                    )
+                  ))}
+
+                  {/* Create New Project Card - At the end */}
+                  {viewType === 'list' ? (
+                    <ListItem
+                      type="create"
                       icon={
                         <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                           <path d="M2 6C2 4.89543 2.89543 4 4 4H9.17157C9.70201 4 10.2107 4.21071 10.5858 4.58579L12.4142 6.41421C12.7893 6.78929 13.298 7 13.8284 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V6Z" fill="currentColor"/>
+                          <path d="M12 6V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M6 12H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       }
-                      label={project.name}
-                      onClick={() => router.push(`/projects/${project.id}`)}
+                      label="New Folder"
+                      onClick={() => setCreateProjectOpen(true)}
                     />
-                  ))}
+                  ) : (
+                    <GridItem
+                      type="create"
+                      icon={
+                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M12 6V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M6 12H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      }
+                      label="New Folder"
+                      onClick={() => setCreateProjectOpen(true)}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -658,6 +1040,60 @@ export default function ProjectsSlugPage({
         projectTools={!isOrphanTable ? projectTools : tableTools}
         tableNameById={tableNameById}
       />
+
+      {/* Create Menu */}
+      {createMenuOpen && createMenuPosition && (
+        <div ref={createMenuRef}>
+          <CreateMenu
+            x={createMenuPosition.x}
+            y={createMenuPosition.y}
+            onClose={() => setCreateMenuOpen(false)}
+            onCreateFolder={() => {
+              // 在项目内部使用新的 FolderManageDialog，在根目录使用 ProjectManageDialog
+              if (isProjectFolderView) {
+                setCreateFolderOpen(true);
+              } else {
+                setCreateProjectOpen(true);
+              }
+            }}
+            onCreateContext={() => setCreateTableOpen(true)}
+          />
+        </div>
+      )}
+
+      {/* Dialogs */}
+      {createProjectOpen && (
+        <ProjectManageDialog
+          mode="create"
+          projectId={null}
+          projects={projects}
+          onClose={() => setCreateProjectOpen(false)}
+        />
+      )}
+
+      {createTableOpen && (
+        <TableManageDialog
+          mode="create"
+          projectId={activeBase?.id || null}
+          tableId={null}
+          projects={projects}
+          onClose={() => setCreateTableOpen(false)}
+        />
+      )}
+
+      {createFolderOpen && (
+        <FolderManageDialog
+          parentId={currentFolderId}
+          parentPath={currentFolderPath || `/${activeBase?.name || ''}`}
+          onClose={() => setCreateFolderOpen(false)}
+          onSuccess={() => {
+            // 刷新内容节点列表
+            if (currentFolderId) {
+              loadContentNodes(currentFolderId);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

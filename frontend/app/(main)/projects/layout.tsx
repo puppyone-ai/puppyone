@@ -189,10 +189,10 @@ export default function ProjectsLayout({
         style={{
           flex: 1,
           display: 'flex',
-          // margin: 8, // Finder 模式：去除外边距
-          // marginLeft: 0,
-          // borderRadius: 12, // Finder 模式：去除圆角
-          // border: '1px solid #2a2a2a', // Finder 模式：去除边框
+          margin: 8,
+          marginLeft: 0,
+          borderRadius: 12,
+          border: '1px solid #2a2a2a',
           background: '#0e0e0e',
           overflow: 'hidden',
         }}
