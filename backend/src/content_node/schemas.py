@@ -9,12 +9,14 @@ from pydantic import BaseModel, Field
 class CreateFolderRequest(BaseModel):
     """创建文件夹请求"""
     name: str = Field(..., description="文件夹名称")
-    parent_id: Optional[str] = Field(None, description="父节点 ID，None 表示根目录")
+    project_id: str = Field(..., description="所属项目 ID")
+    parent_id: Optional[str] = Field(None, description="父节点 ID，None 表示项目根目录")
 
 
 class CreateJsonNodeRequest(BaseModel):
     """创建 JSON 节点请求"""
     name: str = Field(..., description="节点名称")
+    project_id: str = Field(..., description="所属项目 ID")
     parent_id: Optional[str] = Field(None, description="父节点 ID")
     content: Any = Field(default_factory=dict, description="JSON 内容")
 
@@ -37,7 +39,8 @@ class NodeInfo(BaseModel):
     id: str
     name: str
     type: str
-    path: str
+    project_id: str
+    id_path: str
     parent_id: Optional[str] = None
     mime_type: Optional[str] = None
     size_bytes: int = 0

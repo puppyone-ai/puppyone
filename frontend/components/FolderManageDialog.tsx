@@ -4,13 +4,15 @@ import { useState } from 'react';
 import { createFolder } from '../lib/contentNodesApi';
 
 type FolderManageDialogProps = {
-  parentId: string | null; // 父文件夹 ID，null 表示根目录
+  projectId: string; // 所属项目 ID
+  parentId: string | null; // 父文件夹 ID，null 表示项目根目录
   parentPath?: string; // 父文件夹路径，用于显示
   onClose: () => void;
   onSuccess?: () => void; // 创建成功后的回调
 };
 
 export function FolderManageDialog({
+  projectId,
   parentId,
   parentPath = '/',
   onClose,
@@ -27,7 +29,7 @@ export function FolderManageDialog({
     try {
       setLoading(true);
       setError(null);
-      await createFolder(name.trim(), parentId);
+      await createFolder(name.trim(), projectId, parentId);
       onSuccess?.();
       onClose();
     } catch (err) {

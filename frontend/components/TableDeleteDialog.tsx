@@ -20,7 +20,7 @@ export function TableDeleteDialog({
 }: TableDeleteDialogProps) {
   const table = useMemo(() => {
     const project = projects.find(p => String(p.id) === String(projectId));
-    return project?.tables?.find(t => String(t.id) === String(tableId)) ?? null;
+    return project?.nodes?.find(t => String(t.id) === String(tableId)) ?? null;
   }, [projects, projectId, tableId]);
 
   const [loading, setLoading] = useState(false);

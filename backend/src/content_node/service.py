@@ -23,73 +23,82 @@ class ContentNodeService:
             raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)
         return node
 
-    def get_by_path(self, user_id: str, path: str) -> ContentNode:
-        """根据路径获取节点"""
-        node = self.repo.get_by_path(user_id, path)
+    def get_by_id_path(self, project_id: str, id_path: str) -> ContentNode:
+        """根据 id_path 获取节点"""
+        node = self.repo.get_by_id_path(project_id, id_path)
         if not node:
-            raise NotFoundException(f"Path not found: {path}", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(f"Path not found: {id_path}", code=ErrorCode.NOT_FOUND)
         return node
 
-    def list_children(self, user_id: str, parent_id: Optional[str] = None) -> List[ContentNode]:
+    def list_children(
+        self, user_id: str, project_id: str, parent_id: Optional[str] = None
+    ) -> List[ContentNode]:
         """列出子节点"""
         if parent_id:
             # 验证父节点存在且属于用户
             parent = self.repo.get_by_id(parent_id)
             if not parent or parent.user_id != user_id:
                 raise NotFoundException(f"Parent not found: {parent_id}", code=ErrorCode.NOT_FOUND)
-        return self.repo.list_children(user_id, parent_id)
+        return self.repo.list_children(user_id, project_id, parent_id)
 
-    def list_root_nodes(self, user_id: str) -> List[ContentNode]:
-        """列出根节点"""
-        return self.repo.list_children(user_id, None)
+    def list_root_nodes(self, user_id: str, project_id: str) -> List[ContentNode]:
+        """列出项目根节点"""
+        return self.repo.list_children(user_id, project_id, None)
+
+    def list_descendants(self, project_id: str, node_id: str) -> List[ContentNode]:
+        """列出某节点的所有子孙（用于导出到沙盒）"""
+        node = self.repo.get_by_id(node_id)
+        if not node:
+            raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)
+        return self.repo.list_descendants(project_id, node.id_path)
 
     # === 创建操作 ===
 
-    def _build_path(self, user_id: str, parent_id: Optional[str], name: str) -> str:
-        """构建节点路径"""
+    def _build_id_path(self, user_id: str, parent_id: Optional[str], new_node_id: str) -> str:
+        """构建节点的 id_path"""
         if parent_id:
             parent = self.repo.get_by_id(parent_id)
             if not parent or parent.user_id != user_id:
                 raise NotFoundException(f"Parent not found: {parent_id}", code=ErrorCode.NOT_FOUND)
-            return f"{parent.path}/{name}"
-        return f"/{name}"
+            return f"{parent.id_path}/{new_node_id}"
+        return f"/{new_node_id}"
 
-    def create_folder(self, user_id: str, name: str, parent_id: Optional[str] = None) -> ContentNode:
+    def create_folder(
+        self, user_id: str, project_id: str, name: str, parent_id: Optional[str] = None
+    ) -> ContentNode:
         """创建文件夹"""
-        path = self._build_path(user_id, parent_id, name)
-        
-        # 检查是否已存在
-        existing = self.repo.get_by_path(user_id, path)
-        if existing:
-            raise BusinessException(f"Path already exists: {path}", code=ErrorCode.VALIDATION_ERROR)
+        import uuid
+        new_id = str(uuid.uuid4())
+        id_path = self._build_id_path(user_id, parent_id, new_id)
         
         return self.repo.create(
             user_id=user_id,
+            project_id=project_id,
             name=name,
             node_type="folder",
-            path=path,
+            id_path=id_path,
             parent_id=parent_id,
         )
 
     def create_json_node(
         self, 
-        user_id: str, 
+        user_id: str,
+        project_id: str,
         name: str, 
         content: Any,
         parent_id: Optional[str] = None,
     ) -> ContentNode:
         """创建 JSON 节点"""
-        path = self._build_path(user_id, parent_id, name)
-        
-        existing = self.repo.get_by_path(user_id, path)
-        if existing:
-            raise BusinessException(f"Path already exists: {path}", code=ErrorCode.VALIDATION_ERROR)
+        import uuid
+        new_id = str(uuid.uuid4())
+        id_path = self._build_id_path(user_id, parent_id, new_id)
         
         return self.repo.create(
             user_id=user_id,
+            project_id=project_id,
             name=name,
             node_type="json",
-            path=path,
+            id_path=id_path,
             parent_id=parent_id,
             content=content,
             mime_type="application/json",
@@ -98,30 +107,29 @@ class ContentNodeService:
     async def prepare_file_upload(
         self,
         user_id: str,
+        project_id: str,
         name: str,
         content_type: str,
         parent_id: Optional[str] = None,
     ) -> tuple[ContentNode, str]:
         """准备文件上传（返回节点和预签名 URL）"""
-        path = self._build_path(user_id, parent_id, name)
-        
-        existing = self.repo.get_by_path(user_id, path)
-        if existing:
-            raise BusinessException(f"Path already exists: {path}", code=ErrorCode.VALIDATION_ERROR)
+        import uuid
+        new_id = str(uuid.uuid4())
+        id_path = self._build_id_path(user_id, parent_id, new_id)
         
         # 确定文件类型
         node_type = self._get_node_type_from_mime(content_type)
         
         # 生成 S3 key
-        import uuid
         s3_key = f"users/{user_id}/content/{uuid.uuid4()}"
         
         # 创建节点记录
         node = self.repo.create(
             user_id=user_id,
+            project_id=project_id,
             name=name,
             node_type=node_type,
-            path=path,
+            id_path=id_path,
             parent_id=parent_id,
             s3_key=s3_key,
             mime_type=content_type,
@@ -158,34 +166,15 @@ class ContentNodeService:
         name: Optional[str] = None,
         content: Optional[Any] = None,
     ) -> ContentNode:
-        """更新节点"""
+        """更新节点（重命名只改 name，id_path 不变）"""
         node = self.get_by_id(node_id, user_id)
         
-        new_path = None
-        if name and name != node.name:
-            # 名称变化，需要更新路径
-            if node.parent_id:
-                parent = self.repo.get_by_id(node.parent_id)
-                new_path = f"{parent.path}/{name}" if parent else f"/{name}"
-            else:
-                new_path = f"/{name}"
-            
-            # 检查新路径是否已存在
-            existing = self.repo.get_by_path(user_id, new_path)
-            if existing and existing.id != node_id:
-                raise BusinessException(f"Path already exists: {new_path}", code=ErrorCode.VALIDATION_ERROR)
-        
-        # 更新节点
+        # 更新节点（id_path 不变，只改 name 或 content）
         updated = self.repo.update(
             node_id=node_id,
             name=name,
             content=content,
-            path=new_path,
         )
-        
-        # 如果是文件夹且名称变了，更新所有子节点的路径
-        if new_path and node.type == "folder":
-            self.repo.update_children_path_prefix(user_id, node.path, new_path)
         
         return updated
 
@@ -197,26 +186,21 @@ class ContentNodeService:
     ) -> ContentNode:
         """移动节点"""
         node = self.get_by_id(node_id, user_id)
-        old_path = node.path
+        old_id_path = node.id_path
         
-        # 构建新路径
-        new_path = self._build_path(user_id, new_parent_id, node.name)
-        
-        # 检查新路径是否已存在
-        existing = self.repo.get_by_path(user_id, new_path)
-        if existing and existing.id != node_id:
-            raise BusinessException(f"Path already exists: {new_path}", code=ErrorCode.VALIDATION_ERROR)
+        # 构建新 id_path
+        new_id_path = self._build_id_path(user_id, new_parent_id, node_id)
         
         # 更新节点
         updated = self.repo.update(
             node_id=node_id,
             parent_id=new_parent_id if new_parent_id else None,
-            path=new_path,
+            id_path=new_id_path,
         )
         
-        # 如果是文件夹，更新所有子节点的路径
+        # 如果是文件夹，更新所有子节点的 id_path
         if node.type == "folder":
-            self.repo.update_children_path_prefix(user_id, old_path, new_path)
+            self.repo.update_children_id_path_prefix(node.project_id, old_id_path, new_id_path)
         
         return updated
 

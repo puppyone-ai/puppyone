@@ -13,7 +13,8 @@ export interface NodeInfo {
   id: string;
   name: string;
   type: 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file';
-  path: string;
+  project_id: string;
+  id_path: string;
   parent_id: string | null;
   mime_type: string | null;
   size_bytes: number;
@@ -51,14 +52,19 @@ export interface DownloadUrlResponse {
 // === API Functions ===
 
 /**
- * 列出指定父节点下的所有子节点
- * @param parentId 父节点 ID，null 表示列出根节点
+ * 列出指定项目中父节点下的所有子节点
+ * @param projectId 项目 ID
+ * @param parentId 父节点 ID，null 表示列出项目根节点
  */
 export async function listNodes(
+  projectId: string,
   parentId?: string | null
 ): Promise<NodeListResponse> {
-  const params = parentId ? `?parent_id=${encodeURIComponent(parentId)}` : '';
-  return apiRequest<NodeListResponse>(`/api/v1/nodes/${params}`);
+  const params = new URLSearchParams({ project_id: projectId });
+  if (parentId) {
+    params.set('parent_id', parentId);
+  }
+  return apiRequest<NodeListResponse>(`/api/v1/nodes/?${params.toString()}`);
 }
 
 /**
@@ -69,12 +75,17 @@ export async function getNode(nodeId: string): Promise<NodeDetail> {
 }
 
 /**
- * 按路径获取节点
+ * 按 id_path 获取节点
  */
-export async function getNodeByPath(path: string): Promise<NodeDetail> {
-  return apiRequest<NodeDetail>(
-    `/api/v1/nodes/by-path/?path=${encodeURIComponent(path)}`
-  );
+export async function getNodeByIdPath(
+  projectId: string,
+  idPath: string
+): Promise<NodeDetail> {
+  const params = new URLSearchParams({
+    project_id: projectId,
+    id_path: idPath,
+  });
+  return apiRequest<NodeDetail>(`/api/v1/nodes/by-id-path/?${params.toString()}`);
 }
 
 /**
@@ -82,9 +93,13 @@ export async function getNodeByPath(path: string): Promise<NodeDetail> {
  */
 export async function createFolder(
   name: string,
+  projectId: string,
   parentId?: string | null
 ): Promise<NodeDetail> {
-  const body: { name: string; parent_id?: string | null } = { name };
+  const body: { name: string; project_id: string; parent_id?: string | null } = {
+    name,
+    project_id: projectId,
+  };
   if (parentId) {
     body.parent_id = parentId;
   }
@@ -100,11 +115,13 @@ export async function createFolder(
  */
 export async function createJsonNode(
   name: string,
+  projectId: string,
   content: any,
   parentId?: string | null
 ): Promise<NodeDetail> {
-  const body: { name: string; content: any; parent_id?: string | null } = {
+  const body: { name: string; project_id: string; content: any; parent_id?: string | null } = {
     name,
+    project_id: projectId,
     content,
   };
   if (parentId) {
@@ -122,11 +139,13 @@ export async function createJsonNode(
  */
 export async function prepareUpload(
   name: string,
+  projectId: string,
   contentType: string,
   parentId?: string | null
 ): Promise<UploadUrlResponse> {
   const params = new URLSearchParams({
     name,
+    project_id: projectId,
     content_type: contentType,
   });
   if (parentId) {

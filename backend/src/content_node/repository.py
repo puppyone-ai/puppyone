@@ -18,10 +18,11 @@ class ContentNodeRepository:
         return ContentNode(
             id=row["id"],
             user_id=str(row["user_id"]),
+            project_id=row["project_id"],
             parent_id=row.get("parent_id"),
             name=row["name"],
             type=row["type"],
-            path=row["path"],
+            id_path=row["id_path"],
             content=row.get("content"),
             s3_key=row.get("s3_key"),
             mime_type=row.get("mime_type"),
@@ -43,25 +44,62 @@ class ContentNodeRepository:
             return self._row_to_model(response.data[0])
         return None
 
-    def get_by_path(self, user_id: str, path: str) -> Optional[ContentNode]:
-        """根据路径获取节点"""
+    def get_by_id_path(self, project_id: str, id_path: str) -> Optional[ContentNode]:
+        """根据 id_path 获取节点"""
         response = (
             self.client.table(self.TABLE_NAME)
             .select("*")
-            .eq("user_id", user_id)
-            .eq("path", path)
+            .eq("project_id", project_id)
+            .eq("id_path", id_path)
             .execute()
         )
         if response.data:
             return self._row_to_model(response.data[0])
         return None
 
-    def list_children(self, user_id: str, parent_id: Optional[str] = None) -> List[ContentNode]:
+    def list_descendants(self, project_id: str, id_path_prefix: str) -> List[ContentNode]:
+        """列出某节点的所有子孙节点（用于导出到沙盒）"""
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("*")
+            .eq("project_id", project_id)
+            .like("id_path", f"{id_path_prefix}/%")
+            .order("id_path")
+            .execute()
+        )
+        return [self._row_to_model(row) for row in response.data]
+
+    def delete_by_id_path_prefix(self, project_id: str, id_path_prefix: str) -> int:
+        """删除某节点及其所有子孙（用于全量覆盖）"""
+        # 先删除子孙
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .delete()
+            .eq("project_id", project_id)
+            .like("id_path", f"{id_path_prefix}/%")
+            .execute()
+        )
+        count = len(response.data)
+        
+        # 再删除自身
+        response2 = (
+            self.client.table(self.TABLE_NAME)
+            .delete()
+            .eq("project_id", project_id)
+            .eq("id_path", id_path_prefix)
+            .execute()
+        )
+        return count + len(response2.data)
+
+    def list_children(
+        self, user_id: str, project_id: str, parent_id: Optional[str] = None
+    ) -> List[ContentNode]:
         """列出子节点"""
         query = (
             self.client.table(self.TABLE_NAME)
             .select("*")
             .eq("user_id", user_id)
+            .eq("project_id", project_id)
         )
         if parent_id is None:
             query = query.is_("parent_id", "null")
@@ -87,9 +125,10 @@ class ContentNodeRepository:
     def create(
         self,
         user_id: str,
+        project_id: str,
         name: str,
         node_type: str,
-        path: str,
+        id_path: str,
         parent_id: Optional[str] = None,
         content: Optional[dict] = None,
         s3_key: Optional[str] = None,
@@ -99,10 +138,11 @@ class ContentNodeRepository:
         """创建节点"""
         data = {
             "user_id": user_id,
+            "project_id": project_id,
             "parent_id": parent_id,
             "name": name,
             "type": node_type,
-            "path": path,
+            "id_path": id_path,
             "content": content,
             "s3_key": s3_key,
             "mime_type": mime_type,
@@ -116,7 +156,7 @@ class ContentNodeRepository:
         node_id: str,
         name: Optional[str] = None,
         content: Optional[dict] = None,
-        path: Optional[str] = None,
+        id_path: Optional[str] = None,
         parent_id: Optional[str] = None,
         s3_key: Optional[str] = None,
         size_bytes: Optional[int] = None,
@@ -127,8 +167,8 @@ class ContentNodeRepository:
             data["name"] = name
         if content is not None:
             data["content"] = content
-        if path is not None:
-            data["path"] = path
+        if id_path is not None:
+            data["id_path"] = id_path
         if parent_id is not None:
             data["parent_id"] = parent_id
         if s3_key is not None:
@@ -169,26 +209,26 @@ class ContentNodeRepository:
         )
         return [row["id"] for row in response.data]
 
-    def update_children_path_prefix(
+    def update_children_id_path_prefix(
         self, 
-        user_id: str, 
+        project_id: str, 
         old_prefix: str, 
         new_prefix: str
     ) -> int:
-        """批量更新子节点的路径前缀"""
+        """批量更新子节点的 id_path 前缀（用于移动操作）"""
         # 获取所有需要更新的节点
         response = (
             self.client.table(self.TABLE_NAME)
-            .select("id, path")
-            .eq("user_id", user_id)
-            .like("path", f"{old_prefix}/%")
+            .select("id, id_path")
+            .eq("project_id", project_id)
+            .like("id_path", f"{old_prefix}/%")
             .execute()
         )
         
         count = 0
         for row in response.data:
-            new_path = new_prefix + row["path"][len(old_prefix):]
-            self.client.table(self.TABLE_NAME).update({"path": new_path}).eq("id", row["id"]).execute()
+            new_id_path = new_prefix + row["id_path"][len(old_prefix):]
+            self.client.table(self.TABLE_NAME).update({"id_path": new_id_path}).eq("id", row["id"]).execute()
             count += 1
         
         return count
