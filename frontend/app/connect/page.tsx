@@ -45,8 +45,8 @@ export default function ConnectPage() {
     if (projects.length > 0 && !activeBaseId) {
       setActiveBaseId(projects[0].id);
       setExpandedBaseIds(new Set([projects[0].id]));
-      if (projects[0].tables.length > 0) {
-        setActiveTableId(projects[0].tables[0].id);
+      if (projects[0].nodes.length > 0) {
+        setActiveTableId(projects[0].nodes[0].id);
       }
     }
   }, [projects, activeBaseId]);
@@ -68,13 +68,13 @@ export default function ConnectPage() {
   );
 
   const activeTable = useMemo(
-    () => activeBase?.tables.find(table => table.id === activeTableId) ?? null,
+    () => activeBase?.nodes.find(node => node.id === activeTableId) ?? null,
     [activeBase, activeTableId]
   );
 
   useEffect(() => {
-    if (activeBase?.tables?.length) {
-      setActiveTableId(activeBase.tables[0].id);
+    if (activeBase?.nodes?.length) {
+      setActiveTableId(activeBase.nodes[0].id);
     } else {
       setActiveTableId('');
     }

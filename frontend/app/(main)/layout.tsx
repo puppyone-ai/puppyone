@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
-import { ProjectsSidebar } from '@/components/ProjectsSidebar';
+import { AppSidebar } from '@/components/AppSidebar';
 import { useProjects } from '@/lib/hooks/useData';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 
@@ -64,7 +64,8 @@ export default function MainLayout({
     if (!pathname) return 'projects';
     if (pathname.startsWith('/tools-and-server')) return 'tools';
     if (pathname.startsWith('/settings')) return 'settings';
-    if (pathname.startsWith('/projects')) return 'projects';
+    if (pathname.startsWith('/projects') || pathname.startsWith('/home'))
+      return 'projects';
     return 'projects';
   }, [pathname]);
 
@@ -100,14 +101,8 @@ export default function MainLayout({
 
   const handleUtilityNavClick = (id: string) => {
     if (id === 'projects') {
-      // Navigate to first project's first table if available, otherwise just /projects
-      if (projects.length > 0 && projects[0].tables?.length > 0) {
-        router.push(`/projects/${projects[0].id}/${projects[0].tables[0].id}`);
-      } else if (projects.length > 0) {
-        router.push(`/projects/${projects[0].id}`);
-      } else {
-        router.push('/projects');
-      }
+      // 导航到 Dashboard
+      router.push('/home');
     } else if (id === 'tools') {
       router.push('/tools-and-server/tools-list');
     } else if (id === 'settings') {
@@ -124,7 +119,7 @@ export default function MainLayout({
         backgroundColor: '#040404',
       }}
     >
-      <ProjectsSidebar
+      <AppSidebar
         projects={projects}
         activeBaseId={activeBaseId}
         expandedBaseIds={expandedBaseIds}
@@ -132,7 +127,7 @@ export default function MainLayout({
         activeView={activeView}
         onBaseClick={handleBaseClick}
         onTableClick={handleTableClick}
-        // 传入空数组，因为 ProjectsSidebar 内部对 tools 和 settings 有特殊处理
+        // 传入空数组，因为 AppSidebar 内部对 tools 和 settings 有特殊处理
         utilityNav={[]}
         onUtilityNavClick={handleUtilityNavClick}
         userInitial={userInitial}

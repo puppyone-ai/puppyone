@@ -36,7 +36,8 @@ def _node_to_info(node) -> NodeInfo:
         id=node.id,
         name=node.name,
         type=node.type,
-        path=node.path,
+        project_id=node.project_id,
+        id_path=node.id_path,
         parent_id=node.parent_id,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
@@ -51,7 +52,8 @@ def _node_to_detail(node) -> NodeDetail:
         id=node.id,
         name=node.name,
         type=node.type,
-        path=node.path,
+        project_id=node.project_id,
+        id_path=node.id_path,
         parent_id=node.parent_id,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
@@ -69,14 +71,15 @@ def _node_to_detail(node) -> NodeDetail:
     "/",
     response_model=ApiResponse[NodeListResponse],
     summary="列出节点",
-    description="列出指定父节点下的所有子节点，不传 parent_id 则列出根节点",
+    description="列出指定项目中父节点下的所有子节点，不传 parent_id 则列出项目根节点",
 )
 def list_nodes(
-    parent_id: Optional[str] = Query(None, description="父节点 ID，不传则列出根节点"),
+    project_id: str = Query(..., description="项目 ID"),
+    parent_id: Optional[str] = Query(None, description="父节点 ID，不传则列出项目根节点"),
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    nodes = service.list_children(current_user.user_id, parent_id)
+    nodes = service.list_children(current_user.user_id, project_id, parent_id)
     return ApiResponse.success(
         data=NodeListResponse(
             nodes=[_node_to_info(n) for n in nodes],
@@ -100,16 +103,17 @@ def get_node(
 
 
 @router.get(
-    "/by-path/",
+    "/by-id-path/",
     response_model=ApiResponse[NodeDetail],
-    summary="按路径获取节点",
+    summary="按 id_path 获取节点",
 )
-def get_node_by_path(
-    path: str = Query(..., description="节点路径，如 /项目A/文档/readme.md"),
+def get_node_by_id_path(
+    project_id: str = Query(..., description="项目 ID"),
+    id_path: str = Query(..., description="节点 id_path，如 /uuid1/uuid2/uuid3"),
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    node = service.get_by_path(current_user.user_id, path)
+    node = service.get_by_id_path(project_id, id_path)
     return ApiResponse.success(data=_node_to_detail(node))
 
 
@@ -128,6 +132,7 @@ def create_folder(
 ):
     node = service.create_folder(
         user_id=current_user.user_id,
+        project_id=request.project_id,
         name=request.name,
         parent_id=request.parent_id,
     )
@@ -147,6 +152,7 @@ def create_json_node(
 ):
     node = service.create_json_node(
         user_id=current_user.user_id,
+        project_id=request.project_id,
         name=request.name,
         content=request.content,
         parent_id=request.parent_id,
@@ -163,6 +169,7 @@ def create_json_node(
 )
 async def prepare_upload(
     name: str = Query(..., description="文件名"),
+    project_id: str = Query(..., description="项目 ID"),
     content_type: str = Query(..., description="文件 MIME 类型"),
     parent_id: Optional[str] = Query(None, description="父节点 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
@@ -170,6 +177,7 @@ async def prepare_upload(
 ):
     node, upload_url = await service.prepare_file_upload(
         user_id=current_user.user_id,
+        project_id=project_id,
         name=name,
         content_type=content_type,
         parent_id=parent_id,

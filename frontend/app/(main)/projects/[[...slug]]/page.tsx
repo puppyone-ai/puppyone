@@ -1,5 +1,19 @@
 'use client';
 
+/**
+ * Projects Page - RESTful URL Routing
+ *
+ * URL Format:
+ *   /projects/{projectId}                          -> Project root view
+ *   /projects/{projectId}/{folderId}               -> Folder view
+ *   /projects/{projectId}/{folderId1}/{folderId2}  -> Nested folder view
+ *   /projects/{projectId}/{nodeId}                 -> Node editor (JSON in root)
+ *   /projects/{projectId}/{folderId}/{nodeId}      -> Node editor (JSON in folder)
+ *
+ * The [[...slug]] catch-all route handles all paths.
+ * Path segments are resolved by querying each node's type from the API.
+ */
+
 import { useEffect, useMemo, useState, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
@@ -21,9 +35,9 @@ import {
   type BreadcrumbSegment,
 } from '@/components/ProjectsHeader';
 import { ChatSidebar } from '@/components/ChatSidebar';
-import { ContextSidebar } from '@/components/ContextSidebar';
 import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
 import { DocumentEditor } from '@/components/RightAuxiliaryPanel/DocumentEditor';
+import { DashboardView } from '@/components/dashboard/DashboardView';
 
 // 面板内容类型
 type RightPanelContent = 'NONE' | 'EDITOR';
@@ -46,7 +60,11 @@ import {
 import { ProjectManageDialog } from '@/components/ProjectManageDialog';
 import { TableManageDialog } from '@/components/TableManageDialog';
 import { FolderManageDialog } from '@/components/FolderManageDialog';
-import { listNodes, type NodeInfo } from '@/lib/contentNodesApi';
+import { listNodes, getNode, type NodeInfo } from '@/lib/contentNodesApi';
+
+// Finder View Components
+import { GridView, ListView } from './components/views';
+import { CreateMenu, type ContentType } from './components/finder';
 
 export interface AccessPoint {
   id: string;
@@ -54,334 +72,9 @@ export interface AccessPoint {
   permissions: McpToolPermissions;
 }
 
-// --- Finder View Components ---
+import { redirect } from 'next/navigation';
 
-function GridItem({
-  icon,
-  label,
-  onClick,
-  type = 'folder',
-}: {
-  icon: React.ReactNode | ((props: { hovered: boolean }) => React.ReactNode);
-  label: string;
-  onClick: (e: React.MouseEvent) => void;
-  type?: 'folder' | 'file' | 'create';
-}) {
-  const [hovered, setHovered] = useState(false);
-  const isCreate = type === 'create';
-
-  return (
-    <div
-      onClick={e => onClick(e)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        width: 120,
-        height: 136,
-        padding: '22px 10px 10px 10px', // 改为顶部对齐，通过 padding 固定图标位置，确保新建按钮与普通图标对齐
-        gap: 10,
-        borderRadius: 8,
-        cursor: 'pointer',
-        background:
-          hovered && !isCreate ? 'rgba(255,255,255,0.04)' : 'transparent',
-        transition: 'all 0.15s',
-      }}
-    >
-      <div
-        style={{
-          width: isCreate ? 48 : 'auto',
-          height: isCreate ? 48 : 48, // 固定高度以对齐
-          borderRadius: isCreate ? 12 : 0,
-          // Create 按钮：平时全透明无边框，hover 时才显示微弱背景
-          background: isCreate
-            ? hovered
-              ? 'rgba(255,255,255,0.05)'
-              : 'transparent'
-            : 'transparent',
-          // Create 按钮：平时虚线边框，hover 时实线或更亮
-          border: isCreate
-            ? hovered
-              ? '1px dashed rgba(255,255,255,0.3)'
-              : '1px dashed rgba(255,255,255,0.15)'
-            : 'none',
-          fontSize: isCreate ? 20 : 48,
-          // Folder 改为中性灰白色，去除"AI蓝"；File (Table) 保持绿色
-          color:
-            type === 'folder'
-              ? hovered
-                ? '#e4e4e7'
-                : '#a1a1aa'
-              : type === 'file'
-                ? '#34d399'
-                : hovered
-                  ? '#fff'
-                  : '#444',
-          opacity: hovered ? 1 : isCreate ? 1 : 0.9,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'all 0.15s',
-          // 移除了 translateY 上浮效果，避免 AR 味太重
-          transform: 'none',
-          boxShadow:
-            isCreate && hovered ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
-        }}
-      >
-        {typeof icon === 'function' ? icon({ hovered }) : icon}
-      </div>
-      {!isCreate && (
-        <div
-          style={{
-            fontSize: 13,
-            color: hovered ? '#fff' : '#a1a1aa', // 更柔和的灰色
-            textAlign: 'center',
-            wordBreak: 'break-word',
-            lineHeight: '1.4em',
-            height: '2.8em', // 强制两行高度以保持网格对齐
-            overflow: 'hidden',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            padding: '0 2px',
-          }}
-        >
-          {label}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Create Menu Component
-function CreateMenu({
-  x,
-  y,
-  onClose,
-  onCreateFolder,
-  onCreateContext,
-}: {
-  x: number;
-  y: number;
-  onClose: () => void;
-  onCreateFolder: () => void;
-  onCreateContext: () => void;
-}) {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top: y,
-        left: x,
-        zIndex: 1000,
-        background: 'rgba(28, 28, 30, 0.98)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 10,
-        padding: '6px 0',
-        minWidth: 180,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-      }}
-    >
-      <div
-        onClick={() => {
-          onCreateFolder();
-          onClose();
-        }}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '10px 14px',
-          cursor: 'pointer',
-          color: '#e4e4e7',
-          fontSize: 14,
-          transition: 'background 0.1s',
-        }}
-        onMouseEnter={e =>
-          (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')
-        }
-        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-      >
-        <svg
-          width='18'
-          height='18'
-          viewBox='0 0 24 24'
-          fill='none'
-          xmlns='http://www.w3.org/2000/svg'
-        >
-          <path
-            d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
-            fill='#a1a1aa'
-            fillOpacity='0.2'
-            stroke='#a1a1aa'
-            strokeWidth='1.5'
-            strokeLinecap='round'
-            strokeLinejoin='round'
-          />
-        </svg>
-        <span>New Folder</span>
-      </div>
-
-      <div
-        style={{
-          height: 1,
-          background: 'rgba(255,255,255,0.08)',
-          margin: '4px 8px',
-        }}
-      />
-
-      <div
-        onClick={() => {
-          onCreateContext();
-          onClose();
-        }}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '10px 14px',
-          cursor: 'pointer',
-          color: '#e4e4e7',
-          fontSize: 14,
-          transition: 'background 0.1s',
-        }}
-        onMouseEnter={e =>
-          (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')
-        }
-        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-      >
-        <svg
-          width='18'
-          height='18'
-          viewBox='0 0 24 24'
-          fill='none'
-          xmlns='http://www.w3.org/2000/svg'
-        >
-          <path
-            d='M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z'
-            stroke='#34d399'
-            strokeWidth='1.5'
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            fill='#34d399'
-            fillOpacity='0.1'
-          />
-          <path
-            d='M3 9H21'
-            stroke='#34d399'
-            strokeWidth='1.5'
-            strokeLinecap='round'
-            strokeLinejoin='round'
-          />
-          <path
-            d='M3 15H21'
-            stroke='#34d399'
-            strokeWidth='1.5'
-            strokeLinecap='round'
-            strokeLinejoin='round'
-          />
-          <path
-            d='M9 3V21'
-            stroke='#34d399'
-            strokeWidth='1.5'
-            strokeLinecap='round'
-            strokeLinejoin='round'
-          />
-        </svg>
-        <span>New Context</span>
-      </div>
-    </div>
-  );
-}
-
-// List View Item Component
-function ListItem({
-  icon,
-  label,
-  onClick,
-  type = 'folder',
-  description,
-}: {
-  icon: React.ReactNode | ((props: { hovered: boolean }) => React.ReactNode);
-  label: string;
-  onClick: (e: React.MouseEvent) => void;
-  type?: 'folder' | 'file' | 'create';
-  description?: string;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const isCreate = type === 'create';
-
-  return (
-    <div
-      onClick={e => onClick(e)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '8px 16px',
-        gap: 12,
-        borderRadius: 6,
-        cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-        borderBottom: '1px solid rgba(255,255,255,0.03)',
-        transition: 'all 0.1s',
-      }}
-    >
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color:
-            type === 'folder'
-              ? hovered
-                ? '#e4e4e7'
-                : '#a1a1aa'
-              : type === 'file'
-                ? '#34d399'
-                : '#666',
-          fontSize: 20,
-        }}
-      >
-        {typeof icon === 'function' ? icon({ hovered }) : icon}
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 14,
-            color: hovered || isCreate ? '#fff' : '#d4d4d8',
-            fontWeight: 500,
-          }}
-        >
-          {label}
-        </div>
-        {description && (
-          <div style={{ fontSize: 12, color: '#71717a' }}>{description}</div>
-        )}
-      </div>
-
-      <div style={{ color: '#52525b', fontSize: 12 }}>
-        {type === 'folder' ? 'Folder' : type === 'file' ? 'Context' : 'Action'}
-      </div>
-    </div>
-  );
-}
+// ...
 
 // 重构版本的页面组件 - 极简布局，用于定位显示问题
 export default function ProjectsSlugPage({
@@ -390,17 +83,33 @@ export default function ProjectsSlugPage({
   params: Promise<{ slug: string[] }>;
 }) {
   const { slug } = use(params);
+
+  // 如果访问 /projects (无 slug)，重定向到 /home
+  if (!slug || slug.length === 0) {
+    redirect('/home');
+  }
+
   const router = useRouter();
   const { session } = useAuth();
 
   // 1. 解析路由参数
-  const [projectId, tableId] = slug || [];
+  // URL 格式：/projects/{projectId}/{path1}/{path2}/...
+  // - /projects/11                    -> 项目根目录
+  // - /projects/11/{folderId}         -> 文件夹视图（需要查询确认类型）
+  // - /projects/11/{nodeId}           -> 节点视图（需要查询确认类型）
+  // - /projects/11/{folderId}/{nodeId} -> 文件夹内的节点
+  const [projectId, ...restPath] = slug || [];
+
   // projectId === '-' 表示裸 Table（不属于任何 Project）
   const isOrphanTable = projectId === '-';
   const [activeBaseId, setActiveBaseId] = useState<string>(
     isOrphanTable ? '' : projectId || ''
   );
-  const [activeTableId, setActiveTableId] = useState<string>(tableId || '');
+
+  // 解析路径：最后一个可能是节点 ID，前面的都是文件夹路径
+  const [routeFolderId, setRouteFolderId] = useState<string | null>(null);
+  const [routeNodeId, setRouteNodeId] = useState<string | null>(null);
+  const [activeTableId, setActiveTableId] = useState<string>('');
 
   // View State
   const [viewType, setViewType] = useState<ViewType>('grid');
@@ -411,9 +120,8 @@ export default function ProjectsSlugPage({
   // 2. 数据获取
   const { projects, isLoading: projectsLoading } = useProjects();
   // 获取当前 table 的 Tools（用于 sidebar 显示）
-  const { tools: tableTools, isLoading: toolsLoading } = useTableTools(
-    activeTableId || tableId
-  );
+  const { tools: tableTools, isLoading: toolsLoading } =
+    useTableTools(activeTableId);
   // 获取当前 project 下的所有 Tools（用于 ChatSidebar 项目级展示）
   const { tools: projectTools } = useProjectTools(
     !isOrphanTable ? activeBaseId || projectId : undefined
@@ -421,7 +129,7 @@ export default function ProjectsSlugPage({
   // 获取当前 table 的数据（用于 ChatSidebar）
   const { tableData: currentTableData, refresh: refreshTable } = useTable(
     activeBaseId || projectId,
-    activeTableId || tableId
+    activeTableId
   );
 
   // 3. 状态管理
@@ -445,8 +153,14 @@ export default function ProjectsSlugPage({
   // Current folder context for nested navigation
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string>('/');
+  // 完整的文件夹路径（包含每个层级的 ID 和名称）
+  const [folderBreadcrumbs, setFolderBreadcrumbs] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [contentNodes, setContentNodes] = useState<NodeInfo[]>([]);
   const [contentNodesLoading, setContentNodesLoading] = useState(false);
+  // 路径解析加载状态
+  const [isResolvingPath, setIsResolvingPath] = useState(false);
 
   // Create menu state
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -475,9 +189,10 @@ export default function ProjectsSlugPage({
 
   // 加载内容节点（用于嵌套文件夹导航）
   const loadContentNodes = async (parentId: string | null) => {
+    if (!activeBaseId) return; // 需要 projectId
     try {
       setContentNodesLoading(true);
-      const result = await listNodes(parentId);
+      const result = await listNodes(activeBaseId, parentId);
       setContentNodes(result.nodes);
     } catch (error) {
       console.error('Failed to load content nodes:', error);
@@ -487,27 +202,101 @@ export default function ProjectsSlugPage({
     }
   };
 
-  // 4. 副作用：同步路由参数到状态
+  // 4. 副作用：解析 URL 路径并同步状态
   useEffect(() => {
-    // 只有当 URL 参数存在时才更新状态，避免清除状态
+    // 设置 projectId
     if (projectId !== undefined) {
       setActiveBaseId(projectId === '-' ? '' : projectId);
     } else {
       setActiveBaseId('');
     }
 
-    if (tableId !== undefined) {
-      setActiveTableId(tableId);
-    } else {
-      setActiveTableId('');
+    const currentProject = projects.find(p => p.id === projectId);
+    const projectName = currentProject?.name || '';
+
+    // 解析 restPath 来确定文件夹和节点
+    // URL: /projects/{projectId}/{id1}/{id2}/...
+    // 需要查询每个 ID 的类型来确定是文件夹还是节点
+    async function resolvePathSegments() {
+      setIsResolvingPath(true);
+
+      try {
+        if (restPath.length === 0) {
+          // 项目根目录
+          setRouteFolderId(null);
+          setRouteNodeId(null);
+          setActiveTableId('');
+          setCurrentFolderId(null);
+          setFolderBreadcrumbs([]);
+          setCurrentFolderPath(`/${projectName}`);
+          await loadContentNodes(null);
+          return;
+        }
+
+        // 获取路径中每个节点的信息
+        const pathNodes: Array<{ id: string; name: string; type: string }> = [];
+        for (const nodeId of restPath) {
+          try {
+            const node = await getNode(nodeId);
+            if (node) {
+              pathNodes.push({ id: node.id, name: node.name, type: node.type });
+            }
+          } catch (err) {
+            console.error(`Failed to get node ${nodeId}:`, err);
+          }
+        }
+
+        // 分析路径：文件夹在前，节点（如果有）在最后
+        const folders = pathNodes.filter(n => n.type === 'folder');
+        const lastNode = pathNodes[pathNodes.length - 1];
+
+        if (lastNode?.type === 'folder') {
+          // 最后一个是文件夹 -> 显示文件夹内容
+          setRouteFolderId(lastNode.id);
+          setRouteNodeId(null);
+          setActiveTableId('');
+          setCurrentFolderId(lastNode.id);
+          setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
+          setCurrentFolderPath(
+            `/${projectName}/${folders.map(f => f.name).join('/')}`
+          );
+          await loadContentNodes(lastNode.id);
+        } else if (lastNode) {
+          // 最后一个是节点（json 等）-> 显示节点编辑器
+          setRouteNodeId(lastNode.id);
+          setActiveTableId(lastNode.id);
+
+          // 文件夹是除了最后一个之外的所有 folder 类型节点
+          if (folders.length > 0) {
+            const lastFolder = folders[folders.length - 1];
+            setRouteFolderId(lastFolder.id);
+            setCurrentFolderId(lastFolder.id);
+            setFolderBreadcrumbs(
+              folders.map(f => ({ id: f.id, name: f.name }))
+            );
+            setCurrentFolderPath(
+              `/${projectName}/${folders.map(f => f.name).join('/')}`
+            );
+          } else {
+            // 节点在项目根目录
+            setRouteFolderId(null);
+            setCurrentFolderId(null);
+            setFolderBreadcrumbs([]);
+            setCurrentFolderPath(`/${projectName}`);
+          }
+        }
+      } finally {
+        setIsResolvingPath(false);
+      }
     }
-  }, [projectId, tableId]);
+
+    resolvePathSegments();
+  }, [projectId, restPath.join('/'), projects]);
 
   // 同步 Access Points
   useEffect(() => {
-    const currentTableId = activeTableId || tableId;
-    if (!currentTableId || toolsLoading) return;
-    if (currentTableId === lastSyncedTableId.current) return;
+    if (!activeTableId || toolsLoading) return;
+    if (activeTableId === lastSyncedTableId.current) return;
 
     // 转换后端 tools 为 accessPoints 格式
     const pathPermissionsMap = new Map<string, McpToolPermissions>();
@@ -527,8 +316,8 @@ export default function ProjectsSlugPage({
     });
 
     setAccessPoints(initialAccessPoints);
-    lastSyncedTableId.current = currentTableId;
-  }, [activeTableId, tableId, toolsLoading, tableTools]);
+    lastSyncedTableId.current = activeTableId;
+  }, [activeTableId, toolsLoading, tableTools]);
 
   const TOOL_TYPES: McpToolType[] = [
     'shell_access',
@@ -629,10 +418,9 @@ export default function ProjectsSlugPage({
 
   const activeTable = useMemo(
     () =>
-      activeBase?.tables.find(
-        table => String(table.id) === String(activeTableId)
-      ) ?? null,
-    [activeBase, activeTableId]
+      contentNodes.find(node => String(node.id) === String(activeTableId)) ??
+      null,
+    [contentNodes, activeTableId]
   );
 
   const toggleBaseExpansion = (baseId: string) => {
@@ -647,89 +435,126 @@ export default function ProjectsSlugPage({
 
   // 6. 路径片段 - 用于导航
   const pathSegments = useMemo<BreadcrumbSegment[]>(() => {
-    // 1. Home Segment
-    const segments: BreadcrumbSegment[] = [
-      {
-        label: 'Home',
-        href: '/projects',
-        icon: (
-          <svg
-            width='14'
-            height='14'
-            viewBox='0 0 24 24'
-            fill='none'
-            xmlns='http://www.w3.org/2000/svg'
-          >
-            <path
-              d='M3 9.5L12 2L21 9.5V21C21 21.5523 20.5523 22 20 22H15V16H9V22H4C3.44772 22 3 21.5523 3 21V9.5Z'
-              stroke='currentColor'
-              strokeWidth='2'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            />
-          </svg>
-        ),
-      },
-    ];
+    const segments: BreadcrumbSegment[] = [];
 
-    // 2. Project Segment
+    // Project 图标 (立方体/盒子，表示一个项目容器)
+    const projectIcon = (
+      <svg
+        width='14'
+        height='14'
+        viewBox='0 0 24 24'
+        fill='none'
+        xmlns='http://www.w3.org/2000/svg'
+        style={{ color: '#a78bfa' }}
+      >
+        <path
+          d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'
+          stroke='currentColor'
+          strokeWidth='2'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+        />
+        <path
+          d='M3.27 6.96L12 12.01l8.73-5.05'
+          stroke='currentColor'
+          strokeWidth='2'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+        />
+        <path
+          d='M12 22.08V12'
+          stroke='currentColor'
+          strokeWidth='2'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+        />
+      </svg>
+    );
+
+    // 文件夹图标 (只用于 Project 内部的子文件夹)
+    const folderIcon = (
+      <svg
+        width='14'
+        height='14'
+        viewBox='0 0 24 24'
+        fill='none'
+        xmlns='http://www.w3.org/2000/svg'
+        style={{ color: '#3b82f6' }}
+      >
+        <path
+          d='M2 6C2 4.89543 2.89543 4 4 4H9.17157C9.70201 4 10.2107 4.21071 10.5858 4.58579L12.4142 6.41421C12.7893 6.78929 13.298 7 13.8284 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V6Z'
+          fill='currentColor'
+        />
+      </svg>
+    );
+
+    // Context/Table 图标
+    const tableIcon = (
+      <svg
+        width='14'
+        height='14'
+        viewBox='0 0 24 24'
+        fill='none'
+        xmlns='http://www.w3.org/2000/svg'
+        style={{ color: '#34d399' }}
+      >
+        <rect
+          x='3'
+          y='3'
+          width='18'
+          height='18'
+          rx='2'
+          stroke='currentColor'
+          strokeWidth='2'
+        />
+        <path d='M3 9H21' stroke='currentColor' strokeWidth='2' />
+        <path d='M9 21V9' stroke='currentColor' strokeWidth='2' />
+      </svg>
+    );
+
+    // 1. Project Segment (首位，带返回功能)
+    // 当在文件夹内或 Context 视图时，项目名可点击返回项目根目录
+    const hasSubContent = !!(currentFolderId || activeTableId);
     if (activeBaseId) {
-      const folderIcon = (
-        <svg
-          width='14'
-          height='14'
-          viewBox='0 0 24 24'
-          fill='none'
-          xmlns='http://www.w3.org/2000/svg'
-          style={{ color: '#3b82f6' }}
-        >
-          <path
-            d='M2 6C2 4.89543 2.89543 4 4 4H9.17157C9.70201 4 10.2107 4.21071 10.5858 4.58579L12.4142 6.41421C12.7893 6.78929 13.298 7 13.8284 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V6Z'
-            fill='currentColor'
-          />
-        </svg>
-      );
-
       if (activeBase) {
         segments.push({
           label: activeBase.name,
-          href: `/projects/${activeBase.id}`,
-          icon: folderIcon,
+          href: hasSubContent ? `/projects/${activeBase.id}` : undefined,
+          icon: projectIcon,
         });
       } else {
         segments.push({
           label: 'Project',
-          href: `/projects/${activeBaseId}`,
-          icon: folderIcon,
+          href: hasSubContent ? `/projects/${activeBaseId}` : undefined,
+          icon: projectIcon,
         });
       }
     }
 
-    // 3. Context Segment
-    if (activeTableId) {
-      const tableIcon = (
-        <svg
-          width='14'
-          height='14'
-          viewBox='0 0 24 24'
-          fill='none'
-          xmlns='http://www.w3.org/2000/svg'
-          style={{ color: '#34d399' }}
-        >
-          <rect
-            x='3'
-            y='3'
-            width='18'
-            height='18'
-            rx='2'
-            stroke='currentColor'
-            strokeWidth='2'
-          />
-          <path d='M3 9H21' stroke='currentColor' strokeWidth='2' />
-          <path d='M9 21V9' stroke='currentColor' strokeWidth='2' />
-        </svg>
-      );
+    // 2. Folder Segments (显示完整的文件夹层级，每个都可点击)
+    if (folderBreadcrumbs.length > 0) {
+      folderBreadcrumbs.forEach((folder, index) => {
+        const isLast = index === folderBreadcrumbs.length - 1;
+        segments.push({
+          label: folder.name,
+          // 非最后一个文件夹可以点击返回该层级
+          // 最后一个只有在 Context 视图时才有 href
+          // 构建到该文件夹的完整路径
+          href: !isLast
+            ? `/projects/${activeBaseId}/${folderBreadcrumbs
+                .slice(0, index + 1)
+                .map(f => f.id)
+                .join('/')}`
+            : activeTableId
+              ? `/projects/${activeBaseId}/${folderBreadcrumbs.map(f => f.id).join('/')}`
+              : undefined,
+          icon: folderIcon,
+        });
+      });
+    }
 
+    // 3. Context Segment (当前选中的表/JSON 文件)
+    if (activeTableId) {
       if (activeTable) {
         segments.push({ label: activeTable.name, icon: tableIcon });
       } else if (isOrphanTable && currentTableData) {
@@ -738,6 +563,7 @@ export default function ProjectsSlugPage({
         segments.push({ label: 'Context', icon: tableIcon });
       }
     }
+
     return segments;
   }, [
     activeBase,
@@ -746,6 +572,8 @@ export default function ProjectsSlugPage({
     activeTableId,
     isOrphanTable,
     currentTableData,
+    currentFolderId,
+    folderBreadcrumbs,
   ]);
 
   // 8. 渲染准备
@@ -757,19 +585,17 @@ export default function ProjectsSlugPage({
   }, [accessPoints]);
 
   const tableNameById = useMemo(() => {
-    const map: Record<number, string> = {};
-    if (activeBase?.tables) {
-      activeBase.tables.forEach(t => {
-        const idNum = Number(t.id);
-        if (Number.isFinite(idNum)) map[idNum] = t.name;
-      });
-    }
+    const map: Record<string, string> = {};
+    // 从 contentNodes 获取名称映射（新架构）
+    contentNodes.forEach(node => {
+      map[node.id] = node.name;
+    });
+    // 保留当前加载的 table 数据
     if (currentTableData?.id && currentTableData?.name) {
-      const idNum = Number(currentTableData.id);
-      if (Number.isFinite(idNum)) map[idNum] = currentTableData.name;
+      map[currentTableData.id] = currentTableData.name;
     }
     return map;
-  }, [activeBase?.tables, currentTableData?.id, currentTableData?.name]);
+  }, [contentNodes, currentTableData?.id, currentTableData?.name]);
 
   // --- View Selection Logic ---
 
@@ -782,16 +608,7 @@ export default function ProjectsSlugPage({
   // View 3: Root View (All Projects)
   const isRootView = !activeBaseId && !activeTableId;
 
-  // 当进入项目文件夹时，加载 content_nodes
-  useEffect(() => {
-    if (isProjectFolderView && activeBase) {
-      // 设置当前文件夹路径
-      setCurrentFolderPath(`/${activeBase.name}`);
-      setCurrentFolderId(null); // 重置为根目录（项目级别）
-      // 加载该项目根目录的 content_nodes
-      loadContentNodes(null);
-    }
-  }, [isProjectFolderView, activeBase?.id]);
+  // 当进入项目文件夹时，设置初始路径（已在 resolvePathSegments 中处理）
 
   return (
     <div
@@ -804,17 +621,6 @@ export default function ProjectsSlugPage({
         overflow: 'hidden',
       }}
     >
-      {/* View 3: Sidebar (Column Mode) */}
-      {viewType === 'column' && (
-        <ContextSidebar
-          project={activeBase}
-          allProjects={projects}
-          activeTableId={activeTableId}
-          onTableSelect={id => router.push(`/projects/${activeBaseId}/${id}`)}
-          onBackToProjects={() => router.push('/projects')}
-        />
-      )}
-
       {/* 左侧主要区域 (Header + Content) */}
       <div
         style={{
@@ -827,21 +633,23 @@ export default function ProjectsSlugPage({
         }}
       >
         {/* Header - Finder Style Navigation */}
-        <div style={{ flexShrink: 0 }}>
-          <ProjectsHeader
-            pathSegments={pathSegments}
-            projectId={activeBase?.id ?? null}
-            onProjectsRefresh={() => refreshProjects()}
-            editorType={editorType}
-            onEditorTypeChange={setEditorType}
-            accessPointCount={accessPoints.length}
-            showEditorSwitcher={isEditorView}
-            viewType={viewType}
-            onViewTypeChange={setViewType}
-            isChatOpen={isChatOpen}
-            onChatOpenChange={setIsChatOpen}
-          />
-        </div>
+        {!isRootView && (
+          <div style={{ flexShrink: 0 }}>
+            <ProjectsHeader
+              pathSegments={pathSegments}
+              projectId={activeBase?.id ?? null}
+              onProjectsRefresh={() => refreshProjects()}
+              editorType={editorType}
+              onEditorTypeChange={setEditorType}
+              accessPointCount={accessPoints.length}
+              showEditorSwitcher={isEditorView}
+              viewType={viewType}
+              onViewTypeChange={setViewType}
+              isChatOpen={isChatOpen}
+              onChatOpenChange={setIsChatOpen}
+            />
+          </div>
+        )}
 
         {/* Content Area */}
         <div
@@ -850,9 +658,9 @@ export default function ProjectsSlugPage({
             display: 'flex',
             minHeight: 0,
             position: 'relative',
-            background: '#050607',
-            overflowY: isEditorView ? 'hidden' : 'auto', // Scroll for grid/list, hidden for editor
-            padding: isEditorView ? 0 : 24, // Padding for browser
+            background: isRootView ? '#050607' : '#050607', // 可以为 Dashboard 设置不同的背景色
+            overflowY: isEditorView ? 'hidden' : 'auto',
+            padding: isEditorView || isRootView ? 0 : 24, // Dashboard 自带 padding
           }}
         >
           {/* VIEW 1: EDITOR */}
@@ -921,15 +729,14 @@ export default function ProjectsSlugPage({
                       return prev;
                     });
 
-                    const currentTableId = activeTableId || tableId;
-                    if (currentTableId) {
+                    if (activeTableId) {
                       syncToolsForPath({
-                        tableId: currentTableId,
+                        tableId: activeTableId,
                         path,
                         permissions,
                         existingTools: tableTools as any,
                       }).then(() => {
-                        refreshTableTools(String(currentTableId));
+                        refreshTableTools(activeTableId);
                         refreshProjectTools(activeBaseId || projectId);
                       });
                     }
@@ -938,14 +745,13 @@ export default function ProjectsSlugPage({
                     setAccessPoints(prev =>
                       prev.filter(ap => ap.path !== path)
                     );
-                    const currentTableId = activeTableId || tableId;
-                    if (currentTableId) {
+                    if (activeTableId) {
                       deleteAllToolsForPath({
-                        tableId: currentTableId,
+                        tableId: activeTableId,
                         path,
                         existingTools: tableTools as any,
                       }).then(() => {
-                        refreshTableTools(String(currentTableId));
+                        refreshTableTools(activeTableId);
                         refreshProjectTools(activeBaseId || projectId);
                       });
                     }
@@ -965,449 +771,114 @@ export default function ProjectsSlugPage({
 
           {/* VIEW 2: PROJECT FOLDER CONTENTS */}
           {isProjectFolderView && activeBase && (
-            <div style={{ width: '100%' }}>
-              <div
-                style={{
-                  display: viewType === 'list' ? 'flex' : 'grid',
-                  flexDirection: 'column',
-                  gridTemplateColumns:
-                    viewType === 'list'
-                      ? undefined
-                      : 'repeat(auto-fill, minmax(120px, 1fr))',
-                  gap: viewType === 'list' ? 0 : 16,
-                }}
-              >
-                {/* Content Nodes - Folders (from new content_nodes API) */}
-                {contentNodes
-                  .filter(node => node.type === 'folder')
-                  .map(folder =>
-                    viewType === 'list' ? (
-                      <ListItem
-                        key={folder.id}
-                        type='folder'
-                        icon={
-                          <svg
-                            width='1em'
-                            height='1em'
-                            viewBox='0 0 24 24'
-                            fill='none'
-                            xmlns='http://www.w3.org/2000/svg'
-                          >
-                            <path
-                              d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
-                              fill='currentColor'
-                              fillOpacity='0.1'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                            <path
-                              d='M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z'
-                              fill='currentColor'
-                              fillOpacity='0.1'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                          </svg>
-                        }
-                        label={folder.name}
-                        onClick={() => {
-                          setCurrentFolderId(folder.id);
-                          setCurrentFolderPath(folder.path);
-                          loadContentNodes(folder.id);
-                        }}
-                        description='Folder'
-                      />
-                    ) : (
-                      <GridItem
-                        key={folder.id}
-                        type='folder'
-                        icon={
-                          <svg
-                            width='1em'
-                            height='1em'
-                            viewBox='0 0 24 24'
-                            fill='none'
-                            xmlns='http://www.w3.org/2000/svg'
-                          >
-                            <path
-                              d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
-                              fill='currentColor'
-                              fillOpacity='0.1'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                            <path
-                              d='M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z'
-                              fill='currentColor'
-                              fillOpacity='0.1'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                          </svg>
-                        }
-                        label={folder.name}
-                        onClick={() => {
-                          setCurrentFolderId(folder.id);
-                          setCurrentFolderPath(folder.path);
-                          loadContentNodes(folder.id);
-                        }}
-                      />
-                    )
-                  )}
-
-                {/* Contexts (from old project/table structure) */}
-                {activeBase.tables &&
-                  activeBase.tables.map(table =>
-                    viewType === 'list' ? (
-                      <ListItem
-                        key={table.id}
-                        type='file'
-                        icon={
-                          <svg
-                            width='1em'
-                            height='1em'
-                            viewBox='0 0 24 24'
-                            fill='none'
-                            xmlns='http://www.w3.org/2000/svg'
-                          >
-                            <path
-                              d='M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                              fill='currentColor'
-                              fillOpacity='0.05'
-                            />
-                            <path
-                              d='M3 9H21'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                            <path
-                              d='M3 15H21'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                            <path
-                              d='M9 3V21'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                          </svg>
-                        }
-                        label={table.name}
-                        onClick={() =>
-                          router.push(`/projects/${activeBase.id}/${table.id}`)
-                        }
-                        description={`${table.rows?.length || 0} rows`}
-                      />
-                    ) : (
-                      <GridItem
-                        key={table.id}
-                        type='file'
-                        icon={
-                          <svg
-                            width='1em'
-                            height='1em'
-                            viewBox='0 0 24 24'
-                            fill='none'
-                            xmlns='http://www.w3.org/2000/svg'
-                          >
-                            <path
-                              d='M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                              fill='currentColor'
-                              fillOpacity='0.05'
-                            />
-                            <path
-                              d='M3 9H21'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                            <path
-                              d='M3 15H21'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                            <path
-                              d='M9 3V21'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                          </svg>
-                        }
-                        label={table.name}
-                        onClick={() =>
-                          router.push(`/projects/${activeBase.id}/${table.id}`)
-                        }
-                      />
-                    )
-                  )}
-
-                {/* Create New Item Card - At the end */}
-                {viewType === 'list' ? (
-                  <ListItem
-                    type='create'
-                    icon={
-                      <svg
-                        width='1em'
-                        height='1em'
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        xmlns='http://www.w3.org/2000/svg'
-                      >
-                        <path
-                          d='M12 6V18'
-                          stroke='currentColor'
-                          strokeWidth='1.5'
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                        />
-                        <path
-                          d='M6 12H18'
-                          stroke='currentColor'
-                          strokeWidth='1.5'
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                        />
-                      </svg>
-                    }
-                    label='New...'
-                    onClick={(e: React.MouseEvent) => {
-                      const rect = (
-                        e.currentTarget as HTMLElement
-                      ).getBoundingClientRect();
-                      setCreateMenuPosition({
-                        x: rect.left,
-                        y: rect.bottom + 4,
-                      });
-                      setCreateMenuOpen(true);
+            <div
+              style={{ width: '100%', height: '100%', position: 'relative' }}
+            >
+              {/* Loading Overlay */}
+              {(isResolvingPath || contentNodesLoading) && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(0, 0, 0, 0.6)',
+                    backdropFilter: 'blur(4px)',
+                    zIndex: 10,
+                    gap: 16,
+                  }}
+                >
+                  {/* Spinner */}
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      border: '3px solid rgba(255, 255, 255, 0.1)',
+                      borderTopColor: '#fff',
+                      borderRadius: '50%',
+                      animation: 'spin 0.8s linear infinite',
                     }}
+                  />
+                  <span
+                    style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14 }}
+                  >
+                    Loading...
+                  </span>
+                  <style>{`
+                    @keyframes spin {
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                </div>
+              )}
+              {(() => {
+                // 准备数据：只从 content_nodes 获取（已完成数据迁移）
+                const items = contentNodes.map(node => ({
+                  id: node.id,
+                  name: node.name,
+                  type: node.type as ContentType,
+                  description: node.type === 'folder' ? 'Folder' : 'JSON',
+                  onClick: () => {
+                    if (node.type === 'folder') {
+                      // 进入子文件夹 - 构建完整路径
+                      const currentPath = folderBreadcrumbs
+                        .map(f => f.id)
+                        .join('/');
+                      const newPath = currentPath
+                        ? `${currentPath}/${node.id}`
+                        : node.id;
+                      router.push(`/projects/${activeBaseId}/${newPath}`);
+                    } else {
+                      // 打开 JSON 编辑器 - 包含文件夹路径
+                      const currentPath = folderBreadcrumbs
+                        .map(f => f.id)
+                        .join('/');
+                      const nodePath = currentPath
+                        ? `${currentPath}/${node.id}`
+                        : node.id;
+                      router.push(`/projects/${activeBase.id}/${nodePath}`);
+                    }
+                  },
+                }));
+
+                const handleCreateClick = (e: React.MouseEvent) => {
+                  const rect = (
+                    e.currentTarget as HTMLElement
+                  ).getBoundingClientRect();
+                  setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+                  setCreateMenuOpen(true);
+                };
+
+                return viewType === 'list' ? (
+                  <ListView
+                    items={items}
+                    onCreateClick={handleCreateClick}
+                    createLabel='New...'
                   />
                 ) : (
-                  <GridItem
-                    type='create'
-                    icon={
-                      <svg
-                        width='1em'
-                        height='1em'
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        xmlns='http://www.w3.org/2000/svg'
-                      >
-                        <path
-                          d='M12 6V18'
-                          stroke='currentColor'
-                          strokeWidth='1.5'
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                        />
-                        <path
-                          d='M6 12H18'
-                          stroke='currentColor'
-                          strokeWidth='1.5'
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                        />
-                      </svg>
-                    }
-                    label='New...'
-                    onClick={(e: React.MouseEvent) => {
-                      const rect = (
-                        e.currentTarget as HTMLElement
-                      ).getBoundingClientRect();
-                      setCreateMenuPosition({
-                        x: rect.left,
-                        y: rect.bottom + 4,
-                      });
-                      setCreateMenuOpen(true);
-                    }}
+                  <GridView
+                    items={items}
+                    onCreateClick={handleCreateClick}
+                    createLabel='New...'
                   />
-                )}
-              </div>
+                );
+              })()}
             </div>
           )}
 
-          {/* VIEW 3: ROOT FOLDER CONTENTS */}
+          {/* VIEW 3: ROOT FOLDER CONTENTS - DASHBOARD VIEW */}
           {isRootView && (
-            <div style={{ width: '100%' }}>
-              {projectsLoading ? (
-                <div style={{ color: '#666' }}>Loading...</div>
-              ) : (
-                <div
-                  style={{
-                    display: viewType === 'list' ? 'flex' : 'grid',
-                    flexDirection: 'column',
-                    gridTemplateColumns:
-                      viewType === 'list'
-                        ? undefined
-                        : 'repeat(auto-fill, minmax(120px, 1fr))',
-                    gap: viewType === 'list' ? 0 : 16,
-                  }}
-                >
-                  {projects.map(project =>
-                    viewType === 'list' ? (
-                      <ListItem
-                        key={project.id}
-                        type='folder'
-                        icon={
-                          <svg
-                            width='1em'
-                            height='1em'
-                            viewBox='0 0 24 24'
-                            fill='none'
-                            xmlns='http://www.w3.org/2000/svg'
-                          >
-                            <path
-                              d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
-                              fill='currentColor'
-                              fillOpacity='0.1'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                            <path
-                              d='M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z'
-                              fill='currentColor'
-                              fillOpacity='0.1'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                          </svg>
-                        }
-                        label={project.name}
-                        onClick={() => router.push(`/projects/${project.id}`)}
-                        description={`${project.tables?.length || 0} items`}
-                      />
-                    ) : (
-                      <GridItem
-                        key={project.id}
-                        type='folder'
-                        icon={
-                          <svg
-                            width='1em'
-                            height='1em'
-                            viewBox='0 0 24 24'
-                            fill='none'
-                            xmlns='http://www.w3.org/2000/svg'
-                          >
-                            <path
-                              d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
-                              fill='currentColor'
-                              fillOpacity='0.1'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                            <path
-                              d='M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z'
-                              fill='currentColor'
-                              fillOpacity='0.1'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                          </svg>
-                        }
-                        label={project.name}
-                        onClick={() => router.push(`/projects/${project.id}`)}
-                      />
-                    )
-                  )}
-
-                  {/* Create New Project Card - At the end */}
-                  {viewType === 'list' ? (
-                    <ListItem
-                      type='create'
-                      icon={
-                        <svg
-                          width='1em'
-                          height='1em'
-                          viewBox='0 0 24 24'
-                          fill='none'
-                          xmlns='http://www.w3.org/2000/svg'
-                        >
-                          <path
-                            d='M12 6V18'
-                            stroke='currentColor'
-                            strokeWidth='1.5'
-                            strokeLinecap='round'
-                            strokeLinejoin='round'
-                          />
-                          <path
-                            d='M6 12H18'
-                            stroke='currentColor'
-                            strokeWidth='1.5'
-                            strokeLinecap='round'
-                            strokeLinejoin='round'
-                          />
-                        </svg>
-                      }
-                      label='New Folder'
-                      onClick={() => setCreateProjectOpen(true)}
-                    />
-                  ) : (
-                    <GridItem
-                      type='create'
-                      icon={
-                        <svg
-                          width='1em'
-                          height='1em'
-                          viewBox='0 0 24 24'
-                          fill='none'
-                          xmlns='http://www.w3.org/2000/svg'
-                        >
-                          <path
-                            d='M12 6V18'
-                            stroke='currentColor'
-                            strokeWidth='1.5'
-                            strokeLinecap='round'
-                            strokeLinejoin='round'
-                          />
-                          <path
-                            d='M6 12H18'
-                            stroke='currentColor'
-                            strokeWidth='1.5'
-                            strokeLinecap='round'
-                            strokeLinejoin='round'
-                          />
-                        </svg>
-                      }
-                      label='New Folder'
-                      onClick={() => setCreateProjectOpen(true)}
-                    />
-                  )}
-                </div>
-              )}
+            <div style={{ width: '100%', height: '100%' }}>
+              <DashboardView
+                projects={projects}
+                loading={projectsLoading}
+                onProjectClick={projectId =>
+                  router.push(`/projects/${projectId}`)
+                }
+                onCreateClick={() => setCreateProjectOpen(true)}
+              />
             </div>
           )}
 
@@ -1445,7 +916,7 @@ export default function ProjectsSlugPage({
         chatWidth={chatWidth}
         onChatWidthChange={setChatWidth}
         tableData={currentTableData?.data}
-        tableId={activeTableId || tableId}
+        tableId={activeTableId}
         projectId={!isOrphanTable ? activeBase?.id : undefined}
         onDataUpdate={async () => {
           refreshTable();
@@ -1490,21 +961,21 @@ export default function ProjectsSlugPage({
           mode='create'
           projectId={activeBase?.id || null}
           tableId={null}
+          parentId={currentFolderId}
           projects={projects}
           onClose={() => setCreateTableOpen(false)}
         />
       )}
 
-      {createFolderOpen && (
+      {createFolderOpen && activeBaseId && (
         <FolderManageDialog
+          projectId={activeBaseId}
           parentId={currentFolderId}
           parentPath={currentFolderPath || `/${activeBase?.name || ''}`}
           onClose={() => setCreateFolderOpen(false)}
           onSuccess={() => {
             // 刷新内容节点列表
-            if (currentFolderId) {
-              loadContentNodes(currentFolderId);
-            }
+            loadContentNodes(currentFolderId);
           }}
         />
       )}

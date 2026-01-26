@@ -44,14 +44,14 @@ export function LibraryView({
 
   const { projects } = useProjects();
 
-  // 构建 tableId -> path 的映射
+  // 构建 nodeId -> path 的映射
   const tablePathMap = useMemo(() => {
-    const map = new Map<number, { path: string; projectId: number }>();
+    const map = new Map<string, { path: string; projectId: string }>();
     projects.forEach(project => {
-      project.tables.forEach(table => {
-        map.set(Number(table.id), {
-          path: `${project.name}/${table.name}`,
-          projectId: Number(project.id),
+      project.nodes.forEach(node => {
+        map.set(node.id, {
+          path: `${project.name}/${node.name}`,
+          projectId: project.id,
         });
       });
     });

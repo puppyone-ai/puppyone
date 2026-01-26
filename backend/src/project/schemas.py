@@ -8,11 +8,12 @@ from typing import Optional, List, Any
 from pydantic import BaseModel
 
 
-class TableInfo(BaseModel):
-    """表信息（简化版，用于项目列表）"""
+class NodeInfo(BaseModel):
+    """节点信息（简化版，用于项目列表）"""
 
     id: str
     name: str
+    type: str  # folder | json | markdown | image | pdf | video | file
     rows: Optional[int] = None
 
 
@@ -22,7 +23,7 @@ class ProjectOut(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
-    tables: List[TableInfo] = []
+    nodes: List[NodeInfo] = []  # 从 tables 改为 nodes
 
 
 class ProjectCreate(BaseModel):
@@ -37,12 +38,3 @@ class ProjectUpdate(BaseModel):
 
     name: Optional[str] = None
     description: Optional[str] = None
-
-
-class TableOut(BaseModel):
-    """表输出模型"""
-
-    id: str
-    name: str
-    rows: Optional[int] = None
-    data: Optional[List[Any]] = None

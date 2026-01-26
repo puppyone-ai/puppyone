@@ -17,6 +17,8 @@ type ProjectsHeaderProps = {
   pathSegments: BreadcrumbSegment[];
   projectId: string | null;
   onProjectsRefresh?: () => void;
+  // Back navigation
+  onBack?: () => void;
   // Editor Props
   editorType?: EditorType;
   onEditorTypeChange?: (type: EditorType) => void;
@@ -108,6 +110,7 @@ export function ProjectsHeader({
   pathSegments,
   projectId,
   onProjectsRefresh,
+  onBack,
   editorType = 'treeline-virtual',
   onEditorTypeChange,
   accessPointCount = 0,
@@ -151,8 +154,61 @@ export function ProjectsHeader({
 
   return (
     <header style={headerStyle}>
-      {/* LEFT SIDE: Context Definition (Breadcrumbs + View Switcher) */}
+      {/* LEFT SIDE: Back Button + Breadcrumbs + View Switcher */}
       <div style={headerLeftStyle}>
+        {/* Back Button Container - 与右侧 chat toggle 对称 */}
+        {onBack && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingLeft: 8,
+              paddingRight: 8,
+            }}
+          >
+            <button
+              onClick={onBack}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                color: '#666',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = '#eee';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#666';
+              }}
+              title='Back to Home'
+            >
+              <svg
+                width='16'
+                height='16'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              >
+                <path d='M19 12H5' />
+                <path d='M12 19l-7-7 7-7' />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Breadcrumbs */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {pathSegments.map((segment, index) => {
@@ -349,7 +405,7 @@ export function ProjectsHeader({
 const headerStyle: CSSProperties = {
   height: 45,
   paddingLeft: 16,
-  paddingRight: 0, // No right padding, Chat toggle goes to edge
+  paddingRight: 0,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -363,7 +419,7 @@ const headerStyle: CSSProperties = {
 const headerLeftStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 16,
+  gap: 12,
 };
 
 const pathStyle: CSSProperties = {

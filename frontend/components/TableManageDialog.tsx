@@ -28,6 +28,7 @@ type TableManageDialogProps = {
   mode: DialogMode;
   projectId: string | null;
   tableId: string | null;
+  parentId?: string | null; // 父文件夹 ID，用于在文件夹内创建节点
   projects: ProjectInfo[];
   onClose: () => void;
   onModeChange?: (mode: DialogMode) => void;
@@ -120,6 +121,7 @@ export function TableManageDialog({
   mode,
   projectId,
   tableId,
+  parentId = null,
   projects,
   onClose,
   onModeChange,
@@ -127,7 +129,7 @@ export function TableManageDialog({
   const { session } = useAuth();
   const project = projectId ? projects.find(p => p.id === projectId) : null;
   const table =
-    tableId && project ? project.tables.find(t => t.id === tableId) : null;
+    tableId && project ? project.nodes.find(t => t.id === tableId) : null;
 
   const [name, setName] = useState(table?.name || '');
   const [loading, setLoading] = useState(false);
@@ -415,7 +417,12 @@ export function TableManageDialog({
 
         // 2. 创建 Table（包含文本文件内容和 ETL 文件的 null 占位符）
         setImportMessage('Creating context...');
-        const newTable = await createTable(projectId, finalName, structure);
+        const newTable = await createTable(
+          projectId,
+          finalName,
+          structure,
+          parentId
+        );
         const newTableId = newTable.id;
 
         // 3. 如果有 ETL 文件且有 projectId，先预先添加"准备上传"状态的任务
@@ -511,7 +518,7 @@ export function TableManageDialog({
         return; // 提前返回，不执行 finally 中的重置
       } else {
         // 空表模式
-        await createTable(projectId, name.trim(), []);
+        await createTable(projectId, name.trim(), [], parentId);
         await refreshProjects();
         onClose();
       }

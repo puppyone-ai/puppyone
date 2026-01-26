@@ -10,10 +10,11 @@ class ContentNode(BaseModel):
 
     id: str = Field(..., description="节点 ID (UUID)")
     user_id: str = Field(..., description="所属用户 ID")
+    project_id: str = Field(..., description="所属项目 ID")
     parent_id: Optional[str] = Field(None, description="父节点 ID，None 表示根节点")
     name: str = Field(..., description="节点名称")
     type: str = Field(..., description="节点类型: folder, json, markdown, image, pdf, video, file")
-    path: str = Field(..., description="物化路径")
+    id_path: str = Field(..., description="ID 物化路径，如 /uuid1/uuid2/uuid3")
     content: Optional[Any] = Field(None, description="JSON 内容（type=json 时）")
     s3_key: Optional[str] = Field(None, description="S3 对象 key（非 JSON 时）")
     mime_type: Optional[str] = Field(None, description="MIME 类型")

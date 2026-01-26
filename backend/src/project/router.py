@@ -14,9 +14,10 @@ from src.project.schemas import (
     ProjectOut,
     ProjectCreate,
     ProjectUpdate,
-    TableInfo,
+    NodeInfo,
 )
-from src.supabase.dependencies import get_supabase_repository
+from src.content_node.dependencies import get_content_node_service
+from src.content_node.service import ContentNodeService
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
 from src.common_schemas import ApiResponse
@@ -31,22 +32,23 @@ router = APIRouter(
 )
 
 
-def _convert_to_project_out(project: Project, tables=None) -> ProjectOut:
-    """将 Project 转换为 ProjectOut"""
-    table_infos = []
-    if tables:
-        for t in tables:
-            # 计算 rows: 如果 data 是 list 则取长度，否则取 dict 的 key 数量
+def _convert_to_project_out(project: Project, nodes=None) -> ProjectOut:
+    """将 Project 转换为 ProjectOut（使用 content_nodes）"""
+    node_infos = []
+    if nodes:
+        for node in nodes:
+            # 计算 rows: 如果 content 是 list 则取长度，否则取 dict 的 key 数量
             rows = None
-            if t.data is not None:
-                if isinstance(t.data, list):
-                    rows = len(t.data)
-                elif isinstance(t.data, dict):
-                    rows = len(t.data)
-            table_infos.append(
-                TableInfo(
-                    id=str(t.id),
-                    name=t.name or "",
+            if node.content is not None:
+                if isinstance(node.content, list):
+                    rows = len(node.content)
+                elif isinstance(node.content, dict):
+                    rows = len(node.content)
+            node_infos.append(
+                NodeInfo(
+                    id=node.id,
+                    name=node.name,
+                    type=node.type,
                     rows=rows,
                 )
             )
@@ -55,7 +57,7 @@ def _convert_to_project_out(project: Project, tables=None) -> ProjectOut:
         id=str(project.id),
         name=project.name,
         description=project.description,
-        tables=table_infos,
+        nodes=node_infos,
     )
 
 
@@ -63,24 +65,23 @@ def _convert_to_project_out(project: Project, tables=None) -> ProjectOut:
     "/",
     response_model=ApiResponse[List[ProjectOut]],
     summary="获取项目列表",
-    description="获取当前用户的所有项目列表，包含每个项目下的表信息。",
-    response_description="返回用户的所有项目列表，每个项目包含其下的表格列表",
+    description="获取当前用户的所有项目列表，包含每个项目下的内容节点。",
+    response_description="返回用户的所有项目列表，每个项目包含其根目录下的内容节点",
     status_code=status.HTTP_200_OK,
 )
 def list_projects(
     project_service: ProjectService = Depends(get_project_service),
+    content_node_service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     # 获取当前用户的所有项目
     projects = project_service.get_by_user_id(current_user.user_id)
 
-    # 需要获取每个项目的表信息
-    supabase_repo = get_supabase_repository()
-
+    # 从 content_nodes 获取每个项目的根目录内容
     result = []
     for p in projects:
-        tables = supabase_repo.get_tables(project_id=p.id)
-        result.append(_convert_to_project_out(p, tables))
+        nodes = content_node_service.list_root_nodes(current_user.user_id, str(p.id))
+        result.append(_convert_to_project_out(p, nodes))
     return ApiResponse.success(data=result, message="项目列表获取成功")
 
 
@@ -88,19 +89,19 @@ def list_projects(
     "/{project_id}",
     response_model=ApiResponse[ProjectOut],
     summary="获取项目详情",
-    description="根据项目 ID 获取项目详情，包含表信息。如果项目不存在或用户无权限，将返回错误。",
+    description="根据项目 ID 获取项目详情，包含内容节点。如果项目不存在或用户无权限，将返回错误。",
     response_description="返回项目详细信息",
     status_code=status.HTTP_200_OK,
 )
 def get_project(
     project: Project = Depends(get_verified_project),
+    content_node_service: ContentNodeService = Depends(get_content_node_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
-    # 获取项目下的表信息
-    supabase_repo = get_supabase_repository()
-
-    tables = supabase_repo.get_tables(project_id=project.id)
+    # 从 content_nodes 获取项目下的根目录内容
+    nodes = content_node_service.list_root_nodes(current_user.user_id, str(project.id))
     return ApiResponse.success(
-        data=_convert_to_project_out(project, tables), message="项目获取成功"
+        data=_convert_to_project_out(project, nodes), message="项目获取成功"
     )
 
 
@@ -140,6 +141,8 @@ def update_project(
     project: Project = Depends(get_verified_project),
     payload: ProjectUpdate = ...,
     project_service: ProjectService = Depends(get_project_service),
+    content_node_service: ContentNodeService = Depends(get_content_node_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     # 更新项目
     updated_project = project_service.update(
@@ -148,12 +151,10 @@ def update_project(
         description=payload.description,
     )
 
-    # 获取项目下的表信息
-    supabase_repo = get_supabase_repository()
-
-    tables = supabase_repo.get_tables(project_id=project.id)
+    # 从 content_nodes 获取项目下的根目录内容
+    nodes = content_node_service.list_root_nodes(current_user.user_id, str(project.id))
     return ApiResponse.success(
-        data=_convert_to_project_out(updated_project, tables), message="项目更新成功"
+        data=_convert_to_project_out(updated_project, nodes), message="项目更新成功"
     )
 
 

@@ -158,8 +158,8 @@ export function ContextSidebar({
             <div className='px-2 py-1.5 text-[11px] font-semibold text-[#555] uppercase tracking-wider'>
               Contexts
             </div>
-            {project.tables && project.tables.length > 0 ? (
-              project.tables.map(table => {
+            {project.nodes && project.nodes.length > 0 ? (
+              project.nodes.map(table => {
                 const isActive = String(table.id) === activeTableId;
                 return (
                   <button
