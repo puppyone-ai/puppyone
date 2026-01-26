@@ -64,7 +64,8 @@ export default function MainLayout({
     if (!pathname) return 'projects';
     if (pathname.startsWith('/tools-and-server')) return 'tools';
     if (pathname.startsWith('/settings')) return 'settings';
-    if (pathname.startsWith('/projects') || pathname.startsWith('/home')) return 'projects';
+    if (pathname.startsWith('/projects') || pathname.startsWith('/home'))
+      return 'projects';
     return 'projects';
   }, [pathname]);
 

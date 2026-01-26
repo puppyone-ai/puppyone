@@ -2,14 +2,14 @@
 
 /**
  * Projects Page - RESTful URL Routing
- * 
+ *
  * URL Format:
  *   /projects/{projectId}                          -> Project root view
  *   /projects/{projectId}/{folderId}               -> Folder view
  *   /projects/{projectId}/{folderId1}/{folderId2}  -> Nested folder view
  *   /projects/{projectId}/{nodeId}                 -> Node editor (JSON in root)
  *   /projects/{projectId}/{folderId}/{nodeId}      -> Node editor (JSON in folder)
- * 
+ *
  * The [[...slug]] catch-all route handles all paths.
  * Path segments are resolved by querying each node's type from the API.
  */
@@ -83,7 +83,7 @@ export default function ProjectsSlugPage({
   params: Promise<{ slug: string[] }>;
 }) {
   const { slug } = use(params);
-  
+
   // 如果访问 /projects (无 slug)，重定向到 /home
   if (!slug || slug.length === 0) {
     redirect('/home');
@@ -99,13 +99,13 @@ export default function ProjectsSlugPage({
   // - /projects/11/{nodeId}           -> 节点视图（需要查询确认类型）
   // - /projects/11/{folderId}/{nodeId} -> 文件夹内的节点
   const [projectId, ...restPath] = slug || [];
-  
+
   // projectId === '-' 表示裸 Table（不属于任何 Project）
   const isOrphanTable = projectId === '-';
   const [activeBaseId, setActiveBaseId] = useState<string>(
     isOrphanTable ? '' : projectId || ''
   );
-  
+
   // 解析路径：最后一个可能是节点 ID，前面的都是文件夹路径
   const [routeFolderId, setRouteFolderId] = useState<string | null>(null);
   const [routeNodeId, setRouteNodeId] = useState<string | null>(null);
@@ -120,9 +120,8 @@ export default function ProjectsSlugPage({
   // 2. 数据获取
   const { projects, isLoading: projectsLoading } = useProjects();
   // 获取当前 table 的 Tools（用于 sidebar 显示）
-  const { tools: tableTools, isLoading: toolsLoading } = useTableTools(
-    activeTableId
-  );
+  const { tools: tableTools, isLoading: toolsLoading } =
+    useTableTools(activeTableId);
   // 获取当前 project 下的所有 Tools（用于 ChatSidebar 项目级展示）
   const { tools: projectTools } = useProjectTools(
     !isOrphanTable ? activeBaseId || projectId : undefined
@@ -155,7 +154,9 @@ export default function ProjectsSlugPage({
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string>('/');
   // 完整的文件夹路径（包含每个层级的 ID 和名称）
-  const [folderBreadcrumbs, setFolderBreadcrumbs] = useState<Array<{ id: string; name: string }>>([]);
+  const [folderBreadcrumbs, setFolderBreadcrumbs] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [contentNodes, setContentNodes] = useState<NodeInfo[]>([]);
   const [contentNodesLoading, setContentNodesLoading] = useState(false);
   // 路径解析加载状态
@@ -212,13 +213,13 @@ export default function ProjectsSlugPage({
 
     const currentProject = projects.find(p => p.id === projectId);
     const projectName = currentProject?.name || '';
-    
+
     // 解析 restPath 来确定文件夹和节点
     // URL: /projects/{projectId}/{id1}/{id2}/...
     // 需要查询每个 ID 的类型来确定是文件夹还是节点
     async function resolvePathSegments() {
       setIsResolvingPath(true);
-      
+
       try {
         if (restPath.length === 0) {
           // 项目根目录
@@ -248,7 +249,7 @@ export default function ProjectsSlugPage({
         // 分析路径：文件夹在前，节点（如果有）在最后
         const folders = pathNodes.filter(n => n.type === 'folder');
         const lastNode = pathNodes[pathNodes.length - 1];
-        
+
         if (lastNode?.type === 'folder') {
           // 最后一个是文件夹 -> 显示文件夹内容
           setRouteFolderId(lastNode.id);
@@ -256,20 +257,26 @@ export default function ProjectsSlugPage({
           setActiveTableId('');
           setCurrentFolderId(lastNode.id);
           setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
-          setCurrentFolderPath(`/${projectName}/${folders.map(f => f.name).join('/')}`);
+          setCurrentFolderPath(
+            `/${projectName}/${folders.map(f => f.name).join('/')}`
+          );
           await loadContentNodes(lastNode.id);
         } else if (lastNode) {
           // 最后一个是节点（json 等）-> 显示节点编辑器
           setRouteNodeId(lastNode.id);
           setActiveTableId(lastNode.id);
-          
+
           // 文件夹是除了最后一个之外的所有 folder 类型节点
           if (folders.length > 0) {
             const lastFolder = folders[folders.length - 1];
             setRouteFolderId(lastFolder.id);
             setCurrentFolderId(lastFolder.id);
-            setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
-            setCurrentFolderPath(`/${projectName}/${folders.map(f => f.name).join('/')}`);
+            setFolderBreadcrumbs(
+              folders.map(f => ({ id: f.id, name: f.name }))
+            );
+            setCurrentFolderPath(
+              `/${projectName}/${folders.map(f => f.name).join('/')}`
+            );
           } else {
             // 节点在项目根目录
             setRouteFolderId(null);
@@ -411,9 +418,8 @@ export default function ProjectsSlugPage({
 
   const activeTable = useMemo(
     () =>
-      contentNodes.find(
-        node => String(node.id) === String(activeTableId)
-      ) ?? null,
+      contentNodes.find(node => String(node.id) === String(activeTableId)) ??
+      null,
     [contentNodes, activeTableId]
   );
 
@@ -448,8 +454,20 @@ export default function ProjectsSlugPage({
           strokeLinecap='round'
           strokeLinejoin='round'
         />
-        <path d='M3.27 6.96L12 12.01l8.73-5.05' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
-        <path d='M12 22.08V12' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
+        <path
+          d='M3.27 6.96L12 12.01l8.73-5.05'
+          stroke='currentColor'
+          strokeWidth='2'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+        />
+        <path
+          d='M12 22.08V12'
+          stroke='currentColor'
+          strokeWidth='2'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+        />
       </svg>
     );
 
@@ -480,7 +498,15 @@ export default function ProjectsSlugPage({
         xmlns='http://www.w3.org/2000/svg'
         style={{ color: '#34d399' }}
       >
-        <rect x='3' y='3' width='18' height='18' rx='2' stroke='currentColor' strokeWidth='2' />
+        <rect
+          x='3'
+          y='3'
+          width='18'
+          height='18'
+          rx='2'
+          stroke='currentColor'
+          strokeWidth='2'
+        />
         <path d='M3 9H21' stroke='currentColor' strokeWidth='2' />
         <path d='M9 21V9' stroke='currentColor' strokeWidth='2' />
       </svg>
@@ -491,14 +517,14 @@ export default function ProjectsSlugPage({
     const hasSubContent = !!(currentFolderId || activeTableId);
     if (activeBaseId) {
       if (activeBase) {
-        segments.push({ 
-          label: activeBase.name, 
+        segments.push({
+          label: activeBase.name,
           href: hasSubContent ? `/projects/${activeBase.id}` : undefined,
           icon: projectIcon,
         });
       } else {
-        segments.push({ 
-          label: 'Project', 
+        segments.push({
+          label: 'Project',
           href: hasSubContent ? `/projects/${activeBaseId}` : undefined,
           icon: projectIcon,
         });
@@ -514,14 +540,19 @@ export default function ProjectsSlugPage({
           // 非最后一个文件夹可以点击返回该层级
           // 最后一个只有在 Context 视图时才有 href
           // 构建到该文件夹的完整路径
-          href: !isLast 
-            ? `/projects/${activeBaseId}/${folderBreadcrumbs.slice(0, index + 1).map(f => f.id).join('/')}` 
-            : (activeTableId ? `/projects/${activeBaseId}/${folderBreadcrumbs.map(f => f.id).join('/')}` : undefined),
+          href: !isLast
+            ? `/projects/${activeBaseId}/${folderBreadcrumbs
+                .slice(0, index + 1)
+                .map(f => f.id)
+                .join('/')}`
+            : activeTableId
+              ? `/projects/${activeBaseId}/${folderBreadcrumbs.map(f => f.id).join('/')}`
+              : undefined,
           icon: folderIcon,
         });
       });
     }
-    
+
     // 3. Context Segment (当前选中的表/JSON 文件)
     if (activeTableId) {
       if (activeTable) {
@@ -565,15 +596,15 @@ export default function ProjectsSlugPage({
     }
     return map;
   }, [contentNodes, currentTableData?.id, currentTableData?.name]);
-  
+
   // --- View Selection Logic ---
-  
+
   // View 1: Editor View (Specific Context)
   const isEditorView = !!activeTableId;
-  
+
   // View 2: Project Folder View (Inside a Project)
   const isProjectFolderView = !!activeBaseId && !activeTableId;
-  
+
   // View 3: Root View (All Projects)
   const isRootView = !activeBaseId && !activeTableId;
 
@@ -628,119 +659,121 @@ export default function ProjectsSlugPage({
             minHeight: 0,
             position: 'relative',
             background: isRootView ? '#050607' : '#050607', // 可以为 Dashboard 设置不同的背景色
-            overflowY: isEditorView ? 'hidden' : 'auto', 
+            overflowY: isEditorView ? 'hidden' : 'auto',
             padding: isEditorView || isRootView ? 0 : 24, // Dashboard 自带 padding
           }}
         >
           {/* VIEW 1: EDITOR */}
           {isEditorView && (
-             <div
-               style={{
-                 flex: 1,
-                 display: 'flex',
-                 flexDirection: 'column',
-                 height: '100%',
-                 position: 'relative',
-                 minWidth: 0,
-               }}
-             >
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                position: 'relative',
+                minWidth: 0,
+              }}
+            >
               {activeBase || isOrphanTable ? (
-                 <ProjectWorkspaceView
-                   projectId={activeBase?.id || '-'}
-                   project={
-                     activeBase || {
-                       id: '-',
-                       name: currentTableData?.name || 'Context',
-                       tables: currentTableData
-                         ? [
-                             {
-                               id: String(currentTableData.id),
-                               name: currentTableData.name,
-                               rows: currentTableData.rows,
-                             },
-                           ]
-                         : [],
-                     }
-                   }
-                   activeTableId={activeTableId}
-                   onActiveTableChange={(id: string) => {
-                     setActiveTableId(id);
-                     if (isOrphanTable) {
-                       router.push(`/projects/-/${id}`);
-                     } else {
-                       router.push(`/projects/${activeBaseId}/${id}`);
-                     }
-                   }}
-                   onTreePathChange={setCurrentTreePath}
-                   editorType={editorType}
-                   configuredAccessPoints={configuredAccessPoints}
-                   onAccessPointChange={(
-                     path: string,
-                     permissions: McpToolPermissions
-                   ) => {
-                      // ... existing access point logic ...
+                <ProjectWorkspaceView
+                  projectId={activeBase?.id || '-'}
+                  project={
+                    activeBase || {
+                      id: '-',
+                      name: currentTableData?.name || 'Context',
+                      tables: currentTableData
+                        ? [
+                            {
+                              id: String(currentTableData.id),
+                              name: currentTableData.name,
+                              rows: currentTableData.rows,
+                            },
+                          ]
+                        : [],
+                    }
+                  }
+                  activeTableId={activeTableId}
+                  onActiveTableChange={(id: string) => {
+                    setActiveTableId(id);
+                    if (isOrphanTable) {
+                      router.push(`/projects/-/${id}`);
+                    } else {
+                      router.push(`/projects/${activeBaseId}/${id}`);
+                    }
+                  }}
+                  onTreePathChange={setCurrentTreePath}
+                  editorType={editorType}
+                  configuredAccessPoints={configuredAccessPoints}
+                  onAccessPointChange={(
+                    path: string,
+                    permissions: McpToolPermissions
+                  ) => {
+                    // ... existing access point logic ...
                     const hasAnyPermission =
                       Object.values(permissions).some(Boolean);
-                      setAccessPoints(prev => {
-                        const existing = prev.find(ap => ap.path === path);
-                        if (existing) {
+                    setAccessPoints(prev => {
+                      const existing = prev.find(ap => ap.path === path);
+                      if (existing) {
                         if (!hasAnyPermission)
                           return prev.filter(ap => ap.path !== path);
                         return prev.map(ap =>
                           ap.path === path ? { ...ap, permissions } : ap
                         );
-                        } else if (hasAnyPermission) {
+                      } else if (hasAnyPermission) {
                         return [
                           ...prev,
                           { id: `ap-${Date.now()}`, path, permissions },
                         ];
-                        }
-                        return prev;
-                      });
-                      
-                      if (activeTableId) {
-                        syncToolsForPath({
-                          tableId: activeTableId,
-                          path,
-                          permissions,
-                          existingTools: tableTools as any,
-                        }).then(() => {
-                           refreshTableTools(activeTableId);
-                           refreshProjectTools(activeBaseId || projectId);
-                        });
                       }
-                   }}
-                   onAccessPointRemove={(path: string) => {
+                      return prev;
+                    });
+
+                    if (activeTableId) {
+                      syncToolsForPath({
+                        tableId: activeTableId,
+                        path,
+                        permissions,
+                        existingTools: tableTools as any,
+                      }).then(() => {
+                        refreshTableTools(activeTableId);
+                        refreshProjectTools(activeBaseId || projectId);
+                      });
+                    }
+                  }}
+                  onAccessPointRemove={(path: string) => {
                     setAccessPoints(prev =>
                       prev.filter(ap => ap.path !== path)
                     );
-                      if (activeTableId) {
-                        deleteAllToolsForPath({
-                          tableId: activeTableId,
-                          path,
-                          existingTools: tableTools as any,
-                        }).then(() => {
-                           refreshTableTools(activeTableId);
-                           refreshProjectTools(activeBaseId || projectId);
-                        });
-                      }
-                   }}
-                   onOpenDocument={(path: string, value: string) => {
-                     setEditorTarget({ path, value });
-                     setRightPanelContent('EDITOR');
-                   }}
-                 />
-               ) : (
-                 <div style={{ color: '#666', padding: 20 }}>
-                   {projectsLoading ? 'Loading Context...' : 'Context Not Found'}
-                 </div>
-               )}
-             </div>
+                    if (activeTableId) {
+                      deleteAllToolsForPath({
+                        tableId: activeTableId,
+                        path,
+                        existingTools: tableTools as any,
+                      }).then(() => {
+                        refreshTableTools(activeTableId);
+                        refreshProjectTools(activeBaseId || projectId);
+                      });
+                    }
+                  }}
+                  onOpenDocument={(path: string, value: string) => {
+                    setEditorTarget({ path, value });
+                    setRightPanelContent('EDITOR');
+                  }}
+                />
+              ) : (
+                <div style={{ color: '#666', padding: 20 }}>
+                  {projectsLoading ? 'Loading Context...' : 'Context Not Found'}
+                </div>
+              )}
+            </div>
           )}
 
           {/* VIEW 2: PROJECT FOLDER CONTENTS */}
           {isProjectFolderView && activeBase && (
-            <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <div
+              style={{ width: '100%', height: '100%', position: 'relative' }}
+            >
               {/* Loading Overlay */}
               {(isResolvingPath || contentNodesLoading) && (
                 <div
@@ -768,7 +801,9 @@ export default function ProjectsSlugPage({
                       animation: 'spin 0.8s linear infinite',
                     }}
                   />
-                  <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14 }}>
+                  <span
+                    style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14 }}
+                  >
                     Loading...
                   </span>
                   <style>{`
@@ -788,20 +823,30 @@ export default function ProjectsSlugPage({
                   onClick: () => {
                     if (node.type === 'folder') {
                       // 进入子文件夹 - 构建完整路径
-                      const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
-                      const newPath = currentPath ? `${currentPath}/${node.id}` : node.id;
+                      const currentPath = folderBreadcrumbs
+                        .map(f => f.id)
+                        .join('/');
+                      const newPath = currentPath
+                        ? `${currentPath}/${node.id}`
+                        : node.id;
                       router.push(`/projects/${activeBaseId}/${newPath}`);
                     } else {
                       // 打开 JSON 编辑器 - 包含文件夹路径
-                      const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
-                      const nodePath = currentPath ? `${currentPath}/${node.id}` : node.id;
+                      const currentPath = folderBreadcrumbs
+                        .map(f => f.id)
+                        .join('/');
+                      const nodePath = currentPath
+                        ? `${currentPath}/${node.id}`
+                        : node.id;
                       router.push(`/projects/${activeBase.id}/${nodePath}`);
                     }
                   },
                 }));
 
                 const handleCreateClick = (e: React.MouseEvent) => {
-                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const rect = (
+                    e.currentTarget as HTMLElement
+                  ).getBoundingClientRect();
                   setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
                   setCreateMenuOpen(true);
                 };
@@ -822,7 +867,6 @@ export default function ProjectsSlugPage({
               })()}
             </div>
           )}
-          
 
           {/* VIEW 3: ROOT FOLDER CONTENTS - DASHBOARD VIEW */}
           {isRootView && (
@@ -830,7 +874,9 @@ export default function ProjectsSlugPage({
               <DashboardView
                 projects={projects}
                 loading={projectsLoading}
-                onProjectClick={(projectId) => router.push(`/projects/${projectId}`)}
+                onProjectClick={projectId =>
+                  router.push(`/projects/${projectId}`)
+                }
                 onCreateClick={() => setCreateProjectOpen(true)}
               />
             </div>

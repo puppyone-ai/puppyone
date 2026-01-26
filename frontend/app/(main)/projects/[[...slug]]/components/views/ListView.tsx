@@ -44,9 +44,12 @@ export function ListView({
       ))}
 
       {onCreateClick && (
-        <CreateButton viewType='list' label={createLabel} onClick={onCreateClick} />
+        <CreateButton
+          viewType='list'
+          label={createLabel}
+          onClick={onCreateClick}
+        />
       )}
     </div>
   );
 }
-

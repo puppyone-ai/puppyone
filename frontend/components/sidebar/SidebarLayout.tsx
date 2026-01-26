@@ -17,13 +17,13 @@ export type SidebarLayoutProps = {
   // Context Info
   title: string; // 'puppyone' or Project Name
   context: 'global' | 'project';
-  
+
   // Project Switcher
   currentProjectId?: string | null;
   projects?: ProjectOption[];
   onSelectProject?: (projectId: string) => void;
   onGoHome?: () => void;
-  
+
   // Navigation State
   activeView?: string;
   navItems: NavItem[];
@@ -201,7 +201,7 @@ export function SidebarLayout({
               <ProjectSwitcher
                 currentProject={
                   currentProjectId
-                    ? projects.find((p) => p.id === currentProjectId) || {
+                    ? projects.find(p => p.id === currentProjectId) || {
                         id: currentProjectId,
                         name: title,
                       }
@@ -256,7 +256,7 @@ export function SidebarLayout({
       {!effectiveCollapsed ? (
         <div className='flex-1 overflow-y-auto overflow-x-hidden'>
           <div className='flex flex-col gap-[2px] px-2 pb-2 pt-3'>
-            {navItems.map((item) => (
+            {navItems.map(item => (
               <button
                 key={item.id}
                 type='button'
@@ -283,7 +283,7 @@ export function SidebarLayout({
       ) : (
         <div className='flex-1 py-3'>
           <div className='flex flex-col items-center gap-2'>
-            {navItems.map((item) => (
+            {navItems.map(item => (
               <button
                 key={item.id}
                 type='button'
@@ -293,7 +293,12 @@ export function SidebarLayout({
                 aria-label={item.label}
               >
                 {/* Clone icon to adjust size for collapsed view if needed, or just use as is */}
-                {React.isValidElement(item.icon) ? React.cloneElement(item.icon, { width: 18, height: 18 } as any) : item.icon}
+                {React.isValidElement(item.icon)
+                  ? React.cloneElement(item.icon, {
+                      width: 18,
+                      height: 18,
+                    } as any)
+                  : item.icon}
               </button>
             ))}
           </div>

@@ -37,7 +37,7 @@ export default function DashboardPage() {
         <DashboardView
           projects={projects}
           loading={projectsLoading}
-          onProjectClick={(projectId) => router.push(`/projects/${projectId}`)}
+          onProjectClick={projectId => router.push(`/projects/${projectId}`)}
           onCreateClick={() => setCreateProjectOpen(true)}
         />
       </div>
@@ -53,4 +53,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

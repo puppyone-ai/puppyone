@@ -13,15 +13,36 @@ export interface CreateButtonProps {
 // === Icon ===
 
 const PlusIcon = ({ size = 20 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12 6V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M6 12H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  <svg
+    width={size}
+    height={size}
+    viewBox='0 0 24 24'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <path
+      d='M12 6V18'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    />
+    <path
+      d='M6 12H18'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    />
   </svg>
 );
 
 // === Grid View ===
 
-function GridVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'viewType'>) {
+function GridVariant({
+  label = 'New...',
+  onClick,
+}: Omit<CreateButtonProps, 'viewType'>) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -80,7 +101,10 @@ function GridVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'vie
 
 // === List View ===
 
-function ListVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'viewType'>) {
+function ListVariant({
+  label = 'New...',
+  onClick,
+}: Omit<CreateButtonProps, 'viewType'>) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -130,7 +154,10 @@ function ListVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'vie
 
 // === Column View ===
 
-function ColumnVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'viewType'>) {
+function ColumnVariant({
+  label = 'New...',
+  onClick,
+}: Omit<CreateButtonProps, 'viewType'>) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -171,4 +198,3 @@ export function CreateButton({ viewType, ...props }: CreateButtonProps) {
       return <GridVariant {...props} />;
   }
 }
-

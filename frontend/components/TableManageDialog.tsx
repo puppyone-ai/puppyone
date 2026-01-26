@@ -417,7 +417,12 @@ export function TableManageDialog({
 
         // 2. 创建 Table（包含文本文件内容和 ETL 文件的 null 占位符）
         setImportMessage('Creating context...');
-        const newTable = await createTable(projectId, finalName, structure, parentId);
+        const newTable = await createTable(
+          projectId,
+          finalName,
+          structure,
+          parentId
+        );
         const newTableId = newTable.id;
 
         // 3. 如果有 ETL 文件且有 projectId，先预先添加"准备上传"状态的任务
