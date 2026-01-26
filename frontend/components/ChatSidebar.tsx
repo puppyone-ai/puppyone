@@ -40,56 +40,128 @@ import { type McpToolPermissions, type Tool as DbTool } from '../lib/mcpApi';
 // --- Icons ---
 
 const ChevronDownIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 9l6 6 6-6" />
+  <svg
+    width='12'
+    height='12'
+    viewBox='0 0 24 24'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='2'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+  >
+    <path d='M6 9l6 6 6-6' />
   </svg>
 );
 
 const PlusIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="5" x2="12" y2="19" />
-    <line x1="5" y1="12" x2="19" y2="12" />
+  <svg
+    width='12'
+    height='12'
+    viewBox='0 0 24 24'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='2'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+  >
+    <line x1='12' y1='5' x2='12' y2='19' />
+    <line x1='5' y1='12' x2='19' y2='12' />
   </svg>
 );
 
 const LockIcon = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  <svg
+    width='11'
+    height='11'
+    viewBox='0 0 24 24'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='2'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+  >
+    <rect x='3' y='11' width='18' height='11' rx='2' ry='2' />
+    <path d='M7 11V7a5 5 0 0 1 10 0v4' />
   </svg>
 );
 
 const ZapIcon = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  <svg
+    width='11'
+    height='11'
+    viewBox='0 0 24 24'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='2'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+  >
+    <polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2' />
   </svg>
 );
 
 const DatabaseIcon = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <ellipse cx="12" cy="5" rx="9" ry="3" />
-    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+  <svg
+    width='11'
+    height='11'
+    viewBox='0 0 24 24'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='2'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+  >
+    <ellipse cx='12' cy='5' rx='9' ry='3' />
+    <path d='M21 12c0 1.66-4 3-9 3s-9-1.34-9-3' />
+    <path d='M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5' />
   </svg>
 );
 
 const BoxIcon = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-    <line x1="12" y1="22.08" x2="12" y2="12" />
+  <svg
+    width='11'
+    height='11'
+    viewBox='0 0 24 24'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='2'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+  >
+    <path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' />
+    <polyline points='3.27 6.96 12 12.01 20.73 6.96' />
+    <line x1='12' y1='22.08' x2='12' y2='12' />
   </svg>
 );
 
 const MessageSquareIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  <svg
+    width='12'
+    height='12'
+    viewBox='0 0 24 24'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='2'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+  >
+    <path d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' />
   </svg>
 );
 
 const ToolIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+  <svg
+    width='12'
+    height='12'
+    viewBox='0 0 24 24'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='2'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+  >
+    <path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' />
   </svg>
 );
 
@@ -151,8 +223,18 @@ const ContextButton = ({
       }
     }}
   >
-    {icon && <span style={{ opacity: 0.7, flexShrink: 0, display: 'flex' }}>{icon}</span>}
-    {label && <span style={{ fontSize: 12, fontWeight: 500, color: '#888', flexShrink: 0 }}>{label}</span>}
+    {icon && (
+      <span style={{ opacity: 0.7, flexShrink: 0, display: 'flex' }}>
+        {icon}
+      </span>
+    )}
+    {label && (
+      <span
+        style={{ fontSize: 12, fontWeight: 500, color: '#888', flexShrink: 0 }}
+      >
+        {label}
+      </span>
+    )}
     {value && (
       <span
         style={{
@@ -167,7 +249,16 @@ const ContextButton = ({
       </span>
     )}
     {hasDropdown && !disabled && (
-      <span style={{ opacity: 0.4, marginTop: 1, flexShrink: 0, marginLeft: 'auto' }}><ChevronDownIcon /></span>
+      <span
+        style={{
+          opacity: 0.4,
+          marginTop: 1,
+          flexShrink: 0,
+          marginLeft: 'auto',
+        }}
+      >
+        <ChevronDownIcon />
+      </span>
     )}
   </button>
 );
@@ -196,8 +287,8 @@ const AgentContextBar = ({
 
   const toggleDropdown = (name: 'capabilities') => {
     if (isLocked) {
-        onConfigChange(); // Prompt to unlock
-        return;
+      onConfigChange(); // Prompt to unlock
+      return;
     }
     setOpenDropdown(openDropdown === name ? null : name);
   };
@@ -210,8 +301,10 @@ const AgentContextBar = ({
   }, [openDropdown]);
 
   // Filter tools
-  const currentContextTools = availableTools.filter(t => 
-    (t.tableId?.toString() === currentTableId) || (!t.tableId && !currentTableId)
+  const currentContextTools = availableTools.filter(
+    t =>
+      t.tableId?.toString() === currentTableId ||
+      (!t.tableId && !currentTableId)
   );
 
   return (
@@ -233,11 +326,15 @@ const AgentContextBar = ({
       onClick={e => e.stopPropagation()}
     >
       {/* Capabilities - Full Width */}
-      <div style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex' }}>
+      <div
+        style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex' }}
+      >
         <ContextButton
           icon={<BoxIcon />}
-          label="CAPABILITIES" // Uppercase for label (Linear style)
-          value={capabilitiesCount > 0 ? `${capabilitiesCount} Enabled` : 'None'}
+          label='CAPABILITIES' // Uppercase for label (Linear style)
+          value={
+            capabilitiesCount > 0 ? `${capabilitiesCount} Enabled` : 'None'
+          }
           active={openDropdown === 'capabilities'}
           disabled={false}
           onClick={() => toggleDropdown('capabilities')}
@@ -265,7 +362,15 @@ const AgentContextBar = ({
               gap: 2,
             }}
           >
-            <div style={{ padding: '6px 8px', fontSize: 11, color: '#666', fontWeight: 600, letterSpacing: '0.02em' }}>
+            <div
+              style={{
+                padding: '6px 8px',
+                fontSize: 11,
+                color: '#666',
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+              }}
+            >
               {currentFileName} CAPABILITIES
             </div>
             {currentContextTools.map(tool => (
@@ -282,33 +387,79 @@ const AgentContextBar = ({
                   cursor: 'pointer',
                   fontSize: 13,
                   color: selectedAccess.has(tool.id) ? '#eee' : '#888',
-                  background: selectedAccess.has(tool.id) ? '#262626' : 'transparent',
+                  background: selectedAccess.has(tool.id)
+                    ? '#262626'
+                    : 'transparent',
                   transition: 'all 0.1s',
                 }}
                 onMouseEnter={e => {
-                  if (!selectedAccess.has(tool.id)) e.currentTarget.style.background = '#1f1f1f';
+                  if (!selectedAccess.has(tool.id))
+                    e.currentTarget.style.background = '#1f1f1f';
                 }}
                 onMouseLeave={e => {
-                  if (!selectedAccess.has(tool.id)) e.currentTarget.style.background = 'transparent';
+                  if (!selectedAccess.has(tool.id))
+                    e.currentTarget.style.background = 'transparent';
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
-                  <span style={{ opacity: 0.7, flexShrink: 0, color: selectedAccess.has(tool.id) ? '#fff' : '#666' }}>
-                    {tool.type === 'bash' ? <span style={{ fontFamily: 'monospace' }}>&gt;_</span> : <ToolIcon />}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <span
+                    style={{
+                      opacity: 0.7,
+                      flexShrink: 0,
+                      color: selectedAccess.has(tool.id) ? '#fff' : '#666',
+                    }}
+                  >
+                    {tool.type === 'bash' ? (
+                      <span style={{ fontFamily: 'monospace' }}>&gt;_</span>
+                    ) : (
+                      <ToolIcon />
+                    )}
                   </span>
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {tool.label.split(' · ').slice(1).join(' · ')} 
+                  <span
+                    style={{
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {tool.label.split(' · ').slice(1).join(' · ')}
                   </span>
                 </div>
                 {selectedAccess.has(tool.id) && (
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', flexShrink: 0 }} />
+                  <div
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: '#4ade80',
+                      flexShrink: 0,
+                    }}
+                  />
                 )}
               </div>
             ))}
             {currentContextTools.length === 0 && (
-              <div style={{ padding: '16px', color: '#555', fontSize: 12, textAlign: 'center', lineHeight: 1.5 }}>
-                No capabilities found.<br/>
-                <span style={{ opacity: 0.7 }}>Enable Agent Access in the table context menu.</span>
+              <div
+                style={{
+                  padding: '16px',
+                  color: '#555',
+                  fontSize: 12,
+                  textAlign: 'center',
+                  lineHeight: 1.5,
+                }}
+              >
+                No capabilities found.
+                <br />
+                <span style={{ opacity: 0.7 }}>
+                  Enable Agent Access in the table context menu.
+                </span>
               </div>
             )}
           </div>
@@ -317,7 +468,6 @@ const AgentContextBar = ({
     </div>
   );
 };
-
 
 // Instance Switcher Header
 const InstanceSwitcherHeader = ({
@@ -402,7 +552,7 @@ const InstanceSwitcherHeader = ({
       {/* Instance Switcher */}
       <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
         <button
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation();
             setShowDropdown(!showDropdown);
           }}
@@ -420,18 +570,39 @@ const InstanceSwitcherHeader = ({
             transition: 'background 0.1s',
             overflow: 'hidden',
           }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          onMouseEnter={e =>
+            (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')
+          }
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
         >
-          <div style={{ 
-            width: 8, 
-            height: 8, 
-            borderRadius: '50%', 
-            background: status === 'active' ? '#4ade80' : status === 'saved' ? '#fbbf24' : '#666',
-            flexShrink: 0,
-          }} />
-          <span style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
-          <span style={{ color: '#666', marginTop: 2, flexShrink: 0 }}><ChevronDownIcon /></span>
+          <div
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background:
+                status === 'active'
+                  ? '#4ade80'
+                  : status === 'saved'
+                    ? '#fbbf24'
+                    : '#666',
+              flexShrink: 0,
+            }}
+          />
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {title}
+          </span>
+          <span style={{ color: '#666', marginTop: 2, flexShrink: 0 }}>
+            <ChevronDownIcon />
+          </span>
         </button>
 
         {/* Dropdown Menu */}
@@ -453,7 +624,14 @@ const InstanceSwitcherHeader = ({
               gap: 2,
             }}
           >
-            <div style={{ padding: '4px 8px', fontSize: 11, color: '#666', fontWeight: 600 }}>
+            <div
+              style={{
+                padding: '4px 8px',
+                fontSize: 11,
+                color: '#666',
+                fontWeight: 600,
+              }}
+            >
               DRAFTS
             </div>
             <div
@@ -479,14 +657,36 @@ const InstanceSwitcherHeader = ({
                 if (!isDraft) e.currentTarget.style.background = 'transparent';
               }}
             >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#666' }} />
+              <div
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: '#666',
+                }}
+              />
               New Chat
             </div>
 
-            <div style={{ padding: '4px 8px', marginTop: 4, fontSize: 11, color: '#666', fontWeight: 600 }}>
+            <div
+              style={{
+                padding: '4px 8px',
+                marginTop: 4,
+                fontSize: 11,
+                color: '#666',
+                fontWeight: 600,
+              }}
+            >
               SERVICES
             </div>
-            <div style={{ padding: '8px', color: '#555', fontSize: 12, fontStyle: 'italic' }}>
+            <div
+              style={{
+                padding: '8px',
+                color: '#555',
+                fontSize: 12,
+                fontStyle: 'italic',
+              }}
+            >
               No active services
             </div>
           </div>
@@ -978,7 +1178,8 @@ export function ChatSidebar({
                   if (lastTextIdx !== -1) {
                     parts[lastTextIdx] = {
                       ...parts[lastTextIdx],
-                      content: (parts[lastTextIdx].content || '') + event.content,
+                      content:
+                        (parts[lastTextIdx].content || '') + event.content,
                     };
                   } else {
                     parts.push({ type: 'text', content: event.content });
@@ -1128,39 +1329,42 @@ export function ChatSidebar({
     [mention, handleSelectMention, handleSend]
   );
 
-  const [agentMode, setAgentMode] = useState<'draft' | 'saved' | 'service'>('draft');
+  const [agentMode, setAgentMode] = useState<'draft' | 'saved' | 'service'>(
+    'draft'
+  );
   const [agentName, setAgentName] = useState('New Chat');
   const [triggerMode, setTriggerMode] = useState('Manual');
 
   // ... existing handlers ...
 
-  const handleToggleAccess = useCallback((id: string) => {
-    setSelectedAccess(prev => {
-      const newSelected = new Set(prev);
-      if (newSelected.has(id)) {
-        newSelected.delete(id);
-      } else {
-        newSelected.add(id);
-        
-        // Handle Bash exclusivity (if needed, though 'capabilities' list implies free mix)
-        // Keeping it flexible: if it's a bash tool, we might want to ensure only one bash is active per table?
-        // For now, let's keep it simple: just toggle. 
-        // If we want to enforce logic:
-        const tool = availableTools.find(t => t.id === id);
-        if (tool?.type === 'bash') {
-           // Find other bash tools for SAME table and deselect them?
-           // Let's assume multi-selection is fine unless strictly prohibited.
+  const handleToggleAccess = useCallback(
+    (id: string) => {
+      setSelectedAccess(prev => {
+        const newSelected = new Set(prev);
+        if (newSelected.has(id)) {
+          newSelected.delete(id);
+        } else {
+          newSelected.add(id);
+
+          // Handle Bash exclusivity (if needed, though 'capabilities' list implies free mix)
+          // Keeping it flexible: if it's a bash tool, we might want to ensure only one bash is active per table?
+          // For now, let's keep it simple: just toggle.
+          // If we want to enforce logic:
+          const tool = availableTools.find(t => t.id === id);
+          if (tool?.type === 'bash') {
+            // Find other bash tools for SAME table and deselect them?
+            // Let's assume multi-selection is fine unless strictly prohibited.
+          }
         }
-      }
-      return newSelected;
-    });
-  }, [availableTools]);
+        return newSelected;
+      });
+    },
+    [availableTools]
+  );
 
   // Determine current context name
   const currentContextName =
-    tableId && tableNameById?.[tableId]
-      ? tableNameById[tableId]
-      : 'data.json';
+    tableId && tableNameById?.[tableId] ? tableNameById[tableId] : 'data.json';
 
   return (
     <aside
@@ -1206,9 +1410,15 @@ export function ChatSidebar({
       )}
 
       {/* Header with Instance Switcher */}
-      <InstanceSwitcherHeader 
+      <InstanceSwitcherHeader
         title={agentName}
-        status={agentMode === 'service' ? 'active' : agentMode === 'saved' ? 'saved' : 'draft'}
+        status={
+          agentMode === 'service'
+            ? 'active'
+            : agentMode === 'saved'
+              ? 'saved'
+              : 'draft'
+        }
         isDraft={agentMode === 'draft'}
         onSwitch={() => {
           // TODO: Show switcher dropdown
@@ -1229,14 +1439,16 @@ export function ChatSidebar({
       />
 
       {/* Agent Context Bar (The Trinity Console) */}
-      <AgentContextBar 
+      <AgentContextBar
         currentFileName={currentContextName}
         capabilitiesCount={selectedAccess.size}
         isLocked={agentMode === 'service'}
         onConfigChange={() => {
           if (agentMode === 'service') {
             // Unlock flow
-            if (confirm('Edit configuration? This will pause the live service.')) {
+            if (
+              confirm('Edit configuration? This will pause the live service.')
+            ) {
               setAgentMode('saved');
             }
           }

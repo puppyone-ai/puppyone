@@ -14,7 +14,12 @@ import {
 } from '@/lib/hooks/useData';
 import { ProjectWorkspaceView } from '@/components/ProjectWorkspaceView';
 import { OnboardingView } from '@/components/OnboardingView';
-import { ProjectsHeader, type EditorType, type ViewType, type BreadcrumbSegment } from '@/components/ProjectsHeader';
+import {
+  ProjectsHeader,
+  type EditorType,
+  type ViewType,
+  type BreadcrumbSegment,
+} from '@/components/ProjectsHeader';
 import { ChatSidebar } from '@/components/ChatSidebar';
 import { ContextSidebar } from '@/components/ContextSidebar';
 import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
@@ -64,10 +69,10 @@ function GridItem({
 }) {
   const [hovered, setHovered] = useState(false);
   const isCreate = type === 'create';
-  
+
   return (
     <div
-      onClick={(e) => onClick(e)}
+      onClick={e => onClick(e)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -81,46 +86,69 @@ function GridItem({
         gap: 10,
         borderRadius: 8,
         cursor: 'pointer',
-        background: hovered && !isCreate ? 'rgba(255,255,255,0.04)' : 'transparent',
+        background:
+          hovered && !isCreate ? 'rgba(255,255,255,0.04)' : 'transparent',
         transition: 'all 0.15s',
       }}
     >
-      <div style={{ 
-        width: isCreate ? 48 : 'auto',
-        height: isCreate ? 48 : 48, // 固定高度以对齐
-        borderRadius: isCreate ? 12 : 0,
-        // Create 按钮：平时全透明无边框，hover 时才显示微弱背景
-        background: isCreate ? (hovered ? 'rgba(255,255,255,0.05)' : 'transparent') : 'transparent',
-        // Create 按钮：平时虚线边框，hover 时实线或更亮
-        border: isCreate ? (hovered ? '1px dashed rgba(255,255,255,0.3)' : '1px dashed rgba(255,255,255,0.15)') : 'none',
-        fontSize: isCreate ? 20 : 48, 
-        // Folder 改为中性灰白色，去除"AI蓝"；File (Table) 保持绿色
-        color: type === 'folder' ? (hovered ? '#e4e4e7' : '#a1a1aa') : type === 'file' ? '#34d399' : (hovered ? '#fff' : '#444'),
-        opacity: hovered ? 1 : (isCreate ? 1 : 0.9),
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transition: 'all 0.15s',
-        // 移除了 translateY 上浮效果，避免 AR 味太重
-        transform: 'none',
-        boxShadow: isCreate && hovered ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
-      }}>
+      <div
+        style={{
+          width: isCreate ? 48 : 'auto',
+          height: isCreate ? 48 : 48, // 固定高度以对齐
+          borderRadius: isCreate ? 12 : 0,
+          // Create 按钮：平时全透明无边框，hover 时才显示微弱背景
+          background: isCreate
+            ? hovered
+              ? 'rgba(255,255,255,0.05)'
+              : 'transparent'
+            : 'transparent',
+          // Create 按钮：平时虚线边框，hover 时实线或更亮
+          border: isCreate
+            ? hovered
+              ? '1px dashed rgba(255,255,255,0.3)'
+              : '1px dashed rgba(255,255,255,0.15)'
+            : 'none',
+          fontSize: isCreate ? 20 : 48,
+          // Folder 改为中性灰白色，去除"AI蓝"；File (Table) 保持绿色
+          color:
+            type === 'folder'
+              ? hovered
+                ? '#e4e4e7'
+                : '#a1a1aa'
+              : type === 'file'
+                ? '#34d399'
+                : hovered
+                  ? '#fff'
+                  : '#444',
+          opacity: hovered ? 1 : isCreate ? 1 : 0.9,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.15s',
+          // 移除了 translateY 上浮效果，避免 AR 味太重
+          transform: 'none',
+          boxShadow:
+            isCreate && hovered ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
+        }}
+      >
         {typeof icon === 'function' ? icon({ hovered }) : icon}
       </div>
       {!isCreate && (
-        <div style={{
-          fontSize: 13,
-          color: hovered ? '#fff' : '#a1a1aa', // 更柔和的灰色
-          textAlign: 'center',
-          wordBreak: 'break-word',
-          lineHeight: '1.4em',
-          height: '2.8em', // 强制两行高度以保持网格对齐
-          overflow: 'hidden',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          padding: '0 2px',
-        }}>
+        <div
+          style={{
+            fontSize: 13,
+            color: hovered ? '#fff' : '#a1a1aa', // 更柔和的灰色
+            textAlign: 'center',
+            wordBreak: 'break-word',
+            lineHeight: '1.4em',
+            height: '2.8em', // 强制两行高度以保持网格对齐
+            overflow: 'hidden',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            padding: '0 2px',
+          }}
+        >
           {label}
         </div>
       )}
@@ -173,17 +201,39 @@ function CreateMenu({
           fontSize: 14,
           transition: 'background 0.1s',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+        onMouseEnter={e =>
+          (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')
+        }
+        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#a1a1aa" fillOpacity="0.2" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <svg
+          width='18'
+          height='18'
+          viewBox='0 0 24 24'
+          fill='none'
+          xmlns='http://www.w3.org/2000/svg'
+        >
+          <path
+            d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
+            fill='#a1a1aa'
+            fillOpacity='0.2'
+            stroke='#a1a1aa'
+            strokeWidth='1.5'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          />
         </svg>
         <span>New Folder</span>
       </div>
-      
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 8px' }} />
-      
+
+      <div
+        style={{
+          height: 1,
+          background: 'rgba(255,255,255,0.08)',
+          margin: '4px 8px',
+        }}
+      />
+
       <div
         onClick={() => {
           onCreateContext();
@@ -199,14 +249,48 @@ function CreateMenu({
           fontSize: 14,
           transition: 'background 0.1s',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+        onMouseEnter={e =>
+          (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')
+        }
+        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="#34d399" fillOpacity="0.1"/>
-          <path d="M3 9H21" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M3 15H21" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M9 3V21" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <svg
+          width='18'
+          height='18'
+          viewBox='0 0 24 24'
+          fill='none'
+          xmlns='http://www.w3.org/2000/svg'
+        >
+          <path
+            d='M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z'
+            stroke='#34d399'
+            strokeWidth='1.5'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            fill='#34d399'
+            fillOpacity='0.1'
+          />
+          <path
+            d='M3 9H21'
+            stroke='#34d399'
+            strokeWidth='1.5'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          />
+          <path
+            d='M3 15H21'
+            stroke='#34d399'
+            strokeWidth='1.5'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          />
+          <path
+            d='M9 3V21'
+            stroke='#34d399'
+            strokeWidth='1.5'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          />
         </svg>
         <span>New Context</span>
       </div>
@@ -233,7 +317,7 @@ function ListItem({
 
   return (
     <div
-      onClick={(e) => onClick(e)}
+      onClick={e => onClick(e)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -248,30 +332,47 @@ function ListItem({
         transition: 'all 0.1s',
       }}
     >
-      <div style={{
-        width: 32,
-        height: 32,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: type === 'folder' ? (hovered ? '#e4e4e7' : '#a1a1aa') : type === 'file' ? '#34d399' : '#666',
-        fontSize: 20,
-      }}>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color:
+            type === 'folder'
+              ? hovered
+                ? '#e4e4e7'
+                : '#a1a1aa'
+              : type === 'file'
+                ? '#34d399'
+                : '#666',
+          fontSize: 20,
+        }}
+      >
         {typeof icon === 'function' ? icon({ hovered }) : icon}
       </div>
-      
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div style={{ 
-          fontSize: 14, 
-          color: hovered || isCreate ? '#fff' : '#d4d4d8',
-          fontWeight: 500
-        }}>
+
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 14,
+            color: hovered || isCreate ? '#fff' : '#d4d4d8',
+            fontWeight: 500,
+          }}
+        >
           {label}
         </div>
         {description && (
-          <div style={{ fontSize: 12, color: '#71717a' }}>
-            {description}
-          </div>
+          <div style={{ fontSize: 12, color: '#71717a' }}>{description}</div>
         )}
       </div>
 
@@ -300,10 +401,12 @@ export default function ProjectsSlugPage({
     isOrphanTable ? '' : projectId || ''
   );
   const [activeTableId, setActiveTableId] = useState<string>(tableId || '');
-  
+
   // View State
   const [viewType, setViewType] = useState<ViewType>('grid');
-  const [expandedBaseIds, setExpandedBaseIds] = useState<Set<string>>(new Set());
+  const [expandedBaseIds, setExpandedBaseIds] = useState<Set<string>>(
+    new Set()
+  );
 
   // 2. 数据获取
   const { projects, isLoading: projectsLoading } = useProjects();
@@ -338,28 +441,35 @@ export default function ProjectsSlugPage({
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [createTableOpen, setCreateTableOpen] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  
+
   // Current folder context for nested navigation
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string>('/');
   const [contentNodes, setContentNodes] = useState<NodeInfo[]>([]);
   const [contentNodesLoading, setContentNodesLoading] = useState(false);
-  
+
   // Create menu state
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const [createMenuPosition, setCreateMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [createMenuPosition, setCreateMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
-  
+
   // Close create menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (createMenuRef.current && !createMenuRef.current.contains(e.target as Node)) {
+      if (
+        createMenuRef.current &&
+        !createMenuRef.current.contains(e.target as Node)
+      ) {
         setCreateMenuOpen(false);
       }
     };
     if (createMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      return () =>
+        document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [createMenuOpen]);
 
@@ -385,7 +495,7 @@ export default function ProjectsSlugPage({
     } else {
       setActiveBaseId('');
     }
-    
+
     if (tableId !== undefined) {
       setActiveTableId(tableId);
     } else {
@@ -539,60 +649,104 @@ export default function ProjectsSlugPage({
   const pathSegments = useMemo<BreadcrumbSegment[]>(() => {
     // 1. Home Segment
     const segments: BreadcrumbSegment[] = [
-      { 
-        label: 'Home', 
+      {
+        label: 'Home',
         href: '/projects',
         icon: (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 9.5L12 2L21 9.5V21C21 21.5523 20.5523 22 20 22H15V16H9V22H4C3.44772 22 3 21.5523 3 21V9.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <svg
+            width='14'
+            height='14'
+            viewBox='0 0 24 24'
+            fill='none'
+            xmlns='http://www.w3.org/2000/svg'
+          >
+            <path
+              d='M3 9.5L12 2L21 9.5V21C21 21.5523 20.5523 22 20 22H15V16H9V22H4C3.44772 22 3 21.5523 3 21V9.5Z'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            />
           </svg>
-        )
-      }
+        ),
+      },
     ];
 
     // 2. Project Segment
     if (activeBaseId) {
       const folderIcon = (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: '#3b82f6' }}>
-           <path d="M2 6C2 4.89543 2.89543 4 4 4H9.17157C9.70201 4 10.2107 4.21071 10.5858 4.58579L12.4142 6.41421C12.7893 6.78929 13.298 7 13.8284 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V6Z" fill="currentColor"/>
+        <svg
+          width='14'
+          height='14'
+          viewBox='0 0 24 24'
+          fill='none'
+          xmlns='http://www.w3.org/2000/svg'
+          style={{ color: '#3b82f6' }}
+        >
+          <path
+            d='M2 6C2 4.89543 2.89543 4 4 4H9.17157C9.70201 4 10.2107 4.21071 10.5858 4.58579L12.4142 6.41421C12.7893 6.78929 13.298 7 13.8284 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V6Z'
+            fill='currentColor'
+          />
         </svg>
       );
 
       if (activeBase) {
-        segments.push({ 
-          label: activeBase.name, 
+        segments.push({
+          label: activeBase.name,
           href: `/projects/${activeBase.id}`,
-          icon: folderIcon
+          icon: folderIcon,
         });
       } else {
-         segments.push({ 
-           label: 'Project', 
-           href: `/projects/${activeBaseId}`,
-           icon: folderIcon
-         });
+        segments.push({
+          label: 'Project',
+          href: `/projects/${activeBaseId}`,
+          icon: folderIcon,
+        });
       }
     }
-    
+
     // 3. Context Segment
     if (activeTableId) {
-       const tableIcon = (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: '#34d399' }}>
-           <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2"/>
-           <path d="M3 9H21" stroke="currentColor" strokeWidth="2"/>
-           <path d="M9 21V9" stroke="currentColor" strokeWidth="2"/>
+      const tableIcon = (
+        <svg
+          width='14'
+          height='14'
+          viewBox='0 0 24 24'
+          fill='none'
+          xmlns='http://www.w3.org/2000/svg'
+          style={{ color: '#34d399' }}
+        >
+          <rect
+            x='3'
+            y='3'
+            width='18'
+            height='18'
+            rx='2'
+            stroke='currentColor'
+            strokeWidth='2'
+          />
+          <path d='M3 9H21' stroke='currentColor' strokeWidth='2' />
+          <path d='M9 21V9' stroke='currentColor' strokeWidth='2' />
         </svg>
-       );
+      );
 
-       if (activeTable) {
-         segments.push({ label: activeTable.name, icon: tableIcon });
-       } else if (isOrphanTable && currentTableData) {
-         segments.push({ label: currentTableData.name, icon: tableIcon });
-       } else {
-         segments.push({ label: 'Context', icon: tableIcon });
-       }
+      if (activeTable) {
+        segments.push({ label: activeTable.name, icon: tableIcon });
+      } else if (isOrphanTable && currentTableData) {
+        segments.push({ label: currentTableData.name, icon: tableIcon });
+      } else {
+        segments.push({ label: 'Context', icon: tableIcon });
+      }
     }
     return segments;
-  }, [activeBase, activeTable, activeBaseId, activeTableId, isOrphanTable, currentTableData]);
+  }, [
+    activeBase,
+    activeTable,
+    activeBaseId,
+    activeTableId,
+    isOrphanTable,
+    currentTableData,
+  ]);
 
   // 8. 渲染准备
   const configuredAccessPoints = useMemo(() => {
@@ -616,15 +770,15 @@ export default function ProjectsSlugPage({
     }
     return map;
   }, [activeBase?.tables, currentTableData?.id, currentTableData?.name]);
-  
+
   // --- View Selection Logic ---
-  
+
   // View 1: Editor View (Specific Context)
   const isEditorView = !!activeTableId;
-  
+
   // View 2: Project Folder View (Inside a Project)
   const isProjectFolderView = !!activeBaseId && !activeTableId;
-  
+
   // View 3: Root View (All Projects)
   const isRootView = !activeBaseId && !activeTableId;
 
@@ -656,7 +810,7 @@ export default function ProjectsSlugPage({
           project={activeBase}
           allProjects={projects}
           activeTableId={activeTableId}
-          onTableSelect={(id) => router.push(`/projects/${activeBaseId}/${id}`)}
+          onTableSelect={id => router.push(`/projects/${activeBaseId}/${id}`)}
           onBackToProjects={() => router.push('/projects')}
         />
       )}
@@ -703,218 +857,393 @@ export default function ProjectsSlugPage({
         >
           {/* VIEW 1: EDITOR */}
           {isEditorView && (
-             <div
-               style={{
-                 flex: 1,
-                 display: 'flex',
-                 flexDirection: 'column',
-                 height: '100%',
-                 position: 'relative',
-                 minWidth: 0,
-               }}
-             >
-               {(activeBase || isOrphanTable) ? (
-                 <ProjectWorkspaceView
-                   projectId={activeBase?.id || '-'}
-                   project={
-                     activeBase || {
-                       id: '-',
-                       name: currentTableData?.name || 'Context',
-                       tables: currentTableData
-                         ? [
-                             {
-                               id: String(currentTableData.id),
-                               name: currentTableData.name,
-                               rows: currentTableData.rows,
-                             },
-                           ]
-                         : [],
-                     }
-                   }
-                   activeTableId={activeTableId}
-                   onActiveTableChange={(id: string) => {
-                     setActiveTableId(id);
-                     if (isOrphanTable) {
-                       router.push(`/projects/-/${id}`);
-                     } else {
-                       router.push(`/projects/${activeBaseId}/${id}`);
-                     }
-                   }}
-                   onTreePathChange={setCurrentTreePath}
-                   editorType={editorType}
-                   configuredAccessPoints={configuredAccessPoints}
-                   onAccessPointChange={(
-                     path: string,
-                     permissions: McpToolPermissions
-                   ) => {
-                      // ... existing access point logic ...
-                      const hasAnyPermission = Object.values(permissions).some(Boolean);
-                      setAccessPoints(prev => {
-                        const existing = prev.find(ap => ap.path === path);
-                        if (existing) {
-                          if (!hasAnyPermission) return prev.filter(ap => ap.path !== path);
-                          return prev.map(ap => ap.path === path ? { ...ap, permissions } : ap);
-                        } else if (hasAnyPermission) {
-                          return [...prev, { id: `ap-${Date.now()}`, path, permissions }];
-                        }
-                        return prev;
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                position: 'relative',
+                minWidth: 0,
+              }}
+            >
+              {activeBase || isOrphanTable ? (
+                <ProjectWorkspaceView
+                  projectId={activeBase?.id || '-'}
+                  project={
+                    activeBase || {
+                      id: '-',
+                      name: currentTableData?.name || 'Context',
+                      tables: currentTableData
+                        ? [
+                            {
+                              id: String(currentTableData.id),
+                              name: currentTableData.name,
+                              rows: currentTableData.rows,
+                            },
+                          ]
+                        : [],
+                    }
+                  }
+                  activeTableId={activeTableId}
+                  onActiveTableChange={(id: string) => {
+                    setActiveTableId(id);
+                    if (isOrphanTable) {
+                      router.push(`/projects/-/${id}`);
+                    } else {
+                      router.push(`/projects/${activeBaseId}/${id}`);
+                    }
+                  }}
+                  onTreePathChange={setCurrentTreePath}
+                  editorType={editorType}
+                  configuredAccessPoints={configuredAccessPoints}
+                  onAccessPointChange={(
+                    path: string,
+                    permissions: McpToolPermissions
+                  ) => {
+                    // ... existing access point logic ...
+                    const hasAnyPermission =
+                      Object.values(permissions).some(Boolean);
+                    setAccessPoints(prev => {
+                      const existing = prev.find(ap => ap.path === path);
+                      if (existing) {
+                        if (!hasAnyPermission)
+                          return prev.filter(ap => ap.path !== path);
+                        return prev.map(ap =>
+                          ap.path === path ? { ...ap, permissions } : ap
+                        );
+                      } else if (hasAnyPermission) {
+                        return [
+                          ...prev,
+                          { id: `ap-${Date.now()}`, path, permissions },
+                        ];
+                      }
+                      return prev;
+                    });
+
+                    const currentTableId = activeTableId || tableId;
+                    if (currentTableId) {
+                      syncToolsForPath({
+                        tableId: currentTableId,
+                        path,
+                        permissions,
+                        existingTools: tableTools as any,
+                      }).then(() => {
+                        refreshTableTools(String(currentTableId));
+                        refreshProjectTools(activeBaseId || projectId);
                       });
-                      
-                      const currentTableId = activeTableId || tableId;
-                      if (currentTableId) {
-                        syncToolsForPath({
-                          tableId: currentTableId,
-                          path,
-                          permissions,
-                          existingTools: tableTools as any,
-                        }).then(() => {
-                           refreshTableTools(String(currentTableId));
-                           refreshProjectTools(activeBaseId || projectId);
-                        });
-                      }
-                   }}
-                   onAccessPointRemove={(path: string) => {
-                      setAccessPoints(prev => prev.filter(ap => ap.path !== path));
-                      const currentTableId = activeTableId || tableId;
-                      if (currentTableId) {
-                        deleteAllToolsForPath({
-                          tableId: currentTableId,
-                          path,
-                          existingTools: tableTools as any,
-                        }).then(() => {
-                           refreshTableTools(String(currentTableId));
-                           refreshProjectTools(activeBaseId || projectId);
-                        });
-                      }
-                   }}
-                   onOpenDocument={(path: string, value: string) => {
-                     setEditorTarget({ path, value });
-                     setRightPanelContent('EDITOR');
-                   }}
-                 />
-               ) : (
-                 <div style={{ color: '#666', padding: 20 }}>
-                   {projectsLoading ? 'Loading Context...' : 'Context Not Found'}
-                 </div>
-               )}
-             </div>
+                    }
+                  }}
+                  onAccessPointRemove={(path: string) => {
+                    setAccessPoints(prev =>
+                      prev.filter(ap => ap.path !== path)
+                    );
+                    const currentTableId = activeTableId || tableId;
+                    if (currentTableId) {
+                      deleteAllToolsForPath({
+                        tableId: currentTableId,
+                        path,
+                        existingTools: tableTools as any,
+                      }).then(() => {
+                        refreshTableTools(String(currentTableId));
+                        refreshProjectTools(activeBaseId || projectId);
+                      });
+                    }
+                  }}
+                  onOpenDocument={(path: string, value: string) => {
+                    setEditorTarget({ path, value });
+                    setRightPanelContent('EDITOR');
+                  }}
+                />
+              ) : (
+                <div style={{ color: '#666', padding: 20 }}>
+                  {projectsLoading ? 'Loading Context...' : 'Context Not Found'}
+                </div>
+              )}
+            </div>
           )}
 
           {/* VIEW 2: PROJECT FOLDER CONTENTS */}
           {isProjectFolderView && activeBase && (
             <div style={{ width: '100%' }}>
-              <div style={{ 
-                display: viewType === 'list' ? 'flex' : 'grid',
-                flexDirection: 'column',
-                gridTemplateColumns: viewType === 'list' ? undefined : 'repeat(auto-fill, minmax(120px, 1fr))',
-                gap: viewType === 'list' ? 0 : 16 
-              }}>
+              <div
+                style={{
+                  display: viewType === 'list' ? 'flex' : 'grid',
+                  flexDirection: 'column',
+                  gridTemplateColumns:
+                    viewType === 'list'
+                      ? undefined
+                      : 'repeat(auto-fill, minmax(120px, 1fr))',
+                  gap: viewType === 'list' ? 0 : 16,
+                }}
+              >
                 {/* Content Nodes - Folders (from new content_nodes API) */}
-                {contentNodes.filter(node => node.type === 'folder').map(folder => (
-                  viewType === 'list' ? (
-                    <ListItem
-                      key={folder.id}
-                      type="folder"
-                      icon={
-                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      }
-                      label={folder.name}
-                      onClick={() => {
-                        setCurrentFolderId(folder.id);
-                        setCurrentFolderPath(folder.path);
-                        loadContentNodes(folder.id);
-                      }}
-                      description="Folder"
-                    />
-                  ) : (
-                    <GridItem
-                      key={folder.id}
-                      type="folder"
-                      icon={
-                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      }
-                      label={folder.name}
-                      onClick={() => {
-                        setCurrentFolderId(folder.id);
-                        setCurrentFolderPath(folder.path);
-                        loadContentNodes(folder.id);
-                      }}
-                    />
-                  )
-                ))}
+                {contentNodes
+                  .filter(node => node.type === 'folder')
+                  .map(folder =>
+                    viewType === 'list' ? (
+                      <ListItem
+                        key={folder.id}
+                        type='folder'
+                        icon={
+                          <svg
+                            width='1em'
+                            height='1em'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path
+                              d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
+                              fill='currentColor'
+                              fillOpacity='0.1'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                            <path
+                              d='M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z'
+                              fill='currentColor'
+                              fillOpacity='0.1'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                          </svg>
+                        }
+                        label={folder.name}
+                        onClick={() => {
+                          setCurrentFolderId(folder.id);
+                          setCurrentFolderPath(folder.path);
+                          loadContentNodes(folder.id);
+                        }}
+                        description='Folder'
+                      />
+                    ) : (
+                      <GridItem
+                        key={folder.id}
+                        type='folder'
+                        icon={
+                          <svg
+                            width='1em'
+                            height='1em'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path
+                              d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
+                              fill='currentColor'
+                              fillOpacity='0.1'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                            <path
+                              d='M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z'
+                              fill='currentColor'
+                              fillOpacity='0.1'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                          </svg>
+                        }
+                        label={folder.name}
+                        onClick={() => {
+                          setCurrentFolderId(folder.id);
+                          setCurrentFolderPath(folder.path);
+                          loadContentNodes(folder.id);
+                        }}
+                      />
+                    )
+                  )}
 
                 {/* Contexts (from old project/table structure) */}
-                {activeBase.tables && activeBase.tables.map(table => (
-                   viewType === 'list' ? (
-                    <ListItem
-                      key={table.id}
-                      type="file"
-                      icon={
-                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="currentColor" fillOpacity="0.05"/>
-                          <path d="M3 9H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M3 15H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M9 3V21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      }
-                      label={table.name}
-                      onClick={() => router.push(`/projects/${activeBase.id}/${table.id}`)}
-                      description={`${table.rows?.length || 0} rows`}
-                    />
-                   ) : (
-                    <GridItem
-                      key={table.id}
-                      type="file"
-                      icon={
-                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="currentColor" fillOpacity="0.05"/>
-                          <path d="M3 9H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M3 15H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M9 3V21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      }
-                      label={table.name}
-                      onClick={() => router.push(`/projects/${activeBase.id}/${table.id}`)}
-                    />
-                   )
-                ))}
+                {activeBase.tables &&
+                  activeBase.tables.map(table =>
+                    viewType === 'list' ? (
+                      <ListItem
+                        key={table.id}
+                        type='file'
+                        icon={
+                          <svg
+                            width='1em'
+                            height='1em'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path
+                              d='M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                              fill='currentColor'
+                              fillOpacity='0.05'
+                            />
+                            <path
+                              d='M3 9H21'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                            <path
+                              d='M3 15H21'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                            <path
+                              d='M9 3V21'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                          </svg>
+                        }
+                        label={table.name}
+                        onClick={() =>
+                          router.push(`/projects/${activeBase.id}/${table.id}`)
+                        }
+                        description={`${table.rows?.length || 0} rows`}
+                      />
+                    ) : (
+                      <GridItem
+                        key={table.id}
+                        type='file'
+                        icon={
+                          <svg
+                            width='1em'
+                            height='1em'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path
+                              d='M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                              fill='currentColor'
+                              fillOpacity='0.05'
+                            />
+                            <path
+                              d='M3 9H21'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                            <path
+                              d='M3 15H21'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                            <path
+                              d='M9 3V21'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                          </svg>
+                        }
+                        label={table.name}
+                        onClick={() =>
+                          router.push(`/projects/${activeBase.id}/${table.id}`)
+                        }
+                      />
+                    )
+                  )}
 
                 {/* Create New Item Card - At the end */}
                 {viewType === 'list' ? (
                   <ListItem
-                    type="create"
+                    type='create'
                     icon={
-                      <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 6V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M6 12H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <svg
+                        width='1em'
+                        height='1em'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        xmlns='http://www.w3.org/2000/svg'
+                      >
+                        <path
+                          d='M12 6V18'
+                          stroke='currentColor'
+                          strokeWidth='1.5'
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                        />
+                        <path
+                          d='M6 12H18'
+                          stroke='currentColor'
+                          strokeWidth='1.5'
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                        />
                       </svg>
                     }
-                    label="New..."
+                    label='New...'
                     onClick={(e: React.MouseEvent) => {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+                      const rect = (
+                        e.currentTarget as HTMLElement
+                      ).getBoundingClientRect();
+                      setCreateMenuPosition({
+                        x: rect.left,
+                        y: rect.bottom + 4,
+                      });
                       setCreateMenuOpen(true);
                     }}
                   />
                 ) : (
                   <GridItem
-                    type="create"
+                    type='create'
                     icon={
-                      <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 6V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M6 12H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <svg
+                        width='1em'
+                        height='1em'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        xmlns='http://www.w3.org/2000/svg'
+                      >
+                        <path
+                          d='M12 6V18'
+                          stroke='currentColor'
+                          strokeWidth='1.5'
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                        />
+                        <path
+                          d='M6 12H18'
+                          stroke='currentColor'
+                          strokeWidth='1.5'
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                        />
                       </svg>
                     }
-                    label="New..."
+                    label='New...'
                     onClick={(e: React.MouseEvent) => {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+                      const rect = (
+                        e.currentTarget as HTMLElement
+                      ).getBoundingClientRect();
+                      setCreateMenuPosition({
+                        x: rect.left,
+                        y: rect.bottom + 4,
+                      });
                       setCreateMenuOpen(true);
                     }}
                   />
@@ -922,28 +1251,55 @@ export default function ProjectsSlugPage({
               </div>
             </div>
           )}
-          
+
           {/* VIEW 3: ROOT FOLDER CONTENTS */}
           {isRootView && (
             <div style={{ width: '100%' }}>
               {projectsLoading ? (
                 <div style={{ color: '#666' }}>Loading...</div>
               ) : (
-                <div style={{ 
-                  display: viewType === 'list' ? 'flex' : 'grid',
-                  flexDirection: 'column', 
-                  gridTemplateColumns: viewType === 'list' ? undefined : 'repeat(auto-fill, minmax(120px, 1fr))', 
-                  gap: viewType === 'list' ? 0 : 16 
-                }}>
-                  {projects.map(project => (
+                <div
+                  style={{
+                    display: viewType === 'list' ? 'flex' : 'grid',
+                    flexDirection: 'column',
+                    gridTemplateColumns:
+                      viewType === 'list'
+                        ? undefined
+                        : 'repeat(auto-fill, minmax(120px, 1fr))',
+                    gap: viewType === 'list' ? 0 : 16,
+                  }}
+                >
+                  {projects.map(project =>
                     viewType === 'list' ? (
                       <ListItem
                         key={project.id}
-                        type="folder"
+                        type='folder'
                         icon={
-                          <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            <path d="M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <svg
+                            width='1em'
+                            height='1em'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path
+                              d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
+                              fill='currentColor'
+                              fillOpacity='0.1'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                            <path
+                              d='M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z'
+                              fill='currentColor'
+                              fillOpacity='0.1'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
                           </svg>
                         }
                         label={project.name}
@@ -953,42 +1309,100 @@ export default function ProjectsSlugPage({
                     ) : (
                       <GridItem
                         key={project.id}
-                        type="folder"
+                        type='folder'
                         icon={
-                          <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            <path d="M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <svg
+                            width='1em'
+                            height='1em'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path
+                              d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
+                              fill='currentColor'
+                              fillOpacity='0.1'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                            <path
+                              d='M2 9C2 7.89543 2.89543 7 4 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z'
+                              fill='currentColor'
+                              fillOpacity='0.1'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
                           </svg>
                         }
                         label={project.name}
                         onClick={() => router.push(`/projects/${project.id}`)}
                       />
                     )
-                  ))}
+                  )}
 
                   {/* Create New Project Card - At the end */}
                   {viewType === 'list' ? (
                     <ListItem
-                      type="create"
+                      type='create'
                       icon={
-                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 6V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M6 12H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <svg
+                          width='1em'
+                          height='1em'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          xmlns='http://www.w3.org/2000/svg'
+                        >
+                          <path
+                            d='M12 6V18'
+                            stroke='currentColor'
+                            strokeWidth='1.5'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                          />
+                          <path
+                            d='M6 12H18'
+                            stroke='currentColor'
+                            strokeWidth='1.5'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                          />
                         </svg>
                       }
-                      label="New Folder"
+                      label='New Folder'
                       onClick={() => setCreateProjectOpen(true)}
                     />
                   ) : (
                     <GridItem
-                      type="create"
+                      type='create'
                       icon={
-                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 6V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M6 12H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <svg
+                          width='1em'
+                          height='1em'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          xmlns='http://www.w3.org/2000/svg'
+                        >
+                          <path
+                            d='M12 6V18'
+                            stroke='currentColor'
+                            strokeWidth='1.5'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                          />
+                          <path
+                            d='M6 12H18'
+                            stroke='currentColor'
+                            strokeWidth='1.5'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                          />
                         </svg>
                       }
-                      label="New Folder"
+                      label='New Folder'
                       onClick={() => setCreateProjectOpen(true)}
                     />
                   )}
@@ -1064,7 +1478,7 @@ export default function ProjectsSlugPage({
       {/* Dialogs */}
       {createProjectOpen && (
         <ProjectManageDialog
-          mode="create"
+          mode='create'
           projectId={null}
           projects={projects}
           onClose={() => setCreateProjectOpen(false)}
@@ -1073,7 +1487,7 @@ export default function ProjectsSlugPage({
 
       {createTableOpen && (
         <TableManageDialog
-          mode="create"
+          mode='create'
           projectId={activeBase?.id || null}
           tableId={null}
           projects={projects}

@@ -1,6 +1,12 @@
 import { McpToolPermissions } from '../../../../lib/mcpApi';
 
-export type JsonValue = string | number | boolean | null | JsonObject | JsonArray;
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonObject
+  | JsonArray;
 export interface JsonObject {
   [key: string]: JsonValue;
 }
@@ -22,5 +28,3 @@ export interface ConfiguredAccessPoint {
   path: string;
   permissions: McpToolPermissions;
 }
-
-

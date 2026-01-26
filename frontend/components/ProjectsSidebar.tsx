@@ -319,10 +319,10 @@ export function ProjectsSidebar({
                 Settings
               </span>
             </button>
-            
+
             {/* Divider */}
-            <div className="my-2 h-[1px] bg-[#2c2c2c] mx-2" />
-            
+            <div className='my-2 h-[1px] bg-[#2c2c2c] mx-2' />
+
             {/* Project List (Removed per user request) */}
           </div>
         </div>

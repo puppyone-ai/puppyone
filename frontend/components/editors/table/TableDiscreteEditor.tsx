@@ -14,11 +14,7 @@ import { TableResizeHeader } from './components/TableResizeHeader';
 import { VirtualRow } from './components/VirtualRow';
 import { McpToolPermissions } from '../../../lib/mcpApi';
 import { FlatNode, JsonValue, ConfiguredAccessPoint } from './types';
-import {
-  ROW_HEIGHT,
-  DEFAULT_KEY_WIDTH,
-  MAX_DEPTH_LEVELS,
-} from './constants';
+import { ROW_HEIGHT, DEFAULT_KEY_WIDTH, MAX_DEPTH_LEVELS } from './constants';
 import { useJsonTreeActions } from './hooks/useJsonTreeActions';
 
 interface TreeLineVirtualEditorProps {

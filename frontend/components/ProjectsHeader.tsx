@@ -24,7 +24,7 @@ type ProjectsHeaderProps = {
   // Browser Props
   viewType?: ViewType;
   onViewTypeChange?: (type: ViewType) => void;
-  
+
   accessPointCount?: number; // 已配置的 Access Points 数量
   // Chat (Global Level)
   isChatOpen?: boolean;
@@ -66,28 +66,42 @@ const viewOptions: {
     id: 'grid',
     label: 'Grid',
     icon: (
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
+      <svg
+        width='12'
+        height='12'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='2'
+      >
+        <rect x='3' y='3' width='7' height='7' />
+        <rect x='14' y='3' width='7' height='7' />
+        <rect x='14' y='14' width='7' height='7' />
+        <rect x='3' y='14' width='7' height='7' />
       </svg>
-    )
+    ),
   },
   {
     id: 'list',
     label: 'List',
     icon: (
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <line x1="8" y1="6" x2="21" y2="6" />
-        <line x1="8" y1="12" x2="21" y2="12" />
-        <line x1="8" y1="18" x2="21" y2="18" />
-        <line x1="3" y1="6" x2="3.01" y2="6" />
-        <line x1="3" y1="12" x2="3.01" y2="12" />
-        <line x1="3" y1="18" x2="3.01" y2="18" />
+      <svg
+        width='12'
+        height='12'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='2'
+      >
+        <line x1='8' y1='6' x2='21' y2='6' />
+        <line x1='8' y1='12' x2='21' y2='12' />
+        <line x1='8' y1='18' x2='21' y2='18' />
+        <line x1='3' y1='6' x2='3.01' y2='6' />
+        <line x1='3' y1='12' x2='3.01' y2='12' />
+        <line x1='3' y1='18' x2='3.01' y2='18' />
       </svg>
-    )
-  }
+    ),
+  },
 ];
 
 export function ProjectsHeader({
@@ -144,7 +158,10 @@ export function ProjectsHeader({
           {pathSegments.map((segment, index) => {
             const isLast = index === pathSegments.length - 1;
             return (
-              <div key={index} style={{ display: 'flex', alignItems: 'center' }}>
+              <div
+                key={index}
+                style={{ display: 'flex', alignItems: 'center' }}
+              >
                 {index > 0 && (
                   <span style={{ margin: '0 8px', color: '#444' }}>/</span>
                 )}
@@ -160,14 +177,24 @@ export function ProjectsHeader({
                       alignItems: 'center',
                       gap: 6,
                     }}
-                    onMouseEnter={(e) => {
+                    onMouseEnter={e => {
                       e.currentTarget.style.color = '#fff';
                     }}
-                    onMouseLeave={(e) => {
+                    onMouseLeave={e => {
                       e.currentTarget.style.color = '#888';
                     }}
                   >
-                    {segment.icon && <span style={{ display: 'flex', color: 'inherit', opacity: 0.8 }}>{segment.icon}</span>}
+                    {segment.icon && (
+                      <span
+                        style={{
+                          display: 'flex',
+                          color: 'inherit',
+                          opacity: 0.8,
+                        }}
+                      >
+                        {segment.icon}
+                      </span>
+                    )}
                     {segment.label}
                   </Link>
                 ) : (
@@ -180,7 +207,17 @@ export function ProjectsHeader({
                       gap: 6,
                     }}
                   >
-                    {segment.icon && <span style={{ display: 'flex', color: 'inherit', opacity: 0.8 }}>{segment.icon}</span>}
+                    {segment.icon && (
+                      <span
+                        style={{
+                          display: 'flex',
+                          color: 'inherit',
+                          opacity: 0.8,
+                        }}
+                      >
+                        {segment.icon}
+                      </span>
+                    )}
                     {segment.label}
                   </span>
                 )}
@@ -213,7 +250,7 @@ export function ProjectsHeader({
             })}
           </div>
         ) : viewType && onViewTypeChange ? (
-           <div style={viewSwitcherContainerStyle}>
+          <div style={viewSwitcherContainerStyle}>
             {viewOptions.map(option => {
               const isSelected = option.id === viewType;
               return (

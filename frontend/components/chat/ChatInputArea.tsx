@@ -30,71 +30,71 @@ interface ChatInputAreaProps {
   mentionIndex: number;
   onMentionSelect: (key: string) => void;
   onMentionIndexChange: (index: number) => void;
-    onBlur?: () => void;
-    // 可选
-    placeholder?: string;
-    disabled?: boolean;
-  }
-  
-  export interface ChatInputAreaRef {
-    focus: () => void;
-    setSelectionRange: (start: number, end: number) => void;
-  }
-  
-  const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
-    function ChatInputArea(
-      {
-        inputValue,
-        onInputChange,
-        onKeyDown,
-        onSend,
-        isLoading,
-        showMentionMenu,
-        filteredMentionOptions,
-        mentionIndex,
-        onMentionSelect,
-        onMentionIndexChange,
-        onBlur,
-        placeholder,
-        disabled = false,
+  onBlur?: () => void;
+  // 可选
+  placeholder?: string;
+  disabled?: boolean;
+}
+
+export interface ChatInputAreaRef {
+  focus: () => void;
+  setSelectionRange: (start: number, end: number) => void;
+}
+
+const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
+  function ChatInputArea(
+    {
+      inputValue,
+      onInputChange,
+      onKeyDown,
+      onSend,
+      isLoading,
+      showMentionMenu,
+      filteredMentionOptions,
+      mentionIndex,
+      onMentionSelect,
+      onMentionIndexChange,
+      onBlur,
+      placeholder,
+      disabled = false,
+    },
+    ref
+  ) {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const mentionMenuRef = useRef<HTMLDivElement>(null);
+
+    useImperativeHandle(ref, () => ({
+      focus: () => textareaRef.current?.focus(),
+      setSelectionRange: (start: number, end: number) => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(start, end);
       },
-      ref
-    ) {
-      const textareaRef = useRef<HTMLTextAreaElement>(null);
-      const mentionMenuRef = useRef<HTMLDivElement>(null);
-  
-      useImperativeHandle(ref, () => ({
-        focus: () => textareaRef.current?.focus(),
-        setSelectionRange: (start: number, end: number) => {
-          textareaRef.current?.focus();
-          textareaRef.current?.setSelectionRange(start, end);
-        },
-      }));
-  
-      // Auto-resize textarea：初始 28px，随内容增加而变高
-      useEffect(() => {
-        const textarea = textareaRef.current;
-        if (!textarea) return;
-  
-        // 先重置高度以获取正确的 scrollHeight
-        textarea.style.height = '28px';
-        const scrollHeight = textarea.scrollHeight;
-        // 最小 28px，最大 200px
-        const newHeight = Math.max(28, Math.min(scrollHeight, 200));
-        textarea.style.height = `${newHeight}px`;
-  
-        // 同步更新容器高度
-        const container = textarea.parentElement;
-        if (container) {
-          container.style.height = `${newHeight}px`;
-        }
-      }, [inputValue]);
-  
-      const defaultPlaceholder = 'Ask a question or let Agent help...';
-  
-      return (
-        <div style={{ padding: '12px', flexShrink: 0, background: '#111111' }}>
-          {/* Input Container - 上下排布 */}
+    }));
+
+    // Auto-resize textarea：初始 28px，随内容增加而变高
+    useEffect(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      // 先重置高度以获取正确的 scrollHeight
+      textarea.style.height = '28px';
+      const scrollHeight = textarea.scrollHeight;
+      // 最小 28px，最大 200px
+      const newHeight = Math.max(28, Math.min(scrollHeight, 200));
+      textarea.style.height = `${newHeight}px`;
+
+      // 同步更新容器高度
+      const container = textarea.parentElement;
+      if (container) {
+        container.style.height = `${newHeight}px`;
+      }
+    }, [inputValue]);
+
+    const defaultPlaceholder = 'Ask a question or let Agent help...';
+
+    return (
+      <div style={{ padding: '12px', flexShrink: 0, background: '#111111' }}>
+        {/* Input Container - 上下排布 */}
         <div
           style={{
             position: 'relative',

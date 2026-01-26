@@ -401,7 +401,9 @@ export const VirtualRow = React.memo(function VirtualRow({
             paddingRight: 8,
             borderLeft: `${keyBorderLeftWidth}px solid ${keyBorderLeftColor}`,
             borderTop: `1px solid ${BORDER_COLOR}`,
-            borderBottom: node.isExpanded ? 'none' : `1px solid ${BORDER_COLOR}`,
+            borderBottom: node.isExpanded
+              ? 'none'
+              : `1px solid ${BORDER_COLOR}`,
             position: 'relative',
             overflow: 'hidden',
           }}
@@ -539,4 +541,3 @@ export const VirtualRow = React.memo(function VirtualRow({
     </div>
   );
 });
-

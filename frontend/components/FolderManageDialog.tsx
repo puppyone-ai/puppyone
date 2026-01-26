@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { createFolder } from '../lib/contentNodesApi';
 
 type FolderManageDialogProps = {
-  parentId: string | null;  // 父文件夹 ID，null 表示根目录
-  parentPath?: string;      // 父文件夹路径，用于显示
+  parentId: string | null; // 父文件夹 ID，null 表示根目录
+  parentPath?: string; // 父文件夹路径，用于显示
   onClose: () => void;
-  onSuccess?: () => void;   // 创建成功后的回调
+  onSuccess?: () => void; // 创建成功后的回调
 };
 
 export function FolderManageDialog({
@@ -90,8 +90,22 @@ export function FolderManageDialog({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#a1a1aa" fillOpacity="0.2" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg
+              width='18'
+              height='18'
+              viewBox='0 0 24 24'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
+            >
+              <path
+                d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
+                fill='#a1a1aa'
+                fillOpacity='0.2'
+                stroke='#a1a1aa'
+                strokeWidth='1.5'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              />
             </svg>
             <span style={{ fontSize: 14, fontWeight: 500, color: '#e4e4e7' }}>
               New Folder
@@ -108,17 +122,17 @@ export function FolderManageDialog({
             }}
           >
             <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              width='16'
+              height='16'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
             >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1='18' y1='6' x2='6' y2='18' />
+              <line x1='6' y1='6' x2='18' y2='18' />
             </svg>
           </button>
         </div>
@@ -126,21 +140,25 @@ export function FolderManageDialog({
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '24px 24px 16px' }}>
             {/* Location indicator */}
-            <div style={{
-              fontSize: 12,
-              color: '#71717a',
-              marginBottom: 16,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: '#71717a',
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
               <span>Location:</span>
-              <code style={{
-                background: 'rgba(255,255,255,0.05)',
-                padding: '2px 6px',
-                borderRadius: 4,
-                fontSize: 11,
-              }}>
+              <code
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  fontSize: 11,
+                }}
+              >
                 {parentPath}
               </code>
             </div>
@@ -157,10 +175,10 @@ export function FolderManageDialog({
               Folder Name
             </div>
             <input
-              type="text"
+              type='text'
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Enter folder name"
+              placeholder='Enter folder name'
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -174,18 +192,20 @@ export function FolderManageDialog({
               }}
               autoFocus
             />
-            
+
             {/* Error message */}
             {error && (
-              <div style={{
-                marginTop: 12,
-                padding: '8px 12px',
-                background: 'rgba(239,68,68,0.1)',
-                border: '1px solid rgba(239,68,68,0.2)',
-                borderRadius: 6,
-                color: '#ef4444',
-                fontSize: 13,
-              }}>
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: '8px 12px',
+                  background: 'rgba(239,68,68,0.1)',
+                  border: '1px solid rgba(239,68,68,0.2)',
+                  borderRadius: 6,
+                  color: '#ef4444',
+                  fontSize: 13,
+                }}
+              >
                 {error}
               </div>
             )}
@@ -203,7 +223,7 @@ export function FolderManageDialog({
             }}
           >
             <button
-              type="button"
+              type='button'
               onClick={onClose}
               style={{
                 height: 32,
@@ -220,7 +240,7 @@ export function FolderManageDialog({
               Cancel
             </button>
             <button
-              type="submit"
+              type='submit'
               disabled={loading || !name.trim()}
               style={{
                 height: 32,
@@ -242,4 +262,3 @@ export function FolderManageDialog({
     </div>
   );
 }
-
