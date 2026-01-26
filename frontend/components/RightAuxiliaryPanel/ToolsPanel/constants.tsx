@@ -5,7 +5,11 @@ import { type McpToolType } from '../../../lib/mcpApi';
 export const ACCENT_COLOR = '#f97316'; // Orange-500
 
 // Define Tool Groups
-export const READ_TOOLS = ['query_data', 'search', 'get_all_data'] as McpToolType[];
+export const READ_TOOLS = [
+  'query_data',
+  'search',
+  'get_all_data',
+] as McpToolType[];
 export const WRITE_TOOLS = ['create', 'update', 'delete'] as McpToolType[];
 export const ALL_TOOLS = [
   'shell_access',
