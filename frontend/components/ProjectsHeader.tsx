@@ -2,15 +2,29 @@
 
 import type { CSSProperties } from 'react';
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 
 export type EditorType = 'treeline-virtual' | 'monaco' | 'table';
+export type ViewType = 'grid' | 'list' | 'column';
+
+export type BreadcrumbSegment = {
+  label: string;
+  href?: string;
+  icon?: React.ReactNode;
+};
 
 type ProjectsHeaderProps = {
-  pathSegments: string[];
+  pathSegments: BreadcrumbSegment[];
   projectId: string | null;
   onProjectsRefresh?: () => void;
+  // Editor Props
   editorType?: EditorType;
   onEditorTypeChange?: (type: EditorType) => void;
+  showEditorSwitcher?: boolean; // Renamed from showViewSwitcher
+  // Browser Props
+  viewType?: ViewType;
+  onViewTypeChange?: (type: ViewType) => void;
+
   accessPointCount?: number; // 已配置的 Access Points 数量
   // Chat (Global Level)
   isChatOpen?: boolean;
@@ -43,6 +57,53 @@ const editorOptions: {
   { id: 'monaco', label: 'Raw', icon: '{ }' },
 ];
 
+const viewOptions: {
+  id: ViewType;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    id: 'grid',
+    label: 'Grid',
+    icon: (
+      <svg
+        width='12'
+        height='12'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='2'
+      >
+        <rect x='3' y='3' width='7' height='7' />
+        <rect x='14' y='3' width='7' height='7' />
+        <rect x='14' y='14' width='7' height='7' />
+        <rect x='3' y='14' width='7' height='7' />
+      </svg>
+    ),
+  },
+  {
+    id: 'list',
+    label: 'List',
+    icon: (
+      <svg
+        width='12'
+        height='12'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='2'
+      >
+        <line x1='8' y1='6' x2='21' y2='6' />
+        <line x1='8' y1='12' x2='21' y2='12' />
+        <line x1='8' y1='18' x2='21' y2='18' />
+        <line x1='3' y1='6' x2='3.01' y2='6' />
+        <line x1='3' y1='12' x2='3.01' y2='12' />
+        <line x1='3' y1='18' x2='3.01' y2='18' />
+      </svg>
+    ),
+  },
+];
+
 export function ProjectsHeader({
   pathSegments,
   projectId,
@@ -50,6 +111,9 @@ export function ProjectsHeader({
   editorType = 'treeline-virtual',
   onEditorTypeChange,
   accessPointCount = 0,
+  showEditorSwitcher = false, // Default false, controlled by parent
+  viewType,
+  onViewTypeChange,
   isChatOpen = false,
   onChatOpenChange,
 }: ProjectsHeaderProps) {
@@ -90,30 +154,124 @@ export function ProjectsHeader({
       {/* LEFT SIDE: Context Definition (Breadcrumbs + View Switcher) */}
       <div style={headerLeftStyle}>
         {/* Breadcrumbs */}
-        <span style={pathStyle}>{pathSegments.join(' / ')}</span>
-
-        {/* View Switcher - Segmented Control Style */}
-        <div style={viewSwitcherContainerStyle}>
-          {editorOptions.map(option => {
-            const isSelected = option.id === editorType;
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {pathSegments.map((segment, index) => {
+            const isLast = index === pathSegments.length - 1;
             return (
-              <button
-                key={option.id}
-                onClick={() => onEditorTypeChange?.(option.id)}
-                style={{
-                  ...viewSwitcherBtnStyle,
-                  background: isSelected
-                    ? 'rgba(255,255,255,0.1)'
-                    : 'transparent',
-                  color: isSelected ? '#e2e8f0' : '#6b7280',
-                }}
+              <div
+                key={index}
+                style={{ display: 'flex', alignItems: 'center' }}
               >
-                <span style={{ fontSize: 11 }}>{option.icon}</span>
-                <span style={{ fontSize: 10 }}>{option.label}</span>
-              </button>
+                {index > 0 && (
+                  <span style={{ margin: '0 8px', color: '#444' }}>/</span>
+                )}
+                {segment.href && !isLast ? (
+                  <Link
+                    href={segment.href}
+                    style={{
+                      ...pathStyle,
+                      color: '#888',
+                      cursor: 'pointer',
+                      transition: 'color 0.15s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.color = '#fff';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.color = '#888';
+                    }}
+                  >
+                    {segment.icon && (
+                      <span
+                        style={{
+                          display: 'flex',
+                          color: 'inherit',
+                          opacity: 0.8,
+                        }}
+                      >
+                        {segment.icon}
+                      </span>
+                    )}
+                    {segment.label}
+                  </Link>
+                ) : (
+                  <span
+                    style={{
+                      ...pathStyle,
+                      color: isLast ? '#CDCDCD' : '#888',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    {segment.icon && (
+                      <span
+                        style={{
+                          display: 'flex',
+                          color: 'inherit',
+                          opacity: 0.8,
+                        }}
+                      >
+                        {segment.icon}
+                      </span>
+                    )}
+                    {segment.label}
+                  </span>
+                )}
+              </div>
             );
           })}
         </div>
+
+        {/* View Switcher - Segmented Control Style */}
+        {showEditorSwitcher ? (
+          <div style={viewSwitcherContainerStyle}>
+            {editorOptions.map(option => {
+              const isSelected = option.id === editorType;
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => onEditorTypeChange?.(option.id)}
+                  style={{
+                    ...viewSwitcherBtnStyle,
+                    background: isSelected
+                      ? 'rgba(255,255,255,0.1)'
+                      : 'transparent',
+                    color: isSelected ? '#e2e8f0' : '#6b7280',
+                  }}
+                >
+                  <span style={{ fontSize: 11 }}>{option.icon}</span>
+                  <span style={{ fontSize: 10 }}>{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : viewType && onViewTypeChange ? (
+          <div style={viewSwitcherContainerStyle}>
+            {viewOptions.map(option => {
+              const isSelected = option.id === viewType;
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => onViewTypeChange(option.id)}
+                  style={{
+                    ...viewSwitcherBtnStyle,
+                    background: isSelected
+                      ? 'rgba(255,255,255,0.1)'
+                      : 'transparent',
+                    color: isSelected ? '#e2e8f0' : '#6b7280',
+                  }}
+                >
+                  <span style={{ fontSize: 11 }}>{option.icon}</span>
+                  <span style={{ fontSize: 10 }}>{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       {/* RIGHT SIDE: Context Actions (Sync + Publish) + Chat Toggle */}

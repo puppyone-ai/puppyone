@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useRef,
   useEffect,
+  useLayoutEffect,
   CSSProperties,
 } from 'react';
 
@@ -172,7 +173,7 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
   const [position, setPosition] = useState({ x: state.x, y: state.y });
 
   // 滚动监听 - 实时更新菜单位置
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!state.visible) return;
 
     // 如果有 anchor element，监听滚动并更新位置

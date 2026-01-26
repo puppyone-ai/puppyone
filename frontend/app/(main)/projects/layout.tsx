@@ -218,13 +218,14 @@ export default function ProjectsLayout({
           overflow: 'hidden',
         }}
       >
-        {/* --- Projects Sidebar --- */}
+        {/* --- Projects Sidebar (Hidden for Finder View) --- */}
         <aside
           ref={sidebarRef}
           style={{
+            display: 'none', // Finder 模式：隐藏侧边栏
             width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
             borderRight: '1px solid #2a2a2a',
-            display: 'flex',
+            // display: 'flex',
             flexDirection: 'column',
             background: '#141414',
             fontFamily:

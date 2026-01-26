@@ -44,7 +44,7 @@ class ToolService:
         """
         bindings = self._sb.get_mcp_bindings_by_tool_id(tool_id)
         for b in bindings:
-            mcp_id = int(b.mcp_id or 0)
+            mcp_id = b.mcp_id
             if not mcp_id:
                 continue
             mcp = self._sb.get_mcp_v2(mcp_id)
@@ -61,7 +61,7 @@ class ToolService:
         """
         bindings = self._sb.get_mcp_bindings_by_tool_id(tool_id)
         for b in bindings:
-            mcp_id = int(b.mcp_id or 0)
+            mcp_id = b.mcp_id
             if not mcp_id:
                 continue
             # 拉取该 mcp_id 下所有绑定的 tool，检查 name 冲突
@@ -132,7 +132,7 @@ class ToolService:
         # 约束：同一 scope（user_id + table_id + json_path）下，Bash 只能配置一个（rw/ro 二选一）
         self._assert_bash_unique_in_scope(
             user_id=user_id,
-            table_id=int(table_id),
+            table_id=table_id,
             json_path=json_path,
             tool_type=str(type or ""),
             exclude_tool_id=None,
@@ -168,10 +168,10 @@ class ToolService:
 
         table_id = patch.get("table_id")
         if table_id is not None:
-            self.table_service.get_by_id_with_access_check(int(table_id), user_id)
+            self.table_service.get_by_id_with_access_check(table_id, user_id)
 
         # 约束：如果更新后 tool 变为 Bash（或仍为 Bash），确保同 scope 仍然只有一个 bash
-        next_table_id = int(table_id) if table_id is not None else int(existing.table_id or 0)
+        next_table_id = table_id if table_id is not None else (existing.table_id or "")
         next_json_path = patch.get("json_path")
         if next_json_path is None:
             next_json_path = existing.json_path or ""
@@ -228,14 +228,14 @@ class ToolService:
         """
         项目级聚合：返回该 project 下所有 table 的 tools（包含 shell_access*）。
         """
-        if not self.table_service.verify_project_access(int(project_id), user_id):
+        if not self.table_service.verify_project_access(project_id, user_id):
             raise NotFoundException(
                 f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
             )
-        tables = self._sb.get_tables(project_id=int(project_id), limit=1000)
+        tables = self._sb.get_tables(project_id=project_id, limit=1000)
         out: list[Tool] = []
         for t in tables:
-            table_id = int(getattr(t, "id", 0) or 0)
+            table_id = getattr(t, "id", None)
             if not table_id:
                 continue
             out.extend(

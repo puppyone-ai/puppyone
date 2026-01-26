@@ -39,3 +39,4 @@ ALTER TABLE public.search_index_task
     ADD CONSTRAINT search_index_task_tool_id_fkey
     FOREIGN KEY (tool_id) REFERENCES public.tool (id) ON DELETE CASCADE;
 
+
