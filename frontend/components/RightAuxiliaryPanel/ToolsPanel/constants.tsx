@@ -5,7 +5,7 @@ import { type McpToolType } from '../../../lib/mcpApi';
 export const ACCENT_COLOR = '#f97316'; // Orange-500
 
 // Define Tool Groups
-export const READ_TOOLS = ['query_data', 'get_all_data'] as McpToolType[];
+export const READ_TOOLS = ['query_data', 'search', 'get_all_data'] as McpToolType[];
 export const WRITE_TOOLS = ['create', 'update', 'delete'] as McpToolType[];
 export const ALL_TOOLS = [
   'shell_access',
@@ -18,6 +18,7 @@ export const TOOL_CONFIG: Record<string, { label: string; short: string }> = {
   shell_access: { label: 'Bash / Shell Access', short: 'Bash' },
   get_data_schema: { label: 'Get Schema', short: 'Schema' },
   query_data: { label: 'Query Data', short: 'Query' },
+  search: { label: 'Semantic Search', short: 'Search' },
   get_all_data: { label: 'Get All Data', short: 'Get All' },
   create: { label: 'Create Row', short: 'Create' },
   update: { label: 'Update Row', short: 'Update' },
