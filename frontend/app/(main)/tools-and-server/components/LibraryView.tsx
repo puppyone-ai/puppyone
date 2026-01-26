@@ -180,6 +180,7 @@ export function LibraryView({
           'delete',
           'get_all_data',
           'query_data',
+          'search',
         ],
       });
 

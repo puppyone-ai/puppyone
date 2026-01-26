@@ -17,6 +17,12 @@ importers:
       '@codemirror/lang-json':
         specifier: ^6.0.2
         version: 6.0.2
+      '@json-render/core':
+        specifier: ^0.2.0
+        version: 0.2.0(zod@4.3.5)
+      '@json-render/react':
+        specifier: ^0.2.0
+        version: 0.2.0(react@18.3.1)(zod@4.3.5)
       '@monaco-editor/react':
         specifier: ^4.7.0
         version: 4.7.0(monaco-editor@0.55.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -515,6 +521,16 @@ packages:
     engines: {node: '>= 10.16.0'}
     peerDependencies:
       jsep: ^0.4.0||^1.0.0
+
+  '@json-render/core@0.2.0':
+    resolution: {integrity: sha512-LBKv4M5skz7JRpTn53g6qF/zj5u/xUhuCp6WtJn/ZTIxGEAogH8sn3Ql/Nk/O0sgbQHtriRmoJuI23/5fGCXPw==}
+    peerDependencies:
+      zod: ^4.0.0
+
+  '@json-render/react@0.2.0':
+    resolution: {integrity: sha512-4tdoMfc3t0Je+DMNsyJguz7aJkqfLhEY8/mvBchL9kweRfJHAZocT7doyqRCGAnCBtIXCKQ8YAbm0sb0Qr9OFw==}
+    peerDependencies:
+      react: ^19.0.0
 
   '@jsonquerylang/jsonquery@5.1.1':
     resolution: {integrity: sha512-Fj4SoA6Ku09EF+t7OEI8QLipA2A+fJCdEOwnDWG84o5jXMRjkcN5NCMH7kFZb5fP62xz914XV5LBOiDdiUXObg==}
@@ -3092,6 +3108,17 @@ snapshots:
   '@jsep-plugin/regex@1.0.4(jsep@1.4.0)':
     dependencies:
       jsep: 1.4.0
+
+  '@json-render/core@0.2.0(zod@4.3.5)':
+    dependencies:
+      zod: 4.3.5
+
+  '@json-render/react@0.2.0(react@18.3.1)(zod@4.3.5)':
+    dependencies:
+      '@json-render/core': 0.2.0(zod@4.3.5)
+      react: 18.3.1
+    transitivePeerDependencies:
+      - zod
 
   '@jsonquerylang/jsonquery@5.1.1': {}
 

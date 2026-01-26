@@ -84,6 +84,7 @@ export function ChatSidebar({
   // shell_access → bash, 其他 → tool
   const toolTypeLabels: Record<string, string> = {
     query_data: 'Query',
+    search: 'Search',
     get_all_data: 'Get All',
     create: 'Create',
     update: 'Update',
@@ -99,6 +100,7 @@ export function ChatSidebar({
     'shell_access',
     'shell_access_readonly', // 新增
     'query_data',
+    'search',
     'get_all_data',
     'create',
     'update',

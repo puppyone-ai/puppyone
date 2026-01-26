@@ -133,6 +133,7 @@ export default function ProjectsSlugPage({
     'shell_access',
     'shell_access_readonly',
     'query_data',
+    'search',
     'get_all_data',
     'create',
     'update',

@@ -18,6 +18,11 @@ export const TOOL_TYPE_CONFIG: Record<
     color: '#60a5fa',
     bg: 'rgba(59, 130, 246, 0.15)',
   },
+  search: {
+    label: 'Search',
+    color: '#22d3ee',
+    bg: 'rgba(34, 211, 238, 0.15)',
+  },
   get_all_data: {
     label: 'Get All',
     color: '#60a5fa',

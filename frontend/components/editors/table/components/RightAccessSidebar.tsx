@@ -8,6 +8,7 @@ export type { McpToolPermissions };
 
 const MCP_TOOLS = [
   { id: 'query_data', label: 'Query' },
+  { id: 'search', label: 'Search' },
   { id: 'get_all_data', label: 'Get All' },
   { id: 'create', label: 'Create' },
   { id: 'update', label: 'Update' },

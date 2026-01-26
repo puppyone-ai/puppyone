@@ -19,6 +19,7 @@ export type McpToolType =
   | 'get_data_schema'
   | 'get_all_data'
   | 'query_data'
+  | 'search'
   | 'create'
   | 'update'
   | 'delete'
@@ -32,6 +33,7 @@ export interface McpToolPermissions {
   get_data_schema?: boolean;
   get_all_data?: boolean;
   query_data?: boolean;
+  search?: boolean;
   preview?: boolean;
   select?: boolean;
   create?: boolean;
@@ -539,6 +541,7 @@ export function permissionsToRegisterTools(
   if (permissions.get_data_schema) tools.push('get_data_schema');
   if (permissions.get_all_data) tools.push('get_all_data');
   if (permissions.query_data) tools.push('query_data');
+  if (permissions.search) tools.push('search');
   if (permissions.preview) tools.push('preview');
   if (permissions.select) tools.push('select');
   if (permissions.create) tools.push('create');
@@ -560,6 +563,7 @@ export function registerToolsToPermissions(
     get_data_schema: tools.includes('get_data_schema'),
     get_all_data: tools.includes('get_all_data'),
     query_data: tools.includes('query_data'),
+    search: tools.includes('search'),
     preview: tools.includes('preview'),
     select: tools.includes('select'),
     create: tools.includes('create'),
@@ -580,6 +584,7 @@ export const TOOL_INFO: Record<
   get_data_schema: { label: 'Get Schema', description: '获取数据结构' },
   get_all_data: { label: 'Get All', description: '获取所有数据' },
   query_data: { label: 'Query', description: '查询数据（支持 JMESPath）' },
+  search: { label: 'Search', description: '语义检索（Semantic Search）' },
   preview: { label: 'Preview', description: '预览数据（轻量级）' },
   select: { label: 'Select', description: '批量选择数据' },
   create: { label: 'Create', description: '创建新元素' },
