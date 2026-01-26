@@ -36,3 +36,4 @@ class ChatMessageCreate(BaseModel):
     parts: Optional[list[dict[str, Any]]] = Field(default=None)
 
 
+

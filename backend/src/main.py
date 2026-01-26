@@ -115,6 +115,11 @@ from src.internal.router import router as internal_router
 
 internal_router_duration = time.time() - internal_router_start
 
+content_node_router_start = time.time()
+from src.content_node.router import router as content_node_router
+
+content_node_router_duration = time.time() - content_node_router_start
+
 routers_duration = (
     table_router_duration
     + tool_router_duration
@@ -126,6 +131,7 @@ routers_duration = (
     + connect_router_duration
     + oauth_router_duration
     + internal_router_duration
+    + content_node_router_duration
 )
 
 
@@ -162,7 +168,8 @@ async def app_lifespan(app: FastAPI):
     log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ connect_router: {connect_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
-    log_info(f"  │  └─ internal_router: {internal_router_duration * 1000:.2f}ms")
+    log_info(f"  │  ├─ internal_router: {internal_router_duration * 1000:.2f}ms")
+    log_info(f"  │  └─ content_node_router: {content_node_router_duration * 1000:.2f}ms")
     log_info(f"  └─ 路由总耗时: {routers_duration * 1000:.2f}ms")
     log_info(f"📊 总导入时间: {(time.time() - APP_START_TIME) * 1000:.2f}ms")
     log_info("")
@@ -291,6 +298,7 @@ def create_app() -> FastAPI:
     app.include_router(
         internal_router, tags=["internal"]
     )  # Internal API不加/api/v1前缀
+    app.include_router(content_node_router, prefix="/api/v1", tags=["content-nodes"])
     router_register_duration = time.time() - router_register_start
 
     # 注册异常处理器

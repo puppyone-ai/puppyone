@@ -41,7 +41,12 @@ const DEFAULT_SIDEBAR_WIDTH = 240;
 
 export function ProjectsSidebar({
   projects,
+  activeBaseId,
+  expandedBaseIds,
+  activeTableId,
   activeView = 'projects',
+  onBaseClick,
+  onTableClick,
   onUtilityNavClick,
   userInitial,
   userAvatarUrl,
@@ -314,6 +319,11 @@ export function ProjectsSidebar({
                 Settings
               </span>
             </button>
+
+            {/* Divider */}
+            <div className='my-2 h-[1px] bg-[#2c2c2c] mx-2' />
+
+            {/* Project List (Removed per user request) */}
           </div>
         </div>
       ) : (
