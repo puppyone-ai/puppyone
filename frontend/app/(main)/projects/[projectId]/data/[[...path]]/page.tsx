@@ -53,6 +53,9 @@ import { MarkdownEditor } from '@/components/editors/markdown';
 import { GridView, ListView, MillerColumnsView, type MillerColumnItem } from '../../../[[...slug]]/components/views';
 import { CreateMenu, type ContentType } from '../../../[[...slug]]/components/finder';
 
+// Node Access Panel (for Folder/File level sandbox configuration)
+import { NodeAccessPanel } from '@/components/NodeAccessPanel';
+
 export interface AccessPoint {
   id: string;
   path: string;
@@ -156,6 +159,14 @@ export default function DataPage({ params }: DataPageProps) {
   const [createMenuPosition, setCreateMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [createInFolderId, setCreateInFolderId] = useState<string | null | undefined>(undefined); // undefined = use currentFolderId
   const createMenuRef = useRef<HTMLDivElement>(null);
+
+  // Access panel state (小爪子弹出面板)
+  const [accessPanelTarget, setAccessPanelTarget] = useState<{
+    nodeId: string;
+    nodeType: 'folder' | 'json' | 'file' | 'markdown' | 'pdf' | 'image';
+    nodeName: string;
+    position: { x: number; y: number };
+  } | null>(null);
 
   // Current project
   const activeProject = useMemo(
@@ -490,32 +501,36 @@ export default function DataPage({ params }: DataPageProps) {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
               {/* Markdown Editor */}
               {activeNodeType === 'markdown' ? (
-                isLoadingMarkdown ? (
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    height: '100%',
-                    color: '#666',
-                  }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ margin: '0 auto 8px', animation: 'spin 1s linear infinite' }}>
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.3" />
-                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                      <div>Loading markdown...</div>
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  {isLoadingMarkdown ? (
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      flex: 1,
+                      color: '#666',
+                    }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ margin: '0 auto 8px', animation: 'spin 1s linear infinite' }}>
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+                        <div>Loading markdown...</div>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <MarkdownEditor
-                    content={markdownContent}
-                    onChange={(newContent) => {
-                      setMarkdownContent(newContent);
-                      // TODO: Save markdown content to S3
-                    }}
-                  />
-                )
+                  ) : (
+                    <div style={{ flex: 1, minHeight: 0 }}>
+                      <MarkdownEditor
+                        content={markdownContent}
+                        onChange={(newContent) => {
+                          setMarkdownContent(newContent);
+                          // TODO: Save markdown content to S3
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
               ) : (
                 /* JSON Editor */
                 <ProjectWorkspaceView
@@ -673,9 +688,35 @@ export default function DataPage({ params }: DataPageProps) {
                   }
 
                   return viewType === 'list' ? (
-                    <ListView items={items} />
+                    <ListView
+                      items={items}
+                      existingTools={projectTools || []}
+                      onAccessClick={(item, e) => {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setAccessPanelTarget({
+                          nodeId: item.id,
+                          nodeType: item.type as any,
+                          nodeName: item.name,
+                          position: { x: rect.right + 8, y: rect.top },
+                        });
+                      }}
+                    />
                   ) : (
-                    <GridView items={items} onCreateClick={handleCreateClick} createLabel='New...' />
+                    <GridView
+                      items={items}
+                      onCreateClick={handleCreateClick}
+                      createLabel='New...'
+                      existingTools={projectTools || []}
+                      onAccessClick={(item, e) => {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setAccessPanelTarget({
+                          nodeId: item.id,
+                          nodeType: item.type as any,
+                          nodeName: item.name,
+                          position: { x: rect.right + 8, y: rect.top },
+                        });
+                      }}
+                    />
                   );
                 })()
               )}
@@ -961,6 +1002,39 @@ export default function DataPage({ params }: DataPageProps) {
           parentPath={activeProject?.name || ''}
           onClose={() => setCreateFolderOpen(false)}
           onSuccess={() => loadContentNodes(currentFolderId)}
+        />
+      )}
+
+      {/* Access Panel (小爪子配置面板) */}
+      {accessPanelTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            top: accessPanelTarget.position.y,
+            left: accessPanelTarget.position.x,
+            zIndex: 1000,
+          }}
+        >
+          <NodeAccessPanel
+            nodeId={accessPanelTarget.nodeId}
+            nodeType={accessPanelTarget.nodeType}
+            nodeName={accessPanelTarget.nodeName}
+            existingTools={projectTools || []}
+            onToolsChange={() => refreshProjectTools(projectId)}
+            onClose={() => setAccessPanelTarget(null)}
+          />
+        </div>
+      )}
+
+      {/* Click outside to close access panel */}
+      {accessPanelTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 999,
+          }}
+          onClick={() => setAccessPanelTarget(null)}
         />
       )}
     </div>

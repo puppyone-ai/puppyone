@@ -50,6 +50,74 @@ class SandboxService:
         )
         return {"success": True}
 
+    async def start_with_files(self, session_id: str, files: list, readonly: bool, s3_service=None):
+        """
+        Create a sandbox session and preload multiple files.
+        
+        Args:
+            session_id: Unique session identifier
+            files: List of SandboxFile objects with path, content, and/or s3_key
+            readonly: Whether the sandbox is read-only
+            s3_service: Optional S3Service for downloading files from S3
+        """
+        await self.stop(session_id)
+        
+        # Create a fresh sandbox instance
+        try:
+            sandbox = await _call_maybe_async(self._sandbox_factory)
+        except Exception as e:
+            msg = str(e)
+            if "Could not resolve authentication method" in msg:
+                hint = (
+                    "E2B sandbox auth is not configured.\n"
+                    "- Set `E2B_API_KEY` in `backend/.env` (or export it) and restart the backend, OR\n"
+                    "- Disable bash access in the chat access points.\n"
+                    f"- Detected E2B_API_KEY={'set' if os.getenv('E2B_API_KEY') else 'missing'}"
+                )
+                msg = f"{hint}\nOriginal error: {msg}"
+            return {"success": False, "error": msg}
+        
+        # Create necessary directories and write files
+        created_dirs = set()
+        for f in files:
+            path = f.path if isinstance(f, dict) else getattr(f, 'path', None)
+            content = f.get('content') if isinstance(f, dict) else getattr(f, 'content', None)
+            s3_key = f.get('s3_key') if isinstance(f, dict) else getattr(f, 's3_key', None)
+            
+            if not path:
+                continue
+            
+            # Create parent directories
+            dir_path = os.path.dirname(path)
+            if dir_path and dir_path not in created_dirs:
+                try:
+                    await _call_maybe_async(sandbox.commands.run, f"mkdir -p {dir_path}")
+                    created_dirs.add(dir_path)
+                except Exception:
+                    pass
+            
+            # Write file content
+            if content is not None:
+                # Text/JSON content - write directly
+                await _call_maybe_async(sandbox.files.write, path, content)
+            elif s3_key and s3_service:
+                # S3 file - download and write
+                try:
+                    file_bytes = await s3_service.download_file(s3_key)
+                    if isinstance(file_bytes, bytes):
+                        # Binary file - write as bytes
+                        await _call_maybe_async(sandbox.files.write, path, file_bytes)
+                    else:
+                        await _call_maybe_async(sandbox.files.write, path, str(file_bytes))
+                except Exception as e:
+                    # Log but continue - don't fail the entire sandbox
+                    print(f"[SandboxService] Failed to download S3 file {s3_key}: {e}")
+        
+        self._sessions[session_id] = SandboxSession(
+            sandbox=sandbox, readonly=bool(readonly)
+        )
+        return {"success": True}
+
     async def exec(self, session_id: str, command: str):
         """Run a command inside the sandbox and return its output."""
         session = self._sessions.get(session_id)

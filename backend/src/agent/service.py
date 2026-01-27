@@ -5,9 +5,15 @@ Agent Service - 简化版
 1. 根据 tool_id 查库获取 tool 配置
 2. 如果是 bash tool，自动查表数据、启动沙盒
 3. 构建 Claude 请求
+
+支持的节点类型：
+- folder: 递归获取子文件，在沙盒中重建目录结构
+- json: 导出 content 为 data.json（可选 json_path 提取子数据）
+- file/pdf/image/etc: 下载单个文件
 """
 import json
 import time
+from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Iterable, Optional
 
 from loguru import logger
@@ -18,6 +24,24 @@ from src.agent.chat.service import ChatService
 
 # Anthropic 官方 bash 工具
 BASH_TOOL = {"type": "bash_20250124", "name": "bash"}
+
+
+@dataclass
+class SandboxFile:
+    """沙盒中的文件"""
+    path: str               # 沙盒中的路径，如 /workspace/data.json
+    content: str | None = None      # 文本内容（JSON/文本文件）
+    s3_key: str | None = None       # S3 key（二进制文件需要下载）
+    content_type: str = "application/octet-stream"
+
+
+@dataclass
+class SandboxData:
+    """沙盒数据"""
+    files: list[SandboxFile] = field(default_factory=list)
+    node_type: str = "json"
+    root_node_id: str = ""
+    root_node_name: str = ""
 
 
 class AgentService:
@@ -34,6 +58,7 @@ class AgentService:
         tool_service,
         sandbox_service,
         chat_service: Optional[ChatService] = None,
+        s3_service=None,  # S3Service，用于下载文件
         max_iterations: int = 15,
     ) -> AsyncGenerator[dict, None]:
         """
@@ -125,37 +150,50 @@ class AgentService:
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to save user message: {e}")
 
-        # ========== 3. 如果有 bash tool，查节点数据、启动沙盒 ==========
+        # ========== 3. 如果有 bash tool，准备沙盒数据、启动沙盒 ==========
         use_bash = bash_tool is not None
-        node_data = None
+        sandbox_data: SandboxData | None = None
         sandbox_session_id = None
         
         if use_bash and node_service and current_user:
             try:
-                node = node_service.get_by_id(
-                    bash_tool["node_id"], current_user.user_id
+                # 使用统一的函数准备沙盒数据
+                sandbox_data = await prepare_sandbox_data(
+                    node_service=node_service,
+                    node_id=bash_tool["node_id"],
+                    json_path=bash_tool["json_path"],
+                    user_id=current_user.user_id,
                 )
-                logger.info(f"[Agent] Found node: id={node.id}, name={node.name}, type={node.type}")
-                logger.info(f"[Agent] node.content type={type(node.content).__name__}, value={str(node.content)[:500] if node.content else 'None'}")
-                
-                # 从 content_nodes 获取 JSON 数据
-                if node.content:
-                    node_data = extract_data_by_path(node.content, bash_tool["json_path"])
-                    logger.info(f"[Agent] Extracted node_data for path '{bash_tool['json_path']}': {str(node_data)[:100] if node_data else 'None'}...")
-                else:
-                    logger.warning(f"[Agent] node.content is None or empty!")
+                logger.info(f"[Agent] Prepared sandbox data: type={sandbox_data.node_type}, files={len(sandbox_data.files)}")
             except Exception as e:
-                logger.warning(f"[Agent] Failed to get node data: {e}")
+                logger.warning(f"[Agent] Failed to prepare sandbox data: {e}")
+                sandbox_data = SandboxData()
 
         if use_bash and sandbox_service:
             sandbox_session_id = f"agent-{int(time.time() * 1000)}"
-            sandbox_data = node_data if node_data is not None else {}
             
-            start_result = await sandbox_service.start(
-                session_id=sandbox_session_id,
-                data=sandbox_data,
-                readonly=bash_tool["readonly"],
-            )
+            # 根据节点类型选择启动方式
+            if sandbox_data and sandbox_data.node_type == "json":
+                # JSON 节点：使用现有的 data 参数
+                json_content = {}
+                if sandbox_data.files:
+                    try:
+                        json_content = json.loads(sandbox_data.files[0].content or "{}")
+                    except:
+                        json_content = {}
+                start_result = await sandbox_service.start(
+                    session_id=sandbox_session_id,
+                    data=json_content,
+                    readonly=bash_tool["readonly"],
+                )
+            else:
+                # Folder/File 节点：使用 files 参数
+                start_result = await sandbox_service.start_with_files(
+                    session_id=sandbox_session_id,
+                    files=sandbox_data.files if sandbox_data else [],
+                    readonly=bash_tool["readonly"],
+                    s3_service=s3_service,
+                )
             
             if not start_result.get("success"):
                 err_msg = start_result.get("error", "Failed to start sandbox")
@@ -176,24 +214,55 @@ class AgentService:
         # ========== 4. 构建 Claude 请求 ==========
         tools = [BASH_TOOL] if use_bash else []
         
-        system_prompt = (
-            "You are an AI agent specialized in JSON data processing. Use the bash tool to view and manipulate data."
-            if use_bash
-            else "You are an AI agent, a helpful assistant."
-        )
+        # 根据节点类型构建系统提示
+        if use_bash and sandbox_data:
+            node_type = sandbox_data.node_type
+            if node_type == "json":
+                system_prompt = "You are an AI agent specialized in JSON data processing. Use the bash tool to view and manipulate data in /workspace/data.json."
+            elif node_type == "folder":
+                system_prompt = "You are an AI agent with access to a file system. Use the bash tool to explore and manipulate files in /workspace/."
+            else:
+                system_prompt = f"You are an AI agent with access to a {node_type} file. Use the bash tool to analyze the file in /workspace/."
+        else:
+            system_prompt = "You are an AI agent, a helpful assistant."
 
         # 构建用户消息：如果使用 bash，添加数据上下文
         user_content = request.prompt
-        if use_bash:
-            json_path = bash_tool["json_path"] or "/"
+        if use_bash and sandbox_data:
             readonly = bash_tool["readonly"]
-            context_prefix = (
-                f"[数据上下文]\n"
-                f"当前 JSON 数据文件: /workspace/data.json\n"
-                f"节点路径: {json_path}\n"
-                f"权限: {'⚠️ 只读模式' if readonly else '可读写模式'}\n"
-                f"[用户消息]\n"
-            )
+            node_type = sandbox_data.node_type
+            
+            if node_type == "json":
+                json_path = bash_tool["json_path"] or "/"
+                context_prefix = (
+                    f"[数据上下文]\n"
+                    f"节点类型: JSON\n"
+                    f"数据文件: /workspace/data.json\n"
+                    f"JSON 路径: {json_path}\n"
+                    f"权限: {'⚠️ 只读模式' if readonly else '可读写模式'}\n"
+                    f"[用户消息]\n"
+                )
+            elif node_type == "folder":
+                context_prefix = (
+                    f"[数据上下文]\n"
+                    f"节点类型: 文件夹\n"
+                    f"文件夹名: {sandbox_data.root_node_name}\n"
+                    f"工作目录: /workspace/\n"
+                    f"文件数量: {len(sandbox_data.files)}\n"
+                    f"权限: {'⚠️ 只读模式' if readonly else '可读写模式'}\n"
+                    f"[用户消息]\n"
+                )
+            else:
+                # file/pdf/image 等
+                file_name = sandbox_data.files[0].path.split("/")[-1] if sandbox_data.files else "file"
+                context_prefix = (
+                    f"[数据上下文]\n"
+                    f"节点类型: {node_type}\n"
+                    f"文件名: {file_name}\n"
+                    f"文件路径: /workspace/{file_name}\n"
+                    f"权限: {'⚠️ 只读模式' if readonly else '可读写模式'}\n"
+                    f"[用户消息]\n"
+                )
             user_content = context_prefix + request.prompt
         
         messages.append({"role": "user", "content": user_content})
@@ -404,13 +473,11 @@ class AgentService:
             logger.warning(f"[Chat Persist] Skipping assistant message save: should_persist={should_persist}, session_id={persisted_session_id}")
 
         if use_bash and sandbox_service and sandbox_session_id:
-            # 读取沙盒数据并更新数据库
-            read_result = await sandbox_service.read(sandbox_session_id)
-            if read_result.get("success"):
-                if bash_tool["readonly"]:
-                    yield {"type": "result", "success": True}
-                else:
-                    # 合并数据回数据库（使用 node_service）
+            # 只有 JSON 节点且非只读模式才需要回写数据
+            if sandbox_data and sandbox_data.node_type == "json" and not bash_tool["readonly"]:
+                read_result = await sandbox_service.read(sandbox_session_id)
+                if read_result.get("success"):
+                    # 合并数据回数据库
                     if node_service and bash_tool["node_id"]:
                         try:
                             node = node_service.get_by_id(bash_tool["node_id"], current_user.user_id)
@@ -436,8 +503,11 @@ class AgentService:
                             yield {"type": "result", "success": True}
                     else:
                         yield {"type": "result", "success": True}
+                else:
+                    yield {"type": "result", "success": False, "error": read_result.get("error")}
             else:
-                yield {"type": "result", "success": False, "error": read_result.get("error")}
+                # Folder/File 节点或只读模式：不回写数据
+                yield {"type": "result", "success": True}
             
             await sandbox_service.stop(sandbox_session_id)
         else:
@@ -445,6 +515,100 @@ class AgentService:
 
 
 # ========== 工具函数 ==========
+
+async def prepare_sandbox_data(
+    node_service,
+    node_id: str,
+    json_path: str | None,
+    user_id: str,
+) -> SandboxData:
+    """
+    统一的沙盒数据准备函数
+    
+    根据节点类型返回不同的沙盒数据：
+    - json: 导出 content 为 data.json（可选 json_path 提取子数据）
+    - folder: 递归获取子文件列表
+    - file/pdf/image/etc: 单个文件信息
+    """
+    node = node_service.get_by_id(node_id, user_id)
+    if not node:
+        raise ValueError(f"Node not found: {node_id}")
+    
+    logger.info(f"[prepare_sandbox_data] node.id={node.id}, type={node.type}, name={node.name}")
+    
+    files: list[SandboxFile] = []
+    node_type = node.type or "json"
+    
+    if node_type == "json":
+        # JSON 节点：导出 content 为 data.json
+        content = node.content or {}
+        if json_path:
+            content = extract_data_by_path(content, json_path)
+        
+        files.append(SandboxFile(
+            path="/workspace/data.json",
+            content=json.dumps(content, ensure_ascii=False, indent=2),
+            content_type="application/json",
+        ))
+        logger.info(f"[prepare_sandbox_data] JSON node, content size={len(str(content))}")
+        
+    elif node_type == "folder":
+        # Folder 节点：递归获取所有子文件
+        # 使用 list_descendants 获取所有子孙节点
+        children = node_service.list_descendants(node.project_id, node_id)
+        logger.info(f"[prepare_sandbox_data] Folder node, children count={len(children)}")
+        
+        for child in children:
+            if child.type == "folder":
+                continue  # 跳过子文件夹本身，只处理文件
+            
+            # 计算相对路径
+            relative_path = child.id_path.replace(node.id_path, "").lstrip("/")
+            if not relative_path:
+                relative_path = child.name
+            
+            if child.type == "json":
+                # JSON 子节点：导出为 .json 文件
+                files.append(SandboxFile(
+                    path=f"/workspace/{relative_path}.json",
+                    content=json.dumps(child.content or {}, ensure_ascii=False, indent=2),
+                    content_type="application/json",
+                ))
+            elif child.s3_key:
+                # 其他文件类型：记录 S3 key，由沙盒服务下载
+                files.append(SandboxFile(
+                    path=f"/workspace/{relative_path}",
+                    s3_key=child.s3_key,
+                    content_type=child.mime_type or "application/octet-stream",
+                ))
+    else:
+        # 其他文件类型（pdf, image, file 等）
+        file_name = node.name or "file"
+        
+        if node_type == "json" or node.content:
+            # 如果有 content，导出为 JSON
+            files.append(SandboxFile(
+                path=f"/workspace/{file_name}",
+                content=json.dumps(node.content, ensure_ascii=False, indent=2) if isinstance(node.content, (dict, list)) else str(node.content or ""),
+                content_type="application/json" if isinstance(node.content, (dict, list)) else "text/plain",
+            ))
+        elif node.s3_key:
+            # S3 文件
+            files.append(SandboxFile(
+                path=f"/workspace/{file_name}",
+                s3_key=node.s3_key,
+                content_type=node.mime_type or "application/octet-stream",
+            ))
+        else:
+            logger.warning(f"[prepare_sandbox_data] Node has no content or s3_key: {node_id}")
+    
+    return SandboxData(
+        files=files,
+        node_type=node_type,
+        root_node_id=node.id,
+        root_node_name=node.name or "",
+    )
+
 
 def extract_data_by_path(data, json_path: str):
     """从 JSON 数据中提取指定路径的节点"""
