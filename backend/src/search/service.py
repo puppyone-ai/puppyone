@@ -2,19 +2,22 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import hashlib
 import time
 from dataclasses import dataclass
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from src.chunking.config import ChunkingConfig
 from src.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
 from src.chunking.schemas import Chunk
 from src.chunking.service import ChunkingService, iter_large_string_nodes_for_chunking
+from src.content_node.models import ContentNode
 from src.content_node.service import ContentNodeService
 from src.llm.embedding_service import EmbeddingService
+from src.s3.service import S3Service
 from src.turbopuffer.schemas import TurbopufferRow
 from src.turbopuffer.service import TurbopufferSearchService
-from src.utils.logger import log_info
+from src.utils.logger import log_info, log_error
 
 
 def _normalize_json_pointer(pointer: str) -> str:
@@ -110,6 +113,16 @@ class SearchIndexStats:
     indexed_chunks_count: int
 
 
+@dataclass(frozen=True)
+class FolderIndexStats:
+    """Folder search indexing statistics"""
+    total_files: int
+    indexed_files: int
+    nodes_count: int  # Total large string nodes across all files
+    chunks_count: int  # Total chunks created
+    indexed_chunks_count: int  # Total chunks indexed to turbopuffer
+
+
 class SearchService:
     """
     Search Tool 核心能力：
@@ -139,16 +152,31 @@ class SearchService:
         return f"project_{project_id}_node_{node_id}"
 
     @staticmethod
+    def build_folder_namespace(*, project_id: str, folder_node_id: str) -> str:
+        """Build namespace for folder search"""
+        return f"project_{project_id}_folder_{folder_node_id}"
+
+    @staticmethod
     def build_doc_id(
         *, node_id: str, json_pointer: str, content_hash: str, chunk_index: int
     ) -> str:
         # Turbopuffer 要求 ID 最多 64 字节，所以用 hash 来压缩 json_pointer
-        import hashlib
-
         pointer_hash = hashlib.md5(json_pointer.encode("utf-8")).hexdigest()[:12]
         # 格式: {node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}
         # UUID 太长，截取前12位
         return f"{node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
+
+    @staticmethod
+    def build_folder_doc_id(
+        *, file_node_id: str, json_pointer: str, content_hash: str, chunk_index: int
+    ) -> str:
+        """
+        Build doc_id for folder search.
+        Similar to build_doc_id but uses file_node_id to distinguish files.
+        """
+        pointer_hash = hashlib.md5(json_pointer.encode("utf-8")).hexdigest()[:12]
+        # 格式: {file_node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}
+        return f"{file_node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
 
     async def ensure_namespace_schema(self, *, namespace: str) -> None:
         # 兼容保留：当前实现不再依赖 turbopuffer 的 BM25，因此无需 schema。
@@ -407,6 +435,419 @@ class SearchService:
                 {
                     "score": float(score),
                     "json_path": json_path,
+                    "chunk": {
+                        "id": chunk_id_int,
+                        "json_pointer": json_pointer,
+                        "chunk_index": int(attrs.get("chunk_index") or 0),
+                        "total_chunks": int(attrs.get("total_chunks") or 0),
+                        "chunk_text": (
+                            chunk_text_by_id.get(chunk_id_int, "")
+                            if chunk_id_int is not None
+                            else ""
+                        ),
+                    },
+                }
+            )
+
+        return out
+
+    # ==================== Folder Search Methods ====================
+
+    async def index_folder(
+        self,
+        *,
+        project_id: str,
+        folder_node_id: str,
+        user_id: str,
+        s3_service: S3Service,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> FolderIndexStats:
+        """
+        Index all indexable files in a folder for vector search.
+        
+        Args:
+            project_id: Project ID
+            folder_node_id: The folder node ID to index
+            user_id: User ID for permission checks
+            s3_service: S3 service for reading file content
+            progress_callback: Optional callback(indexed_files, total_files) for progress updates
+        
+        Returns:
+            FolderIndexStats with indexing statistics
+        """
+        t0 = time.perf_counter()
+        log_info(
+            f"[index_folder] start: project_id={project_id} folder_node_id={folder_node_id}"
+        )
+
+        # 1) Get all indexable descendants
+        t1 = time.perf_counter()
+        indexable_files = await asyncio.to_thread(
+            self._node_service.list_indexable_descendants,
+            project_id,
+            folder_node_id,
+        )
+        total_files = len(indexable_files)
+        log_info(
+            f"[index_folder] step1_get_indexable_files: folder_node_id={folder_node_id} "
+            f"total_files={total_files} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
+        )
+
+        if not indexable_files:
+            log_info(
+                f"[index_folder] done_no_files: folder_node_id={folder_node_id} "
+                f"total_ms={int((time.perf_counter() - t0) * 1000)}"
+            )
+            return FolderIndexStats(
+                total_files=0,
+                indexed_files=0,
+                nodes_count=0,
+                chunks_count=0,
+                indexed_chunks_count=0,
+            )
+
+        # 2) Process each file
+        namespace = self.build_folder_namespace(
+            project_id=project_id, folder_node_id=folder_node_id
+        )
+        
+        total_nodes = 0
+        total_chunks = 0
+        total_indexed = 0
+        indexed_files = 0
+
+        for i, file_node in enumerate(indexable_files):
+            try:
+                t_file = time.perf_counter()
+                stats = await self._index_file_node(
+                    file_node=file_node,
+                    namespace=namespace,
+                    s3_service=s3_service,
+                )
+                total_nodes += stats.nodes_count
+                total_chunks += stats.chunks_count
+                total_indexed += stats.indexed_chunks_count
+                indexed_files += 1
+
+                log_info(
+                    f"[index_folder] file_indexed: {i + 1}/{total_files} "
+                    f"file_node_id={file_node.id} name={file_node.name} "
+                    f"chunks={stats.chunks_count} elapsed_ms={int((time.perf_counter() - t_file) * 1000)}"
+                )
+
+                # Call progress callback if provided
+                if progress_callback:
+                    try:
+                        progress_callback(indexed_files, total_files)
+                    except Exception as e:
+                        log_error(f"[index_folder] progress_callback error: {e}")
+
+            except Exception as e:
+                log_error(
+                    f"[index_folder] file_error: file_node_id={file_node.id} "
+                    f"name={file_node.name} error={e}"
+                )
+                # Continue with other files even if one fails
+                continue
+
+        log_info(
+            f"[index_folder] done: folder_node_id={folder_node_id} "
+            f"files={indexed_files}/{total_files} nodes={total_nodes} "
+            f"chunks={total_chunks} total_ms={int((time.perf_counter() - t0) * 1000)}"
+        )
+
+        return FolderIndexStats(
+            total_files=total_files,
+            indexed_files=indexed_files,
+            nodes_count=total_nodes,
+            chunks_count=total_chunks,
+            indexed_chunks_count=total_indexed,
+        )
+
+    async def _index_file_node(
+        self,
+        *,
+        file_node: ContentNode,
+        namespace: str,
+        s3_service: S3Service,
+    ) -> SearchIndexStats:
+        """
+        Index a single file node (json or markdown) into the folder namespace.
+        
+        Args:
+            file_node: The file node to index
+            namespace: Turbopuffer namespace for the folder
+            s3_service: S3 service for reading markdown content
+        
+        Returns:
+            SearchIndexStats for this file
+        """
+        t0 = time.perf_counter()
+
+        # 1) Read file content based on type
+        if file_node.type == "json":
+            # JSON content is stored in node.content
+            content_data = file_node.content or {}
+            # Use root pointer for JSON files in folder context
+            scope_pointer = ""
+        elif file_node.type == "markdown":
+            # Markdown content is stored in S3
+            if not file_node.s3_key:
+                log_info(f"[_index_file_node] skip: no s3_key for markdown node {file_node.id}")
+                return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
+            
+            try:
+                content_bytes = await s3_service.download_file(file_node.s3_key)
+                content_text = content_bytes.decode("utf-8")
+                # For markdown, we treat the whole content as a single large string
+                content_data = content_text
+                scope_pointer = "/"
+            except Exception as e:
+                log_error(f"[_index_file_node] s3_download_error: {file_node.id} error={e}")
+                return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
+        else:
+            # Unsupported type
+            log_info(f"[_index_file_node] skip: unsupported type {file_node.type}")
+            return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
+
+        # 2) Extract large string nodes or use content directly
+        t2 = time.perf_counter()
+        if file_node.type == "json":
+            # For JSON, extract large string nodes
+            nodes = await asyncio.to_thread(
+                lambda: list(
+                    iter_large_string_nodes_for_chunking(
+                        self._chunking_service,
+                        content_data,
+                        self._chunking_config,
+                        base_pointer=scope_pointer,
+                    )
+                )
+            )
+        else:
+            # For markdown, create a single "node" with the whole content
+            from src.chunking.schemas import LargeStringNode
+            if len(content_data) >= self._chunking_config.chunk_threshold_chars:
+                nodes = [LargeStringNode(json_pointer="/", content=content_data)]
+            else:
+                nodes = []
+
+        log_info(
+            f"[_index_file_node] extract_nodes: file={file_node.id} nodes={len(nodes)} "
+            f"elapsed_ms={int((time.perf_counter() - t2) * 1000)}"
+        )
+
+        if not nodes:
+            return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
+
+        # 3) Ensure chunks (idempotent)
+        t3 = time.perf_counter()
+        all_chunks: list[Chunk] = []
+        for n in nodes:
+            ensured = await asyncio.to_thread(
+                ensure_chunks_for_pointer,
+                repo=self._chunk_repo,
+                service=self._chunking_service,
+                node_id=file_node.id,  # Use file node ID, not folder ID
+                json_pointer=n.json_pointer,
+                content=n.content,
+                config=self._chunking_config,
+            )
+            all_chunks.extend(list(ensured.chunks))
+
+        log_info(
+            f"[_index_file_node] ensure_chunks: file={file_node.id} chunks={len(all_chunks)} "
+            f"elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
+        )
+
+        if not all_chunks:
+            return SearchIndexStats(
+                nodes_count=len(nodes), chunks_count=0, indexed_chunks_count=0
+            )
+
+        # 4) Generate embeddings
+        t4 = time.perf_counter()
+        texts = [c.chunk_text for c in all_chunks]
+        vectors = await self._embedding.generate_embeddings_batch(texts)
+        log_info(
+            f"[_index_file_node] embedding: file={file_node.id} vectors={len(vectors)} "
+            f"elapsed_ms={int((time.perf_counter() - t4) * 1000)}"
+        )
+
+        # 5) Turbopuffer upsert with file metadata
+        t5 = time.perf_counter()
+        upsert_rows: list[dict[str, Any]] = []
+        doc_ids: list[str] = []
+
+        for c, vec in zip(all_chunks, vectors, strict=True):
+            doc_id = self.build_folder_doc_id(
+                file_node_id=file_node.id,
+                json_pointer=c.json_pointer,
+                content_hash=c.content_hash,
+                chunk_index=c.chunk_index,
+            )
+            doc_ids.append(doc_id)
+            upsert_rows.append(
+                {
+                    "id": doc_id,
+                    "vector": vec,
+                    # Existing metadata fields
+                    "json_pointer": c.json_pointer,
+                    "chunk_index": c.chunk_index,
+                    "total_chunks": c.total_chunks,
+                    "char_start": c.char_start,
+                    "char_end": c.char_end,
+                    "content_hash": c.content_hash,
+                    "chunk_id": int(c.id),
+                    # Folder search specific fields
+                    "file_node_id": file_node.id,
+                    "file_id_path": file_node.id_path,
+                    "file_name": file_node.name,
+                    "file_type": file_node.type,
+                }
+            )
+
+        await self._tp.write(
+            namespace,
+            upsert_rows=upsert_rows,
+            distance_metric="cosine_distance",
+        )
+        log_info(
+            f"[_index_file_node] turbopuffer: file={file_node.id} rows={len(upsert_rows)} "
+            f"elapsed_ms={int((time.perf_counter() - t5) * 1000)}"
+        )
+
+        # 6) Update chunks table with turbopuffer info (best-effort)
+        for c, doc_id in zip(all_chunks, doc_ids, strict=True):
+            try:
+                await asyncio.to_thread(
+                    lambda cid=int(c.id), did=doc_id: (
+                        self._chunk_repo._client.table("chunks")
+                        .update(
+                            {
+                                "turbopuffer_namespace": namespace,
+                                "turbopuffer_doc_id": did,
+                            }
+                        )
+                        .eq("id", cid)
+                        .execute()
+                    )
+                )
+            except Exception:
+                pass  # Don't block on chunk update failures
+
+        log_info(
+            f"[_index_file_node] done: file={file_node.id} "
+            f"total_ms={int((time.perf_counter() - t0) * 1000)}"
+        )
+
+        return SearchIndexStats(
+            nodes_count=len(nodes),
+            chunks_count=len(all_chunks),
+            indexed_chunks_count=len(all_chunks),
+        )
+
+    async def search_folder(
+        self,
+        *,
+        project_id: str,
+        folder_node_id: str,
+        query: str,
+        top_k: int = 5,
+    ) -> list[dict[str, Any]]:
+        """
+        Search in a folder namespace, returning results with file path information.
+        
+        Args:
+            project_id: Project ID
+            folder_node_id: The folder node ID
+            query: Search query
+            top_k: Number of results to return (max 20)
+        
+        Returns:
+            List of search results with file and chunk information
+        """
+        q = (query or "").strip()
+        if not q:
+            raise ValueError("query must be non-empty")
+
+        top_k = int(top_k)
+        if top_k <= 0:
+            raise ValueError("top_k must be > 0")
+        if top_k > 20:
+            top_k = 20
+
+        namespace = self.build_folder_namespace(
+            project_id=project_id, folder_node_id=folder_node_id
+        )
+
+        # 1) Generate query embedding and search
+        query_vec = await self._embedding.generate_embedding(q)
+        resp = await self._tp.query(
+            namespace,
+            rank_by=("vector", "ANN", query_vec),
+            top_k=top_k,
+            include_attributes=True,
+        )
+        rows = resp.rows or []
+
+        # 2) Batch fetch chunk_text from DB
+        chunk_ids: list[int] = []
+        for r in rows[:top_k]:
+            attrs = r.attributes or {}
+            cid = attrs.get("chunk_id")
+            try:
+                if cid is not None:
+                    chunk_ids.append(int(cid))
+            except (TypeError, ValueError):
+                pass
+
+        chunks = await asyncio.to_thread(self._chunk_repo.get_by_ids, chunk_ids)
+        chunk_text_by_id = {int(c.id): c.chunk_text for c in chunks}
+
+        # 3) Build output with file information
+        out: list[dict[str, Any]] = []
+        for r in rows[:top_k]:
+            attrs = r.attributes or {}
+            
+            # Extract file information
+            file_node_id = str(attrs.get("file_node_id") or "")
+            file_id_path = str(attrs.get("file_id_path") or "")
+            file_name = str(attrs.get("file_name") or "")
+            file_type = str(attrs.get("file_type") or "")
+            
+            # Extract chunk information
+            json_pointer = str(attrs.get("json_pointer") or "")
+            json_pointer = _normalize_json_pointer(json_pointer)
+            
+            cid = attrs.get("chunk_id")
+            chunk_id_int: int | None = None
+            try:
+                if cid is not None:
+                    chunk_id_int = int(cid)
+            except (TypeError, ValueError):
+                chunk_id_int = None
+
+            # Calculate score
+            score = 0.0
+            if r.score is not None:
+                score = float(r.score)
+            elif r.distance is not None:
+                try:
+                    dist = float(r.distance)
+                    score = 1.0 / (1.0 + dist)
+                except (TypeError, ValueError):
+                    score = 0.0
+
+            out.append(
+                {
+                    "score": float(score),
+                    "file": {
+                        "node_id": file_node_id,
+                        "id_path": file_id_path,
+                        "name": file_name,
+                        "type": file_type,
+                    },
                     "chunk": {
                         "id": chunk_id_int,
                         "json_pointer": json_pointer,

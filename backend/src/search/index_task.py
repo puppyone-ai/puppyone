@@ -30,6 +30,11 @@ class SearchIndexTask(BaseModel):
 
     last_error: Optional[str] = None
 
+    # Folder search specific fields
+    folder_node_id: Optional[str] = None  # The folder node_id when this is a folder search
+    total_files: Optional[int] = None  # Total indexable files in folder
+    indexed_files: Optional[int] = None  # Number of files indexed so far
+
 
 class SearchIndexTaskUpsert(BaseModel):
     tool_id: str
@@ -47,6 +52,11 @@ class SearchIndexTaskUpsert(BaseModel):
     indexed_chunks_count: Optional[int] = None
 
     last_error: Optional[str] = None
+
+    # Folder search specific fields
+    folder_node_id: Optional[str] = None  # The folder node_id when this is a folder search
+    total_files: Optional[int] = None  # Total indexable files in folder
+    indexed_files: Optional[int] = None  # Number of files indexed so far
 
     def to_db(self) -> dict[str, Any]:
         # Supabase expects ISO strings for timestamps
@@ -68,3 +78,7 @@ class SearchIndexTaskOut(BaseModel):
     chunks_count: Optional[int] = None
     indexed_chunks_count: Optional[int] = None
     last_error: Optional[str] = None
+    # Folder search specific fields
+    folder_node_id: Optional[str] = Field(None, description="Folder node_id if this is a folder search")
+    total_files: Optional[int] = Field(None, description="Total indexable files in folder")
+    indexed_files: Optional[int] = Field(None, description="Number of files indexed so far")

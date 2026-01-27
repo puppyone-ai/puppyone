@@ -16,6 +16,7 @@ from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.config import settings
+from src.s3.service import S3Service
 from src.search.dependencies import get_search_service
 from src.search.index_task import SearchIndexTaskOut, SearchIndexTaskUpsert
 from src.search.index_task_repository import SearchIndexTaskRepository
@@ -253,12 +254,171 @@ async def _run_search_indexing_background(
         )
 
 
+async def _run_folder_search_indexing_background(
+    *,
+    repo: SearchIndexTaskRepository,
+    search_service: SearchService,
+    s3_service: S3Service,
+    tool_id: str,
+    user_id: str,
+    project_id: str,
+    folder_node_id: str,
+) -> None:
+    """
+    Background indexing executor for folder search.
+    """
+    now = dt.datetime.now(tz=dt.timezone.utc)
+    log_info(
+        f"[folder_search_index] background task accepted: tool_id={tool_id} "
+        f"project_id={project_id} folder_node_id={folder_node_id}"
+    )
+
+    # Mark as indexing
+    try:
+        await asyncio.to_thread(
+            repo.upsert,
+            SearchIndexTaskUpsert(
+                tool_id=tool_id,
+                user_id=user_id,
+                project_id=project_id,
+                node_id=folder_node_id,
+                json_path="",
+                status="indexing",
+                started_at=now,
+                finished_at=None,
+                folder_node_id=folder_node_id,
+                total_files=None,
+                indexed_files=0,
+                last_error=None,
+            ),
+        )
+    except Exception as e:
+        log_error(
+            f"[folder_search_index] failed to mark indexing: tool_id={tool_id} err={e}"
+        )
+
+    # Progress callback to update task status
+    def update_progress(indexed_files: int, total_files: int) -> None:
+        try:
+            repo.upsert(
+                SearchIndexTaskUpsert(
+                    tool_id=tool_id,
+                    user_id=user_id,
+                    project_id=project_id,
+                    node_id=folder_node_id,
+                    json_path="",
+                    status="indexing",
+                    started_at=now,
+                    folder_node_id=folder_node_id,
+                    total_files=total_files,
+                    indexed_files=indexed_files,
+                )
+            )
+        except Exception as e:
+            log_error(f"[folder_search_index] progress update error: {e}")
+
+    try:
+        log_info(
+            f"[folder_search_index] start: tool_id={tool_id} folder_node_id={folder_node_id}"
+        )
+        stats = await asyncio.wait_for(
+            search_service.index_folder(
+                project_id=project_id,
+                folder_node_id=folder_node_id,
+                user_id=user_id,
+                s3_service=s3_service,
+                progress_callback=update_progress,
+            ),
+            timeout=float(settings.SEARCH_INDEX_TIMEOUT_SECONDS),
+        )
+        finished = dt.datetime.now(tz=dt.timezone.utc)
+        await asyncio.to_thread(
+            repo.upsert,
+            SearchIndexTaskUpsert(
+                tool_id=tool_id,
+                user_id=user_id,
+                project_id=project_id,
+                node_id=folder_node_id,
+                json_path="",
+                status="ready",
+                started_at=now,
+                finished_at=finished,
+                nodes_count=int(stats.nodes_count),
+                chunks_count=int(stats.chunks_count),
+                indexed_chunks_count=int(stats.indexed_chunks_count),
+                folder_node_id=folder_node_id,
+                total_files=int(stats.total_files),
+                indexed_files=int(stats.indexed_files),
+                last_error=None,
+            ),
+        )
+        log_info(
+            f"[folder_search_index] done: tool_id={tool_id} files={stats.indexed_files}/{stats.total_files} "
+            f"chunks={stats.chunks_count}"
+        )
+    except asyncio.TimeoutError:
+        finished = dt.datetime.now(tz=dt.timezone.utc)
+        msg = f"index_folder timeout after {settings.SEARCH_INDEX_TIMEOUT_SECONDS}s"
+        try:
+            await asyncio.to_thread(
+                repo.upsert,
+                SearchIndexTaskUpsert(
+                    tool_id=tool_id,
+                    user_id=user_id,
+                    project_id=project_id,
+                    node_id=folder_node_id,
+                    json_path="",
+                    status="error",
+                    started_at=now,
+                    finished_at=finished,
+                    folder_node_id=folder_node_id,
+                    last_error=msg,
+                ),
+            )
+        except Exception as e:
+            log_error(
+                f"[folder_search_index] failed to write timeout status: tool_id={tool_id} err={e}"
+            )
+        log_error(
+            f"[folder_search_index] timeout: tool_id={tool_id} folder_node_id={folder_node_id}"
+        )
+    except Exception as e:
+        finished = dt.datetime.now(tz=dt.timezone.utc)
+        err = str(e)[:500]
+        try:
+            await asyncio.to_thread(
+                repo.upsert,
+                SearchIndexTaskUpsert(
+                    tool_id=tool_id,
+                    user_id=user_id,
+                    project_id=project_id,
+                    node_id=folder_node_id,
+                    json_path="",
+                    status="error",
+                    started_at=now,
+                    finished_at=finished,
+                    folder_node_id=folder_node_id,
+                    last_error=err,
+                ),
+            )
+        except Exception as e2:
+            log_error(
+                f"[folder_search_index] failed to write error status: tool_id={tool_id} err={e2}"
+            )
+        log_error(
+            f"[folder_search_index] failed: tool_id={tool_id} folder_node_id={folder_node_id} err={e}"
+        )
+
+
 @router.post(
     "/search",
     response_model=ApiResponse[ToolOut],
     summary="创建 Search Tool（异步 indexing）",
     description=(
         "创建 `type=search` 的 Tool，并在响应返回后异步触发 indexing（chunking + embedding + upsert）。\n\n"
+        "支持两种模式：\n"
+        "- **JSON Search**: node_id 指向 json 类型节点，索引该节点的 JSON 内容\n"
+        "- **Folder Search**: node_id 指向 folder 类型节点，索引 folder 下所有 json/markdown 文件\n\n"
         "索引状态通过 `/tools/{tool_id}/search-index` 轮询获取。"
     ),
     status_code=status.HTTP_201_CREATED,
@@ -278,6 +438,11 @@ def create_search_tool_async(
     if not payload.node_id:
         return ApiResponse.error(message="node_id is required for search tool")
 
+    # 获取节点信息，判断是 folder search 还是 json search
+    node = node_service.get_by_id(payload.node_id, current_user.user_id)
+    project_id = node.project_id
+    is_folder_search = node.type == "folder"
+
     tool = tool_service.create(
         user_id=current_user.user_id,
         node_id=payload.node_id,
@@ -294,47 +459,97 @@ def create_search_tool_async(
         script_content=payload.script_content,
     )
 
-    # 获取节点信息用于 search namespace
-    node = node_service.get_by_id(payload.node_id, current_user.user_id)
-    project_id = node.project_id
-
     sb_client = SupabaseClient().get_client()
     repo = SearchIndexTaskRepository(sb_client)
 
-    # 先写入一条 pending（便于轮询端立刻拿到状态）
-    try:
-        repo.upsert(
-            SearchIndexTaskUpsert(
-                tool_id=str(tool.id),
-                user_id=str(current_user.user_id),
-                project_id=project_id,
-                table_id=str(payload.node_id),  # 兼容：暂时用 node_id 作为 table_id
-                json_path=payload.json_path or "",
-                status="pending",
-                started_at=None,
-                finished_at=None,
-                last_error=None,
+    if is_folder_search:
+        # Folder Search: index all files in the folder
+        log_info(
+            f"[search_index] folder search mode: tool_id={tool.id} folder_node_id={payload.node_id}"
+        )
+        
+        # 先写入一条 pending（便于轮询端立刻拿到状态）
+        try:
+            repo.upsert(
+                SearchIndexTaskUpsert(
+                    tool_id=str(tool.id),
+                    user_id=str(current_user.user_id),
+                    project_id=project_id,
+                    node_id=str(payload.node_id),
+                    json_path="",
+                    status="pending",
+                    started_at=None,
+                    finished_at=None,
+                    folder_node_id=str(payload.node_id),
+                    total_files=None,
+                    indexed_files=0,
+                    last_error=None,
+                )
             )
-        )
-    except Exception as e:
-        log_error(
-            f"[search_index] failed to create task row: tool_id={tool.id} node_id={payload.node_id} json_path='{payload.json_path}' err={e}"
+        except Exception as e:
+            log_error(
+                f"[search_index] failed to create folder task row: tool_id={tool.id} "
+                f"folder_node_id={payload.node_id} err={e}"
+            )
+
+        # Create S3 service for reading markdown files
+        s3_service = S3Service()
+
+        background_tasks.add_task(
+            _run_folder_search_indexing_background,
+            repo=repo,
+            search_service=search_service,
+            s3_service=s3_service,
+            tool_id=str(tool.id),
+            user_id=str(current_user.user_id),
+            project_id=project_id,
+            folder_node_id=str(payload.node_id),
         )
 
-    background_tasks.add_task(
-        _run_search_indexing_background,
-        repo=repo,
-        search_service=search_service,
-        tool_id=str(tool.id),
-        user_id=str(current_user.user_id),
-        project_id=project_id,
-        node_id=str(payload.node_id),
-        json_path=payload.json_path or "",
-    )
+        return ApiResponse.success(
+            data=tool, message="创建 Folder Search Tool 成功（indexing 已异步触发）"
+        )
+    else:
+        # JSON Search: existing behavior
+        log_info(
+            f"[search_index] json search mode: tool_id={tool.id} node_id={payload.node_id}"
+        )
+        
+        # 先写入一条 pending（便于轮询端立刻拿到状态）
+        try:
+            repo.upsert(
+                SearchIndexTaskUpsert(
+                    tool_id=str(tool.id),
+                    user_id=str(current_user.user_id),
+                    project_id=project_id,
+                    node_id=str(payload.node_id),
+                    json_path=payload.json_path or "",
+                    status="pending",
+                    started_at=None,
+                    finished_at=None,
+                    last_error=None,
+                )
+            )
+        except Exception as e:
+            log_error(
+                f"[search_index] failed to create task row: tool_id={tool.id} "
+                f"node_id={payload.node_id} json_path='{payload.json_path}' err={e}"
+            )
 
-    return ApiResponse.success(
-        data=tool, message="创建 Search Tool 成功（indexing 已异步触发）"
-    )
+        background_tasks.add_task(
+            _run_search_indexing_background,
+            repo=repo,
+            search_service=search_service,
+            tool_id=str(tool.id),
+            user_id=str(current_user.user_id),
+            project_id=project_id,
+            node_id=str(payload.node_id),
+            json_path=payload.json_path or "",
+        )
+
+        return ApiResponse.success(
+            data=tool, message="创建 Search Tool 成功（indexing 已异步触发）"
+        )
 
 
 @router.get(
@@ -394,6 +609,10 @@ def get_search_index_status(
         chunks_count=task.chunks_count,
         indexed_chunks_count=task.indexed_chunks_count,
         last_error=task.last_error,
+        # Folder search specific fields
+        folder_node_id=task.folder_node_id,
+        total_files=task.total_files,
+        indexed_files=task.indexed_files,
     )
     log_info(
         f"[search-index-status] done: tool_id={tool_id} status={task.status} total_ms={int((time.perf_counter() - t0) * 1000)}"
