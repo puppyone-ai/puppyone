@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from src.chunking.repository import ChunkRepository
 from src.chunking.service import ChunkingService
+from src.content_node.dependencies import get_content_node_service
 from src.llm.embedding_service import EmbeddingService
 from src.search.service import SearchService
 from src.supabase.client import SupabaseClient
-from src.table.dependencies import get_table_service
 from src.turbopuffer.service import TurbopufferSearchService
 
 _search_service: SearchService | None = None
@@ -18,7 +18,7 @@ def get_search_service() -> SearchService:
         sb_client = SupabaseClient().get_client()
         chunk_repo = ChunkRepository(sb_client)
         _search_service = SearchService(
-            table_service=get_table_service(),
+            node_service=get_content_node_service(),
             chunk_repo=chunk_repo,
             chunking_service=ChunkingService(),
             embedding_service=EmbeddingService(),

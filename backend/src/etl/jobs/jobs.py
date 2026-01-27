@@ -23,8 +23,8 @@ from src.etl.state.models import ETLPhase, ETLRuntimeState
 from src.etl.state.repository import ETLStateRepositoryRedis
 from src.etl.tasks.models import ETLTaskResult, ETLTaskStatus
 from src.exceptions import BusinessException, ErrorCode
-from src.table.repository import TableRepositorySupabase
-from src.table.service import TableService
+from src.content_node.dependencies import get_content_node_service
+from src.content_node.service import ContentNodeService
 from src.supabase.dependencies import get_supabase_client
 
 logger = logging.getLogger(__name__)
@@ -339,26 +339,27 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
         )
 
         # Auto-mount after output is generated (this replaces legacy mount endpoint & callbacks)
-        mount_table_id = task.metadata.get("mount_table_id")
+        mount_node_id = task.metadata.get("mount_node_id")
         mount_json_path = task.metadata.get("mount_json_path") or ""
         mount_key = task.metadata.get("mount_key") or Path(task.filename).name
 
-        table_service = TableService(TableRepositorySupabase())
+        node_service = get_content_node_service()
 
-        if not mount_table_id:
-            # Auto-create a table per file when mount target is not provided
-            auto_name = task.metadata.get("auto_table_name") or f"{task_id}"
+        if not mount_node_id:
+            # Auto-create a JSON node per file when mount target is not provided
+            auto_name = task.metadata.get("auto_node_name") or f"{task_id}"
             auto_name = str(auto_name)[:12]
-            created_table = await asyncio.to_thread(
-                table_service.create,
+            created_node = await asyncio.to_thread(
+                node_service.create_json_node,
                 project_id=task.project_id,
+                user_id=task.user_id,
                 name=auto_name,
-                description="ETL auto-created table",
-                data={},
+                content={},
+                parent_id=None,
             )
-            mount_table_id = created_table.id
-            task.metadata["mount_table_id"] = int(mount_table_id)
-            task.metadata["auto_table_created"] = True
+            mount_node_id = created_node.id
+            task.metadata["mount_node_id"] = mount_node_id
+            task.metadata["auto_node_created"] = True
 
         # Avoid double-wrapping on mount:
         # - skip-mode output_obj shape is {base_name: {filename, content}}
@@ -373,41 +374,37 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
         else:
             mount_value = output_obj
 
-        elements: list[dict[str, Any]] = [
-            {"key": str(mount_key), "content": mount_value}
-        ]
         try:
-            await asyncio.to_thread(
-                table_service.create_context_data,
-                table_id=int(mount_table_id),
-                mounted_json_pointer_path=str(mount_json_path),
-                elements=elements,
+            # Get existing node content and merge new data
+            existing_node = await asyncio.to_thread(
+                node_service.get_by_id, mount_node_id, task.user_id
             )
-        except BusinessException as e:
-            # Idempotency for retries: if mount key already exists, overwrite via update_context_data.
-            if e.code == ErrorCode.VALIDATION_ERROR and "already exists" in str(e):
-                await asyncio.to_thread(
-                    table_service.update_context_data,
-                    table_id=int(mount_table_id),
-                    json_pointer_path=str(mount_json_path),
-                    elements=elements,
-                )
+            existing_content = existing_node.content or {}
+            
+            # Merge data at the specified path
+            if mount_json_path:
+                # Navigate to the path and set the value
+                path_parts = [p for p in mount_json_path.split("/") if p]
+                current = existing_content
+                for part in path_parts[:-1]:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                if path_parts:
+                    current[path_parts[-1]] = {mount_key: mount_value}
+                else:
+                    existing_content[mount_key] = mount_value
             else:
-                # Mount failure => task failed (output exists in S3, but contract is "completed means mounted")
-                err = f"Mount failed: {e}"
-                task.status = ETLTaskStatus.FAILED
-                task.error = err
-                task.metadata["error_stage"] = "mount"
-                task.metadata["output_path"] = output_key
-                repo.update_task(task)
-
-                state.status = ETLTaskStatus.FAILED
-                state.error_stage = "mount"
-                state.error_message = err
-                state.progress = 0
-                state.updated_at = datetime.now(UTC)
-                await state_repo.set_terminal(state)
-                return {"ok": False, "stage": "mount", "error": err}
+                # Mount at root level
+                existing_content[mount_key] = mount_value
+            
+            # Update node with merged content
+            await asyncio.to_thread(
+                node_service.update_node,
+                mount_node_id,
+                task.user_id,
+                content=existing_content,
+            )
         except Exception as e:
             # Mount failure => task failed (output exists in S3, but contract is "completed means mounted")
             err = f"Mount failed: {e}"

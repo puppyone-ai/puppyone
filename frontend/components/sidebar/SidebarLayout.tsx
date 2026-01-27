@@ -156,10 +156,10 @@ export function SidebarLayout({
       {/* Header */}
       <div
         className={clsx(
-          'box-border flex h-[54px] items-center',
+          'box-border flex h-[54px] items-center pt-2',
           effectiveCollapsed
-            ? 'justify-center px-0 pt-2'
-            : 'justify-between pl-2 pr-[9px] pt-2'
+            ? 'justify-center px-0'
+            : 'justify-between pl-2 pr-[9px]'
         )}
       >
         {effectiveCollapsed ? (

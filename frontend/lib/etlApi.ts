@@ -59,7 +59,7 @@ export interface UploadAndSubmitParams {
   projectId: number;
   files: File[];
   ruleId?: number;
-  tableId?: number;
+  nodeId?: string;  // 改为 nodeId，类型为 UUID 字符串
   jsonPath?: string;
 }
 
@@ -115,8 +115,8 @@ export async function uploadAndSubmit(
   if (params.ruleId !== undefined) {
     formData.append('rule_id', params.ruleId.toString());
   }
-  if (params.tableId !== undefined) {
-    formData.append('table_id', params.tableId.toString());
+  if (params.nodeId !== undefined) {
+    formData.append('node_id', params.nodeId);
   }
   if (params.jsonPath !== undefined) {
     formData.append('json_path', params.jsonPath);

@@ -148,13 +148,16 @@ class McpV2Service:
                     user_id=tool.user_id,
                     name=tool.name,
                     type=tool.type,
-                    table_id=tool.table_id,
+                    node_id=tool.node_id,  # 改为 node_id
                     json_path=tool.json_path or "",
                     alias=tool.alias,
                     description=tool.description,
                     input_schema=tool.input_schema,
                     output_schema=tool.output_schema,
                     metadata=tool.metadata,
+                    category=tool.category,
+                    script_type=tool.script_type,
+                    script_content=tool.script_content,
                 )
             )
         return out

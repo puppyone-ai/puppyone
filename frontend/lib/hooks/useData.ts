@@ -16,7 +16,7 @@ import {
 import {
   getTools,
   getToolsByProjectId,
-  getToolsByTableId,
+  getToolsByNodeId,
   type Tool,
 } from '../mcpApi';
 
@@ -130,24 +130,24 @@ export function updateTableCache(
 }
 
 /**
- * 获取指定表的 Tools（使用后端直接过滤）
+ * 获取指定节点的 Tools（使用后端直接过滤）
  *
- * @param tableId 表 ID (可选，为空时不请求)
+ * @param nodeId 节点 ID (可选，为空时不请求)
  *
- * - 按需加载：只有 tableId 存在时才请求
- * - 后端过滤：直接调用 /api/v1/tools/by-table/{tableId}
- * - 自动缓存：相同 tableId 共享数据
+ * - 按需加载：只有 nodeId 存在时才请求
+ * - 后端过滤：直接调用 /api/v1/tools/by-node/{nodeId}
+ * - 自动缓存：相同 nodeId 共享数据
  */
-export function useTableTools(tableId: string | undefined) {
-  // 获取指定 table 的 tools
+export function useTableTools(nodeId: string | undefined) {
+  // 获取指定节点的 tools
   const {
     data: tableTools,
     error,
     isLoading,
     mutate: revalidate,
   } = useSWR<Tool[]>(
-    tableId ? ['tools-by-table', tableId] : null,
-    () => getToolsByTableId(Number(tableId)),
+    nodeId ? ['tools-by-node', nodeId] : null,
+    () => getToolsByNodeId(nodeId!),
     {
       ...defaultConfig,
       dedupingInterval: 10000,
@@ -170,22 +170,21 @@ export function useTableTools(tableId: string | undefined) {
 }
 
 /**
- * 获取指定项目下的所有 Tools（聚合所有 tables）
+ * 获取指定项目下的所有 Tools（聚合所有节点）
  */
 export function useProjectTools(projectId: string | undefined) {
-  const pid = projectId ? Number(projectId) : NaN;
   const {
     data,
     error,
     isLoading,
     mutate: revalidate,
   } = useSWR<Tool[]>(
-    Number.isFinite(pid) ? ['tools-by-project', pid] : null,
-    () => getToolsByProjectId(pid),
+    projectId ? ['tools-by-project', projectId] : null,
+    () => getToolsByProjectId(projectId!),
     {
       ...defaultConfig,
       dedupingInterval: 10000,
-      // 用户经常在左侧配置完权限再打开 Chat；允许聚焦时自动刷新一次，避免“第一次不显示”
+      // 用户经常在左侧配置完权限再打开 Chat；允许聚焦时自动刷新一次，避免"第一次不显示"
       revalidateOnFocus: true,
     }
   );
@@ -201,21 +200,19 @@ export function useProjectTools(projectId: string | undefined) {
 /**
  * 手动刷新指定项目的 Tools（用于：用户在 editor 侧栏配置权限后，ChatSidebar 立刻可见）
  */
-export function refreshProjectTools(projectId?: string | number | null) {
-  const pid =
-    projectId !== undefined && projectId !== null ? Number(projectId) : NaN;
-  if (Number.isFinite(pid)) {
-    return mutate(['tools-by-project', pid]);
+export function refreshProjectTools(projectId?: string | null) {
+  if (projectId) {
+    return mutate(['tools-by-project', projectId]);
   }
   return Promise.resolve(undefined);
 }
 
 /**
- * 手动刷新指定表的 Tools
+ * 手动刷新指定节点的 Tools
  */
-export function refreshTableTools(tableId?: string) {
-  if (tableId) {
-    mutate(['tools-by-table', tableId]);
+export function refreshTableTools(nodeId?: string) {
+  if (nodeId) {
+    mutate(['tools-by-node', nodeId]);
   }
   // 同时刷新 all-tools 缓存
   return mutate('all-tools');

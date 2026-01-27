@@ -5,7 +5,7 @@ from src.agent.dependencies import get_agent_service
 from src.sandbox.dependencies import get_sandbox_service
 from src.agent.chat.dependencies import get_chat_service
 from src.auth.dependencies import get_current_user_optional
-from src.table.dependencies import get_table_service
+from src.content_node.dependencies import get_content_node_service
 from src.tool.dependencies import get_tool_service
 from fastapi.responses import StreamingResponse
 
@@ -31,7 +31,7 @@ async def create_agent_session(
     agent_service=Depends(get_agent_service),
     sandbox_service=Depends(get_sandbox_service),
     chat_service=Depends(get_chat_service),
-    table_service=Depends(get_table_service),
+    node_service=Depends(get_content_node_service),
     tool_service=Depends(get_tool_service),
 ):
     async def event_stream():
@@ -39,7 +39,7 @@ async def create_agent_session(
             async for event in agent_service.stream_events(
                 request=agent_request,
                 current_user=current_user,
-                table_service=table_service,
+                node_service=node_service,
                 tool_service=tool_service,
                 sandbox_service=sandbox_service,
                 chat_service=chat_service,

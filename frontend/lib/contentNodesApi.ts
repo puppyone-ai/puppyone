@@ -135,6 +135,30 @@ export async function createJsonNode(
 }
 
 /**
+ * 创建 Markdown 节点
+ */
+export async function createMarkdownNode(
+  name: string,
+  projectId: string,
+  content: string = '',
+  parentId?: string | null
+): Promise<NodeDetail> {
+  const body: { name: string; project_id: string; content: string; parent_id?: string | null } = {
+    name,
+    project_id: projectId,
+    content,
+  };
+  if (parentId) {
+    body.parent_id = parentId;
+  }
+
+  return apiRequest<NodeDetail>('/api/v1/nodes/markdown', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+/**
  * 准备文件上传（获取预签名 URL）
  */
 export async function prepareUpload(

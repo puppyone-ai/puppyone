@@ -27,7 +27,7 @@ class ToolRepositoryBase(ABC):
         *,
         skip: int = 0,
         limit: int = 100,
-        table_id: Optional[str] = None,
+        node_id: Optional[str] = None,
     ) -> List[Tool]:
         pass
 
@@ -49,7 +49,7 @@ class ToolRepositorySupabase(ToolRepositoryBase):
             id=resp.id,
             created_at=resp.created_at,
             user_id=str(resp.user_id) if resp.user_id else "",
-            table_id=resp.table_id,
+            node_id=resp.node_id,
             json_path=resp.json_path or "",
             type=resp.type or "",
             name=resp.name or "",
@@ -58,6 +58,9 @@ class ToolRepositorySupabase(ToolRepositoryBase):
             input_schema=resp.input_schema,
             output_schema=resp.output_schema,
             metadata=resp.metadata,
+            category=resp.category or "builtin",
+            script_type=resp.script_type,
+            script_content=resp.script_content,
         )
 
     def create(self, tool: SbToolCreate) -> Tool:
@@ -76,10 +79,10 @@ class ToolRepositorySupabase(ToolRepositoryBase):
         *,
         skip: int = 0,
         limit: int = 100,
-        table_id: Optional[str] = None,
+        node_id: Optional[str] = None,
     ) -> List[Tool]:
         resps = self._repo.get_tools(
-            skip=skip, limit=limit, user_id=user_id, table_id=table_id
+            skip=skip, limit=limit, user_id=user_id, node_id=node_id
         )
         return [self._to_model(r) for r in resps]
 

@@ -4,14 +4,14 @@ import asyncio
 import datetime as dt
 import time
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 from src.chunking.config import ChunkingConfig
 from src.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
 from src.chunking.schemas import Chunk
 from src.chunking.service import ChunkingService, iter_large_string_nodes_for_chunking
+from src.content_node.service import ContentNodeService
 from src.llm.embedding_service import EmbeddingService
-from src.table.service import TableService
 from src.turbopuffer.schemas import TurbopufferRow
 from src.turbopuffer.service import TurbopufferSearchService
 from src.utils.logger import log_info
@@ -25,6 +25,34 @@ def _normalize_json_pointer(pointer: str) -> str:
         # 这里不强制抛错，保持兼容；但内部我们统一用 RFC6901 绝对指针
         p = "/" + p
     return p
+
+
+def _extract_by_pointer(data: Any, pointer: str) -> Any:
+    """
+    从 JSON 数据中提取指定 JSON Pointer 路径的子数据。
+    """
+    if not pointer or pointer == "/":
+        return data
+    
+    segments = [s for s in pointer.split("/") if s]
+    current = data
+    for seg in segments:
+        if current is None:
+            return None
+        if isinstance(current, list):
+            try:
+                idx = int(seg)
+                if 0 <= idx < len(current):
+                    current = current[idx]
+                else:
+                    return None
+            except ValueError:
+                return None
+        elif isinstance(current, dict):
+            current = current.get(seg)
+        else:
+            return None
+    return current
 
 
 def _relative_pointer(*, base: str, absolute: str) -> str:
@@ -85,21 +113,21 @@ class SearchIndexStats:
 class SearchService:
     """
     Search Tool 核心能力：
-    - index_tool: (table_id, json_path) scope -> chunking -> embedding -> turbopuffer upsert
+    - index_tool: (node_id, json_path) scope -> chunking -> embedding -> turbopuffer upsert
     - search_tool: ANN -> 结构化输出（chunk_text 通过 DB 回填）
     """
 
     def __init__(
         self,
         *,
-        table_service: TableService,
+        node_service: ContentNodeService,
         chunk_repo: ChunkRepository,
         chunking_service: ChunkingService | None = None,
         chunking_config: ChunkingConfig | None = None,
         embedding_service: EmbeddingService | None = None,
         turbopuffer_service: TurbopufferSearchService | None = None,
     ) -> None:
-        self._table_service = table_service
+        self._node_service = node_service
         self._chunk_repo = chunk_repo
         self._chunking_service = chunking_service or ChunkingService()
         self._chunking_config = chunking_config or ChunkingConfig()
@@ -107,20 +135,20 @@ class SearchService:
         self._tp = turbopuffer_service or TurbopufferSearchService()
 
     @staticmethod
-    def build_namespace(*, project_id: str, table_id: str) -> str:
-        return f"project_{project_id}_table_{table_id}"
+    def build_namespace(*, project_id: str, node_id: str) -> str:
+        return f"project_{project_id}_node_{node_id}"
 
     @staticmethod
     def build_doc_id(
-        *, table_id: str, json_pointer: str, content_hash: str, chunk_index: int
+        *, node_id: str, json_pointer: str, content_hash: str, chunk_index: int
     ) -> str:
         # Turbopuffer 要求 ID 最多 64 字节，所以用 hash 来压缩 json_pointer
         import hashlib
 
         pointer_hash = hashlib.md5(json_pointer.encode("utf-8")).hexdigest()[:12]
-        # 格式: {table_id}_{pointer_hash}_{content_hash[:8]}_{chunk_index}
-        # 最大长度估算: 10 + 1 + 12 + 1 + 8 + 1 + 5 = ~38 字节
-        return f"{table_id}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
+        # 格式: {node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}
+        # UUID 太长，截取前12位
+        return f"{node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
 
     async def ensure_namespace_schema(self, *, namespace: str) -> None:
         # 兼容保留：当前实现不再依赖 turbopuffer 的 BM25，因此无需 schema。
@@ -132,25 +160,29 @@ class SearchService:
         self,
         *,
         project_id: str,
-        table_id: str,
+        node_id: str,
+        user_id: str,
         json_path: str,
     ) -> SearchIndexStats:
         """
-        从 (table_id, json_path) 读取 scope 数据并完成 indexing。
+        从 (node_id, json_path) 读取 scope 数据并完成 indexing。
         """
         t0 = time.perf_counter()
         scope_pointer = _normalize_json_pointer(json_path)
         log_info(
-            f"[index_scope] start: project_id={project_id} table_id={table_id} json_path='{json_path}'"
+            f"[index_scope] start: project_id={project_id} node_id={node_id} json_path='{json_path}'"
         )
 
-        # 1) 读取 scope 数据（TableService / Supabase 为同步 IO，避免阻塞事件循环）
+        # 1) 读取 scope 数据（从 content_nodes 获取）
         t1 = time.perf_counter()
-        scope_data = await asyncio.to_thread(
-            self._table_service.get_context_data, table_id, scope_pointer
+        node = await asyncio.to_thread(
+            self._node_service.get_by_id, node_id, user_id
         )
+        # 从 node.content 获取 JSON 数据，然后提取指定路径的子数据
+        full_data = node.content or {}
+        scope_data = _extract_by_pointer(full_data, scope_pointer)
         log_info(
-            f"[index_scope] step1_get_scope_data: table_id={table_id} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
+            f"[index_scope] step1_get_scope_data: node_id={node_id} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
         )
 
         # 2) 提取大字符串节点（json_pointer 必须是"绝对指针"）
@@ -166,13 +198,13 @@ class SearchService:
             )
         )
         log_info(
-            f"[index_scope] step2_extract_nodes: table_id={table_id} nodes_count={len(nodes)} elapsed_ms={int((time.perf_counter() - t2) * 1000)}"
+            f"[index_scope] step2_extract_nodes: node_id={node_id} nodes_count={len(nodes)} elapsed_ms={int((time.perf_counter() - t2) * 1000)}"
         )
 
         # 没有大文本：保持成功，但无需写入 turbopuffer
         if not nodes:
             log_info(
-                f"[index_scope] done_no_nodes: table_id={table_id} total_ms={int((time.perf_counter() - t0) * 1000)}"
+                f"[index_scope] done_no_nodes: node_id={node_id} total_ms={int((time.perf_counter() - t0) * 1000)}"
             )
             return SearchIndexStats(
                 nodes_count=0, chunks_count=0, indexed_chunks_count=0
@@ -186,7 +218,7 @@ class SearchService:
                 ensure_chunks_for_pointer,
                 repo=self._chunk_repo,
                 service=self._chunking_service,
-                table_id=table_id,
+                node_id=node_id,
                 json_pointer=n.json_pointer,
                 content=n.content,
                 config=self._chunking_config,
@@ -194,15 +226,15 @@ class SearchService:
             all_chunks.extend(list(ensured.chunks))
             if (i + 1) % 10 == 0:
                 log_info(
-                    f"[index_scope] step3_chunking_progress: table_id={table_id} processed={i + 1}/{len(nodes)}"
+                    f"[index_scope] step3_chunking_progress: node_id={node_id} processed={i + 1}/{len(nodes)}"
                 )
         log_info(
-            f"[index_scope] step3_ensure_chunks: table_id={table_id} chunks_count={len(all_chunks)} elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
+            f"[index_scope] step3_ensure_chunks: node_id={node_id} chunks_count={len(all_chunks)} elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
         )
 
         if not all_chunks:
             log_info(
-                f"[index_scope] done_no_chunks: table_id={table_id} nodes={len(nodes)} total_ms={int((time.perf_counter() - t0) * 1000)}"
+                f"[index_scope] done_no_chunks: node_id={node_id} nodes={len(nodes)} total_ms={int((time.perf_counter() - t0) * 1000)}"
             )
             return SearchIndexStats(
                 nodes_count=len(nodes), chunks_count=0, indexed_chunks_count=0
@@ -212,23 +244,23 @@ class SearchService:
         t4 = time.perf_counter()
         texts = [c.chunk_text for c in all_chunks]
         log_info(
-            f"[index_scope] step4_embedding_start: table_id={table_id} texts_count={len(texts)}"
+            f"[index_scope] step4_embedding_start: node_id={node_id} texts_count={len(texts)}"
         )
         vectors = await self._embedding.generate_embeddings_batch(texts)
         log_info(
-            f"[index_scope] step4_embedding_done: table_id={table_id} vectors_count={len(vectors)} elapsed_ms={int((time.perf_counter() - t4) * 1000)}"
+            f"[index_scope] step4_embedding_done: node_id={node_id} vectors_count={len(vectors)} elapsed_ms={int((time.perf_counter() - t4) * 1000)}"
         )
 
         # 5) turbopuffer upsert（批量）
         # 注意：write 带 schema 参数会自动创建 namespace，支持增量更新
         t5 = time.perf_counter()
-        namespace = self.build_namespace(project_id=project_id, table_id=table_id)
+        namespace = self.build_namespace(project_id=project_id, node_id=node_id)
 
         upsert_rows: list[dict[str, Any]] = []
         doc_ids: list[str] = []
         for c, vec in zip(all_chunks, vectors, strict=True):
             doc_id = self.build_doc_id(
-                table_id=c.table_id,
+                node_id=c.node_id,
                 json_pointer=c.json_pointer,
                 content_hash=c.content_hash,
                 chunk_index=c.chunk_index,
@@ -250,7 +282,7 @@ class SearchService:
             )
 
         log_info(
-            f"[index_scope] step5_turbopuffer_write_start: table_id={table_id} rows_count={len(upsert_rows)}"
+            f"[index_scope] step5_turbopuffer_write_start: node_id={node_id} rows_count={len(upsert_rows)}"
         )
         await self._tp.write(
             namespace,
@@ -258,7 +290,7 @@ class SearchService:
             distance_metric="cosine_distance",
         )
         log_info(
-            f"[index_scope] step5_turbopuffer_done: table_id={table_id} elapsed_ms={int((time.perf_counter() - t5) * 1000)}"
+            f"[index_scope] step5_turbopuffer_done: node_id={node_id} elapsed_ms={int((time.perf_counter() - t5) * 1000)}"
         )
 
         # 6) 回写 chunks 表的 turbopuffer 字段（best-effort）
@@ -282,11 +314,11 @@ class SearchService:
                 # 不阻断 indexing：后续可通过重建/补齐逻辑再修复
                 pass
         log_info(
-            f"[index_scope] step6_update_chunks_done: table_id={table_id} elapsed_ms={int((time.perf_counter() - t6) * 1000)}"
+            f"[index_scope] step6_update_chunks_done: node_id={node_id} elapsed_ms={int((time.perf_counter() - t6) * 1000)}"
         )
 
         log_info(
-            f"[index_scope] done: table_id={table_id} nodes={len(nodes)} chunks={len(all_chunks)} total_ms={int((time.perf_counter() - t0) * 1000)}"
+            f"[index_scope] done: node_id={node_id} nodes={len(nodes)} chunks={len(all_chunks)} total_ms={int((time.perf_counter() - t0) * 1000)}"
         )
         return SearchIndexStats(
             nodes_count=len(nodes),
@@ -298,7 +330,7 @@ class SearchService:
         self,
         *,
         project_id: str,
-        table_id: str,
+        node_id: str,
         tool_json_path: str,
         query: str,
         top_k: int = 5,
@@ -316,7 +348,7 @@ class SearchService:
         if top_k > 20:
             top_k = 20
 
-        namespace = self.build_namespace(project_id=project_id, table_id=table_id)
+        namespace = self.build_namespace(project_id=project_id, node_id=node_id)
 
         query_vec = await self._embedding.generate_embedding(q)
         resp = await self._tp.query(
@@ -349,7 +381,7 @@ class SearchService:
             json_path = _relative_pointer(base=scope_base, absolute=json_pointer)
 
             # 仅返回对 Agent 有用的字段
-            # 移除内部字段: table_id, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
+            # 移除内部字段: node_id, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
             cid = attrs.get("chunk_id")
             chunk_id_int: int | None = None
             try:

@@ -40,3 +40,4 @@ ALTER TABLE public.search_index_task
     FOREIGN KEY (tool_id) REFERENCES public.tool (id) ON DELETE CASCADE;
 
 
+

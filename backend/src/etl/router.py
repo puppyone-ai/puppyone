@@ -44,8 +44,8 @@ from src.etl.service import ETLService
 from src.etl.tasks.models import ETLTaskStatus
 from src.s3.dependencies import get_s3_service
 from src.s3.service import S3Service
-from src.table.dependencies import get_table_service
-from src.table.service import TableService
+from src.content_node.dependencies import get_content_node_service
+from src.content_node.service import ContentNodeService
 
 logger = logging.getLogger(__name__)
 
@@ -61,15 +61,15 @@ async def upload_and_submit(
         ..., description="Files to upload (single or multiple)"
     ),
     rule_id: Optional[int] = Form(None, description="Optional ETL rule id"),
-    table_id: Optional[str] = Form(
-        None, description="Optional target table id to mount results (UUID)"
+    node_id: Optional[str] = Form(
+        None, description="Optional target node id to mount results (UUID)"
     ),
     json_path: Optional[str] = Form(
         None, description="Optional JSON Pointer mount path (default: root)"
     ),
     etl_service: Annotated[ETLService, Depends(get_etl_service)] = None,
     s3_service: Annotated[S3Service, Depends(get_s3_service)] = None,
-    table_service: Annotated[TableService, Depends(get_table_service)] = None,
+    node_service: Annotated[ContentNodeService, Depends(get_content_node_service)] = None,
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -83,9 +83,11 @@ async def upload_and_submit(
     if not project_service.verify_project_access(project_id, current_user.user_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
-    if table_id is not None:
-        # Ensure target table exists and belongs to current user (404 on not found / no access)
-        table_service.get_by_id_with_access_check(table_id, current_user.user_id)
+    if node_id is not None:
+        # Ensure target node exists and belongs to current user (404 on not found / no access)
+        node = node_service.get_by_id(node_id, current_user.user_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
 
     mount_json_path = json_path or ""
     items: list[UploadAndSubmitItem] = []
@@ -212,11 +214,11 @@ async def upload_and_submit(
 
         task.metadata["mount_key"] = mount_key
         task.metadata["mount_json_path"] = mount_json_path
-        if table_id is not None:
-            task.metadata["mount_table_id"] = int(table_id)
+        if node_id is not None:
+            task.metadata["mount_node_id"] = node_id
         else:
-            task.metadata["auto_table_name"] = suffix[:10]
-            task.metadata["auto_create_table"] = True
+            task.metadata["auto_node_name"] = suffix[:10]
+            task.metadata["auto_create_node"] = True
 
         # Ensure s3_key is persisted (submit already sets it, but keep explicit)
         task.metadata["s3_key"] = s3_key

@@ -55,3 +55,4 @@ def generate_uuid_v7() -> str:
     uuid_int = (timestamp_ms << 80) | (7 << 76) | (rand_a << 64) | (2 << 62) | rand_b
 
     return str(uuid.UUID(int=uuid_int))
+

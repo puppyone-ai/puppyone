@@ -8,6 +8,7 @@ from src.content_node.dependencies import get_content_node_service
 from src.content_node.schemas import (
     CreateFolderRequest,
     CreateJsonNodeRequest,
+    CreateMarkdownNodeRequest,
     UpdateNodeRequest,
     MoveNodeRequest,
     NodeInfo,
@@ -158,6 +159,27 @@ def create_json_node(
         parent_id=request.parent_id,
     )
     return ApiResponse.success(data=_node_to_detail(node), message="节点创建成功")
+
+
+@router.post(
+    "/markdown",
+    response_model=ApiResponse[NodeDetail],
+    summary="创建 Markdown 节点",
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_markdown_node(
+    request: CreateMarkdownNodeRequest,
+    service: ContentNodeService = Depends(get_content_node_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    node = await service.create_markdown_node(
+        user_id=current_user.user_id,
+        project_id=request.project_id,
+        name=request.name,
+        content=request.content,
+        parent_id=request.parent_id,
+    )
+    return ApiResponse.success(data=_node_to_detail(node), message="Markdown 节点创建成功")
 
 
 @router.post(

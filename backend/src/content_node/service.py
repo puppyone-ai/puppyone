@@ -63,6 +63,32 @@ class ContentNodeService:
             return f"{parent.id_path}/{new_node_id}"
         return f"/{new_node_id}"
 
+    def _generate_unique_name(
+        self, project_id: str, parent_id: Optional[str], base_name: str
+    ) -> str:
+        """生成唯一名称，如 'Untitled', 'Untitled (1)', 'Untitled (2)'"""
+        import re
+        
+        existing_names = self.repo.find_names_with_prefix(project_id, parent_id, base_name)
+        
+        if base_name not in existing_names:
+            return base_name
+        
+        # 找出所有已使用的序号
+        pattern = re.compile(rf"^{re.escape(base_name)} \((\d+)\)$")
+        used_numbers = set()
+        for name in existing_names:
+            match = pattern.match(name)
+            if match:
+                used_numbers.add(int(match.group(1)))
+        
+        # 找到第一个未使用的序号
+        counter = 1
+        while counter in used_numbers:
+            counter += 1
+        
+        return f"{base_name} ({counter})"
+
     def create_folder(
         self, user_id: str, project_id: str, name: str, parent_id: Optional[str] = None
     ) -> ContentNode:
@@ -70,11 +96,12 @@ class ContentNodeService:
         import uuid
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(user_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, parent_id, name)
         
         return self.repo.create(
             user_id=user_id,
             project_id=project_id,
-            name=name,
+            name=unique_name,
             node_type="folder",
             id_path=id_path,
             parent_id=parent_id,
@@ -92,16 +119,52 @@ class ContentNodeService:
         import uuid
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(user_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, parent_id, name)
         
         return self.repo.create(
             user_id=user_id,
             project_id=project_id,
-            name=name,
+            name=unique_name,
             node_type="json",
             id_path=id_path,
             parent_id=parent_id,
             content=content,
             mime_type="application/json",
+        )
+
+    async def create_markdown_node(
+        self, 
+        user_id: str,
+        project_id: str,
+        name: str, 
+        content: str = "",
+        parent_id: Optional[str] = None,
+    ) -> ContentNode:
+        """创建 Markdown 节点（内容存储到 S3）"""
+        import uuid
+        new_id = str(uuid.uuid4())
+        id_path = self._build_id_path(user_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        
+        # 生成 S3 key 并上传内容
+        s3_key = f"users/{user_id}/content/{uuid.uuid4()}.md"
+        content_bytes = content.encode('utf-8')
+        await self.s3.upload_file(
+            key=s3_key,
+            content=content_bytes,
+            content_type="text/markdown",
+        )
+        
+        return self.repo.create(
+            user_id=user_id,
+            project_id=project_id,
+            name=unique_name,
+            node_type="markdown",
+            id_path=id_path,
+            parent_id=parent_id,
+            s3_key=s3_key,
+            mime_type="text/markdown",
+            size_bytes=len(content_bytes),
         )
 
     async def prepare_file_upload(
@@ -116,6 +179,7 @@ class ContentNodeService:
         import uuid
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(user_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, parent_id, name)
         
         # 确定文件类型
         node_type = self._get_node_type_from_mime(content_type)
@@ -127,7 +191,7 @@ class ContentNodeService:
         node = self.repo.create(
             user_id=user_id,
             project_id=project_id,
-            name=name,
+            name=unique_name,
             node_type=node_type,
             id_path=id_path,
             parent_id=parent_id,

@@ -69,7 +69,7 @@ export function AppSidebar({
     // Project View Nav Items
     const projectNavItems: NavItem[] = [
       {
-        id: 'projects', // Maps to Data/Files
+        id: 'data', // Maps to Data/Files view
         label: 'Data',
         icon: (
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap="round" strokeLinejoin="round">
@@ -116,12 +116,12 @@ export function AppSidebar({
         activeView={activeView}
         navItems={projectNavItems}
         onNavigate={(viewId) => {
-          if (viewId === 'projects') {
-            router.push(`/projects/${activeProject.id}`);
+          if (viewId === 'projects' || viewId === 'data') {
+            router.push(`/projects/${activeProject.id}/data`);
           } else if (viewId === 'tools') {
-            // TODO: Navigate to Project Tools
+            router.push(`/projects/${activeProject.id}/tools`);
           } else if (viewId === 'settings') {
-            // TODO: Navigate to Project Settings
+            router.push(`/projects/${activeProject.id}/settings`);
           }
         }}
         onBack={() => router.push('/projects')}

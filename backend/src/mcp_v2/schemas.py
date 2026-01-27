@@ -88,7 +88,7 @@ class BoundToolOut(BaseModel):
 
     name: str
     type: str
-    table_id: Optional[str] = None
+    node_id: Optional[str] = None  # 改为 node_id
     json_path: str = ""
 
     alias: Optional[str] = None
@@ -96,3 +96,8 @@ class BoundToolOut(BaseModel):
     input_schema: Optional[Any] = None
     output_schema: Optional[Any] = None
     metadata: Optional[Any] = None
+
+    # 新增字段
+    category: str = "builtin"
+    script_type: Optional[str] = None
+    script_content: Optional[str] = None

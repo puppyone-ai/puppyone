@@ -60,12 +60,23 @@ export default function MainLayout({
   }, [activeBaseId]);
 
   // 计算 Active View
+  // New URL structure: /projects/{projectId}/data|tools|settings
   const activeView = useMemo(() => {
-    if (!pathname) return 'projects';
+    if (!pathname) return 'data';
+    
+    // Global routes
     if (pathname.startsWith('/tools-and-server')) return 'tools';
     if (pathname.startsWith('/settings')) return 'settings';
-    if (pathname.startsWith('/projects') || pathname.startsWith('/home')) return 'projects';
-    return 'projects';
+    if (pathname.startsWith('/home')) return 'home';
+    
+    // Project-specific routes
+    if (pathname.includes('/projects/')) {
+      if (pathname.includes('/tools')) return 'tools';
+      if (pathname.includes('/settings')) return 'settings';
+      return 'data'; // /projects/{id}/data/... or /projects/{id}
+    }
+    
+    return 'data';
   }, [pathname]);
 
   // 用户信息

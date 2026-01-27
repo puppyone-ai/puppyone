@@ -14,7 +14,7 @@ import { apiRequest, get, post, put, del } from './apiClient';
 // 类型定义
 // ============================================
 
-// 后端支持的工具类型 (增加 shell_access 和 shell_access_readonly)
+// 后端支持的工具类型 (增加 shell_access, shell_access_readonly, custom_script)
 export type McpToolType =
   | 'get_data_schema'
   | 'get_all_data'
@@ -26,7 +26,11 @@ export type McpToolType =
   | 'preview'
   | 'select'
   | 'shell_access'
-  | 'shell_access_readonly';
+  | 'shell_access_readonly'
+  | 'custom_script';
+
+// 工具分类
+export type ToolCategory = 'builtin' | 'custom';
 
 // MCP 工具权限类型（用于前端状态管理）
 export interface McpToolPermissions {
@@ -61,7 +65,7 @@ export interface Tool {
   user_id: string;
   created_at: string;
 
-  table_id: string | null;
+  node_id: string | null;  // 绑定的 content_nodes 节点 ID
   json_path: string;
   type: McpToolType;
   name: string;
@@ -71,13 +75,18 @@ export interface Tool {
   input_schema?: Record<string, unknown> | null;
   output_schema?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
+
+  // 新增字段
+  category: ToolCategory;  // 工具分类：builtin 或 custom
+  script_type?: string | null;  // 脚本类型：python, javascript, shell
+  script_content?: string | null;  // 脚本代码内容
 }
 
 /**
  * 创建 Tool 请求
  */
 export interface ToolCreateRequest {
-  table_id: string;
+  node_id?: string | null;  // 绑定的 content_nodes 节点 ID
   json_path?: string; // 默认 ""
   type: McpToolType;
   name: string;
@@ -86,13 +95,17 @@ export interface ToolCreateRequest {
   input_schema?: Record<string, unknown>;
   output_schema?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  // 新增字段
+  category?: ToolCategory;  // 默认 'builtin'
+  script_type?: string;
+  script_content?: string;
 }
 
 /**
  * 更新 Tool 请求
  */
 export interface ToolUpdateRequest {
-  table_id?: string;
+  node_id?: string | null;
   json_path?: string;
   type?: McpToolType;
   name?: string;
@@ -101,6 +114,10 @@ export interface ToolUpdateRequest {
   input_schema?: Record<string, unknown>;
   output_schema?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  // 新增字段
+  category?: ToolCategory;
+  script_type?: string | null;
+  script_content?: string | null;
 }
 
 // ============================================
@@ -174,7 +191,7 @@ export interface BoundTool {
 
   name: string;
   type: McpToolType;
-  table_id: string | null;
+  node_id: string | null;  // 改为 node_id
   json_path: string;
 
   alias?: string | null;
@@ -182,6 +199,11 @@ export interface BoundTool {
   input_schema?: Record<string, unknown> | null;
   output_schema?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
+
+  // 新增字段
+  category: ToolCategory;
+  script_type?: string | null;
+  script_content?: string | null;
 }
 
 // ============================================
@@ -329,22 +351,22 @@ export async function getTools(skip = 0, limit = 100): Promise<Tool[]> {
 }
 
 /**
- * 获取指定 table 的所有 Tool
+ * 获取指定节点的所有 Tool
  */
-export async function getToolsByTableId(
-  tableId: number,
+export async function getToolsByNodeId(
+  nodeId: string,
   skip = 0,
   limit = 1000
 ): Promise<Tool[]> {
   return get<Tool[]>(
-    `/api/v1/tools/by-table/${tableId}?skip=${skip}&limit=${limit}`
+    `/api/v1/tools/by-node/${nodeId}?skip=${skip}&limit=${limit}`
   );
 }
 
 /**
- * 获取指定 project 下的所有 Tool（聚合所有 tables）
+ * 获取指定 project 下的所有 Tool（聚合所有节点）
  */
-export async function getToolsByProjectId(projectId: number): Promise<Tool[]> {
+export async function getToolsByProjectId(projectId: string): Promise<Tool[]> {
   return get<Tool[]>(`/api/v1/tools/by-project/${projectId}`);
 }
 
@@ -598,6 +620,10 @@ export const TOOL_INFO: Record<
     label: 'Bash / Shell Access (Read-only)',
     description: 'Provide read-only shell access to data via jq/cli',
   },
+  custom_script: {
+    label: 'Custom Script',
+    description: '自定义脚本工具（Python/JavaScript/Shell）',
+  },
 };
 
 // ============================================
@@ -609,7 +635,7 @@ export const TOOL_INFO: Record<
  * 这是一个高层封装，简化创建流程
  */
 export async function createToolsAndMcp(params: {
-  tableId: number;
+  nodeId: string;  // 改为 nodeId
   jsonPath?: string;
   permissions: McpToolPermissions;
   toolNamePrefix?: string;
@@ -617,7 +643,7 @@ export async function createToolsAndMcp(params: {
   customDefinitions?: Record<McpToolType, McpToolDefinition>;
 }): Promise<McpV2CreateWithBindingsResponse> {
   const {
-    tableId,
+    nodeId,
     jsonPath = '',
     permissions,
     toolNamePrefix = '',
@@ -637,7 +663,7 @@ export async function createToolsAndMcp(params: {
     toolTypes.map(type => {
       const customDef = customDefinitions?.[type];
       return createTool({
-        table_id: tableId,
+        node_id: nodeId,
         json_path: jsonPath,
         type: type,
         name: customDef?.name || `${toolNamePrefix}${type}`,
