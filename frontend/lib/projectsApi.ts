@@ -15,7 +15,7 @@ export type ProjectInfo = {
   id: string;
   name: string;
   description?: string;
-  nodes: NodeInfo[];  // 从 tables 改为 nodes
+  nodes: NodeInfo[]; // 从 tables 改为 nodes
 };
 
 // 保留 TableInfo 用于兼容性

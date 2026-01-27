@@ -85,7 +85,9 @@ export async function getNodeByIdPath(
     project_id: projectId,
     id_path: idPath,
   });
-  return apiRequest<NodeDetail>(`/api/v1/nodes/by-id-path/?${params.toString()}`);
+  return apiRequest<NodeDetail>(
+    `/api/v1/nodes/by-id-path/?${params.toString()}`
+  );
 }
 
 /**
@@ -96,10 +98,11 @@ export async function createFolder(
   projectId: string,
   parentId?: string | null
 ): Promise<NodeDetail> {
-  const body: { name: string; project_id: string; parent_id?: string | null } = {
-    name,
-    project_id: projectId,
-  };
+  const body: { name: string; project_id: string; parent_id?: string | null } =
+    {
+      name,
+      project_id: projectId,
+    };
   if (parentId) {
     body.parent_id = parentId;
   }
@@ -119,7 +122,12 @@ export async function createJsonNode(
   content: any,
   parentId?: string | null
 ): Promise<NodeDetail> {
-  const body: { name: string; project_id: string; content: any; parent_id?: string | null } = {
+  const body: {
+    name: string;
+    project_id: string;
+    content: any;
+    parent_id?: string | null;
+  } = {
     name,
     project_id: projectId,
     content,

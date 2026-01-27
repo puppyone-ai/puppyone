@@ -12,4 +12,3 @@ export type { MillerColumnsViewProps, MillerColumnItem } from './MillerColumnsVi
 
 // Re-export content types for convenience
 export type { ContentType, ViewType } from '../finder/items';
-

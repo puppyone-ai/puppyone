@@ -52,9 +52,12 @@ export function GridView({
       ))}
 
       {onCreateClick && (
-        <CreateButton viewType='grid' label={createLabel} onClick={onCreateClick} />
+        <CreateButton
+          viewType='grid'
+          label={createLabel}
+          onClick={onCreateClick}
+        />
       )}
     </div>
   );
 }
-

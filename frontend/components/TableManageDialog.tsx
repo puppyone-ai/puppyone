@@ -272,7 +272,12 @@ export function TableManageDialog({
         const finalName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
         const { structure, etlFiles } = await parseFolderStructure(selectedFiles);
         setImportMessage('Creating context...');
-        const newTable = await createTable(projectId, finalName, structure, parentId);
+        const newTable = await createTable(
+          projectId,
+          finalName,
+          structure,
+          parentId
+        );
         const newTableId = newTable.id;
         if (etlFiles.length > 0 && projectId) {
           const placeholderTasks = etlFiles.map((file, index) => ({

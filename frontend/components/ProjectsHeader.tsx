@@ -190,7 +190,7 @@ export function ProjectsHeader({
                 e.currentTarget.style.background = 'transparent';
                 e.currentTarget.style.color = '#666';
               }}
-              title="Back to Home"
+              title='Back to Home'
             >
               <svg
                 width='16'
