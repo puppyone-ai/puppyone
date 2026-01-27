@@ -233,3 +233,24 @@ class ContentNodeRepository:
         
         return count
 
+    def find_names_with_prefix(
+        self,
+        project_id: str,
+        parent_id: Optional[str],
+        name_prefix: str,
+    ) -> List[str]:
+        """查找同一目录下以指定前缀开头的所有名称（用于生成唯一名称）"""
+        query = (
+            self.client.table(self.TABLE_NAME)
+            .select("name")
+            .eq("project_id", project_id)
+            .ilike("name", f"{name_prefix}%")
+        )
+        if parent_id is None:
+            query = query.is_("parent_id", "null")
+        else:
+            query = query.eq("parent_id", parent_id)
+        
+        response = query.execute()
+        return [row["name"] for row in response.data]
+

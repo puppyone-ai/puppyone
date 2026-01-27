@@ -22,14 +22,7 @@ export type { CreateButtonProps } from './CreateButton';
 
 // === Content Type Definitions ===
 
-export type ContentType =
-  | 'folder'
-  | 'json'
-  | 'markdown'
-  | 'image'
-  | 'pdf'
-  | 'video'
-  | 'file';
+export type ContentType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file';
 export type ViewType = 'grid' | 'list' | 'column';
 
 // === Unified Content Item ===
@@ -42,8 +35,8 @@ export interface ContentItemProps {
   description?: string;
   onClick: (e: React.MouseEvent) => void;
   // Type-specific props
-  rowCount?: number; // for json
-  thumbnailUrl?: string; // for image
+  rowCount?: number;      // for json
+  thumbnailUrl?: string;  // for image
 }
 
 /**
@@ -143,3 +136,5 @@ export function mapNodeTypeToContentType(nodeType: string): ContentType {
       return 'file';
   }
 }
+
+

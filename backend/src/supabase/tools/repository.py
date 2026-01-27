@@ -45,13 +45,13 @@ class ToolRepository:
         skip: int = 0,
         limit: int = 100,
         user_id: Optional[str] = None,
-        table_id: Optional[str] = None,
+        node_id: Optional[str] = None,
     ) -> List[ToolResponse]:
         query = self._client.table("tool").select("*")
         if user_id is not None:
             query = query.eq("user_id", user_id)
-        if table_id is not None:
-            query = query.eq("table_id", table_id)
+        if node_id is not None:
+            query = query.eq("node_id", node_id)
         response = query.range(skip, skip + limit - 1).execute()
         return [ToolResponse(**item) for item in response.data]
 

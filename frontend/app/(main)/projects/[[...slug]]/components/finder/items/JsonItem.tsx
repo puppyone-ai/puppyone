@@ -15,67 +15,27 @@ export interface JsonItemProps {
 // === Icons (Table/JSON style) ===
 
 const JsonIconLarge = () => (
-  <svg
-    width='48'
-    height='48'
-    viewBox='0 0 24 24'
-    fill='none'
-    xmlns='http://www.w3.org/2000/svg'
-  >
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
-      d='M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z'
-      stroke='currentColor'
-      strokeWidth='1.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      fill='currentColor'
-      fillOpacity='0.05'
+      d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="currentColor"
+      fillOpacity="0.05"
     />
-    <path
-      d='M3 9H21'
-      stroke='currentColor'
-      strokeWidth='1.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    />
-    <path
-      d='M3 15H21'
-      stroke='currentColor'
-      strokeWidth='1.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    />
-    <path
-      d='M9 3V21'
-      stroke='currentColor'
-      strokeWidth='1.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    />
+    <path d="M3 9H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M3 15H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9 3V21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const JsonIconSmall = () => (
-  <svg
-    width='20'
-    height='20'
-    viewBox='0 0 24 24'
-    fill='none'
-    xmlns='http://www.w3.org/2000/svg'
-  >
-    <rect
-      x='3'
-      y='3'
-      width='18'
-      height='18'
-      rx='2'
-      stroke='currentColor'
-      strokeWidth='1.5'
-      fill='currentColor'
-      fillOpacity='0.08'
-    />
-    <path d='M3 9H21' stroke='currentColor' strokeWidth='1.5' />
-    <path d='M9 3V21' stroke='currentColor' strokeWidth='1.5' />
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.08" />
+    <path d="M3 9H21" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M9 3V21" stroke="currentColor" strokeWidth="1.5" />
   </svg>
 );
 
@@ -137,12 +97,7 @@ function GridVariant({ name, onClick }: Omit<JsonItemProps, 'viewType'>) {
 
 // === List View ===
 
-function ListVariant({
-  name,
-  description,
-  rowCount,
-  onClick,
-}: Omit<JsonItemProps, 'viewType'>) {
+function ListVariant({ name, description, rowCount, onClick }: Omit<JsonItemProps, 'viewType'>) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -248,3 +203,5 @@ export function JsonItem({ viewType, ...props }: JsonItemProps) {
       return <GridVariant {...props} />;
   }
 }
+
+

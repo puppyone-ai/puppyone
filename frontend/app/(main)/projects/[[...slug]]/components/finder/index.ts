@@ -21,4 +21,4 @@ export type {
 } from './items';
 
 // Menu component
-export { CreateMenu, type CreateMenuProps } from './CreateMenu';
+export { CreateMenu, type CreateMenuProps, type CreateType } from './CreateMenu';

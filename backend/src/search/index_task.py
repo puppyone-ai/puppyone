@@ -17,7 +17,7 @@ class SearchIndexTask(BaseModel):
     tool_id: str
     user_id: Optional[str] = None
     project_id: Optional[str] = None
-    table_id: str
+    node_id: str  # 绑定的 content_nodes 节点 ID
     json_path: str = ""
 
     status: SearchIndexStatus = "pending"
@@ -35,7 +35,7 @@ class SearchIndexTaskUpsert(BaseModel):
     tool_id: str
     user_id: Optional[str] = None
     project_id: Optional[str] = None
-    table_id: str
+    node_id: str  # 绑定的 content_nodes 节点 ID
     json_path: str = ""
 
     status: SearchIndexStatus = "pending"

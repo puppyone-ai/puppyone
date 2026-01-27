@@ -30,7 +30,7 @@ class AgentService:
         self,
         request: AgentRequest,
         current_user,
-        table_service,
+        node_service,  # ContentNodeService，用于获取 content_nodes 数据
         tool_service,
         sandbox_service,
         chat_service: Optional[ChatService] = None,
@@ -41,24 +41,30 @@ class AgentService:
         
         前端只传 active_tool_ids，后端自动：
         1. 查库获取 tool 配置
-        2. 如果有 bash tool，查表数据、启动沙盒
+        2. 如果有 bash tool，查节点数据、启动沙盒
         3. 构建 Claude 消息
         """
         
         # ========== 1. 解析 active_tool_ids，查库获取配置 ==========
-        bash_tool = None  # {table_id, json_path, readonly}
+        bash_tool = None  # {node_id, json_path, readonly}
+        
+        logger.info(f"[Agent DEBUG] active_tool_ids={request.active_tool_ids}")
         
         if request.active_tool_ids and current_user and tool_service:
             for tool_id in request.active_tool_ids:
                 try:
                     tool = tool_service.get_by_id(tool_id)
+                    logger.info(f"[Agent DEBUG] tool_id={tool_id}, tool={tool}")
+                    if tool:
+                        logger.info(f"[Agent DEBUG] tool.user_id={tool.user_id}, current_user.user_id={current_user.user_id}")
+                        logger.info(f"[Agent DEBUG] tool.type={tool.type}, tool.node_id={tool.node_id}")
                     if tool and tool.user_id == current_user.user_id:
                         tool_type = (tool.type or "").strip()
                         if tool_type in ("shell_access", "shell_access_readonly"):
                             # 只取第一个 bash tool（互斥）
                             if bash_tool is None:
                                 bash_tool = {
-                                    "table_id": tool.table_id,
+                                    "node_id": tool.node_id,  # 改为 node_id
                                     "json_path": (tool.json_path or "").strip(),
                                     "readonly": tool_type == "shell_access_readonly",
                                 }
@@ -119,27 +125,27 @@ class AgentService:
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to save user message: {e}")
 
-        # ========== 3. 如果有 bash tool，查表数据、启动沙盒 ==========
+        # ========== 3. 如果有 bash tool，查节点数据、启动沙盒 ==========
         use_bash = bash_tool is not None
         node_data = None
         sandbox_session_id = None
         
-        if use_bash and table_service and current_user:
+        if use_bash and node_service and current_user:
             try:
-                table = table_service.get_by_id_with_access_check(
-                    bash_tool["table_id"], current_user.user_id
+                node = node_service.get_by_id(
+                    bash_tool["node_id"], current_user.user_id
                 )
-                logger.info(f"[Agent] Found table: id={table.id}, name={table.name}")
-                logger.info(f"[Agent] table.data type={type(table.data).__name__}, value={str(table.data)[:500] if table.data else 'None'}")
+                logger.info(f"[Agent] Found node: id={node.id}, name={node.name}, type={node.type}")
+                logger.info(f"[Agent] node.content type={type(node.content).__name__}, value={str(node.content)[:500] if node.content else 'None'}")
                 
-                # 提取指定路径的数据
-                if table.data:
-                    node_data = extract_data_by_path(table.data, bash_tool["json_path"])
+                # 从 content_nodes 获取 JSON 数据
+                if node.content:
+                    node_data = extract_data_by_path(node.content, bash_tool["json_path"])
                     logger.info(f"[Agent] Extracted node_data for path '{bash_tool['json_path']}': {str(node_data)[:100] if node_data else 'None'}...")
                 else:
-                    logger.warning(f"[Agent] table.data is None or empty!")
+                    logger.warning(f"[Agent] node.content is None or empty!")
             except Exception as e:
-                logger.warning(f"[Agent] Failed to get table data: {e}")
+                logger.warning(f"[Agent] Failed to get node data: {e}")
 
         if use_bash and sandbox_service:
             sandbox_session_id = f"agent-{int(time.time() * 1000)}"
@@ -201,6 +207,9 @@ class AgentService:
             iterations += 1
             
             logger.info(f"[CLAUDE REQUEST] Iteration {iterations} (streaming)")
+            logger.info(f"[CLAUDE DEBUG] system_prompt = {system_prompt}")
+            logger.info(f"[CLAUDE DEBUG] tools = {json.dumps(tools, ensure_ascii=False)}")
+            logger.info(f"[CLAUDE DEBUG] messages = {json.dumps(messages, ensure_ascii=False, default=str)[:2000]}")
             
             try:
                 # ===== 流式调用 Claude =====
@@ -401,15 +410,19 @@ class AgentService:
                 if bash_tool["readonly"]:
                     yield {"type": "result", "success": True}
                 else:
-                    # 合并数据回数据库
-                    if table_service and bash_tool["table_id"]:
+                    # 合并数据回数据库（使用 node_service）
+                    if node_service and bash_tool["node_id"]:
                         try:
-                            table = table_service.get_by_id(bash_tool["table_id"])
-                            if table and table.data:
+                            node = node_service.get_by_id(bash_tool["node_id"], current_user.user_id)
+                            if node and node.content:
                                 updated_data = merge_data_by_path(
-                                    table.data, bash_tool["json_path"], read_result.get("data")
+                                    node.content, bash_tool["json_path"], read_result.get("data")
                                 )
-                                table_service.repo.update_context_data(bash_tool["table_id"], updated_data)
+                                node_service.update_node(
+                                    node_id=bash_tool["node_id"],
+                                    user_id=current_user.user_id,
+                                    content=updated_data,
+                                )
                                 yield {
                                     "type": "result",
                                     "success": True,
@@ -419,7 +432,7 @@ class AgentService:
                             else:
                                 yield {"type": "result", "success": True}
                         except Exception as e:
-                            logger.warning(f"[Agent] Failed to update table: {e}")
+                            logger.warning(f"[Agent] Failed to update node: {e}")
                             yield {"type": "result", "success": True}
                     else:
                         yield {"type": "result", "success": True}

@@ -63,8 +63,8 @@ export function LibraryView({
     const groups = new Map<string, Tool[]>();
 
     tools.forEach((tool: Tool) => {
-      const path = tool.table_id
-        ? tablePathMap.get(tool.table_id)?.path || '—'
+      const path = tool.node_id
+        ? tablePathMap.get(tool.node_id)?.path || '—'
         : '—';
       if (!groups.has(path)) {
         groups.set(path, []);
@@ -161,9 +161,9 @@ export function LibraryView({
 
     const firstToolId = Array.from(selectedTools)[0];
     const firstTool = tools.find((t: Tool) => t.id === firstToolId);
-    if (!firstTool?.table_id) return;
+    if (!firstTool?.node_id) return;
 
-    const tableInfo = tablePathMap.get(firstTool.table_id);
+    const tableInfo = tablePathMap.get(firstTool.node_id);
     if (!tableInfo) return;
 
     setCreating(true);
@@ -171,7 +171,7 @@ export function LibraryView({
       const newServer = await createMcpLegacy({
         name: newServerName.trim(),
         project_id: tableInfo.projectId,
-        table_id: firstTool.table_id,
+        table_id: firstTool.node_id,  // 旧 MCP API 仍使用 table_id 参数名
         json_pointer: '',
         register_tools: [
           'get_data_schema',

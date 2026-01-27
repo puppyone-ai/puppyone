@@ -21,6 +21,14 @@ class CreateJsonNodeRequest(BaseModel):
     content: Any = Field(default_factory=dict, description="JSON 内容")
 
 
+class CreateMarkdownNodeRequest(BaseModel):
+    """创建 Markdown 节点请求"""
+    name: str = Field(..., description="节点名称")
+    project_id: str = Field(..., description="所属项目 ID")
+    parent_id: Optional[str] = Field(None, description="父节点 ID")
+    content: str = Field(default="", description="Markdown 内容")
+
+
 class UpdateNodeRequest(BaseModel):
     """更新节点请求"""
     name: Optional[str] = Field(None, description="新名称")

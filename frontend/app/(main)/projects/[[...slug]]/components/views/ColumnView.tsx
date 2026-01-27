@@ -131,9 +131,7 @@ function SidebarItem({
           paddingLeft: 12 + depth * 16,
           cursor: 'pointer',
           background: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-          borderLeft: isSelected
-            ? '2px solid #3b82f6'
-            : '2px solid transparent',
+          borderLeft: isSelected ? '2px solid #3b82f6' : '2px solid transparent',
           transition: 'all 0.1s',
         }}
         onMouseEnter={e =>
@@ -249,11 +247,7 @@ function DefaultPreview({ item }: { item: ColumnViewItem | null }) {
             fontSize: 32,
           }}
         >
-          {item.type === 'folder' ? (
-            <FolderIcon size={32} />
-          ) : (
-            <FileIcon size={32} />
-          )}
+          {item.type === 'folder' ? <FolderIcon size={32} /> : <FileIcon size={32} />}
         </div>
         <div>
           <div style={{ fontSize: 18, fontWeight: 600, color: '#fff' }}>
@@ -446,3 +440,5 @@ export function ColumnView({
     </div>
   );
 }
+
+

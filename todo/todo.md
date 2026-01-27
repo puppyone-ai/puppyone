@@ -1,7 +1,7 @@
 - [x]  sidebar的加载的时候的样式很奇怪
 - [x]  json editor的添加元素该怎么设计比较好？
 - [x]  json editor的新样式
-- [ ]  前端对接 turbopuffer 的搜索
+- [x]  前端对接 turbopuffer 的搜索
 - [x]  table的新建和删除都搞定
 - [x]  chat history 的前后端的机制
 - [ ]  onboarding 过程的检查

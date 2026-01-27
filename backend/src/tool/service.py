@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Any
 
 from src.exceptions import NotFoundException, ErrorCode, BusinessException
-from src.table.service import TableService
+from src.content_node.service import ContentNodeService
 from src.tool.models import Tool
 from src.tool.repository import ToolRepositoryBase
 from src.supabase.tools.schemas import (
@@ -33,9 +33,9 @@ def _get_default_tool_description(tool_type: str) -> Optional[str]:
 
 
 class ToolService:
-    def __init__(self, repo: ToolRepositoryBase, table_service: TableService):
+    def __init__(self, repo: ToolRepositoryBase, node_service: ContentNodeService):
         self.repo = repo
-        self.table_service = table_service
+        self.node_service = node_service
         self._sb = get_supabase_repository()
 
     def _invalidate_bound_mcps(self, tool_id: str) -> None:
@@ -87,18 +87,18 @@ class ToolService:
     ) -> List[Tool]:
         return self.repo.get_by_user_id(user_id, skip=skip, limit=limit)
 
-    def list_user_tools_by_table_id(
+    def list_user_tools_by_node_id(
         self,
         user_id: str,
         *,
-        table_id: str,
+        node_id: str,
         skip: int = 0,
         limit: int = 1000,
     ) -> List[Tool]:
-        # 强校验：table 必须属于当前用户
-        self.table_service.get_by_id_with_access_check(table_id, user_id)
+        # 强校验：node 必须属于当前用户
+        self.node_service.get_by_id(node_id, user_id)
         return self.repo.get_by_user_id(
-            user_id, skip=skip, limit=limit, table_id=table_id
+            user_id, skip=skip, limit=limit, node_id=node_id
         )
 
     def get_by_id(self, tool_id: str) -> Optional[Tool]:
@@ -116,7 +116,7 @@ class ToolService:
         self,
         *,
         user_id: str,
-        table_id: str,
+        node_id: Optional[str],
         json_path: str,
         type: str,
         name: str,
@@ -125,18 +125,13 @@ class ToolService:
         input_schema: Optional[Any],
         output_schema: Optional[Any],
         metadata: Optional[Any],
+        category: str = "builtin",
+        script_type: Optional[str] = None,
+        script_content: Optional[str] = None,
     ) -> Tool:
-        # 强校验：table 必须属于当前用户
-        self.table_service.get_by_id_with_access_check(table_id, user_id)
-
-        # 约束：同一 scope（user_id + table_id + json_path）下，Bash 只能配置一个（rw/ro 二选一）
-        self._assert_bash_unique_in_scope(
-            user_id=user_id,
-            table_id=table_id,
-            json_path=json_path,
-            tool_type=str(type or ""),
-            exclude_tool_id=None,
-        )
+        # 对于内置工具，强校验：node 必须属于当前用户
+        if node_id and category == "builtin":
+            self.node_service.get_by_id(node_id, user_id)
 
         # 默认工具描述：当未传 description（或仅空白）时，根据 type 自动填充默认值
         if description is None or not str(description).strip():
@@ -145,7 +140,7 @@ class ToolService:
         created = self.repo.create(
             SbToolCreate(
                 user_id=user_id,
-                table_id=table_id,
+                node_id=node_id,
                 json_path=json_path,
                 type=type,
                 name=name,
@@ -154,6 +149,9 @@ class ToolService:
                 input_schema=input_schema,
                 output_schema=output_schema,
                 metadata=metadata,
+                category=category,
+                script_type=script_type,
+                script_content=script_content,
             )
         )
         return created
@@ -166,31 +164,14 @@ class ToolService:
         if name is not None and name != existing.name:
             self._assert_name_update_no_conflict(tool_id, user_id, name)
 
-        table_id = patch.get("table_id")
-        if table_id is not None:
-            self.table_service.get_by_id_with_access_check(table_id, user_id)
-
-        # 约束：如果更新后 tool 变为 Bash（或仍为 Bash），确保同 scope 仍然只有一个 bash
-        next_table_id = table_id if table_id is not None else (existing.table_id or "")
-        next_json_path = patch.get("json_path")
-        if next_json_path is None:
-            next_json_path = existing.json_path or ""
-        next_type = patch.get("type")
-        if next_type is None:
-            next_type = existing.type or ""
-
-        self._assert_bash_unique_in_scope(
-            user_id=user_id,
-            table_id=str(next_table_id) if next_table_id else "",
-            json_path=str(next_json_path or ""),
-            tool_type=str(next_type or ""),
-            exclude_tool_id=tool_id,
-        )
+        node_id = patch.get("node_id")
+        if node_id is not None:
+            self.node_service.get_by_id(node_id, user_id)
 
         updated = self.repo.update(
             tool_id,
             SbToolUpdate(
-                table_id=patch.get("table_id"),
+                node_id=patch.get("node_id"),
                 json_path=patch.get("json_path"),
                 type=patch.get("type"),
                 name=patch.get("name"),
@@ -199,6 +180,9 @@ class ToolService:
                 input_schema=patch.get("input_schema"),
                 output_schema=patch.get("output_schema"),
                 metadata=patch.get("metadata"),
+                category=patch.get("category"),
+                script_type=patch.get("script_type"),
+                script_content=patch.get("script_content"),
             ),
         )
         if not updated:
@@ -223,64 +207,14 @@ class ToolService:
         user_id: str,
         *,
         project_id: str,
-        limit_per_table: int = 1000,
+        limit: int = 1000,
     ) -> List[Tool]:
         """
-        项目级聚合：返回该 project 下所有 table 的 tools（包含 shell_access*）。
+        项目级聚合：返回该用户的所有 tools。
+        注意：实际按 project 过滤由前端完成（根据 node_id 对应的节点所属项目）。
+        TODO: 后续可以优化为在数据库层面 JOIN content_nodes 表进行过滤。
         """
-        if not self.table_service.verify_project_access(project_id, user_id):
-            raise NotFoundException(
-                f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
-            )
-        tables = self._sb.get_tables(project_id=project_id, limit=1000)
-        out: list[Tool] = []
-        for t in tables:
-            table_id = getattr(t, "id", None)
-            if not table_id:
-                continue
-            out.extend(
-                self.repo.get_by_user_id(
-                    user_id, table_id=table_id, skip=0, limit=int(limit_per_table)
-                )
-            )
-        return out
-
-    def _assert_bash_unique_in_scope(
-        self,
-        *,
-        user_id: str,
-        table_id: str,
-        json_path: str,
-        tool_type: str,
-        exclude_tool_id: Optional[str],
-    ) -> None:
-        """
-        规则：
-        - 同一 scope（user_id + table_id + json_path）下，Bash 只能配置一条
-          （type in {'shell_access','shell_access_readonly'} 二选一）。
-        """
-        bash_types = {"shell_access", "shell_access_readonly"}
-        tool_type = (tool_type or "").strip()
-        if tool_type not in bash_types:
-            return
-        if not table_id:
-            return
-        scope_path = (json_path or "").strip()  # 保持与现有存储一致：空字符串表示根
-
-        # 读取该 table 下所有 tools（同 user），再在内存中过滤 scope + bash types
-        siblings = self.repo.get_by_user_id(user_id, table_id=str(table_id), skip=0, limit=2000)
-        for sib in siblings:
-            if exclude_tool_id is not None and sib.id == exclude_tool_id:
-                continue
-            if (sib.type or "").strip() not in bash_types:
-                continue
-            if (sib.json_path or "").strip() != scope_path:
-                continue
-            raise BusinessException(
-                f"Only one bash is allowed per scope: table_id={table_id} json_path='{scope_path}'. "
-                f"Existing='{sib.type}', attempted='{tool_type}'.",
-                code=ErrorCode.VALIDATION_ERROR,
-            )
+        return self.repo.get_by_user_id(user_id, skip=0, limit=limit)
 
     def delete(self, tool_id: str, user_id: str) -> None:
         _ = self.get_by_id_with_access_check(tool_id, user_id)

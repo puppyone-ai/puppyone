@@ -796,29 +796,35 @@ export function ChatSidebar({
     'delete',
   ] as const;
 
+  // DEBUG: 打印调试信息
+  console.log('[ChatSidebar DEBUG] tableId (activeNodeId):', tableId);
+  console.log('[ChatSidebar DEBUG] projectTools:', projectTools);
+  console.log('[ChatSidebar DEBUG] projectTools.length:', projectTools?.length);
+
   if (projectTools && projectTools.length > 0) {
     // 项目级：直接使用 DB tools 列表
     for (const t of projectTools) {
+      console.log('[ChatSidebar DEBUG] Processing tool:', t.id, 'node_id:', t.node_id, 'type:', t.type);
       const type = (t.type || '').trim();
       const isBash =
         type === 'shell_access' || type === 'shell_access_readonly';
-      const tid = t.table_id || null;
-      const tableName =
-        tid && tableNameById?.[tid]
-          ? tableNameById[tid]
-          : tid
-            ? `Table ${tid}`
-            : 'Table';
+      const nid = t.node_id || null;  // 改为 node_id
+      const nodeName =
+        nid && tableNameById?.[nid]
+          ? tableNameById[nid]
+          : nid
+            ? `Node ${nid}`
+            : 'Node';
       const scopePath = (t.json_path || '').trim() || 'root';
       const labelBase = toolTypeLabels[type] || type || 'tool';
-      const label = `${tableName} · ${labelBase} · ${scopePath}`;
+      const label = `${nodeName} · ${labelBase} · ${scopePath}`;
       const optionId = `tool:${t.id}`;
       availableTools.push({
         id: optionId,
         label,
         type: isBash ? ('bash' as const) : ('tool' as const),
-        tableId: tid ?? undefined,
-        tableName: tableName,
+        tableId: nid ?? undefined,  // 暂时保留 tableId 字段名以兼容其他地方
+        tableName: nodeName,
       });
       optionIdToTool.set(optionId, t);
     }

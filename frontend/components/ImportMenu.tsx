@@ -365,7 +365,7 @@ export function ImportMenu({
               {
                 projectId: Number(projectId),
                 files: etlFiles,
-                tableId: Number(newTableId),
+                nodeId: String(newTableId),  // 使用 nodeId (UUID 字符串)
                 jsonPath: '', // 挂载到根路径
               },
               session.access_token

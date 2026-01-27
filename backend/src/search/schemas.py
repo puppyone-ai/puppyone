@@ -33,7 +33,7 @@ class SearchChunk(BaseModel):
     Search 结果中的 chunk 信息（仅包含对 Agent 有用的字段）。
 
     内部字段（不暴露给 Agent）：
-    - table_id, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
+    - node_id, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
     """
 
     # DB id（可选；当前实现主要依赖 turbopuffer attributes）

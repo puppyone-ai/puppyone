@@ -21,8 +21,8 @@ from src.search.index_task import SearchIndexTaskOut, SearchIndexTaskUpsert
 from src.search.index_task_repository import SearchIndexTaskRepository
 from src.search.service import SearchService
 from src.supabase.client import SupabaseClient
-from src.table.dependencies import get_table_service
-from src.table.service import TableService
+from src.content_node.dependencies import get_content_node_service
+from src.content_node.service import ContentNodeService
 from src.tool.dependencies import get_tool_service
 from src.tool.schemas import ToolCreate, ToolOut, ToolUpdate
 from src.tool.service import ToolService
@@ -49,21 +49,21 @@ def list_tools(
 
 
 @router.get(
-    "/by-table/{table_id}",
+    "/by-node/{node_id}",
     response_model=ApiResponse[List[ToolOut]],
-    summary="获取某个 table_id 下的 Tool 列表",
+    summary="获取某个 node_id 下的 Tool 列表",
     status_code=status.HTTP_200_OK,
 )
-def list_tools_by_table_id(
-    table_id: str,
+def list_tools_by_node_id(
+    node_id: str,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=1000, ge=1, le=1000),
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    tools = tool_service.list_user_tools_by_table_id(
+    tools = tool_service.list_user_tools_by_node_id(
         current_user.user_id,
-        table_id=table_id,
+        node_id=node_id,
         skip=skip,
         limit=limit,
     )
@@ -73,7 +73,7 @@ def list_tools_by_table_id(
 @router.get(
     "/by-project/{project_id}",
     response_model=ApiResponse[List[ToolOut]],
-    summary="获取某个 project_id 下的 Tool 列表（聚合所有 tables）",
+    summary="获取某个 project_id 下的 Tool 列表（聚合所有节点）",
     status_code=status.HTTP_200_OK,
 )
 def list_tools_by_project_id(
@@ -82,7 +82,7 @@ def list_tools_by_project_id(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     tools = tool_service.list_user_tools_by_project_id(
-        current_user.user_id, project_id=int(project_id)
+        current_user.user_id, project_id=project_id
     )
     return ApiResponse.success(data=tools, message="获取 Tool 列表成功")
 
@@ -100,7 +100,7 @@ def list_tools_by_project_id(
 def create_tool(
     payload: ToolCreate,
     tool_service: ToolService = Depends(get_tool_service),
-    table_service: TableService = Depends(get_table_service),
+    node_service: ContentNodeService = Depends(get_content_node_service),
     search_service: SearchService = Depends(get_search_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -109,7 +109,7 @@ def create_tool(
     )
     tool = tool_service.create(
         user_id=current_user.user_id,
-        table_id=payload.table_id,
+        node_id=payload.node_id,
         json_path=payload.json_path,
         type=payload.type,
         name=payload.name,
@@ -118,6 +118,9 @@ def create_tool(
         input_schema=payload.input_schema,
         output_schema=payload.output_schema,
         metadata=metadata,
+        category=payload.category,
+        script_type=payload.script_type,
+        script_content=payload.script_content,
     )
 
     return ApiResponse.success(data=tool, message="创建 Tool 成功")
@@ -130,7 +133,7 @@ async def _run_search_indexing_background(
     tool_id: str,
     user_id: str,
     project_id: str,
-    table_id: str,
+    node_id: str,
     json_path: str,
 ) -> None:
     """
@@ -138,7 +141,7 @@ async def _run_search_indexing_background(
     """
     now = dt.datetime.now(tz=dt.timezone.utc)
     log_info(
-        f"[search_index] background task accepted: tool_id={tool_id} project_id={project_id} table_id={table_id} json_path='{json_path}'"
+        f"[search_index] background task accepted: tool_id={tool_id} project_id={project_id} node_id={node_id} json_path='{json_path}'"
     )
     try:
         await asyncio.to_thread(
@@ -147,7 +150,7 @@ async def _run_search_indexing_background(
                 tool_id=tool_id,
                 user_id=user_id,
                 project_id=project_id,
-                table_id=table_id,
+                node_id=node_id,
                 json_path=json_path or "",
                 status="indexing",
                 started_at=now,
@@ -161,17 +164,18 @@ async def _run_search_indexing_background(
     except Exception as e:
         # best-effort：不阻断 indexing，但要留日志
         log_error(
-            f"[search_index] failed to mark indexing: tool_id={tool_id} table_id={table_id} json_path='{json_path}' err={e}"
+            f"[search_index] failed to mark indexing: tool_id={tool_id} node_id={node_id} json_path='{json_path}' err={e}"
         )
 
     try:
         log_info(
-            f"[search_index] start: tool_id={tool_id} project_id={project_id} table_id={table_id} json_path='{json_path}'"
+            f"[search_index] start: tool_id={tool_id} project_id={project_id} node_id={node_id} json_path='{json_path}'"
         )
         stats = await asyncio.wait_for(
             search_service.index_scope(
-                project_id=int(project_id),
-                table_id=int(table_id),
+                project_id=project_id,
+                node_id=node_id,
+                user_id=user_id,
                 json_path=json_path or "",
             ),
             timeout=float(settings.SEARCH_INDEX_TIMEOUT_SECONDS),
@@ -183,7 +187,7 @@ async def _run_search_indexing_background(
                 tool_id=tool_id,
                 user_id=user_id,
                 project_id=project_id,
-                table_id=table_id,
+                node_id=node_id,
                 json_path=json_path or "",
                 status="ready",
                 started_at=now,
@@ -207,7 +211,7 @@ async def _run_search_indexing_background(
                     tool_id=tool_id,
                     user_id=user_id,
                     project_id=project_id,
-                    table_id=table_id,
+                    node_id=node_id,
                     json_path=json_path or "",
                     status="error",
                     started_at=now,
@@ -220,7 +224,7 @@ async def _run_search_indexing_background(
                 f"[search_index] failed to write timeout status: tool_id={tool_id} err={e}"
             )
         log_error(
-            f"[search_index] timeout: tool_id={tool_id} project_id={project_id} table_id={table_id} json_path='{json_path}'"
+            f"[search_index] timeout: tool_id={tool_id} project_id={project_id} node_id={node_id} json_path='{json_path}'"
         )
     except Exception as e:
         finished = dt.datetime.now(tz=dt.timezone.utc)
@@ -232,7 +236,7 @@ async def _run_search_indexing_background(
                     tool_id=tool_id,
                     user_id=user_id,
                     project_id=project_id,
-                    table_id=table_id,
+                    node_id=node_id,
                     json_path=json_path or "",
                     status="error",
                     started_at=now,
@@ -245,7 +249,7 @@ async def _run_search_indexing_background(
                 f"[search_index] failed to write error status: tool_id={tool_id} err={e2}"
             )
         log_error(
-            f"[search_index] failed: tool_id={tool_id} project_id={project_id} table_id={table_id} json_path='{json_path}' err={e}"
+            f"[search_index] failed: tool_id={tool_id} project_id={project_id} node_id={node_id} json_path='{json_path}' err={e}"
         )
 
 
@@ -263,7 +267,7 @@ def create_search_tool_async(
     payload: ToolCreate,
     background_tasks: BackgroundTasks,
     tool_service: ToolService = Depends(get_tool_service),
-    table_service: TableService = Depends(get_table_service),
+    node_service: ContentNodeService = Depends(get_content_node_service),
     search_service: SearchService = Depends(get_search_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -271,9 +275,12 @@ def create_search_tool_async(
         # 这里不复用 AppException，避免引入新的错误类型；保持简单
         return ApiResponse.error(message="payload.type must be 'search'")
 
+    if not payload.node_id:
+        return ApiResponse.error(message="node_id is required for search tool")
+
     tool = tool_service.create(
         user_id=current_user.user_id,
-        table_id=payload.table_id,
+        node_id=payload.node_id,
         json_path=payload.json_path,
         type=payload.type,
         name=payload.name,
@@ -282,13 +289,14 @@ def create_search_tool_async(
         input_schema=payload.input_schema,
         output_schema=payload.output_schema,
         metadata=payload.metadata,
+        category=payload.category,
+        script_type=payload.script_type,
+        script_content=payload.script_content,
     )
 
-    # project_id 用于 search namespace
-    table = table_service.get_by_id_with_access_check(
-        payload.table_id, current_user.user_id
-    )
-    project_id = int(table.project_id)
+    # 获取节点信息用于 search namespace
+    node = node_service.get_by_id(payload.node_id, current_user.user_id)
+    project_id = node.project_id
 
     sb_client = SupabaseClient().get_client()
     repo = SearchIndexTaskRepository(sb_client)
@@ -300,7 +308,7 @@ def create_search_tool_async(
                 tool_id=str(tool.id),
                 user_id=str(current_user.user_id),
                 project_id=project_id,
-                table_id=str(payload.table_id),
+                table_id=str(payload.node_id),  # 兼容：暂时用 node_id 作为 table_id
                 json_path=payload.json_path or "",
                 status="pending",
                 started_at=None,
@@ -310,7 +318,7 @@ def create_search_tool_async(
         )
     except Exception as e:
         log_error(
-            f"[search_index] failed to create task row: tool_id={tool.id} table_id={payload.table_id} json_path='{payload.json_path}' err={e}"
+            f"[search_index] failed to create task row: tool_id={tool.id} node_id={payload.node_id} json_path='{payload.json_path}' err={e}"
         )
 
     background_tasks.add_task(
@@ -320,7 +328,7 @@ def create_search_tool_async(
         tool_id=str(tool.id),
         user_id=str(current_user.user_id),
         project_id=project_id,
-        table_id=str(payload.table_id),
+        node_id=str(payload.node_id),
         json_path=payload.json_path or "",
     )
 
