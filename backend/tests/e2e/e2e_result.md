@@ -1,13 +1,13 @@
-## E2E 测试报告：turbopuffer-e2e
+## E2E 测试报告：folder-search-e2e
 
-- **run_id**: `2026-01-11T11:30:25Z`
-- **generated_at**: `2026-01-11T11:30:25Z`
+- **run_id**: `2026-01-27T12:57:42Z`
+- **generated_at**: `2026-01-27T12:57:42Z`
 
 ### 结果明细
 
 #### ✅ PASS `dotenv.load`
 
-- **time**: `2026-01-11T11:30:25Z`
+- **time**: `2026-01-27T12:57:42Z`
 
 **details**
 
@@ -20,35 +20,54 @@
 
 #### ✅ PASS `env.configured`
 
-- **time**: `2026-01-11T11:30:25Z`
+- **time**: `2026-01-27T12:57:42Z`
 
 **details**
 
 ```json
 {
   "region": "gcp-us-central1",
-  "namespace": "e2e-tpuf-20260111-113025-56909dd5"
+  "namespace": "e2e-folder-search-20260127-125742-6d936ea9"
 }
 ```
 
-#### ✅ PASS `namespace.precleanup`
+#### ✅ PASS `data.prepared`
 
-- **time**: `2026-01-11T11:30:28Z`
-
-#### ✅ PASS `write.upsert_rows`
-
-- **time**: `2026-01-11T11:30:28Z`
+- **time**: `2026-01-27T12:57:42Z`
 
 **details**
 
 ```json
 {
-  "rows": [
-    "doc-0",
-    "doc-1",
-    "doc-2",
-    "doc-3"
-  ]
+  "total_files": 3,
+  "total_chunks": 5,
+  "folder_node_id": "folder-324d62d3"
+}
+```
+
+#### ✅ PASS `embedding.generated`
+
+- **time**: `2026-01-27T12:57:51Z`
+
+**details**
+
+```json
+{
+  "count": 5,
+  "dimensions": 4096
+}
+```
+
+#### ✅ PASS `turbopuffer.write`
+
+- **time**: `2026-01-27T12:57:54Z`
+
+**details**
+
+```json
+{
+  "namespace": "e2e-folder-search-20260127-125742-6d936ea9",
+  "rows": 5
 }
 ```
 
@@ -57,21 +76,209 @@
 ```json
 {
   "kind": "write",
-  "rows_affected": 4,
-  "rows_upserted": 4,
+  "rows_affected": 5,
+  "rows_upserted": 5,
   "rows_patched": null,
   "rows_deleted": null,
   "rows_remaining": null,
   "billing": {
-    "billable_logical_bytes_written": 343,
+    "billable_logical_bytes_written": 83284,
     "query": null
   }
 }
 ```
 
+#### ✅ PASS `search.query.authentication_login`
+
+- **time**: `2026-01-27T12:57:57Z`
+
+**details**
+
+```json
+{
+  "query": "authentication login JWT",
+  "expected": "应该找到 data.json 中的 auth 配置",
+  "results_count": 3
+}
+```
+
+**data**
+
+```json
+{
+  "rows": [
+    {
+      "id": "file-data-68_2_2c1f1e",
+      "score": null,
+      "distance": 0.19275701,
+      "file_name": "data.json",
+      "file_type": "json",
+      "file_id_path": "/folder-324d62d3/data-7424"
+    },
+    {
+      "id": "file-readme-_1_b97aaf",
+      "score": null,
+      "distance": 0.53202116,
+      "file_name": "readme.md",
+      "file_type": "markdown",
+      "file_id_path": "/folder-324d62d3/readme-1887"
+    },
+    {
+      "id": "file-data-68_3_6788eb",
+      "score": null,
+      "distance": 0.6808721,
+      "file_name": "data.json",
+      "file_type": "json",
+      "file_id_path": "/folder-324d62d3/data-7424"
+    }
+  ]
+}
+```
+
+#### ✅ PASS `search.query.semantic_search_embe`
+
+- **time**: `2026-01-27T12:57:59Z`
+
+**details**
+
+```json
+{
+  "query": "semantic search embedding model",
+  "expected": "应该找到 notes.md 中的开发笔记",
+  "results_count": 3
+}
+```
+
+**data**
+
+```json
+{
+  "rows": [
+    {
+      "id": "file-readme-_1_b97aaf",
+      "score": null,
+      "distance": 0.30669415,
+      "file_name": "readme.md",
+      "file_type": "markdown",
+      "file_id_path": "/folder-324d62d3/readme-1887"
+    },
+    {
+      "id": "file-notes-7_4_23755b",
+      "score": null,
+      "distance": 0.38212067,
+      "file_name": "notes.md",
+      "file_type": "markdown",
+      "file_id_path": "/folder-324d62d3/notes-cdec"
+    },
+    {
+      "id": "file-readme-_0_f24168",
+      "score": null,
+      "distance": 0.5440682,
+      "file_name": "readme.md",
+      "file_type": "markdown",
+      "file_id_path": "/folder-324d62d3/readme-1887"
+    }
+  ]
+}
+```
+
+#### ✅ PASS `search.query.project_overview_fea`
+
+- **time**: `2026-01-27T12:58:01Z`
+
+**details**
+
+```json
+{
+  "query": "project overview features",
+  "expected": "应该找到 readme.md 中的项目介绍",
+  "results_count": 3
+}
+```
+
+**data**
+
+```json
+{
+  "rows": [
+    {
+      "id": "file-readme-_1_b97aaf",
+      "score": null,
+      "distance": 0.38799137,
+      "file_name": "readme.md",
+      "file_type": "markdown",
+      "file_id_path": "/folder-324d62d3/readme-1887"
+    },
+    {
+      "id": "file-readme-_0_f24168",
+      "score": null,
+      "distance": 0.47757673,
+      "file_name": "readme.md",
+      "file_type": "markdown",
+      "file_id_path": "/folder-324d62d3/readme-1887"
+    },
+    {
+      "id": "file-data-68_2_2c1f1e",
+      "score": null,
+      "distance": 0.49013364,
+      "file_name": "data.json",
+      "file_type": "json",
+      "file_id_path": "/folder-324d62d3/data-7424"
+    }
+  ]
+}
+```
+
+#### ✅ PASS `search.query.PostgreSQL_database_`
+
+- **time**: `2026-01-27T12:58:03Z`
+
+**details**
+
+```json
+{
+  "query": "PostgreSQL database connection",
+  "expected": "应该找到 data.json 中的数据库配置",
+  "results_count": 3
+}
+```
+
+**data**
+
+```json
+{
+  "rows": [
+    {
+      "id": "file-data-68_3_6788eb",
+      "score": null,
+      "distance": 0.23346722,
+      "file_name": "data.json",
+      "file_type": "json",
+      "file_id_path": "/folder-324d62d3/data-7424"
+    },
+    {
+      "id": "file-data-68_2_2c1f1e",
+      "score": null,
+      "distance": 0.56526995,
+      "file_name": "data.json",
+      "file_type": "json",
+      "file_id_path": "/folder-324d62d3/data-7424"
+    },
+    {
+      "id": "file-readme-_1_b97aaf",
+      "score": null,
+      "distance": 0.59981,
+      "file_name": "readme.md",
+      "file_type": "markdown",
+      "file_id_path": "/folder-324d62d3/readme-1887"
+    }
+  ]
+}
+```
+
 #### ✅ PASS `namespace.metadata`
 
-- **time**: `2026-01-11T11:30:28Z`
+- **time**: `2026-01-27T12:58:03Z`
 
 **data**
 
@@ -79,7 +286,7 @@
 {
   "approx_logical_bytes": 0,
   "approx_row_count": 0,
-  "created_at": "2026-01-11 11:30:30.461474+00:00",
+  "created_at": "2026-01-27 12:57:54.567586+00:00",
   "encryption": {
     "sse": true
   },
@@ -87,55 +294,50 @@
     "status": "up-to-date"
   },
   "schema_": {
-    "category": {
+    "chunk_text": {
       "type": "string",
       "ann": null,
       "filterable": true,
       "full_text_search": null,
       "regex": null
     },
-    "content": {
-      "type": "string",
-      "ann": null,
-      "filterable": false,
-      "full_text_search": {
-        "ascii_folding": false,
-        "b": 0.75,
-        "case_sensitive": false,
-        "k1": 1.2,
-        "language": "english",
-        "max_token_length": 39,
-        "remove_stopwords": true,
-        "stemming": false,
-        "tokenizer": "word_v3"
-      },
-      "regex": null
-    },
-    "title": {
+    "content_hash": {
       "type": "string",
       "ann": null,
       "filterable": true,
       "full_text_search": null,
       "regex": null
     },
-    "views": {
+    "chunk_id": {
       "type": "int",
       "ann": null,
       "filterable": true,
       "full_text_search": null,
       "regex": null
     },
-    "vector": {
-      "type": "[2]f32",
-      "ann": {
-        "distance_metric": "cosine_distance"
-      },
-      "filterable": null,
+    "file_type": {
+      "type": "string",
+      "ann": null,
+      "filterable": true,
       "full_text_search": null,
       "regex": null
     },
-    "status": {
+    "json_pointer": {
       "type": "string",
+      "ann": null,
+      "filterable": true,
+      "full_text_search": null,
+      "regex": null
+    },
+    "chunk_index": {
+      "type": "int",
+      "ann": null,
+      "filterable": true,
+      "full_text_search": null,
+      "regex": null
+    },
+    "total_chunks": {
+      "type": "int",
       "ann": null,
       "filterable": true,
       "full_text_search": null,
@@ -147,378 +349,133 @@
       "filterable": null,
       "full_text_search": null,
       "regex": null
+    },
+    "file_node_id": {
+      "type": "string",
+      "ann": null,
+      "filterable": true,
+      "full_text_search": null,
+      "regex": null
+    },
+    "vector": {
+      "type": "[4096]f32",
+      "ann": {
+        "distance_metric": "cosine_distance"
+      },
+      "filterable": null,
+      "full_text_search": null,
+      "regex": null
+    },
+    "file_id_path": {
+      "type": "string",
+      "ann": null,
+      "filterable": true,
+      "full_text_search": null,
+      "regex": null
+    },
+    "file_name": {
+      "type": "string",
+      "ann": null,
+      "filterable": true,
+      "full_text_search": null,
+      "regex": null
     }
   },
-  "updated_at": "2026-01-11 11:30:30.461474+00:00",
+  "updated_at": "2026-01-27 12:57:54.567586+00:00",
   "schema": {
-    "category": {
+    "chunk_text": {
       "type": "string",
       "filterable": true
     },
-    "content": {
-      "type": "string",
-      "filterable": false,
-      "full_text_search": {
-        "k1": 1.2,
-        "b": 0.75,
-        "ascii_folding": false,
-        "case_sensitive": false,
-        "language": "english",
-        "stemming": false,
-        "remove_stopwords": true,
-        "tokenizer": "word_v3",
-        "max_token_length": 39
-      }
-    },
-    "title": {
+    "content_hash": {
       "type": "string",
       "filterable": true
     },
-    "views": {
+    "chunk_id": {
       "type": "int",
       "filterable": true
     },
-    "vector": {
-      "type": "[2]f32",
-      "ann": {
-        "distance_metric": "cosine_distance"
-      }
-    },
-    "status": {
+    "file_type": {
       "type": "string",
+      "filterable": true
+    },
+    "json_pointer": {
+      "type": "string",
+      "filterable": true
+    },
+    "chunk_index": {
+      "type": "int",
+      "filterable": true
+    },
+    "total_chunks": {
+      "type": "int",
       "filterable": true
     },
     "id": {
       "type": "string"
+    },
+    "file_node_id": {
+      "type": "string",
+      "filterable": true
+    },
+    "vector": {
+      "type": "[4096]f32",
+      "ann": {
+        "distance_metric": "cosine_distance"
+      }
+    },
+    "file_id_path": {
+      "type": "string",
+      "filterable": true
+    },
+    "file_name": {
+      "type": "string",
+      "filterable": true
     }
   }
 }
 ```
 
-#### ✅ PASS `namespace.hint_cache_warm`
+#### ❌ FAIL `namespace.metadata`
 
-- **time**: `2026-01-11T11:30:29Z`
+- **time**: `2026-01-27T12:58:03Z`
 
-**data**
+**exception**
 
-```json
-{
-  "status": "ACCEPTED",
-  "message": "cache warm hint accepted"
-}
+```text
+Traceback (most recent call last):
+  File "/Volumes/Portable/puppy-agents-workspace/PuppyContext/backend/tests/e2e/folder_search/test_folder_search_e2e.py", line 322, in test_folder_search_e2e_with_real_turbopuffer
+    print(f"\nNamespace metadata: {json.dumps(meta, indent=2)}")
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/json/__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/json/encoder.py", line 202, in encode
+    chunks = list(chunks)
+             ^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/json/encoder.py", line 432, in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+  File "/opt/homebrew/anaconda3/lib/python3.12/json/encoder.py", line 406, in _iterencode_dict
+    yield from chunks
+  File "/opt/homebrew/anaconda3/lib/python3.12/json/encoder.py", line 439, in _iterencode
+    o = _default(o)
+        ^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/json/encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+TypeError: Object of type datetime is not JSON serializable
+
 ```
 
-#### ✅ PASS `query.vector.ANN`
+#### ✅ PASS `namespace.persist`
 
-- **time**: `2026-01-11T11:30:29Z`
-
-**data**
-
-```json
-{
-  "rows": [
-    {
-      "id": "doc-0",
-      "distance": 0.0,
-      "attributes": {
-        "category": "animal",
-        "content": "The quick brown fox jumps over the lazy dog.",
-        "status": "published",
-        "title": "fox-0",
-        "views": 10
-      }
-    },
-    {
-      "id": "doc-1",
-      "distance": 0.006116271,
-      "attributes": {
-        "category": "animal",
-        "content": "A quick red fox runs through the forest.",
-        "status": "published",
-        "title": "fox-1",
-        "views": 50
-      }
-    },
-    {
-      "id": "doc-3",
-      "distance": 0.88956845,
-      "attributes": {
-        "category": "food",
-        "content": "Banana smoothies are tasty and easy to make.",
-        "status": "published",
-        "title": "fruit-1",
-        "views": 5
-      }
-    }
-  ]
-}
-```
-
-#### ✅ PASS `query.full_text.BM25`
-
-- **time**: `2026-01-11T11:30:29Z`
-
-**data**
-
-```json
-{
-  "rows": [
-    {
-      "id": "doc-1",
-      "distance": 1.5098256,
-      "attributes": {
-        "category": "animal",
-        "content": "A quick red fox runs through the forest.",
-        "title": "fox-1"
-      }
-    },
-    {
-      "id": "doc-0",
-      "distance": 1.4251626,
-      "attributes": {
-        "category": "animal",
-        "content": "The quick brown fox jumps over the lazy dog.",
-        "title": "fox-0"
-      }
-    }
-  ]
-}
-```
-
-#### ✅ PASS `query.hybrid.multi_query.rrf`
-
-- **time**: `2026-01-11T11:30:29Z`
-
-**data**
-
-```json
-{
-  "subquery_vector_ids": [
-    "doc-0",
-    "doc-1",
-    "doc-3"
-  ],
-  "subquery_bm25_ids": [
-    "doc-1",
-    "doc-0"
-  ],
-  "rrf_ranked_ids": [
-    "doc-0",
-    "doc-1",
-    "doc-3"
-  ]
-}
-```
-
-#### ✅ PASS `query.filters.lookup`
-
-- **time**: `2026-01-11T11:30:30Z`
-
-**data**
-
-```json
-{
-  "rows": [
-    {
-      "id": "doc-2",
-      "attributes": {
-        "category": "food",
-        "title": "fruit-0",
-        "views": 2500
-      }
-    },
-    {
-      "id": "doc-3",
-      "attributes": {
-        "category": "food",
-        "title": "fruit-1",
-        "views": 5
-      }
-    }
-  ]
-}
-```
-
-#### ✅ PASS `query.aggregations.count`
-
-- **time**: `2026-01-11T11:30:30Z`
-
-**data**
-
-```json
-{
-  "rows": [],
-  "aggregations": {
-    "my_count": 4
-  },
-  "aggregation_groups": null,
-  "billing": {
-    "billable_logical_bytes_queried": 256000000,
-    "billable_logical_bytes_returned": 16
-  },
-  "performance": {
-    "client_total_ms": 264.948874944821,
-    "client_compress_ms": 0.0,
-    "client_response_ms": 263.8454579282552,
-    "client_body_read_ms": 0.1688329502940178,
-    "client_deserialize_ms": 0.7435840088874102,
-    "approx_namespace_size": 4,
-    "cache_hit_ratio": 1.0,
-    "cache_temperature": "hot",
-    "exhaustive_search_count": 4,
-    "query_execution_ms": 9,
-    "server_total_ms": 9
-  },
-  "kind": "query"
-}
-```
-
-#### ✅ PASS `query.aggregations.group_by`
-
-- **time**: `2026-01-11T11:30:30Z`
-
-**data**
-
-```json
-{
-  "rows": [],
-  "aggregations": null,
-  "aggregation_groups": [
-    {
-      "category": "animal",
-      "count_by_category": 2
-    },
-    {
-      "category": "food",
-      "count_by_category": 2
-    }
-  ],
-  "billing": {
-    "billable_logical_bytes_queried": 256000000,
-    "billable_logical_bytes_returned": 42
-  },
-  "performance": {
-    "client_total_ms": 261.6377498488873,
-    "client_compress_ms": 0.0,
-    "client_response_ms": 261.10649993643165,
-    "client_body_read_ms": 0.10249996557831764,
-    "client_deserialize_ms": 0.31804200261831284,
-    "approx_namespace_size": 4,
-    "cache_hit_ratio": 1.0,
-    "cache_temperature": "hot",
-    "exhaustive_search_count": 4,
-    "query_execution_ms": 13,
-    "server_total_ms": 13
-  },
-  "kind": "query"
-}
-```
-
-#### ✅ PASS `write.patch_by_filter`
-
-- **time**: `2026-01-11T11:30:31Z`
-
-**data**
-
-```json
-{
-  "kind": "write",
-  "rows_affected": 3,
-  "rows_upserted": null,
-  "rows_patched": 3,
-  "rows_deleted": null,
-  "rows_remaining": null,
-  "billing": {
-    "billable_logical_bytes_written": 39,
-    "query": {
-      "billable_logical_bytes_queried": 512000000,
-      "billable_logical_bytes_returned": 266
-    }
-  }
-}
-```
-
-#### ✅ PASS `verify.patch_by_filter`
-
-- **time**: `2026-01-11T11:30:31Z`
-
-**data**
-
-```json
-{
-  "archived_ids": [
-    "doc-0",
-    "doc-1",
-    "doc-3"
-  ]
-}
-```
-
-#### ✅ PASS `write.delete_by_filter`
-
-- **time**: `2026-01-11T11:30:32Z`
-
-**data**
-
-```json
-{
-  "kind": "write",
-  "rows_affected": 1,
-  "rows_upserted": null,
-  "rows_patched": null,
-  "rows_deleted": 1,
-  "rows_remaining": null,
-  "billing": {
-    "billable_logical_bytes_written": 13,
-    "query": {
-      "billable_logical_bytes_queried": 256000000,
-      "billable_logical_bytes_returned": 5
-    }
-  }
-}
-```
-
-#### ✅ PASS `verify.delete_by_filter`
-
-- **time**: `2026-01-11T11:30:32Z`
-
-**data**
-
-```json
-{
-  "remaining_ids": [
-    "doc-0",
-    "doc-1",
-    "doc-2"
-  ]
-}
-```
-
-#### ✅ PASS `namespaces.list`
-
-- **time**: `2026-01-11T11:30:32Z`
-
-**data**
-
-```json
-{
-  "prefix": "e2e-tpuf-",
-  "namespaces": [
-    "e2e-tpuf-20260111-113025-56909dd5"
-  ]
-}
-```
-
-#### ✅ PASS `namespace.persist_for_manual_review`
-
-- **time**: `2026-01-11T11:30:32Z`
+- **time**: `2026-01-27T12:58:03Z`
 
 **details**
 
 ```json
 {
-  "path": "/Volumes/Portable/puppy-agents-workspace/PuppyContext/backend/tests/e2e/turbopuffer/.last_namespace.json",
-  "namespace": "e2e-tpuf-20260111-113025-56909dd5"
+  "path": "/Volumes/Portable/puppy-agents-workspace/PuppyContext/backend/tests/e2e/folder_search/.last_folder_search_namespace.json",
+  "namespace": "e2e-folder-search-20260127-125742-6d936ea9"
 }
 ```
 
@@ -526,9 +483,13 @@
 
 ```json
 {
-  "namespace": "e2e-tpuf-20260111-113025-56909dd5",
+  "namespace": "e2e-folder-search-20260127-125742-6d936ea9",
+  "project_id": "proj-db2d46b0",
+  "folder_node_id": "folder-324d62d3",
+  "total_files": 3,
+  "total_chunks": 5,
   "deleted": false,
-  "next_step": "run delete test when ready"
+  "note": "数据已保留，可通过 Turbopuffer 控制台查看"
 }
 ```
 

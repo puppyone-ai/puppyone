@@ -52,6 +52,26 @@ class ContentNodeService:
             raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)
         return self.repo.list_descendants(project_id, node.id_path)
 
+    def list_indexable_descendants(
+        self, project_id: str, node_id: str, indexable_types: Optional[List[str]] = None
+    ) -> List[ContentNode]:
+        """
+        列出某节点的所有可索引子孙节点（用于 folder search）
+        
+        Args:
+            project_id: 项目 ID
+            node_id: 节点 ID（通常是 folder）
+            indexable_types: 可索引的节点类型，默认为 ['json', 'markdown']
+        
+        Returns:
+            List[ContentNode]: 可索引的子孙节点列表
+        """
+        if indexable_types is None:
+            indexable_types = ["json", "markdown"]
+        
+        all_descendants = self.list_descendants(project_id, node_id)
+        return [node for node in all_descendants if node.type in indexable_types]
+
     # === 创建操作 ===
 
     def _build_id_path(self, user_id: str, parent_id: Optional[str], new_node_id: str) -> str:
