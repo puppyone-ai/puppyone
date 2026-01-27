@@ -263,6 +263,147 @@ const ContextButton = ({
   </button>
 );
 
+// 节点分组组件
+const NodeGroup = ({
+  nodeName,
+  nodeId,
+  tools,
+  selectedAccess,
+  onToggleAccess,
+  isCurrentNode,
+  defaultExpanded,
+}: {
+  nodeName: string;
+  nodeId: string | undefined;
+  tools: AccessOption[];
+  selectedAccess: Set<string>;
+  onToggleAccess: (id: string) => void;
+  isCurrentNode: boolean;
+  defaultExpanded: boolean;
+}) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const selectedCount = tools.filter(t => selectedAccess.has(t.id)).length;
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      {/* 节点标题 */}
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 12px', // 增加 Padding
+          borderRadius: 6,
+          cursor: 'pointer',
+          background: isCurrentNode ? 'rgba(74, 222, 128, 0.08)' : 'transparent',
+          borderLeft: isCurrentNode ? '3px solid #4ade80' : '3px solid transparent',
+          transition: 'all 0.15s',
+        }}
+        onMouseEnter={e => {
+          if (!isCurrentNode) e.currentTarget.style.background = '#1a1a1a';
+        }}
+        onMouseLeave={e => {
+          if (!isCurrentNode) e.currentTarget.style.background = 'transparent';
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#666"
+            strokeWidth="2"
+            style={{
+              transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: 'transform 0.15s',
+              flexShrink: 0,
+            }}
+          >
+            <path d="M9 6L15 12L9 18" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: isCurrentNode ? '#4ade80' : '#a3a3a3',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
+            {nodeName}
+          </span>
+          {selectedCount > 0 && (
+            <span style={{
+              fontSize: 11,
+              padding: '2px 6px',
+              borderRadius: 4,
+              background: 'rgba(74, 222, 128, 0.15)',
+              color: '#4ade80',
+              fontWeight: 600,
+            }}>
+              {selectedCount}
+            </span>
+          )}
+        </div>
+        <span style={{ fontSize: 12, color: '#666' }}>
+          {tools.length}
+        </span>
+      </div>
+
+      {/* 工具列表 */}
+      {expanded && (
+        <div style={{ paddingLeft: 16, marginTop: 4 }}>
+          {tools.map(tool => (
+            <div
+              key={tool.id}
+              onClick={() => onToggleAccess(tool.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                padding: '8px 12px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 13,
+                color: selectedAccess.has(tool.id) ? '#eee' : '#888',
+                background: selectedAccess.has(tool.id) ? '#262626' : 'transparent',
+                transition: 'all 0.1s',
+              }}
+              onMouseEnter={e => {
+                if (!selectedAccess.has(tool.id)) e.currentTarget.style.background = '#1f1f1f';
+              }}
+              onMouseLeave={e => {
+                if (!selectedAccess.has(tool.id)) e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+                <span style={{ opacity: 0.8, flexShrink: 0, color: selectedAccess.has(tool.id) ? '#fff' : '#666' }}>
+                  {tool.type === 'bash' ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="4 17 10 11 4 5" />
+                      <line x1="12" y1="19" x2="20" y2="19" />
+                    </svg>
+                  ) : (
+                    <ToolIcon />
+                  )}
+                </span>
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {tool.label.split(' · ').slice(1).join(' · ')}
+                </span>
+              </div>
+              {selectedAccess.has(tool.id) && (
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', flexShrink: 0 }} />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Agent Context Bar
 const AgentContextBar = ({
   currentFileName,
@@ -300,18 +441,29 @@ const AgentContextBar = ({
     return () => window.removeEventListener('click', handleClick);
   }, [openDropdown]);
 
-  // Filter tools
-  const currentContextTools = availableTools.filter(
-    t =>
-      t.tableId?.toString() === currentTableId ||
-      (!t.tableId && !currentTableId)
-  );
+  // 按节点分组工具
+  const toolsByNode = new Map<string, { name: string; tools: AccessOption[] }>();
+  for (const tool of availableTools) {
+    const nodeId = tool.tableId?.toString() || '__no_node__';
+    const nodeName = tool.tableName || 'Unknown';
+    if (!toolsByNode.has(nodeId)) {
+      toolsByNode.set(nodeId, { name: nodeName, tools: [] });
+    }
+    toolsByNode.get(nodeId)!.tools.push(tool);
+  }
+
+  // 排序：当前节点优先，然后按名称
+  const sortedNodes = Array.from(toolsByNode.entries()).sort(([aId], [bId]) => {
+    if (aId === currentTableId) return -1;
+    if (bId === currentTableId) return 1;
+    return 0;
+  });
 
   return (
     <div
       style={{
-        height: 36, // Slightly taller for better touch target but keeps compact feel
-        padding: '0 8px',
+        height: 44, // 增加高度以匹配 Header
+        padding: '0 16px', // 增加 Padding
         display: 'flex',
         alignItems: 'center',
         gap: 2,
@@ -331,133 +483,60 @@ const AgentContextBar = ({
       >
         <ContextButton
           icon={<BoxIcon />}
-          label='CAPABILITIES' // Uppercase for label (Linear style)
-          value={
-            capabilitiesCount > 0 ? `${capabilitiesCount} Enabled` : 'None'
-          }
+          label='Capabilities' // 改为 Title Case
+          value={capabilitiesCount > 0 ? `${capabilitiesCount} Enabled` : 'None'}
           active={openDropdown === 'capabilities'}
           disabled={false}
           onClick={() => toggleDropdown('capabilities')}
           hasDropdown={!isLocked}
           flex={true}
         />
-        {/* Capabilities Dropdown */}
+        {/* Capabilities Dropdown - 分组显示 */}
         {openDropdown === 'capabilities' && (
           <div
             style={{
               position: 'absolute',
-              top: 'calc(100% + 4px)',
-              left: 0,
-              right: 0, // Full width dropdown
-              maxHeight: 320,
+              top: 'calc(100% + 8px)',
+              left: -8, // 调整位置
+              right: -8,
+              maxHeight: 400,
               overflowY: 'auto',
-              background: '#161616', // Slightly lighter than bg
+              background: '#141414',
               border: '1px solid #333',
-              borderRadius: 8,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              borderRadius: 12,
+              boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
               zIndex: 100,
-              padding: '6px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
+              padding: '12px',
             }}
           >
-            <div
-              style={{
-                padding: '6px 8px',
-                fontSize: 11,
-                color: '#666',
-                fontWeight: 600,
-                letterSpacing: '0.02em',
-              }}
-            >
-              {currentFileName} CAPABILITIES
-            </div>
-            {currentContextTools.map(tool => (
+            {/* 移除 SELECT CAPABILITIES 标题，减少视觉噪音 */}
+            
+            {sortedNodes.length > 0 ? (
+              sortedNodes.map(([nodeId, { name, tools }]) => (
+                <NodeGroup
+                  key={nodeId}
+                  nodeName={name}
+                  nodeId={nodeId === '__no_node__' ? undefined : nodeId}
+                  tools={tools}
+                  selectedAccess={selectedAccess}
+                  onToggleAccess={onToggleAccess}
+                  isCurrentNode={nodeId === currentTableId}
+                  defaultExpanded={nodeId === currentTableId || sortedNodes.length === 1}
+                />
+              ))
+            ) : (
               <div
-                key={tool.id}
-                onClick={() => onToggleAccess(tool.id)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  padding: '6px 10px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
+                  padding: '24px',
+                  color: '#666',
                   fontSize: 13,
-                  color: selectedAccess.has(tool.id) ? '#eee' : '#888',
-                  background: selectedAccess.has(tool.id)
-                    ? '#262626'
-                    : 'transparent',
-                  transition: 'all 0.1s',
-                }}
-                onMouseEnter={e => {
-                  if (!selectedAccess.has(tool.id))
-                    e.currentTarget.style.background = '#1f1f1f';
-                }}
-                onMouseLeave={e => {
-                  if (!selectedAccess.has(tool.id))
-                    e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <span
-                    style={{
-                      opacity: 0.7,
-                      flexShrink: 0,
-                      color: selectedAccess.has(tool.id) ? '#fff' : '#666',
-                    }}
-                  >
-                    {tool.type === 'bash' ? (
-                      <span style={{ fontFamily: 'monospace' }}>&gt;_</span>
-                    ) : (
-                      <ToolIcon />
-                    )}
-                  </span>
-                  <span
-                    style={{
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {tool.label.split(' · ').slice(1).join(' · ')}
-                  </span>
-                </div>
-                {selectedAccess.has(tool.id) && (
-                  <div
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      background: '#4ade80',
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-            {currentContextTools.length === 0 && (
-              <div
-                style={{
-                  padding: '16px',
-                  color: '#555',
-                  fontSize: 12,
                   textAlign: 'center',
                   lineHeight: 1.5,
                 }}
               >
                 No capabilities found.
                 <br />
-                <span style={{ opacity: 0.7 }}>
+                <span style={{ opacity: 0.7, fontSize: 12 }}>
                   Enable Agent Access in the table context menu.
                 </span>
               </div>
