@@ -76,7 +76,7 @@ function GridVariant({ name, onClick }: Omit<JsonItemProps, 'viewType'>) {
       </div>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 16,
           color: hovered ? '#fff' : '#a1a1aa',
           textAlign: 'center',
           wordBreak: 'break-word',
@@ -132,7 +132,7 @@ function ListVariant({ name, description, rowCount, onClick }: Omit<JsonItemProp
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
-            fontSize: 14,
+            fontSize: 16,
             color: hovered ? '#fff' : '#d4d4d8',
             fontWeight: 500,
           }}
@@ -176,7 +176,7 @@ function ColumnVariant({ name, onClick }: Omit<JsonItemProps, 'viewType'>) {
       <div
         style={{
           flex: 1,
-          fontSize: 13,
+          fontSize: 16,
           color: hovered ? '#fff' : '#d4d4d8',
           whiteSpace: 'nowrap',
           overflow: 'hidden',

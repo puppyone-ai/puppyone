@@ -96,7 +96,7 @@ export default function ProjectToolsPage({ params }: ToolsPageProps) {
           </h1>
           <p
             style={{
-              fontSize: 13,
+              fontSize: 14,
               color: '#737373',
               margin: '4px 0 0 0',
             }}
@@ -113,7 +113,7 @@ export default function ProjectToolsPage({ params }: ToolsPageProps) {
             border: '1px solid #2a2a2a',
             borderRadius: 6,
             color: '#a3a3a3',
-            fontSize: 13,
+            fontSize: 14,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -157,7 +157,7 @@ export default function ProjectToolsPage({ params }: ToolsPageProps) {
               <p style={{ fontSize: 15, fontWeight: 500, color: '#737373', margin: 0 }}>
                 No tools configured
               </p>
-              <p style={{ fontSize: 13, color: '#525252', margin: '8px 0 0 0' }}>
+              <p style={{ fontSize: 14, color: '#525252', margin: '8px 0 0 0' }}>
                 Go to Data view and configure access points on your contexts to create tools.
               </p>
             </div>
@@ -170,7 +170,7 @@ export default function ProjectToolsPage({ params }: ToolsPageProps) {
                 border: 'none',
                 borderRadius: 6,
                 color: '#fff',
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 500,
                 cursor: 'pointer',
               }}

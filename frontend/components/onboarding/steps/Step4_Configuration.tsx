@@ -16,7 +16,7 @@ export function Step4_Configuration() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div
             style={{
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: 600,
               color: '#aaa',
               textTransform: 'uppercase',
@@ -85,7 +85,7 @@ export function Step4_Configuration() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div
             style={{
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: 600,
               color: '#aaa',
               textTransform: 'uppercase',
@@ -99,7 +99,7 @@ export function Step4_Configuration() {
                 background: '#252525',
                 padding: '6px 12px',
                 borderRadius: 4,
-                fontSize: 13,
+                fontSize: 16,
                 fontFamily: 'monospace',
                 color: '#888',
               }}
@@ -111,7 +111,7 @@ export function Step4_Configuration() {
                 background: '#252525',
                 padding: '6px 12px',
                 borderRadius: 4,
-                fontSize: 13,
+                fontSize: 16,
                 fontFamily: 'monospace',
                 color: '#888',
               }}
@@ -125,7 +125,7 @@ export function Step4_Configuration() {
                   border: '1px solid rgba(239,68,68,0.2)',
                   padding: '6px 12px',
                   borderRadius: 4,
-                  fontSize: 13,
+                  fontSize: 16,
                   fontFamily: 'monospace',
                   color: '#ef4444',
                 }}

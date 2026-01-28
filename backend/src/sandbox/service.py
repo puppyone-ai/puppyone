@@ -145,6 +145,38 @@ class SandboxService:
         except Exception:
             return {"success": False, "error": "Failed to parse JSON"}
 
+    async def read_file(self, session_id: str, path: str, parse_json: bool = False):
+        """
+        Read file content from sandbox at specified path.
+        
+        Args:
+            session_id: Sandbox session ID
+            path: File path in sandbox (e.g., /workspace/myfile.json)
+            parse_json: If True, parse content as JSON
+        
+        Returns:
+            {"success": True, "content": str/dict} or {"success": False, "error": str}
+        """
+        session = self._sessions.get(session_id)
+        if not session:
+            return {"success": False, "error": "Sandbox session not found"}
+        
+        try:
+            raw = await _call_maybe_async(session.sandbox.files.read, path)
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8")
+            
+            if parse_json:
+                try:
+                    data = json.loads(raw)
+                    return {"success": True, "content": data}
+                except json.JSONDecodeError:
+                    return {"success": False, "error": f"Failed to parse JSON from {path}"}
+            else:
+                return {"success": True, "content": raw}
+        except Exception as e:
+            return {"success": False, "error": f"Failed to read {path}: {str(e)}"}
+
     async def stop(self, session_id: str):
         """Close and remove a sandbox session."""
         session = self._sessions.pop(session_id, None)

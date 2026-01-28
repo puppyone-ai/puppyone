@@ -136,7 +136,7 @@ export function PendingTaskRenderer({
 
       <span
         style={{
-          fontSize: 13,
+          fontSize: 14,
           color: '#6b7280',
           fontStyle: 'italic',
         }}

@@ -61,7 +61,7 @@ export function DocumentEditor({
       {/* Header */}
       <div
         style={{
-          height: 46,
+          height: 48,
           padding: '0 16px',
           borderBottom: '1px solid #1a1a1c',
           display: 'flex',
@@ -78,7 +78,7 @@ export function DocumentEditor({
             onClick={onClose}
             style={{
               width: 28,
-              height: 28,
+              height: 32,
               background: 'transparent',
               border: 'none',
               color: '#6b7280',
@@ -112,7 +112,7 @@ export function DocumentEditor({
             onClick={onToggleFullScreen}
             style={{
               width: 28,
-              height: 28,
+              height: 32,
               background: 'transparent',
               border: 'none',
               color: '#6b7280',
@@ -356,7 +356,7 @@ export function DocumentEditor({
               width: '100%',
               height: '100%',
               padding: '12px 16px',
-              fontSize: 13,
+              fontSize: 14,
               lineHeight: 1.6,
               color: '#e2e8f0',
               background: 'transparent',

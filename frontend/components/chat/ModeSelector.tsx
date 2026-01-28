@@ -40,7 +40,7 @@ export default function ModeSelector({
           display: 'flex',
           alignItems: 'center',
           gap: '6px',
-          height: '28px',
+          height: '32px',
           padding: '0 8px',
           background: 'transparent',
           border: 'none',
@@ -99,7 +99,7 @@ export default function ModeSelector({
               }}
               style={{
                 width: '100%',
-                height: '28px',
+                height: '32px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '10px',

@@ -184,7 +184,7 @@ export function ProjectWorkspaceView({
                   </div>
                   <div
                     style={{
-                      fontSize: 13,
+                      fontSize: 14,
                       color: '#9ca3af',
                       lineHeight: 1.5,
                       marginBottom: 10,

@@ -513,7 +513,7 @@ export function ImportMenu({
           display: 'flex',
           alignItems: 'center',
           gap: 5,
-          height: 28,
+          height: 32,
           padding: '0 12px',
           borderRadius: 6,
           border: '1px solid',
@@ -579,7 +579,7 @@ export function ImportMenu({
             style={{
               padding: '12px 14px',
               borderBottom: '1px solid #2a2a2a',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 500,
               color: '#9ca3af',
             }}
@@ -593,7 +593,7 @@ export function ImportMenu({
               /* Progress View */
               <div style={{ padding: '20px 16px', textAlign: 'center' }}>
                 <div
-                  style={{ fontSize: 13, color: '#9ca3af', marginBottom: 10 }}
+                  style={{ fontSize: 14, color: '#9ca3af', marginBottom: 10 }}
                 >
                   Importing... {Math.round(importProgress)}%
                 </div>
@@ -665,7 +665,7 @@ export function ImportMenu({
                     <polyline points='17 8 12 3 7 8' />
                     <line x1='12' y1='3' x2='12' y2='15' />
                   </svg>
-                  <div style={{ fontSize: 13, color: '#9ca3af' }}>
+                  <div style={{ fontSize: 14, color: '#9ca3af' }}>
                     Drop files or folder here
                   </div>
                 </div>
@@ -712,7 +712,7 @@ export function ImportMenu({
                         background: 'transparent',
                         border: 'none',
                         outline: 'none',
-                        fontSize: 13,
+                        fontSize: 14,
                         color: '#e2e8f0',
                       }}
                     />
@@ -759,7 +759,7 @@ export function ImportMenu({
                       borderRadius: 6,
                       cursor: 'pointer',
                       color: '#9ca3af',
-                      fontSize: 13,
+                      fontSize: 14,
                       textAlign: 'left',
                       width: '100%',
                       transition: 'all 0.1s',

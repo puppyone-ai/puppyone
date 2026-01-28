@@ -1,5 +1,5 @@
 export { GridView } from './GridView';
-export type { GridViewProps, GridViewItem } from './GridView';
+export type { GridViewProps, GridViewItem, AgentResource } from './GridView';
 
 export { ListView } from './ListView';
 export type { ListViewProps, ListViewItem } from './ListView';

@@ -472,7 +472,7 @@ const VirtualRow = React.memo(function VirtualRow({
                   textOverflow: 'ellipsis',
                   maxWidth: keyWidth,
                   color: '#6b7280',
-                  fontSize: 14,
+                  fontSize: 16,
                   transition: 'max-width 0.1s cubic-bezier(0.2, 0, 0, 1)',
                 }}
               >
@@ -505,7 +505,7 @@ const VirtualRow = React.memo(function VirtualRow({
                     ? '0 0 0 1px rgba(255, 255, 255, 0.2)'
                     : 'none',
                   color: '#6b7280',
-                  fontSize: 14,
+                  fontSize: 16,
                   transition: 'max-width 0.1s cubic-bezier(0.2, 0, 0, 1)',
                 }}
                 onDoubleClick={e => {
@@ -829,7 +829,7 @@ export default function TreeLineDiscreteEditor({
         overflow: 'hidden',
         fontFamily:
           "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-        fontSize: 13,
+        fontSize: 16,
       }}
     >
       <DepthResizeBar

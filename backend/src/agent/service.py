@@ -21,6 +21,7 @@ from loguru import logger
 from src.agent.schemas import AgentRequest
 from src.config import settings
 from src.agent.chat.service import ChatService
+from src.agent.config.service import AgentConfigService
 
 # Anthropic 官方 bash 工具
 BASH_TOOL = {"type": "bash_20250124", "name": "bash"}
@@ -42,6 +43,8 @@ class SandboxData:
     node_type: str = "json"
     root_node_id: str = ""
     root_node_name: str = ""
+    # 用于多文件回写：node_id -> {sandbox_path, node_type}
+    node_path_map: dict = field(default_factory=dict)
 
 
 class AgentService:
@@ -59,23 +62,46 @@ class AgentService:
         sandbox_service,
         chat_service: Optional[ChatService] = None,
         s3_service=None,  # S3Service，用于下载文件
+        agent_config_service: Optional[AgentConfigService] = None,  # 新版 agent 配置服务
         max_iterations: int = 15,
     ) -> AsyncGenerator[dict, None]:
         """
         处理 Agent 请求的主入口
         
-        前端只传 active_tool_ids，后端自动：
-        1. 查库获取 tool 配置
-        2. 如果有 bash tool，查节点数据、启动沙盒
-        3. 构建 Claude 消息
+        优先级：
+        1. 如果有 agent_id，从 agent_access 表读取配置（新版）
+        2. 否则，从 active_tool_ids 查 tool 表（旧版兼容）
         """
         
-        # ========== 1. 解析 active_tool_ids，查库获取配置 ==========
-        bash_tool = None  # {node_id, json_path, readonly}
+        # ========== 1. 解析配置，优先使用新版 agent_access ==========
+        bash_tools: list[dict] = []  # [{node_id, json_path, readonly}, ...]
         
-        logger.info(f"[Agent DEBUG] active_tool_ids={request.active_tool_ids}")
+        logger.info(f"[Agent DEBUG] agent_id={request.agent_id}, active_tool_ids={request.active_tool_ids}")
         
-        if request.active_tool_ids and current_user and tool_service:
+        # 新版：如果有 agent_id，从 agent_access 表读取配置
+        if request.agent_id and current_user and agent_config_service:
+            try:
+                agent = agent_config_service.get_agent(request.agent_id)
+                if agent and agent.user_id == current_user.user_id:
+                    logger.info(f"[Agent] Found agent config: id={agent.id}, accesses={len(agent.accesses)}")
+                    # 收集所有有 terminal 权限的 access（支持多个）
+                    for access in agent.accesses:
+                        if access.terminal:
+                            bash_tools.append({
+                                "node_id": access.node_id,
+                                "json_path": (access.json_path or "").strip(),
+                                "readonly": access.terminal_readonly,
+                            })
+                            logger.info(f"[Agent] Found bash access from agent_access: node_id={access.node_id}")
+                    logger.info(f"[Agent] Total bash accesses collected: {len(bash_tools)}")
+                else:
+                    logger.warning(f"[Agent] Agent not found or unauthorized: {request.agent_id}")
+            except Exception as e:
+                logger.warning(f"[Agent] Failed to get agent config: {e}")
+        
+        # 旧版兼容：如果没有从 agent_access 获取到配置，fallback 到 tool 表
+        if len(bash_tools) == 0 and request.active_tool_ids and current_user and tool_service:
+            logger.info(f"[Agent] Fallback to tool table for bash config")
             for tool_id in request.active_tool_ids:
                 try:
                     tool = tool_service.get_by_id(tool_id)
@@ -86,14 +112,12 @@ class AgentService:
                     if tool and tool.user_id == current_user.user_id:
                         tool_type = (tool.type or "").strip()
                         if tool_type in ("shell_access", "shell_access_readonly"):
-                            # 只取第一个 bash tool（互斥）
-                            if bash_tool is None:
-                                bash_tool = {
-                                    "node_id": tool.node_id,  # 改为 node_id
+                            bash_tools.append({
+                                "node_id": tool.node_id,
                                     "json_path": (tool.json_path or "").strip(),
                                     "readonly": tool_type == "shell_access_readonly",
-                                }
-                                logger.info(f"[Agent] Found bash tool: {bash_tool}")
+                            })
+                            logger.info(f"[Agent] Found bash tool from tool table: node_id={tool.node_id}")
                 except Exception as e:
                     logger.warning(f"[Agent] Failed to get tool {tool_id}: {e}")
         
@@ -109,6 +133,7 @@ class AgentService:
                 persisted_session_id, created_session = chat_service.ensure_session(
                     user_id=current_user.user_id,
                     session_id=request.session_id,
+                    agent_id=request.agent_id,
                     mode="agent",
                 )
                 logger.info(f"[Chat Persist] Session ready: id={persisted_session_id}, created={created_session}")
@@ -150,31 +175,68 @@ class AgentService:
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to save user message: {e}")
 
-        # ========== 3. 如果有 bash tool，准备沙盒数据、启动沙盒 ==========
-        use_bash = bash_tool is not None
+        # ========== 3. 如果有 bash tools，准备沙盒数据、启动沙盒 ==========
+        use_bash = len(bash_tools) > 0
         sandbox_data: SandboxData | None = None
         sandbox_session_id = None
+        # 如果任意一个 access 不是 readonly，则整个沙盒不是 readonly
+        sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
         
         if use_bash and node_service and current_user:
-            try:
-                # 使用统一的函数准备沙盒数据
-                sandbox_data = await prepare_sandbox_data(
-                    node_service=node_service,
-                    node_id=bash_tool["node_id"],
-                    json_path=bash_tool["json_path"],
-                    user_id=current_user.user_id,
-                )
-                logger.info(f"[Agent] Prepared sandbox data: type={sandbox_data.node_type}, files={len(sandbox_data.files)}")
-            except Exception as e:
-                logger.warning(f"[Agent] Failed to prepare sandbox data: {e}")
-                sandbox_data = SandboxData()
+            # 收集所有 bash access 的文件
+            all_files: list[SandboxFile] = []
+            primary_node_type = "folder"  # 默认类型
+            primary_node_id = ""
+            primary_node_name = ""
+            # 追踪每个 node 对应的沙盒路径和类型，用于回写
+            node_path_map: dict = {}  # {node_id: {path, node_type, json_path}}
+            
+            for i, tool in enumerate(bash_tools):
+                try:
+                    data = await prepare_sandbox_data(
+                        node_service=node_service,
+                        node_id=tool["node_id"],
+                        json_path=tool["json_path"],
+                        user_id=current_user.user_id,
+                    )
+                    logger.info(f"[Agent] Prepared sandbox data for access {i+1}/{len(bash_tools)}: "
+                               f"node_id={tool['node_id']}, type={data.node_type}, files={len(data.files)}")
+                    all_files.extend(data.files)
+                    
+                    # 记录路径映射（用于回写）
+                    if data.files:
+                        # 对于 JSON 和单文件，记录主文件路径
+                        main_path = data.files[0].path
+                        node_path_map[tool["node_id"]] = {
+                            "path": main_path,
+                            "node_type": data.node_type,
+                            "json_path": tool["json_path"],
+                            "readonly": tool["readonly"],
+                        }
+                    
+                    # 第一个 access 决定主类型
+                    if i == 0:
+                        primary_node_type = data.node_type
+                        primary_node_id = data.root_node_id
+                        primary_node_name = data.root_node_name
+                except Exception as e:
+                    logger.warning(f"[Agent] Failed to prepare sandbox data for node {tool['node_id']}: {e}")
+            
+            sandbox_data = SandboxData(
+                files=all_files,
+                node_type=primary_node_type if len(bash_tools) == 1 else "multi",  # 多个时标记为 multi
+                root_node_id=primary_node_id,
+                root_node_name=primary_node_name,
+                node_path_map=node_path_map,
+            )
+            logger.info(f"[Agent] Total sandbox files: {len(all_files)} from {len(bash_tools)} accesses, path_map={list(node_path_map.keys())}")
 
         if use_bash and sandbox_service:
             sandbox_session_id = f"agent-{int(time.time() * 1000)}"
             
             # 根据节点类型选择启动方式
-            if sandbox_data and sandbox_data.node_type == "json":
-                # JSON 节点：使用现有的 data 参数
+            if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
+                # 单个 JSON 节点：使用现有的 data 参数
                 json_content = {}
                 if sandbox_data.files:
                     try:
@@ -184,14 +246,14 @@ class AgentService:
                 start_result = await sandbox_service.start(
                     session_id=sandbox_session_id,
                     data=json_content,
-                    readonly=bash_tool["readonly"],
+                    readonly=sandbox_readonly,
                 )
             else:
-                # Folder/File 节点：使用 files 参数
+                # Folder/File/多个节点：使用 files 参数
                 start_result = await sandbox_service.start_with_files(
                     session_id=sandbox_session_id,
                     files=sandbox_data.files if sandbox_data else [],
-                    readonly=bash_tool["readonly"],
+                    readonly=sandbox_readonly,
                     s3_service=s3_service,
                 )
             
@@ -221,6 +283,8 @@ class AgentService:
                 system_prompt = "You are an AI agent specialized in JSON data processing. Use the bash tool to view and manipulate data in /workspace/data.json."
             elif node_type == "folder":
                 system_prompt = "You are an AI agent with access to a file system. Use the bash tool to explore and manipulate files in /workspace/."
+            elif node_type == "multi":
+                system_prompt = "You are an AI agent with access to multiple files and folders. Use the bash tool to explore and manipulate files in /workspace/."
             else:
                 system_prompt = f"You are an AI agent with access to a {node_type} file. Use the bash tool to analyze the file in /workspace/."
         else:
@@ -229,17 +293,16 @@ class AgentService:
         # 构建用户消息：如果使用 bash，添加数据上下文
         user_content = request.prompt
         if use_bash and sandbox_data:
-            readonly = bash_tool["readonly"]
             node_type = sandbox_data.node_type
             
-            if node_type == "json":
-                json_path = bash_tool["json_path"] or "/"
+            if node_type == "json" and len(bash_tools) == 1:
+                json_path = bash_tools[0]["json_path"] or "/"
                 context_prefix = (
                     f"[数据上下文]\n"
                     f"节点类型: JSON\n"
                     f"数据文件: /workspace/data.json\n"
                     f"JSON 路径: {json_path}\n"
-                    f"权限: {'⚠️ 只读模式' if readonly else '可读写模式'}\n"
+                    f"权限: {'⚠️ 只读模式' if sandbox_readonly else '可读写模式'}\n"
                     f"[用户消息]\n"
                 )
             elif node_type == "folder":
@@ -249,20 +312,31 @@ class AgentService:
                     f"文件夹名: {sandbox_data.root_node_name}\n"
                     f"工作目录: /workspace/\n"
                     f"文件数量: {len(sandbox_data.files)}\n"
-                    f"权限: {'⚠️ 只读模式' if readonly else '可读写模式'}\n"
+                    f"权限: {'⚠️ 只读模式' if sandbox_readonly else '可读写模式'}\n"
+                    f"[用户消息]\n"
+                )
+            elif node_type == "multi":
+                # 多个 access
+                context_prefix = (
+                    f"[数据上下文]\n"
+                    f"节点类型: 多个文件/文件夹\n"
+                    f"访问数量: {len(bash_tools)} 个\n"
+                    f"工作目录: /workspace/\n"
+                    f"文件数量: {len(sandbox_data.files)}\n"
+                    f"权限: {'⚠️ 只读模式' if sandbox_readonly else '可读写模式'}\n"
                     f"[用户消息]\n"
                 )
             else:
                 # file/pdf/image 等
                 file_name = sandbox_data.files[0].path.split("/")[-1] if sandbox_data.files else "file"
-                context_prefix = (
-                    f"[数据上下文]\n"
+            context_prefix = (
+                f"[数据上下文]\n"
                     f"节点类型: {node_type}\n"
                     f"文件名: {file_name}\n"
                     f"文件路径: /workspace/{file_name}\n"
-                    f"权限: {'⚠️ 只读模式' if readonly else '可读写模式'}\n"
-                    f"[用户消息]\n"
-                )
+                    f"权限: {'⚠️ 只读模式' if sandbox_readonly else '可读写模式'}\n"
+                f"[用户消息]\n"
+            )
             user_content = context_prefix + request.prompt
         
         messages.append({"role": "user", "content": user_content})
@@ -473,40 +547,76 @@ class AgentService:
             logger.warning(f"[Chat Persist] Skipping assistant message save: should_persist={should_persist}, session_id={persisted_session_id}")
 
         if use_bash and sandbox_service and sandbox_session_id:
-            # 只有 JSON 节点且非只读模式才需要回写数据
-            if sandbox_data and sandbox_data.node_type == "json" and not bash_tool["readonly"]:
-                read_result = await sandbox_service.read(sandbox_session_id)
-                if read_result.get("success"):
-                    # 合并数据回数据库
-                    if node_service and bash_tool["node_id"]:
-                        try:
-                            node = node_service.get_by_id(bash_tool["node_id"], current_user.user_id)
-                            if node and node.content:
-                                updated_data = merge_data_by_path(
-                                    node.content, bash_tool["json_path"], read_result.get("data")
-                                )
-                                node_service.update_node(
-                                    node_id=bash_tool["node_id"],
-                                    user_id=current_user.user_id,
-                                    content=updated_data,
-                                )
-                                yield {
-                                    "type": "result",
-                                    "success": True,
-                                    "updatedData": updated_data,
-                                    "modifiedPath": bash_tool["json_path"],
-                                }
-                            else:
-                                yield {"type": "result", "success": True}
-                        except Exception as e:
-                            logger.warning(f"[Agent] Failed to update node: {e}")
-                            yield {"type": "result", "success": True}
-                    else:
-                        yield {"type": "result", "success": True}
-                else:
-                    yield {"type": "result", "success": False, "error": read_result.get("error")}
+            # 回写修改的数据到数据库
+            updated_nodes = []
+            
+            if sandbox_data and sandbox_data.node_path_map and node_service and current_user:
+                # 遍历所有非只读的 access，回写数据
+                for node_id, info in sandbox_data.node_path_map.items():
+                    if info.get("readonly"):
+                        continue  # 跳过只读的
+                    
+                    node_type = info.get("node_type", "")
+                    sandbox_path = info.get("path", "")
+                    json_path = info.get("json_path", "")
+                    
+                    # 只回写 JSON 类型的节点
+                    if node_type != "json":
+                        logger.info(f"[Agent] Skipping write-back for non-JSON node: {node_id} (type={node_type})")
+                        continue
+                    
+                    try:
+                        # 从沙盒读取文件
+                        read_result = await sandbox_service.read_file(
+                            sandbox_session_id, 
+                            sandbox_path, 
+                            parse_json=True
+                        )
+                        
+                        if not read_result.get("success"):
+                            logger.warning(f"[Agent] Failed to read file from sandbox: {sandbox_path}")
+                            continue
+                        
+                        sandbox_content = read_result.get("content")
+                        
+                        # 获取原节点数据
+                        node = node_service.get_by_id(node_id, current_user.user_id)
+                        if not node:
+                            continue
+                        
+                        # 合并数据（如果有 json_path）
+                        if json_path:
+                            updated_data = merge_data_by_path(
+                                node.content or {}, json_path, sandbox_content
+                            )
+                        else:
+                            updated_data = sandbox_content
+                        
+                        # 写回数据库
+                        node_service.update_node(
+                            node_id=node_id,
+                            user_id=current_user.user_id,
+                            content=updated_data,
+                        )
+                        
+                        updated_nodes.append({
+                            "nodeId": node_id,
+                            "nodeName": node.name,
+                            "modifiedPath": json_path,
+                        })
+                        logger.info(f"[Agent] Successfully wrote back data to node: {node_id}")
+                        
+                    except Exception as e:
+                        logger.warning(f"[Agent] Failed to write back data for node {node_id}: {e}")
+            
+            # 返回结果
+            if updated_nodes:
+                yield {
+                    "type": "result",
+                    "success": True,
+                    "updatedNodes": updated_nodes,
+                }
             else:
-                # Folder/File 节点或只读模式：不回写数据
                 yield {"type": "result", "success": True}
             
             await sandbox_service.stop(sandbox_session_id)

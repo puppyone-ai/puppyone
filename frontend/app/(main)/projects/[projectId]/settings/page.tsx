@@ -89,7 +89,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
         </h1>
         <p
           style={{
-            fontSize: 13,
+            fontSize: 16,
             color: '#737373',
             margin: '4px 0 0 0',
           }}
@@ -104,7 +104,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
         <section style={{ marginBottom: 32 }}>
           <h2
             style={{
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: 600,
               color: '#a3a3a3',
               margin: '0 0 16px 0',
@@ -134,10 +134,10 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
               }}
             >
               <div>
-                <div style={{ fontSize: 14, color: '#e5e5e5', fontWeight: 500 }}>
+                <div style={{ fontSize: 16, color: '#e5e5e5', fontWeight: 500 }}>
                   Project Name
                 </div>
-                <div style={{ fontSize: 13, color: '#737373', marginTop: 2 }}>
+                <div style={{ fontSize: 16, color: '#737373', marginTop: 2 }}>
                   {currentProject.name}
                 </div>
               </div>
@@ -167,12 +167,12 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
               }}
             >
               <div>
-                <div style={{ fontSize: 14, color: '#e5e5e5', fontWeight: 500 }}>
+                <div style={{ fontSize: 16, color: '#e5e5e5', fontWeight: 500 }}>
                   Project ID
                 </div>
                 <div
                   style={{
-                    fontSize: 13,
+                    fontSize: 16,
                     color: '#737373',
                     marginTop: 2,
                     fontFamily: 'monospace',
@@ -205,7 +205,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
         <section>
           <h2
             style={{
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: 600,
               color: '#ef4444',
               margin: '0 0 16px 0',
@@ -228,10 +228,10 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
             }}
           >
             <div>
-              <div style={{ fontSize: 14, color: '#e5e5e5', fontWeight: 500 }}>
+              <div style={{ fontSize: 16, color: '#e5e5e5', fontWeight: 500 }}>
                 Delete Project
               </div>
-              <div style={{ fontSize: 13, color: '#737373', marginTop: 2 }}>
+              <div style={{ fontSize: 16, color: '#737373', marginTop: 2 }}>
                 Permanently delete this project and all its data. This action cannot be undone.
               </div>
             </div>
@@ -243,7 +243,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                 border: 'none',
                 borderRadius: 6,
                 color: '#fca5a5',
-                fontSize: 13,
+                fontSize: 16,
                 fontWeight: 500,
                 cursor: 'pointer',
               }}

@@ -178,7 +178,7 @@ function PrimitiveValueEditor({
             border: '1px solid transparent',
             width: '100%',
             overflow: 'hidden', // 关键：容器隐藏溢出
-            height: 28,
+            height: 32,
             userSelect: 'none',
             transition: 'background 0.1s',
           }}
@@ -214,7 +214,7 @@ function PrimitiveValueEditor({
           {/* Preview 文本 - 自适应宽度，CSS 自动截断 */}
           <span
             style={{
-              fontSize: 14,
+              fontSize: 16,
               color: '#e2e8f0',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -254,7 +254,7 @@ function PrimitiveValueEditor({
           margin: '0 -4px',
           width: '100%',
           overflow: 'hidden',
-          height: 28,
+          height: 32,
         }}
       >
         {/* 图标 */}
@@ -291,7 +291,7 @@ function PrimitiveValueEditor({
           onClick={isSelectingAccessPoint ? undefined : handleEditClick}
           style={{
             color: typeInfo.color,
-            fontSize: 14,
+            fontSize: 16,
             flex: 1,
             whiteSpace: 'nowrap',
             overflow: 'hidden',

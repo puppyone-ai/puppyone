@@ -41,7 +41,7 @@ export default function ToolDetailPage({ params }: ToolDetailPageProps) {
             background: 'transparent',
             border: 'none',
             color: '#737373',
-            fontSize: 13,
+            fontSize: 14,
             cursor: 'pointer',
             marginBottom: 16,
           }}
@@ -65,7 +65,7 @@ export default function ToolDetailPage({ params }: ToolDetailPageProps) {
         </h1>
         <p
           style={{
-            fontSize: 13,
+            fontSize: 14,
             color: '#737373',
             margin: '4px 0 0 0',
           }}

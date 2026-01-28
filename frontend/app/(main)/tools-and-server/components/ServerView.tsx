@@ -312,7 +312,7 @@ export function ServerView({
                 setShowAddTools(true);
               }}
               style={{
-                height: 28,
+                height: 32,
                 padding: '0 12px',
                 fontSize: 13,
                 fontWeight: 500,

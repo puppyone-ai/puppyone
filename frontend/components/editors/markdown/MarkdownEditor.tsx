@@ -141,7 +141,7 @@ export function MarkdownEditor({
                 left: 32,
                 color: '#525252',
                 fontStyle: 'italic',
-                fontSize: 14,
+                fontSize: 16,
                 pointerEvents: 'none',
                 zIndex: 1,
                 fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
@@ -159,7 +159,7 @@ export function MarkdownEditor({
             theme="markdown-dark"
             options={{
               minimap: { enabled: false },
-              fontSize: 14,
+              fontSize: 16,
               fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
               lineNumbers: 'off',
               scrollBeyondLastLine: false,

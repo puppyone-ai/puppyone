@@ -14,6 +14,7 @@ const supabase = createBrowserClient(
 export interface ChatSession {
   id: string;
   user_id: string;
+  agent_id: string | null;  // 关联的 Agent ID
   title: string | null;
   mode: 'agent' | 'ask';
   created_at: string;
@@ -40,6 +41,7 @@ export interface ChatMessage {
 }
 
 export interface CreateSessionInput {
+  agent_id?: string | null;  // 关联的 Agent ID
   title?: string;
   mode?: 'agent' | 'ask';
 }
@@ -54,19 +56,32 @@ export interface CreateMessageInput {
 // ============ Session APIs ============
 
 /**
- * 获取当前用户的所有会话（按更新时间倒序）
+ * 获取当前用户指定 agent 的所有会话（按更新时间倒序）
+ * @param agentId - Agent ID，如果为 null 则获取 playground 模式的会话
  */
-export async function getChatSessions(): Promise<ChatSession[]> {
+export async function getChatSessions(agentId?: string | null): Promise<ChatSession[]> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('chat_sessions')
     .select('*')
-    .eq('user_id', user.id)
-    .order('updated_at', { ascending: false });
+    .eq('user_id', user.id);
+
+  // 按 agent_id 过滤
+  if (agentId === undefined) {
+    // 不传参数时返回所有会话（向后兼容）
+  } else if (agentId === null) {
+    // null 表示 playground 模式
+    query = query.is('agent_id', null);
+  } else {
+    // 指定 agent
+    query = query.eq('agent_id', agentId);
+  }
+
+  const { data, error } = await query.order('updated_at', { ascending: false });
 
   if (error) throw error;
   return data || [];
@@ -87,6 +102,7 @@ export async function createChatSession(
     .from('chat_sessions')
     .insert({
       user_id: user.id,
+      agent_id: input?.agent_id || null,
       title: input?.title || null,
       mode: input?.mode || 'agent',
     })

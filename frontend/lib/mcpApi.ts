@@ -47,6 +47,13 @@ export interface McpToolPermissions {
   shell_access_readonly?: boolean; // Bash 只读模式
 }
 
+// AccessPoint definition (Shared)
+export interface AccessPoint {
+  id: string;
+  path: string;
+  permissions: McpToolPermissions;
+}
+
 // 工具定义（用于自定义工具名称和描述）- 保留用于前端状态
 export interface McpToolDefinition {
   name: string;

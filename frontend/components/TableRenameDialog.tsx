@@ -101,7 +101,7 @@ export function TableRenameDialog({
             justifyContent: 'space-between',
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>
+          <div style={{ fontSize: 16, fontWeight: 500, color: '#666' }}>
             Rename Context
           </div>
           <button
@@ -153,7 +153,7 @@ export function TableRenameDialog({
                 background: '#1a1a1a',
                 border: '1px solid #333',
                 borderRadius: 6,
-                fontSize: 14,
+                fontSize: 16,
                 color: '#EDEDED',
                 outline: 'none',
                 boxSizing: 'border-box',
@@ -190,13 +190,13 @@ export function TableRenameDialog({
 }
 
 const buttonStyle = (primary: boolean): React.CSSProperties => ({
-  height: 28,
+  height: 32,
   padding: '0 12px',
   borderRadius: 6,
   border: primary ? '1px solid rgba(255,255,255,0.1)' : '1px solid #333',
   background: primary ? '#EDEDED' : 'transparent',
   color: primary ? '#1a1a1a' : '#EDEDED',
-  fontSize: 13,
+  fontSize: 16,
   fontWeight: 500,
   cursor: 'pointer',
   transition: 'all 0.1s',

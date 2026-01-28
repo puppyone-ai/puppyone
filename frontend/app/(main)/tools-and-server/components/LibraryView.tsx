@@ -311,7 +311,7 @@ export function LibraryView({
                   <button
                     onClick={() => setShowAddMenu(!showAddMenu)}
                     style={{
-                      height: 28,
+                      height: 32,
                       padding: '0 12px',
                       borderRadius: 6,
                       border: 'none',
@@ -1096,7 +1096,7 @@ export function LibraryView({
                 <button
                   onClick={() => setShowCreateServer(false)}
                   style={{
-                    height: 28,
+                    height: 32,
                     padding: '0 14px',
                     background: 'transparent',
                     border: '1px solid #27272a',
@@ -1112,7 +1112,7 @@ export function LibraryView({
                   onClick={handleCreateServerAndAdd}
                   disabled={!newServerName.trim() || creating}
                   style={{
-                    height: 28,
+                    height: 32,
                     padding: '0 14px',
                     background: creating
                       ? '#1e40af'
@@ -1274,7 +1274,7 @@ export function LibraryView({
                 <button
                   onClick={handleCancelEdit}
                   style={{
-                    height: 28,
+                    height: 32,
                     padding: '0 14px',
                     background: 'transparent',
                     border: '1px solid #27272a',
@@ -1290,7 +1290,7 @@ export function LibraryView({
                   onClick={handleSaveEdit}
                   disabled={saving}
                   style={{
-                    height: 28,
+                    height: 32,
                     padding: '0 14px',
                     background: saving ? '#1e40af' : '#2563eb',
                     border: 'none',

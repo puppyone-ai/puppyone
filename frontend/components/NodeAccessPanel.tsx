@@ -208,7 +208,7 @@ export function NodeAccessPanel({
             <NodeIcon />
           </div>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#737373' }}>Agent Access</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#737373' }}>Agent Access</div>
             <div style={{ fontSize: 11, color: '#525252', marginTop: 2 }}>{nodeName}</div>
           </div>
         </div>

@@ -80,7 +80,7 @@ export function CodeMirrorJsonEditor({
           lintKeymap: true,
         }}
         style={{
-          fontSize: 13,
+          fontSize: 14,
           fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         }}
       />

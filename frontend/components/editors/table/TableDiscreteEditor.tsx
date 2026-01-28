@@ -454,7 +454,7 @@ export default function TableDiscreteEditor({
         overflow: 'hidden',
         fontFamily:
           "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-        fontSize: 13,
+        fontSize: 14,
       }}
     >
       <TableResizeHeader

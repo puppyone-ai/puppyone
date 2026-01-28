@@ -20,16 +20,16 @@ export default function DashboardPage() {
         backgroundColor: '#202020', // 一级 sidebar 的背景色作为整个页面底色
       }}
     >
-      {/* --- 浮动容器：与 projects/layout.tsx 保持一致 --- */}
+      {/* --- 全屏容器：Edge-to-Edge Pane Style --- */}
       <div
         style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          margin: 8,
-          marginLeft: 0,
-          borderRadius: 12,
-          border: '1px solid #2a2a2a',
+          margin: 0,
+          borderRadius: 0,
+          border: 'none',
+          borderLeft: '1px solid #2a2a2a',
           background: '#0e0e0e',
           overflow: 'hidden',
         }}

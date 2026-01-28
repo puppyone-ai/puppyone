@@ -14,6 +14,9 @@ class AgentRequest(BaseModel):
     session_id: Optional[str] = Field(
         None, description="聊天会话 ID（用于服务端持久化与加载历史）"
     )
+    agent_id: Optional[str] = Field(
+        None, description="Agent ID（用于关联 session 到特定 agent）"
+    )
     chatHistory: Optional[List[ChatHistoryItem]] = Field(
         None, description="历史对话消息"
     )

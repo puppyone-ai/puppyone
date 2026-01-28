@@ -18,7 +18,6 @@ import {
   refreshTableTools,
   useTable,
   useProjectTools,
-  refreshProjectTools,
 } from '@/lib/hooks/useData';
 import { ProjectWorkspaceView } from '@/components/ProjectWorkspaceView';
 import {
@@ -27,7 +26,8 @@ import {
   type ViewType,
   type BreadcrumbSegment,
 } from '@/components/ProjectsHeader';
-import { ChatSidebar } from '@/components/ChatSidebar';
+import { AgentViewport } from '@/components/agent/AgentViewport';
+import { AgentRailVertical } from '@/components/agent/AgentRailVertical';
 import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
 import { DocumentEditor } from '@/components/RightAuxiliaryPanel/DocumentEditor';
 
@@ -38,6 +38,7 @@ import {
   type McpToolPermissions,
   type McpToolType,
   type Tool,
+  type AccessPoint,
 } from '@/lib/mcpApi';
 
 import { TableManageDialog } from '@/components/TableManageDialog';
@@ -50,17 +51,11 @@ import { refreshProjects } from '@/lib/hooks/useData';
 import { MarkdownEditor } from '@/components/editors/markdown';
 
 // Finder View Components
-import { GridView, ListView, MillerColumnsView, type MillerColumnItem } from '../../../[[...slug]]/components/views';
+import { GridView, ListView, MillerColumnsView, type MillerColumnItem, type AgentResource } from '../../../[[...slug]]/components/views';
 import { CreateMenu, type ContentType } from '../../../[[...slug]]/components/finder';
 
-// Node Access Panel (for Folder/File level sandbox configuration)
-import { NodeAccessPanel } from '@/components/NodeAccessPanel';
-
-export interface AccessPoint {
-  id: string;
-  path: string;
-  permissions: McpToolPermissions;
-}
+// Agent Context
+import { useAgent } from '@/contexts/AgentContext';
 
 // Panel content types
 type RightPanelContent = 'NONE' | 'EDITOR';
@@ -84,43 +79,36 @@ export default function DataPage({ params }: DataPageProps) {
   const { tools: projectTools } = useProjectTools(projectId);
 
   // State - viewType persisted in localStorage
-  const [viewType, setViewTypeState] = useState<ViewType>(() => {
-    // Initialize from localStorage (client-side only)
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('puppyone-view-type');
-      if (saved === 'grid' || saved === 'list' || saved === 'column') {
-        return saved;
-      }
+  // 使用默认值初始化，避免 hydration mismatch
+  const [viewType, setViewTypeState] = useState<ViewType>('grid');
+  
+  // editorType persisted in localStorage
+  const [editorType, setEditorTypeState] = useState<EditorType>('table');
+  
+  // 客户端 mount 后从 localStorage 读取
+  useEffect(() => {
+    const savedViewType = localStorage.getItem('puppyone-view-type');
+    if (savedViewType === 'grid' || savedViewType === 'list' || savedViewType === 'column') {
+      setViewTypeState(savedViewType);
     }
-    return 'grid';
-  });
+    
+    const savedEditorType = localStorage.getItem('puppyone-editor-type');
+    if (savedEditorType === 'table' || savedEditorType === 'treeline-virtual' || savedEditorType === 'monaco') {
+      setEditorTypeState(savedEditorType);
+    }
+  }, []);
   
   // Wrapper to persist viewType changes
   const setViewType = (newViewType: ViewType) => {
     setViewTypeState(newViewType);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('puppyone-view-type', newViewType);
-    }
+    localStorage.setItem('puppyone-view-type', newViewType);
   };
-  
-  // editorType persisted in localStorage
-  const [editorType, setEditorTypeState] = useState<EditorType>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('puppyone-editor-type');
-      if (saved === 'table' || saved === 'treeline-virtual' || saved === 'monaco') {
-        return saved;
-      }
-    }
-    return 'table';
-  });
   
   const setEditorType = (newEditorType: EditorType) => {
     setEditorTypeState(newEditorType);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('puppyone-editor-type', newEditorType);
-    }
+    localStorage.setItem('puppyone-editor-type', newEditorType);
   };
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  // Chat state now comes from AgentContext (via layout)
   const [chatWidth, setChatWidth] = useState(340);
   const [rightPanelContent, setRightPanelContent] = useState<RightPanelContent>('NONE');
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
@@ -160,13 +148,37 @@ export default function DataPage({ params }: DataPageProps) {
   const [createInFolderId, setCreateInFolderId] = useState<string | null | undefined>(undefined); // undefined = use currentFolderId
   const createMenuRef = useRef<HTMLDivElement>(null);
 
-  // Access panel state (小爪子弹出面板)
-  const [accessPanelTarget, setAccessPanelTarget] = useState<{
-    nodeId: string;
-    nodeType: 'folder' | 'json' | 'file' | 'markdown' | 'pdf' | 'image';
-    nodeName: string;
-    position: { x: number; y: number };
-  } | null>(null);
+  // Agent Context - get draft resources for highlighting
+  const { draftResources, sidebarMode, currentAgentId, savedAgents } = useAgent();
+  
+  // Convert resources to AgentResource format for views
+  // Show resources for: 1) setting mode (editing draft), 2) deployed mode (viewing saved agent)
+  const agentResources: AgentResource[] = useMemo(() => {
+    if (sidebarMode === 'setting') {
+      // Editing mode: show draft resources
+      return draftResources
+        .filter(r => r.terminal || r.terminalReadonly) // Show items with terminal access
+        .map(r => ({
+          nodeId: r.nodeId,
+          terminalReadonly: r.terminalReadonly,
+        }));
+    }
+    
+    if (sidebarMode === 'deployed' && currentAgentId) {
+      // Viewing a saved agent: show its configured resources
+      const agent = savedAgents.find(a => a.id === currentAgentId);
+      if (agent?.resources) {
+        return agent.resources
+          .filter(r => r.terminal || r.terminalReadonly) // Show items with terminal access
+          .map(r => ({
+            nodeId: r.nodeId,
+            terminalReadonly: r.terminalReadonly,
+          }));
+      }
+    }
+    
+    return [];
+  }, [draftResources, sidebarMode, currentAgentId, savedAgents]);
 
   // Current project
   const activeProject = useMemo(
@@ -478,24 +490,23 @@ export default function DataPage({ params }: DataPageProps) {
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
-      {/* Main Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%', position: 'relative' }}>
-        {/* Header */}
-        <div style={{ flexShrink: 0 }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden', position: 'relative' }}>
+      {/* Left: Header + Content */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* Header (Full Width) */}
+        <div style={{ flexShrink: 0, zIndex: 60 }}>
           <ProjectsHeader
             pathSegments={pathSegments}
             projectId={activeProject?.id ?? null}
             onProjectsRefresh={() => {}}
             accessPointCount={accessPoints.length}
-            showEditorSwitcher={false}
-            isChatOpen={isChatOpen}
-            onChatOpenChange={setIsChatOpen}
           />
         </div>
 
-        {/* Content */}
-        <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+        {/* Body (Content + Chat Sidebar) */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+          {/* Main Content */}
+          <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', overflow: 'hidden' }}>
           {/* Editor View */}
           {isEditorView && activeProject && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
@@ -503,31 +514,31 @@ export default function DataPage({ params }: DataPageProps) {
               {activeNodeType === 'markdown' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                   {isLoadingMarkdown ? (
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
                       flex: 1,
-                      color: '#666',
-                    }}>
-                      <div style={{ textAlign: 'center' }}>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ margin: '0 auto 8px', animation: 'spin 1s linear infinite' }}>
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.3" />
-                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                        <div>Loading markdown...</div>
-                      </div>
+                    color: '#666',
+                  }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ margin: '0 auto 8px', animation: 'spin 1s linear infinite' }}>
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+                      <div>Loading markdown...</div>
                     </div>
-                  ) : (
+                  </div>
+                ) : (
                     <div style={{ flex: 1, minHeight: 0 }}>
-                      <MarkdownEditor
-                        content={markdownContent}
-                        onChange={(newContent) => {
-                          setMarkdownContent(newContent);
-                          // TODO: Save markdown content to S3
-                        }}
-                      />
+                  <MarkdownEditor
+                    content={markdownContent}
+                    onChange={(newContent) => {
+                      setMarkdownContent(newContent);
+                      // TODO: Save markdown content to S3
+                    }}
+                  />
                     </div>
                   )}
                 </div>
@@ -600,7 +611,7 @@ export default function DataPage({ params }: DataPageProps) {
                     alignItems: 'center',
                     gap: 8,
                     color: '#525252',
-                    fontSize: 13,
+                    fontSize: 14,
                   }}>
                     <svg
                       width="16"
@@ -683,6 +694,7 @@ export default function DataPage({ params }: DataPageProps) {
                         onLoadChildren={loadChildren}
                         onNavigate={handleMillerNavigate}
                         onCreateClick={handleMillerCreateClick}
+                        agentResources={agentResources}
                       />
                     );
                   }
@@ -690,32 +702,13 @@ export default function DataPage({ params }: DataPageProps) {
                   return viewType === 'list' ? (
                     <ListView
                       items={items}
-                      existingTools={projectTools || []}
-                      onAccessClick={(item, e) => {
-                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        setAccessPanelTarget({
-                          nodeId: item.id,
-                          nodeType: item.type as any,
-                          nodeName: item.name,
-                          position: { x: rect.right + 8, y: rect.top },
-                        });
-                      }}
+                      agentResources={agentResources}
                     />
                   ) : (
                     <GridView
                       items={items}
                       onCreateClick={handleCreateClick}
-                      createLabel='New...'
-                      existingTools={projectTools || []}
-                      onAccessClick={(item, e) => {
-                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        setAccessPanelTarget({
-                          nodeId: item.id,
-                          nodeType: item.type as any,
-                          nodeName: item.name,
-                          position: { x: rect.right + 8, y: rect.top },
-                        });
-                      }}
+                      agentResources={agentResources}
                     />
                   );
                 })()
@@ -909,12 +902,15 @@ export default function DataPage({ params }: DataPageProps) {
             )}
           </ResizablePanel>
         </div>
+
+        </div>
       </div>
 
+      {/* Agent Rail - 贯穿整个页面高度 */}
+      <AgentRailVertical />
+
       {/* Chat Sidebar */}
-      <ChatSidebar
-        isOpen={isChatOpen}
-        onOpenChange={setIsChatOpen}
+      <AgentViewport
         chatWidth={chatWidth}
         onChatWidthChange={setChatWidth}
         tableData={currentTableData?.data}
@@ -1002,39 +998,6 @@ export default function DataPage({ params }: DataPageProps) {
           parentPath={activeProject?.name || ''}
           onClose={() => setCreateFolderOpen(false)}
           onSuccess={() => loadContentNodes(currentFolderId)}
-        />
-      )}
-
-      {/* Access Panel (小爪子配置面板) */}
-      {accessPanelTarget && (
-        <div
-          style={{
-            position: 'fixed',
-            top: accessPanelTarget.position.y,
-            left: accessPanelTarget.position.x,
-            zIndex: 1000,
-          }}
-        >
-          <NodeAccessPanel
-            nodeId={accessPanelTarget.nodeId}
-            nodeType={accessPanelTarget.nodeType}
-            nodeName={accessPanelTarget.nodeName}
-            existingTools={projectTools || []}
-            onToolsChange={() => refreshProjectTools(projectId)}
-            onClose={() => setAccessPanelTarget(null)}
-          />
-        </div>
-      )}
-
-      {/* Click outside to close access panel */}
-      {accessPanelTarget && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 999,
-          }}
-          onClick={() => setAccessPanelTarget(null)}
         />
       )}
     </div>

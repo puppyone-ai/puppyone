@@ -138,7 +138,7 @@ export function SidebarLayout({
 
   const collapsedBtnClass = (isActive: boolean) =>
     clsx(
-      'flex h-7 w-7 items-center justify-center rounded-[5px] bg-transparent text-[#808080] transition-colors duration-150 hover:bg-white/8 hover:text-[#e2e8f0]',
+      'flex h-8 w-8 items-center justify-center rounded-[5px] bg-transparent text-[#808080] transition-colors duration-150 hover:bg-white/8 hover:text-[#e2e8f0]',
       isActive && 'bg-white/10 text-[#e2e8f0]'
     );
 
@@ -146,17 +146,17 @@ export function SidebarLayout({
     <aside
       ref={sidebarRef}
       className={clsx(
-        'relative flex h-screen flex-shrink-0 flex-col bg-[#202020] font-sans text-sm',
+        'relative flex h-screen flex-shrink-0 flex-col bg-[#1a1a1a] font-sans text-sm',
         isResizing
           ? 'transition-none'
           : 'transition-[width] duration-200 ease-in-out'
       )}
-      style={{ width: effectiveCollapsed ? 45 : sidebarWidth }}
+      style={{ width: effectiveCollapsed ? 47 : sidebarWidth }}
     >
       {/* Header */}
       <div
         className={clsx(
-          'box-border flex h-[54px] items-center pt-2',
+          'box-border flex h-[48px] items-center border-b border-white/[0.06]',
           effectiveCollapsed
             ? 'justify-center px-0'
             : 'justify-between pl-2 pr-[9px]'
@@ -165,7 +165,7 @@ export function SidebarLayout({
         {effectiveCollapsed ? (
           <button
             type='button'
-            className='group relative flex h-7 w-7 items-center justify-center rounded-[5px] transition-colors duration-150 hover:bg-white/8'
+            className='group relative flex h-8 w-8 items-center justify-center rounded-[5px] transition-colors duration-150 hover:bg-white/8'
             onClick={() => handleCollapsedChange(false)}
             title='Expand sidebar'
             aria-label='Expand sidebar'
@@ -229,7 +229,7 @@ export function SidebarLayout({
 
             <button
               type='button'
-              className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] transition-colors duration-150 hover:bg-white/8 hover:text-[#9ca3af]'
+              className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] transition-colors duration-150 hover:bg-white/8 hover:text-[#9ca3af]'
               onClick={() => handleCollapsedChange(true)}
               title='Collapse sidebar'
               aria-label='Collapse sidebar'
@@ -308,7 +308,7 @@ export function SidebarLayout({
       {/* Footer */}
       <div
         className={clsx(
-          'flex h-[45px] flex-shrink-0 items-center',
+          'flex h-[47px] flex-shrink-0 items-center',
           effectiveCollapsed ? 'justify-center px-3' : 'justify-between px-4'
         )}
       >
@@ -320,7 +320,7 @@ export function SidebarLayout({
 
         <button
           type='button'
-          className='flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3a3a3a] text-[12px] font-semibold text-white transition-all duration-200 hover:scale-105 hover:bg-[#4a4a4a] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.1)]'
+          className='flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3a3a3a] text-[12px] font-semibold text-white transition-all duration-200 hover:scale-105 hover:bg-[#4a4a4a] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.1)]'
           onClick={() => setUserMenuOpen(true)}
           title='Account settings'
           aria-label='Account settings'

@@ -723,7 +723,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               alignItems: 'center',
               justifyContent: 'center',
               width: 28,
-              height: 28,
+              height: 32,
               background: 'transparent',
               border: 'none',
               borderRadius: 6,
@@ -750,7 +750,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               />
             </svg>
           </button>
-          <span style={{ fontSize: 13, color: '#CDCDCD', fontWeight: 500 }}>
+          <span style={{ fontSize: 16, color: '#CDCDCD', fontWeight: 500 }}>
             Integrations
           </span>
         </div>
@@ -816,7 +816,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div
                           style={{
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: 500,
                             color: '#CDCDCD',
                           }}
@@ -957,7 +957,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                     border: '1px solid #2a2a2a',
                     borderRadius: 6,
                     padding: '8px 12px',
-                    fontSize: 13,
+                    fontSize: 16,
                     color: '#CDCDCD',
                     outline: 'none',
                     transition: 'border-color 0.15s',
@@ -1057,7 +1057,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                   </h3>
                   <p
                     style={{
-                      fontSize: 13,
+                      fontSize: 16,
                       color: '#8B8B8B',
                       marginBottom: 16,
                       lineHeight: 1.5,
@@ -1077,7 +1077,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                         background: '#2a2a2a',
                         color: '#CDCDCD',
                         cursor: 'pointer',
-                        fontSize: 13,
+                        fontSize: 16,
                       }}
                     >
                       Cancel
@@ -1092,7 +1092,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                         background: '#7f1d1d',
                         color: '#f87171',
                         cursor: 'pointer',
-                        fontSize: 13,
+                        fontSize: 16,
                       }}
                     >
                       Disconnect
