@@ -61,7 +61,7 @@ export function MonacoJsonEditor({
       theme='vs-dark'
       options={{
         minimap: { enabled: false },
-        fontSize: 13,
+        fontSize: 14,
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         lineNumbers: 'on',
         scrollBeyondLastLine: false,

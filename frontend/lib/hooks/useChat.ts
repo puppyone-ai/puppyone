@@ -17,12 +17,18 @@ import {
 // ============ Hooks ============
 
 /**
- * 获取当前用户的所有会话
+ * 获取当前用户指定 agent 的会话
+ * @param agentId - Agent ID，null 表示 playground 模式
  */
-export function useChatSessions() {
+export function useChatSessions(agentId?: string | null) {
+  // 使用 agent_id 作为 key 的一部分，这样切换 agent 时会重新获取
+  const cacheKey = agentId === undefined 
+    ? 'chat-sessions-all' 
+    : `chat-sessions-${agentId || 'playground'}`;
+
   const { data, error, isLoading } = useSWR<ChatSession[]>(
-    'chat-sessions',
-    getChatSessions,
+    cacheKey,
+    () => getChatSessions(agentId),
     {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
@@ -59,10 +65,13 @@ export function useChatMessages(sessionId: string | null) {
 // ============ Actions ============
 
 /**
- * 刷新会话列表
+ * 刷新指定 agent 的会话列表
  */
-export function refreshChatSessions() {
-  return mutate('chat-sessions');
+export function refreshChatSessions(agentId?: string | null) {
+  const cacheKey = agentId === undefined 
+    ? 'chat-sessions-all' 
+    : `chat-sessions-${agentId || 'playground'}`;
+  return mutate(cacheKey);
 }
 
 /**
@@ -79,7 +88,7 @@ export async function createSession(
   input?: CreateSessionInput
 ): Promise<ChatSession> {
   const session = await createChatSession(input);
-  await refreshChatSessions();
+  await refreshChatSessions(input?.agent_id);
   return session;
 }
 

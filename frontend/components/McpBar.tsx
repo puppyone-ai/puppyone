@@ -539,7 +539,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
               onCloseOtherMenus?.(); // Close editor menu when opening Import menu
             }}
             style={{
-              height: 28,
+              height: 32,
               padding: '4px 10px',
               borderRadius: 6,
               border: '1px solid #333',
@@ -567,7 +567,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
               onCloseOtherMenus?.(); // Close editor menu when opening MCP menu
             }}
             style={{
-              height: 28,
+              height: 32,
               padding: '4px 10px',
               borderRadius: 6,
               border: '1px solid #333',
@@ -778,7 +778,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                   !selectedProject
                 }
                 style={{
-                  height: 28,
+                  height: 32,
                   padding: '6px 8px',
                   borderRadius: 6,
                   border: 'none',
@@ -879,7 +879,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                             }
                           }}
                           style={{
-                            height: 28,
+                            height: 32,
                             padding: '6px 8px',
                             borderRadius: 4,
                             border: added ? '1px solid #333' : '1px solid #333',
@@ -1048,7 +1048,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                     }
                     style={{
                       marginTop: 6,
-                      height: 28,
+                      height: 32,
                       borderRadius: 6,
                       border: 'none',
                       background:
@@ -1128,7 +1128,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                     onClick={() => setResult(null)}
                     style={{
                       marginTop: 6,
-                      height: 28,
+                      height: 32,
                       borderRadius: 6,
                       border: '1px solid #333',
                       background: '#1a1a1a',

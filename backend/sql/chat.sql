@@ -1,10 +1,11 @@
 -- Chat Sessions & Messages
 -- 用于保存 ChatSidebar 的对话历史
 
--- 会话表（全局，不关联 table/project）
+-- 会话表（按 agent 分开存储）
 CREATE TABLE IF NOT EXISTS chat_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
+  agent_id UUID,                 -- 关联的 Agent（可为空表示 playground 模式）
   
   title TEXT,                    -- 会话标题（自动从第一条消息生成）
   mode TEXT DEFAULT 'agent',     -- 'agent' | 'ask'
@@ -27,6 +28,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_agent ON chat_sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_agent ON chat_sessions(user_id, agent_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);

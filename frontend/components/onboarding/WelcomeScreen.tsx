@@ -372,7 +372,7 @@ export function WelcomeScreen({
 
                   <span
                     style={{
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 500,
                       color: isHovered ? colors.accent : '#ccc',
                       transition: 'color 0.2s',

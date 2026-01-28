@@ -164,7 +164,7 @@ const MenuPanel = React.memo(function MenuPanel({
           style={{
             display: 'flex',
             alignItems: 'center',
-            height: 28,
+            height: 32,
             padding: '0 4px 0 6px',
             gap: 8,
             borderRadius: 6,
@@ -235,7 +235,7 @@ const MenuPanel = React.memo(function MenuPanel({
             </div>
             <span
               style={{
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 500,
                 whiteSpace: 'nowrap',
                 display: 'flex',
@@ -419,7 +419,7 @@ const MenuPanel = React.memo(function MenuPanel({
           marginBottom: 8,
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#737373' }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#737373' }}>
           Agent Access
         </div>
       </div>

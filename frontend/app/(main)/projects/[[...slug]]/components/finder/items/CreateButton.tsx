@@ -66,7 +66,7 @@ function GridVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'vie
       </div>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 16,
           color: hovered ? '#a1a1aa' : '#52525b',
           textAlign: 'center',
           transition: 'color 0.15s',
@@ -115,7 +115,7 @@ function ListVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'vie
       <div style={{ flex: 1 }}>
         <div
           style={{
-            fontSize: 14,
+            fontSize: 16,
             color: hovered ? '#fff' : '#71717a',
             fontWeight: 500,
           }}
@@ -145,7 +145,7 @@ function ColumnVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'v
         padding: '8px 12px',
         cursor: 'pointer',
         color: hovered ? '#a1a1aa' : '#52525b',
-        fontSize: 13,
+        fontSize: 16,
         marginTop: 8,
         borderTop: '1px solid rgba(255,255,255,0.04)',
         transition: 'all 0.1s',

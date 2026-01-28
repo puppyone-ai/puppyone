@@ -65,7 +65,7 @@ export default function SettingsLayout({
         display: 'flex',
         width: '100%',
         height: '100%',
-        backgroundColor: '#202020', // 一级 sidebar 的背景色作为整个页面底色
+        backgroundColor: '#0f0f0f', // Main content area - darker than bars (#1a1a1a)
       }}
     >
       {/* --- 右侧浮动容器：包含二级 sidebar + 主内容区 --- */}
@@ -118,7 +118,7 @@ export default function SettingsLayout({
                 title='Expand sidebar'
                 style={{
                   width: 28,
-                  height: 28,
+                  height: 32,
                   background: 'transparent',
                   border: 'none',
                   borderRadius: 5,
@@ -156,7 +156,7 @@ export default function SettingsLayout({
               <>
                 <span
                   style={{
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: 600,
                     color: '#EDEDED',
                     letterSpacing: '0.3px',
@@ -169,7 +169,7 @@ export default function SettingsLayout({
                   title='Collapse sidebar'
                   style={{
                     width: 28,
-                    height: 28,
+                    height: 32,
                     background: 'transparent',
                     border: 'none',
                     borderRadius: 5,
@@ -332,7 +332,7 @@ function NavItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        height: 28,
+        height: 32,
         display: 'flex',
         alignItems: 'center',
         gap: 8,
@@ -378,7 +378,7 @@ function NavItem({
       <span
         style={{
           flex: 1,
-          fontSize: 13,
+          fontSize: 16,
           fontWeight: 500,
           color: active ? '#FFFFFF' : hovered ? '#F0EFED' : '#9B9B9B',
           overflow: 'hidden',
@@ -414,7 +414,7 @@ function CollapsedNavItem({
       onMouseLeave={() => setHovered(false)}
       style={{
         width: 28,
-        height: 28,
+        height: 32,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

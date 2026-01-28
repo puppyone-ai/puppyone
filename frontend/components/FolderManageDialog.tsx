@@ -109,7 +109,7 @@ export function FolderManageDialog({
                 strokeLinejoin='round'
               />
             </svg>
-            <span style={{ fontSize: 14, fontWeight: 500, color: '#e4e4e7' }}>
+            <span style={{ fontSize: 16, fontWeight: 500, color: '#e4e4e7' }}>
               New Folder
             </span>
           </div>
@@ -187,7 +187,7 @@ export function FolderManageDialog({
                 background: '#1a1a1a',
                 border: '1px solid #333',
                 borderRadius: 6,
-                fontSize: 14,
+                fontSize: 16,
                 color: '#EDEDED',
                 outline: 'none',
                 boxSizing: 'border-box',
@@ -205,7 +205,7 @@ export function FolderManageDialog({
                   border: '1px solid rgba(239,68,68,0.2)',
                   borderRadius: 6,
                   color: '#ef4444',
-                  fontSize: 13,
+                  fontSize: 16,
                 }}
               >
                 {error}
@@ -234,7 +234,7 @@ export function FolderManageDialog({
                 border: '1px solid #333',
                 background: 'transparent',
                 color: '#EDEDED',
-                fontSize: 13,
+                fontSize: 16,
                 fontWeight: 500,
                 cursor: 'pointer',
               }}
@@ -251,7 +251,7 @@ export function FolderManageDialog({
                 border: '1px solid rgba(255,255,255,0.1)',
                 background: loading || !name.trim() ? '#444' : '#EDEDED',
                 color: loading || !name.trim() ? '#888' : '#1a1a1a',
-                fontSize: 13,
+                fontSize: 16,
                 fontWeight: 500,
                 cursor: loading || !name.trim() ? 'not-allowed' : 'pointer',
               }}

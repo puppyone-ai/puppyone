@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class ChatSession(BaseModel):
     id: str
     user_id: str
+    agent_id: Optional[str] = None  # 关联的 Agent ID
     title: Optional[str] = None
     mode: Optional[str] = None
     created_at: Optional[str] = None
@@ -25,6 +26,7 @@ class ChatMessage(BaseModel):
 
 class ChatSessionCreate(BaseModel):
     user_id: str
+    agent_id: Optional[str] = None  # 关联的 Agent ID
     title: Optional[str] = None
     mode: str = "agent"
 

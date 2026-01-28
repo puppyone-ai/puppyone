@@ -179,7 +179,7 @@ function SidebarItem({
         <div
           style={{
             flex: 1,
-            fontSize: 13,
+            fontSize: 16,
             color: isSelected ? '#fff' : '#d4d4d8',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -223,7 +223,7 @@ function DefaultPreview({ item }: { item: ColumnViewItem | null }) {
           alignItems: 'center',
           justifyContent: 'center',
           color: '#52525b',
-          fontSize: 14,
+          fontSize: 16,
         }}
       >
         Select an item to preview
@@ -253,14 +253,14 @@ function DefaultPreview({ item }: { item: ColumnViewItem | null }) {
           <div style={{ fontSize: 18, fontWeight: 600, color: '#fff' }}>
             {item.name}
           </div>
-          <div style={{ fontSize: 13, color: '#71717a', marginTop: 2 }}>
+          <div style={{ fontSize: 16, color: '#71717a', marginTop: 2 }}>
             {item.type === 'folder' ? 'Folder' : 'Context'}
           </div>
         </div>
       </div>
 
       {item.description && (
-        <div style={{ fontSize: 14, color: '#a1a1aa', lineHeight: 1.6 }}>
+        <div style={{ fontSize: 16, color: '#a1a1aa', lineHeight: 1.6 }}>
           {item.description}
         </div>
       )}
@@ -389,7 +389,7 @@ export function ColumnView({
                 paddingLeft: 28,
                 cursor: 'pointer',
                 color: '#52525b',
-                fontSize: 13,
+                fontSize: 16,
                 marginTop: 8,
                 borderTop: '1px solid rgba(255,255,255,0.04)',
               }}

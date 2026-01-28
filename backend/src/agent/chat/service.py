@@ -18,7 +18,7 @@ class ChatService:
         self.repo = repo
 
     def ensure_session(
-        self, *, user_id: str, session_id: Optional[str], mode: str = "agent"
+        self, *, user_id: str, session_id: Optional[str], agent_id: Optional[str] = None, mode: str = "agent"
     ) -> tuple[str, bool]:
         """
         Returns (session_id, created).
@@ -32,7 +32,7 @@ class ChatService:
                 raise PermissionError("Invalid session_id for current user")
             return session_id, False
 
-        created = self.repo.create_session(ChatSessionCreate(user_id=user_id, mode=mode))
+        created = self.repo.create_session(ChatSessionCreate(user_id=user_id, agent_id=agent_id, mode=mode))
         return created.id, True
 
     def maybe_set_title_on_first_message(

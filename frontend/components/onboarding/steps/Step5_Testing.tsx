@@ -87,7 +87,7 @@ export function Step5_Testing({ onComplete }: Step5Props) {
                   padding: '8px 12px',
                   borderRadius: 8,
                   maxWidth: '80%',
-                  fontSize: 14,
+                  fontSize: 16,
                   lineHeight: 1.5,
                 }}
               >
@@ -109,7 +109,7 @@ export function Step5_Testing({ onComplete }: Step5Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div
             style={{
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: 600,
               color: '#aaa',
               textTransform: 'uppercase',
@@ -136,7 +136,7 @@ export function Step5_Testing({ onComplete }: Step5Props) {
                   color: '#ccc',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  fontSize: 13,
+                  fontSize: 16,
                 }}
               >
                 {prompt}

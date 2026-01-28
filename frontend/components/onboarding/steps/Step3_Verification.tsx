@@ -257,7 +257,7 @@ export function Step3_Verification() {
                           width: col.width,
                           padding: '10px 12px',
                           borderRight: '1px solid #222',
-                          fontSize: 13,
+                          fontSize: 14,
                           color: '#ddd',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
@@ -318,7 +318,7 @@ export function Step3_Verification() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    fontSize: 13,
+                    fontSize: 14,
                     color: '#aaa',
                   }}
                 >
@@ -351,7 +351,7 @@ export function Step3_Verification() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    fontSize: 13,
+                    fontSize: 14,
                     color: '#aaa',
                   }}
                 >

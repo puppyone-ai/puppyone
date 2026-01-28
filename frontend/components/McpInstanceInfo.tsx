@@ -278,7 +278,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 borderRadius: 6,
                 padding: '8px 10px',
                 border: '1px solid transparent',
-                fontSize: 13,
+                fontSize: 14,
                 color: '#e2e8f0',
                 fontWeight: 500,
               }}
@@ -399,7 +399,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                           placeholder='Tool name'
                           style={{
                             width: '100%',
-                            height: 28,
+                            height: 32,
                             boxSizing: 'border-box',
                             background: 'rgba(0,0,0,0.3)',
                             border: '1px solid rgba(255,255,255,0.1)',
@@ -426,7 +426,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                           placeholder='Tool description'
                           style={{
                             width: '100%',
-                            height: 28,
+                            height: 32,
                             boxSizing: 'border-box',
                             background: 'rgba(0,0,0,0.3)',
                             border: '1px solid rgba(255,255,255,0.1)',

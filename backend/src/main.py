@@ -73,6 +73,7 @@ mcp_v2_router_duration = time.time() - mcp_v2_router_start
 
 agent_router_start = time.time()
 from src.agent.router import router as agent_router
+from src.agent.config.router import router as agent_config_router
 
 agent_router_duration = time.time() - agent_router_start
 
@@ -286,6 +287,7 @@ def create_app() -> FastAPI:
     app.include_router(tool_router, prefix="/api/v1", tags=["tools"])
     app.include_router(mcp_v2_router, prefix="/api/v1", tags=["mcp"])
     app.include_router(agent_router, prefix="/api/v1", tags=["agents"])
+    app.include_router(agent_config_router, prefix="/api/v1", tags=["agent-config"])
     app.include_router(context_publish_router, prefix="/api/v1", tags=["publishes"])
     # public short link: /p/{publish_key}
     app.include_router(context_publish_public_router, tags=["publishes"])

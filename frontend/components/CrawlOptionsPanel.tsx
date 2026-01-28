@@ -155,7 +155,7 @@ export default function CrawlOptionsPanel({
     border: '1px solid #333',
     borderRadius: 6,
     color: '#e2e8f0',
-    fontSize: 13,
+    fontSize: 14,
     outline: 'none',
     boxSizing: 'border-box',
     transition: 'border-color 0.15s, background 0.15s',
@@ -381,7 +381,7 @@ export default function CrawlOptionsPanel({
                     >
                       <span
                         style={{
-                          fontSize: 13,
+                          fontSize: 14,
                           color: '#CDCDCD',
                           fontFamily: 'monospace',
                           flex: 1,
@@ -495,7 +495,7 @@ export default function CrawlOptionsPanel({
                     >
                       <span
                         style={{
-                          fontSize: 13,
+                          fontSize: 14,
                           color: '#CDCDCD',
                           fontFamily: 'monospace',
                           flex: 1,
@@ -596,7 +596,7 @@ export default function CrawlOptionsPanel({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 500,
                   color: '#CDCDCD',
                   cursor: 'pointer',
@@ -626,7 +626,7 @@ export default function CrawlOptionsPanel({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 500,
                   color: '#CDCDCD',
                   cursor: 'pointer',
@@ -656,7 +656,7 @@ export default function CrawlOptionsPanel({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 500,
                   color: '#CDCDCD',
                   cursor: 'pointer',

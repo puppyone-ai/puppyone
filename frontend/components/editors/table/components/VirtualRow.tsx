@@ -416,7 +416,7 @@ export const VirtualRow = React.memo(function VirtualRow({
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 color: '#8b949e',
-                fontSize: 13,
+                fontSize: 14,
               }}
             >
               {node.key}
@@ -434,7 +434,7 @@ export const VirtualRow = React.memo(function VirtualRow({
                 outline: 'none',
                 color: isRootNode ? '#e2e8f0' : '#8b949e',
                 fontWeight: isRootNode ? 500 : 400,
-                fontSize: 13,
+                fontSize: 14,
                 cursor: isEditingKey && !isRootNode ? 'text' : 'pointer',
                 background:
                   isEditingKey && !isRootNode

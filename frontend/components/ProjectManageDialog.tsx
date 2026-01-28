@@ -132,7 +132,7 @@ export function ProjectManageDialog({
             justifyContent: 'space-between',
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>
+          <div style={{ fontSize: 16, fontWeight: 500, color: '#666' }}>
             {mode === 'delete'
               ? 'Delete Project'
               : mode === 'edit'
@@ -171,7 +171,7 @@ export function ProjectManageDialog({
               <p style={{ color: '#EDEDED', marginBottom: 8, fontSize: 14 }}>
                 Are you sure you want to delete project "{project?.name}"?
               </p>
-              <p style={{ color: '#9ca3af', fontSize: 13, lineHeight: '1.5' }}>
+              <p style={{ color: '#9ca3af', fontSize: 16, lineHeight: '1.5' }}>
                 This will permanently delete the project and all contexts inside
                 it. This action cannot be undone.
               </p>
@@ -227,7 +227,7 @@ export function ProjectManageDialog({
                   background: '#1a1a1a',
                   border: '1px solid #333',
                   borderRadius: 6,
-                  fontSize: 14,
+                  fontSize: 16,
                   color: '#EDEDED',
                   outline: 'none',
                   boxSizing: 'border-box',
@@ -273,13 +273,13 @@ export function ProjectManageDialog({
 }
 
 const buttonStyle = (primary: boolean): React.CSSProperties => ({
-  height: 28,
+  height: 32,
   padding: '0 12px',
   borderRadius: 6,
   border: primary ? '1px solid rgba(255,255,255,0.1)' : '1px solid #333',
   background: primary ? '#EDEDED' : 'transparent',
   color: primary ? '#1a1a1a' : '#EDEDED',
-  fontSize: 13,
+  fontSize: 16,
   fontWeight: 500,
   cursor: 'pointer',
   transition: 'all 0.1s',

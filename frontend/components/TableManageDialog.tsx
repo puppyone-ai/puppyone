@@ -393,7 +393,7 @@ export function TableManageDialog({
           borderBottom: '1px solid rgba(255,255,255,0.06)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-          <h2 style={{ margin: 0, fontSize: 14, fontWeight: 500, color: '#E4E4E7' }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: '#E4E4E7' }}>
             {getDialogTitle()}
           </h2>
           <button onClick={onClose} style={{
@@ -418,7 +418,7 @@ export function TableManageDialog({
 
         {mode === 'delete' ? (
           <div style={{ padding: 24 }}>
-            <p style={{ color: '#A1A1AA', fontSize: 13, lineHeight: 1.6, margin: '0 0 24px' }}>
+            <p style={{ color: '#A1A1AA', fontSize: 16, lineHeight: 1.6, margin: '0 0 24px' }}>
               Are you sure you want to delete <strong style={{ color: '#E4E4E7' }}>{table?.name}</strong>? This cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -461,7 +461,7 @@ export function TableManageDialog({
                   
                   {isImporting ? (
                     <div style={{ padding: '24px', textAlign: 'center', background: '#27272A', borderRadius: 8, border: '1px solid #3F3F46' }}>
-                      <div style={{ fontSize: 13, color: '#A1A1AA', marginBottom: 12 }}>{importMessage} {Math.round(importProgress)}%</div>
+                      <div style={{ fontSize: 16, color: '#A1A1AA', marginBottom: 12 }}>{importMessage} {Math.round(importProgress)}%</div>
                       <div style={{ height: 4, background: '#3F3F46', borderRadius: 2, overflow: 'hidden' }}>
                         <div style={{ width: `${importProgress}%`, height: '100%', background: '#10B981', transition: 'width 0.2s' }} />
                       </div>
@@ -475,7 +475,7 @@ export function TableManageDialog({
                       <div style={{ maxHeight: 180, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {Array.from(selectedFiles).slice(0, 5).map((file, i) => (
                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 4, background: 'rgba(255,255,255,0.03)' }}>
-                              <span style={{ fontSize: 13, color: '#E4E4E7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                              <span style={{ fontSize: 16, color: '#E4E4E7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
                               <span style={{ fontSize: 11, color: '#71717A', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{(file.size/1024).toFixed(0)}KB</span>
                            </div>
                         ))}
@@ -503,7 +503,7 @@ export function TableManageDialog({
                         <polyline points="17 8 12 3 7 8"></polyline>
                         <line x1="12" y1="3" x2="12" y2="15"></line>
                       </svg>
-                      <div style={{ fontSize: 13, color: '#E4E4E7' }}>Drop files here or click to upload</div>
+                      <div style={{ fontSize: 16, color: '#E4E4E7' }}>Drop files here or click to upload</div>
                       <div style={{ fontSize: 12, color: '#71717A' }}>Supports PDF, MD, CSV, JSON</div>
                     </div>
                   )}
@@ -654,14 +654,14 @@ const inputStyle: React.CSSProperties = {
   border: '1px solid #3F3F46',
   borderRadius: 6,
   color: '#E4E4E7',
-  fontSize: 13,
+  fontSize: 16,
   outline: 'none',
   transition: 'border-color 0.15s',
   boxSizing: 'border-box'
 };
 
 const buttonStyle = (primary: boolean, danger = false): React.CSSProperties => ({
-  height: '28px',
+  height: '32px',
   padding: '0 12px',
   display: 'inline-flex',
   alignItems: 'center',
@@ -670,7 +670,7 @@ const buttonStyle = (primary: boolean, danger = false): React.CSSProperties => (
   border: '1px solid transparent',
   background: danger ? 'rgba(239,68,68,0.15)' : primary ? '#E4E4E7' : 'transparent',
   color: danger ? '#ef4444' : primary ? '#18181B' : '#A1A1AA',
-  fontSize: 13,
+  fontSize: 16,
   fontWeight: 500,
   cursor: 'pointer',
   transition: 'all 0.15s',

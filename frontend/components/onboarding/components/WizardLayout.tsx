@@ -157,7 +157,7 @@ export function WizardLayout({ children, title, subtitle }: WizardLayoutProps) {
             {subtitle && (
               <p
                 style={{
-                  fontSize: 14,
+                  fontSize: 16,
                   color: '#666',
                   lineHeight: 1.5,
                   maxWidth: 600,

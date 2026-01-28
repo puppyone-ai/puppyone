@@ -235,7 +235,7 @@ export function ConnectPanel({
           display: 'flex',
           alignItems: 'center',
           gap: 5,
-          height: 28,
+          height: 32,
           padding: '0 12px',
           borderRadius: 6,
           border: '1px solid',
@@ -415,7 +415,7 @@ export function ConnectPanel({
                   <>
                     <div
                       style={{
-                        fontSize: 13,
+                        fontSize: 14,
                         color: '#9ca3af',
                         marginBottom: 8,
                       }}
@@ -714,7 +714,7 @@ export function ConnectPanel({
                     <label
                       htmlFor='pathScope'
                       style={{
-                        fontSize: 13,
+                        fontSize: 14,
                         color:
                           currentTreePath && currentTreePath !== ''
                             ? '#e2e8f0'
@@ -790,7 +790,7 @@ export function ConnectPanel({
                       !projectId
                         ? '#9ca3af'
                         : '#000',
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 600,
                     cursor:
                       isCreating ||
@@ -849,7 +849,7 @@ function CapabilityRow({
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span
             style={{
-              fontSize: 13,
+              fontSize: 14,
               color: enabled ? '#e2e8f0' : '#9ca3af',
               fontWeight: 500,
             }}

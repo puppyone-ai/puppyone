@@ -77,7 +77,7 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
       if (!textarea) return;
 
       // 先重置高度以获取正确的 scrollHeight
-      textarea.style.height = '28px';
+      textarea.style.height = '32px';
       const scrollHeight = textarea.scrollHeight;
       // 最小 28px，最大 200px
       const newHeight = Math.max(28, Math.min(scrollHeight, 200));
@@ -93,7 +93,7 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
     const defaultPlaceholder = 'Ask a question or let Agent help...';
 
     return (
-      <div style={{ padding: '12px', flexShrink: 0, background: '#111111' }}>
+      <div style={{ padding: '12px 16px', flexShrink: 0 }}>
         {/* Input Container - 上下排布 */}
         <div
           style={{
@@ -102,10 +102,10 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
             flexDirection: 'column',
             gap: '8px',
             boxSizing: 'border-box',
-            backgroundColor: '#1a1a1a',
-            borderRadius: '12px',
+            backgroundColor: '#1f1f1f',
+            borderRadius: '8px',
             padding: '10px 12px',
-            border: '1.5px solid #3a3a3a',
+            border: '1px solid rgba(255,255,255,0.06)',
           }}
         >
           {/* @ 提及补全菜单 */}
@@ -236,7 +236,7 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
                 top: 0,
                 left: 0,
                 width: '100%',
-                height: '28px',
+                height: '32px',
                 minHeight: '28px',
                 maxHeight: '200px',
                 background: 'transparent',
@@ -256,23 +256,23 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
             />
           </div>
 
-          {/* 发送按钮 - 靠右对齐 */}
+          {/* 发送按钮 - 靠右对齐，正方形 */}
           <button
             onClick={onSend}
             disabled={!inputValue.trim() || isLoading}
             style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '8px',
+              width: 28,
+              height: 28,
+              borderRadius: 6,
               border: 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: !inputValue.trim() || isLoading ? 'default' : 'pointer',
               backgroundColor:
-                inputValue.trim() && !isLoading ? '#4a90e2' : '#3a3a3a',
+                inputValue.trim() && !isLoading ? '#525252' : '#2a2a2a',
               color: '#ffffff',
-              transition: 'all 0.2s ease',
+              transition: 'all 0.15s ease',
               opacity: !inputValue.trim() || isLoading ? 0.5 : 1,
               flexShrink: 0,
               alignSelf: 'flex-end',

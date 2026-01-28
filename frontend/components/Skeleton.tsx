@@ -10,7 +10,7 @@ const skeletonStyles = `
     display: flex;
     align-items: center;
     gap: 12px;
-    height: 28px;
+    height: 32px;
   }
   .skeleton-icon {
     width: 14px;

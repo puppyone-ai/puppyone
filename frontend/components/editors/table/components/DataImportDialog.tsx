@@ -70,7 +70,7 @@ const styles = {
     border: '1px solid #2a2a2a',
     borderRadius: 6,
     padding: '8px 12px',
-    fontSize: 13,
+    fontSize: 14,
     color: '#CDCDCD',
     outline: 'none',
     marginBottom: 16,
@@ -120,7 +120,7 @@ const styles = {
     border: 'none',
     borderRadius: 6,
     padding: '8px 16px',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: 500,
     color: disabled ? '#666' : 'white',
     cursor: disabled ? 'not-allowed' : 'pointer',
@@ -405,7 +405,7 @@ export function DataImportDialog({
               </div>
               <div>
                 <div
-                  style={{ color: '#CDCDCD', fontSize: 13, fontWeight: 500 }}
+                  style={{ color: '#CDCDCD', fontSize: 14, fontWeight: 500 }}
                 >
                   Replace Current Node
                 </div>
@@ -451,7 +451,7 @@ export function DataImportDialog({
                 </div>
                 <div>
                   <div
-                    style={{ color: '#CDCDCD', fontSize: 13, fontWeight: 500 }}
+                    style={{ color: '#CDCDCD', fontSize: 14, fontWeight: 500 }}
                   >
                     Merge into Current Node
                   </div>

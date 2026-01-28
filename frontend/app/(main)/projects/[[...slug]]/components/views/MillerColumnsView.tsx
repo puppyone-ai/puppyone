@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ContentType } from '../finder/items';
+import type { AgentResource } from './GridView';
 
 // === Types ===
 
@@ -24,6 +25,8 @@ export interface MillerColumnsViewProps {
   onCreateClick?: (e: React.MouseEvent, parentId: string | null) => void;
   /** Loading state */
   loading?: boolean;
+  /** Agent resources for highlighting */
+  agentResources?: AgentResource[];
 }
 
 // === Icons ===
@@ -75,6 +78,7 @@ const PlusIcon = () => (
   </svg>
 );
 
+
 // === Helper ===
 
 function getIcon(type: ContentType) {
@@ -107,9 +111,10 @@ interface ColumnProps {
   onItemClick: (item: MillerColumnItem) => void;
   onCreateClick?: (e: React.MouseEvent) => void;
   loading?: boolean;
+  resourceMap: Map<string, AgentResource>;
 }
 
-function Column({ items, selectedId, onItemClick, onCreateClick, loading }: ColumnProps) {
+function Column({ items, selectedId, onItemClick, onCreateClick, loading, resourceMap }: ColumnProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [createHovered, setCreateHovered] = useState(false);
 
@@ -129,7 +134,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading }: Colu
           <div style={{
             padding: '6px 12px',
             color: '#666',
-            fontSize: 13,
+            fontSize: 14,
           }}>
             Loading...
           </div>
@@ -139,6 +144,8 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading }: Colu
               const isSelected = selectedId === item.id;
               const isHovered = hoveredId === item.id;
               const isFolder = item.type === 'folder';
+              const agentResource = resourceMap.get(item.id);
+              const hasAgentAccess = !!agentResource;
 
               return (
                 <div
@@ -146,16 +153,40 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading }: Colu
                   onClick={() => onItemClick(item)}
                   onMouseEnter={() => setHoveredId(item.id)}
                   onMouseLeave={() => setHoveredId(null)}
+                  draggable={true}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify({
+                      id: item.id,
+                      name: item.name,
+                      type: item.type
+                    }));
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    height: 28,
+                    height: 32,
                     padding: '0 8px',
                     margin: '0 4px',
                     borderRadius: 4,
                     cursor: 'pointer',
-                    background: isSelected ? 'rgba(255,255,255,0.08)' : isHovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+                    // 橙色系
+                    background: hasAgentAccess
+                      ? isSelected 
+                        ? 'rgba(249, 115, 22, 0.15)' 
+                        : isHovered 
+                          ? 'rgba(249, 115, 22, 0.1)' 
+                          : 'rgba(249, 115, 22, 0.05)'
+                      : isSelected 
+                        ? 'rgba(255,255,255,0.08)' 
+                        : isHovered 
+                          ? 'rgba(255,255,255,0.04)' 
+                          : 'transparent',
+                    // 左边橙色边条
+                    borderLeft: hasAgentAccess 
+                      ? '2px solid rgba(249, 115, 22, 0.6)' 
+                      : '2px solid transparent',
                     transition: 'background 0.1s',
                   }}
                 >
@@ -167,7 +198,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading }: Colu
                   {/* Name */}
                   <div style={{
                     flex: 1,
-                    fontSize: 13,
+                    fontSize: 14,
                     color: isSelected ? '#fff' : '#a1a1aa',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
@@ -175,6 +206,21 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading }: Colu
                   }}>
                     {item.name}
                   </div>
+
+                  {/* Agent Access Tag */}
+                  {hasAgentAccess && (
+                    <div style={{ 
+                      flexShrink: 0,
+                      padding: '1px 5px',
+                      borderRadius: 3,
+                      background: agentResource?.terminalReadonly ? 'rgba(100, 100, 100, 0.25)' : 'rgba(249, 115, 22, 0.2)',
+                      fontSize: 10,
+                      fontWeight: 500,
+                      color: agentResource?.terminalReadonly ? '#a1a1aa' : '#fb923c',
+                    }}>
+                      {agentResource?.terminalReadonly ? 'View' : 'Edit'}
+                    </div>
+                  )}
 
                   {/* Chevron for folders */}
                   {isFolder && (
@@ -199,7 +245,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading }: Colu
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
-                  height: 28,
+                  height: 32,
                   padding: '0 8px',
                   margin: '4px 4px 0 4px',
                   borderRadius: 4,
@@ -215,7 +261,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading }: Colu
                   <PlusIcon />
                 </div>
                 <div style={{
-                  fontSize: 13,
+                  fontSize: 14,
                   color: createHovered ? '#a1a1aa' : '#525252',
                   transition: 'color 0.1s',
                 }}>
@@ -229,7 +275,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading }: Colu
               <div style={{
                 padding: '6px 12px',
                 color: '#666',
-                fontSize: 13,
+                fontSize: 14,
               }}>
                 Empty
               </div>
@@ -243,16 +289,6 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading }: Colu
 
 // === Main Component ===
 
-/**
- * MillerColumnsView - 简化版受控组件
- * 
- * 架构原则：
- * 1. URL 是唯一的 source of truth
- * 2. currentPath 和 currentItems 由父组件从 URL 解析并传入
- * 3. 组件内部只缓存中间列的数据，避免重复加载
- * 4. 点击任何项目都通过 onNavigate 更新 URL
- */
-
 interface ColumnCache {
   [parentId: string]: MillerColumnItem[];
 }
@@ -264,12 +300,16 @@ export function MillerColumnsView({
   onNavigate,
   onCreateClick,
   loading: externalLoading,
+  agentResources,
 }: MillerColumnsViewProps) {
   // 缓存中间列数据（key: parentId, value: items）
   const [columnCache, setColumnCache] = useState<ColumnCache>({});
   const [loadingColumns, setLoadingColumns] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const pathKey = currentPath.map(p => p.id).join('/');
+
+  // Create a map for quick lookup
+  const resourceMap = new Map(agentResources?.map(r => [r.nodeId, r]) ?? []);
 
   // 加载并缓存列数据
   const loadColumn = useCallback(async (parentId: string | null) => {
@@ -356,7 +396,7 @@ export function MillerColumnsView({
         justifyContent: 'center',
         height: '100%',
         color: '#525252',
-        fontSize: 13,
+        fontSize: 14,
         border: '1px solid rgba(255,255,255,0.08)',
         borderRadius: 6,
         margin: 8,
@@ -396,6 +436,7 @@ export function MillerColumnsView({
             onCreateClick(e, col.parentId);
           } : undefined}
           loading={loadingColumns.has(col.parentId ?? '__root__')}
+          resourceMap={resourceMap}
         />
       ))}
 

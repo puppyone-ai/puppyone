@@ -104,7 +104,7 @@ export default function ToolsLayout({
         display: 'flex',
         width: '100%',
         height: '100%',
-        backgroundColor: '#202020', // 一级 sidebar 的背景色作为整个页面底色
+        backgroundColor: '#0f0f0f', // Main content area - darker than bars (#1a1a1a)
       }}
     >
       {/* --- 右侧浮动容器：包含二级 sidebar + 主内容区 --- */}
@@ -157,7 +157,7 @@ export default function ToolsLayout({
                 title='Expand sidebar'
                 style={{
                   width: 28,
-                  height: 28,
+                  height: 32,
                   background: 'transparent',
                   border: 'none',
                   borderRadius: 5,
@@ -195,7 +195,7 @@ export default function ToolsLayout({
               <>
                 <span
                   style={{
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: 600,
                     color: '#EDEDED',
                     letterSpacing: '0.3px',
@@ -208,7 +208,7 @@ export default function ToolsLayout({
                   title='Collapse sidebar'
                   style={{
                     width: 28,
-                    height: 28,
+                    height: 32,
                     background: 'transparent',
                     border: 'none',
                     borderRadius: 5,
@@ -284,7 +284,7 @@ export default function ToolsLayout({
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '0 12px',
-                    height: 28,
+                    height: 32,
                   }}
                 >
                   <span
@@ -360,7 +360,7 @@ export default function ToolsLayout({
                         display: 'flex',
                         alignItems: 'center',
                         gap: 8,
-                        height: 28,
+                        height: 32,
                         padding: '0 4px 0 6px',
                         background: 'transparent',
                         border: 'none',
@@ -401,7 +401,7 @@ export default function ToolsLayout({
                           />
                         </svg>
                       </span>
-                      <span style={{ fontSize: 13, color: '#6D7177' }}>
+                      <span style={{ fontSize: 16, color: '#6D7177' }}>
                         New Server
                       </span>
                     </button>
@@ -559,7 +559,7 @@ export default function ToolsLayout({
                 border: '1px solid #3a3a3a',
                 borderRadius: 6,
                 padding: '8px 12px',
-                fontSize: 13,
+                fontSize: 16,
                 color: '#CDCDCD',
                 outline: 'none',
                 marginBottom: 16,
@@ -577,7 +577,7 @@ export default function ToolsLayout({
                   color: '#808080',
                   border: 'none',
                   cursor: 'pointer',
-                  fontSize: 13,
+                  fontSize: 16,
                 }}
               >
                 Cancel
@@ -593,7 +593,7 @@ export default function ToolsLayout({
                   border: 'none',
                   cursor: isCreating ? 'not-allowed' : 'pointer',
                   opacity: isCreating ? 0.7 : 1,
-                  fontSize: 13,
+                  fontSize: 16,
                   fontWeight: 500,
                 }}
               >
@@ -618,7 +618,7 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        height: 28,
+        height: 32,
         display: 'flex',
         alignItems: 'center',
         gap: 8,
@@ -699,7 +699,7 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
       <span
         style={{
           flex: 1,
-          fontSize: 13,
+          fontSize: 16,
           fontWeight: 500,
           color: active ? '#FFFFFF' : hovered ? '#F0EFED' : '#9B9B9B',
           overflow: 'hidden',
@@ -741,7 +741,7 @@ function CollapsedNavItem({ active, href, title, icon, status }: any) {
       onMouseLeave={() => setHovered(false)}
       style={{
         width: 28,
-        height: 28,
+        height: 32,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

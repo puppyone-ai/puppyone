@@ -266,7 +266,7 @@ export function RightAccessControl({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                height: 28,
+                height: 32,
                 padding: '0 4px 0 6px',
                 marginBottom: 4,
               }}
@@ -282,7 +282,7 @@ export function RightAccessControl({
               >
                 <span
                   style={{
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 600,
                     color: '#e2e8f0',
                     whiteSpace: 'nowrap',
@@ -374,7 +374,7 @@ export function RightAccessControl({
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          height: 28,
+                          height: 32,
                           padding: '0 4px 0 6px',
                           gap: 8,
                           borderRadius: 6,

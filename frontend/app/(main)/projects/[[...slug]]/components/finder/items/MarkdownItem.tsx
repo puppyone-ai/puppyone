@@ -80,7 +80,7 @@ function GridVariant({ name, onClick }: Omit<MarkdownItemProps, 'viewType'>) {
       </div>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 16,
           color: hovered ? '#fff' : '#a1a1aa',
           textAlign: 'center',
           wordBreak: 'break-word',
@@ -136,7 +136,7 @@ function ListVariant({ name, description, onClick }: Omit<MarkdownItemProps, 'vi
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
-            fontSize: 14,
+            fontSize: 16,
             color: hovered ? '#fff' : '#d4d4d8',
             fontWeight: 500,
           }}
@@ -180,7 +180,7 @@ function ColumnVariant({ name, onClick }: Omit<MarkdownItemProps, 'viewType'>) {
       <div
         style={{
           flex: 1,
-          fontSize: 13,
+          fontSize: 16,
           color: hovered ? '#fff' : '#d4d4d8',
           whiteSpace: 'nowrap',
           overflow: 'hidden',

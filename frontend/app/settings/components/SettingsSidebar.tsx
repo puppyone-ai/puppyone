@@ -98,7 +98,7 @@ export function SettingsSidebar({
             title='Expand sidebar'
             style={{
               width: 28,
-              height: 28,
+              height: 32,
               background: 'transparent',
               border: 'none',
               borderRadius: 5,
@@ -136,7 +136,7 @@ export function SettingsSidebar({
           <>
             <span
               style={{
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: 600,
                 color: '#EDEDED',
                 letterSpacing: '0.3px',
@@ -149,7 +149,7 @@ export function SettingsSidebar({
               title='Collapse sidebar'
               style={{
                 width: 28,
-                height: 28,
+                height: 32,
                 background: 'transparent',
                 border: 'none',
                 borderRadius: 5,
@@ -197,7 +197,7 @@ export function SettingsSidebar({
                 display: 'flex',
                 alignItems: 'center',
                 padding: '0 12px',
-                height: 28,
+                height: 32,
               }}
             >
               <span
@@ -245,7 +245,7 @@ export function SettingsSidebar({
             title='Import Settings'
             style={{
               width: 28,
-              height: 28,
+              height: 32,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -322,7 +322,7 @@ function NavItem({ active, onClick, label }: any) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        height: 28,
+        height: 32,
         display: 'flex',
         alignItems: 'center',
         gap: 8,

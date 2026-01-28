@@ -532,7 +532,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                           border: '1px solid #333',
                           background: 'transparent',
                           color: '#cfcfcf',
-                          fontSize: 13,
+                          fontSize: 14,
                           textDecoration: 'none',
                           transition: 'all 150ms ease',
                         }}
