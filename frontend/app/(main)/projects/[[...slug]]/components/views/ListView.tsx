@@ -16,6 +16,7 @@ export interface ListViewItem {
   // 同步相关字段
   is_synced?: boolean;
   sync_source?: string | null;
+  sync_url?: string | null;
   last_synced_at?: string | null;
 }
 
@@ -25,6 +26,7 @@ export interface ListViewProps {
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
+  onRefresh?: (id: string) => void;
   createLabel?: string;
   loading?: boolean;
   agentResources?: AgentResource[];
@@ -96,12 +98,14 @@ function ListItem({
   onRename,
   onDelete,
   onDuplicate,
+  onRefresh,
 }: {
   item: ListViewItem;
   agentResource?: AgentResource;
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
+  onRefresh?: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   
@@ -164,16 +168,16 @@ function ListItem({
         {BadgeIcon && (
           <div style={{
             position: 'absolute',
-            bottom: -2,
-            right: -4,
+            bottom: -3,
+            right: -5,
             background: '#18181b',
-            borderRadius: 3,
-            padding: 1,
+            borderRadius: 4,
+            padding: 2,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-            <BadgeIcon size={8} />
+            <BadgeIcon size={12} />
           </div>
         )}
       </div>
@@ -190,8 +194,8 @@ function ListItem({
         {item.name}
       </div>
 
-      {/* Action Menu - only for non-readonly */}
-      {(onRename || onDelete || onDuplicate) && !typeConfig.isReadOnly && (
+      {/* Action Menu */}
+      {(onRename || onDelete || onDuplicate || (isSyncedType(item.type) && onRefresh)) && (
         <ItemActionMenu
           itemId={item.id}
           itemName={item.name}
@@ -199,6 +203,8 @@ function ListItem({
           onRename={onRename}
           onDelete={onDelete}
           onDuplicate={onDuplicate}
+          onRefresh={isSyncedType(item.type) ? onRefresh : undefined}
+          syncUrl={item.sync_url}
           visible={hovered}
           compact
         />
@@ -234,6 +240,7 @@ export function ListView({
   onRename,
   onDelete,
   onDuplicate,
+  onRefresh,
   createLabel = 'New...',
   loading,
   agentResources,
@@ -265,6 +272,7 @@ export function ListView({
           onRename={onRename}
           onDelete={onDelete}
           onDuplicate={onDuplicate}
+          onRefresh={onRefresh}
         />
       ))}
 

@@ -117,28 +117,28 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
     color: '#a1a1aa',
     label: 'GitHub Repository',
     badgeIcon: GithubIcon,
-    isReadOnly: true,
+    isReadOnly: false,  // 允许用户删除/重命名
   },
   'github_issue': {
     renderAs: 'json',
     color: '#34d399',
     label: 'GitHub Issue',
     badgeIcon: GithubIcon,
-    isReadOnly: true,
+    isReadOnly: false,
   },
   'github_pr': {
     renderAs: 'json',
     color: '#34d399',
     label: 'GitHub PR',
     badgeIcon: GithubIcon,
-    isReadOnly: true,
+    isReadOnly: false,
   },
   'github_file': {
     renderAs: 'markdown',
     color: '#60a5fa',
     label: 'GitHub File',
     badgeIcon: GithubIcon,
-    isReadOnly: true,
+    isReadOnly: false,
   },
 
   // === Notion 类型 ===
@@ -147,14 +147,14 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
     color: '#34d399',
     label: 'Notion Database',
     badgeIcon: NotionIcon,
-    isReadOnly: true,
+    isReadOnly: false,  // 允许用户删除/重命名
   },
   'notion_page': {
     renderAs: 'markdown',
     color: '#60a5fa',
     label: 'Notion Page',
     badgeIcon: NotionIcon,
-    isReadOnly: true,
+    isReadOnly: false,
   },
 
   // === Airtable 类型 ===
@@ -163,7 +163,7 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
     color: '#34d399',
     label: 'Airtable Table',
     badgeIcon: AirtableIcon,
-    isReadOnly: true,
+    isReadOnly: false,
   },
 
   // === Linear 类型 ===
@@ -172,14 +172,14 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
     color: '#34d399',
     label: 'Linear Project',
     badgeIcon: LinearIcon,
-    isReadOnly: true,
+    isReadOnly: false,
   },
   'linear_issue': {
     renderAs: 'json',
     color: '#34d399',
     label: 'Linear Issue',
     badgeIcon: LinearIcon,
-    isReadOnly: true,
+    isReadOnly: false,
   },
 
   // === Google Sheets 类型 ===
@@ -188,7 +188,7 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
     color: '#34d399',
     label: 'Google Sheets',
     badgeIcon: SheetsIcon,
-    isReadOnly: true,
+    isReadOnly: false,
   },
 };
 

@@ -52,6 +52,7 @@ export interface GridViewItem {
   type: ContentType;
   description?: string;
   rowCount?: number;
+  sync_url?: string | null;
   thumbnailUrl?: string;
   onClick: (e: React.MouseEvent) => void;
   // 同步相关字段
@@ -66,6 +67,7 @@ export interface GridViewProps {
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
+  onRefresh?: (id: string) => void;
   loading?: boolean;
   agentResources?: AgentResource[];
 }
@@ -76,12 +78,14 @@ function GridItem({
   onRename,
   onDelete,
   onDuplicate,
+  onRefresh,
 }: {
   item: GridViewItem;
   agentResource?: AgentResource;
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
+  onRefresh?: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -150,27 +154,27 @@ function GridItem({
         }}
       >
         <div style={{ position: 'relative' }}>
-          {getTypeIcon()}
+        {getTypeIcon()}
           {/* Sync Badge (SaaS Logo) - 图标右下角 */}
           {BadgeIcon && (
             <div style={{
               position: 'absolute',
-              bottom: -4,
-              right: -6,
+              bottom: -6,
+              right: -8,
               background: '#18181b',
-              borderRadius: 4,
-              padding: 2,
+              borderRadius: 5,
+              padding: 3,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-              <BadgeIcon size={12} />
+              <BadgeIcon size={16} />
             </div>
           )}
         </div>
         
-        {/* Action Menu - 右上角 (only for non-readonly) */}
-        {(onRename || onDelete || onDuplicate) && !typeConfig.isReadOnly && (
+        {/* Action Menu - 右上角 */}
+        {(onRename || onDelete || onDuplicate || (isSynced && onRefresh)) && (
           <div style={{ position: 'absolute', top: 4, right: 4 }}>
             <ItemActionMenu
               itemId={item.id}
@@ -179,6 +183,8 @@ function GridItem({
               onRename={onRename}
               onDelete={onDelete}
               onDuplicate={onDuplicate}
+              onRefresh={isSynced ? onRefresh : undefined}
+              syncUrl={item.sync_url}
               visible={hovered}
             />
           </div>
@@ -298,6 +304,7 @@ export function GridView({
   onRename,
   onDelete,
   onDuplicate,
+  onRefresh,
   loading,
   agentResources,
 }: GridViewProps) {
@@ -325,6 +332,7 @@ export function GridView({
           onRename={onRename}
           onDelete={onDelete}
           onDuplicate={onDuplicate}
+          onRefresh={onRefresh}
         />
       ))}
 

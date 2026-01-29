@@ -166,45 +166,33 @@ class ContentNodeService:
         """
         创建同步节点（从 SaaS 平台导入的数据）
         
-        内容存储到 S3，数据库只存 s3_key。
+        JSON 数据直接存 JSONB（content 字段），不存 S3。
+        JSONB 适合存储结构化数据，查询方便。
         
         Args:
-            sync_type: 同步类型，如 github_repo, notion_page, airtable_base 等
+            sync_type: 同步类型，如 github_repo, notion_database, airtable_base 等
             sync_url: 来源 URL
-            content: 数据内容（将存储到 S3）
+            content: 数据内容（存储到 JSONB）
             sync_id: 外部平台的资源 ID（可选）
         """
         import uuid
-        import json
         from datetime import datetime
         
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(user_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 将内容序列化为 JSON 并上传到 S3
-        content_json = json.dumps(content, ensure_ascii=False, indent=2)
-        content_bytes = content_json.encode('utf-8')
-        s3_key = f"nodes/{project_id}/{new_id}.json"
-        
-        await self.s3.upload_file(
-            key=s3_key,
-            content=content_bytes,
-            content_type="application/json",
-        )
-        
-        # 数据库只存 s3_key，不存 content
+        # JSON 数据直接存 JSONB，不存 S3
         return self.repo.create(
             user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            node_type=sync_type,  # 如 github_repo, notion_page 等
+            node_type=sync_type,  # 如 notion_database, airtable_base 等
             id_path=id_path,
             parent_id=parent_id,
-            content=None,  # 不存 content
-            s3_key=s3_key,  # 只存 s3_key
+            content=content,  # 直接存 JSONB
+            s3_key=None,  # 不用 S3
             mime_type="application/json",
-            size_bytes=len(content_bytes),
             sync_url=sync_url,
             sync_id=sync_id,
             last_synced_at=datetime.utcnow(),

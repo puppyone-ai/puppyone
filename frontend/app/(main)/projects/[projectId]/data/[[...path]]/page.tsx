@@ -266,10 +266,10 @@ export default function DataPage({ params }: DataPageProps) {
                 setMarkdownContent(fullNode.content);
               } else if (fullNode.s3_key) {
                 // Content is in S3, download it
-                const { download_url } = await getDownloadUrl(lastNode.id);
-                const response = await fetch(download_url);
-                const content = await response.text();
-                setMarkdownContent(content);
+              const { download_url } = await getDownloadUrl(lastNode.id);
+              const response = await fetch(download_url);
+              const content = await response.text();
+              setMarkdownContent(content);
               } else {
                 // No content available
                 setMarkdownContent('');
@@ -687,6 +687,7 @@ export default function DataPage({ params }: DataPageProps) {
                     // 同步相关字段
                     is_synced: node.is_synced,
                     sync_source: node.sync_source,
+                    sync_url: node.sync_url,
                     last_synced_at: node.last_synced_at,
                     onClick: () => {
                       const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
@@ -764,6 +765,23 @@ export default function DataPage({ params }: DataPageProps) {
                     }
                   };
 
+                  // Refresh synced content from source
+                  const handleRefresh = async (id: string) => {
+                    const node = contentNodes.find(n => n.id === id);
+                    if (!node?.sync_url) {
+                      alert('No sync URL available for this item');
+                      return;
+                    }
+                    
+                    // TODO: Implement re-sync from source
+                    // For now, just show a message
+                    alert(`Refreshing from: ${node.sync_url}\n\n(Not yet implemented)`);
+                    
+                    // Future implementation:
+                    // await resyncNode(id, node.sync_url);
+                    // loadContentNodes(currentFolderId);
+                  };
+
                   if (viewType === 'column') {
                     return (
                       <MillerColumnsView
@@ -774,6 +792,7 @@ export default function DataPage({ params }: DataPageProps) {
                           type: i.type,
                           is_synced: i.is_synced,
                           sync_source: i.sync_source,
+                          sync_url: i.sync_url,
                           last_synced_at: i.last_synced_at,
                         }))}
                         onLoadChildren={loadChildren}
@@ -781,6 +800,7 @@ export default function DataPage({ params }: DataPageProps) {
                         onCreateClick={handleMillerCreateClick}
                         onRename={handleRename}
                         onDelete={handleDelete}
+                        onRefresh={handleRefresh}
                         agentResources={agentResources}
                       />
                     );
@@ -791,6 +811,7 @@ export default function DataPage({ params }: DataPageProps) {
                       items={items}
                       onRename={handleRename}
                       onDelete={handleDelete}
+                      onRefresh={handleRefresh}
                       agentResources={agentResources}
                     />
                   ) : (
@@ -799,6 +820,7 @@ export default function DataPage({ params }: DataPageProps) {
                       onCreateClick={handleCreateClick}
                       onRename={handleRename}
                       onDelete={handleDelete}
+                      onRefresh={handleRefresh}
                       agentResources={agentResources}
                     />
                   );

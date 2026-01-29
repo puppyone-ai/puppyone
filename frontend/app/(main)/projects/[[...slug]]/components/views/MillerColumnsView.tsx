@@ -15,6 +15,7 @@ export interface MillerColumnItem {
   // 同步相关字段
   is_synced?: boolean;
   sync_source?: string | null;
+  sync_url?: string | null;
   last_synced_at?: string | null;
 }
 
@@ -35,6 +36,8 @@ export interface MillerColumnsViewProps {
   onDelete?: (id: string, name: string) => void;
   /** Duplicate item */
   onDuplicate?: (id: string) => void;
+  /** Refresh synced item */
+  onRefresh?: (id: string) => void;
   /** Loading state */
   loading?: boolean;
   /** Agent resources for highlighting */
@@ -120,11 +123,12 @@ interface ColumnProps {
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
+  onRefresh?: (id: string) => void;
   loading?: boolean;
   resourceMap: Map<string, AgentResource>;
 }
 
-function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDelete, onDuplicate, loading, resourceMap }: ColumnProps) {
+function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDelete, onDuplicate, onRefresh, loading, resourceMap }: ColumnProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [createHovered, setCreateHovered] = useState(false);
 
@@ -220,16 +224,16 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
                     {BadgeIcon && (
                       <div style={{
                         position: 'absolute',
-                        bottom: -2,
-                        right: -4,
+                        bottom: -3,
+                        right: -5,
                         background: '#18181b',
-                        borderRadius: 3,
-                        padding: 1,
+                        borderRadius: 4,
+                        padding: 2,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}>
-                        <BadgeIcon size={8} />
+                        <BadgeIcon size={12} />
                       </div>
                     )}
                   </div>
@@ -246,8 +250,8 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
                     {item.name}
                   </div>
 
-                  {/* Action Menu - only show for non-readonly items */}
-                  {(onRename || onDelete || onDuplicate) && !typeConfig.isReadOnly && (
+                  {/* Action Menu */}
+                  {(onRename || onDelete || onDuplicate || (isSyncedType(item.type) && onRefresh)) && (
                     <ItemActionMenu
                       itemId={item.id}
                       itemName={item.name}
@@ -255,6 +259,8 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
                       onRename={onRename}
                       onDelete={onDelete}
                       onDuplicate={onDuplicate}
+                      onRefresh={isSyncedType(item.type) ? onRefresh : undefined}
+                      syncUrl={item.sync_url}
                       visible={isHovered}
                       compact
                       position="bottom-left"
@@ -368,6 +374,7 @@ export function MillerColumnsView({
   onRename,
   onDelete,
   onDuplicate,
+  onRefresh,
   loading: externalLoading,
   agentResources,
 }: MillerColumnsViewProps) {
@@ -507,6 +514,7 @@ export function MillerColumnsView({
           onRename={onRename}
           onDelete={onDelete}
           onDuplicate={onDuplicate}
+          onRefresh={onRefresh}
           loading={loadingColumns.has(col.parentId ?? '__root__')}
           resourceMap={resourceMap}
         />

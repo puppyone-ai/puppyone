@@ -253,11 +253,9 @@ export function TableManageDialog({
   };
 
   /**
-   * 一键导入 SaaS 数据（使用新的 Sync Task API）
-   * 1. 尝试创建 sync task
-   * 2. 如果需要授权，自动弹出 OAuth popup
-   * 3. 授权完成后自动重试
-   * 4. task 创建后，显示进度面板
+   * 一键导入 SaaS 数据
+   * - GitHub: 使用 Sync Task API（因为文件多，需要进度显示）
+   * - 其他 SaaS: 使用 /connect/import API（数据量小，直接导入）
    */
   const handleSaasImport = useCallback(async () => {
     if (!connectUrlInput.trim() || !projectId || !selectedSaas) return;
@@ -266,67 +264,102 @@ export function TableManageDialog({
     setConnectError(null);
     setConnectNeedsAuth(false);
     
-    const attemptStartSync = async (): Promise<boolean> => {
+    const url = connectUrlInput.trim();
+    const isGitHub = selectedSaas === 'github';
+    
+    // GitHub 使用 sync task 机制
+    if (isGitHub) {
+      const attemptStartSync = async (): Promise<boolean> => {
+        try {
+          const task = await startSyncImport({
+            url,
+            project_id: projectId,
+          });
+          setConnectLoading(false);
+          setSyncTaskId(task.id);
+          return true;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Failed to import';
+          const lower = message.toLowerCase();
+          if (lower.includes('auth') || lower.includes('401') || lower.includes('not connected')) {
+            return false; // 需要授权
+          }
+          setConnectError(message);
+          setConnectLoading(false);
+          return true;
+        }
+      };
+      
+      const success = await attemptStartSync();
+      if (!success) {
+        setConnectLoading(false);
+        try {
+          const authorized = await openOAuthPopup(selectedSaas as SaasType);
+          if (authorized) {
+            setConnectLoading(true);
+            setConnectError(null);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await attemptStartSync();
+          }
+        } catch (authErr) {
+          setConnectError('Authorization failed. Please try again.');
+        }
+      }
+      return;
+    }
+    
+    // 其他 SaaS (Notion, Airtable, Google Sheets, Linear) 使用 connect/import API
+    const attemptImport = async (): Promise<boolean> => {
       try {
-        // 启动 sync task
-        const task = await startSyncImport({
-          url: connectUrlInput.trim(),
+        const result = await importData({
+          url,
           project_id: projectId,
+          table_name: name.trim() || undefined,
         });
         
-        // 成功！显示进度面板
-        setConnectLoading(false);
-        setSyncTaskId(task.id);
+        if (result.success) {
+          await refreshProjects();
+          resetConnectState();
+          onClose();
+        }
         return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to import';
         const lower = message.toLowerCase();
-        
-        // 检查是否需要授权
         if (lower.includes('auth') || lower.includes('401') || lower.includes('not connected')) {
           return false; // 需要授权
         }
-        
-        // 其他错误
         setConnectError(message);
         setConnectLoading(false);
-        return true; // 不需要重试
+        return true;
       }
     };
     
-    // 第一次尝试
-    const success = await attemptStartSync();
-    
+    const success = await attemptImport();
     if (!success) {
-      // 需要授权 - 自动弹出 OAuth popup
       setConnectLoading(false);
-      
       try {
-        // 弹出 OAuth 授权窗口
         const authorized = await openOAuthPopup(selectedSaas as SaasType);
-        
         if (authorized) {
-          // 授权完成，自动重试
           setConnectLoading(true);
           setConnectError(null);
-          
-          // 等待一下让后端处理完
           await new Promise(resolve => setTimeout(resolve, 500));
-          
-          await attemptStartSync();
+          await attemptImport();
         }
       } catch (authErr) {
         setConnectError('Authorization failed. Please try again.');
       }
     }
-  }, [connectUrlInput, projectId, selectedSaas]);
+    
+    setConnectLoading(false);
+  }, [connectUrlInput, projectId, selectedSaas, name, onClose, resetConnectState]);
 
   // 处理 sync task 完成
   const handleSyncComplete = useCallback(async (rootNodeId: string) => {
-    await refreshProjects();
-    resetConnectState();
+      await refreshProjects();
+      resetConnectState();
     setSyncTaskId(null);
-    onClose();
+      onClose();
   }, [onClose, resetConnectState]);
 
   // 处理 sync task 错误
@@ -363,7 +396,7 @@ export function TableManageDialog({
     const fileArray = Array.from(files);
     let processed = 0;
     let tempIdCounter = 0;
-    
+
     // 路径 -> temp_id 的映射，用于建立父子关系
     const pathToTempId = new Map<string, string>();
     
@@ -817,7 +850,7 @@ export function TableManageDialog({
                 <>
                   {/* SaaS Logo 选择器 */}
                   {!selectedSaas && (
-                    <div>
+                  <div>
                       <label style={labelStyle}>Select Data Source</label>
                       <div style={{ 
                         display: 'grid', 
@@ -913,29 +946,29 @@ export function TableManageDialog({
                         <label style={labelStyle}>
                           {SAAS_OPTIONS.find(s => s.id === selectedSaas)?.name} URL
                         </label>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <input
-                            type='text'
+                     <div style={{ display: 'flex', gap: 8 }}>
+                       <input
+                         type='text'
                             placeholder={SAAS_OPTIONS.find(s => s.id === selectedSaas)?.placeholder || 'Enter URL...'}
-                            value={connectUrlInput}
-                            onChange={e => setConnectUrlInput(e.target.value)}
+                         value={connectUrlInput}
+                         onChange={e => setConnectUrlInput(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleSaasImport(); } }}
-                            style={{ ...inputStyle, flex: 1 }}
-                            autoFocus
-                          />
-                          <button
-                            type='button'
+                         style={{ ...inputStyle, flex: 1 }}
+                         autoFocus
+                       />
+                       <button
+                         type='button'
                             onClick={() => void handleSaasImport()}
                             disabled={connectLoading || connectImporting || !connectUrlInput.trim()}
-                            style={{
+                         style={{
                               ...buttonStyle(true),
                               opacity: connectLoading || connectImporting || !connectUrlInput.trim() ? 0.5 : 1
-                            }}
-                          >
+                         }}
+                       >
                             {connectLoading ? 'Connecting...' : connectImporting ? 'Importing...' : 'Import'}
-                          </button>
-                        </div>
-                      </div>
+                       </button>
+                     </div>
+                  </div>
                     </>
                   )}
 
@@ -971,22 +1004,22 @@ export function TableManageDialog({
               <button type='button' onClick={onClose} style={buttonStyle(false)}>Cancel</button>
               {/* SaaS 导入使用内联的 Import 按钮，不需要底部按钮 */}
               {startOption !== 'connect' && (
-                <button
+              <button
                   type={startOption === 'url' ? 'button' : 'submit'}
-                  onClick={
-                    startOption === 'url' ? (urlInput.trim() ? () => setShowImportModal(true) : undefined) :
-                    undefined
-                  }
-                  disabled={
+                onClick={
+                  startOption === 'url' ? (urlInput.trim() ? () => setShowImportModal(true) : undefined) :
+                  undefined
+                }
+                disabled={
                     loading || isImporting ||
-                    (startOption === 'empty' && !name.trim()) ||
-                    (startOption === 'documents' && (!selectedFiles || selectedFiles.length === 0 || !name.trim())) ||
+                  (startOption === 'empty' && !name.trim()) ||
+                  (startOption === 'documents' && (!selectedFiles || selectedFiles.length === 0 || !name.trim())) ||
                     (startOption === 'url' && !urlInput.trim())
-                  }
-                  style={buttonStyle(true)}
-                >
-                  {mode === 'edit' ? 'Save Changes' : 'Create'}
-                </button>
+                }
+                style={buttonStyle(true)}
+              >
+                {mode === 'edit' ? 'Save Changes' : 'Create'}
+              </button>
               )}
             </div>
           </form>

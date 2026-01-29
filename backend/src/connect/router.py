@@ -155,7 +155,7 @@ async def import_data(
             sync_url=url_str,
             content=content_data,
             parent_id=None,
-        )
+            )
         message = f"Successfully imported {source_type}: {new_node.name}"
     else:
         new_node = node_service.create_json_node(
