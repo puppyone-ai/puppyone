@@ -137,11 +137,11 @@ export function MarkdownEditor({
             <div
               style={{
                 position: 'absolute',
-                top: 24,
-                left: 32,
+                top: 16,
+                left: 24,
                 color: '#525252',
                 fontStyle: 'italic',
-                fontSize: 16,
+                fontSize: 13,
                 pointerEvents: 'none',
                 zIndex: 1,
                 fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
@@ -159,15 +159,15 @@ export function MarkdownEditor({
             theme="markdown-dark"
             options={{
               minimap: { enabled: false },
-              fontSize: 16,
+              fontSize: 13,
               fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
               lineNumbers: 'off',
               scrollBeyondLastLine: false,
               automaticLayout: true,
               tabSize: 2,
               wordWrap: 'on',
-              lineHeight: 24,
-              padding: { top: 24, bottom: 60 },
+              lineHeight: 20,
+              padding: { top: 16, bottom: 40 },
               readOnly,
               renderLineHighlight: 'none',
               overviewRulerBorder: false,

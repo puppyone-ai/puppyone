@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-import { type SavedAgent, type AgentType } from '@/components/AgentRail';
+import { type SavedAgent, type AgentType, type TriggerType, type TriggerConfig, type ExternalConfig } from '@/components/AgentRail';
 import { post, get, put, del } from '@/lib/apiClient';
 
 export type SidebarMode = 'closed' | 'setting' | 'deployed';
@@ -93,6 +93,13 @@ interface AgentContextValue {
   draftCapabilities: Set<string>;  // 保留向后兼容
   draftResources: AccessResource[];  // 新：资源访问配置
   
+  // Schedule Agent 新增 draft 状态
+  draftTriggerType: TriggerType;
+  draftTriggerConfig: TriggerConfig | null;
+  draftTaskContent: string;
+  draftTaskNodeId: string | null;
+  draftExternalConfig: ExternalConfig | null;
+  
   // 运行时状态 (Playground or Deployed)
   selectedCapabilities: Set<string>;
   
@@ -118,6 +125,13 @@ interface AgentContextValue {
   addDraftResource: (resource: AccessResource) => void;
   updateDraftResource: (nodeId: string, updates: Partial<AccessResource>) => void;
   removeDraftResource: (nodeId: string) => void;
+  
+  // Schedule Agent 新增 setters
+  setDraftTriggerType: (type: TriggerType) => void;
+  setDraftTriggerConfig: (config: TriggerConfig | null) => void;
+  setDraftTaskContent: (content: string) => void;
+  setDraftTaskNodeId: (nodeId: string | null) => void;
+  setDraftExternalConfig: (config: ExternalConfig | null) => void;
   
   // Runtime Actions
   toggleCapability: (id: string) => void;
@@ -146,6 +160,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [draftResources, setDraftResources] = useState<AccessResource[]>([]);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   
+  // Schedule Agent 新增 draft 状态
+  const [draftTriggerType, setDraftTriggerType] = useState<TriggerType>('manual');
+  const [draftTriggerConfig, setDraftTriggerConfig] = useState<TriggerConfig | null>(null);
+  const [draftTaskContent, setDraftTaskContent] = useState<string>('');
+  const [draftTaskNodeId, setDraftTaskNodeId] = useState<string | null>(null);
+  const [draftExternalConfig, setDraftExternalConfig] = useState<ExternalConfig | null>(null);
+  
   // Runtime State (for Deployed/Playground Mode)
   const [selectedCapabilities, setSelectedCapabilities] = useState<Set<string>>(new Set());
 
@@ -161,6 +182,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           name: string;
           icon: string;
           type: string;
+          mcp_api_key?: string;
+          // Schedule Agent 新字段
+          trigger_type?: string;
+          trigger_config?: TriggerConfig;
+          task_content?: string;
+          task_node_id?: string;
+          external_config?: ExternalConfig;
           accesses: Array<{
             id: string;
             node_id: string;
@@ -185,6 +213,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           icon: a.icon,
           type: (a.type as AgentType) || 'chat',
           capabilities: a.accesses.map(acc => `resource:${acc.node_id}`),
+          mcp_api_key: a.mcp_api_key,
+          // Schedule Agent 新字段
+          trigger_type: (a.trigger_type as TriggerType) || 'manual',
+          trigger_config: a.trigger_config,
+          task_content: a.task_content,
+          task_node_id: a.task_node_id,
+          external_config: a.external_config,
           resources: a.accesses.map(acc => {
             const nodeInfo = nodeInfoMap.get(acc.node_id);
             return {
@@ -240,6 +275,12 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     setDraftType('chat');
     setDraftCapabilities(new Set());
     setDraftResources([]);
+    // Reset Schedule Agent draft states
+    setDraftTriggerType('manual');
+    setDraftTriggerConfig(null);
+    setDraftTaskContent('');
+    setDraftTaskNodeId(null);
+    setDraftExternalConfig(null);
   }, []);
 
   // 编辑已有 Agent
@@ -251,6 +292,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       setEditingAgentId(agentId);
       setDraftType(agent.type || 'chat');
       setDraftCapabilities(new Set(agent.capabilities.filter(c => !c.startsWith('resource:'))));
+      
+      // 加载 Schedule Agent 字段
+      setDraftTriggerType(agent.trigger_type || 'manual');
+      setDraftTriggerConfig(agent.trigger_config || null);
+      setDraftTaskContent(agent.task_content || '');
+      setDraftTaskNodeId(agent.task_node_id || null);
+      setDraftExternalConfig(agent.external_config || null);
       
       // 如果有 resources，直接使用（名称已在 loadAgents 时解析）
       if (agent.resources && agent.resources.length > 0) {
@@ -324,6 +372,12 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           name,
           icon,
           type: draftType,
+          // Schedule Agent 新字段
+          trigger_type: draftTriggerType,
+          trigger_config: draftTriggerConfig,
+          task_content: draftTaskContent,
+          task_node_id: draftTaskNodeId,
+          external_config: draftExternalConfig,
         });
         // 同步访问权限
         await put<unknown>(`/api/v1/agent-config/${editingAgentId}/accesses`, accesses);
@@ -332,7 +386,18 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         // 更新本地 state
         setSavedAgents(prev => prev.map(a => 
           a.id === editingAgentId 
-            ? { ...a, name, icon, type: draftType, resources: draftResources }
+            ? { 
+                ...a, 
+                name, 
+                icon, 
+                type: draftType, 
+                resources: draftResources,
+                trigger_type: draftTriggerType,
+                trigger_config: draftTriggerConfig,
+                task_content: draftTaskContent,
+                task_node_id: draftTaskNodeId,
+                external_config: draftExternalConfig,
+              }
             : a
         ));
         console.log('Agent updated:', agentId);
@@ -343,12 +408,24 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           name: string;
           icon: string;
           type: string;
+          mcp_api_key?: string;
+          trigger_type?: string;
+          trigger_config?: TriggerConfig;
+          task_content?: string;
+          task_node_id?: string;
+          external_config?: ExternalConfig;
           accesses: Array<{ id: string; node_id: string }>;
         }>('/api/v1/agent-config/', {
           name,
           icon,
           type: draftType,
           accesses,
+          // Schedule Agent 新字段
+          trigger_type: draftTriggerType,
+          trigger_config: draftTriggerConfig,
+          task_content: draftTaskContent,
+          task_node_id: draftTaskNodeId,
+          external_config: draftExternalConfig,
         });
         agentId = response.id;
 
@@ -362,9 +439,15 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           type: draftType,
           capabilities: [...Array.from(draftCapabilities), ...capabilitiesFromResources],
           resources: draftResources,
+          mcp_api_key: response.mcp_api_key,
+          trigger_type: draftTriggerType,
+          trigger_config: draftTriggerConfig,
+          task_content: draftTaskContent,
+          task_node_id: draftTaskNodeId,
+          external_config: draftExternalConfig,
         };
         setSavedAgents(prev => [...prev, newAgent]);
-        console.log('Agent created:', agentId);
+        console.log('Agent created:', agentId, 'MCP Key:', response.mcp_api_key);
       }
       
       // Switch to this agent
@@ -376,7 +459,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       console.error('Failed to save agent:', error);
       alert('Failed to save agent. Please try again.');
     }
-  }, [draftType, draftCapabilities, draftResources, editingAgentId]);
+  }, [draftType, draftCapabilities, draftResources, editingAgentId, draftTriggerType, draftTriggerConfig, draftTaskContent, draftTaskNodeId, draftExternalConfig]);
 
   // Legacy saveAgent (maps to deploy with current selected capabilities if possible, or simple save)
   const saveAgent = useCallback((name: string, icon: string, capabilities: string[]) => {
@@ -524,6 +607,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         selectedCapabilities,
         isChatOpen,
         
+        // Schedule Agent draft states
+        draftTriggerType,
+        draftTriggerConfig,
+        draftTaskContent,
+        draftTaskNodeId,
+        draftExternalConfig,
+        
         selectAgent,
         openSetting,
         editAgent,
@@ -541,6 +631,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         updateDraftResource,
         removeDraftResource,
         toggleCapability,
+        
+        // Schedule Agent setters
+        setDraftTriggerType,
+        setDraftTriggerConfig,
+        setDraftTaskContent,
+        setDraftTaskNodeId,
+        setDraftExternalConfig,
         
         // Legacy
         toggleChat,
@@ -563,5 +660,5 @@ export function useAgent() {
 }
 
 // 导出类型供其他组件使用
-export type { SavedAgent, AgentType } from '@/components/AgentRail';
+export type { SavedAgent, AgentType, TriggerType, TriggerConfig, ExternalConfig } from '@/components/AgentRail';
 export type { AccessResource };

@@ -31,15 +31,20 @@ const AGENT_TYPE_CONFIG: Record<AgentType, { label: string; desc: string; icon: 
     desc: 'Built-in conversational agent.', 
     icon: <AgentIcon fallback="🐶" alt="Puppyone" />
   },
-  devbox: { 
-    label: 'Claude / Cursor', 
-    desc: 'External coding agents.', 
-    icon: <AgentIcon src="/icons/claude.svg" fallback="🤖" alt="Claude" />
+  schedule: { 
+    label: 'Puppyone Agent (Schedule)', 
+    desc: 'Scheduled task agent.', 
+    icon: <AgentIcon fallback="⏰" alt="Schedule" />
   },
   webhook: { 
     label: 'N8N / Zapier', 
     desc: 'Workflow automation.', 
     icon: <AgentIcon src="/icons/n8n.svg" fallback="⚡" alt="N8N" />
+  },
+  devbox: { 
+    label: 'Claude / Cursor', 
+    desc: 'External coding agents.', 
+    icon: <AgentIcon src="/icons/claude.svg" fallback="🤖" alt="Claude" />
   },
 };
 
@@ -169,6 +174,766 @@ const getNodeIcon = (nodeType: string) => {
   }
 };
 
+// ===== Schedule Agent 组件 =====
+
+// 时钟图标
+const ClockIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+// 日历图标
+const CalendarIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+);
+
+// 重复图标
+const RepeatIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="17 1 21 5 17 9" />
+    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <polyline points="7 23 3 19 7 15" />
+    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+  </svg>
+);
+
+// Schedule Trigger Section 组件 - 自定义时间选择器
+interface ScheduleTriggerSectionProps {
+  draftTriggerConfig: { schedule?: string; timezone?: string } | null;
+  setDraftTriggerConfig: (config: { schedule?: string; timezone?: string } | null) => void;
+  setDraftTriggerType: (type: 'manual' | 'cron' | 'webhook') => void;
+}
+
+// 自定义日历下拉组件
+const DatePickerDropdown = ({ 
+  selectedDate, 
+  onSelect, 
+  onClose 
+}: { 
+  selectedDate: string; 
+  onSelect: (date: string) => void; 
+  onClose: () => void;
+}) => {
+  const [viewDate, setViewDate] = useState(() => new Date(selectedDate));
+  
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  
+  // 获取当月第一天是周几
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  // 获取当月天数
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // 获取上月天数
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const selectedD = new Date(selectedDate);
+  
+  const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
+  
+  const handleDayClick = (day: number, isCurrentMonth: boolean) => {
+    let newDate: Date;
+    if (isCurrentMonth) {
+      newDate = new Date(year, month, day);
+    } else if (day > 15) {
+      // 上个月的日期
+      newDate = new Date(year, month - 1, day);
+    } else {
+      // 下个月的日期
+      newDate = new Date(year, month + 1, day);
+    }
+    
+    if (newDate >= today) {
+      onSelect(newDate.toISOString().split('T')[0]);
+    }
+  };
+  
+  const isSelected = (day: number, isCurrentMonth: boolean) => {
+    if (!isCurrentMonth) return false;
+    return selectedD.getFullYear() === year && selectedD.getMonth() === month && selectedD.getDate() === day;
+  };
+  
+  const isToday = (day: number, isCurrentMonth: boolean) => {
+    if (!isCurrentMonth) return false;
+    const t = new Date();
+    return t.getFullYear() === year && t.getMonth() === month && t.getDate() === day;
+  };
+  
+  const isPast = (day: number, isCurrentMonth: boolean) => {
+    if (!isCurrentMonth) return true;
+    const d = new Date(year, month, day);
+    return d < today;
+  };
+  
+  // 生成日历格子
+  const cells = [];
+  // 上月的日期
+  for (let i = firstDayOfMonth - 1; i >= 0; i--) {
+    cells.push({ day: daysInPrevMonth - i, isCurrentMonth: false });
+  }
+  // 当月的日期
+  for (let i = 1; i <= daysInMonth; i++) {
+    cells.push({ day: i, isCurrentMonth: true });
+  }
+  // 下月的日期，补齐到42格（6行）
+  const remaining = 42 - cells.length;
+  for (let i = 1; i <= remaining; i++) {
+    cells.push({ day: i, isCurrentMonth: false });
+  }
+  
+  return (
+    <div style={{
+      position: 'absolute',
+      top: 'calc(100% + 4px)',
+      left: 0,
+      background: '#161616',
+      border: '1px solid #2a2a2a',
+      borderRadius: 8,
+      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+      zIndex: 200,
+      padding: 12,
+      width: 260,
+    }}>
+      {/* 头部：月份导航 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <button
+          onClick={prevMonth}
+          style={{
+            width: 28, height: 28, borderRadius: 6, border: 'none',
+            background: 'transparent', color: '#737373', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#1f1f1f'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+        <span style={{ fontSize: 13, fontWeight: 500, color: '#e5e5e5' }}>
+          {monthNames[month]} {year}
+        </span>
+        <button
+          onClick={nextMonth}
+          style={{
+            width: 28, height: 28, borderRadius: 6, border: 'none',
+            background: 'transparent', color: '#737373', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#1f1f1f'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      
+      {/* 星期标题 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 4 }}>
+        {dayNames.map(d => (
+          <div key={d} style={{ 
+            height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, color: '#525252', fontWeight: 500,
+          }}>
+            {d}
+          </div>
+        ))}
+      </div>
+      
+      {/* 日期格子 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+        {cells.map((cell, idx) => {
+          const past = isPast(cell.day, cell.isCurrentMonth);
+          const selected = isSelected(cell.day, cell.isCurrentMonth);
+          const todayCell = isToday(cell.day, cell.isCurrentMonth);
+          
+          return (
+            <button
+              key={idx}
+              onClick={() => !past && handleDayClick(cell.day, cell.isCurrentMonth)}
+              disabled={past}
+              style={{
+                width: 32, height: 32, borderRadius: 6, border: 'none',
+                background: selected ? '#3b82f6' : 'transparent',
+                color: past ? '#3a3a3a' : selected ? '#fff' : cell.isCurrentMonth ? '#e5e5e5' : '#525252',
+                fontSize: 12,
+                fontWeight: todayCell ? 600 : 400,
+                cursor: past ? 'not-allowed' : 'pointer',
+                position: 'relative',
+              }}
+              onMouseEnter={e => { if (!past && !selected) e.currentTarget.style.background = '#1f1f1f'; }}
+              onMouseLeave={e => { if (!past && !selected) e.currentTarget.style.background = 'transparent'; }}
+            >
+              {cell.day}
+              {todayCell && !selected && (
+                <div style={{
+                  position: 'absolute', bottom: 3, left: '50%', transform: 'translateX(-50%)',
+                  width: 4, height: 4, borderRadius: '50%', background: '#3b82f6',
+                }} />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      
+      {/* 快捷按钮 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTop: '1px solid #2a2a2a' }}>
+        <button
+          onClick={() => {
+            const t = new Date();
+            onSelect(t.toISOString().split('T')[0]);
+          }}
+          style={{
+            height: 28, padding: '0 12px', borderRadius: 4, border: 'none',
+            background: 'transparent', color: '#3b82f6', fontSize: 12, cursor: 'pointer',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#1f1f1f'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          Today
+        </button>
+        <button
+          onClick={() => {
+            const t = new Date();
+            t.setDate(t.getDate() + 1);
+            onSelect(t.toISOString().split('T')[0]);
+          }}
+          style={{
+            height: 28, padding: '0 12px', borderRadius: 4, border: 'none',
+            background: 'transparent', color: '#737373', fontSize: 12, cursor: 'pointer',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#1f1f1f'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          Tomorrow
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const ScheduleTriggerSection = ({ draftTriggerConfig, setDraftTriggerConfig, setDraftTriggerType }: ScheduleTriggerSectionProps) => {
+  const [hour, setHour] = useState(9);
+  const [minute, setMinute] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  });
+  const [repeatType, setRepeatType] = useState<'once' | 'daily' | 'weekly'>('once');
+  const [isTimeOpen, setIsTimeOpen] = useState(false);
+  const [isDateOpen, setIsDateOpen] = useState(false);
+  const [isRepeatOpen, setIsRepeatOpen] = useState(false);
+  const timeRef = useRef<HTMLDivElement>(null);
+  const dateRef = useRef<HTMLDivElement>(null);
+  const repeatRef = useRef<HTMLDivElement>(null);
+
+  // 组件挂载时自动设置 trigger type 为 cron
+  useEffect(() => {
+    setDraftTriggerType('cron');
+  }, [setDraftTriggerType]);
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 500,
+    color: '#a3a3a3',
+    marginBottom: 6,
+    display: 'block',
+  };
+
+  // 解析已有的 schedule 配置
+  useEffect(() => {
+    if (draftTriggerConfig?.schedule) {
+      const parts = draftTriggerConfig.schedule.split(' ');
+      if (parts.length >= 5) {
+        const min = parseInt(parts[0], 10);
+        const hr = parseInt(parts[1], 10);
+        const dayOfMonth = parts[2];
+        const dayOfWeek = parts[4];
+        if (!isNaN(min) && !isNaN(hr)) {
+          setHour(hr);
+          setMinute(min);
+        }
+        if (dayOfWeek !== '*' && dayOfMonth === '*') {
+          setRepeatType('weekly');
+        } else if (dayOfMonth === '*' && dayOfWeek === '*') {
+          setRepeatType('daily');
+        } else {
+          setRepeatType('once');
+        }
+      }
+    }
+  }, []);
+
+  // 点击外部关闭下拉
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (timeRef.current && !timeRef.current.contains(e.target as Node)) setIsTimeOpen(false);
+      if (dateRef.current && !dateRef.current.contains(e.target as Node)) setIsDateOpen(false);
+      if (repeatRef.current && !repeatRef.current.contains(e.target as Node)) setIsRepeatOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // 生成 cron 表达式并保存
+  const updateSchedule = (h: number, m: number, date: string, repeat: typeof repeatType) => {
+    let cron: string;
+    const d = new Date(date);
+    const weekday = d.getDay(); // 0-6, Sunday = 0
+    
+    switch (repeat) {
+      case 'once':
+        cron = `${m} ${h} ${d.getDate()} ${d.getMonth() + 1} *`;
+        break;
+      case 'weekly':
+        cron = `${m} ${h} * * ${weekday}`;
+        break;
+      case 'daily':
+      default:
+        cron = `${m} ${h} * * *`;
+    }
+    setDraftTriggerConfig({ schedule: cron, timezone: 'Asia/Shanghai' });
+  };
+
+  const handleHourChange = (newHour: number) => {
+    setHour(newHour);
+    updateSchedule(newHour, minute, selectedDate, repeatType);
+  };
+
+  const handleMinuteChange = (newMinute: number) => {
+    setMinute(newMinute);
+    updateSchedule(hour, newMinute, selectedDate, repeatType);
+  };
+
+  const handleDateChange = (newDate: string) => {
+    setSelectedDate(newDate);
+    updateSchedule(hour, minute, newDate, repeatType);
+  };
+
+  const handleRepeatChange = (newRepeat: typeof repeatType) => {
+    setRepeatType(newRepeat);
+    updateSchedule(hour, minute, selectedDate, newRepeat);
+    setIsRepeatOpen(false);
+  };
+
+  const repeatLabels = { once: 'Once', daily: 'Daily', weekly: 'Weekly' };
+  const formatTime = (h: number, m: number) => `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  const formatDateFull = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+        <label style={{ ...labelStyle, marginBottom: 0 }}>Schedule</label>
+        <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
+      </div>
+      
+      {/* 一行：时间 + 日期 + 重复类型 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {/* 时间选择器 */}
+        <div style={{ position: 'relative' }} ref={timeRef}>
+          <button
+            onClick={() => { setIsTimeOpen(!isTimeOpen); setIsDateOpen(false); setIsRepeatOpen(false); }}
+            style={{
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '0 10px',
+              background: '#161616',
+              border: '1px solid #2a2a2a',
+              borderRadius: 6,
+              color: '#e5e5e5',
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ color: '#525252', display: 'flex' }}><ClockIcon /></span>
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatTime(hour, minute)}</span>
+            <ChevronDownIcon open={isTimeOpen} />
+          </button>
+          
+          {isTimeOpen && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              left: 0,
+              background: '#161616',
+              border: '1px solid #2a2a2a',
+              borderRadius: 6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+              zIndex: 100,
+              display: 'flex',
+              padding: 8,
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 10, color: '#525252', textAlign: 'center' }}>Hour</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, maxHeight: 160, overflow: 'auto' }}>
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleHourChange(i)}
+                      style={{
+                        width: 28, height: 28, borderRadius: 4, border: 'none',
+                        background: hour === i ? '#2a2a2a' : 'transparent',
+                        color: hour === i ? '#e5e5e5' : '#737373',
+                        fontSize: 12, cursor: 'pointer', fontVariantNumeric: 'tabular-nums',
+                      }}
+                      onMouseEnter={e => { if (hour !== i) e.currentTarget.style.background = '#1f1f1f'; }}
+                      onMouseLeave={e => { if (hour !== i) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      {i.toString().padStart(2, '0')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ width: 1, background: '#2a2a2a' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 10, color: '#525252', textAlign: 'center' }}>Min</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2 }}>
+                  {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => handleMinuteChange(m)}
+                      style={{
+                        width: 28, height: 28, borderRadius: 4, border: 'none',
+                        background: minute === m ? '#2a2a2a' : 'transparent',
+                        color: minute === m ? '#e5e5e5' : '#737373',
+                        fontSize: 12, cursor: 'pointer', fontVariantNumeric: 'tabular-nums',
+                      }}
+                      onMouseEnter={e => { if (minute !== m) e.currentTarget.style.background = '#1f1f1f'; }}
+                      onMouseLeave={e => { if (minute !== m) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      {m.toString().padStart(2, '0')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 自定义日期选择器 */}
+        <div style={{ position: 'relative' }} ref={dateRef}>
+          <button
+            onClick={() => { setIsDateOpen(!isDateOpen); setIsTimeOpen(false); setIsRepeatOpen(false); }}
+            style={{
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '0 10px',
+              background: '#161616',
+              border: '1px solid #2a2a2a',
+              borderRadius: 6,
+              color: '#e5e5e5',
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ color: '#525252', display: 'flex' }}><CalendarIcon /></span>
+            <span>{formatDateFull(selectedDate)}</span>
+            <ChevronDownIcon open={isDateOpen} />
+          </button>
+          
+          {isDateOpen && (
+            <DatePickerDropdown
+              selectedDate={selectedDate}
+              onSelect={(date) => { handleDateChange(date); setIsDateOpen(false); }}
+              onClose={() => setIsDateOpen(false)}
+            />
+          )}
+        </div>
+        
+        {/* 重复类型下拉 - 只有三个选项 */}
+        <div style={{ position: 'relative', flex: 1, minWidth: 90 }} ref={repeatRef}>
+          <button
+            onClick={() => { setIsRepeatOpen(!isRepeatOpen); setIsTimeOpen(false); setIsDateOpen(false); }}
+            style={{
+              width: '100%',
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0 10px',
+              background: '#161616',
+              border: '1px solid #2a2a2a',
+              borderRadius: 6,
+              color: '#e5e5e5',
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: '#525252', display: 'flex' }}><RepeatIcon /></span>
+              {repeatLabels[repeatType]}
+            </span>
+            <ChevronDownIcon open={isRepeatOpen} />
+          </button>
+          
+          {isRepeatOpen && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              left: 0,
+              right: 0,
+              background: '#161616',
+              border: '1px solid #2a2a2a',
+              borderRadius: 6,
+              overflow: 'hidden',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+              zIndex: 100,
+            }}>
+              {(['once', 'daily', 'weekly'] as const).map((option, idx, arr) => (
+                <button
+                  key={option}
+                  onClick={() => handleRepeatChange(option)}
+                  style={{
+                    width: '100%',
+                    height: 32,
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 10px',
+                    background: repeatType === option ? 'rgba(255,255,255,0.06)' : 'transparent',
+                    border: 'none',
+                    borderBottom: idx !== arr.length - 1 ? '1px solid #1f1f1f' : 'none',
+                    color: repeatType === option ? '#e5e5e5' : '#737373',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { if (repeatType !== option) e.currentTarget.style.background = '#1f1f1f'; }}
+                  onMouseLeave={e => { if (repeatType !== option) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {repeatLabels[option]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Schedule Tasks Section 组件
+interface ScheduleTasksSectionProps {
+  draftTaskContent: string;
+  setDraftTaskContent: (content: string) => void;
+}
+
+const ScheduleTasksSection = ({ draftTaskContent, setDraftTaskContent }: ScheduleTasksSectionProps) => {
+  // 将 taskContent 解析为数组
+  const tasks = draftTaskContent ? draftTaskContent.split('\n').filter(t => t.trim()) : [];
+  const [newTask, setNewTask] = useState('');
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 500,
+    color: '#a3a3a3',
+    marginBottom: 6,
+    display: 'block',
+  };
+
+  const updateTasks = (newTasks: string[]) => {
+    setDraftTaskContent(newTasks.join('\n'));
+  };
+
+  const addTask = () => {
+    if (!newTask.trim()) return;
+    updateTasks([...tasks, newTask.trim()]);
+    setNewTask('');
+  };
+
+  const removeTask = (index: number) => {
+    const newTasks = tasks.filter((_, i) => i !== index);
+    updateTasks(newTasks);
+  };
+
+  const startEditing = (index: number) => {
+    setEditingIndex(index);
+    setEditingText(tasks[index]);
+  };
+
+  const saveEditing = () => {
+    if (editingIndex === null) return;
+    const newTasks = [...tasks];
+    newTasks[editingIndex] = editingText.trim();
+    updateTasks(newTasks.filter(t => t));
+    setEditingIndex(null);
+    setEditingText('');
+  };
+
+  const cancelEditing = () => {
+    setEditingIndex(null);
+    setEditingText('');
+  };
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+        <label style={labelStyle}>Tasks</label>
+        <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
+      </div>
+      
+      {/* 任务列表 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+        {tasks.map((task, index) => (
+          <div
+            key={index}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 8,
+              padding: '10px 12px',
+              background: '#161616',
+              border: '1px solid #2a2a2a',
+              borderRadius: 8,
+            }}
+          >
+            {/* 序号 */}
+            <div style={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              background: '#262626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#737373',
+              flexShrink: 0,
+              marginTop: 1,
+            }}>
+              {index + 1}
+            </div>
+            
+            {/* 任务内容 */}
+            {editingIndex === index ? (
+              <input
+                type="text"
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                onBlur={saveEditing}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveEditing();
+                  if (e.key === 'Escape') cancelEditing();
+                }}
+                autoFocus
+                style={{
+                  flex: 1,
+                  background: '#0f0f0f',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: 4,
+                  padding: '4px 8px',
+                  color: '#e5e5e5',
+                  fontSize: 13,
+                  outline: 'none',
+                }}
+              />
+            ) : (
+              <div 
+                style={{ 
+                  flex: 1, 
+                  fontSize: 13, 
+                  color: '#d4d4d4', 
+                  lineHeight: 1.4,
+                  cursor: 'text',
+                }}
+                onClick={() => startEditing(index)}
+              >
+                {task}
+              </div>
+            )}
+            
+            {/* 删除按钮 */}
+            <button
+              onClick={() => removeTask(index)}
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 4,
+                background: 'transparent',
+                border: 'none',
+                color: '#525252',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#525252'; }}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* 添加新任务 */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          type="text"
+          value={newTask}
+          onChange={(e) => setNewTask(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') addTask(); }}
+          placeholder="Add a new task..."
+          style={{
+            flex: 1,
+            height: 36,
+            background: '#0f0f0f',
+            border: '1px dashed #2a2a2a',
+            borderRadius: 8,
+            padding: '0 12px',
+            color: '#e5e5e5',
+            fontSize: 13,
+            outline: 'none',
+          }}
+        />
+        <button
+          onClick={addTask}
+          disabled={!newTask.trim()}
+          style={{
+            height: 36,
+            padding: '0 16px',
+            background: newTask.trim() ? '#262626' : 'transparent',
+            border: '1px solid #2a2a2a',
+            borderRadius: 8,
+            color: newTask.trim() ? '#e5e5e5' : '#525252',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: newTask.trim() ? 'pointer' : 'default',
+          }}
+        >
+          + Add
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
   const { 
     draftType, 
@@ -181,6 +946,17 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
     cancelSetting,
     editingAgentId,
     savedAgents,
+    // Schedule Agent 新字段
+    draftTriggerType,
+    draftTriggerConfig,
+    draftTaskContent,
+    draftTaskNodeId,
+    draftExternalConfig,
+    setDraftTriggerType,
+    setDraftTriggerConfig,
+    setDraftTaskContent,
+    setDraftTaskNodeId,
+    setDraftExternalConfig,
   } = useAgent();
 
   // 获取正在编辑的 agent 信息
@@ -392,7 +1168,7 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
           onClick={() => setIsTypeOpen(!isTypeOpen)}
           style={{
             ...dropdownButtonStyle,
-            borderColor: isTypeOpen ? '#4ade80' : '#2a2a2a',
+            borderColor: isTypeOpen ? '#525252' : '#2a2a2a',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -414,9 +1190,9 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
                 onClick={() => { setDraftType(type); setIsTypeOpen(false); }}
                 style={{
                   width: '100%', height: 32, display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px',
-                  background: type === draftType ? 'rgba(74, 222, 128, 0.08)' : 'transparent',
+                  background: type === draftType ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
                   border: 'none', borderBottom: '1px solid #1f1f1f',
-                  color: type === draftType ? '#4ade80' : '#a3a3a3', cursor: 'pointer', textAlign: 'left',
+                  color: type === draftType ? '#e5e5e5' : '#737373', cursor: 'pointer', textAlign: 'left',
                   fontSize: 14,
                 }}
                 onMouseEnter={e => { if (type !== draftType) e.currentTarget.style.background = '#1f1f1f'; }}
@@ -430,6 +1206,22 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
         )}
       </div>
 
+      {/* Schedule Agent 特有配置 - Trigger (在 bash access 之前) */}
+      {draftType === 'schedule' && (
+        <ScheduleTriggerSection
+          draftTriggerConfig={draftTriggerConfig}
+          setDraftTriggerConfig={setDraftTriggerConfig}
+          setDraftTriggerType={setDraftTriggerType}
+        />
+      )}
+
+      {/* Schedule Agent 特有配置 - Task Instructions (在 bash access 之前) */}
+      {draftType === 'schedule' && (
+        <ScheduleTasksSection
+          draftTaskContent={draftTaskContent}
+          setDraftTaskContent={setDraftTaskContent}
+        />
+      )}
 
       {/* Agent's bash access - 必填 */}
       <div>
@@ -441,8 +1233,8 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
         <div 
           style={{ 
             minHeight: 88, // 始终保持最小高度，暗示可以拖多个
-            background: isDragging ? 'rgba(74, 222, 128, 0.04)' : 'transparent',
-            border: isDragging ? '1px dashed #4ade80' : '1px dashed #2a2a2a',
+            background: isDragging ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+            border: isDragging ? '1px dashed #525252' : '1px dashed #2a2a2a',
             borderRadius: 6, 
             transition: 'all 0.15s',
             position: 'relative',
@@ -556,14 +1348,14 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
             alignItems: 'center', 
             justifyContent: 'center', 
             gap: 8,
-            color: isDragging ? '#4ade80' : '#525252',
+            color: isDragging ? '#a1a1aa' : '#525252',
           }}>
             {/* 空状态时显示三个类型图标 */}
             {terminalResources.length === 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ color: isDragging ? '#4ade80' : '#a1a1aa' }}><FolderIcon /></div>
-                <div style={{ color: isDragging ? '#4ade80' : '#34d399' }}><JsonIcon /></div>
-                <div style={{ color: isDragging ? '#4ade80' : '#60a5fa' }}><MarkdownIcon /></div>
+                <div style={{ color: isDragging ? '#d4d4d4' : '#a1a1aa' }}><FolderIcon /></div>
+                <div style={{ color: isDragging ? '#6ee7b7' : '#34d399' }}><JsonIcon /></div>
+                <div style={{ color: isDragging ? '#93c5fd' : '#60a5fa' }}><MarkdownIcon /></div>
               </div>
             )}
             <span style={{ fontSize: 12 }}>
@@ -580,7 +1372,7 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
           onClick={() => setIsToolsOpen(!isToolsOpen)}
           style={{
             ...dropdownButtonStyle,
-            borderColor: isToolsOpen ? '#4ade80' : '#2a2a2a',
+            borderColor: isToolsOpen ? '#525252' : '#2a2a2a',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -625,6 +1417,45 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
           </div>
         )}
       </div>
+
+      {/* N8N/Zapier 特有配置 - External Config */}
+      {draftType === 'webhook' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+            <label style={labelStyle}>Configuration</label>
+          </div>
+          
+          <textarea
+            value={draftExternalConfig ? JSON.stringify(draftExternalConfig, null, 2) : ''}
+            onChange={(e) => {
+              try {
+                const parsed = JSON.parse(e.target.value);
+                setDraftExternalConfig(parsed);
+              } catch {
+                // Invalid JSON, ignore
+              }
+            }}
+            placeholder='{"n8n_url": "https://...", "workflow_id": "..."}'
+            style={{
+              width: '100%',
+              minHeight: 80,
+              background: '#161616',
+              border: '1px solid #2a2a2a',
+              borderRadius: 6,
+              padding: 10,
+              color: '#e5e5e5',
+              fontSize: 12,
+              fontFamily: 'monospace',
+              outline: 'none',
+              resize: 'vertical',
+              lineHeight: 1.4,
+            }}
+          />
+          <span style={{ fontSize: 11, color: '#525252', marginTop: 4, display: 'block' }}>
+            Enter JSON configuration for N8N/Zapier
+          </span>
+        </div>
+      )}
 
       {/* 底部：名字 + 保存 */}
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>

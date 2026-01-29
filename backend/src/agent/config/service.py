@@ -36,6 +36,10 @@ class AgentConfigService:
             agent.accesses = self._repo.get_accesses_by_agent_id(agent.id)
         return agent
 
+    def get_by_mcp_api_key(self, mcp_api_key: str) -> Optional[Agent]:
+        """根据 MCP API key 获取 Agent（带 accesses）"""
+        return self._repo.get_by_mcp_api_key_with_accesses(mcp_api_key)
+
     def create_agent(
         self,
         user_id: str,
@@ -45,6 +49,12 @@ class AgentConfigService:
         description: Optional[str] = None,
         is_default: bool = False,
         accesses: List[AgentAccessCreate] = None,
+        # Schedule Agent 新字段
+        trigger_type: Optional[str] = "manual",
+        trigger_config: Optional[dict] = None,
+        task_content: Optional[str] = None,
+        task_node_id: Optional[str] = None,
+        external_config: Optional[dict] = None,
     ) -> Agent:
         """
         创建 Agent
@@ -63,6 +73,11 @@ class AgentConfigService:
             type=type,
             description=description,
             is_default=is_default,
+            trigger_type=trigger_type,
+            trigger_config=trigger_config,
+            task_content=task_content,
+            task_node_id=task_node_id,
+            external_config=external_config,
         )
 
         # 创建访问权限
@@ -91,6 +106,12 @@ class AgentConfigService:
         type: Optional[str] = None,
         description: Optional[str] = None,
         is_default: Optional[bool] = None,
+        # Schedule Agent 新字段
+        trigger_type: Optional[str] = None,
+        trigger_config: Optional[dict] = None,
+        task_content: Optional[str] = None,
+        task_node_id: Optional[str] = None,
+        external_config: Optional[dict] = None,
     ) -> Optional[Agent]:
         """更新 Agent"""
         # 验证权限
@@ -108,6 +129,11 @@ class AgentConfigService:
             type=type,
             description=description,
             is_default=is_default,
+            trigger_type=trigger_type,
+            trigger_config=trigger_config,
+            task_content=task_content,
+            task_node_id=task_node_id,
+            external_config=external_config,
         )
         if agent:
             agent.accesses = self._repo.get_accesses_by_agent_id(agent_id)
@@ -232,4 +258,12 @@ class AgentConfigService:
             result.append(new_access)
 
         return result
+
+    # ============================================
+    # Execution History
+    # ============================================
+
+    def get_execution_history(self, agent_id: str, limit: int = 10) -> List[dict]:
+        """获取 Agent 的执行历史"""
+        return self._repo.get_execution_history(agent_id, limit)
 

@@ -4,7 +4,7 @@ Internal API路由
 """
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from src.mcp.dependencies import get_mcp_instance_service
 from src.table.dependencies import get_table_service
 from src.config import settings
@@ -13,6 +13,8 @@ from src.supabase.dependencies import get_supabase_repository
 from src.turbopuffer.internal_router import router as turbopuffer_internal_router
 from src.search.dependencies import get_search_service
 from src.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
+from src.agent.config.service import AgentConfigService
+from src.agent.config.repository import AgentRepository
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -465,3 +467,69 @@ async def search_tool(
 #         return {"message": "删除成功"}
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# Agent internal endpoints（供 mcp_service 调用，新架构）
+# ============================================================
+
+def get_agent_config_service() -> AgentConfigService:
+    """获取 AgentConfigService 实例"""
+    return AgentConfigService(AgentRepository())
+
+
+@router.get(
+    "/agent-by-mcp-key/{mcp_api_key}",
+    summary="根据 MCP API key 获取 Agent 及其访问权限",
+    description="MCP Server 调用此端点获取 Agent 配置，用于生成工具列表",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def get_agent_by_mcp_key(
+    mcp_api_key: str,
+    agent_service: AgentConfigService = Depends(get_agent_config_service),
+):
+    """
+    根据 MCP API key 获取 Agent 及其 accesses
+    
+    返回结构：
+    {
+        "agent": { id, name, user_id, type },
+        "accesses": [
+            {
+                "node_id": "xxx",
+                "bash_enabled": true,
+                "bash_readonly": false,
+                "tool_query": true,
+                "tool_create": true,
+                "tool_update": true,
+                "tool_delete": false,
+                "json_path": ""
+            }
+        ]
+    }
+    """
+    agent = agent_service.get_by_mcp_api_key(mcp_api_key)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found for this MCP API key")
+    
+    return {
+        "agent": {
+            "id": agent.id,
+            "name": agent.name,
+            "user_id": agent.user_id,
+            "type": agent.type,
+        },
+        "accesses": [
+            {
+                "node_id": a.node_id,
+                "bash_enabled": a.terminal,
+                "bash_readonly": a.terminal_readonly,
+                "tool_query": a.can_read,
+                "tool_create": a.can_write,
+                "tool_update": a.can_write,
+                "tool_delete": a.can_delete,
+                "json_path": a.json_path or "",
+            }
+            for a in agent.accesses
+        ],
+    }

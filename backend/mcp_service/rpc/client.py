@@ -30,6 +30,29 @@ class TableMetadata:
     project_id: int
 
 
+@dataclass
+class AgentAccessData:
+    """Agent 访问权限数据"""
+    node_id: str
+    bash_enabled: bool
+    bash_readonly: bool
+    tool_query: bool
+    tool_create: bool
+    tool_update: bool
+    tool_delete: bool
+    json_path: str
+
+
+@dataclass
+class AgentData:
+    """Agent 数据"""
+    id: str
+    name: str
+    user_id: str
+    type: str
+    accesses: List[AgentAccessData]
+
+
 class InternalApiClient:
     """
     Internal API客户端
@@ -388,6 +411,60 @@ class InternalApiClient:
         except httpx.RequestError as e:
             print(f"Error searching tool: request_failed url={e.request.url} error={e}")
             raise RuntimeError(f"Search Tool 执行失败: {str(e)}") from e
+
+    async def get_agent_by_mcp_key(self, mcp_api_key: str) -> Optional[AgentData]:
+        """
+        根据 MCP API key 获取 Agent 及其访问权限
+        
+        Args:
+            mcp_api_key: MCP API key
+            
+        Returns:
+            Agent 数据，如果不存在则返回 None
+        """
+        try:
+            url = f"{self.base_url}/internal/agent-by-mcp-key/{mcp_api_key}"
+            response = await self._client.get(url)
+            
+            if response.status_code == 404:
+                return None
+            
+            response.raise_for_status()
+            data = response.json()
+            
+            agent_info = data.get("agent", {})
+            accesses_list = data.get("accesses", [])
+            
+            return AgentData(
+                id=agent_info.get("id", ""),
+                name=agent_info.get("name", ""),
+                user_id=agent_info.get("user_id", ""),
+                type=agent_info.get("type", "chat"),
+                accesses=[
+                    AgentAccessData(
+                        node_id=a.get("node_id", ""),
+                        bash_enabled=a.get("bash_enabled", False),
+                        bash_readonly=a.get("bash_readonly", True),
+                        tool_query=a.get("tool_query", False),
+                        tool_create=a.get("tool_create", False),
+                        tool_update=a.get("tool_update", False),
+                        tool_delete=a.get("tool_delete", False),
+                        json_path=a.get("json_path", ""),
+                    )
+                    for a in accesses_list
+                ],
+            )
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error fetching Agent by MCP key: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"获取 Agent 失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error fetching Agent by MCP key: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"获取 Agent 失败: {str(e)}") from e
 
 
 # 创建全局客户端实例

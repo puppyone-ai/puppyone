@@ -375,36 +375,65 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
             mount_value = output_obj
 
         try:
-            # Get existing node content and merge new data
+            # Check if target node is a pending node (方案 B: 直接更新节点)
             existing_node = await asyncio.to_thread(
                 node_service.get_by_id, mount_node_id, task.user_id
             )
-            existing_content = existing_node.content or {}
             
-            # Merge data at the specified path
-            if mount_json_path:
-                # Navigate to the path and set the value
-                path_parts = [p for p in mount_json_path.split("/") if p]
-                current = existing_content
-                for part in path_parts[:-1]:
-                    if part not in current:
-                        current[part] = {}
-                    current = current[part]
-                if path_parts:
-                    current[path_parts[-1]] = {mount_key: mount_value}
+            if existing_node.type == "pending":
+                # 直接更新 pending 节点为 markdown 节点
+                # 提取 markdown 内容
+                if isinstance(mount_value, dict) and "content" in mount_value:
+                    markdown_content = mount_value["content"]
+                elif isinstance(mount_value, str):
+                    markdown_content = mount_value
                 else:
-                    existing_content[mount_key] = mount_value
+                    markdown_content = markdown  # 使用原始 markdown
+                
+                # 生成新名称（.pdf -> .md）
+                original_name = existing_node.name
+                new_name = original_name
+                for ext in ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.tiff', '.bmp']:
+                    if original_name.lower().endswith(ext):
+                        new_name = original_name[:-len(ext)] + '.md'
+                        break
+                
+                # 更新节点
+                await node_service.finalize_pending_node(
+                    node_id=mount_node_id,
+                    user_id=task.user_id,
+                    content=markdown_content,
+                    new_name=new_name if new_name != original_name else None,
+                )
+                logger.info(f"ETL: Updated pending node {mount_node_id} to markdown: {new_name}")
             else:
-                # Mount at root level
-                existing_content[mount_key] = mount_value
-            
-            # Update node with merged content
-            await asyncio.to_thread(
-                node_service.update_node,
-                mount_node_id,
-                task.user_id,
-                content=existing_content,
-            )
+                # 传统逻辑：挂载到 JSON 节点
+                existing_content = existing_node.content or {}
+                
+                # Merge data at the specified path
+                if mount_json_path:
+                    # Navigate to the path and set the value
+                    path_parts = [p for p in mount_json_path.split("/") if p]
+                    current = existing_content
+                    for part in path_parts[:-1]:
+                        if part not in current:
+                            current[part] = {}
+                        current = current[part]
+                    if path_parts:
+                        current[path_parts[-1]] = {mount_key: mount_value}
+                    else:
+                        existing_content[mount_key] = mount_value
+                else:
+                    # Mount at root level
+                    existing_content[mount_key] = mount_value
+                
+                # Update node with merged content
+                await asyncio.to_thread(
+                    node_service.update_node,
+                    mount_node_id,
+                    task.user_id,
+                    content=existing_content,
+                )
         except Exception as e:
             # Mount failure => task failed (output exists in S3, but contract is "completed means mounted")
             err = f"Mount failed: {e}"

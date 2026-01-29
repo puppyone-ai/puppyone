@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import type { ContentType } from '../finder/items';
 import type { AgentResource } from './GridView';
+import { ItemActionMenu } from './ItemActionMenu';
+import { getNodeTypeConfig, isSyncedType, LockIcon } from '@/lib/nodeTypeConfig';
 
 export interface ListViewItem {
   id: string;
@@ -11,11 +13,18 @@ export interface ListViewItem {
   description?: string;
   rowCount?: number;
   onClick: (e: React.MouseEvent) => void;
+  // 同步相关字段
+  is_synced?: boolean;
+  sync_source?: string | null;
+  last_synced_at?: string | null;
 }
 
 export interface ListViewProps {
   items: ListViewItem[];
   onCreateClick?: (e: React.MouseEvent) => void;
+  onRename?: (id: string, currentName: string) => void;
+  onDelete?: (id: string, name: string) => void;
+  onDuplicate?: (id: string) => void;
   createLabel?: string;
   loading?: boolean;
   agentResources?: AgentResource[];
@@ -67,31 +76,39 @@ const AgentAccessTag = ({ mode }: { mode: 'read' | 'write' }) => (
   </div>
 );
 
-function getIcon(type: ContentType) {
-  switch (type) {
+function getIcon(type: string) {
+  const config = getNodeTypeConfig(type);
+  switch (config.renderAs) {
     case 'folder': return <FolderIcon />;
     case 'markdown': return <MarkdownIcon />;
     default: return <JsonIcon />;
   }
 }
 
-function getIconColor(type: ContentType) {
-  switch (type) {
-    case 'folder': return '#a1a1aa';
-    case 'markdown': return '#60a5fa';
-    default: return '#34d399';
-  }
+function getIconColor(type: string) {
+  const config = getNodeTypeConfig(type);
+  return config.color;
 }
 
 function ListItem({
   item,
   agentResource,
+  onRename,
+  onDelete,
+  onDuplicate,
 }: {
   item: ListViewItem;
   agentResource?: AgentResource;
+  onRename?: (id: string, currentName: string) => void;
+  onDelete?: (id: string, name: string) => void;
+  onDuplicate?: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const isFolder = item.type === 'folder';
+  
+  // Get type config for synced items
+  const typeConfig = getNodeTypeConfig(item.type);
+  const isFolder = typeConfig.renderAs === 'folder';
+  const BadgeIcon = typeConfig.badgeIcon;
 
   // Check if this item has agent access
   const hasAgentAccess = !!agentResource;
@@ -102,8 +119,12 @@ function ListItem({
       onClick={item.onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      draggable={true}
+      draggable={!typeConfig.isReadOnly}
       onDragStart={(e) => {
+        if (typeConfig.isReadOnly) {
+          e.preventDefault();
+          return;
+        }
         e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify({
           id: item.id,
           name: item.name,
@@ -131,9 +152,30 @@ function ListItem({
         transition: 'all 0.1s',
       }}
     >
-      {/* Icon */}
-      <div style={{ color: getIconColor(item.type), display: 'flex', alignItems: 'center' }}>
+      {/* Icon with Sync Badge */}
+      <div style={{ 
+        color: getIconColor(item.type), 
+        display: 'flex', 
+        alignItems: 'center',
+        position: 'relative',
+      }}>
         {getIcon(item.type)}
+        {/* Sync Badge (SaaS Logo) */}
+        {BadgeIcon && (
+          <div style={{
+            position: 'absolute',
+            bottom: -2,
+            right: -4,
+            background: '#18181b',
+            borderRadius: 3,
+            padding: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <BadgeIcon size={8} />
+          </div>
+        )}
       </div>
 
       {/* Name */}
@@ -147,6 +189,31 @@ function ListItem({
       }}>
         {item.name}
       </div>
+
+      {/* Action Menu - only for non-readonly */}
+      {(onRename || onDelete || onDuplicate) && !typeConfig.isReadOnly && (
+        <ItemActionMenu
+          itemId={item.id}
+          itemName={item.name}
+          itemType={item.type}
+          onRename={onRename}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          visible={hovered}
+          compact
+        />
+      )}
+
+      {/* Read-only Lock Icon for synced items */}
+      {typeConfig.isReadOnly && (
+        <div style={{ 
+          color: '#525252',
+          display: 'flex',
+          alignItems: 'center',
+        }}>
+          <LockIcon size={10} />
+        </div>
+      )}
 
       {/* Agent Access Tag */}
       {hasAgentAccess && <AgentAccessTag mode={accessMode} />}
@@ -164,6 +231,9 @@ function ListItem({
 export function ListView({
   items,
   onCreateClick,
+  onRename,
+  onDelete,
+  onDuplicate,
   createLabel = 'New...',
   loading,
   agentResources,
@@ -192,6 +262,9 @@ export function ListView({
           key={item.id}
           item={item}
           agentResource={resourceMap.get(item.id)}
+          onRename={onRename}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
         />
       ))}
 

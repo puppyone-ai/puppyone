@@ -12,13 +12,48 @@ from .tools_definition import ALL_TOOLS_LIST
 from .auth import parse_table_scope_from_api_key
 
 
+def _is_agent_mcp_key(api_key: str) -> bool:
+    """判断是否是 Agent 的 MCP API key"""
+    return api_key.startswith("mcp_")
+
+
 async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Optional[Dict[str, Any]]:
     """加载 MCP 实例配置（带缓存）"""
     cached = await CacheManager.get_config(api_key)
     if cached:
         return cached
 
-    # 0) 优先尝试新契约：MCP v2 + bound tools
+    # 0) 检查是否是 Agent 的 MCP API key
+    if _is_agent_mcp_key(api_key):
+        agent = await rpc_client.get_agent_by_mcp_key(api_key)
+        if agent:
+            config: Dict[str, Any] = {
+                "mode": "agent",
+                "agent": {
+                    "id": agent.id,
+                    "name": agent.name,
+                    "user_id": agent.user_id,
+                    "type": agent.type,
+                },
+                "accesses": [
+                    {
+                        "node_id": a.node_id,
+                        "bash_enabled": a.bash_enabled,
+                        "bash_readonly": a.bash_readonly,
+                        "tool_query": a.tool_query,
+                        "tool_create": a.tool_create,
+                        "tool_update": a.tool_update,
+                        "tool_delete": a.tool_delete,
+                        "json_path": a.json_path,
+                    }
+                    for a in agent.accesses
+                ],
+            }
+            await CacheManager.set_config(api_key, config)
+            return config
+        return None
+
+    # 1) 尝试新契约：MCP v2 + bound tools
     try:
         mcp_v2_payload = await rpc_client.get_mcp_v2_instance_and_tools(api_key)
     except Exception:

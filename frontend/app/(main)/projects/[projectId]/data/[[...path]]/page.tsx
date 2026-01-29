@@ -26,10 +26,9 @@ import {
   type ViewType,
   type BreadcrumbSegment,
 } from '@/components/ProjectsHeader';
-import { AgentViewport } from '@/components/agent/AgentViewport';
-import { AgentRailVertical } from '@/components/agent/AgentRailVertical';
 import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
 import { DocumentEditor } from '@/components/RightAuxiliaryPanel/DocumentEditor';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 // MCP Tools imports
 import {
@@ -43,7 +42,7 @@ import {
 
 import { TableManageDialog } from '@/components/TableManageDialog';
 import { FolderManageDialog } from '@/components/FolderManageDialog';
-import { listNodes, getNode, createFolder, createMarkdownNode, getDownloadUrl, type NodeInfo } from '@/lib/contentNodesApi';
+import { listNodes, getNode, createFolder, createMarkdownNode, getDownloadUrl, updateNode, deleteNode, type NodeInfo } from '@/lib/contentNodesApi';
 import { createTable } from '@/lib/projectsApi';
 import { refreshProjects } from '@/lib/hooks/useData';
 
@@ -73,6 +72,16 @@ export default function DataPage({ params }: DataPageProps) {
   const { projectId, path = [] } = use(params);
   const router = useRouter();
   const { session } = useAuth();
+  
+  // Workspace context - for sharing state with AgentViewport in layout
+  const { 
+    setTableData, 
+    setTableId, 
+    setProjectId, 
+    setTableNameById, 
+    setAccessPoints: setAccessPointsToContext, 
+    setOnDataUpdate 
+  } = useWorkspace();
 
   // Data fetching
   const { projects, isLoading: projectsLoading } = useProjects();
@@ -108,8 +117,7 @@ export default function DataPage({ params }: DataPageProps) {
     setEditorTypeState(newEditorType);
     localStorage.setItem('puppyone-editor-type', newEditorType);
   };
-  // Chat state now comes from AgentContext (via layout)
-  const [chatWidth, setChatWidth] = useState(340);
+  // Right panel state
   const [rightPanelContent, setRightPanelContent] = useState<RightPanelContent>('NONE');
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
@@ -246,14 +254,26 @@ export default function DataPage({ params }: DataPageProps) {
           setActiveNodeId(lastNode.id);
           setActiveNodeType(lastNode.type);
           
-          // If markdown, load content from S3
+          // If markdown, load content (from content field or S3)
           if (lastNode.type === 'markdown') {
             setIsLoadingMarkdown(true);
             try {
-              const { download_url } = await getDownloadUrl(lastNode.id);
-              const response = await fetch(download_url);
-              const content = await response.text();
-              setMarkdownContent(content);
+              // Get full node detail to check content field
+              const fullNode = await getNode(lastNode.id);
+              
+              // First check if content is stored in the content field (批量创建的节点)
+              if (fullNode.content && typeof fullNode.content === 'string') {
+                setMarkdownContent(fullNode.content);
+              } else if (fullNode.s3_key) {
+                // Content is in S3, download it
+                const { download_url } = await getDownloadUrl(lastNode.id);
+                const response = await fetch(download_url);
+                const content = await response.text();
+                setMarkdownContent(content);
+              } else {
+                // No content available
+                setMarkdownContent('');
+              }
             } catch (err) {
               console.error('Failed to load markdown content:', err);
               setMarkdownContent('');
@@ -435,6 +455,32 @@ export default function DataPage({ params }: DataPageProps) {
   const isFolderView = !activeNodeId;
   const isLoading = isResolvingPath || contentNodesLoading;
 
+  // Sync state to WorkspaceContext (for AgentViewport in layout)
+  useEffect(() => {
+    setProjectId(projectId);
+  }, [projectId, setProjectId]);
+
+  useEffect(() => {
+    setTableId(activeNodeId);
+  }, [activeNodeId, setTableId]);
+
+  useEffect(() => {
+    setTableData(currentTableData?.data);
+  }, [currentTableData?.data, setTableData]);
+
+  useEffect(() => {
+    setTableNameById(tableNameById);
+  }, [tableNameById, setTableNameById]);
+
+  useEffect(() => {
+    setAccessPointsToContext(accessPoints);
+  }, [accessPoints, setAccessPointsToContext]);
+
+  useEffect(() => {
+    setOnDataUpdate(async () => { await refreshTable(); });
+    return () => setOnDataUpdate(null);
+  }, [refreshTable, setOnDataUpdate]);
+
   // Tool sync helpers
   const TOOL_TYPES: McpToolType[] = ['shell_access', 'shell_access_readonly', 'query_data', 'get_all_data', 'create', 'update', 'delete'];
 
@@ -490,23 +536,19 @@ export default function DataPage({ params }: DataPageProps) {
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden', position: 'relative' }}>
-      {/* Left: Header + Content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* Header (Full Width) */}
-        <div style={{ flexShrink: 0, zIndex: 60 }}>
-          <ProjectsHeader
-            pathSegments={pathSegments}
-            projectId={activeProject?.id ?? null}
-            onProjectsRefresh={() => {}}
-            accessPointCount={accessPoints.length}
-          />
-        </div>
+    <>
+      {/* Header (Full Width) */}
+      <div style={{ flexShrink: 0, zIndex: 60 }}>
+        <ProjectsHeader
+          pathSegments={pathSegments}
+          projectId={activeProject?.id ?? null}
+          onProjectsRefresh={() => {}}
+          accessPointCount={accessPoints.length}
+        />
+      </div>
 
-        {/* Body (Content + Chat Sidebar) */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, position: 'relative', overflow: 'hidden' }}>
-          {/* Main Content */}
-          <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+      {/* Main Content */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', overflow: 'hidden' }}>
           {/* Editor View */}
           {isEditorView && activeProject && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
@@ -642,6 +684,10 @@ export default function DataPage({ params }: DataPageProps) {
                     name: node.name,
                     type: node.type as ContentType,
                     description: node.type === 'folder' ? 'Folder' : node.type === 'markdown' ? 'Markdown' : 'JSON',
+                    // 同步相关字段
+                    is_synced: node.is_synced,
+                    sync_source: node.sync_source,
+                    last_synced_at: node.last_synced_at,
                     onClick: () => {
                       const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
                       const newPath = currentPath ? `${currentPath}/${node.id}` : node.id;
@@ -673,6 +719,9 @@ export default function DataPage({ params }: DataPageProps) {
                         id: node.id,
                         name: node.name,
                         type: node.type as ContentType,
+                        is_synced: node.is_synced,
+                        sync_source: node.sync_source,
+                        last_synced_at: node.last_synced_at,
                       }));
                     } catch (err) {
                       console.error('Failed to load folder children:', err);
@@ -686,14 +735,52 @@ export default function DataPage({ params }: DataPageProps) {
                     router.push(`/projects/${projectId}/data/${newPath}`);
                   };
 
+                  // === Item Actions ===
+                  const handleRename = async (id: string, currentName: string) => {
+                    const newName = window.prompt('Enter new name:', currentName);
+                    if (newName && newName !== currentName) {
+                      try {
+                        await updateNode(id, { name: newName });
+                        // Refresh the content
+                        loadContentNodes(currentFolderId);
+                      } catch (err) {
+                        console.error('Failed to rename:', err);
+                        alert('Failed to rename item');
+                      }
+                    }
+                  };
+
+                  const handleDelete = async (id: string, name: string) => {
+                    const confirmed = window.confirm(`Are you sure you want to delete "${name}"?`);
+                    if (confirmed) {
+                      try {
+                        await deleteNode(id);
+                        // Refresh the content
+                        loadContentNodes(currentFolderId);
+                      } catch (err) {
+                        console.error('Failed to delete:', err);
+                        alert('Failed to delete item');
+                      }
+                    }
+                  };
+
                   if (viewType === 'column') {
                     return (
                       <MillerColumnsView
                         currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
-                        currentItems={items.map(i => ({ id: i.id, name: i.name, type: i.type }))}
+                        currentItems={items.map(i => ({ 
+                          id: i.id, 
+                          name: i.name, 
+                          type: i.type,
+                          is_synced: i.is_synced,
+                          sync_source: i.sync_source,
+                          last_synced_at: i.last_synced_at,
+                        }))}
                         onLoadChildren={loadChildren}
                         onNavigate={handleMillerNavigate}
                         onCreateClick={handleMillerCreateClick}
+                        onRename={handleRename}
+                        onDelete={handleDelete}
                         agentResources={agentResources}
                       />
                     );
@@ -702,12 +789,16 @@ export default function DataPage({ params }: DataPageProps) {
                   return viewType === 'list' ? (
                     <ListView
                       items={items}
+                      onRename={handleRename}
+                      onDelete={handleDelete}
                       agentResources={agentResources}
                     />
                   ) : (
                     <GridView
                       items={items}
                       onCreateClick={handleCreateClick}
+                      onRename={handleRename}
+                      onDelete={handleDelete}
                       agentResources={agentResources}
                     />
                   );
@@ -903,25 +994,6 @@ export default function DataPage({ params }: DataPageProps) {
           </ResizablePanel>
         </div>
 
-        </div>
-      </div>
-
-      {/* Agent Rail - 贯穿整个页面高度 */}
-      <AgentRailVertical />
-
-      {/* Chat Sidebar */}
-      <AgentViewport
-        chatWidth={chatWidth}
-        onChatWidthChange={setChatWidth}
-        tableData={currentTableData?.data}
-        tableId={activeNodeId}
-        projectId={projectId}
-        onDataUpdate={async () => refreshTable()}
-        accessPoints={accessPoints}
-        projectTools={projectTools}
-        tableNameById={tableNameById}
-      />
-
       {/* Create Menu */}
       {createMenuOpen && createMenuPosition && (
         <div ref={createMenuRef}>
@@ -1000,7 +1072,7 @@ export default function DataPage({ params }: DataPageProps) {
           onSuccess={() => loadContentNodes(currentFolderId)}
         />
       )}
-    </div>
+    </>
   );
 }
 

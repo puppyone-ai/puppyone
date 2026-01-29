@@ -249,7 +249,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         from src.supabase.tables.schemas import TableResponse
 
         response = (
-            self._supabase_repo._client.table("context_table")
+            self._supabase_repo._client.table("content_nodes")
             .select("*")
             .eq("user_id", user_id)
             .is_("project_id", "null")
