@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { Editor, rootCtx, defaultValueCtx } from '@milkdown/core';
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx } from '@milkdown/core';
 import { commonmark } from '@milkdown/preset-commonmark';
 import { gfm } from '@milkdown/preset-gfm';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react';
+import { $prose } from '@milkdown/utils';
+import { Plugin, PluginKey } from '@milkdown/prose/state';
 
 // Custom dark theme CSS
 // Design: line-height 24px + margin 8px = 40px visual rhythm
@@ -175,21 +177,72 @@ const darkThemeStyles = `
     margin: 16px 0;
   }
 
-  /* Task list */
-  .milkdown-editor .task-list-item {
-    list-style: none;
-    margin-left: -24px;
-    padding-left: 24px;
+  /* Task list - Milkdown uses data-item-type="task" and data-checked */
+  .milkdown-editor li[data-item-type="task"] {
+    list-style: none !important;
     position: relative;
+    padding-left: 28px;
+    margin-left: -4px;
   }
 
-  .milkdown-editor .task-list-item input[type="checkbox"] {
+  /* Checkbox visual using ::before pseudo-element */
+  .milkdown-editor li[data-item-type="task"]::before {
+    content: '';
     position: absolute;
     left: 0;
-    top: 6px;
+    top: 5px;
     width: 16px;
     height: 16px;
-    accent-color: #f97316;
+    border: 2px solid #525252;
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  /* Checked state */
+  .milkdown-editor li[data-item-type="task"][data-checked="true"]::before {
+    background: #22c55e;
+    border-color: #22c55e;
+  }
+
+  /* Checkmark icon for checked items */
+  .milkdown-editor li[data-item-type="task"][data-checked="true"]::after {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 8px;
+    width: 5px;
+    height: 9px;
+    border: solid #0a0a0a;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  /* Strikethrough text for completed tasks */
+  .milkdown-editor li[data-item-type="task"][data-checked="true"] {
+    color: #6b7280;
+  }
+
+  .milkdown-editor li[data-item-type="task"][data-checked="true"] > p {
+    text-decoration: line-through;
+  }
+
+  /* Unchecked hover state */
+  .milkdown-editor li[data-item-type="task"][data-checked="false"]::before,
+  .milkdown-editor li[data-item-type="task"]:not([data-checked="true"])::before {
+    border-color: #525252;
+  }
+
+  .milkdown-editor li[data-item-type="task"][data-checked="false"]:hover::before,
+  .milkdown-editor li[data-item-type="task"]:not([data-checked="true"]):hover::before {
+    border-color: #737373;
+    background: #1a1a1a;
+  }
+
+  /* Ensure task list container doesn't show bullets */
+  .milkdown-editor ul:has(> li[data-item-type="task"]) {
+    list-style: none !important;
   }
 
   /* Strong & Em */
@@ -257,6 +310,53 @@ interface MilkdownEditorContentProps {
   readOnly?: boolean;
 }
 
+// Plugin to handle task list checkbox clicks
+const taskListClickPlugin = $prose(() => {
+  return new Plugin({
+    key: new PluginKey('task-list-click'),
+    props: {
+      handleClick(view, pos, event) {
+        const { target } = event;
+        if (!(target instanceof HTMLElement)) return false;
+        
+        // Check if clicked on a task list item (within the checkbox area)
+        const li = target.closest('li[data-item-type="task"]');
+        if (!li) return false;
+        
+        // Only toggle if clicked on the left side (checkbox area)
+        const rect = li.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        if (clickX > 28) return false; // Only respond to clicks in the checkbox area
+        
+        // Find the node position
+        const $pos = view.state.doc.resolve(pos);
+        let nodePos = $pos.before($pos.depth);
+        let node = view.state.doc.nodeAt(nodePos);
+        
+        // Walk up to find the list item node
+        for (let depth = $pos.depth; depth >= 0; depth--) {
+          const n = view.state.doc.nodeAt($pos.before(depth));
+          if (n?.type.name === 'list_item' && n.attrs.checked != null) {
+            nodePos = $pos.before(depth);
+            node = n;
+            break;
+          }
+        }
+        
+        if (!node || node.attrs.checked == null) return false;
+        
+        // Toggle the checked state
+        const tr = view.state.tr.setNodeMarkup(nodePos, undefined, {
+          ...node.attrs,
+          checked: !node.attrs.checked,
+        });
+        view.dispatch(tr);
+        return true;
+      },
+    },
+  });
+});
+
 function MilkdownEditorContent({ defaultValue, onChange, readOnly }: MilkdownEditorContentProps) {
   const { get } = useEditor((root) => {
     return Editor.make()
@@ -272,7 +372,8 @@ function MilkdownEditorContent({ defaultValue, onChange, readOnly }: MilkdownEdi
       })
       .use(commonmark)
       .use(gfm)
-      .use(listener);
+      .use(listener)
+      .use(taskListClickPlugin);
   }, []);
 
   return <Milkdown />;

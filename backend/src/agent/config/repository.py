@@ -5,9 +5,15 @@ Agent Config 数据仓库
 """
 
 from typing import List, Optional
+import secrets
 
 from src.agent.config.models import Agent, AgentAccess
 from src.utils.id_generator import generate_uuid_v7
+
+
+def generate_mcp_api_key() -> str:
+    """Generate a secure MCP API key"""
+    return f"mcp_{secrets.token_urlsafe(32)}"
 
 
 class AgentRepository:
@@ -75,6 +81,25 @@ class AgentRepository:
             return Agent(**response.data[0])
         return None
 
+    def get_by_mcp_api_key(self, mcp_api_key: str) -> Optional[Agent]:
+        """根据 MCP API key 获取 Agent"""
+        response = (
+            self._client.table("agent")
+            .select("*")
+            .eq("mcp_api_key", mcp_api_key)
+            .execute()
+        )
+        if response.data:
+            return Agent(**response.data[0])
+        return None
+
+    def get_by_mcp_api_key_with_accesses(self, mcp_api_key: str) -> Optional[Agent]:
+        """根据 MCP API key 获取 Agent，包含访问权限"""
+        agent = self.get_by_mcp_api_key(mcp_api_key)
+        if agent:
+            agent.accesses = self.get_accesses_by_agent_id(agent.id)
+        return agent
+
     def create(
         self,
         user_id: str,
@@ -83,9 +108,16 @@ class AgentRepository:
         type: str = "chat",
         description: Optional[str] = None,
         is_default: bool = False,
+        # Schedule Agent 新字段
+        trigger_type: Optional[str] = "manual",
+        trigger_config: Optional[dict] = None,
+        task_content: Optional[str] = None,
+        task_node_id: Optional[str] = None,
+        external_config: Optional[dict] = None,
     ) -> Agent:
-        """创建 Agent"""
+        """创建 Agent (自动生成 mcp_api_key)"""
         agent_id = generate_uuid_v7()
+        mcp_api_key = generate_mcp_api_key()
         data = {
             "id": agent_id,
             "user_id": user_id,
@@ -94,6 +126,12 @@ class AgentRepository:
             "type": type,
             "description": description,
             "is_default": is_default,
+            "mcp_api_key": mcp_api_key,
+            "trigger_type": trigger_type,
+            "trigger_config": trigger_config,
+            "task_content": task_content,
+            "task_node_id": task_node_id,
+            "external_config": external_config,
         }
         response = self._client.table("agent").insert(data).execute()
         return Agent(**response.data[0])
@@ -106,6 +144,12 @@ class AgentRepository:
         type: Optional[str] = None,
         description: Optional[str] = None,
         is_default: Optional[bool] = None,
+        # Schedule Agent 新字段
+        trigger_type: Optional[str] = None,
+        trigger_config: Optional[dict] = None,
+        task_content: Optional[str] = None,
+        task_node_id: Optional[str] = None,
+        external_config: Optional[dict] = None,
     ) -> Optional[Agent]:
         """更新 Agent"""
         data = {}
@@ -119,6 +163,17 @@ class AgentRepository:
             data["description"] = description
         if is_default is not None:
             data["is_default"] = is_default
+        # Schedule Agent 新字段
+        if trigger_type is not None:
+            data["trigger_type"] = trigger_type
+        if trigger_config is not None:
+            data["trigger_config"] = trigger_config
+        if task_content is not None:
+            data["task_content"] = task_content
+        if task_node_id is not None:
+            data["task_node_id"] = task_node_id
+        if external_config is not None:
+            data["external_config"] = external_config
 
         if not data:
             return self.get_by_id(agent_id)
@@ -296,4 +351,20 @@ class AgentRepository:
             .execute()
         )
         return AgentAccess(**response.data[0])
+
+    # ============================================
+    # Execution History
+    # ============================================
+
+    def get_execution_history(self, agent_id: str, limit: int = 10) -> list[dict]:
+        """获取 Agent 的执行历史"""
+        response = (
+            self._client.table("agent_execution_log")
+            .select("*")
+            .eq("agent_id", agent_id)
+            .order("started_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return response.data or []
 

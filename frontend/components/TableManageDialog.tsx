@@ -8,6 +8,11 @@ import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import { ImportModal } from './editors/tree/components/ImportModal';
 import { uploadAndSubmit } from '../lib/etlApi';
 import {
+  bulkCreateNodes,
+  createFolder,
+  type BulkCreateNodeItem,
+} from '../lib/contentNodesApi';
+import {
   addPendingTasks,
   replacePlaceholderTasks,
   removeFailedPlaceholders,
@@ -19,7 +24,10 @@ import {
   type ParseUrlResponse,
   type CrawlOptions,
 } from '../lib/connectApi';
+import { openOAuthPopup, type SaasType } from '../lib/oauthApi';
 import CrawlOptionsPanel from './CrawlOptionsPanel';
+import { startSyncImport, cancelSyncTask } from '../lib/syncApi';
+import { SyncProgressPanel } from './SyncProgressPanel';
 
 type StartOption = 'empty' | 'documents' | 'url' | 'connect';
 type DialogMode = 'create' | 'edit' | 'delete';
@@ -100,20 +108,21 @@ export function TableManageDialog({
     sitemap: 'include',
   });
   const [connectUrlInput, setConnectUrlInput] = useState('');
-  const [connectParseResult, setConnectParseResult] = useState<ParseUrlResponse | null>(null);
+  // connectParseResult 已移除 - 新流程是一键导入，不需要预解析
   const [connectLoading, setConnectLoading] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [connectNeedsAuth, setConnectNeedsAuth] = useState(false);
   const [connectImporting, setConnectImporting] = useState(false);
+  const [selectedSaas, setSelectedSaas] = useState<string | null>(null);
+  const [syncTaskId, setSyncTaskId] = useState<number | null>(null);
   
   const connectStatusMeta = (() => {
-    if (connectNeedsAuth) return { label: 'Authorization required', color: '#ef4444' };
     if (connectImporting) return { label: 'Importing...', color: '#22c55e' };
-    if (connectParseResult) return { label: `Ready to import • ${connectParseResult.total_items} items`, color: '#22c55e' };
-    if (connectLoading) return { label: 'Parsing...', color: '#3b82f6' };
-    if (connectError) return { label: 'Parsing failed', color: '#ef4444' };
-    if (connectUrlInput.trim()) return { label: 'Click Parse to continue', color: '#eab308' };
-    return { label: 'Waiting for connector URL', color: '#595959' };
+    if (connectLoading) return { label: 'Connecting...', color: '#3b82f6' };
+    if (connectError && !connectNeedsAuth) return { label: connectError, color: '#ef4444' };
+    if (connectUrlInput.trim()) return { label: 'Ready to import', color: '#22c55e' };
+    if (selectedSaas) return { label: 'Enter URL to continue', color: '#595959' };
+    return null;
   })();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,14 +130,76 @@ export function TableManageDialog({
 
   const resetConnectState = useCallback(() => {
     setConnectUrlInput('');
-    setConnectParseResult(null);
     setConnectError(null);
     setConnectNeedsAuth(false);
     setConnectLoading(false);
     setConnectImporting(false);
+    setSelectedSaas(null);
   }, []);
 
   const isNotionUrl = (value: string) => value.includes('notion.so') || value.includes('notion.site');
+
+  // SaaS 配置
+  const SAAS_OPTIONS = [
+    { 
+      id: 'notion', 
+      name: 'Notion', 
+      color: '#ffffff',
+      placeholder: 'https://notion.so/your-page or https://notion.site/...',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.98-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.886l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952l1.448.327s0 .84-1.168.84l-3.22.186c-.094-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.886.747-.933zM2.197 1.548l13.542-.934c1.682-.14 2.103.093 2.803.607l3.875 2.706c.466.326.607.746.607 1.26v14.697c0 .84-.326 1.542-1.494 1.588l-15.503.887c-.888.047-1.308-.14-1.776-.7L.935 18.93c-.514-.653-.747-1.213-.747-1.866V2.995c0-.654.28-1.354 1.027-1.447z"/>
+        </svg>
+      )
+    },
+    { 
+      id: 'github', 
+      name: 'GitHub', 
+      color: '#ffffff',
+      placeholder: 'https://github.com/owner/repo or https://github.com/owner/repo/issues',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+      )
+    },
+    { 
+      id: 'airtable', 
+      name: 'Airtable', 
+      color: '#18BFFF',
+      placeholder: 'https://airtable.com/appXXX/tblXXX/... or shared view link',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M11.992 1.966L2.477 5.347a.35.35 0 00-.227.328v8.434c0 .139.083.265.21.32l9.514 4.093a.35.35 0 00.278 0l9.514-4.093a.35.35 0 00.21-.32V5.675a.35.35 0 00-.227-.328l-9.515-3.381a.35.35 0 00-.242 0zM12 6.523l7.396 2.63L12 11.782 4.604 9.153z"/>
+        </svg>
+      )
+    },
+    { 
+      id: 'linear', 
+      name: 'Linear', 
+      color: '#5E6AD2',
+      placeholder: 'https://linear.app/team/issue/XXX-123 or project URL',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12Z" fillOpacity="0.2"/>
+          <path d="M3.51472 14.8285L9.17158 20.4854C4.89697 19.6056 1.72955 15.8946 1.72955 11.4142C1.72955 10.4988 1.85855 9.61372 2.09969 8.77539L6.32373 13.0005L3.51472 14.8285Z"/>
+          <path d="M20.4853 14.8285L14.8284 20.4854C19.103 19.6056 22.2704 15.8946 22.2704 11.4142C22.2704 10.4988 22.1414 9.61372 21.9003 8.77539L17.6762 13.0005L20.4853 14.8285Z"/>
+          <path d="M12 4.72949L17.6568 10.3863C17.6568 6.30015 14.5279 3.00098 10.5858 3.00098C9.67037 3.00098 8.78532 3.12998 7.94699 3.37112L12 4.72949Z"/>
+        </svg>
+      )
+    },
+    { 
+      id: 'sheets', 
+      name: 'Google Sheets', 
+      color: '#34A853',
+      placeholder: 'https://docs.google.com/spreadsheets/d/...',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 2v3H5V5h14zm-9 5h4v9h-4v-9zm-5 0h4v9H5v-9zm14 9h-4v-9h4v9z"/>
+        </svg>
+      )
+    },
+  ];
 
   useEffect(() => {
     if (table) setName(table.name);
@@ -181,81 +252,277 @@ export function TableManageDialog({
     }
   };
 
-  const handleConnectParse = useCallback(async () => {
-    if (!connectUrlInput.trim()) return;
+  /**
+   * 一键导入 SaaS 数据
+   * - GitHub: 使用 Sync Task API（因为文件多，需要进度显示）
+   * - 其他 SaaS: 使用 /connect/import API（数据量小，直接导入）
+   */
+  const handleSaasImport = useCallback(async () => {
+    if (!connectUrlInput.trim() || !projectId || !selectedSaas) return;
+    
     setConnectLoading(true);
     setConnectError(null);
     setConnectNeedsAuth(false);
-    setConnectParseResult(null);
-    try {
-      const result = await parseUrl(connectUrlInput.trim());
-      setConnectParseResult(result);
-      if (!name.trim()) setName(result.title || 'Imported Data');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to parse URL';
-      setConnectError(message);
-      const lower = message.toLowerCase();
-      if (lower.includes('auth') || lower.includes('401') || isNotionUrl(connectUrlInput)) {
-        setConnectNeedsAuth(true);
+    
+    const url = connectUrlInput.trim();
+    const isGitHub = selectedSaas === 'github';
+    
+    // GitHub 使用 sync task 机制
+    if (isGitHub) {
+      const attemptStartSync = async (): Promise<boolean> => {
+        try {
+          const task = await startSyncImport({
+            url,
+            project_id: projectId,
+          });
+          setConnectLoading(false);
+          setSyncTaskId(task.id);
+          return true;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Failed to import';
+          const lower = message.toLowerCase();
+          if (lower.includes('auth') || lower.includes('401') || lower.includes('not connected')) {
+            return false; // 需要授权
+          }
+          setConnectError(message);
+          setConnectLoading(false);
+          return true;
+        }
+      };
+      
+      const success = await attemptStartSync();
+      if (!success) {
+        setConnectLoading(false);
+        try {
+          const authorized = await openOAuthPopup(selectedSaas as SaasType);
+          if (authorized) {
+            setConnectLoading(true);
+            setConnectError(null);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await attemptStartSync();
+          }
+        } catch (authErr) {
+          setConnectError('Authorization failed. Please try again.');
+        }
       }
-    } finally {
-      setConnectLoading(false);
+      return;
     }
-  }, [connectUrlInput, name]);
+    
+    // 其他 SaaS (Notion, Airtable, Google Sheets, Linear) 使用 connect/import API
+    const attemptImport = async (): Promise<boolean> => {
+      try {
+        const result = await importData({
+          url,
+          project_id: projectId,
+          table_name: name.trim() || undefined,
+        });
+        
+        if (result.success) {
+          await refreshProjects();
+          resetConnectState();
+          onClose();
+        }
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to import';
+        const lower = message.toLowerCase();
+        if (lower.includes('auth') || lower.includes('401') || lower.includes('not connected')) {
+          return false; // 需要授权
+        }
+        setConnectError(message);
+        setConnectLoading(false);
+        return true;
+      }
+    };
+    
+    const success = await attemptImport();
+    if (!success) {
+      setConnectLoading(false);
+      try {
+        const authorized = await openOAuthPopup(selectedSaas as SaasType);
+        if (authorized) {
+          setConnectLoading(true);
+          setConnectError(null);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await attemptImport();
+        }
+      } catch (authErr) {
+        setConnectError('Authorization failed. Please try again.');
+      }
+    }
+    
+    setConnectLoading(false);
+  }, [connectUrlInput, projectId, selectedSaas, name, onClose, resetConnectState]);
 
-  const handleConnectImport = useCallback(async () => {
-    if (!connectParseResult || !projectId) return;
-    try {
-      setConnectImporting(true);
-      setConnectError(null);
-      await importData({
-        url: connectParseResult.url,
-        project_id: projectId,
-        table_id: undefined,
-        table_name: name.trim() || connectParseResult.title || 'Imported Data',
-        table_description: `Imported from ${connectParseResult.source_type}`,
-      });
+  // 处理 sync task 完成
+  const handleSyncComplete = useCallback(async (rootNodeId: string) => {
       await refreshProjects();
       resetConnectState();
+    setSyncTaskId(null);
       onClose();
-    } catch (err) {
-      setConnectError(err instanceof Error ? err.message : 'Failed to import data');
-    } finally {
-      setConnectImporting(false);
-    }
-  }, [connectParseResult, name, projectId, onClose, resetConnectState]);
+  }, [onClose, resetConnectState]);
 
-  const parseFolderStructure = async (files: FileList, onProgress?: (c: number, t: number) => void): Promise<{ structure: Record<string, any>; etlFiles: File[] }> => {
-    const structure: Record<string, any> = {};
-    const etlFiles: File[] = [];
+  // 处理 sync task 错误
+  const handleSyncError = useCallback((error: string) => {
+    setConnectError(error);
+    setSyncTaskId(null);
+  }, []);
+
+  // 处理取消 sync task
+  const handleCancelSync = useCallback(async () => {
+    if (syncTaskId) {
+      try {
+        await cancelSyncTask(syncTaskId);
+      } catch (e) {
+        // Ignore cancel errors
+      }
+      setSyncTaskId(null);
+    }
+  }, [syncTaskId]);
+
+  /**
+   * 解析文件列表，构建节点列表（方案 B：真正的节点层级）
+   * 
+   * 返回：
+   * - nodes: 要创建的节点列表（folder, markdown, json, pending）
+   * - etlFiles: 需要 ETL 处理的文件列表，每个带有 temp_id 用于关联
+   */
+  const parseFolderStructure = async (
+    files: FileList,
+    onProgress?: (c: number, t: number) => void
+  ): Promise<{ nodes: BulkCreateNodeItem[]; etlFiles: { file: File; tempId: string }[] }> => {
+    const nodes: BulkCreateNodeItem[] = [];
+    const etlFiles: { file: File; tempId: string }[] = [];
     const fileArray = Array.from(files);
     let processed = 0;
+    let tempIdCounter = 0;
 
+    // 路径 -> temp_id 的映射，用于建立父子关系
+    const pathToTempId = new Map<string, string>();
+    
+    // 收集所有需要创建的文件夹路径
+    const folderPaths = new Set<string>();
     for (const file of fileArray) {
-      const pathParts = file.webkitRelativePath ? file.webkitRelativePath.split('/').filter(Boolean).slice(1) : [file.name];
-      if (pathParts.length === 0) { processed++; onProgress?.(processed, fileArray.length); continue; }
-      let current = structure;
-      for (let i = 0; i < pathParts.length - 1; i++) {
-        const folderName = pathParts[i];
-        if (!current[folderName] || typeof current[folderName] !== 'object') current[folderName] = {};
-        current = current[folderName];
+      const pathParts = file.webkitRelativePath
+        ? file.webkitRelativePath.split('/').filter(Boolean).slice(1) // 跳过根文件夹名
+        : [];
+      // 收集所有父文件夹路径
+      for (let i = 1; i < pathParts.length; i++) {
+        folderPaths.add(pathParts.slice(0, i).join('/'));
       }
+    }
+    
+    // 先创建所有文件夹节点（按路径深度排序，确保父文件夹先创建）
+    const sortedFolderPaths = Array.from(folderPaths).sort((a, b) => 
+      a.split('/').length - b.split('/').length
+    );
+    
+    for (const folderPath of sortedFolderPaths) {
+      const parts = folderPath.split('/');
+      const folderName = parts[parts.length - 1];
+      const parentPath = parts.slice(0, -1).join('/');
+      const tempId = `t_${tempIdCounter++}`;
+      
+      pathToTempId.set(folderPath, tempId);
+      
+      nodes.push({
+        temp_id: tempId,
+        name: folderName,
+        type: 'folder',
+        parent_temp_id: parentPath ? pathToTempId.get(parentPath) || null : null,
+      });
+    }
+    
+    // 然后创建所有文件节点
+    for (const file of fileArray) {
+      const pathParts = file.webkitRelativePath
+        ? file.webkitRelativePath.split('/').filter(Boolean).slice(1)
+        : [file.name];
+      
+      if (pathParts.length === 0) {
+        processed++;
+        onProgress?.(processed, fileArray.length);
+        continue;
+      }
+      
       const fileName = pathParts[pathParts.length - 1];
+      const parentPath = pathParts.slice(0, -1).join('/');
+      const parentTempId = parentPath ? pathToTempId.get(parentPath) || null : null;
+      const tempId = `t_${tempIdCounter++}`;
+      
       try {
         if (needsETL(file)) {
-          current[fileName] = null;
-          etlFiles.push(file);
+          // 需要 ETL 处理的文件，创建 pending 节点
+          nodes.push({
+            temp_id: tempId,
+            name: fileName,
+            type: 'pending',
+            parent_temp_id: parentTempId,
+          });
+          etlFiles.push({ file, tempId });
           setImportMessage(`Found ${fileName} for processing...`);
         } else {
           const isText = await isTextFileType(file);
-          if (isText) current[fileName] = sanitizeUnicode(await file.text());
-          else current[fileName] = null;
+          if (isText) {
+            const content = sanitizeUnicode(await file.text());
+            const ext = fileName.toLowerCase();
+            
+            // 根据扩展名决定节点类型
+            if (ext.endsWith('.json')) {
+              try {
+                const jsonContent = JSON.parse(content);
+                nodes.push({
+                  temp_id: tempId,
+                  name: fileName,
+                  type: 'json',
+                  parent_temp_id: parentTempId,
+                  content: jsonContent,
+                });
+              } catch {
+                // JSON 解析失败，作为 markdown 处理
+                nodes.push({
+                  temp_id: tempId,
+                  name: fileName,
+                  type: 'markdown',
+                  parent_temp_id: parentTempId,
+                  content: content,
+                });
+              }
+            } else {
+              // 其他文本文件作为 markdown
+              nodes.push({
+                temp_id: tempId,
+                name: fileName,
+                type: 'markdown',
+                parent_temp_id: parentTempId,
+                content: content,
+              });
+            }
+          } else {
+            // 非文本文件，创建 pending 节点
+            nodes.push({
+              temp_id: tempId,
+              name: fileName,
+              type: 'pending',
+              parent_temp_id: parentTempId,
+            });
+          }
         }
-      } catch (err) { current[fileName] = null; }
+      } catch (err) {
+        // 出错时创建 pending 节点
+        nodes.push({
+          temp_id: tempId,
+          name: fileName,
+          type: 'pending',
+          parent_temp_id: parentTempId,
+        });
+      }
+      
       processed++;
       onProgress?.(processed, fileArray.length);
     }
-    return { structure, etlFiles };
+    
+    return { nodes, etlFiles };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -270,47 +537,86 @@ export function TableManageDialog({
       } else if (startOption === 'documents' && selectedFiles && selectedFiles.length > 0) {
         setImportMessage('Preparing files...');
         const finalName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
-        const { structure, etlFiles } = await parseFolderStructure(selectedFiles);
-        setImportMessage('Creating context...');
-        const newTable = await createTable(
-          projectId,
-          finalName,
-          structure,
-          parentId
-        );
-        const newTableId = newTable.id;
+        
+        // 方案 B：使用批量创建 API，创建真正的节点层级
+        const { nodes, etlFiles } = await parseFolderStructure(selectedFiles);
+        
+        setImportMessage('Creating folder structure...');
+        
+        // 先创建根文件夹
+        const rootFolder = await createFolder(finalName, projectId || '', parentId);
+        const rootFolderId = rootFolder.id;
+        
+        // 然后批量创建子节点（如果有的话）
+        let tempIdToRealId = new Map<string, string>();
+        if (nodes.length > 0) {
+          const bulkResult = await bulkCreateNodes(projectId || '', nodes, rootFolderId);
+          // 建立 temp_id -> real_id 的映射
+          for (const item of bulkResult.created) {
+            tempIdToRealId.set(item.temp_id, item.node_id);
+          }
+        }
+        
+        // 处理 ETL 文件
         if (etlFiles.length > 0 && projectId) {
-          const placeholderTasks = etlFiles.map((file, index) => ({
+          const placeholderTasks = etlFiles.map(({ file }, index) => ({
             taskId: -(Date.now() + index),
             projectId: projectId,
-            tableId: String(newTableId),
+            tableId: rootFolderId,
             tableName: finalName,
             filename: file.name,
             status: 'pending' as const,
           }));
           addPendingTasks(placeholderTasks);
         }
+        
         await refreshProjects();
         onClose();
-        if (etlFiles.length > 0 && projectId && session?.access_token && newTableId) {
-          const filenameMap = new Map<string, string>();
-          etlFiles.forEach(f => {
-            filenameMap.set(f.name, f.name);
-            if (f.webkitRelativePath) filenameMap.set(f.webkitRelativePath, f.name);
-          });
+        
+        // 上传 ETL 文件（每个文件单独上传，指定目标节点 ID）
+        if (etlFiles.length > 0 && projectId && session?.access_token) {
           setTimeout(async () => {
             try {
-              const response = await uploadAndSubmit({ projectId: Number(projectId), files: etlFiles, nodeId: String(newTableId), jsonPath: '' }, session.access_token);
-              const realTasks = response.items.filter(item => item.status !== 'failed').map(item => ({
-                taskId: item.task_id, projectId: projectId, tableId: String(newTableId), tableName: finalName, filename: filenameMap.get(item.filename) || item.filename, status: 'pending' as const,
-              }));
-              if (realTasks.length > 0) replacePlaceholderTasks(String(newTableId), realTasks);
-              const failedFiles = response.items.filter(item => item.status === 'failed');
-              if (failedFiles.length > 0) {
-                const failedFileNames = failedFiles.map(f => filenameMap.get(f.filename) || f.filename);
-                removeFailedPlaceholders(String(newTableId), failedFileNames);
+              // 每个 ETL 文件单独上传，指定目标节点 ID
+              for (const { file, tempId } of etlFiles) {
+                const targetNodeId = tempIdToRealId.get(tempId);
+                if (!targetNodeId) {
+                  console.warn(`No target node for ETL file: ${file.name}`);
+                  continue;
+                }
+                
+                try {
+                  const response = await uploadAndSubmit(
+                    { 
+                      projectId: Number(projectId), 
+                      files: [file], 
+                      nodeId: targetNodeId, // 直接更新这个 pending 节点
+                    }, 
+                    session.access_token
+                  );
+                  
+                  const item = response.items[0];
+                  if (item && item.status !== 'failed') {
+                    replacePlaceholderTasks(rootFolderId, [{
+                      taskId: item.task_id,
+                      projectId: projectId,
+                      tableId: rootFolderId,
+                      tableName: finalName,
+                      filename: file.name,
+                      status: 'pending' as const,
+                    }]);
+                  } else if (item?.status === 'failed') {
+                    removeFailedPlaceholders(rootFolderId, [file.name]);
+                  }
+                } catch (err) {
+                  console.error(`Failed to upload ETL file ${file.name}:`, err);
+                  removeFailedPlaceholders(rootFolderId, [file.name]);
+                }
               }
-            } catch (etlError) { removeAllPlaceholdersForTable(String(newTableId)); }
+            } catch (etlError) {
+              console.error('ETL upload failed:', etlError);
+              removeAllPlaceholdersForTable(rootFolderId);
+            }
           }, 100);
         }
         return;
@@ -542,51 +848,148 @@ export function TableManageDialog({
 
               {startOption === 'connect' && (
                 <>
+                  {/* SaaS Logo 选择器 */}
+                  {!selectedSaas && (
                   <div>
-                     <label style={labelStyle}>Connector URL</label>
+                      <label style={labelStyle}>Select Data Source</label>
+                      <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(3, 1fr)', 
+                        gap: 12,
+                        marginTop: 8,
+                      }}>
+                        {SAAS_OPTIONS.map(saas => (
+                          <button
+                            key={saas.id}
+                            type="button"
+                            onClick={() => setSelectedSaas(saas.id)}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '16px 12px',
+                              background: '#27272A',
+                              border: '1px solid #3F3F46',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = '#3F3F46';
+                              e.currentTarget.style.borderColor = '#52525B';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = '#27272A';
+                              e.currentTarget.style.borderColor = '#3F3F46';
+                            }}
+                          >
+                            <div style={{ color: saas.color }}>
+                              {saas.icon}
+                            </div>
+                            <span style={{ fontSize: 12, color: '#E4E4E7', fontWeight: 500 }}>
+                              {saas.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 选中 SaaS 后显示 URL 输入 (hide when syncing) */}
+                  {selectedSaas && !syncTaskId && (
+                    <>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 12,
+                        padding: '12px 16px',
+                        background: '#27272A',
+                        borderRadius: 8,
+                        border: '1px solid #3F3F46',
+                      }}>
+                        <div style={{ color: SAAS_OPTIONS.find(s => s.id === selectedSaas)?.color || '#fff' }}>
+                          {SAAS_OPTIONS.find(s => s.id === selectedSaas)?.icon}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: '#E4E4E7' }}>
+                            {SAAS_OPTIONS.find(s => s.id === selectedSaas)?.name}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#71717A', marginTop: 2 }}>
+                            Paste a URL to import data
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSaas(null);
+                            setConnectUrlInput('');
+                            setConnectError(null);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#71717A',
+                            cursor: 'pointer',
+                            padding: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 6L6 18M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      <div>
+                        <label style={labelStyle}>
+                          {SAAS_OPTIONS.find(s => s.id === selectedSaas)?.name} URL
+                        </label>
                      <div style={{ display: 'flex', gap: 8 }}>
                        <input
                          type='text'
-                         placeholder='https://notion.so/...'
+                            placeholder={SAAS_OPTIONS.find(s => s.id === selectedSaas)?.placeholder || 'Enter URL...'}
                          value={connectUrlInput}
                          onChange={e => setConnectUrlInput(e.target.value)}
-                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleConnectParse(); } }}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleSaasImport(); } }}
                          style={{ ...inputStyle, flex: 1 }}
                          autoFocus
                        />
                        <button
                          type='button'
-                         onClick={() => void handleConnectParse()}
-                         disabled={connectLoading || !connectUrlInput.trim()}
+                            onClick={() => void handleSaasImport()}
+                            disabled={connectLoading || connectImporting || !connectUrlInput.trim()}
                          style={{
-                           ...buttonStyle(false),
-                           opacity: connectLoading || !connectUrlInput.trim() ? 0.5 : 1
+                              ...buttonStyle(true),
+                              opacity: connectLoading || connectImporting || !connectUrlInput.trim() ? 0.5 : 1
                          }}
                        >
-                         {connectLoading ? 'Parsing...' : 'Parse'}
+                            {connectLoading ? 'Connecting...' : connectImporting ? 'Importing...' : 'Import'}
                        </button>
                      </div>
                   </div>
+                    </>
+                  )}
 
-                  {connectStatusMeta && (
+                  {/* Sync Progress Panel */}
+                  {syncTaskId && (
+                    <SyncProgressPanel
+                      taskId={syncTaskId}
+                      onComplete={handleSyncComplete}
+                      onError={handleSyncError}
+                      onCancel={handleCancelSync}
+                    />
+                  )}
+
+                  {/* 状态提示 (only show when not syncing) */}
+                  {selectedSaas && connectStatusMeta && !syncTaskId && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: connectStatusMeta.color }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: connectStatusMeta.color }}></span>
                       {connectStatusMeta.label}
                     </div>
                   )}
 
-                  {connectParseResult && (
-                    <div style={{ padding: 12, background: '#27272A', borderRadius: 8, border: '1px solid #3F3F46', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#A1A1AA' }}>
-                          <span>{connectParseResult.source_type}</span>
-                          <span>{connectParseResult.total_items} items</span>
-                       </div>
-                       <div>
-                          <label style={labelStyle}>Name</label>
-                          <input type='text' value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
-                       </div>
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -599,24 +1002,25 @@ export function TableManageDialog({
               background: '#1C1C1E',
             }}>
               <button type='button' onClick={onClose} style={buttonStyle(false)}>Cancel</button>
+              {/* SaaS 导入使用内联的 Import 按钮，不需要底部按钮 */}
+              {startOption !== 'connect' && (
               <button
-                type={startOption === 'url' || startOption === 'connect' ? 'button' : 'submit'}
+                  type={startOption === 'url' ? 'button' : 'submit'}
                 onClick={
                   startOption === 'url' ? (urlInput.trim() ? () => setShowImportModal(true) : undefined) :
-                  startOption === 'connect' ? (connectParseResult ? () => void handleConnectImport() : undefined) :
                   undefined
                 }
                 disabled={
-                  loading || isImporting || connectImporting ||
+                    loading || isImporting ||
                   (startOption === 'empty' && !name.trim()) ||
                   (startOption === 'documents' && (!selectedFiles || selectedFiles.length === 0 || !name.trim())) ||
-                  (startOption === 'url' && !urlInput.trim()) ||
-                  (startOption === 'connect' && !connectParseResult)
+                    (startOption === 'url' && !urlInput.trim())
                 }
                 style={buttonStyle(true)}
               >
                 {mode === 'edit' ? 'Save Changes' : 'Create'}
               </button>
+              )}
             </div>
           </form>
         )}

@@ -153,8 +153,8 @@ class ProjectRepository:
             是否删除成功
         """
         try:
-            # 1. 删除关联的 context_table（数据跟随 project 删除）
-            self._client.table("context_table").delete().eq("project_id", project_id).execute()
+            # 1. 删除关联的 content_nodes（数据跟随 project 删除）
+            self._client.table("content_nodes").delete().eq("project_id", project_id).execute()
             
             # 2. 删除 project（etl_task 历史记录保留，project_id 保持原值）
             response = self._client.table("project").delete().eq("id", project_id).execute()

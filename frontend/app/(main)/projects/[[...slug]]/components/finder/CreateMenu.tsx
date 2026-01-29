@@ -307,7 +307,7 @@ export function CreateMenu({
                 </svg>
               }
               label="SaaS"
-              sublabel="Notion, Linear"
+              sublabel="Notion, GitHub, Sheets..."
               onClick={() => { onImportFromSaas(); onClose(); }}
             />
           </Submenu>

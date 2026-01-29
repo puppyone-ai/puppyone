@@ -106,6 +106,11 @@ from src.connect.router import router as connect_router
 
 connect_router_duration = time.time() - connect_router_start
 
+sync_task_router_start = time.time()
+from src.sync_task.router import router as sync_task_router
+
+sync_task_router_duration = time.time() - sync_task_router_start
+
 oauth_router_start = time.time()
 from src.oauth.router import router as oauth_router
 
@@ -120,6 +125,13 @@ content_node_router_start = time.time()
 from src.content_node.router import router as content_node_router
 
 content_node_router_duration = time.time() - content_node_router_start
+
+# Scheduler service import
+scheduler_start = time.time()
+from src.scheduler.service import get_scheduler_service
+from src.scheduler.config import scheduler_settings
+
+scheduler_import_duration = time.time() - scheduler_start
 
 routers_duration = (
     table_router_duration
@@ -196,7 +208,22 @@ async def app_lifespan(app: FastAPI):
             f"❌ MCP Server 健康检查失败 (耗时: {mcp_duration * 1000:.2f}ms): {e}"
         )
 
-    # 2. 初始化 ETL 服务（需要启用 ETL）
+    # 2. 初始化 Scheduler 服务
+    scheduler_init_start = time.time()
+    try:
+        if scheduler_settings.enabled:
+            log_info("⏰ 初始化 Scheduler 服务...")
+            scheduler_service = get_scheduler_service()
+            await scheduler_service.start()
+            scheduler_duration = time.time() - scheduler_init_start
+            log_info(f"✅ Scheduler 服务启动成功 (耗时: {scheduler_duration * 1000:.2f}ms)")
+        else:
+            log_info("⏭️  Scheduler 服务已跳过（SCHEDULER_ENABLED 关闭）")
+    except Exception as e:
+        scheduler_duration = time.time() - scheduler_init_start
+        log_error(f"❌ Scheduler 服务启动失败 (耗时: {scheduler_duration * 1000:.2f}ms): {e}")
+
+    # 3. 初始化 ETL 服务（需要启用 ETL）
     if settings.etl_enabled:
         etl_init_start = time.time()
         try:
@@ -235,6 +262,15 @@ async def app_lifespan(app: FastAPI):
     yield
     # 关闭时的清理逻辑
     log_info("ContextBase API 关闭中...")
+
+    # 停止 Scheduler 服务
+    if scheduler_settings.enabled:
+        try:
+            scheduler_service = get_scheduler_service()
+            await scheduler_service.shutdown()
+            log_info("Scheduler service stopped successfully")
+        except Exception as e:
+            log_error(f"Failed to stop Scheduler service: {e}")
 
     # 停止 ETL 服务（需要启用 ETL）
     if settings.etl_enabled:
@@ -296,6 +332,7 @@ def create_app() -> FastAPI:
         app.include_router(etl_router, prefix="/api/v1", tags=["etl"])
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
     app.include_router(connect_router, prefix="/api/v1", tags=["connect"])
+    app.include_router(sync_task_router, prefix="/api/v1", tags=["sync"])
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
     app.include_router(
         internal_router, tags=["internal"]

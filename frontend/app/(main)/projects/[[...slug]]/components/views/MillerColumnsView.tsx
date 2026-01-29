@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ContentType } from '../finder/items';
 import type { AgentResource } from './GridView';
+import { ItemActionMenu } from './ItemActionMenu';
+import { getNodeTypeConfig, isSyncedType, LockIcon } from '@/lib/nodeTypeConfig';
 
 // === Types ===
 
@@ -10,6 +12,11 @@ export interface MillerColumnItem {
   id: string;
   name: string;
   type: ContentType;
+  // 同步相关字段
+  is_synced?: boolean;
+  sync_source?: string | null;
+  sync_url?: string | null;
+  last_synced_at?: string | null;
 }
 
 export interface MillerColumnsViewProps {
@@ -23,6 +30,14 @@ export interface MillerColumnsViewProps {
   onNavigate?: (item: MillerColumnItem, pathToItem: string[]) => void;
   /** Create new item in folder */
   onCreateClick?: (e: React.MouseEvent, parentId: string | null) => void;
+  /** Rename item */
+  onRename?: (id: string, currentName: string) => void;
+  /** Delete item */
+  onDelete?: (id: string, name: string) => void;
+  /** Duplicate item */
+  onDuplicate?: (id: string) => void;
+  /** Refresh synced item */
+  onRefresh?: (id: string) => void;
   /** Loading state */
   loading?: boolean;
   /** Agent resources for highlighting */
@@ -81,8 +96,9 @@ const PlusIcon = () => (
 
 // === Helper ===
 
-function getIcon(type: ContentType) {
-  switch (type) {
+function getIcon(type: string) {
+  const config = getNodeTypeConfig(type);
+  switch (config.renderAs) {
     case 'folder':
       return <FolderIcon />;
     case 'markdown':
@@ -92,15 +108,9 @@ function getIcon(type: ContentType) {
   }
 }
 
-function getIconColor(type: ContentType) {
-  switch (type) {
-    case 'folder':
-      return '#a1a1aa';
-    case 'markdown':
-      return '#60a5fa';
-    default:
-      return '#34d399';
-  }
+function getIconColor(type: string) {
+  const config = getNodeTypeConfig(type);
+  return config.color;
 }
 
 // === Column Component ===
@@ -110,11 +120,15 @@ interface ColumnProps {
   selectedId?: string;
   onItemClick: (item: MillerColumnItem) => void;
   onCreateClick?: (e: React.MouseEvent) => void;
+  onRename?: (id: string, currentName: string) => void;
+  onDelete?: (id: string, name: string) => void;
+  onDuplicate?: (id: string) => void;
+  onRefresh?: (id: string) => void;
   loading?: boolean;
   resourceMap: Map<string, AgentResource>;
 }
 
-function Column({ items, selectedId, onItemClick, onCreateClick, loading, resourceMap }: ColumnProps) {
+function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDelete, onDuplicate, onRefresh, loading, resourceMap }: ColumnProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [createHovered, setCreateHovered] = useState(false);
 
@@ -143,9 +157,12 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading, resour
             {items.map(item => {
               const isSelected = selectedId === item.id;
               const isHovered = hoveredId === item.id;
-              const isFolder = item.type === 'folder';
+              const typeConfig = getNodeTypeConfig(item.type);
+              const isFolder = typeConfig.renderAs === 'folder';
               const agentResource = resourceMap.get(item.id);
               const hasAgentAccess = !!agentResource;
+              const isSynced = item.is_synced || isSyncedType(item.type);
+              const BadgeIcon = typeConfig.badgeIcon;
 
               return (
                 <div
@@ -153,8 +170,12 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading, resour
                   onClick={() => onItemClick(item)}
                   onMouseEnter={() => setHoveredId(item.id)}
                   onMouseLeave={() => setHoveredId(null)}
-                  draggable={true}
+                  draggable={!typeConfig.isReadOnly}
                   onDragStart={(e) => {
+                    if (typeConfig.isReadOnly) {
+                      e.preventDefault();
+                      return;
+                    }
                     e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify({
                       id: item.id,
                       name: item.name,
@@ -190,9 +211,31 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading, resour
                     transition: 'background 0.1s',
                   }}
                 >
-                  {/* Icon */}
-                  <div style={{ color: getIconColor(item.type), flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                  {/* Icon with Sync Badge */}
+                  <div style={{ 
+                    color: getIconColor(item.type), 
+                    flexShrink: 0, 
+                    display: 'flex', 
+                    alignItems: 'center',
+                    position: 'relative',
+                  }}>
                     {getIcon(item.type)}
+                    {/* Sync Badge (SaaS Logo) */}
+                    {BadgeIcon && (
+                      <div style={{
+                        position: 'absolute',
+                        bottom: -3,
+                        right: -5,
+                        background: '#18181b',
+                        borderRadius: 4,
+                        padding: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <BadgeIcon size={12} />
+                      </div>
+                    )}
                   </div>
 
                   {/* Name */}
@@ -206,6 +249,35 @@ function Column({ items, selectedId, onItemClick, onCreateClick, loading, resour
                   }}>
                     {item.name}
                   </div>
+
+                  {/* Action Menu */}
+                  {(onRename || onDelete || onDuplicate || (isSyncedType(item.type) && onRefresh)) && (
+                    <ItemActionMenu
+                      itemId={item.id}
+                      itemName={item.name}
+                      itemType={item.type}
+                      onRename={onRename}
+                      onDelete={onDelete}
+                      onDuplicate={onDuplicate}
+                      onRefresh={isSyncedType(item.type) ? onRefresh : undefined}
+                      syncUrl={item.sync_url}
+                      visible={isHovered}
+                      compact
+                      position="bottom-left"
+                    />
+                  )}
+
+                  {/* Read-only Lock Icon for synced items */}
+                  {typeConfig.isReadOnly && (
+                    <div style={{ 
+                      flexShrink: 0,
+                      color: '#525252',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}>
+                      <LockIcon size={10} />
+                    </div>
+                  )}
 
                   {/* Agent Access Tag */}
                   {hasAgentAccess && (
@@ -299,6 +371,10 @@ export function MillerColumnsView({
   onLoadChildren,
   onNavigate,
   onCreateClick,
+  onRename,
+  onDelete,
+  onDuplicate,
+  onRefresh,
   loading: externalLoading,
   agentResources,
 }: MillerColumnsViewProps) {
@@ -435,6 +511,10 @@ export function MillerColumnsView({
             e.preventDefault();
             onCreateClick(e, col.parentId);
           } : undefined}
+          onRename={onRename}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          onRefresh={onRefresh}
           loading={loadingColumns.has(col.parentId ?? '__root__')}
           resourceMap={resourceMap}
         />

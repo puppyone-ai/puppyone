@@ -9,15 +9,39 @@ import { apiRequest } from './apiClient';
 
 // === Types ===
 
+// 基础节点类型
+export type BaseNodeType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'pending';
+
+// 同步节点类型（{source}_{resource} 格式）
+export type SyncNodeType = 
+  | 'github_repo' | 'github_issue' | 'github_pr' | 'github_file'
+  | 'notion_database' | 'notion_page'
+  | 'airtable_table'
+  | 'linear_project' | 'linear_issue'
+  | 'sheets_table'
+  | string; // 允许未来扩展
+
+// 所有节点类型
+export type NodeType = BaseNodeType | SyncNodeType;
+
+// 同步来源
+export type SyncSource = 'github' | 'notion' | 'airtable' | 'linear' | 'sheets' | string;
+
 export interface NodeInfo {
   id: string;
   name: string;
-  type: 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file';
+  type: NodeType;
   project_id: string;
   id_path: string;
   parent_id: string | null;
   mime_type: string | null;
   size_bytes: number;
+  // 同步相关字段
+  sync_url: string | null;
+  sync_id: string | null;
+  last_synced_at: string | null;
+  is_synced: boolean;
+  sync_source: SyncSource | null;
   created_at: string;
   updated_at: string;
 }
@@ -234,4 +258,56 @@ export async function getDownloadUrl(
   nodeId: string
 ): Promise<DownloadUrlResponse> {
   return apiRequest<DownloadUrlResponse>(`/api/v1/nodes/${nodeId}/download`);
+}
+
+// === 批量创建 API ===
+
+export interface BulkCreateNodeItem {
+  temp_id: string;
+  name: string;
+  type: 'folder' | 'json' | 'markdown' | 'pending';
+  parent_temp_id: string | null;
+  content?: any;
+}
+
+export interface BulkCreateResultItem {
+  temp_id: string;
+  node_id: string;
+  name: string;
+  type: string;
+}
+
+export interface BulkCreateResponse {
+  created: BulkCreateResultItem[];
+  total: number;
+}
+
+/**
+ * 批量创建节点（用于文件夹上传）
+ * 
+ * @param projectId 项目 ID
+ * @param nodes 节点列表，每个包含 temp_id, name, type, parent_temp_id, content
+ * @param parentId 整体挂载到哪个父节点下，null 表示项目根目录
+ */
+export async function bulkCreateNodes(
+  projectId: string,
+  nodes: BulkCreateNodeItem[],
+  parentId?: string | null
+): Promise<BulkCreateResponse> {
+  const body: {
+    project_id: string;
+    nodes: BulkCreateNodeItem[];
+    parent_id?: string | null;
+  } = {
+    project_id: projectId,
+    nodes,
+  };
+  if (parentId) {
+    body.parent_id = parentId;
+  }
+
+  return apiRequest<BulkCreateResponse>('/api/v1/nodes/bulk-create', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }

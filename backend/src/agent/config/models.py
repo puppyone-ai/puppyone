@@ -9,7 +9,8 @@ from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
 
 
-AgentType = Literal["chat", "devbox", "webhook"]
+AgentType = Literal["chat", "devbox", "webhook", "schedule"]
+TriggerType = Literal["manual", "cron", "webhook"]
 
 
 class AgentAccess(BaseModel):
@@ -49,6 +50,16 @@ class Agent(BaseModel):
     description: Optional[str] = Field(None, description="Agent 描述")
 
     is_default: bool = Field(default=False, description="是否为默认 Agent")
+    
+    # MCP 外部访问
+    mcp_api_key: Optional[str] = Field(None, description="MCP API key for external access")
+    
+    # Schedule Agent 相关字段
+    trigger_type: Optional[str] = Field(default="manual", description="触发类型: manual, cron, webhook")
+    trigger_config: Optional[dict] = Field(None, description="触发配置 (cron 表达式等)")
+    task_content: Optional[str] = Field(None, description="任务内容 (手写的 todo)")
+    task_node_id: Optional[str] = Field(None, description="关联的任务文件 node ID")
+    external_config: Optional[dict] = Field(None, description="外部配置 (N8N/Zapier 等)")
 
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")

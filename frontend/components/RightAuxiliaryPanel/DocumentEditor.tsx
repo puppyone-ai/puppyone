@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 
 interface DocumentEditorProps {
   path: string;
@@ -234,7 +235,10 @@ export function DocumentEditor({
           <div style={{ padding: '12px 16px' }}>
             {editedValue ? (
               <div className='markdown-preview'>
-                <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw]}
+                >
                   {editedValue}
                 </ReactMarkdown>
                 <style jsx global>{`
@@ -295,6 +299,18 @@ export function DocumentEditor({
                   }
                   .markdown-preview li {
                     margin: 0.3em 0;
+                  }
+                  /* Task list (checkbox) 样式 */
+                  .markdown-preview input[type="checkbox"] {
+                    margin-right: 8px;
+                    width: 16px;
+                    height: 16px;
+                    accent-color: #22c55e;
+                    cursor: pointer;
+                  }
+                  .markdown-preview li:has(input[type="checkbox"]) {
+                    list-style-type: none;
+                    margin-left: -1.5em;
                   }
                   .markdown-preview blockquote {
                     border-left: 3px solid #525252;

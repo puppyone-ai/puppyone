@@ -101,6 +101,7 @@ export function ChatRuntimeView({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const inputAreaRef = useRef<ChatInputAreaRef>(null);
+  const isInitialScrollRef = useRef(true); // Track if this is initial load or agent switch
 
   // 编辑 agent 信息
   const [editingName, setEditingName] = useState('');
@@ -156,6 +157,7 @@ export function ChatRuntimeView({
       prevSessionIdRef.current = null;
       hasLoadedForSessionRef.current = null;
       prevAgentIdRef.current = currentAgentId;
+      isInitialScrollRef.current = true; // Reset scroll behavior for new agent
     }
   }, [currentAgentId]);
 
@@ -206,7 +208,17 @@ export function ChatRuntimeView({
 
   // Auto-scroll
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isInitialScrollRef.current) {
+      // Initial load or agent switch: jump instantly without animation
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      // After first scroll, use smooth scrolling for subsequent updates
+      if (messages.length > 0) {
+        isInitialScrollRef.current = false;
+      }
+    } else {
+      // New message arrived: smooth scroll
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [
     messages.length,
     messages[messages.length - 1]?.content,

@@ -15,10 +15,12 @@ from src.connect.schemas import (
 from src.common_schemas import ApiResponse
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
-from src.table.service import TableService
-from src.table.dependencies import get_table_service
+from src.content_node.service import ContentNodeService
+from src.content_node.dependencies import get_content_node_service
+from src.connect.providers.github_provider import GithubProvider
+from src.oauth.github_service import GithubOAuthService
 from src.exceptions import NotFoundException, BusinessException, ErrorCode
-from src.utils.logger import log_info
+from src.utils.logger import log_info, log_error
 
 router = APIRouter(
     prefix="/connect",
@@ -29,6 +31,30 @@ router = APIRouter(
         500: {"description": "服务器内部错误"},
     },
 )
+
+
+def _is_github_repo_url(url: str) -> bool:
+    """判断是否为 GitHub repo URL"""
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.netloc not in ("github.com", "www.github.com"):
+        return False
+    parts = parsed.path.strip("/").split("/")
+    # 只有 owner/repo 格式才是 repo URL（不是 issue/PR 等）
+    return len(parts) == 2
+
+
+def _get_node_type_for_file(filename: str) -> str:
+    """根据文件名获取节点类型"""
+    ext = filename.split('.')[-1].lower() if '.' in filename else ''
+    
+    if ext in ('md', 'markdown', 'mdx'):
+        return 'markdown'
+    elif ext in ('json', 'jsonc'):
+        return 'json'
+    else:
+        # 其他文本文件也存为 markdown（代码高亮）
+        return 'markdown'
 
 
 @router.post(
@@ -69,195 +95,232 @@ async def parse_url(
     "/import",
     response_model=ApiResponse[ImportDataResponse],
     summary="导入数据",
-    description="从URL导入数据到指定的项目和表格。如果未指定表格ID，将创建新表格。",
+    description="从URL导入数据到指定的项目。GitHub repo 会下载所有文件。",
     response_description="返回导入结果",
     status_code=status.HTTP_201_CREATED,
 )
 async def import_data(
     payload: ImportDataRequest,
     connect_service: ConnectService = Depends(get_connect_service),
-    table_service: TableService = Depends(get_table_service),
+    node_service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    导入数据到表格
+    导入数据到项目
 
-    - 如果提供table_id，将数据追加到现有表格
-    - 如果未提供table_id，将创建新表格
-    - 数据将保持原始平台的结构
+    - GitHub repo: 下载 ZIP，解压，每个文件存 S3，创建文件树
+    - 其他类型: 创建 JSON 节点
     """
     log_info(
         f"User {current_user.user_id} importing data from {payload.url} "
         f"to project {payload.project_id}"
     )
 
-    # 验证项目是否属于当前用户
-    if not table_service.verify_project_access(
-        payload.project_id, current_user.user_id
-    ):
-        raise NotFoundException(
-            f"Project not found: {payload.project_id}", code=ErrorCode.NOT_FOUND
+    url_str = str(payload.url)
+    
+    # === GitHub Repo 特殊处理：下载完整文件 ===
+    if _is_github_repo_url(url_str):
+        return await _import_github_repo(
+            url=url_str,
+            project_id=payload.project_id,
+            table_name=payload.table_name,
+            user_id=current_user.user_id,
+            node_service=node_service,
         )
 
-    # 获取完整数据
-    full_data_result = await connect_service.fetch_full_data(str(payload.url))
+    # === 其他类型：使用原有逻辑 ===
+    full_data_result = await connect_service.fetch_full_data(url_str)
     data = full_data_result.get("data", [])
     title = full_data_result.get("title", "Imported Data")
+    source_type = full_data_result.get("source_type", "generic")
 
     if not data:
         raise BusinessException(
             message="No data found to import", code=ErrorCode.BAD_REQUEST
         )
 
-    # 如果提供了table_id，追加数据到现有表格或指定路径
-    if payload.table_id:
-        table = table_service.get_by_id(payload.table_id)
-        if not table:
-            raise NotFoundException(
-                f"Table not found: {payload.table_id}", code=ErrorCode.NOT_FOUND
-            )
+    node_name = payload.table_name or title or "Imported Data"
+    content_data = {"imported_data": data} if isinstance(data, list) else data
+    items_imported = len(data) if isinstance(data, list) else 1
 
-        # 验证表格是否属于指定项目
-        if table.project_id != payload.project_id:
-            raise BusinessException(
-                message="Table does not belong to the specified project",
-                code=ErrorCode.BAD_REQUEST,
-            )
-
-        existing_data = table.data or {}
-
-        # 优先使用新的foolproof导入模式
-        if payload.import_mode in ["add_to_existing", "replace_all", "keep_separate"]:
-            log_info(f"Using foolproof import mode: {payload.import_mode}")
-
-            # 使用傻瓜式导入 - 100%成功
-            updated_data = connect_service.foolproof_import(
-                existing_data, data, payload.import_mode
-            )
-
-            items_imported = len(data) if isinstance(data, list) else 1
-
-            # 更新表格
-            updated_table = table_service.update(
-                table_id=payload.table_id,
-                name=None,
-                description=None,
-                data=updated_data,
-            )
-
-            mode_messages = {
-                "add_to_existing": f"Added {items_imported} items to existing data",
-                "replace_all": f"Replaced all data with {items_imported} new items",
-                "keep_separate": f"Stored {items_imported} items in imports section",
-            }
-
-            return ApiResponse.success(
-                data=ImportDataResponse(
-                    success=True,
-                    project_id=payload.project_id,
-                    table_id=payload.table_id,
-                    table_name=updated_table.name,
-                    items_imported=items_imported,
-                    message=mode_messages.get(
-                        payload.import_mode, f"Imported {items_imported} items"
-                    ),
-                ),
-                message="Data imported successfully",
-            )
-
-        # 兼容旧的路径级导入（如果指定了target_path）
-        if payload.target_path is not None:
-            log_info(
-                f"Using legacy path import: {payload.target_path} with strategy: {payload.merge_strategy}"
-            )
-
-            # 使用智能合并逻辑
-            updated_data = connect_service.merge_data_at_path(
-                existing_data, data, payload.target_path, payload.merge_strategy
-            )
-
-            items_imported = len(data) if isinstance(data, list) else 1
-            path_display = payload.target_path or "/"
-
-            # 更新表格
-            updated_table = table_service.update(
-                table_id=payload.table_id,
-                name=None,
-                description=None,
-                data=updated_data,
-            )
-
-            return ApiResponse.success(
-                data=ImportDataResponse(
-                    success=True,
-                    project_id=payload.project_id,
-                    table_id=payload.table_id,
-                    table_name=updated_table.name,
-                    items_imported=items_imported,
-                    message=f"Imported {items_imported} items to path {path_display}",
-                ),
-                message="Data imported successfully",
-            )
-
-        # 否则追加数据到表格（原有逻辑）
-        # 如果现有数据是字典，将新数据作为一个新key添加
-        if isinstance(existing_data, dict):
-            # 生成唯一的key
-            import_key = f"import_{len([k for k in existing_data.keys() if k.startswith('import_')]) + 1}"
-            existing_data[import_key] = data
-            updated_data = existing_data
-        # 如果现有数据是列表，直接扩展
-        elif isinstance(existing_data, list):
-            if isinstance(data, list):
-                updated_data = existing_data + data
-            else:
-                updated_data = existing_data + [data]
-        else:
-            # 其他情况，创建新结构
-            updated_data = {"existing": existing_data, "imported": data}
-
-        # 更新表格
-        updated_table = table_service.update(
-            table_id=payload.table_id, name=None, description=None, data=updated_data
-        )
-
-        items_imported = len(data) if isinstance(data, list) else 1
-
-        return ApiResponse.success(
-            data=ImportDataResponse(
-                success=True,
-                project_id=payload.project_id,
-                table_id=payload.table_id,
-                table_name=updated_table.name,
-                items_imported=items_imported,
-                message=f"Successfully imported {items_imported} items to table {updated_table.name}",
-            ),
-            message="Data imported successfully",
-        )
-
-    # 否则创建新表格
-    else:
-        table_name = payload.table_name or title or "Imported Data"
-        table_description = payload.table_description or f"Imported from {payload.url}"
-
-        # 创建新表格
-        new_table = table_service.create(
+    # 判断是否为 SaaS 同步类型
+    is_sync_type = "_" in source_type and source_type != "generic"
+    
+    if is_sync_type:
+        new_node = await node_service.create_synced_node(
+            user_id=current_user.user_id,
             project_id=payload.project_id,
-            name=table_name,
-            description=table_description,
-            data={"imported_data": data} if isinstance(data, list) else data,
+            name=node_name,
+            sync_type=source_type,
+            sync_url=url_str,
+            content=content_data,
+            parent_id=None,
+            )
+        message = f"Successfully imported {source_type}: {new_node.name}"
+    else:
+        new_node = node_service.create_json_node(
+            user_id=current_user.user_id,
+            project_id=payload.project_id,
+            name=node_name,
+            content=content_data,
+            parent_id=None,
         )
+        message = f"Successfully created node {new_node.name} and imported {items_imported} items"
 
-        items_imported = len(data) if isinstance(data, list) else 1
+    return ApiResponse.success(
+        data=ImportDataResponse(
+            success=True,
+            project_id=payload.project_id,
+            table_id=new_node.id,
+            table_name=new_node.name,
+            items_imported=items_imported,
+            message=message,
+        ),
+        message="Data imported successfully",
+    )
 
-        return ApiResponse.success(
-            data=ImportDataResponse(
-                success=True,
-                project_id=payload.project_id,
-                table_id=new_table.id,
-                table_name=new_table.name,
-                items_imported=items_imported,
-                message=f"Successfully created table {new_table.name} and imported {items_imported} items",
-            ),
-            message="Data imported successfully",
+
+async def _import_github_repo(
+    url: str,
+    project_id: str,
+    table_name: str | None,
+    user_id: str,
+    node_service: ContentNodeService,
+) -> ApiResponse:
+    """
+    导入 GitHub repo：
+    1. 下载 ZIP
+    2. 解压获取所有文件
+    3. 创建 github_repo 类型的根文件夹
+    4. 为每个文件/文件夹创建子节点，内容存 S3
+    """
+    from datetime import datetime
+    
+    # 1. 下载 repo 文件
+    github_service = GithubOAuthService()
+    github_provider = GithubProvider(user_id=user_id, github_service=github_service)
+    
+    log_info(f"Downloading GitHub repo files from: {url}")
+    repo_data = await github_provider.fetch_repo_files(url)
+    
+    repo_name = table_name or repo_data["repo_name"]
+    files = repo_data["files"]
+    
+    log_info(f"Downloaded {len(files)} files from {repo_data['full_name']}")
+
+    # 2. 创建根节点（github_repo 类型）
+    root_node = await node_service.create_synced_node(
+        user_id=user_id,
+        project_id=project_id,
+        name=repo_name,
+        sync_type="github_repo",
+        sync_url=url,
+        content={
+            "repo_name": repo_data["repo_name"],
+            "owner": repo_data["owner"],
+            "full_name": repo_data["full_name"],
+            "description": repo_data.get("description"),
+            "default_branch": repo_data["default_branch"],
+            "html_url": repo_data.get("html_url"),
+            "file_count": len(files),
+            "synced_at": datetime.utcnow().isoformat(),
+        },
+        parent_id=None,
+    )
+    
+    log_info(f"Created root node: {root_node.id} ({root_node.name})")
+
+    # 3. 创建文件夹结构和文件节点
+    # 首先收集所有需要创建的文件夹
+    folders_to_create: dict[str, str | None] = {}  # path -> parent_path (None for root level)
+    
+    for file_info in files:
+        path = file_info["path"]
+        parts = path.split("/")
+        
+        # 创建中间文件夹
+        for i in range(len(parts) - 1):
+            folder_path = "/".join(parts[:i+1])
+            if folder_path not in folders_to_create:
+                parent_path = "/".join(parts[:i]) if i > 0 else None
+                folders_to_create[folder_path] = parent_path
+
+    # 按层级顺序创建文件夹
+    folder_id_map: dict[str, str] = {}  # path -> node_id
+    
+    sorted_folders = sorted(folders_to_create.keys(), key=lambda x: x.count("/"))
+    for folder_path in sorted_folders:
+        parent_path = folders_to_create[folder_path]
+        parent_id = folder_id_map.get(parent_path, root_node.id) if parent_path else root_node.id
+        folder_name = folder_path.split("/")[-1]
+        
+        folder_node = node_service.create_folder(
+            user_id=user_id,
+            project_id=project_id,
+            name=folder_name,
+            parent_id=parent_id,
         )
+        folder_id_map[folder_path] = folder_node.id
+
+    # 4. 创建文件节点（内容存 S3）
+    files_created = 0
+    for file_info in files:
+        path = file_info["path"]
+        parts = path.split("/")
+        file_name = parts[-1]
+        
+        # 确定父节点
+        if len(parts) > 1:
+            parent_path = "/".join(parts[:-1])
+            parent_id = folder_id_map.get(parent_path, root_node.id)
+        else:
+            parent_id = root_node.id
+        
+        # 确定节点类型
+        node_type = _get_node_type_for_file(file_name)
+        content = file_info["content"]
+        
+        try:
+            if node_type == "markdown":
+                # Markdown 文件存 S3
+                await node_service.create_markdown_node(
+                    user_id=user_id,
+                    project_id=project_id,
+                    name=file_name,
+                    content=content,
+                    parent_id=parent_id,
+                )
+            elif node_type == "json":
+                # JSON 文件解析后存储
+                import json
+                try:
+                    json_content = json.loads(content)
+                except json.JSONDecodeError:
+                    json_content = {"raw": content}
+                
+                node_service.create_json_node(
+                    user_id=user_id,
+                    project_id=project_id,
+                    name=file_name,
+                    content=json_content,
+                    parent_id=parent_id,
+                )
+            
+            files_created += 1
+        except Exception as e:
+            log_error(f"Failed to create node for {path}: {e}")
+            continue
+
+    log_info(f"Created {files_created} file nodes for repo {repo_name}")
+
+    return ApiResponse.success(
+        data=ImportDataResponse(
+            success=True,
+            project_id=project_id,
+            table_id=root_node.id,
+            table_name=root_node.name,
+            items_imported=files_created,
+            message=f"Successfully imported GitHub repo {repo_data['full_name']}: {files_created} files",
+        ),
+        message="GitHub repo imported successfully",
+    )

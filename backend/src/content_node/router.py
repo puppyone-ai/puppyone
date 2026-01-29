@@ -11,6 +11,9 @@ from src.content_node.schemas import (
     CreateMarkdownNodeRequest,
     UpdateNodeRequest,
     MoveNodeRequest,
+    BulkCreateRequest,
+    BulkCreateResponse,
+    BulkCreateResultItem,
     NodeInfo,
     NodeDetail,
     NodeListResponse,
@@ -42,6 +45,12 @@ def _node_to_info(node) -> NodeInfo:
         parent_id=node.parent_id,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
+        # 同步相关字段
+        sync_url=node.sync_url,
+        sync_id=node.sync_id,
+        last_synced_at=node.last_synced_at.isoformat() if node.last_synced_at else None,
+        is_synced=node.is_synced,
+        sync_source=node.sync_source,
         created_at=node.created_at.isoformat(),
         updated_at=node.updated_at.isoformat(),
     )
@@ -61,6 +70,12 @@ def _node_to_detail(node) -> NodeDetail:
         content=node.content,
         s3_key=node.s3_key,
         permissions=node.permissions,
+        # 同步相关字段
+        sync_url=node.sync_url,
+        sync_id=node.sync_id,
+        last_synced_at=node.last_synced_at.isoformat() if node.last_synced_at else None,
+        is_synced=node.is_synced,
+        sync_source=node.sync_source,
         created_at=node.created_at.isoformat(),
         updated_at=node.updated_at.isoformat(),
     )
@@ -180,6 +195,65 @@ async def create_markdown_node(
         parent_id=request.parent_id,
     )
     return ApiResponse.success(data=_node_to_detail(node), message="Markdown 节点创建成功")
+
+
+@router.post(
+    "/bulk-create",
+    response_model=ApiResponse[BulkCreateResponse],
+    summary="批量创建节点",
+    description="批量创建文件夹和文件节点（用于文件夹上传）",
+    status_code=status.HTTP_201_CREATED,
+)
+async def bulk_create_nodes(
+    request: BulkCreateRequest,
+    service: ContentNodeService = Depends(get_content_node_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """
+    批量创建节点，用于文件夹上传场景。
+    
+    节点通过 temp_id 和 parent_temp_id 建立层级关系：
+    - temp_id: 每个节点的临时标识（前端生成）
+    - parent_temp_id: 父节点的临时标识，None 表示挂载到 parent_id 指定的节点下
+    
+    示例：上传文件夹 my-docs/
+    ```json
+    {
+      "project_id": "xxx",
+      "parent_id": null,
+      "nodes": [
+        {"temp_id": "t1", "name": "my-docs", "type": "folder", "parent_temp_id": null},
+        {"temp_id": "t2", "name": "readme.md", "type": "markdown", "parent_temp_id": "t1", "content": "# Hello"},
+        {"temp_id": "t3", "name": "report.pdf", "type": "pending", "parent_temp_id": "t1"}
+      ]
+    }
+    ```
+    """
+    nodes_data = [
+        {
+            "temp_id": n.temp_id,
+            "name": n.name,
+            "type": n.type,
+            "parent_temp_id": n.parent_temp_id,
+            "content": n.content,
+        }
+        for n in request.nodes
+    ]
+    
+    results = await service.bulk_create_nodes(
+        user_id=current_user.user_id,
+        project_id=request.project_id,
+        nodes=nodes_data,
+        root_parent_id=request.parent_id,
+    )
+    
+    return ApiResponse.success(
+        data=BulkCreateResponse(
+            created=[BulkCreateResultItem(**r) for r in results],
+            total=len(results),
+        ),
+        message=f"成功创建 {len(results)} 个节点",
+    )
 
 
 @router.post(

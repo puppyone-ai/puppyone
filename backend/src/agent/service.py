@@ -53,6 +53,346 @@ class AgentService:
     def __init__(self, anthropic_client=None):
         self._anthropic = anthropic_client or _default_anthropic_client()
 
+    async def execute_task_sync(
+        self,
+        agent_id: str,
+        task_content: str,
+        user_id: str,
+        node_service,
+        sandbox_service,
+        s3_service=None,
+        agent_config_service=None,
+        max_iterations: int = 15,
+    ) -> dict:
+        """
+        非流式执行 Agent 任务（用于 Schedule Agent）
+        
+        复用 stream_events 的核心逻辑，但不需要流式输出和聊天历史。
+        
+        Args:
+            agent_id: Agent ID
+            task_content: 任务内容（来自 agent.task_content）
+            user_id: 用户 ID（agent 的 owner）
+            node_service: ContentNodeService
+            sandbox_service: SandboxService
+            s3_service: S3Service（可选）
+            agent_config_service: AgentConfigService
+            max_iterations: 最大迭代次数
+            
+        Returns:
+            dict with execution results
+        """
+        import time
+        from src.config import settings
+        
+        result = {
+            "status": "success",
+            "output_summary": "",
+            "tool_calls": [],
+            "updated_nodes": [],
+        }
+        
+        try:
+            # ========== 1. 获取 Agent 配置 ==========
+            if not agent_config_service:
+                return {"status": "failed", "error": "agent_config_service is required"}
+            
+            agent = agent_config_service.get_agent(agent_id)
+            if not agent:
+                return {"status": "failed", "error": f"Agent not found: {agent_id}"}
+            
+            if agent.user_id != user_id:
+                return {"status": "failed", "error": "Unauthorized access to agent"}
+            
+            logger.info(f"[ScheduleAgent] Executing agent: {agent.name} (id={agent_id})")
+            
+            # ========== 2. 收集 bash tools ==========
+            bash_tools: list[dict] = []
+            for access in agent.accesses:
+                if access.terminal:
+                    bash_tools.append({
+                        "node_id": access.node_id,
+                        "json_path": (access.json_path or "").strip(),
+                        "readonly": access.terminal_readonly,
+                    })
+                    logger.info(f"[ScheduleAgent] Found bash access: node_id={access.node_id}")
+            
+            use_bash = len(bash_tools) > 0
+            sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
+            
+            # ========== 3. 准备沙盒数据 ==========
+            sandbox_data: SandboxData | None = None
+            sandbox_session_id = None
+            node_path_map: dict = {}
+            
+            if use_bash and node_service:
+                all_files: list[SandboxFile] = []
+                primary_node_type = "folder"
+                primary_node_id = ""
+                primary_node_name = ""
+                
+                for i, tool in enumerate(bash_tools):
+                    try:
+                        data = await prepare_sandbox_data(
+                            node_service=node_service,
+                            node_id=tool["node_id"],
+                            json_path=tool["json_path"],
+                            user_id=user_id,
+                        )
+                        logger.info(f"[ScheduleAgent] Prepared sandbox data: node_id={tool['node_id']}, files={len(data.files)}")
+                        all_files.extend(data.files)
+                        
+                        if data.files:
+                            main_path = data.files[0].path
+                            node_path_map[tool["node_id"]] = {
+                                "path": main_path,
+                                "node_type": data.node_type,
+                                "json_path": tool["json_path"],
+                                "readonly": tool["readonly"],
+                            }
+                        
+                        if i == 0:
+                            primary_node_type = data.node_type
+                            primary_node_id = data.root_node_id
+                            primary_node_name = data.root_node_name
+                    except Exception as e:
+                        logger.warning(f"[ScheduleAgent] Failed to prepare sandbox data: {e}")
+                
+                sandbox_data = SandboxData(
+                    files=all_files,
+                    node_type=primary_node_type if len(bash_tools) == 1 else "multi",
+                    root_node_id=primary_node_id,
+                    root_node_name=primary_node_name,
+                    node_path_map=node_path_map,
+                )
+            
+            # ========== 4. 启动沙盒 ==========
+            if use_bash and sandbox_service:
+                sandbox_session_id = f"schedule-{int(time.time() * 1000)}"
+                
+                if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
+                    json_content = {}
+                    if sandbox_data.files:
+                        try:
+                            json_content = json.loads(sandbox_data.files[0].content or "{}")
+                        except:
+                            json_content = {}
+                    start_result = await sandbox_service.start(
+                        session_id=sandbox_session_id,
+                        data=json_content,
+                        readonly=sandbox_readonly,
+                    )
+                else:
+                    start_result = await sandbox_service.start_with_files(
+                        session_id=sandbox_session_id,
+                        files=sandbox_data.files if sandbox_data else [],
+                        readonly=sandbox_readonly,
+                        s3_service=s3_service,
+                    )
+                
+                if not start_result.get("success"):
+                    return {"status": "failed", "error": start_result.get("error", "Failed to start sandbox")}
+                
+                logger.info(f"[ScheduleAgent] Sandbox started: {sandbox_session_id}")
+            
+            # ========== 5. 构建 Claude 请求 ==========
+            tools = [BASH_TOOL] if use_bash else []
+            
+            if use_bash and sandbox_data:
+                node_type = sandbox_data.node_type
+                if node_type == "json":
+                    system_prompt = "You are an AI agent specialized in JSON data processing. Use the bash tool to view and manipulate data in /workspace/data.json."
+                elif node_type == "folder":
+                    system_prompt = "You are an AI agent with access to a file system. Use the bash tool to explore and manipulate files in /workspace/."
+                elif node_type == "multi":
+                    system_prompt = "You are an AI agent with access to multiple files and folders. Use the bash tool to explore and manipulate files in /workspace/."
+                else:
+                    system_prompt = f"You are an AI agent with access to a {node_type} file. Use the bash tool to analyze the file in /workspace/."
+            else:
+                system_prompt = "You are an AI agent, a helpful assistant."
+            
+            # 构建用户消息
+            user_content = task_content
+            if use_bash and sandbox_data:
+                mode_str = "⚠️ 只读模式" if sandbox_readonly else "✏️ 可读写模式"
+                context_prefix = (
+                    f"[数据上下文]\n"
+                    f"工作目录: /workspace/\n"
+                    f"文件数量: {len(sandbox_data.files)}\n"
+                    f"权限: {mode_str}\n"
+                    f"[任务]\n"
+                )
+                user_content = context_prefix + task_content
+            
+            messages = [{"role": "user", "content": user_content}]
+            
+            # ========== 6. 调用 Claude (非流式循环) ==========
+            iterations = 0
+            all_text_outputs = []
+            
+            while iterations < max_iterations:
+                iterations += 1
+                logger.info(f"[ScheduleAgent] Claude iteration {iterations}")
+                
+                try:
+                    response = await self._anthropic.messages.create(
+                        model=settings.ANTHROPIC_MODEL,
+                        max_tokens=4096,
+                        system=system_prompt,
+                        tools=tools,
+                        messages=messages,
+                    )
+                    
+                    stop_reason = response.stop_reason
+                    content_blocks = response.content
+                    
+                    # 处理响应内容
+                    tool_uses = []
+                    response_content = []
+                    
+                    for block in content_blocks:
+                        block_type = getattr(block, "type", None)
+                        if block_type == "text":
+                            text = getattr(block, "text", "")
+                            all_text_outputs.append(text)
+                            response_content.append({"type": "text", "text": text})
+                        elif block_type == "tool_use":
+                            tool_uses.append({
+                                "id": getattr(block, "id", ""),
+                                "name": getattr(block, "name", ""),
+                                "input": getattr(block, "input", {}),
+                            })
+                            response_content.append({
+                                "type": "tool_use",
+                                "id": getattr(block, "id", ""),
+                                "name": getattr(block, "name", ""),
+                                "input": getattr(block, "input", {}),
+                            })
+                    
+                    logger.info(f"[ScheduleAgent] Claude response: stop_reason={stop_reason}, tool_uses={len(tool_uses)}")
+                    
+                    # 没有工具调用，结束
+                    if not tool_uses:
+                        break
+                    
+                    # 执行工具
+                    tool_results = []
+                    for tool in tool_uses:
+                        tool_name = tool.get("name", "")
+                        tool_input = tool.get("input", {})
+                        
+                        if tool_name == "bash" and use_bash and sandbox_service:
+                            command = tool_input.get("command", "")
+                            logger.info(f"[ScheduleAgent] Executing bash: {command[:100]}")
+                            
+                            exec_result = await sandbox_service.exec(sandbox_session_id, command)
+                            if exec_result.get("success"):
+                                output = exec_result.get("output", "")
+                                result["tool_calls"].append({
+                                    "command": command,
+                                    "output": output[:500],
+                                    "success": True,
+                                })
+                            else:
+                                output = exec_result.get("error", "")
+                                result["tool_calls"].append({
+                                    "command": command,
+                                    "output": output[:500],
+                                    "success": False,
+                                })
+                        else:
+                            output = f"Unknown tool: {tool_name}"
+                        
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool.get("id", ""),
+                            "content": output,
+                        })
+                    
+                    messages.append({"role": "assistant", "content": response_content})
+                    messages.append({"role": "user", "content": tool_results})
+                    
+                    if stop_reason == "end_turn":
+                        break
+                        
+                except Exception as e:
+                    logger.error(f"[ScheduleAgent] Claude error: {e}")
+                    result["status"] = "failed"
+                    result["error"] = str(e)
+                    break
+            
+            # ========== 7. 回写数据到数据库 ==========
+            if use_bash and sandbox_service and sandbox_session_id and not sandbox_readonly:
+                if sandbox_data and sandbox_data.node_path_map and node_service:
+                    for node_id, info in sandbox_data.node_path_map.items():
+                        if info.get("readonly"):
+                            continue
+                        
+                        node_type = info.get("node_type", "")
+                        sandbox_path = info.get("path", "")
+                        json_path_config = info.get("json_path", "")
+                        
+                        if node_type not in ("json", "markdown"):
+                            continue
+                        
+                        try:
+                            parse_json = (node_type == "json")
+                            read_result = await sandbox_service.read_file(
+                                sandbox_session_id, sandbox_path, parse_json=parse_json
+                            )
+                            
+                            if not read_result.get("success"):
+                                continue
+                            
+                            sandbox_content = read_result.get("content")
+                            node = node_service.get_by_id(node_id, user_id)
+                            if not node:
+                                continue
+                            
+                            if node_type == "json":
+                                if json_path_config:
+                                    updated_data = merge_data_by_path(
+                                        node.content or {}, json_path_config, sandbox_content
+                                    )
+                                else:
+                                    updated_data = sandbox_content
+                                
+                                node_service.update_node(
+                                    node_id=node_id,
+                                    user_id=user_id,
+                                    content=updated_data,
+                                )
+                            elif node_type == "markdown":
+                                await node_service.update_markdown_content(
+                                    node_id=node_id,
+                                    user_id=user_id,
+                                    content=sandbox_content,
+                                )
+                            
+                            result["updated_nodes"].append({
+                                "nodeId": node_id,
+                                "nodeName": node.name,
+                            })
+                            logger.info(f"[ScheduleAgent] Wrote back data to node: {node_id}")
+                            
+                        except Exception as e:
+                            logger.warning(f"[ScheduleAgent] Failed to write back: {e}")
+                
+                # 停止沙盒
+                await sandbox_service.stop(sandbox_session_id)
+                logger.info(f"[ScheduleAgent] Sandbox stopped")
+            elif sandbox_session_id and sandbox_service:
+                await sandbox_service.stop(sandbox_session_id)
+            
+            # ========== 8. 返回结果 ==========
+            result["output_summary"] = "\n".join(all_text_outputs)[:2000]
+            logger.info(f"[ScheduleAgent] Execution completed: {result['status']}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"[ScheduleAgent] Execution failed: {e}")
+            return {"status": "failed", "error": str(e)}
+
     async def stream_events(
         self,
         request: AgentRequest,
@@ -294,49 +634,68 @@ class AgentService:
         user_content = request.prompt
         if use_bash and sandbox_data:
             node_type = sandbox_data.node_type
+            node_path_map = sandbox_data.node_path_map or {}
+            
+            # 生成详细的权限清单
+            def build_access_list() -> str:
+                lines = []
+                for tool in bash_tools:
+                    path_info = node_path_map.get(tool["node_id"], {})
+                    path = path_info.get("path", "/workspace/unknown")
+                    node_name = path.split("/")[-1] if path else "unknown"
+                    mode = "👁️ View Only" if tool["readonly"] else "✏️ Editable"
+                    lines.append(f"  - {path} ({mode})")
+                return "\n".join(lines) if lines else "  - /workspace/ (unknown)"
             
             if node_type == "json" and len(bash_tools) == 1:
                 json_path = bash_tools[0]["json_path"] or "/"
+                mode_str = "⚠️ 只读模式 - 修改不会被保存" if sandbox_readonly else "✏️ 可读写模式"
                 context_prefix = (
                     f"[数据上下文]\n"
                     f"节点类型: JSON\n"
                     f"数据文件: /workspace/data.json\n"
                     f"JSON 路径: {json_path}\n"
-                    f"权限: {'⚠️ 只读模式' if sandbox_readonly else '可读写模式'}\n"
+                    f"权限: {mode_str}\n"
                     f"[用户消息]\n"
                 )
-            elif node_type == "folder":
+            elif node_type == "folder" and len(bash_tools) == 1:
+                mode_str = "⚠️ 只读模式 - 修改不会被保存" if sandbox_readonly else "✏️ 可读写模式"
                 context_prefix = (
                     f"[数据上下文]\n"
                     f"节点类型: 文件夹\n"
                     f"文件夹名: {sandbox_data.root_node_name}\n"
                     f"工作目录: /workspace/\n"
                     f"文件数量: {len(sandbox_data.files)}\n"
-                    f"权限: {'⚠️ 只读模式' if sandbox_readonly else '可读写模式'}\n"
+                    f"权限: {mode_str}\n"
                     f"[用户消息]\n"
                 )
-            elif node_type == "multi":
-                # 多个 access
+            elif node_type == "multi" or len(bash_tools) > 1:
+                # 多个 access - 显示详细权限清单
+                access_list = build_access_list()
                 context_prefix = (
                     f"[数据上下文]\n"
-                    f"节点类型: 多个文件/文件夹\n"
-                    f"访问数量: {len(bash_tools)} 个\n"
                     f"工作目录: /workspace/\n"
-                    f"文件数量: {len(sandbox_data.files)}\n"
-                    f"权限: {'⚠️ 只读模式' if sandbox_readonly else '可读写模式'}\n"
+                    f"总文件数: {len(sandbox_data.files)}\n\n"
+                    f"📂 可访问的资源:\n"
+                    f"{access_list}\n\n"
+                    f"⚠️ 重要提示:\n"
+                    f"  - 只有上述路径的内容会被保存\n"
+                    f"  - /workspace/ 根目录不能创建新文件\n"
+                    f"  - View Only 路径的修改不会被持久化\n"
                     f"[用户消息]\n"
                 )
             else:
-                # file/pdf/image 等
+                # file/pdf/image 等单个文件
                 file_name = sandbox_data.files[0].path.split("/")[-1] if sandbox_data.files else "file"
-            context_prefix = (
-                f"[数据上下文]\n"
+                mode_str = "⚠️ 只读模式 - 修改不会被保存" if sandbox_readonly else "✏️ 可读写模式"
+                context_prefix = (
+                    f"[数据上下文]\n"
                     f"节点类型: {node_type}\n"
                     f"文件名: {file_name}\n"
                     f"文件路径: /workspace/{file_name}\n"
-                    f"权限: {'⚠️ 只读模式' if sandbox_readonly else '可读写模式'}\n"
-                f"[用户消息]\n"
-            )
+                    f"权限: {mode_str}\n"
+                    f"[用户消息]\n"
+                )
             user_content = context_prefix + request.prompt
         
         messages.append({"role": "user", "content": user_content})
@@ -560,17 +919,19 @@ class AgentService:
                     sandbox_path = info.get("path", "")
                     json_path = info.get("json_path", "")
                     
-                    # 只回写 JSON 类型的节点
-                    if node_type != "json":
-                        logger.info(f"[Agent] Skipping write-back for non-JSON node: {node_id} (type={node_type})")
+                    # 支持回写的节点类型：json, markdown
+                    if node_type not in ("json", "markdown"):
+                        logger.info(f"[Agent] Skipping write-back for unsupported node type: {node_id} (type={node_type})")
                         continue
                     
                     try:
                         # 从沙盒读取文件
+                        # JSON 文件需要解析，markdown 文件保持原样
+                        parse_json = (node_type == "json")
                         read_result = await sandbox_service.read_file(
                             sandbox_session_id, 
                             sandbox_path, 
-                            parse_json=True
+                            parse_json=parse_json
                         )
                         
                         if not read_result.get("success"):
@@ -584,20 +945,29 @@ class AgentService:
                         if not node:
                             continue
                         
-                        # 合并数据（如果有 json_path）
-                        if json_path:
-                            updated_data = merge_data_by_path(
-                                node.content or {}, json_path, sandbox_content
+                        # 根据节点类型选择不同的更新方式
+                        if node_type == "json":
+                            # JSON 类型：合并数据（如果有 json_path）
+                            if json_path:
+                                updated_data = merge_data_by_path(
+                                    node.content or {}, json_path, sandbox_content
+                                )
+                            else:
+                                updated_data = sandbox_content
+                            
+                            # 写回数据库（content 字段）
+                            node_service.update_node(
+                                node_id=node_id,
+                                user_id=current_user.user_id,
+                                content=updated_data,
                             )
-                        else:
-                            updated_data = sandbox_content
-                        
-                        # 写回数据库
-                        node_service.update_node(
-                            node_id=node_id,
-                            user_id=current_user.user_id,
-                            content=updated_data,
-                        )
+                        elif node_type == "markdown":
+                            # markdown 类型：上传到 S3
+                            await node_service.update_markdown_content(
+                                node_id=node_id,
+                                user_id=current_user.user_id,
+                                content=sandbox_content,
+                            )
                         
                         updated_nodes.append({
                             "nodeId": node_id,

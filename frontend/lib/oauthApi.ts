@@ -338,6 +338,57 @@ export async function connectGithub(): Promise<void> {
   }
 }
 
+/**
+ * 在 popup 窗口中打开 GitHub OAuth 授权
+ * 授权完成后自动关闭 popup 并返回
+ */
+export async function connectGithubPopup(): Promise<boolean> {
+  try {
+    const authUrl = await getGithubAuthUrl();
+    
+    // 打开 popup 窗口
+    const width = 600;
+    const height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    const popup = window.open(
+      authUrl,
+      'github-oauth',
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+    );
+    
+    if (!popup) {
+      // Popup 被阻止，fallback 到跳转
+      window.location.href = authUrl;
+      return false;
+    }
+    
+    // 等待 popup 关闭
+    return new Promise((resolve) => {
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed);
+          // Popup 关闭了，检查是否授权成功
+          resolve(true);
+        }
+      }, 500);
+      
+      // 30秒超时
+      setTimeout(() => {
+        clearInterval(checkClosed);
+        if (!popup.closed) {
+          popup.close();
+        }
+        resolve(false);
+      }, 30000);
+    });
+  } catch (error) {
+    console.error('Error initiating GitHub OAuth popup:', error);
+    throw error;
+  }
+}
+
 export async function getGithubStatus(): Promise<GithubStatusResponse> {
   const token = await getApiAccessToken();
 
@@ -781,3 +832,132 @@ export async function disconnectAirtable(): Promise<AirtableDisconnectResponse> 
     throw error;
   }
 }
+
+// ========== SAAS 类型映射 ==========
+type SaasType = 'notion' | 'github' | 'sheets' | 'linear' | 'airtable';
+
+// OAuth URL 获取函数映射
+const getAuthUrlMap: Record<SaasType, () => Promise<string>> = {
+  notion: getNotionAuthUrl,
+  github: async () => {
+    const token = await getApiAccessToken();
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/authorize`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to get authorization URL: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.data?.authorization_url || data.authorization_url;
+  },
+  sheets: async () => {
+    const token = await getApiAccessToken();
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-sheets/authorize`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to get authorization URL: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.data?.authorization_url || data.authorization_url;
+  },
+  linear: async () => {
+    const token = await getApiAccessToken();
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/linear/authorize`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to get authorization URL: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.data?.authorization_url || data.authorization_url;
+  },
+  airtable: async () => {
+    const token = await getApiAccessToken();
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/airtable/authorize`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to get authorization URL: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.data?.authorization_url || data.authorization_url;
+  },
+};
+
+/**
+ * 在 popup 窗口中打开 OAuth 授权
+ * @param saasType - SaaS 类型
+ * @returns Promise<boolean> - 用户是否完成了授权流程（关闭了 popup）
+ */
+export async function openOAuthPopup(saasType: SaasType): Promise<boolean> {
+  const getAuthUrl = getAuthUrlMap[saasType];
+  if (!getAuthUrl) {
+    throw new Error(`Unknown SaaS type: ${saasType}`);
+  }
+
+  try {
+    const authUrl = await getAuthUrl();
+    
+    // 打开 popup 窗口
+    const width = 600;
+    const height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    const popup = window.open(
+      authUrl,
+      `${saasType}-oauth`,
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+    );
+    
+    if (!popup) {
+      // Popup 被阻止
+      throw new Error('Popup blocked. Please allow popups and try again.');
+    }
+    
+    // 等待 popup 关闭
+    return new Promise((resolve) => {
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed);
+          resolve(true);
+        }
+      }, 500);
+      
+      // 60秒超时
+      setTimeout(() => {
+        clearInterval(checkClosed);
+        if (!popup.closed) {
+          popup.close();
+        }
+        resolve(false);
+      }, 60000);
+    });
+  } catch (error) {
+    console.error(`Error initiating ${saasType} OAuth popup:`, error);
+    throw error;
+  }
+}
+
+export type { SaasType };

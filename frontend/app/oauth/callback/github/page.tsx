@@ -28,8 +28,15 @@ function GithubCallbackContent() {
 
         if (result.success) {
           setStatus('success');
-          setMessage('Successfully connected to GitHub!');
+          setMessage('Connected! Closing...');
           setUsername(result.username || '');
+          
+          // 如果是 popup 窗口，立即关闭（不等待）
+          if (window.opener) {
+            setTimeout(() => {
+              window.close();
+            }, 500); // 减少到 500ms
+          }
         } else {
           setStatus('error');
           setMessage(result.message || 'Failed to connect to GitHub');
@@ -42,6 +49,13 @@ function GithubCallbackContent() {
             ? error.message
             : 'An unexpected error occurred'
         );
+        
+        // 即使失败也尝试关闭 popup，让用户可以重试
+        if (window.opener) {
+          setTimeout(() => {
+            window.close();
+          }, 3000);
+        }
       }
     };
 

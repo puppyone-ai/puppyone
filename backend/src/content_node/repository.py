@@ -1,5 +1,6 @@
 """Content Node Repository - 数据库操作层"""
 
+from datetime import datetime
 from typing import Optional, List
 from src.supabase.client import SupabaseClient
 from src.content_node.models import ContentNode
@@ -28,6 +29,10 @@ class ContentNodeRepository:
             mime_type=row.get("mime_type"),
             size_bytes=row.get("size_bytes", 0),
             permissions=row.get("permissions", {"inherit": True}),
+            # 同步相关字段
+            sync_url=row.get("sync_url"),
+            sync_id=row.get("sync_id"),
+            last_synced_at=row.get("last_synced_at"),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
@@ -134,6 +139,9 @@ class ContentNodeRepository:
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
         size_bytes: int = 0,
+        sync_url: Optional[str] = None,
+        sync_id: Optional[str] = None,
+        last_synced_at: Optional[datetime] = None,
     ) -> ContentNode:
         """创建节点"""
         data = {
@@ -148,6 +156,14 @@ class ContentNodeRepository:
             "mime_type": mime_type,
             "size_bytes": size_bytes,
         }
+        # 添加同步相关字段（仅当有值时）
+        if sync_url is not None:
+            data["sync_url"] = sync_url
+        if sync_id is not None:
+            data["sync_id"] = sync_id
+        if last_synced_at is not None:
+            data["last_synced_at"] = last_synced_at.isoformat()
+        
         response = self.client.table(self.TABLE_NAME).insert(data).execute()
         return self._row_to_model(response.data[0])
 
@@ -160,19 +176,64 @@ class ContentNodeRepository:
         parent_id: Optional[str] = None,
         s3_key: Optional[str] = None,
         size_bytes: Optional[int] = None,
+        clear_content: bool = False,
     ) -> Optional[ContentNode]:
-        """更新节点"""
+        """更新节点
+        
+        Args:
+            clear_content: 如果为 True，将 content 字段设为 null
+        """
         data = {}
         if name is not None:
             data["name"] = name
         if content is not None:
             data["content"] = content
+        elif clear_content:
+            data["content"] = None
         if id_path is not None:
             data["id_path"] = id_path
         if parent_id is not None:
             data["parent_id"] = parent_id
         if s3_key is not None:
             data["s3_key"] = s3_key
+        if size_bytes is not None:
+            data["size_bytes"] = size_bytes
+
+        if not data:
+            return self.get_by_id(node_id)
+
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .update(data)
+            .eq("id", node_id)
+            .execute()
+        )
+        if response.data:
+            return self._row_to_model(response.data[0])
+        return None
+
+    def update_with_type(
+        self,
+        node_id: str,
+        type: Optional[str] = None,
+        name: Optional[str] = None,
+        content: Optional[dict] = None,
+        s3_key: Optional[str] = None,
+        mime_type: Optional[str] = None,
+        size_bytes: Optional[int] = None,
+    ) -> Optional[ContentNode]:
+        """更新节点（包括类型变更，用于 ETL 完成后将 pending 转为 markdown）"""
+        data = {}
+        if type is not None:
+            data["type"] = type
+        if name is not None:
+            data["name"] = name
+        if content is not None:
+            data["content"] = content
+        if s3_key is not None:
+            data["s3_key"] = s3_key
+        if mime_type is not None:
+            data["mime_type"] = mime_type
         if size_bytes is not None:
             data["size_bytes"] = size_bytes
 

@@ -4,10 +4,14 @@ Agent Config Router
 Agent 配置的 REST API
 """
 
+import asyncio
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 
 from src.agent.config.service import AgentConfigService
+from src.scheduler.service import get_scheduler_service
+from src.scheduler.config import scheduler_settings
+from src.utils.logger import log_info, log_error
 from src.agent.config.dependencies import (
     get_agent_config_service,
     get_verified_agent,
@@ -45,6 +49,13 @@ def _to_agent_out(agent: Agent) -> AgentOut:
         type=agent.type,
         description=agent.description,
         is_default=agent.is_default,
+        mcp_api_key=agent.mcp_api_key,
+        # Schedule Agent 新字段
+        trigger_type=agent.trigger_type,
+        trigger_config=agent.trigger_config,
+        task_content=agent.task_content,
+        task_node_id=agent.task_node_id,
+        external_config=agent.external_config,
         created_at=agent.created_at.isoformat(),
         updated_at=agent.updated_at.isoformat(),
         accesses=[
@@ -122,6 +133,42 @@ def get_agent(
     )
 
 
+def _sync_scheduler_add(agent_id: str, agent_type: str, trigger_type: str, trigger_config: dict, agent_name: str):
+    """Background task to add agent to scheduler."""
+    if not scheduler_settings.enabled:
+        return
+    if agent_type != "schedule" or trigger_type != "cron":
+        return
+    
+    try:
+        scheduler = get_scheduler_service()
+        # Run async method in a new event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                scheduler.add_agent_job(agent_id, trigger_config or {}, agent_name)
+            )
+        finally:
+            loop.close()
+        log_info(f"✅ Scheduler synced: added job for agent {agent_id}")
+    except Exception as e:
+        log_error(f"❌ Failed to sync scheduler for agent {agent_id}: {e}")
+
+
+def _sync_scheduler_remove(agent_id: str):
+    """Background task to remove agent from scheduler."""
+    if not scheduler_settings.enabled:
+        return
+    
+    try:
+        scheduler = get_scheduler_service()
+        scheduler.remove_agent_job(agent_id)
+        log_info(f"✅ Scheduler synced: removed job for agent {agent_id}")
+    except Exception as e:
+        log_error(f"❌ Failed to remove scheduler job for agent {agent_id}: {e}")
+
+
 @router.post(
     "/",
     response_model=ApiResponse[AgentOut],
@@ -131,6 +178,7 @@ def get_agent(
 )
 def create_agent(
     payload: AgentCreate,
+    background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
@@ -142,7 +190,24 @@ def create_agent(
         description=payload.description,
         is_default=False,
         accesses=payload.accesses,
+        # Schedule Agent 新字段
+        trigger_type=payload.trigger_type,
+        trigger_config=payload.trigger_config,
+        task_content=payload.task_content,
+        task_node_id=payload.task_node_id,
+        external_config=payload.external_config,
     )
+    
+    # Sync with scheduler if this is a schedule agent
+    background_tasks.add_task(
+        _sync_scheduler_add,
+        agent.id,
+        payload.type,
+        payload.trigger_type or "manual",
+        payload.trigger_config or {},
+        payload.name,
+    )
+    
     return ApiResponse.success(
         data=_to_agent_out(agent),
         message="Agent 创建成功",
@@ -157,6 +222,7 @@ def create_agent(
 )
 def update_agent(
     payload: AgentUpdate,
+    background_tasks: BackgroundTasks,
     agent: Agent = Depends(get_verified_agent),
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
@@ -169,12 +235,38 @@ def update_agent(
         type=payload.type,
         description=payload.description,
         is_default=payload.is_default,
+        # Schedule Agent 新字段
+        trigger_type=payload.trigger_type,
+        trigger_config=payload.trigger_config,
+        task_content=payload.task_content,
+        task_node_id=payload.task_node_id,
+        external_config=payload.external_config,
     )
     if not updated:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update agent",
         )
+    
+    # Sync with scheduler
+    new_type = payload.type or agent.type
+    new_trigger_type = payload.trigger_type or agent.trigger_type or "manual"
+    new_trigger_config = payload.trigger_config if payload.trigger_config is not None else (agent.trigger_config or {})
+    
+    if new_type == "schedule" and new_trigger_type == "cron":
+        # Add/update job
+        background_tasks.add_task(
+            _sync_scheduler_add,
+            agent.id,
+            new_type,
+            new_trigger_type,
+            new_trigger_config,
+            payload.name or agent.name,
+        )
+    else:
+        # Remove job if agent is no longer a schedule agent
+        background_tasks.add_task(_sync_scheduler_remove, agent.id)
+    
     return ApiResponse.success(
         data=_to_agent_out(updated),
         message="Agent 更新成功",
@@ -188,16 +280,22 @@ def update_agent(
     description="删除 Agent 及其所有访问权限",
 )
 def delete_agent(
+    background_tasks: BackgroundTasks,
     agent: Agent = Depends(get_verified_agent),
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
-    success = service.delete_agent(agent.id, current_user.user_id)
+    agent_id = agent.id
+    success = service.delete_agent(agent_id, current_user.user_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete agent",
         )
+    
+    # Remove from scheduler
+    background_tasks.add_task(_sync_scheduler_remove, agent_id)
+    
     return ApiResponse.success(message="Agent 删除成功")
 
 
@@ -313,6 +411,29 @@ def remove_access(
             detail="Access not found or not authorized",
         )
     return ApiResponse.success(message="访问权限删除成功")
+
+
+# ============================================
+# Execution History
+# ============================================
+
+@router.get(
+    "/{agent_id}/executions",
+    response_model=ApiResponse[List[dict]],
+    summary="获取执行历史",
+    description="获取 Agent 的执行历史记录",
+)
+def get_execution_history(
+    agent: Agent = Depends(get_verified_agent),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AgentConfigService = Depends(get_agent_config_service),
+    limit: int = 10,
+):
+    executions = service.get_execution_history(agent.id, limit)
+    return ApiResponse.success(
+        data=executions,
+        message="执行历史获取成功",
+    )
 
 
 @router.put(

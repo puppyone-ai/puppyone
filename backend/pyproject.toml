@@ -36,6 +36,7 @@ dependencies = [
     "anthropic>=0.76.0",
     "e2b-code-interpreter>=2.4.1",
     "rich>=14.2.0",
+    "apscheduler>=3.10.4",
 ]
 
 [tool.pytest.ini_options]

@@ -144,6 +144,153 @@ def _default_input_schema_for_tool_type(tool_type: str | None) -> dict[str, Any]
     return {"type": "object", "properties": {}, "additionalProperties": True}
 
 
+def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
+    """
+    根据 Agent 的 accesses 配置生成 MCP 工具列表。
+    
+    每个 access 对应一个 node，可能产生多个工具：
+    - bash_enabled: 生成 bash 工具
+    - tool_query: 生成 query_data 工具
+    - tool_create: 生成 create_data 工具
+    - tool_update: 生成 update_data 工具
+    - tool_delete: 生成 delete_data 工具
+    """
+    agent = config.get("agent", {})
+    accesses = config.get("accesses", [])
+    agent_name = agent.get("name", "Agent")
+    
+    tools: list[mcp_types.Tool] = []
+    
+    for idx, access in enumerate(accesses):
+        node_id = access.get("node_id", "")
+        json_path = access.get("json_path", "")
+        
+        # 生成工具名前缀（使用索引避免冲突）
+        prefix = f"node_{idx}"
+        
+        # 1. Query tool (get_data_schema + get_all_data + query_data)
+        if access.get("tool_query"):
+            tools.append(
+                mcp_types.Tool(
+                    name=f"{prefix}_get_schema",
+                    description=f"获取数据结构（node: {node_id}）",
+                    inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
+                )
+            )
+            tools.append(
+                mcp_types.Tool(
+                    name=f"{prefix}_get_all_data",
+                    description=f"获取所有数据（node: {node_id}）",
+                    inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
+                )
+            )
+            tools.append(
+                mcp_types.Tool(
+                    name=f"{prefix}_query_data",
+                    description=f"使用 JMESPath 查询数据（node: {node_id}）",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "JMESPath 查询表达式"},
+                        },
+                        "required": ["query"],
+                        "additionalProperties": False,
+                    },
+                )
+            )
+        
+        # 2. Create tool
+        if access.get("tool_create"):
+            tools.append(
+                mcp_types.Tool(
+                    name=f"{prefix}_create",
+                    description=f"创建数据元素（node: {node_id}）",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "elements": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {"key": {"type": "string"}, "content": {}},
+                                    "required": ["key", "content"],
+                                },
+                            }
+                        },
+                        "required": ["elements"],
+                        "additionalProperties": False,
+                    },
+                )
+            )
+        
+        # 3. Update tool
+        if access.get("tool_update"):
+            tools.append(
+                mcp_types.Tool(
+                    name=f"{prefix}_update",
+                    description=f"更新数据元素（node: {node_id}）",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "updates": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {"key": {"type": "string"}, "content": {}},
+                                    "required": ["key", "content"],
+                                },
+                            }
+                        },
+                        "required": ["updates"],
+                        "additionalProperties": False,
+                    },
+                )
+            )
+        
+        # 4. Delete tool
+        if access.get("tool_delete"):
+            tools.append(
+                mcp_types.Tool(
+                    name=f"{prefix}_delete",
+                    description=f"删除数据元素（node: {node_id}）",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {"keys": {"type": "array", "items": {"type": "string"}}},
+                        "required": ["keys"],
+                        "additionalProperties": False,
+                    },
+                )
+            )
+    
+    return tools
+
+
+def _find_access_and_tool_type(config: dict[str, Any], tool_name: str) -> tuple[dict[str, Any] | None, str | None]:
+    """
+    根据工具名找到对应的 access 配置和工具类型。
+    
+    工具命名规则: node_{idx}_{type}
+    """
+    accesses = config.get("accesses", [])
+    
+    # 解析工具名: node_0_get_schema -> idx=0, type=get_schema
+    parts = tool_name.split("_", 2)
+    if len(parts) < 3 or parts[0] != "node":
+        return None, None
+    
+    try:
+        idx = int(parts[1])
+    except ValueError:
+        return None, None
+    
+    tool_type = parts[2]
+    
+    if idx >= len(accesses):
+        return None, None
+    
+    return accesses[idx], tool_type
+
+
 def build_starlette_app(*, json_response: bool = True) -> Starlette:
     """构建 Starlette 应用实例（MCP handler 装配）"""
 
@@ -188,6 +335,10 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             config = await load_mcp_config(api_key, rpc_client)
             if not config:
                 return []
+
+            # agent：根据 agent accesses 生成工具
+            if config.get("mode") == "agent":
+                return _build_agent_tools_list(config)
 
             # v2：按绑定工具列表返回
             if config.get("mode") == "v2":
@@ -243,6 +394,57 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             if not config:
                 return [
                     mcp_types.TextContent(type="text", text="错误: MCP实例不存在或配置加载失败")
+                ]
+
+            # agent：根据 agent accesses 配置执行
+            if config.get("mode") == "agent":
+                access, tool_type = _find_access_and_tool_type(config, name)
+                if not access or not tool_type:
+                    return [mcp_types.TextContent(type="text", text=f"错误: 未知的工具名称: {name}")]
+                
+                node_id = access.get("node_id", "")
+                json_path = access.get("json_path", "")
+                
+                if not node_id:
+                    return [mcp_types.TextContent(type="text", text="错误: node_id 缺失")]
+                
+                result: Any = None
+                
+                if tool_type == "get_schema":
+                    if not access.get("tool_query"):
+                        return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
+                    result = await table_tool.get_data_schema(table_id=node_id, json_path=json_path)
+                elif tool_type == "get_all_data":
+                    if not access.get("tool_query"):
+                        return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
+                    result = await table_tool.get_all_data(table_id=node_id, json_path=json_path)
+                elif tool_type == "query_data":
+                    if not access.get("tool_query"):
+                        return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
+                    query = arguments.get("query")
+                    result = await table_tool.query_data(table_id=node_id, json_path=json_path, query=query)
+                elif tool_type == "create":
+                    if not access.get("tool_create"):
+                        return [mcp_types.TextContent(type="text", text="错误: 没有创建权限")]
+                    elements = arguments.get("elements", [])
+                    result = await table_tool.create_element(table_id=node_id, json_path=json_path, elements=elements)
+                elif tool_type == "update":
+                    if not access.get("tool_update"):
+                        return [mcp_types.TextContent(type="text", text="错误: 没有更新权限")]
+                    updates = arguments.get("updates", [])
+                    result = await table_tool.update_element(table_id=node_id, json_path=json_path, updates=updates)
+                elif tool_type == "delete":
+                    if not access.get("tool_delete"):
+                        return [mcp_types.TextContent(type="text", text="错误: 没有删除权限")]
+                    keys = arguments.get("keys", [])
+                    result = await table_tool.delete_element(table_id=node_id, json_path=json_path, keys=keys)
+                else:
+                    return [mcp_types.TextContent(type="text", text=f"错误: 未支持的工具类型: {tool_type}")]
+                
+                return [
+                    mcp_types.TextContent(
+                        type="text", text=json.dumps(result, ensure_ascii=False, indent=2)
+                    )
                 ]
 
             # v2：按 tool.name -> tool 配置执行

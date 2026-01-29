@@ -1,17 +1,28 @@
-"""Notion provider for parsing Notion databases and pages."""
+"""Notion provider for parsing Notion databases and pages.
+
+Supports two authentication methods:
+1. Internal Integration (API Key) - Simple, just needs NOTION_API_KEY in .env
+2. OAuth - For multi-user scenarios, requires NOTION_CLIENT_ID, NOTION_CLIENT_SECRET
+"""
 
 import re
 from typing import Any, List, Optional
 from urllib.parse import urlparse
 import httpx
 
+from src.config import settings
 from src.connect.data_provider import DataProvider, DataProviderResult
 from src.connect.exceptions import AuthenticationError
 from src.oauth.notion_service import NotionOAuthService
 
 
 class NotionProvider(DataProvider):
-    """Provider for Notion data sources."""
+    """Provider for Notion data sources.
+    
+    Authentication priority:
+    1. If NOTION_API_KEY is set in .env, use it directly (no OAuth needed)
+    2. Otherwise, require OAuth authorization
+    """
 
     def __init__(
         self, user_id: str, notion_service: Optional[NotionOAuthService] = None
@@ -32,13 +43,25 @@ class NotionProvider(DataProvider):
             or domain.endswith(".notion.site")
         )
 
-    async def fetch_data(self, url: str) -> DataProviderResult:
-        """Fetch data from Notion URL."""
-        # Check if user has Notion connection
+    async def _get_access_token(self) -> str:
+        """Get access token, preferring API Key over OAuth.
+        
+        Returns:
+            Access token string
+            
+        Raises:
+            AuthenticationError: If no valid authentication method is available
+        """
+        # Method 1: Check for Internal Integration API Key (simplest)
+        if settings.NOTION_API_KEY:
+            return settings.NOTION_API_KEY
+        
+        # Method 2: Fall back to OAuth
         connection = await self.notion_service.get_connection(self.user_id)
         if not connection:
             raise AuthenticationError(
-                "Not connected to Notion. Please authorize your Notion account first.",
+                "Not connected to Notion. Please authorize your Notion account first, "
+                "or configure NOTION_API_KEY in backend .env file.",
                 provider="notion",
                 requires_auth=True,
             )
@@ -52,6 +75,13 @@ class NotionProvider(DataProvider):
                     provider="notion",
                     requires_auth=True,
                 )
+        
+        return connection.access_token
+
+    async def fetch_data(self, url: str) -> DataProviderResult:
+        """Fetch data from Notion URL."""
+        # Get access token (API Key or OAuth token)
+        access_token = await self._get_access_token()
 
         # Extract page or database ID from URL
         entity_id = self._extract_notion_id(url)
@@ -63,16 +93,27 @@ class NotionProvider(DataProvider):
 
         try:
             if is_database:
-                return await self._fetch_database(entity_id, connection.access_token)
+                return await self._fetch_database(entity_id, access_token)
             else:
-                return await self._fetch_page(entity_id, connection.access_token)
+                return await self._fetch_page(entity_id, access_token)
         except httpx.HTTPStatusError as e:
             if e.response.status_code in [401, 403]:
-                raise AuthenticationError(
-                    "Notion authorization failed. Please reconnect your Notion account.",
-                    provider="notion",
-                    requires_auth=True,
-                )
+                # Provide helpful error message based on auth method
+                if settings.NOTION_API_KEY:
+                    raise AuthenticationError(
+                        "Notion API Key authorization failed. Please check:\n"
+                        "1. The API Key is correct in backend .env (NOTION_API_KEY)\n"
+                        "2. The Integration is connected to the database/page in Notion\n"
+                        "   (Click '...' menu → 'Connect to' → Select your integration)",
+                        provider="notion",
+                        requires_auth=False,  # No OAuth needed, just config issue
+                    )
+                else:
+                    raise AuthenticationError(
+                        "Notion authorization failed. Please reconnect your Notion account.",
+                        provider="notion",
+                        requires_auth=True,
+                    )
 
             # If we got a 400 error saying it's a page when we tried database (or vice versa), retry with the other type
             if e.response.status_code == 400:
@@ -82,17 +123,13 @@ class NotionProvider(DataProvider):
 
                     # If we tried database but it's actually a page
                     if "is a page, not a database" in error_message and is_database:
-                        return await self._fetch_page(
-                            entity_id, connection.access_token
-                        )
+                        return await self._fetch_page(entity_id, access_token)
 
                     # If we tried page but it's actually a database
                     elif (
                         "is a database, not a page" in error_message and not is_database
                     ):
-                        return await self._fetch_database(
-                            entity_id, connection.access_token
-                        )
+                        return await self._fetch_database(entity_id, access_token)
                 except Exception:
                     pass
 

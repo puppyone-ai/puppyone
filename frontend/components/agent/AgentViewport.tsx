@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
 import { AgentSettingView } from './views/AgentSettingView';
 import { ChatRuntimeView } from './views/ChatRuntimeView';
+import { McpConnectionView } from './views/McpConnectionView';
+import { AgentDetailView } from './views/AgentDetailView';
 import { type McpToolPermissions, type Tool as DbTool } from '../lib/mcpApi';
 import type { AccessOption } from './chat/ChatInputArea';
+import type { SavedAgent } from '@/components/AgentRail';
 
 // Access Point 图标 - 动物 emoji（和 ProjectsHeader 保持一致）
 const ACCESS_ICONS = [
@@ -21,9 +24,7 @@ const parseAgentIcon = (icon?: string): string => {
   return ACCESS_ICONS[idx % ACCESS_ICONS.length] || '💬';
 };
 
-const MIN_CHAT_WIDTH = 280;
-const MAX_CHAT_WIDTH = 600;
-const DEFAULT_CHAT_WIDTH = 360;
+const DEFAULT_CHAT_WIDTH = 400;
 
 // Tool labels (Duplicated from ChatSidebar, maybe extract to constants later)
 const toolTypeLabels: Record<string, string> = {
@@ -45,7 +46,6 @@ interface AccessPoint {
 
 interface AgentViewportProps {
   chatWidth?: number;
-  onChatWidthChange?: (width: number) => void;
   contextData?: unknown;
   workingDirectory?: string;
   tableData?: unknown;
@@ -59,7 +59,6 @@ interface AgentViewportProps {
 
 export function AgentViewport({
   chatWidth = DEFAULT_CHAT_WIDTH,
-  onChatWidthChange,
   contextData,
   workingDirectory,
   tableData,
@@ -71,7 +70,6 @@ export function AgentViewport({
   tableNameById,
 }: AgentViewportProps) {
   const { sidebarMode, savedAgents, currentAgentId, deleteAgent, editAgent } = useAgent();
-  const [isResizing, setIsResizing] = useState(false);
   const [isFullyOpen, setIsFullyOpen] = useState(sidebarMode !== 'closed');
 
   // --- Animation State ---
@@ -83,34 +81,6 @@ export function AgentViewport({
       setIsFullyOpen(false);
     }
   }, [sidebarMode]);
-
-  // --- Resize Logic ---
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isResizing) return;
-    const handleMouseMove = (e: MouseEvent) => {
-      const windowWidth = window.innerWidth;
-      const railWidth = 52 + 8; // Rail width + margin
-      const newWidth = windowWidth - e.clientX - railWidth;
-      const clampedWidth = Math.min(Math.max(newWidth, MIN_CHAT_WIDTH), MAX_CHAT_WIDTH);
-      onChatWidthChange?.(clampedWidth);
-    };
-    const handleMouseUp = () => setIsResizing(false);
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-  }, [isResizing, onChatWidthChange]);
 
   // --- Available Tools Calculation ---
   const availableTools: AccessOption[] = [];
@@ -175,6 +145,7 @@ export function AgentViewport({
     <aside
       style={{
         // Layout: In-flow, width controlled by sidebarMode
+        position: 'relative',
         width: sidebarMode !== 'closed' ? chatWidth : 0,
         minWidth: sidebarMode !== 'closed' ? chatWidth : 0,
         flexShrink: 0,
@@ -186,29 +157,9 @@ export function AgentViewport({
 
         display: 'flex',
         flexDirection: 'column',
-        transition: isResizing ? 'none' : 'width 0.2s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+        transition: 'width 0.2s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
-      {/* Resize Handle */}
-      <div
-        onMouseDown={handleMouseDown}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: -4,
-          width: 8,
-          height: '100%',
-          cursor: 'col-resize',
-          zIndex: 60,
-          background: isResizing ? 'rgba(74, 222, 128, 0.2)' : 'transparent',
-        }}
-        onMouseEnter={e => {
-          if (!isResizing) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-        }}
-        onMouseLeave={e => {
-          if (!isResizing) e.currentTarget.style.background = 'transparent';
-        }}
-      />
 
       {/* Content based on Mode */}
       {sidebarMode === 'setting' && (
@@ -231,156 +182,22 @@ export function AgentViewport({
             />
           )}
           {currentType === 'devbox' && currentAgent && (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              {/* Header */}
-              <div style={{ 
-                padding: '12px 16px', 
-                borderBottom: '1px solid #222', 
-                background: '#0d0d0d',
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                flexShrink: 0 
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}>
-                    {currentAgent.name}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <button 
-                    onClick={() => editAgent(currentAgent.id)} 
-                    title="Edit settings"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#666',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 4,
-                      borderRadius: 4,
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#aaa'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#666'}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="3"></circle>
-                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                    </svg>
-                  </button>
-                  <button 
-                    onClick={() => {
-                      if (confirm(`Delete "${currentAgent.name}"? This cannot be undone.`)) {
-                        deleteAgent(currentAgent.id);
-                      }
-                    }} 
-                    title="Delete"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#666',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 4,
-                      borderRadius: 4,
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#666'}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              {/* Content */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#888', fontStyle: 'italic' }}>
-                <div style={{ fontSize: 24, marginBottom: 12 }}>⚡</div>
-                <div>Cloud Code Environment</div>
-                <div style={{ fontSize: 12, marginTop: 4 }}>Coming Soon</div>
-              </div>
-            </div>
+            <McpConnectionView 
+              agent={currentAgent} 
+              onEdit={() => editAgent(currentAgent.id)}
+              onDelete={() => {
+                if (confirm(`Delete "${currentAgent.name}"? This cannot be undone.`)) {
+                  deleteAgent(currentAgent.id);
+                }
+              }}
+            />
+          )}
+          {/* Schedule 和 Webhook 类型使用 AgentDetailView 显示设置 */}
+          {currentType === 'schedule' && currentAgent && (
+            <AgentDetailView agent={currentAgent} />
           )}
           {currentType === 'webhook' && currentAgent && (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              {/* Header */}
-              <div style={{ 
-                padding: '12px 16px', 
-                borderBottom: '1px solid #222', 
-                background: '#0d0d0d',
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                flexShrink: 0 
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}>
-                    {currentAgent.name}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <button 
-                    onClick={() => editAgent(currentAgent.id)} 
-                    title="Edit settings"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#666',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 4,
-                      borderRadius: 4,
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#aaa'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#666'}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="3"></circle>
-                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                    </svg>
-                  </button>
-                  <button 
-                    onClick={() => {
-                      if (confirm(`Delete "${currentAgent.name}"? This cannot be undone.`)) {
-                        deleteAgent(currentAgent.id);
-                      }
-                    }} 
-                    title="Delete"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#666',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 4,
-                      borderRadius: 4,
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#666'}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              {/* Content */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#888', fontStyle: 'italic' }}>
-                <div style={{ fontSize: 24, marginBottom: 12 }}>🔗</div>
-                <div>Webhook Trigger</div>
-                <div style={{ fontSize: 12, marginTop: 4 }}>Coming Soon</div>
-              </div>
-            </div>
+            <AgentDetailView agent={currentAgent} />
           )}
         </>
       )}

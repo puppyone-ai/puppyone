@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { ContentType } from '../finder/items';
+import { ItemActionMenu } from './ItemActionMenu';
+import { getNodeTypeConfig, isSyncedType, LockIcon } from '@/lib/nodeTypeConfig';
 
 // Type icons - 实色填充 + 保留线条语言
 const FolderIconLarge = ({ color = '#a1a1aa' }: { color?: string }) => (
@@ -50,13 +52,22 @@ export interface GridViewItem {
   type: ContentType;
   description?: string;
   rowCount?: number;
+  sync_url?: string | null;
   thumbnailUrl?: string;
   onClick: (e: React.MouseEvent) => void;
+  // 同步相关字段
+  is_synced?: boolean;
+  sync_source?: string | null;
+  last_synced_at?: string | null;
 }
 
 export interface GridViewProps {
   items: GridViewItem[];
   onCreateClick?: (e: React.MouseEvent) => void;
+  onRename?: (id: string, currentName: string) => void;
+  onDelete?: (id: string, name: string) => void;
+  onDuplicate?: (id: string) => void;
+  onRefresh?: (id: string) => void;
   loading?: boolean;
   agentResources?: AgentResource[];
 }
@@ -64,9 +75,17 @@ export interface GridViewProps {
 function GridItem({
   item,
   agentResource,
+  onRename,
+  onDelete,
+  onDuplicate,
+  onRefresh,
 }: {
   item: GridViewItem;
   agentResource?: AgentResource;
+  onRename?: (id: string, currentName: string) => void;
+  onDelete?: (id: string, name: string) => void;
+  onDuplicate?: (id: string) => void;
+  onRefresh?: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -74,13 +93,19 @@ function GridItem({
   const hasAgentAccess = !!agentResource;
   const accessMode = agentResource?.terminalReadonly ? 'read' : 'write';
 
+  // Get type config for synced items
+  const typeConfig = getNodeTypeConfig(item.type);
+  const isSynced = item.is_synced || isSyncedType(item.type);
+  const BadgeIcon = typeConfig.badgeIcon;
+
   // Get icon and color based on type
   const getTypeIcon = () => {
-    const iconColor = hovered ? '#e4e4e7' : '#a1a1aa';
-    switch (item.type) {
+    const config = getNodeTypeConfig(item.type);
+    const iconColor = hovered ? '#e4e4e7' : config.color;
+    switch (config.renderAs) {
       case 'folder': return <FolderIconLarge color={iconColor} />;
-      case 'markdown': return <MarkdownIconLarge color={hovered ? '#93c5fd' : '#60a5fa'} />;
-      default: return <JsonIconLarge color={hovered ? '#6ee7b7' : '#34d399'} />;
+      case 'markdown': return <MarkdownIconLarge color={hovered ? '#93c5fd' : config.color} />;
+      default: return <JsonIconLarge color={hovered ? '#6ee7b7' : config.color} />;
     }
   };
 
@@ -89,8 +114,12 @@ function GridItem({
       onClick={item.onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      draggable={true}
+      draggable={!typeConfig.isReadOnly}
       onDragStart={(e) => {
+        if (typeConfig.isReadOnly) {
+          e.preventDefault();
+          return;
+        }
         e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify({
           id: item.id,
           name: item.name,
@@ -124,15 +153,64 @@ function GridItem({
           minHeight: 0,
         }}
       >
+        <div style={{ position: 'relative' }}>
         {getTypeIcon()}
+          {/* Sync Badge (SaaS Logo) - 图标右下角 */}
+          {BadgeIcon && (
+            <div style={{
+              position: 'absolute',
+              bottom: -6,
+              right: -8,
+              background: '#18181b',
+              borderRadius: 5,
+              padding: 3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <BadgeIcon size={16} />
+            </div>
+          )}
+        </div>
         
-        {/* Agent Access Badge - 相对于图标区域定位在右上角 */}
+        {/* Action Menu - 右上角 */}
+        {(onRename || onDelete || onDuplicate || (isSynced && onRefresh)) && (
+          <div style={{ position: 'absolute', top: 4, right: 4 }}>
+            <ItemActionMenu
+              itemId={item.id}
+              itemName={item.name}
+              itemType={item.type}
+              onRename={onRename}
+              onDelete={onDelete}
+              onDuplicate={onDuplicate}
+              onRefresh={isSynced ? onRefresh : undefined}
+              syncUrl={item.sync_url}
+              visible={hovered}
+            />
+          </div>
+        )}
+
+        {/* Read-only Lock Icon - 右上角 (for synced items) */}
+        {typeConfig.isReadOnly && (
+          <div style={{ 
+            position: 'absolute', 
+            top: 4, 
+            right: 4,
+            color: '#525252',
+            display: 'flex',
+            alignItems: 'center',
+          }}>
+            <LockIcon size={12} />
+          </div>
+        )}
+
+        {/* Agent Access Badge - 相对于图标区域定位在左上角（如果有菜单的话） */}
         {hasAgentAccess && (
           <div
             style={{
               position: 'absolute',
               top: 4,
-              right: 4,
+              left: 4,
               padding: '2px 6px',
               borderRadius: 3,
               background: accessMode === 'write' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(100, 100, 100, 0.25)',
@@ -223,6 +301,10 @@ function CreateButton({
 export function GridView({
   items,
   onCreateClick,
+  onRename,
+  onDelete,
+  onDuplicate,
+  onRefresh,
   loading,
   agentResources,
 }: GridViewProps) {
@@ -236,9 +318,10 @@ export function GridView({
   return (
     <div
       style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+        display: 'flex',
+        flexWrap: 'wrap',
         gap: 16,
+        alignContent: 'flex-start',
       }}
     >
       {items.map(item => (
@@ -246,6 +329,10 @@ export function GridView({
           key={item.id}
           item={item}
           agentResource={resourceMap.get(item.id)}
+          onRename={onRename}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          onRefresh={onRefresh}
         />
       ))}
 

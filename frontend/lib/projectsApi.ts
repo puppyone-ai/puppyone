@@ -89,14 +89,37 @@ export async function getTable(
     updated_at: string;
   }>(`/api/v1/nodes/${nodeId}`);
 
-  // 转换后端格式到前端期望的格式
-  const data = node.content;
+  // 获取数据：优先从 content 字段，否则从 S3 下载
+  let data = node.content;
+  
+  // 如果 content 为空但有 s3_key，从 S3 下载
+  if (data == null && node.s3_key) {
+    try {
+      const { download_url } = await apiRequest<{ download_url: string }>(
+        `/api/v1/nodes/${nodeId}/download`
+      );
+      const response = await fetch(download_url);
+      if (response.ok) {
+        data = await response.json();
+      }
+    } catch (err) {
+      console.error('Failed to load data from S3:', err);
+    }
+  }
+
+  // 计算行数
   let rows = 0;
   if (data != null) {
     if (Array.isArray(data)) {
       rows = data.length;
     } else if (typeof data === 'object') {
-      rows = Object.keys(data).length;
+      // 对于 Notion database，数据格式是 { imported_data: [...] }
+      const importedData = data.imported_data;
+      if (Array.isArray(importedData)) {
+        rows = importedData.length;
+      } else {
+        rows = Object.keys(data).length;
+      }
     }
   }
 

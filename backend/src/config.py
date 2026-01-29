@@ -63,7 +63,10 @@ class Settings(BaseSettings):
             return self.ENABLE_ETL
         return not self.DEBUG
 
-    # Notion OAuth 配置
+    # Notion 配置
+    # 方式1: Internal Integration (简单，只需 API Key)
+    NOTION_API_KEY: str = ""  # 格式: secret_xxx，从 https://www.notion.so/my-integrations 获取
+    # 方式2: OAuth (适合多用户场景)
     NOTION_CLIENT_ID: str = ""
     NOTION_CLIENT_SECRET: str = ""
     NOTION_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/notion"
