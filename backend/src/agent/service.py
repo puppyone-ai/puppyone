@@ -22,6 +22,7 @@ from src.agent.schemas import AgentRequest
 from src.config import settings
 from src.agent.chat.service import ChatService
 from src.agent.config.service import AgentConfigService
+from src.analytics.service import log_context_access
 
 # Anthropic 官方 bash 工具
 BASH_TOOL = {"type": "bash_20250124", "name": "bash"}
@@ -418,21 +419,20 @@ class AgentService:
         
         logger.info(f"[Agent DEBUG] agent_id={request.agent_id}, active_tool_ids={request.active_tool_ids}")
         
-        # 新版：如果有 agent_id，从 agent_access 表读取配置
+        # 新版：如果有 agent_id，从 agent_bash 表读取配置
         if request.agent_id and current_user and agent_config_service:
             try:
                 agent = agent_config_service.get_agent(request.agent_id)
                 if agent and agent.user_id == current_user.user_id:
-                    logger.info(f"[Agent] Found agent config: id={agent.id}, accesses={len(agent.accesses)}")
-                    # 收集所有有 terminal 权限的 access（支持多个）
-                    for access in agent.accesses:
-                        if access.terminal:
-                            bash_tools.append({
-                                "node_id": access.node_id,
-                                "json_path": (access.json_path or "").strip(),
-                                "readonly": access.terminal_readonly,
-                            })
-                            logger.info(f"[Agent] Found bash access from agent_access: node_id={access.node_id}")
+                    logger.info(f"[Agent] Found agent config: id={agent.id}, bash_accesses={len(agent.bash_accesses)}")
+                    # 收集所有 Bash 访问权限（新版架构下所有 bash_accesses 都是终端访问）
+                    for bash in agent.bash_accesses:
+                        bash_tools.append({
+                            "node_id": bash.node_id,
+                            "json_path": (bash.json_path or "").strip(),
+                            "readonly": bash.readonly,
+                        })
+                        logger.info(f"[Agent] Found bash access from agent_bash: node_id={bash.node_id}")
                     logger.info(f"[Agent] Total bash accesses collected: {len(bash_tools)}")
                 else:
                     logger.warning(f"[Agent] Agent not found or unauthorized: {request.agent_id}")
@@ -546,6 +546,16 @@ class AgentService:
                     logger.info(f"[Agent] Prepared sandbox data for access {i+1}/{len(bash_tools)}: "
                                f"node_id={tool['node_id']}, type={data.node_type}, files={len(data.files)}")
                     all_files.extend(data.files)
+                    
+                    # Log context access (data egress tracking)
+                    await log_context_access(
+                        node_id=tool["node_id"],
+                        node_type=data.node_type,
+                        node_name=data.root_node_name,
+                        user_id=current_user.user_id if current_user else None,
+                        agent_id=request.agent_id,
+                        session_id=request.session_id,
+                    )
                     
                     # 记录路径映射（用于回写）
                     if data.files:

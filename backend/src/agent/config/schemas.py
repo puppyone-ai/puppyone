@@ -9,11 +9,41 @@ from pydantic import BaseModel, Field
 
 
 # ============================================
-# AgentAccess Schemas
+# AgentBash Schemas (Bash 终端访问权限)
+# ============================================
+
+class AgentBashCreate(BaseModel):
+    """创建 AgentBash 的请求"""
+    node_id: str = Field(..., description="Content Node ID")
+    json_path: str = Field(default="", description="JSON 内部路径")
+    readonly: bool = Field(default=True, description="是否只读")
+
+
+class AgentBashUpdate(BaseModel):
+    """更新 AgentBash 的请求"""
+    json_path: Optional[str] = None
+    readonly: Optional[bool] = None
+
+
+class AgentBashOut(BaseModel):
+    """AgentBash 响应"""
+    id: str
+    agent_id: str
+    node_id: str
+    json_path: str
+    readonly: bool
+
+    # 可选：关联的 node 信息
+    node_name: Optional[str] = None
+    node_type: Optional[str] = None
+
+
+# ============================================
+# 向后兼容的别名 (AgentAccess)
 # ============================================
 
 class AgentAccessCreate(BaseModel):
-    """创建 AgentAccess 的请求"""
+    """创建 AgentAccess 的请求（向后兼容）"""
     node_id: str = Field(..., description="Content Node ID")
     terminal: bool = Field(default=False)
     terminal_readonly: bool = Field(default=True)
@@ -21,10 +51,18 @@ class AgentAccessCreate(BaseModel):
     can_write: bool = Field(default=False)
     can_delete: bool = Field(default=False)
     json_path: str = Field(default="")
+    
+    def to_bash_create(self) -> AgentBashCreate:
+        """转换为 AgentBashCreate"""
+        return AgentBashCreate(
+            node_id=self.node_id,
+            json_path=self.json_path,
+            readonly=self.terminal_readonly if self.terminal else True,
+        )
 
 
 class AgentAccessUpdate(BaseModel):
-    """更新 AgentAccess 的请求"""
+    """更新 AgentAccess 的请求（向后兼容）"""
     terminal: Optional[bool] = None
     terminal_readonly: Optional[bool] = None
     can_read: Optional[bool] = None
@@ -34,20 +72,37 @@ class AgentAccessUpdate(BaseModel):
 
 
 class AgentAccessOut(BaseModel):
-    """AgentAccess 响应"""
+    """AgentAccess 响应（向后兼容）"""
     id: str
     agent_id: str
     node_id: str
-    terminal: bool
-    terminal_readonly: bool
-    can_read: bool
-    can_write: bool
-    can_delete: bool
-    json_path: str
+    terminal: bool = True  # 新版默认都是 terminal 访问
+    terminal_readonly: bool = True
+    can_read: bool = False
+    can_write: bool = False
+    can_delete: bool = False
+    json_path: str = ""
 
     # 可选：关联的 node 信息
     node_name: Optional[str] = None
     node_type: Optional[str] = None
+    
+    @classmethod
+    def from_bash(cls, bash: "AgentBashOut") -> "AgentAccessOut":
+        """从 AgentBashOut 转换"""
+        return cls(
+            id=bash.id,
+            agent_id=bash.agent_id,
+            node_id=bash.node_id,
+            terminal=True,
+            terminal_readonly=bash.readonly,
+            can_read=False,
+            can_write=not bash.readonly,
+            can_delete=False,
+            json_path=bash.json_path,
+            node_name=bash.node_name,
+            node_type=bash.node_type,
+        )
 
 
 # ============================================
@@ -68,7 +123,10 @@ class AgentCreate(BaseModel):
     task_node_id: Optional[str] = Field(None, description="关联的任务文件 node ID")
     external_config: Optional[dict] = Field(None, description="外部配置 (N8N/Zapier)")
     
-    # 可选：创建时直接指定访问权限
+    # Bash 访问权限
+    bash_accesses: List[AgentBashCreate] = Field(default_factory=list)
+    
+    # 向后兼容：旧的 accesses 字段
     accesses: List[AgentAccessCreate] = Field(default_factory=list)
 
 
@@ -109,6 +167,9 @@ class AgentOut(BaseModel):
     task_node_id: Optional[str] = None
     external_config: Optional[dict] = None
     
-    # 关联的访问权限
+    # Bash 访问权限（新版）
+    bash_accesses: List[AgentBashOut] = Field(default_factory=list)
+    
+    # 向后兼容：旧的 accesses 字段
     accesses: List[AgentAccessOut] = Field(default_factory=list)
 

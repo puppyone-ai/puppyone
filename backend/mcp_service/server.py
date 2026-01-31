@@ -1,6 +1,15 @@
 """
-新的MCP Server实现
-基于MCP Python SDK，支持动态工具配置和多租户隔离
+MCP Server - 整合后的 Agent 模式实现
+基于 MCP Python SDK，支持动态工具配置和多租户隔离
+
+整合后只支持 Agent 模式：
+- 通过 Agent 的 mcp_api_key（以 "mcp_" 开头）访问
+- 配置从 agent + agent_bash + agent_tool 表读取
+- V2 模式和 Legacy 模式已移除
+
+工具类型：
+1. 内置工具（基于 agent_bash）：数据 CRUD 操作
+2. 自定义工具（基于 agent_tool）：search, custom_script 等
 """
 from __future__ import annotations
 
@@ -23,144 +32,36 @@ from .cache import CacheManager
 from .core.auth import extract_api_key
 from .core.config_loader import load_mcp_config
 from .core.session_registry import SessionRegistry
-from .core.tools_definition import ToolDefinitionProvider, build_tools_list, tool_types, ALL_TOOLS_LIST
 from .event_store import InMemoryEventStore
 from .rpc.client import create_client
 from .tool.table_tool import TableToolImplementation
 
 
-def _default_input_schema_for_tool_type(tool_type: str | None) -> dict[str, Any]:
-    """
-    v2 模式默认 inputSchema 兜底。
-
-    说明：
-    - legacy 模式的默认 schema 在 `mcp_service/core/tools_definition.py` 内生成；
-    - v2 模式的 tool 定义来自主服务绑定的 Tool（可能不带 input_schema），这里按 type 补齐，
-      以保证调用方（如 Cursor/Agents）能正确看到可传入的参数结构。
-    """
-    t = (tool_type or "").strip()
-
-    if t in {"get_data_schema", "get_all_data"}:
-        return {"type": "object", "properties": {}, "additionalProperties": False}
-
-    if t == "preview":
-        return {
-            "type": "object",
-            "properties": {
-                "keys": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "要保留的字段名列表（只返回这些字段，用于快速决策）",
-                }
-            },
-            "required": ["keys"],
-            "additionalProperties": False,
-        }
-
-    if t == "query_data":
-        return {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "JMESPath 查询表达式"},
-            },
-            "required": ["query"],
-            "additionalProperties": False,
-        }
-
-    if t == "create":
-        return {
-            "type": "object",
-            "properties": {
-                "elements": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {"key": {"type": "string"}, "content": {}},
-                        "required": ["key", "content"],
-                    },
-                }
-            },
-            "required": ["elements"],
-            "additionalProperties": False,
-        }
-
-    if t == "update":
-        return {
-            "type": "object",
-            "properties": {
-                "updates": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {"key": {"type": "string"}, "content": {}},
-                        "required": ["key", "content"],
-                    },
-                }
-            },
-            "required": ["updates"],
-            "additionalProperties": False,
-        }
-
-    if t == "delete":
-        return {
-            "type": "object",
-            "properties": {"keys": {"type": "array", "items": {"type": "string"}}},
-            "required": ["keys"],
-            "additionalProperties": False,
-        }
-
-    if t == "select":
-        return {
-            "type": "object",
-            "properties": {
-                "field": {"type": "string", "description": "用于匹配的字段名"},
-                "keys": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "要匹配的值列表",
-                },
-            },
-            "required": ["field", "keys"],
-            "additionalProperties": False,
-        }
-
-    if t == "search":
-        return {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "检索查询文本"},
-                "top_k": {
-                    "type": "integer",
-                    "description": "返回结果条数（默认 5，上限 20）",
-                    "minimum": 1,
-                    "maximum": 20,
-                },
-            },
-            "required": ["query"],
-            "additionalProperties": False,
-        }
-
-    # 未知 tool.type：保持兼容，允许透传任意参数
-    return {"type": "object", "properties": {}, "additionalProperties": True}
-
-
 def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
     """
-    根据 Agent 的 accesses 配置生成 MCP 工具列表。
+    根据 Agent 配置生成 MCP 工具列表。
     
-    每个 access 对应一个 node，可能产生多个工具：
-    - bash_enabled: 生成 bash 工具
-    - tool_query: 生成 query_data 工具
-    - tool_create: 生成 create_data 工具
-    - tool_update: 生成 update_data 工具
-    - tool_delete: 生成 delete_data 工具
+    工具来源：
+    1. agent_bash (accesses): 数据 CRUD 工具
+       - tool_query: 生成 query_data 工具
+       - tool_create: 生成 create_data 工具
+       - tool_update: 生成 update_data 工具
+       - tool_delete: 生成 delete_data 工具
+       
+    2. agent_tool (tools): 自定义工具
+       - search: 向量搜索工具
+       - 其他自定义工具
     """
     agent = config.get("agent", {})
     accesses = config.get("accesses", [])
+    custom_tools = config.get("tools", [])
     agent_name = agent.get("name", "Agent")
     
     tools: list[mcp_types.Tool] = []
     
+    # ==========================================
+    # Part 1: 基于 agent_bash 的内置数据 CRUD 工具
+    # ==========================================
     for idx, access in enumerate(accesses):
         node_id = access.get("node_id", "")
         json_path = access.get("json_path", "")
@@ -262,33 +163,95 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
                 )
             )
     
+    # ==========================================
+    # Part 2: 基于 agent_tool 的自定义工具
+    # ==========================================
+    for tool_config in custom_tools:
+        tool_name = tool_config.get("name", "")
+        tool_type = tool_config.get("type", "")
+        tool_description = tool_config.get("description") or f"{tool_name} tool"
+        input_schema = tool_config.get("input_schema")
+        
+        if not tool_name:
+            continue
+        
+        # 使用 tool_ 前缀区分自定义工具和内置工具
+        mcp_tool_name = f"tool_{tool_name}"
+        
+        # 处理不同类型的工具
+        if tool_type == "search":
+            # Search 工具使用标准的查询输入
+            tools.append(
+                mcp_types.Tool(
+                    name=mcp_tool_name,
+                    description=tool_description,
+                    inputSchema=input_schema or {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "搜索查询"},
+                            "top_k": {"type": "integer", "description": "返回结果数量", "default": 5},
+                        },
+                        "required": ["query"],
+                        "additionalProperties": False,
+                    },
+                )
+            )
+        else:
+            # 其他自定义工具使用其定义的 input_schema
+            tools.append(
+                mcp_types.Tool(
+                    name=mcp_tool_name,
+                    description=tool_description,
+                    inputSchema=input_schema or {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": True,
+                    },
+                )
+            )
+    
     return tools
 
 
-def _find_access_and_tool_type(config: dict[str, Any], tool_name: str) -> tuple[dict[str, Any] | None, str | None]:
+def _find_access_and_tool_type(config: dict[str, Any], tool_name: str) -> tuple[dict[str, Any] | None, str | None, str | None]:
     """
-    根据工具名找到对应的 access 配置和工具类型。
+    根据工具名找到对应的配置和工具类型。
     
-    工具命名规则: node_{idx}_{type}
+    工具命名规则:
+    - 内置工具: node_{idx}_{type}
+    - 自定义工具: tool_{name}
+    
+    返回: (config, tool_type, tool_category)
+    - tool_category: "builtin" 或 "custom"
     """
     accesses = config.get("accesses", [])
+    custom_tools = config.get("tools", [])
     
+    # Case 1: 自定义工具 (tool_ 前缀)
+    if tool_name.startswith("tool_"):
+        custom_name = tool_name[5:]  # 去掉 "tool_" 前缀
+        for tool_config in custom_tools:
+            if tool_config.get("name") == custom_name:
+                return tool_config, tool_config.get("type"), "custom"
+        return None, None, None
+    
+    # Case 2: 内置工具 (node_ 前缀)
     # 解析工具名: node_0_get_schema -> idx=0, type=get_schema
     parts = tool_name.split("_", 2)
     if len(parts) < 3 or parts[0] != "node":
-        return None, None
+        return None, None, None
     
     try:
         idx = int(parts[1])
     except ValueError:
-        return None, None
+        return None, None, None
     
     tool_type = parts[2]
     
     if idx >= len(accesses):
-        return None, None
+        return None, None, None
     
-    return accesses[idx], tool_type
+    return accesses[idx], tool_type, "builtin"
 
 
 def build_starlette_app(*, json_response: bool = True) -> Starlette:
@@ -320,59 +283,29 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
 
     @mcp_server.list_tools()
     async def list_tools() -> list[mcp_types.Tool]:
+        """列出可用工具（只支持 Agent 模式）"""
         try:
             ctx = mcp_server.request_context
             request = ctx.request
             if request is None:
                 return []
 
-            # 1. 提取api_key
+            # 1. 提取 api_key
             api_key = extract_api_key(request)
-            # 2. 绑定api_key和session，方便后续通知
+            # 2. 绑定 api_key 和 session，方便后续通知
             await sessions.bind(api_key, ctx.session)
 
-            # 3. 拉取用户的工具配置
+            # 3. 拉取 Agent 配置
             config = await load_mcp_config(api_key, rpc_client)
             if not config:
                 return []
 
-            # agent：根据 agent accesses 生成工具
+            # Agent 模式：根据 agent accesses 生成工具
             if config.get("mode") == "agent":
                 return _build_agent_tools_list(config)
 
-            # v2：按绑定工具列表返回
-            if config.get("mode") == "v2":
-                mcp_v2 = config.get("mcp_v2") or {}
-                if not mcp_v2.get("status", False):
-                    return []
-                bound_tools = config.get("bound_tools") or []
-                tools: list[mcp_types.Tool] = []
-                for item in bound_tools:
-                    tool = (item or {}).get("tool") or {}
-                    name = tool.get("name")
-                    if not name:
-                        continue
-                    desc = tool.get("description") or ""
-                    tool_type = tool.get("type")
-                    input_schema = tool.get("input_schema")
-                    # v2 兜底：当主服务未提供 schema（或提供了空 dict）时，根据 type 补默认 schema
-                    if not isinstance(input_schema, dict) or not input_schema:
-                        input_schema = _default_input_schema_for_tool_type(tool_type)
-                    tools.append(
-                        mcp_types.Tool(
-                            name=name,
-                            description=desc,
-                            inputSchema=input_schema,
-                        )
-                    )
-                return tools
-
-            # legacy：保持原逻辑
-            if config["mcp_instance"]["status"] != 1:
-                return []
-
-            tool_provider = ToolDefinitionProvider(config.get("tools_definition"))
-            return build_tools_list(config, tool_provider)
+            # 其他模式已不支持
+            return []
         except Exception as e:
             print(f"Error listing tools: {e}")
             return []
@@ -381,6 +314,7 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
     async def call_tool(
         name: str, arguments: dict[str, Any]
     ) -> list[mcp_types.TextContent]:
+        """执行工具调用（只支持 Agent 模式）"""
         try:
             ctx = mcp_server.request_context
             request = ctx.request
@@ -393,22 +327,46 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             config = await load_mcp_config(api_key, rpc_client)
             if not config:
                 return [
-                    mcp_types.TextContent(type="text", text="错误: MCP实例不存在或配置加载失败")
+                    mcp_types.TextContent(type="text", text="错误: Agent 配置不存在或加载失败")
                 ]
 
-            # agent：根据 agent accesses 配置执行
-            if config.get("mode") == "agent":
-                access, tool_type = _find_access_and_tool_type(config, name)
-                if not access or not tool_type:
-                    return [mcp_types.TextContent(type="text", text=f"错误: 未知的工具名称: {name}")]
+            # Agent 模式：根据 agent accesses 配置执行
+            if config.get("mode") != "agent":
+                return [mcp_types.TextContent(type="text", text="错误: 只支持 Agent 模式")]
+
+            tool_config, tool_type, tool_category = _find_access_and_tool_type(config, name)
+            if not tool_config or not tool_type:
+                return [mcp_types.TextContent(type="text", text=f"错误: 未知的工具名称: {name}")]
+            
+            result: Any = None
+            
+            # ==========================================
+            # 自定义工具执行
+            # ==========================================
+            if tool_category == "custom":
+                tool_id = tool_config.get("tool_id", "")
+                node_id = tool_config.get("node_id", "")
+                json_path = tool_config.get("json_path", "")
                 
+                if tool_type == "search":
+                    # Search 工具：调用内部搜索 API
+                    query = arguments.get("query", "")
+                    top_k = arguments.get("top_k", 5)
+                    result = await rpc_client.search_tool_query(tool_id, query, top_k)
+                else:
+                    # 其他自定义工具：暂不支持
+                    return [mcp_types.TextContent(type="text", text=f"错误: 暂不支持的自定义工具类型: {tool_type}")]
+            
+            # ==========================================
+            # 内置工具执行 (基于 agent_bash)
+            # ==========================================
+            else:
+                access = tool_config
                 node_id = access.get("node_id", "")
                 json_path = access.get("json_path", "")
                 
                 if not node_id:
                     return [mcp_types.TextContent(type="text", text="错误: node_id 缺失")]
-                
-                result: Any = None
                 
                 if tool_type == "get_schema":
                     if not access.get("tool_query"):
@@ -440,187 +398,7 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                     result = await table_tool.delete_element(table_id=node_id, json_path=json_path, keys=keys)
                 else:
                     return [mcp_types.TextContent(type="text", text=f"错误: 未支持的工具类型: {tool_type}")]
-                
-                return [
-                    mcp_types.TextContent(
-                        type="text", text=json.dumps(result, ensure_ascii=False, indent=2)
-                    )
-                ]
-
-            # v2：按 tool.name -> tool 配置执行
-            if config.get("mode") == "v2":
-                mcp_v2 = config.get("mcp_v2") or {}
-                if not mcp_v2.get("status", False):
-                    return [mcp_types.TextContent(type="text", text="错误: MCP实例已关闭")]
-
-                bound_tools = config.get("bound_tools") or []
-                tool_obj: dict[str, Any] | None = None
-                for item in bound_tools:
-                    t = (item or {}).get("tool") or {}
-                    if t.get("name") == name:
-                        tool_obj = t
-                        break
-
-                if not tool_obj:
-                    return [mcp_types.TextContent(type="text", text=f"错误: 未知的工具名称: {name}")]
-
-                tool_type = tool_obj.get("type")
-                table_id = int(tool_obj.get("table_id") or 0)
-                json_path = tool_obj.get("json_path") or ""
-                metadata = tool_obj.get("metadata") or {}
-
-                if not table_id:
-                    return [mcp_types.TextContent(type="text", text="错误: tool.table_id 缺失")]
-
-                result: Any = None
-                if tool_type == "get_data_schema":
-                    result = await table_tool.get_data_schema(table_id=table_id, json_path=json_path)
-                elif tool_type == "get_all_data":
-                    result = await table_tool.get_all_data(table_id=table_id, json_path=json_path)
-                elif tool_type == "query_data":
-                    query = arguments.get("query")
-                    result = await table_tool.query_data(table_id=table_id, json_path=json_path, query=query)
-                elif tool_type == "create":
-                    elements = arguments.get("elements", [])
-                    result = await table_tool.create_element(table_id=table_id, json_path=json_path, elements=elements)
-                elif tool_type == "update":
-                    updates = arguments.get("updates", [])
-                    result = await table_tool.update_element(table_id=table_id, json_path=json_path, updates=updates)
-                elif tool_type == "delete":
-                    keys = arguments.get("keys", [])
-                    result = await table_tool.delete_element(table_id=table_id, json_path=json_path, keys=keys)
-                elif tool_type == "preview":
-                    keys = arguments.get("keys")
-                    result = await table_tool.preview_data(
-                        table_id=table_id, json_path=json_path, keys=keys
-                    )
-                elif tool_type == "select":
-                    field = arguments.get("field")
-                    keys = arguments.get("keys", [])
-                    result = await table_tool.select_tables(
-                        table_id=table_id, json_path=json_path, field=field, keys=keys
-                    )
-                elif tool_type == "search":
-                    tool_id = int(tool_obj.get("id") or 0)
-                    if not tool_id:
-                        return [mcp_types.TextContent(type="text", text="错误: tool.id 缺失")]
-                    query = arguments.get("query")
-                    top_k = arguments.get("top_k")
-                    if not isinstance(query, str) or not query.strip():
-                        return [mcp_types.TextContent(type="text", text="错误: query 参数不能为空")]
-                    # 允许 top_k 缺省；主服务会做默认值与上限控制
-                    if top_k is not None:
-                        try:
-                            top_k = int(top_k)
-                        except (TypeError, ValueError):
-                            return [
-                                mcp_types.TextContent(
-                                    type="text", text="错误: top_k 必须是整数（可选）"
-                                )
-                            ]
-                    result = await rpc_client.search_tool(
-                        tool_id, query=query, top_k=top_k
-                    )
-                else:
-                    return [mcp_types.TextContent(type="text", text=f"错误: 未支持的 tool.type: {tool_type}")]
-
-                return [
-                    mcp_types.TextContent(
-                        type="text", text=json.dumps(result, ensure_ascii=False, indent=2)
-                    )
-                ]
-
-            # legacy：保持原逻辑
-            if config["mcp_instance"]["status"] != 1:
-                return [mcp_types.TextContent(type="text", text="错误: MCP实例已关闭")]
-
-            tool_provider = ToolDefinitionProvider(config.get("tools_definition"))
-            mcp_instance = config["mcp_instance"]
-            table_id = mcp_instance["table_id"]
-            json_path = mcp_instance["json_path"]
-            register_tools = mcp_instance.get(
-                "register_tools", ALL_TOOLS_LIST
-            )
-            preview_keys = mcp_instance.get("preview_keys")
-
-            name_to_type: dict[str, tool_types] = {}
-            for t in [
-                "get_data_schema",
-                "get_all_data",
-                "query_data",
-                "create",
-                "update",
-                "delete",
-                "preview",
-                "select",
-            ]:
-                tool_name = tool_provider.get_tool_name(t)  # type: ignore[arg-type]
-                name_to_type[tool_name] = t  # type: ignore[assignment]
-
-            tool_type = name_to_type.get(name)
-            if not tool_type:
-                return [
-                    mcp_types.TextContent(type="text", text=f"错误: 未知的工具名称: {name}")
-                ]
-
-            # 检查工具是否启用
-            if tool_type in ["preview", "select"]:
-                if not preview_keys or len(preview_keys) == 0:
-                    return [
-                        mcp_types.TextContent(
-                            type="text",
-                            text=f"错误: 工具 {name} 未启用（需要配置preview_keys）",
-                        )
-                    ]
-            else:
-                if tool_type in ["get_data_schema", "get_all_data", "query_data"]:
-                    if "query" not in register_tools and tool_type not in register_tools:
-                        return [
-                            mcp_types.TextContent(type="text", text=f"错误: 工具 {name} 未注册")
-                        ]
-                elif tool_type not in register_tools:
-                    return [mcp_types.TextContent(type="text", text=f"错误: 工具 {name} 未注册")]
-
-            # 调用实现
-            result: Any = None
-            if tool_type == "get_data_schema":
-                result = await table_tool.get_data_schema(
-                    table_id=table_id, json_path=json_path
-                )
-            elif tool_type == "get_all_data":
-                result = await table_tool.get_all_data(table_id=table_id, json_path=json_path)
-            elif tool_type == "query_data":
-                query = arguments.get("query")
-                result = await table_tool.query_data(
-                    table_id=table_id, json_path=json_path, query=query
-                )
-            elif tool_type == "create":
-                elements = arguments.get("elements", [])
-                result = await table_tool.create_element(
-                    table_id=table_id, json_path=json_path, elements=elements
-                )
-            elif tool_type == "update":
-                updates = arguments.get("updates", [])
-                result = await table_tool.update_element(
-                    table_id=table_id, json_path=json_path, updates=updates
-                )
-            elif tool_type == "delete":
-                keys = arguments.get("keys", [])
-                result = await table_tool.delete_element(
-                    table_id=table_id, json_path=json_path, keys=keys
-                )
-            elif tool_type == "preview":
-                keys = arguments.get("keys")
-                result = await table_tool.preview_data(
-                    table_id=table_id, json_path=json_path, keys=keys
-                )
-            elif tool_type == "select":
-                field = arguments.get("field")
-                keys = arguments.get("keys", [])
-                result = await table_tool.select_tables(
-                    table_id=table_id, json_path=json_path, field=field, keys=keys
-                )
-
+            
             return [
                 mcp_types.TextContent(
                     type="text", text=json.dumps(result, ensure_ascii=False, indent=2)

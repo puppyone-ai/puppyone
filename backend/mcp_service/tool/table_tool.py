@@ -55,7 +55,7 @@ class TableToolImplementation:
             meta.update({"root_type": "scalar", "scalar_type": type(schema).__name__})
         return meta
     
-    async def get_data_schema(self, table_id: int, json_path: str = "") -> Dict[str, Any]:
+    async def get_data_schema(self, table_id: str, json_path: str = "") -> Dict[str, Any]:
         """获取挂载点数据结构（不含实际值）"""
         try:
             data = await self.rpc_client.get_context_schema(table_id=table_id, json_path=json_path)
@@ -71,7 +71,7 @@ class TableToolImplementation:
         except Exception as e:
             return {"error": "获取数据结构失败", "detail": str(e)[:200]}
 
-    async def get_all_data(self, table_id: int, json_path: str = "") -> Dict[str, Any]:
+    async def get_all_data(self, table_id: str, json_path: str = "") -> Dict[str, Any]:
         """获取挂载点全部数据"""
         try:
             data = await self.rpc_client.get_context_data(table_id=table_id, json_path=json_path)
@@ -81,7 +81,7 @@ class TableToolImplementation:
         except Exception as e:
             return {"error": "获取数据失败", "detail": str(e)[:200]}
 
-    async def query_data(self, table_id: int, json_path: str, query: str) -> Dict[str, Any]:
+    async def query_data(self, table_id: str, json_path: str, query: str) -> Dict[str, Any]:
         """对挂载点数据做 JMESPath 查询"""
         try:
             if not query:
@@ -97,7 +97,7 @@ class TableToolImplementation:
     
     async def create_element(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         elements: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
@@ -159,7 +159,7 @@ class TableToolImplementation:
     
     async def update_element(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         updates: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
@@ -221,7 +221,7 @@ class TableToolImplementation:
     
     async def delete_element(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         keys: List[str]
     ) -> Dict[str, Any]:
@@ -270,7 +270,7 @@ class TableToolImplementation:
     
     async def preview_data(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         keys: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
@@ -330,7 +330,7 @@ class TableToolImplementation:
     
     async def select_tables(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         field: str,
         keys: List[str]

@@ -93,17 +93,17 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
     const defaultPlaceholder = 'Ask a question or let Agent help...';
 
     return (
-      <div style={{ padding: '12px 16px', flexShrink: 0 }}>
+      <div style={{ padding: '8px 12px', flexShrink: 0 }}>
         {/* Input Container - 上下排布 */}
         <div
           style={{
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
-            gap: '8px',
+            gap: '6px',
             boxSizing: 'border-box',
             backgroundColor: '#1f1f1f',
-            borderRadius: '8px',
+            borderRadius: '12px',
             padding: '10px 12px',
             border: '1px solid rgba(255,255,255,0.06)',
           }}

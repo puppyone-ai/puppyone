@@ -65,19 +65,20 @@ function mapNodeType(backendType: string): 'folder' | 'json' | 'file' {
   return 'file'; // markdown, image, pdf, video, file 等都归类为 'file'
 }
 
-// 新的资源访问模型
+// Bash 访问资源模型（新版简化结构）
 export interface AccessResource {
   nodeId: string;
   nodeName: string;
   nodeType: 'folder' | 'json' | 'file';
-  
-  // 权限配置
-  terminal: boolean;
-  terminalReadonly: boolean;
-  canRead: boolean;
-  canWrite: boolean;
-  canDelete: boolean;
   jsonPath?: string;
+  readonly: boolean;  // 新版：只有一个 readonly 字段
+  
+  // 向后兼容的字段（将被废弃）
+  terminal?: boolean;
+  terminalReadonly?: boolean;
+  canRead?: boolean;
+  canWrite?: boolean;
+  canDelete?: boolean;
 }
 
 interface AgentContextValue {
@@ -192,7 +193,15 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           task_content?: string;
           task_node_id?: string;
           external_config?: ExternalConfig;
-          accesses: Array<{
+          // 新版 bash_accesses
+          bash_accesses?: Array<{
+            id: string;
+            node_id: string;
+            json_path: string;
+            readonly: boolean;
+          }>;
+          // 向后兼容的 accesses（旧格式）
+          accesses?: Array<{
             id: string;
             node_id: string;
             terminal: boolean;
@@ -204,40 +213,69 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           }>;
         }>>('/api/v1/agent-config/');
         
+        // 优先使用 bash_accesses，fallback 到 accesses
+        const getNodeIds = (a: typeof agents[0]) => {
+          if (a.bash_accesses && a.bash_accesses.length > 0) {
+            return a.bash_accesses.map(b => b.node_id);
+          }
+          return (a.accesses || []).map(acc => acc.node_id);
+        };
+        
         // 收集所有 node_ids 用于批量获取节点信息
-        const allNodeIds = agents.flatMap(a => a.accesses.map(acc => acc.node_id));
+        const allNodeIds = agents.flatMap(getNodeIds);
         
         // 批量获取节点信息（name, type）
         const nodeInfoMap = await fetchNodeInfoBatch(allNodeIds);
         
-        const loadedAgents: SavedAgent[] = agents.map(a => ({
-          id: a.id,
-          name: a.name,
-          icon: a.icon,
-          type: (a.type as AgentType) || 'chat',
-          capabilities: a.accesses.map(acc => `resource:${acc.node_id}`),
-          mcp_api_key: a.mcp_api_key,
-          // Schedule Agent 新字段
-          trigger_type: (a.trigger_type as TriggerType) || 'manual',
-          trigger_config: a.trigger_config,
-          task_content: a.task_content,
-          task_node_id: a.task_node_id,
-          external_config: a.external_config,
-          resources: a.accesses.map(acc => {
-            const nodeInfo = nodeInfoMap.get(acc.node_id);
-            return {
-            nodeId: acc.node_id,
-              nodeName: nodeInfo?.name || acc.node_id.substring(0, 8) + '...',
-              nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
-            terminal: acc.terminal,
-            terminalReadonly: acc.terminal_readonly,
-            canRead: acc.can_read,
-            canWrite: acc.can_write,
-            canDelete: acc.can_delete,
-            jsonPath: acc.json_path,
-            };
-          }),
-        }));
+        const loadedAgents: SavedAgent[] = agents.map(a => {
+          // 优先使用新版 bash_accesses
+          const bashAccesses = a.bash_accesses || [];
+          const legacyAccesses = a.accesses || [];
+          
+          const resources: AccessResource[] = bashAccesses.length > 0
+            ? bashAccesses.map(bash => {
+                const nodeInfo = nodeInfoMap.get(bash.node_id);
+                return {
+                  nodeId: bash.node_id,
+                  nodeName: nodeInfo?.name || bash.node_id.substring(0, 8) + '...',
+                  nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
+                  jsonPath: bash.json_path,
+                  readonly: bash.readonly,
+                };
+              })
+            : legacyAccesses.map(acc => {
+                const nodeInfo = nodeInfoMap.get(acc.node_id);
+                return {
+                  nodeId: acc.node_id,
+                  nodeName: nodeInfo?.name || acc.node_id.substring(0, 8) + '...',
+                  nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
+                  jsonPath: acc.json_path,
+                  readonly: acc.terminal_readonly,
+                  // 向后兼容字段
+                  terminal: acc.terminal,
+                  terminalReadonly: acc.terminal_readonly,
+                  canRead: acc.can_read,
+                  canWrite: acc.can_write,
+                  canDelete: acc.can_delete,
+                };
+              });
+          
+          return {
+            id: a.id,
+            name: a.name,
+            icon: a.icon,
+            type: (a.type as AgentType) || 'chat',
+            capabilities: resources.map(r => `resource:${r.nodeId}`),
+            mcp_api_key: a.mcp_api_key,
+            // Schedule Agent 新字段
+            trigger_type: (a.trigger_type as TriggerType) || 'manual',
+            trigger_config: a.trigger_config,
+            task_content: a.task_content,
+            task_node_id: a.task_node_id,
+            external_config: a.external_config,
+            resources,
+          };
+        });
         
         setSavedAgents(loadedAgents);
         console.log('Loaded agents from database:', loadedAgents.length);
@@ -314,7 +352,15 @@ export function AgentProvider({ children }: { children: ReactNode }) {
             name: string;
             icon: string;
             type: string;
-            accesses: Array<{
+            // 新版 bash_accesses
+            bash_accesses?: Array<{
+              id: string;
+              node_id: string;
+              json_path: string;
+              readonly: boolean;
+            }>;
+            // 向后兼容的 accesses
+            accesses?: Array<{
               id: string;
               node_id: string;
               terminal: boolean;
@@ -326,24 +372,36 @@ export function AgentProvider({ children }: { children: ReactNode }) {
             }>;
           }>(`/api/v1/agent-config/${agentId}`);
           
-          // 批量获取节点信息
-          const nodeIds = data.accesses.map(a => a.node_id);
+          // 优先使用 bash_accesses
+          const bashAccesses = data.bash_accesses || [];
+          const legacyAccesses = data.accesses || [];
+          
+          const nodeIds = bashAccesses.length > 0 
+            ? bashAccesses.map(b => b.node_id)
+            : legacyAccesses.map(a => a.node_id);
           const nodeInfoMap = await fetchNodeInfoBatch(nodeIds);
           
-          const resources: AccessResource[] = data.accesses.map(a => {
-            const nodeInfo = nodeInfoMap.get(a.node_id);
-            return {
-            nodeId: a.node_id,
-              nodeName: nodeInfo?.name || a.node_id.substring(0, 8) + '...',
-              nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
-            terminal: a.terminal,
-            terminalReadonly: a.terminal_readonly,
-            canRead: a.can_read,
-            canWrite: a.can_write,
-            canDelete: a.can_delete,
-            jsonPath: a.json_path,
-            };
-          });
+          const resources: AccessResource[] = bashAccesses.length > 0
+            ? bashAccesses.map(bash => {
+                const nodeInfo = nodeInfoMap.get(bash.node_id);
+                return {
+                  nodeId: bash.node_id,
+                  nodeName: nodeInfo?.name || bash.node_id.substring(0, 8) + '...',
+                  nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
+                  jsonPath: bash.json_path,
+                  readonly: bash.readonly,
+                };
+              })
+            : legacyAccesses.map(a => {
+                const nodeInfo = nodeInfoMap.get(a.node_id);
+                return {
+                  nodeId: a.node_id,
+                  nodeName: nodeInfo?.name || a.node_id.substring(0, 8) + '...',
+                  nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
+                  jsonPath: a.json_path,
+                  readonly: a.terminal_readonly,
+                };
+              });
           setDraftResources(resources);
         } catch (error) {
           console.error('Failed to load agent config:', error);
@@ -356,15 +414,22 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   // 部署 (保存) Agent
   const deployAgent = useCallback(async (name: string, icon: string) => {
     try {
-      // 构建后端需要的 accesses 数据
+      // 构建后端需要的 bash 数据（新版格式）
+      const bashAccesses = draftResources.map(r => ({
+        node_id: r.nodeId,
+        json_path: r.jsonPath || '',
+        readonly: r.readonly ?? true,
+      }));
+      
+      // 向后兼容的 accesses 数据
       const accesses = draftResources.map(r => ({
         node_id: r.nodeId,
-        terminal: r.terminal,
-        terminal_readonly: r.terminalReadonly,
-        can_read: r.canRead,
-        can_write: r.canWrite,
-        can_delete: r.canDelete,
-        json_path: r.jsonPath,
+        terminal: true,
+        terminal_readonly: r.readonly ?? true,
+        can_read: false,
+        can_write: !(r.readonly ?? true),
+        can_delete: false,
+        json_path: r.jsonPath || '',
       }));
 
       let agentId: string;
@@ -382,8 +447,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           task_node_id: draftTaskNodeId,
           external_config: draftExternalConfig,
         });
-        // 同步访问权限
-        await put<unknown>(`/api/v1/agent-config/${editingAgentId}/accesses`, accesses);
+        // 同步 Bash 访问权限（使用新版端点，同时向后兼容）
+        await put<unknown>(`/api/v1/agent-config/${editingAgentId}/bash`, bashAccesses);
         agentId = editingAgentId;
         
         // 更新本地 state

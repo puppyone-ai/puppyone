@@ -1008,11 +1008,7 @@ export function ChatRuntimeView({
                     nodeId: node.id,
                     nodeName: node.name,
                     nodeType: isFolder ? 'folder' : (isJson ? 'json' : 'file'),
-                    terminal: true,
-                    terminalReadonly: false, // 默认 Write
-                    canRead: false,
-                    canWrite: false,
-                    canDelete: false,
+                    readonly: false, // 默认 Write 模式
                   });
                 }
               } catch (err) {
@@ -1021,108 +1017,112 @@ export function ChatRuntimeView({
             }}
           >
             {/* 文件列表 */}
-            <div style={{ padding: currentAgent.resources && currentAgent.resources.filter(r => r.terminal).length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {currentAgent.resources && currentAgent.resources.filter(r => r.terminal).map(resource => (
-                <div 
-                  key={resource.nodeId}
-                  style={{ 
-                    height: 32,
-                    display: 'flex', 
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0 10px',
-                    borderRadius: 4,
-                    background: '#1a1a1a',
-                    border: '1px solid #252525',
-                    transition: 'all 0.1s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#222'; e.currentTarget.style.borderColor = '#333'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.borderColor = '#252525'; }}
-                >
-                  {/* 左侧：名称 */}
-                  <span style={{ fontSize: 14, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
-                    {resource.nodeName}
-                  </span>
-                  
-                  {/* 右侧：权限切换 + 删除 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    {/* Segmented Control: Read | Write */}
-                    <div style={{
-                      display: 'flex',
-                      background: '#0f0f0f',
-                      border: '1px solid #2a2a2a',
+            <div style={{ padding: currentAgent.resources && currentAgent.resources.length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {currentAgent.resources && currentAgent.resources.map(resource => {
+                // 使用新的 readonly 字段，向后兼容 terminalReadonly
+                const isReadonly = resource.readonly ?? resource.terminalReadonly ?? true;
+                return (
+                  <div 
+                    key={resource.nodeId}
+                    style={{ 
+                      height: 32,
+                      display: 'flex', 
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0 10px',
                       borderRadius: 4,
-                      padding: 2,
-                      gap: 1,
-                    }}>
-                      <button 
-                        onClick={() => updateDraftResource(resource.nodeId, { terminalReadonly: true })}
-                        style={{
-                          background: resource.terminalReadonly ? '#333' : 'transparent',
-                          border: 'none',
-                          borderRadius: 3,
-                          color: resource.terminalReadonly ? '#e5e5e5' : '#505050',
+                      background: '#1a1a1a',
+                      border: '1px solid #252525',
+                      transition: 'all 0.1s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#222'; e.currentTarget.style.borderColor = '#333'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.borderColor = '#252525'; }}
+                  >
+                    {/* 左侧：名称 */}
+                    <span style={{ fontSize: 14, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
+                      {resource.nodeName}
+                    </span>
+                    
+                    {/* 右侧：权限切换 + 删除 */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      {/* Segmented Control: Read | Write */}
+                      <div style={{
+                        display: 'flex',
+                        background: '#0f0f0f',
+                        border: '1px solid #2a2a2a',
+                        borderRadius: 4,
+                        padding: 2,
+                        gap: 1,
+                      }}>
+                        <button 
+                          onClick={() => updateDraftResource(resource.nodeId, { readonly: true })}
+                          style={{
+                            background: isReadonly ? '#333' : 'transparent',
+                            border: 'none',
+                            borderRadius: 3,
+                            color: isReadonly ? '#e5e5e5' : '#505050',
+                            cursor: 'pointer',
+                            fontSize: 11,
+                            padding: '2px 8px',
+                            fontWeight: 500,
+                            transition: 'all 0.1s',
+                          }}
+                        >
+                          Read
+                        </button>
+                        <button 
+                          onClick={() => updateDraftResource(resource.nodeId, { readonly: false })}
+                          style={{
+                            background: !isReadonly ? 'rgba(251, 191, 36, 0.15)' : 'transparent',
+                            border: 'none',
+                            borderRadius: 3,
+                            color: !isReadonly ? '#fbbf24' : '#505050',
+                            cursor: 'pointer',
+                            fontSize: 11,
+                            padding: '2px 8px',
+                            fontWeight: 500,
+                            transition: 'all 0.1s',
+                          }}
+                        >
+                          Write
+                        </button>
+                      </div>
+                      
+                      <button
+                        onClick={() => removeDraftResource(resource.nodeId)}
+                        style={{ 
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          width: 20, height: 20, borderRadius: 4,
+                          background: 'transparent', 
+                          border: 'none', 
+                          color: '#505050', 
                           cursor: 'pointer',
-                          fontSize: 11,
-                          padding: '2px 8px',
-                          fontWeight: 500,
                           transition: 'all 0.1s',
                         }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}
                       >
-                        Read
-                      </button>
-                      <button 
-                        onClick={() => updateDraftResource(resource.nodeId, { terminalReadonly: false })}
-                        style={{
-                          background: !resource.terminalReadonly ? 'rgba(251, 191, 36, 0.15)' : 'transparent',
-                          border: 'none',
-                          borderRadius: 3,
-                          color: !resource.terminalReadonly ? '#fbbf24' : '#505050',
-                          cursor: 'pointer',
-                          fontSize: 11,
-                          padding: '2px 8px',
-                          fontWeight: 500,
-                          transition: 'all 0.1s',
-                        }}
-                      >
-                        Write
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
                       </button>
                     </div>
-                    
-                    <button
-                      onClick={() => removeDraftResource(resource.nodeId)}
-                      style={{ 
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: 20, height: 20, borderRadius: 4,
-                        background: 'transparent', 
-                        border: 'none', 
-                        color: '#505050', 
-                        cursor: 'pointer',
-                        transition: 'all 0.1s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             
             {/* 拖拽提示 */}
             <div style={{ 
-              minHeight: currentAgent.resources && currentAgent.resources.filter(r => r.terminal).length > 0 ? 32 : 88,
+              minHeight: currentAgent.resources && currentAgent.resources.length > 0 ? 32 : 88,
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center', 
               color: '#525252',
             }}>
               <span style={{ fontSize: 12 }}>
-                {currentAgent.resources && currentAgent.resources.filter(r => r.terminal).length > 0 ? 'Drag more' : 'Drag items into this'}
+                {currentAgent.resources && currentAgent.resources.length > 0 ? 'Drag more' : 'Drag items into this'}
               </span>
             </div>
           </div>
