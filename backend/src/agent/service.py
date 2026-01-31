@@ -477,7 +477,17 @@ class AgentService:
                     mode="agent",
                 )
                 logger.info(f"[Chat Persist] Session ready: id={persisted_session_id}, created={created_session}")
+                # 如果是新建的 session，先设置 title，再通知前端
                 if created_session and persisted_session_id:
+                    try:
+                        chat_service.maybe_set_title_on_first_message(
+                            user_id=current_user.user_id,
+                            session_id=persisted_session_id,
+                            first_message=request.prompt,
+                        )
+                        logger.info(f"[Chat Persist] Session title set for {persisted_session_id}")
+                    except Exception as e:
+                        logger.warning(f"[Chat Persist] Failed to set session title: {e}")
                     yield {"type": "session", "sessionId": persisted_session_id}
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to ensure session: {e}")
@@ -506,12 +516,6 @@ class AgentService:
             try:
                 chat_service.add_user_message(session_id=persisted_session_id, content=request.prompt)
                 logger.info(f"[Chat Persist] User message saved to session {persisted_session_id}")
-                if created_session:
-                    chat_service.maybe_set_title_on_first_message(
-                        user_id=current_user.user_id,
-                        session_id=persisted_session_id,
-                        first_message=request.prompt,
-                    )
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to save user message: {e}")
 
@@ -1008,6 +1012,7 @@ async def prepare_sandbox_data(
     根据节点类型返回不同的沙盒数据：
     - json: 导出 content 为 data.json（可选 json_path 提取子数据）
     - folder: 递归获取子文件列表
+    - github_repo: 从 S3 目录下载所有文件（单节点模式）
     - file/pdf/image/etc: 单个文件信息
     """
     node = node_service.get_by_id(node_id, user_id)
@@ -1019,7 +1024,30 @@ async def prepare_sandbox_data(
     files: list[SandboxFile] = []
     node_type = node.type or "json"
     
-    if node_type == "json":
+    if node_type == "github_repo":
+        # GitHub Repo 节点（单节点模式）：从 content.files 读取文件列表
+        # 每个文件都有 s3_key，用于从 S3 下载
+        content = node.content or {}
+        file_list = content.get("files", [])
+        repo_name = content.get("repo", node.name or "repo")
+        
+        logger.info(f"[prepare_sandbox_data] GitHub repo node, file_count={len(file_list)}")
+        
+        for file_info in file_list:
+            file_path = file_info.get("path", "")
+            s3_key = file_info.get("s3_key", "")
+            
+            if not file_path or not s3_key:
+                continue
+            
+            # 保持 repo 内的目录结构
+            files.append(SandboxFile(
+                path=f"/workspace/{repo_name}/{file_path}",
+                s3_key=s3_key,
+                content_type="text/plain",  # GitHub 文件都是文本
+            ))
+    
+    elif node_type == "json":
         # JSON 节点：导出 content 为 data.json
         content = node.content or {}
         if json_path:
@@ -1062,18 +1090,18 @@ async def prepare_sandbox_data(
                     content_type=child.mime_type or "application/octet-stream",
                 ))
     else:
-        # 其他文件类型（pdf, image, file 等）
+        # 其他文件类型（pdf, image, file, markdown, notion_page 等）
         file_name = node.name or "file"
         
-        if node_type == "json" or node.content:
-            # 如果有 content，导出为 JSON
+        if node.content and isinstance(node.content, (dict, list)):
+            # 如果有 JSON content，导出为 JSON
             files.append(SandboxFile(
-                path=f"/workspace/{file_name}",
-                content=json.dumps(node.content, ensure_ascii=False, indent=2) if isinstance(node.content, (dict, list)) else str(node.content or ""),
-                content_type="application/json" if isinstance(node.content, (dict, list)) else "text/plain",
+                path=f"/workspace/{file_name}.json",
+                content=json.dumps(node.content, ensure_ascii=False, indent=2),
+                content_type="application/json",
             ))
         elif node.s3_key:
-            # S3 文件
+            # S3 文件（markdown, image, pdf 等）
             files.append(SandboxFile(
                 path=f"/workspace/{file_name}",
                 s3_key=node.s3_key,

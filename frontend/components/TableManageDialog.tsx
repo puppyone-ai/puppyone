@@ -139,23 +139,17 @@ export function TableManageDialog({
 
   const isNotionUrl = (value: string) => value.includes('notion.so') || value.includes('notion.site');
 
-  // SaaS 配置
+  // SaaS 配置 - 使用项目中的实际 Logo 图片
   const SAAS_OPTIONS = [
     { 
       id: 'notion', 
       name: 'Notion', 
-      color: '#ffffff',
       placeholder: 'https://notion.so/your-page or https://notion.site/...',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.98-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.886l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952l1.448.327s0 .84-1.168.84l-3.22.186c-.094-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.886.747-.933zM2.197 1.548l13.542-.934c1.682-.14 2.103.093 2.803.607l3.875 2.706c.466.326.607.746.607 1.26v14.697c0 .84-.326 1.542-1.494 1.588l-15.503.887c-.888.047-1.308-.14-1.776-.7L.935 18.93c-.514-.653-.747-1.213-.747-1.866V2.995c0-.654.28-1.354 1.027-1.447z"/>
-        </svg>
-      )
+      icon: <img src="/icons/notion.svg" alt="Notion" width={24} height={24} style={{ display: 'block' }} />
     },
     { 
       id: 'github', 
       name: 'GitHub', 
-      color: '#ffffff',
       placeholder: 'https://github.com/owner/repo or https://github.com/owner/repo/issues',
       icon: (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -166,38 +160,31 @@ export function TableManageDialog({
     { 
       id: 'airtable', 
       name: 'Airtable', 
-      color: '#18BFFF',
       placeholder: 'https://airtable.com/appXXX/tblXXX/... or shared view link',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M11.992 1.966L2.477 5.347a.35.35 0 00-.227.328v8.434c0 .139.083.265.21.32l9.514 4.093a.35.35 0 00.278 0l9.514-4.093a.35.35 0 00.21-.32V5.675a.35.35 0 00-.227-.328l-9.515-3.381a.35.35 0 00-.242 0zM12 6.523l7.396 2.63L12 11.782 4.604 9.153z"/>
-        </svg>
-      )
+      icon: <img src="/icons/airtable.png" alt="Airtable" width={24} height={24} style={{ display: 'block', borderRadius: 4 }} />
     },
     { 
       id: 'linear', 
       name: 'Linear', 
-      color: '#5E6AD2',
       placeholder: 'https://linear.app/team/issue/XXX-123 or project URL',
       icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12Z" fillOpacity="0.2"/>
-          <path d="M3.51472 14.8285L9.17158 20.4854C4.89697 19.6056 1.72955 15.8946 1.72955 11.4142C1.72955 10.4988 1.85855 9.61372 2.09969 8.77539L6.32373 13.0005L3.51472 14.8285Z"/>
-          <path d="M20.4853 14.8285L14.8284 20.4854C19.103 19.6056 22.2704 15.8946 22.2704 11.4142C22.2704 10.4988 22.1414 9.61372 21.9003 8.77539L17.6762 13.0005L20.4853 14.8285Z"/>
-          <path d="M12 4.72949L17.6568 10.3863C17.6568 6.30015 14.5279 3.00098 10.5858 3.00098C9.67037 3.00098 8.78532 3.12998 7.94699 3.37112L12 4.72949Z"/>
+        <svg width="24" height="24" viewBox="0 0 100 100" fill="none">
+          <path d="M1.22541 61.5228c-.2225-.9485.90748-1.5459 1.59638-.857L39.3342 97.1782c.6889.6889.0915 1.8189-.857 1.5765-21.4563-5.4825-38.3203-22.3465-43.80257-43.8028-.01967-.0838-.03863-.1684-.05765-.2521Z" fill="#5E6AD2"/>
+          <path d="M.00189135 46.8891c-.01764375.2833-.00613497.5765.03387245.8765.00541.0407.01112.0814.01719.122.40219 2.6789 1.04338 5.3086 1.90098 7.8743.09193.2753.18599.5497.28237.8231.05099.1448.10275.2892.15534.433l35.9974 35.9975c.1438.0526.2882.1043.433.1553.2734.0964.5478.1905.8231.2823 2.5657.8576 5.1954 1.4988 7.8742 1.901.0407.0061.0814.0118.1221.0172.2999.04.5765.0515.8598.0339.0069-.0004.0137-.0009.0206-.0013.0081.003.0166-.0037.0246-.0007 2.1919-.1149 4.3893-.3874 6.5775-.8296L1.53232 39.8813C1.0891 42.0766.82108 44.2744.7056 46.4612c.00029.0042.00029.0085.0001.0128-.00041.1386-.00108.2762-.00373.4147l.00002.0003v.0001Z" fill="#5E6AD2"/>
+          <path d="M4.5765 32.3539c.01735-.0393.03489-.0786.05264-.1178L52.7633 80.3702c-.0392.0178-.0785.0353-.1178.0527-2.5549 1.1265-5.2275 2.042-7.9935 2.7262l-42.10031-42.1004c.68415-2.7659 1.5997-5.4385 2.72621-7.9935-.0009.003-.00169.0064-.00252.0099-.01098-.0208-.0046-.0448.00162-.0652.10199-.2337.20583-.4664.31164-.6982l.00001-.0001-.00011-.0001-.00004.0001Z" fill="#5E6AD2"/>
+          <path d="M13.0619 19.0412c-.097.0851-.1935.171-.2895.2574L60.7015 77.228c.0864-.096.1724-.1925.2574-.2896 1.5498-1.7707 2.9566-3.6665 4.2025-5.6752L18.7371 14.8387c-2.0087 1.246-3.9045 2.6527-5.6752 4.2025Z" fill="#5E6AD2"/>
+          <path d="M24.8296 10.467c-.1479.1118-.2952.2246-.4419.3383l54.8071 54.8071c.1137-.1467.2264-.294.3383-.4418 1.1991-1.5869 2.2804-3.265 3.2319-5.0222L27.8519 7.23504c-1.7573.95158-3.4354 2.03283-5.0223 3.23196Z" fill="#5E6AD2"/>
+          <path d="M35.1818 4.32765c-.2106.12005-.4205.24136-.6296.36397l50.7579 50.75788c.1226-.2091.2439-.4189.3639-.6296 1.0192-1.7888 1.9046-3.6504 2.6475-5.5715L38.7533 1.68011c-1.921.74293-3.7826 1.62833-5.5715 2.64754Z" fill="#5E6AD2"/>
+          <path d="M47.8371 1.17315c-.2471.08995-.4933.18143-.7385.27445l41.2552 41.2551c.093-.2451.1845-.4913.2744-.7385.6003-1.6492 1.1132-3.3365 1.5343-5.0577L48.8948-.36222c-1.7212.42109-3.4085.93398-5.0577 1.53437v.001Z" fill="#5E6AD2"/>
+          <path d="M61.6387.456393c-.226.05054-.4516.102234-.677.155187L97.3882 97.0384c.053-.2255.1047-.4511.1552-.677C99.2037 89.4676 100 82.3054 100 75.0001c0-41.4215-33.5786-75.00003-75-75.00003-7.3052 0-14.4675.79626-21.3614 2.45642Z" fill="#5E6AD2"/>
         </svg>
       )
     },
     { 
       id: 'sheets', 
       name: 'Google Sheets', 
-      color: '#34A853',
       placeholder: 'https://docs.google.com/spreadsheets/d/...',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 2v3H5V5h14zm-9 5h4v9h-4v-9zm-5 0h4v9H5v-9zm14 9h-4v-9h4v9z"/>
-        </svg>
-      )
+      icon: <img src="/icons/Google_Docs_logo.png" alt="Google Sheets" width={24} height={24} style={{ display: 'block', borderRadius: 4 }} />
     },
   ];
 
@@ -269,14 +256,28 @@ export function TableManageDialog({
     
     // GitHub 使用 sync task 机制
     if (isGitHub) {
+      const repoName = url.split('/').slice(-2).join('/') || 'GitHub Repo';
+      
       const attemptStartSync = async (): Promise<boolean> => {
         try {
           const task = await startSyncImport({
             url,
             project_id: projectId,
           });
-          setConnectLoading(false);
-          setSyncTaskId(task.id);
+          
+          // 添加到任务列表（使用现有的 BackgroundTaskNotifier 系统）
+          addPendingTasks([{
+            taskId: String(task.id),
+            projectId: projectId,
+            filename: repoName,
+            taskType: 'github',
+            status: 'pending',
+          }]);
+          
+          // 立即关闭对话框
+          resetConnectState();
+          onClose();
+          
           return true;
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Failed to import';
@@ -309,8 +310,27 @@ export function TableManageDialog({
     }
     
     // 其他 SaaS (Notion, Airtable, Google Sheets, Linear) 使用 connect/import API
+    const taskName = name.trim() || url.split('/').pop() || 'Imported Data';
+    const taskType = selectedSaas as 'notion' | 'airtable' | 'google_sheets' | 'linear';
+    
+    // 生成临时任务 ID（负数表示客户端生成的占位任务）
+    const tempTaskId = `-${Date.now()}`;
+    
     const attemptImport = async (): Promise<boolean> => {
       try {
+        // 添加占位任务到任务列表
+        addPendingTasks([{
+          taskId: tempTaskId,
+          projectId: projectId,
+          filename: taskName,
+          taskType: taskType,
+          status: 'pending',
+        }]);
+        
+        // 立即关闭对话框，让用户可以继续其他操作
+        resetConnectState();
+        onClose();
+        
         const result = await importData({
           url,
           project_id: projectId,
@@ -318,40 +338,73 @@ export function TableManageDialog({
         });
         
         if (result.success) {
+          // 更新任务状态为完成
+          replacePlaceholderTasks('', [{
+            taskId: tempTaskId,
+            projectId: projectId,
+            filename: taskName,
+            taskType: taskType,
+            status: 'completed',
+          }]);
           await refreshProjects();
-          resetConnectState();
-          onClose();
+          // 触发刷新事件
+          window.dispatchEvent(new CustomEvent('saas-task-completed', {
+            detail: { taskId: tempTaskId, filename: taskName, taskType },
+          }));
         }
         return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to import';
         const lower = message.toLowerCase();
         if (lower.includes('auth') || lower.includes('401') || lower.includes('not connected')) {
-          return false; // 需要授权
+          // 需要授权 - 更新任务状态为失败
+          replacePlaceholderTasks('', [{
+            taskId: tempTaskId,
+            projectId: projectId,
+            filename: taskName,
+            taskType: taskType,
+            status: 'failed',
+          }]);
+          return false;
         }
-        setConnectError(message);
-        setConnectLoading(false);
+        // 更新任务状态为失败
+        replacePlaceholderTasks('', [{
+          taskId: tempTaskId,
+          projectId: projectId,
+          filename: taskName,
+          taskType: taskType,
+          status: 'failed',
+        }]);
         return true;
       }
     };
     
     const success = await attemptImport();
     if (!success) {
-      setConnectLoading(false);
       try {
         const authorized = await openOAuthPopup(selectedSaas as SaasType);
         if (authorized) {
-          setConnectLoading(true);
-          setConnectError(null);
+          // 重新尝试 - 更新状态为 pending
+          replacePlaceholderTasks('', [{
+            taskId: tempTaskId,
+            projectId: projectId,
+            filename: taskName,
+            taskType: taskType,
+            status: 'pending',
+          }]);
           await new Promise(resolve => setTimeout(resolve, 500));
           await attemptImport();
         }
       } catch (authErr) {
-        setConnectError('Authorization failed. Please try again.');
+        replacePlaceholderTasks('', [{
+          taskId: tempTaskId,
+          projectId: projectId,
+          filename: taskName,
+          taskType: taskType,
+          status: 'failed',
+        }]);
       }
     }
-    
-    setConnectLoading(false);
   }, [connectUrlInput, projectId, selectedSaas, name, onClose, resetConnectState]);
 
   // 处理 sync task 完成
@@ -848,14 +901,14 @@ export function TableManageDialog({
 
               {startOption === 'connect' && (
                 <>
-                  {/* SaaS Logo 选择器 */}
+                  {/* SaaS Logo 选择器 - 紧凑正方形布局 */}
                   {!selectedSaas && (
                   <div>
                       <label style={labelStyle}>Select Data Source</label>
                       <div style={{ 
                         display: 'grid', 
-                        gridTemplateColumns: 'repeat(3, 1fr)', 
-                        gap: 12,
+                        gridTemplateColumns: 'repeat(5, 1fr)', 
+                        gap: 8,
                         marginTop: 8,
                       }}>
                         {SAAS_OPTIONS.map(saas => (
@@ -867,8 +920,10 @@ export function TableManageDialog({
                               display: 'flex',
                               flexDirection: 'column',
                               alignItems: 'center',
-                              gap: 8,
-                              padding: '16px 12px',
+                              justifyContent: 'center',
+                              gap: 6,
+                              aspectRatio: '1',
+                              padding: 8,
                               background: '#27272A',
                               border: '1px solid #3F3F46',
                               borderRadius: 8,
@@ -884,10 +939,10 @@ export function TableManageDialog({
                               e.currentTarget.style.borderColor = '#3F3F46';
                             }}
                           >
-                            <div style={{ color: saas.color }}>
+                            <div>
                               {saas.icon}
                             </div>
-                            <span style={{ fontSize: 12, color: '#E4E4E7', fontWeight: 500 }}>
+                            <span style={{ fontSize: 10, color: '#A1A1AA', fontWeight: 500 }}>
                               {saas.name}
                             </span>
                           </button>
@@ -908,7 +963,7 @@ export function TableManageDialog({
                         borderRadius: 8,
                         border: '1px solid #3F3F46',
                       }}>
-                        <div style={{ color: SAAS_OPTIONS.find(s => s.id === selectedSaas)?.color || '#fff' }}>
+                        <div>
                           {SAAS_OPTIONS.find(s => s.id === selectedSaas)?.icon}
                         </div>
                         <div style={{ flex: 1 }}>

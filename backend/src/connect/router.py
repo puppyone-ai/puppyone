@@ -140,6 +140,45 @@ async def import_data(
         )
 
     node_name = payload.table_name or title or "Imported Data"
+    
+    # === Notion Page 特殊处理：存储为 Markdown ===
+    if source_type == "notion_page":
+        # Notion Page 的 data 是 [{"id": ..., "title": ..., "content": "markdown...", ...}]
+        # 我们提取 content 字段，它已经是 Markdown 格式
+        page_data = data[0] if data else {}
+        markdown_content = page_data.get("content", "")
+        
+        # 如果没有 markdown 内容，添加标题作为基础内容
+        if not markdown_content and page_data.get("title"):
+            markdown_content = f"# {page_data.get('title')}\n\n"
+        
+        # 创建同步的 Markdown 节点（类型为 notion_page）
+        new_node = await node_service.create_synced_markdown_node(
+            user_id=current_user.user_id,
+            project_id=payload.project_id,
+            name=node_name,
+            content=markdown_content,
+            sync_type="notion_page",
+            sync_url=url_str,
+            sync_id=page_data.get("id"),
+            parent_id=None,
+        )
+        
+        message = f"Successfully imported Notion page as Markdown: {new_node.name}"
+        
+        return ApiResponse.success(
+            data=ImportDataResponse(
+                success=True,
+                project_id=payload.project_id,
+                table_id=new_node.id,
+                table_name=new_node.name,
+                items_imported=1,
+                message=message,
+            ),
+            message="Notion page imported successfully",
+        )
+    
+    # === 其他同步类型（Database 等）：存储为 JSON ===
     content_data = {"imported_data": data} if isinstance(data, list) else data
     items_imported = len(data) if isinstance(data, list) else 1
 

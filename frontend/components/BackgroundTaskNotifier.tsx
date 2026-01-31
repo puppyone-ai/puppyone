@@ -3,9 +3,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import { batchGetETLTaskStatus, isTerminalStatus } from '../lib/etlApi';
+import { getSyncTaskStatus, isTerminalStatus as isSyncTerminalStatus } from '../lib/syncApi';
 
 // 使用 sessionStorage，刷新后自动清空
 const STORAGE_KEY = 'etl_pending_tasks';
+
+/**
+ * 任务类型
+ */
+export type TaskType = 'file' | 'notion' | 'github' | 'airtable' | 'google_sheets' | 'linear';
 
 /**
  * 任务记录（存储在 sessionStorage 中，刷新即消失）
@@ -17,13 +23,19 @@ export interface PendingTask {
   tableName?: string;
   filename: string;
   timestamp: number;
+  taskType?: TaskType; // 任务类型：文件上传 or SaaS 导入
   status?:
     | 'pending'
     | 'mineru_parsing'
     | 'llm_processing'
     | 'completed'
     | 'failed'
-    | 'cancelled';
+    | 'cancelled'
+    // SaaS 导入状态
+    | 'downloading'
+    | 'extracting'
+    | 'uploading'
+    | 'creating_nodes';
 }
 
 /**
@@ -79,13 +91,14 @@ export function BackgroundTaskNotifier() {
     });
   }, [pendingTasks]);
 
-  // 检查任务状态
+  // 检查任务状态（同时支持 ETL 和 SaaS 任务）
   const checkTaskStatus = useCallback(async () => {
     if (!session?.access_token || pendingTasks.length === 0) return;
 
-    // 只检查正数 ID 且非终态的任务
-    const tasksToCheck = pendingTasks.filter(t => {
-      if (t.taskId < 0) return false;
+    // 分离 ETL 任务和 SaaS 任务
+    const etlTasks = pendingTasks.filter(t => {
+      if (Number(t.taskId) < 0) return false;
+      if (t.taskType && t.taskType !== 'file') return false; // SaaS 任务
       const isTerminal =
         t.status === 'completed' ||
         t.status === 'failed' ||
@@ -93,67 +106,126 @@ export function BackgroundTaskNotifier() {
       return !isTerminal;
     });
 
-    if (tasksToCheck.length === 0) return;
+    const saasTasks = pendingTasks.filter(t => {
+      if (Number(t.taskId) < 0) return false;
+      if (!t.taskType || t.taskType === 'file') return false; // ETL 任务
+      const isTerminal =
+        t.status === 'completed' ||
+        t.status === 'failed' ||
+        t.status === 'cancelled';
+      return !isTerminal;
+    });
 
-    try {
-      const taskIds = tasksToCheck.map(t => t.taskId);
-      const response = await batchGetETLTaskStatus(
-        taskIds,
-        session.access_token
-      );
+    if (etlTasks.length === 0 && saasTasks.length === 0) return;
 
-      let hasChanges = false;
-      const updatedTasks = pendingTasks.map(pendingTask => {
-        // 占位任务和终态任务不更新
-        if (pendingTask.taskId < 0) return pendingTask;
-        const isTerminal =
-          pendingTask.status === 'completed' ||
-          pendingTask.status === 'failed' ||
-          pendingTask.status === 'cancelled';
-        if (isTerminal) return pendingTask;
+    let hasChanges = false;
+    let updatedTasks = [...pendingTasks];
 
-        const task = response.tasks.find(t => t.task_id === pendingTask.taskId);
-        if (task && pendingTask.status !== task.status) {
-          hasChanges = true;
+    // 检查 ETL 任务状态
+    if (etlTasks.length > 0) {
+      try {
+        const taskIds = etlTasks.map(t => t.taskId);
+        const response = await batchGetETLTaskStatus(
+          taskIds,
+          session.access_token
+        );
 
-          // 任务刚变成终态，触发事件
-          if (isTerminalStatus(task.status)) {
-            if (task.status === 'completed') {
-              window.dispatchEvent(
-                new CustomEvent('etl-task-completed', {
-                  detail: {
-                    taskId: task.task_id,
-                    filename: pendingTask.filename,
-                    tableId: pendingTask.tableId,
-                  },
-                })
-              );
-            } else if (task.status === 'failed') {
-              window.dispatchEvent(
-                new CustomEvent('etl-task-failed', {
-                  detail: {
-                    taskId: task.task_id,
-                    error: task.error,
-                    filename: pendingTask.filename,
-                  },
-                })
-              );
+        updatedTasks = updatedTasks.map(pendingTask => {
+          if (Number(pendingTask.taskId) < 0) return pendingTask;
+          if (pendingTask.taskType && pendingTask.taskType !== 'file') return pendingTask;
+          const isTerminal =
+            pendingTask.status === 'completed' ||
+            pendingTask.status === 'failed' ||
+            pendingTask.status === 'cancelled';
+          if (isTerminal) return pendingTask;
+
+          const task = response.tasks.find(t => t.task_id === pendingTask.taskId);
+          if (task && pendingTask.status !== task.status) {
+            hasChanges = true;
+
+            if (isTerminalStatus(task.status)) {
+              if (task.status === 'completed') {
+                window.dispatchEvent(
+                  new CustomEvent('etl-task-completed', {
+                    detail: {
+                      taskId: task.task_id,
+                      filename: pendingTask.filename,
+                      tableId: pendingTask.tableId,
+                    },
+                  })
+                );
+              } else if (task.status === 'failed') {
+                window.dispatchEvent(
+                  new CustomEvent('etl-task-failed', {
+                    detail: {
+                      taskId: task.task_id,
+                      error: task.error,
+                      filename: pendingTask.filename,
+                    },
+                  })
+                );
+              }
             }
+
+            return { ...pendingTask, status: task.status };
           }
-
-          return { ...pendingTask, status: task.status };
-        }
-        return pendingTask;
-      });
-
-      if (hasChanges) {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
-        setPendingTasks(updatedTasks);
-        window.dispatchEvent(new CustomEvent('etl-tasks-updated'));
-        window.dispatchEvent(new CustomEvent('projects-refresh'));
+          return pendingTask;
+        });
+      } catch (error) {
+        console.error('Failed to check ETL task status:', error);
       }
-    } catch (error) {
-      console.error('Failed to check ETL task status:', error);
+    }
+
+    // 检查 SaaS 任务状态（逐个检查，因为没有批量 API）
+    for (const saasTask of saasTasks) {
+      try {
+        const status = await getSyncTaskStatus(Number(saasTask.taskId));
+        
+        updatedTasks = updatedTasks.map(pendingTask => {
+          if (pendingTask.taskId !== saasTask.taskId) return pendingTask;
+          
+          if (pendingTask.status !== status.status) {
+            hasChanges = true;
+
+            if (isSyncTerminalStatus(status.status)) {
+              if (status.status === 'completed') {
+                window.dispatchEvent(
+                  new CustomEvent('saas-task-completed', {
+                    detail: {
+                      taskId: saasTask.taskId,
+                      filename: pendingTask.filename,
+                      taskType: pendingTask.taskType,
+                      rootNodeId: status.root_node_id,
+                    },
+                  })
+                );
+              } else if (status.status === 'failed') {
+                window.dispatchEvent(
+                  new CustomEvent('saas-task-failed', {
+                    detail: {
+                      taskId: saasTask.taskId,
+                      error: status.error,
+                      filename: pendingTask.filename,
+                    },
+                  })
+                );
+              }
+            }
+
+            return { ...pendingTask, status: status.status };
+          }
+          return pendingTask;
+        });
+      } catch (error) {
+        console.error(`Failed to check SaaS task ${saasTask.taskId} status:`, error);
+      }
+    }
+
+    if (hasChanges) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
+      setPendingTasks(updatedTasks);
+      window.dispatchEvent(new CustomEvent('etl-tasks-updated'));
+      window.dispatchEvent(new CustomEvent('projects-refresh'));
     }
   }, [session, pendingTasks]);
 

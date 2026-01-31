@@ -11,6 +11,7 @@ import React from 'react';
 export type RenderAs = 'folder' | 'json' | 'markdown' | 'image' | 'file';
 
 // === SaaS Logo 图标 ===
+// 使用项目中的实际 Logo 图片
 
 export const GithubIcon = ({ size = 12 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -19,15 +20,23 @@ export const GithubIcon = ({ size = 12 }: { size?: number }) => (
 );
 
 export const NotionIcon = ({ size = 12 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.98-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.886l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952l1.448.327s0 .84-1.168.84l-3.22.186c-.094-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.886.747-.933zM2.197 1.548l13.542-.934c1.682-.14 2.103.093 2.803.607l3.875 2.706c.466.326.607.746.607 1.26v14.697c0 .84-.326 1.542-1.494 1.588l-15.503.887c-.888.047-1.308-.14-1.776-.7L.935 18.93c-.514-.653-.747-1.213-.747-1.866V2.995c0-.654.28-1.354 1.027-1.447z"/>
-  </svg>
+  <img 
+    src="/icons/notion.svg" 
+    alt="Notion" 
+    width={size} 
+    height={size} 
+    style={{ display: 'block' }}
+  />
 );
 
 export const AirtableIcon = ({ size = 12 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M11.992 1.966L2.477 5.347a.35.35 0 00-.227.328v8.434c0 .139.083.265.21.32l9.514 4.093a.35.35 0 00.278 0l9.514-4.093a.35.35 0 00.21-.32V5.675a.35.35 0 00-.227-.328l-9.515-3.381a.35.35 0 00-.242 0zM12 6.523l7.396 2.63L12 11.782 4.604 9.153z"/>
-  </svg>
+  <img 
+    src="/icons/airtable.png" 
+    alt="Airtable" 
+    width={size} 
+    height={size} 
+    style={{ display: 'block', borderRadius: 2 }}
+  />
 );
 
 export const LinearIcon = ({ size = 12 }: { size?: number }) => (
@@ -38,9 +47,13 @@ export const LinearIcon = ({ size = 12 }: { size?: number }) => (
 );
 
 export const SheetsIcon = ({ size = 12 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 2v3H5V5h14zm-9 5h4v9h-4v-9zm-5 0h4v9H5v-9zm14 9h-4v-9h4v9z"/>
-  </svg>
+  <img 
+    src="/icons/Google_Docs_logo.png" 
+    alt="Google Sheets" 
+    width={size} 
+    height={size} 
+    style={{ display: 'block', borderRadius: 2 }}
+  />
 );
 
 export const LockIcon = ({ size = 12 }: { size?: number }) => (
@@ -113,8 +126,8 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
 
   // === GitHub 类型 ===
   'github_repo': {
-    renderAs: 'folder',
-    color: '#a1a1aa',
+    renderAs: 'json',  // 不是 folder！显示 repo 元信息
+    color: '#6366f1',  // 紫色，区别于普通 JSON
     label: 'GitHub Repository',
     badgeIcon: GithubIcon,
     isReadOnly: false,  // 允许用户删除/重命名
@@ -150,8 +163,8 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
     isReadOnly: false,  // 允许用户删除/重命名
   },
   'notion_page': {
-    renderAs: 'markdown',
-    color: '#60a5fa',
+    renderAs: 'markdown',  // Notion Page 现在正确存储为 Markdown
+    color: '#60a5fa',      // 蓝色（与其他 markdown 类型一致）
     label: 'Notion Page',
     badgeIcon: NotionIcon,
     isReadOnly: false,

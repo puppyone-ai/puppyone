@@ -1,11 +1,27 @@
 """
-ETL ARQ Worker Settings
+Unified ARQ Worker Settings
+
+This worker handles both ETL jobs and SaaS sync jobs.
 
 Run worker:
   uv run arq src.etl.jobs.worker.WorkerSettings
 """
 
 from __future__ import annotations
+
+# Load .env file before any other imports that need env vars
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Find .env relative to this file (backend/.env)
+_env_path = Path(__file__).resolve().parent.parent.parent.parent / ".env"
+print(f"[DEBUG] Loading .env from: {_env_path}")
+print(f"[DEBUG] .env exists: {_env_path.exists()}")
+load_dotenv(_env_path)
+
+import os
+print(f"[DEBUG] ETL_REDIS_URL from env: {os.environ.get('ETL_REDIS_URL', 'NOT SET')}")
+print(f"[DEBUG] ETL_ARQ_QUEUE_NAME from env: {os.environ.get('ETL_ARQ_QUEUE_NAME', 'NOT SET')}")
 
 import logging
 
@@ -19,28 +35,64 @@ from src.etl.tasks.repository import ETLTaskRepositorySupabase
 from src.llm.service import LLMService
 from src.s3.service import S3Service
 
+# Import sync jobs
+from src.import_.saas.jobs import SYNC_JOBS
+from src.import_.saas.state_repository import SyncStateRepositoryRedis
+
 logger = logging.getLogger(__name__)
 
 
 async def startup(ctx: dict) -> None:
-    # Core services
+    """
+    Initialize services for both ETL and sync jobs.
+    """
+    # ========== ETL Services ==========
     ctx["s3_service"] = S3Service()
     ctx["llm_service"] = LLMService()
     ctx["mineru_client"] = MineRUClient()
     ctx["task_repository"] = ETLTaskRepositorySupabase()
 
-    # Redis runtime state repo (shares same Redis as ARQ)
+    # ETL Redis runtime state repo (shares same Redis as ARQ)
     ctx["state_repo"] = ETLStateRepositoryRedis(ctx["redis"])
     ctx["arq_queue_name"] = etl_config.etl_arq_queue_name
-    logger.info("ETL ARQ worker startup complete")
+    
+    # ========== Sync Services ==========
+    # Import dependencies here to avoid circular imports
+    from src.sync_task.repository import SyncTaskRepository
+    from src.content_node.service import ContentNodeService
+    from src.content_node.repository import ContentNodeRepository
+    from src.oauth.github_service import GithubOAuthService
+    from src.supabase.client import SupabaseClient
+    
+    # SupabaseClient wraps the raw supabase.Client
+    supabase_wrapper = SupabaseClient()
+    
+    # Sync task repository (database) - needs raw Client
+    ctx["sync_task_repository"] = SyncTaskRepository(supabase_wrapper.client)
+    
+    # Sync runtime state repo (Redis)
+    ctx["sync_state_repo"] = SyncStateRepositoryRedis(ctx["redis"])
+    
+    # Content node service for creating nodes (needs repo + s3)
+    content_node_repo = ContentNodeRepository(supabase_wrapper)
+    ctx["content_node_service"] = ContentNodeService(content_node_repo, ctx["s3_service"])
+    
+    # GitHub OAuth service
+    ctx["github_service"] = GithubOAuthService()
+    
+    logger.info("Unified ARQ worker startup complete (ETL + Sync)")
 
 
 async def shutdown(ctx: dict) -> None:
-    logger.info("ETL ARQ worker shutdown")
+    """
+    Cleanup on worker shutdown.
+    """
+    logger.info("Unified ARQ worker shutdown")
 
 
 class WorkerSettings:
-    functions = [etl_ocr_job, etl_postprocess_job]
+    # Combine ETL jobs and sync jobs
+    functions = [etl_ocr_job, etl_postprocess_job] + SYNC_JOBS
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(etl_config.etl_redis_url)
@@ -48,3 +100,7 @@ class WorkerSettings:
     # NOTE: ARQ cancels jobs on timeout via asyncio.CancelledError (BaseException on Py3.12).
     # Keep this in sync with MineRU/LLM latency expectations.
     job_timeout = etl_config.etl_task_timeout
+
+# Debug: Print actual config values
+print(f"[DEBUG] Worker redis_url: {etl_config.etl_redis_url[:50]}...")
+print(f"[DEBUG] Worker queue_name: {etl_config.etl_arq_queue_name}")

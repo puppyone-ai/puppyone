@@ -44,10 +44,11 @@ const RefreshIcon = () => (
   </svg>
 );
 
-const LinkIcon = () => (
+const ExternalLinkIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M10 13C10.4295 13.5741 10.9774 14.0491 11.6066 14.3929C12.2357 14.7367 12.9315 14.9411 13.6467 14.9923C14.3618 15.0435 15.0796 14.9403 15.7513 14.6897C16.4231 14.4392 17.0331 14.047 17.54 13.54L20.54 10.54C21.4508 9.59695 21.9548 8.33394 21.9434 7.02296C21.932 5.71198 21.4061 4.45791 20.4791 3.53087C19.5521 2.60383 18.298 2.07799 16.987 2.0666C15.676 2.0552 14.413 2.55918 13.47 3.47L11.75 5.18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M14 11C13.5705 10.4259 13.0226 9.9509 12.3934 9.60707C11.7642 9.26324 11.0685 9.05886 10.3533 9.00768C9.63816 8.95651 8.92037 9.05966 8.24861 9.31026C7.57685 9.56085 6.96684 9.95305 6.46 10.46L3.46 13.46C2.54918 14.403 2.0452 15.6661 2.0566 16.977C2.068 18.288 2.59383 19.5421 3.52087 20.4691C4.44791 21.3962 5.70198 21.922 7.01296 21.9334C8.32394 21.9448 9.58695 21.4408 10.53 20.53L12.24 18.82" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M18 13V19C18 19.5304 17.7893 20.0391 17.4142 20.4142C17.0391 20.7893 16.5304 21 16 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V8C3 7.46957 3.21071 6.96086 3.58579 6.58579C3.96086 6.21071 4.46957 6 5 6H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M15 3H21V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M10 14L21 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
@@ -199,8 +200,8 @@ export function ItemActionMenu({
 
   if (syncUrl) {
     menuItems.push({
-      icon: <LinkIcon />,
-      label: 'Open Source',
+      icon: <ExternalLinkIcon />,
+      label: 'View Original',
       onClick: () => {
         handleClose();
         window.open(syncUrl, '_blank');

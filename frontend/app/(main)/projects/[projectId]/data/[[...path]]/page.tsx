@@ -49,12 +49,18 @@ import { refreshProjects } from '@/lib/hooks/useData';
 // Markdown Editor
 import { MarkdownEditor } from '@/components/editors/markdown';
 
+// GitHub Repo View
+import { GithubRepoView } from '@/components/views/GithubRepoView';
+
 // Finder View Components
 import { GridView, ListView, MillerColumnsView, type MillerColumnItem, type AgentResource } from '../../../[[...slug]]/components/views';
 import { CreateMenu, type ContentType } from '../../../[[...slug]]/components/finder';
 
 // Agent Context
 import { useAgent } from '@/contexts/AgentContext';
+
+// Task Status
+import { TaskStatusWidget } from '@/components/TaskStatusWidget';
 
 // Panel content types
 type RightPanelContent = 'NONE' | 'EDITOR';
@@ -157,11 +163,25 @@ export default function DataPage({ params }: DataPageProps) {
   const createMenuRef = useRef<HTMLDivElement>(null);
 
   // Agent Context - get draft resources for highlighting
-  const { draftResources, sidebarMode, currentAgentId, savedAgents } = useAgent();
+  const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId } = useAgent();
   
   // Convert resources to AgentResource format for views
-  // Show resources for: 1) setting mode (editing draft), 2) deployed mode (viewing saved agent)
+  // Priority: 1) Hovered Agent (Preview), 2) Setting Mode (Draft), 3) Deployed Mode (Active Agent)
   const agentResources: AgentResource[] = useMemo(() => {
+    // 1. Hover Preview
+    if (hoveredAgentId) {
+      const agent = savedAgents.find(a => a.id === hoveredAgentId);
+      if (agent?.resources) {
+        return agent.resources
+          .filter(r => r.terminal || r.terminalReadonly)
+          .map(r => ({
+            nodeId: r.nodeId,
+            terminalReadonly: r.terminalReadonly,
+          }));
+      }
+    }
+
+    // 2. Setting Mode
     if (sidebarMode === 'setting') {
       // Editing mode: show draft resources
       return draftResources
@@ -172,6 +192,7 @@ export default function DataPage({ params }: DataPageProps) {
         }));
     }
     
+    // 3. Deployed Mode
     if (sidebarMode === 'deployed' && currentAgentId) {
       // Viewing a saved agent: show its configured resources
       const agent = savedAgents.find(a => a.id === currentAgentId);
@@ -186,7 +207,7 @@ export default function DataPage({ params }: DataPageProps) {
     }
     
     return [];
-  }, [draftResources, sidebarMode, currentAgentId, savedAgents]);
+  }, [draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId]);
 
   // Current project
   const activeProject = useMemo(
@@ -207,6 +228,22 @@ export default function DataPage({ params }: DataPageProps) {
       setContentNodesLoading(false);
     }
   };
+
+  // Listen for SaaS task completion events to refresh the view
+  useEffect(() => {
+    const handleSaasTaskComplete = () => {
+      loadContentNodes(currentFolderId);
+      refreshProjects();
+    };
+    
+    window.addEventListener('saas-task-completed', handleSaasTaskComplete);
+    window.addEventListener('etl-task-completed', handleSaasTaskComplete);
+    
+    return () => {
+      window.removeEventListener('saas-task-completed', handleSaasTaskComplete);
+      window.removeEventListener('etl-task-completed', handleSaasTaskComplete);
+    };
+  }, [currentFolderId]);
 
   // Resolve path segments
   useEffect(() => {
@@ -584,6 +621,14 @@ export default function DataPage({ params }: DataPageProps) {
                     </div>
                   )}
                 </div>
+              ) : activeNodeType === 'github_repo' ? (
+                /* GitHub Repository View */
+                <GithubRepoView
+                  nodeId={activeNodeId}
+                  nodeName={currentTableData?.name || ''}
+                  content={currentTableData?.content}
+                  syncUrl={currentTableData?.sync_url}
+                />
               ) : (
                 /* JSON Editor */
                 <ProjectWorkspaceView
@@ -829,14 +874,17 @@ export default function DataPage({ params }: DataPageProps) {
             </div>
           )}
 
-          {/* Unified View Toggle - Bottom Right (fixed position in Content area) */}
+          {/* Task Status Widget - positioned above view toggle */}
+          <TaskStatusWidget inline />
+
+          {/* Unified View Toggle - Bottom Left (moved from right to avoid conflict with TaskStatusWidget) */}
           {/* Hide for markdown editor */}
           {activeNodeType !== 'markdown' && (
           <div
             style={{
               position: 'absolute',
               bottom: 12,
-              right: 12,
+              left: 12,
               display: 'flex',
               background: '#1a1a1a',
               borderRadius: 6,
@@ -1094,6 +1142,7 @@ export default function DataPage({ params }: DataPageProps) {
           onSuccess={() => loadContentNodes(currentFolderId)}
         />
       )}
+
     </>
   );
 }

@@ -2,11 +2,15 @@
 Sync Task Router
 
 API endpoints for sync task management.
+
+NOTE: This router is being kept for backward compatibility.
+The new architecture uses /api/v1/import/saas routes,
+but existing clients may still use /api/v1/sync routes.
 """
 
 from typing import List
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
@@ -31,17 +35,17 @@ router = APIRouter(prefix="/sync", tags=["sync"])
 @router.post("/import")
 async def start_import(
     request: StartSyncRequest,
-    background_tasks: BackgroundTasks,
     service: SyncTaskService = Depends(get_sync_task_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
     Start a new sync import task.
     
-    The task runs in the background. Use GET /sync/task/{task_id}/status 
-    to poll for progress.
+    The task runs in the background via ARQ worker. 
+    Use GET /sync/task/{task_id}/status to poll for progress.
     """
     try:
+        # Create task record in database
         task = await service.create_task(
             user_id=current_user.user_id,
             project_id=request.project_id,
@@ -49,8 +53,8 @@ async def start_import(
             task_type=request.task_type,
         )
 
-        # Execute task in background
-        background_tasks.add_task(_run_task, service, task.id)
+        # Enqueue task to ARQ worker (replaces BackgroundTasks)
+        await service.enqueue_task(task.id, task.task_type.value)
 
         return ApiResponse.success(task_to_response(task))
 
@@ -58,15 +62,6 @@ async def start_import(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-async def _run_task(service: SyncTaskService, task_id: int):
-    """Background task runner."""
-    try:
-        await service.execute_task(task_id)
-    except Exception as e:
-        # Error already logged and saved to DB in service
-        pass
 
 
 @router.get("/task/{task_id}")
@@ -95,7 +90,35 @@ async def get_task_status(
     Get lightweight status of a sync task (for polling).
     
     This endpoint returns minimal data for efficient polling.
+    First checks Redis runtime state, falls back to database.
     """
+    # Try to get real-time state from Redis first
+    runtime_state = await service.get_runtime_state(task_id)
+    if runtime_state:
+        # Verify ownership
+        if runtime_state.user_id != current_user.user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Convert runtime state to status response
+        return ApiResponse.success(SyncTaskStatusResponse(
+            id=runtime_state.task_id,
+            status=runtime_state.status.value,
+            progress=runtime_state.progress,
+            progress_message=runtime_state.progress_message,
+            root_node_id=runtime_state.root_node_id,
+            files_total=runtime_state.files_total,
+            files_processed=runtime_state.files_processed,
+            bytes_total=runtime_state.bytes_total,
+            bytes_downloaded=runtime_state.bytes_downloaded,
+            error=runtime_state.error_message,
+            is_terminal=runtime_state.status in [
+                SyncTaskStatus.COMPLETED,
+                SyncTaskStatus.FAILED,
+                SyncTaskStatus.CANCELLED,
+            ],
+        ))
+    
+    # Fall back to database
     task = await service.get_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -118,9 +141,30 @@ async def get_batch_status(
     """
     tasks = {}
     for task_id in request.task_ids:
-        task = await service.get_task(task_id)
-        if task and task.user_id == current_user.user_id:
-            tasks[task_id] = task_to_status_response(task)
+        # Try Redis first, then database
+        runtime_state = await service.get_runtime_state(task_id)
+        if runtime_state and runtime_state.user_id == current_user.user_id:
+            tasks[task_id] = SyncTaskStatusResponse(
+                id=runtime_state.task_id,
+                status=runtime_state.status.value,
+                progress=runtime_state.progress,
+                progress_message=runtime_state.progress_message,
+                root_node_id=runtime_state.root_node_id,
+                files_total=runtime_state.files_total,
+                files_processed=runtime_state.files_processed,
+                bytes_total=runtime_state.bytes_total,
+                bytes_downloaded=runtime_state.bytes_downloaded,
+                error=runtime_state.error_message,
+                is_terminal=runtime_state.status in [
+                    SyncTaskStatus.COMPLETED,
+                    SyncTaskStatus.FAILED,
+                    SyncTaskStatus.CANCELLED,
+                ],
+            )
+        else:
+            task = await service.get_task(task_id)
+            if task and task.user_id == current_user.user_id:
+                tasks[task_id] = task_to_status_response(task)
 
     return ApiResponse.success(BatchStatusResponse(tasks=tasks))
 

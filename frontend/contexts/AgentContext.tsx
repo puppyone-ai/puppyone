@@ -84,6 +84,8 @@ interface AgentContextValue {
   // Agent 状态
   savedAgents: SavedAgent[];
   currentAgentId: string | null; 
+  hoveredAgentId: string | null; // 鼠标悬停的 Agent ID
+  setHoveredAgentId: (id: string | null) => void;
   
   // 🆕 侧边栏状态
   sidebarMode: SidebarMode;
@@ -150,6 +152,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   // 初始为空，从数据库加载
   const [savedAgents, setSavedAgents] = useState<SavedAgent[]>([]);
   const [currentAgentId, setCurrentAgentId] = useState<string | null>(null);
+  const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
   
   // Sidebar State
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('closed');
@@ -600,6 +603,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       value={{
         savedAgents,
         currentAgentId,
+        hoveredAgentId,
+        setHoveredAgentId,
         sidebarMode,
         draftType,
         draftCapabilities,

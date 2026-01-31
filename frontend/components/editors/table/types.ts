@@ -29,3 +29,4 @@ export interface ConfiguredAccessPoint {
   permissions: McpToolPermissions;
 }
 
+

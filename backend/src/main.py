@@ -111,6 +111,12 @@ from src.sync_task.router import router as sync_task_router
 
 sync_task_router_duration = time.time() - sync_task_router_start
 
+# Import router (new unified import architecture)
+import_router_start = time.time()
+from src.import_.router import router as import_router
+
+import_router_duration = time.time() - import_router_start
+
 oauth_router_start = time.time()
 from src.oauth.router import router as oauth_router
 
@@ -142,6 +148,8 @@ routers_duration = (
     + etl_router_duration
     + project_router_duration
     + connect_router_duration
+    + sync_task_router_duration
+    + import_router_duration
     + oauth_router_duration
     + internal_router_duration
     + content_node_router_duration
@@ -180,6 +188,8 @@ async def app_lifespan(app: FastAPI):
         log_info("  │  ├─ etl_router: skipped (ENABLE_ETL=0 or DEBUG auto)")
     log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ connect_router: {connect_router_duration * 1000:.2f}ms")
+    log_info(f"  │  ├─ sync_task_router: {sync_task_router_duration * 1000:.2f}ms")
+    log_info(f"  │  ├─ import_router: {import_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ internal_router: {internal_router_duration * 1000:.2f}ms")
     log_info(f"  │  └─ content_node_router: {content_node_router_duration * 1000:.2f}ms")
@@ -333,6 +343,8 @@ def create_app() -> FastAPI:
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
     app.include_router(connect_router, prefix="/api/v1", tags=["connect"])
     app.include_router(sync_task_router, prefix="/api/v1", tags=["sync"])
+    # New unified import router (by information source: file/saas/url)
+    app.include_router(import_router, prefix="/api/v1", tags=["import"])
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
     app.include_router(
         internal_router, tags=["internal"]
