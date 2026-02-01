@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 
 class Settings(BaseSettings):
@@ -80,8 +80,23 @@ class Settings(BaseSettings):
     GOOGLE_SHEETS_CLIENT_ID: str = ""
     GOOGLE_SHEETS_CLIENT_SECRET: str = ""
     GOOGLE_SHEETS_REDIRECT_URI: str = (
-        "http://localhost:3000/oauth/callback/google-sheets"
+        "http://localhost:3000/oauth/google-sheets/callback"
     )
+
+    # Gmail OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
+    GMAIL_CLIENT_ID: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_ID
+    GMAIL_CLIENT_SECRET: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_SECRET
+    GMAIL_REDIRECT_URI: str = "http://localhost:3000/oauth/gmail/callback"
+
+    # Google Drive OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
+    GOOGLE_DRIVE_CLIENT_ID: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_ID
+    GOOGLE_DRIVE_CLIENT_SECRET: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_SECRET
+    GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:3000/oauth/google-drive/callback"
+
+    # Google Calendar OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
+    GOOGLE_CALENDAR_CLIENT_ID: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_ID
+    GOOGLE_CALENDAR_CLIENT_SECRET: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_SECRET
+    GOOGLE_CALENDAR_REDIRECT_URI: str = "http://localhost:3000/oauth/google-calendar/callback"
 
     # Linear OAuth 配置
     LINEAR_CLIENT_ID: str = ""

@@ -9,6 +9,9 @@ from src.auth.dependencies import get_current_user
 from src.oauth.notion_service import NotionOAuthService
 from src.oauth.github_service import GithubOAuthService
 from src.oauth.google_sheets_service import GoogleSheetsOAuthService
+from src.oauth.gmail_service import GmailOAuthService
+from src.oauth.google_drive_service import GoogleDriveOAuthService
+from src.oauth.google_calendar_service import GoogleCalendarOAuthService
 from src.oauth.linear_service import LinearOAuthService
 from src.oauth.airtable_service import AirtableOAuthService
 from src.oauth.repository import OAuthRepository
@@ -41,6 +44,21 @@ def get_linear_service() -> LinearOAuthService:
 def get_airtable_service() -> AirtableOAuthService:
     """Get Airtable OAuth service instance."""
     return AirtableOAuthService()
+
+
+def get_gmail_service() -> GmailOAuthService:
+    """Get Gmail OAuth service instance."""
+    return GmailOAuthService()
+
+
+def get_google_drive_service() -> GoogleDriveOAuthService:
+    """Get Google Drive OAuth service instance."""
+    return GoogleDriveOAuthService()
+
+
+def get_google_calendar_service() -> GoogleCalendarOAuthService:
+    """Get Google Calendar OAuth service instance."""
+    return GoogleCalendarOAuthService()
 
 
 def get_oauth_repository() -> OAuthRepository:

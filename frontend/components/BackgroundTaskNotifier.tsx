@@ -3,10 +3,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import { batchGetETLTaskStatus, isTerminalStatus } from '../lib/etlApi';
-import { getSyncTaskStatus, isTerminalStatus as isSyncTerminalStatus } from '../lib/syncApi';
+import { getImportTask, isTerminalStatus as isImportTerminalStatus } from '../lib/importApi';
 
 // 使用 sessionStorage，刷新后自动清空
 const STORAGE_KEY = 'etl_pending_tasks';
+
+/** 检查是否为占位任务 ID（placeholder-前缀 或 负数） */
+function isPlaceholderTaskId(taskId: string): boolean {
+  return taskId.startsWith('placeholder-') || Number(taskId) < 0;
+}
 
 /**
  * 任务类型
@@ -80,9 +85,9 @@ export function BackgroundTaskNotifier() {
 
   // 检查是否有非终态任务需要轮询
   const hasActiveTasksToPool = useCallback(() => {
-    // 只有正数 ID 且非终态的任务才需要轮询
+    // 只有真实 ID 且非终态的任务才需要轮询
     return pendingTasks.some(t => {
-      if (t.taskId < 0) return false; // 占位任务不轮询
+      if (isPlaceholderTaskId(t.taskId)) return false; // 占位任务不轮询
       const isTerminal =
         t.status === 'completed' ||
         t.status === 'failed' ||
@@ -97,7 +102,7 @@ export function BackgroundTaskNotifier() {
 
     // 分离 ETL 任务和 SaaS 任务
     const etlTasks = pendingTasks.filter(t => {
-      if (Number(t.taskId) < 0) return false;
+      if (isPlaceholderTaskId(t.taskId)) return false;
       if (t.taskType && t.taskType !== 'file') return false; // SaaS 任务
       const isTerminal =
         t.status === 'completed' ||
@@ -107,7 +112,7 @@ export function BackgroundTaskNotifier() {
     });
 
     const saasTasks = pendingTasks.filter(t => {
-      if (Number(t.taskId) < 0) return false;
+      if (isPlaceholderTaskId(t.taskId)) return false;
       if (!t.taskType || t.taskType === 'file') return false; // ETL 任务
       const isTerminal =
         t.status === 'completed' ||
@@ -131,7 +136,7 @@ export function BackgroundTaskNotifier() {
         );
 
         updatedTasks = updatedTasks.map(pendingTask => {
-          if (Number(pendingTask.taskId) < 0) return pendingTask;
+          if (isPlaceholderTaskId(pendingTask.taskId)) return pendingTask;
           if (pendingTask.taskType && pendingTask.taskType !== 'file') return pendingTask;
           const isTerminal =
             pendingTask.status === 'completed' ||
@@ -176,35 +181,38 @@ export function BackgroundTaskNotifier() {
       }
     }
 
-    // 检查 SaaS 任务状态（逐个检查，因为没有批量 API）
+    // 检查 SaaS 任务状态（使用新的 import API）
     for (const saasTask of saasTasks) {
       try {
-        const status = await getSyncTaskStatus(Number(saasTask.taskId));
+        const taskResponse = await getImportTask(saasTask.taskId);
+        
+        // 映射新API状态到本地状态（processing -> downloading）
+        const mappedStatus = taskResponse.status === 'processing' ? 'downloading' : taskResponse.status;
         
         updatedTasks = updatedTasks.map(pendingTask => {
           if (pendingTask.taskId !== saasTask.taskId) return pendingTask;
           
-          if (pendingTask.status !== status.status) {
+          if (pendingTask.status !== mappedStatus) {
             hasChanges = true;
 
-            if (isSyncTerminalStatus(status.status)) {
-              if (status.status === 'completed') {
+            if (isImportTerminalStatus(taskResponse.status)) {
+              if (taskResponse.status === 'completed') {
                 window.dispatchEvent(
                   new CustomEvent('saas-task-completed', {
                     detail: {
                       taskId: saasTask.taskId,
                       filename: pendingTask.filename,
                       taskType: pendingTask.taskType,
-                      rootNodeId: status.root_node_id,
+                      rootNodeId: taskResponse.content_node_id,
                     },
                   })
                 );
-              } else if (status.status === 'failed') {
+              } else if (taskResponse.status === 'failed') {
                 window.dispatchEvent(
                   new CustomEvent('saas-task-failed', {
                     detail: {
                       taskId: saasTask.taskId,
-                      error: status.error,
+                      error: taskResponse.error,
                       filename: pendingTask.filename,
                     },
                   })
@@ -212,7 +220,7 @@ export function BackgroundTaskNotifier() {
               }
             }
 
-            return { ...pendingTask, status: status.status };
+            return { ...pendingTask, status: mappedStatus as PendingTask['status'] };
           }
           return pendingTask;
         });
@@ -266,6 +274,31 @@ export function addPendingTasks(tasks: Omit<PendingTask, 'timestamp'>[]) {
   window.dispatchEvent(new CustomEvent('etl-tasks-updated'));
 }
 
+/** 通过 taskId 更新任务状态 */
+export function updateTaskStatusById(
+  taskId: string,
+  status: PendingTask['status']
+) {
+  const existing = JSON.parse(
+    sessionStorage.getItem(STORAGE_KEY) || '[]'
+  ) as PendingTask[];
+  const updated = existing.map(t =>
+    t.taskId === taskId ? { ...t, status } : t
+  );
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  window.dispatchEvent(new CustomEvent('etl-tasks-updated'));
+}
+
+/** 通过 taskId 移除任务 */
+export function removeTaskById(taskId: string) {
+  const existing = JSON.parse(
+    sessionStorage.getItem(STORAGE_KEY) || '[]'
+  ) as PendingTask[];
+  const filtered = existing.filter(t => t.taskId !== taskId);
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  window.dispatchEvent(new CustomEvent('etl-tasks-updated'));
+}
+
 /** 替换占位任务 */
 export function replacePlaceholderTasks(
   tableId: string,
@@ -275,7 +308,7 @@ export function replacePlaceholderTasks(
     sessionStorage.getItem(STORAGE_KEY) || '[]'
   ) as PendingTask[];
   const filtered = existing.filter(
-    t => !(t.tableId === tableId && t.taskId < 0)
+    t => !(t.tableId === tableId && isPlaceholderTaskId(t.taskId))
   );
   const newTasks = realTasks.map(t => ({ ...t, timestamp: Date.now() }));
   sessionStorage.setItem(
@@ -292,7 +325,7 @@ export function removeFailedPlaceholders(tableId: string, filenames: string[]) {
   ) as PendingTask[];
   const filtered = existing.filter(
     t =>
-      !(t.tableId === tableId && t.taskId < 0 && filenames.includes(t.filename))
+      !(t.tableId === tableId && isPlaceholderTaskId(t.taskId) && filenames.includes(t.filename))
   );
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
   window.dispatchEvent(new CustomEvent('etl-tasks-updated'));
@@ -304,7 +337,7 @@ export function removeAllPlaceholdersForTable(tableId: string) {
     sessionStorage.getItem(STORAGE_KEY) || '[]'
   ) as PendingTask[];
   const filtered = existing.filter(
-    t => !(t.tableId === tableId && t.taskId < 0)
+    t => !(t.tableId === tableId && isPlaceholderTaskId(t.taskId))
   );
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
   window.dispatchEvent(new CustomEvent('etl-tasks-updated'));

@@ -9,11 +9,12 @@ import React, {
 } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  parseUrl,
-  importData,
-  type ParseUrlResponse,
+  parseImportUrl,
+  submitImport,
+  pollImportTask,
+  type ImportParseResponse,
   type CrawlOptions,
-} from '../../../../lib/connectApi';
+} from '../../../../lib/importApi';
 import CrawlOptionsPanel from '../../../CrawlOptionsPanel';
 
 interface ImportModalProps {
@@ -189,7 +190,7 @@ export function ImportModal({
   const [url, setUrl] = useState(initialUrl);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [parseResult, setParseResult] = useState<ParseUrlResponse | null>(null);
+  const [parseResult, setParseResult] = useState<ImportParseResponse | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importMode, setImportMode] = useState<ImportMode>('add_to_existing');
   const [needsAuth, setNeedsAuth] = useState(false);
@@ -221,13 +222,13 @@ export function ImportModal({
     setNeedsAuth(false);
 
     try {
-      const result = await parseUrl(url, crawlOptions);
+      const result = await parseImportUrl(url, crawlOptions);
       setParseResult(result);
 
       // Auto-fill table name if empty (for create_table mode)
       if (mode === 'create_table' && !newTableName.trim()) {
         const suggestedName =
-          result.title || `${result.source_type}_data` || 'imported_data';
+          result.title || `${result.import_type}_data` || 'imported_data';
         setNewTableName(suggestedName);
       }
     } catch (err) {
@@ -273,20 +274,28 @@ export function ImportModal({
     setNeedsAuth(false);
 
     try {
-      const result = await importData({
+      // Use new unified import API (async task-based)
+      const submitResponse = await submitImport({
+        project_id: String(projectId),
         url: parseResult.url,
-        project_id: projectId,
-        table_id: mode === 'create_table' ? undefined : tableId,
-        table_name: mode === 'create_table' ? newTableName.trim() : undefined,
-        table_description:
-          mode === 'create_table' ? tableDescription.trim() : undefined,
-        import_mode: mode === 'import_to_table' ? importMode : undefined,
+        name: mode === 'create_table' ? newTableName.trim() : undefined,
+        crawl_options: crawlOptions,
       });
 
-      // Need to refresh table data after success
-      // Backend has already updated the data, notify parent to refetch
-      onSuccess(result);
-      onClose();
+      // Poll until completion
+      const finalTask = await pollImportTask(submitResponse.task_id);
+
+      if (finalTask.status === 'completed') {
+        // Return the content node ID for the parent to handle
+        onSuccess({
+          task_id: finalTask.task_id,
+          content_node_id: finalTask.content_node_id,
+          items_count: finalTask.items_count,
+        });
+        onClose();
+      } else {
+        throw new Error(finalTask.error || 'Import was cancelled');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Import failed';
       setError(errorMessage);
@@ -301,10 +310,8 @@ export function ImportModal({
   }, [
     parseResult,
     projectId,
-    tableId,
     newTableName,
-    tableDescription,
-    importMode,
+    crawlOptions,
     mode,
     onSuccess,
     onClose,
@@ -562,7 +569,7 @@ export function ImportModal({
           {parseResult && (
             <>
               <div style={styles.infoText}>
-                Found {parseResult.total_items} items ({parseResult.source_type}
+                Found {parseResult.total_items} items ({parseResult.import_type}
                 )
               </div>
 

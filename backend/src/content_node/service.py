@@ -163,6 +163,7 @@ class ContentNodeService:
         content: Any,
         parent_id: Optional[str] = None,
         sync_id: Optional[str] = None,
+        sync_config: Optional[dict] = None,
     ) -> ContentNode:
         """
         创建同步节点（从 SaaS 平台导入的数据）
@@ -175,6 +176,7 @@ class ContentNodeService:
             sync_url: 来源 URL
             content: 数据内容（存储到 JSONB）
             sync_id: 外部平台的资源 ID（可选）
+            sync_config: 同步配置（如 recursive, max_depth 等）
         """
         import uuid
         from datetime import datetime
@@ -196,6 +198,7 @@ class ContentNodeService:
             mime_type="application/json",
             sync_url=sync_url,
             sync_id=sync_id,
+            sync_config=sync_config,
             last_synced_at=datetime.utcnow(),
         )
 
@@ -209,6 +212,7 @@ class ContentNodeService:
         s3_prefix: str,
         metadata: dict,
         parent_id: Optional[str] = None,
+        sync_config: Optional[dict] = None,
     ) -> ContentNode:
         """
         创建 GitHub repo 节点（单节点模式）
@@ -226,6 +230,7 @@ class ContentNodeService:
             sync_id: owner/repo 格式
             s3_prefix: S3 目录前缀，如 users/xxx/repos/owner_repo
             metadata: repo 元信息（包含文件列表、描述等）
+            sync_config: 同步配置（如 branch, include_issues 等）
         """
         import uuid
         from datetime import datetime
@@ -246,6 +251,7 @@ class ContentNodeService:
             mime_type="application/x-github-repo",  # 自定义 MIME 类型
             sync_url=sync_url,
             sync_id=sync_id,
+            sync_config=sync_config,
             last_synced_at=datetime.utcnow(),
         )
 
@@ -316,6 +322,7 @@ class ContentNodeService:
         sync_type: str,
         sync_url: str,
         sync_id: Optional[str] = None,
+        sync_config: Optional[dict] = None,
         parent_id: Optional[str] = None,
     ) -> ContentNode:
         """
@@ -328,6 +335,7 @@ class ContentNodeService:
             sync_type: 同步类型，如 notion_page
             sync_url: 来源 URL
             sync_id: 外部平台的资源 ID
+            sync_config: 同步配置（如 recursive, max_depth 等）
         """
         import uuid
         new_id = str(uuid.uuid4())
@@ -355,6 +363,7 @@ class ContentNodeService:
             size_bytes=len(content_bytes),
             sync_url=sync_url,
             sync_id=sync_id,
+            sync_config=sync_config,
             last_synced_at=datetime.utcnow(),
         )
 

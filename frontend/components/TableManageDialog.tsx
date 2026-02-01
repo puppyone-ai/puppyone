@@ -17,20 +17,23 @@ import {
   replacePlaceholderTasks,
   removeFailedPlaceholders,
   removeAllPlaceholdersForTable,
+  updateTaskStatusById,
+  removeTaskById,
 } from './BackgroundTaskNotifier';
-import {
-  parseUrl,
-  importData,
-  type ParseUrlResponse,
-  type CrawlOptions,
-} from '../lib/connectApi';
+import { type CrawlOptions } from '../lib/importApi';
 import { openOAuthPopup, type SaasType } from '../lib/oauthApi';
 import CrawlOptionsPanel from './CrawlOptionsPanel';
-import { startSyncImport, cancelSyncTask } from '../lib/syncApi';
-import { SyncProgressPanel } from './SyncProgressPanel';
+import {
+  submitImport,
+  getImportTask,
+  cancelImportTask,
+  isTerminalStatus,
+  type ImportTaskResponse,
+} from '../lib/importApi';
 
 type StartOption = 'empty' | 'documents' | 'url' | 'connect';
 type DialogMode = 'create' | 'edit' | 'delete';
+type SaasId = 'notion' | 'github' | 'airtable' | 'linear' | 'google_sheets';
 
 type TableManageDialogProps = {
   mode: DialogMode;
@@ -41,6 +44,7 @@ type TableManageDialogProps = {
   onClose: () => void;
   onModeChange?: (mode: DialogMode) => void;
   defaultStartOption?: StartOption;
+  defaultSelectedSaas?: SaasId;
 };
 
 // ... helper functions omitted for brevity, they are unchanged ...
@@ -86,6 +90,7 @@ export function TableManageDialog({
   onClose,
   onModeChange,
   defaultStartOption = 'empty',
+  defaultSelectedSaas,
 }: TableManageDialogProps) {
   const { session } = useAuth();
   const project = projectId ? projects.find(p => p.id === projectId) : null;
@@ -93,7 +98,7 @@ export function TableManageDialog({
 
   const [name, setName] = useState(table?.name || '');
   const [loading, setLoading] = useState(false);
-  const [startOption, setStartOption] = useState<StartOption>(defaultStartOption);
+  const [startOption, setStartOption] = useState<StartOption>(defaultSelectedSaas ? 'connect' : defaultStartOption);
   const [isDragging, setIsDragging] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
@@ -113,8 +118,10 @@ export function TableManageDialog({
   const [connectError, setConnectError] = useState<string | null>(null);
   const [connectNeedsAuth, setConnectNeedsAuth] = useState(false);
   const [connectImporting, setConnectImporting] = useState(false);
-  const [selectedSaas, setSelectedSaas] = useState<string | null>(null);
-  const [syncTaskId, setSyncTaskId] = useState<number | null>(null);
+  const [selectedSaas, setSelectedSaas] = useState<string | null>(defaultSelectedSaas || null);
+  const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
+  const [oauthConnected, setOauthConnected] = useState<{ connected: boolean; email?: string } | null>(null);
+  const [oauthChecking, setOauthChecking] = useState(false);
   
   const connectStatusMeta = (() => {
     if (connectImporting) return { label: 'Importing...', color: '#22c55e' };
@@ -135,21 +142,78 @@ export function TableManageDialog({
     setConnectLoading(false);
     setConnectImporting(false);
     setSelectedSaas(null);
+    setOauthConnected(null);
   }, []);
+
+  // Check OAuth connection status when selecting an OAuth-type SaaS
+  useEffect(() => {
+    const checkOAuthStatus = async () => {
+      if (!selectedSaas) {
+        setOauthConnected(null);
+        return;
+      }
+      
+      const saasConfig = SAAS_OPTIONS.find(s => s.id === selectedSaas);
+      if (!saasConfig || saasConfig.type !== 'oauth') {
+        setOauthConnected(null);
+        return;
+      }
+
+      setOauthChecking(true);
+      try {
+        const { getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus } = await import('@/lib/oauthApi');
+        let status: { connected: boolean; email?: string } = { connected: false };
+        
+        if (selectedSaas === 'gmail') {
+          status = await getGmailStatus();
+        } else if (selectedSaas === 'drive') {
+          status = await getGoogleDriveStatus();
+        } else if (selectedSaas === 'calendar') {
+          status = await getGoogleCalendarStatus();
+        }
+        
+        setOauthConnected(status);
+      } catch (err) {
+        console.error('Failed to check OAuth status:', err);
+        setOauthConnected({ connected: false });
+      } finally {
+        setOauthChecking(false);
+      }
+    };
+
+    checkOAuthStatus();
+  }, [selectedSaas]);
 
   const isNotionUrl = (value: string) => value.includes('notion.so') || value.includes('notion.site');
 
-  // SaaS 配置 - 使用项目中的实际 Logo 图片
-  const SAAS_OPTIONS = [
+  // SaaS 配置
+  // type: 'url' = 粘贴 URL 导入, 'oauth' = 需要 OAuth 授权后配置
+  const SAAS_OPTIONS: Array<{
+    id: string;
+    name: string;
+    type: 'url' | 'oauth';
+    placeholder?: string;
+    description?: string;
+    icon: React.ReactNode;
+    configFields?: Array<{
+      key: string;
+      label: string;
+      type: 'select' | 'text' | 'checkbox' | 'date-range';
+      options?: Array<{ value: string; label: string }>;
+      defaultValue?: unknown;
+    }>;
+  }> = [
     { 
       id: 'notion', 
       name: 'Notion', 
+      type: 'url',
       placeholder: 'https://notion.so/your-page or https://notion.site/...',
       icon: <img src="/icons/notion.svg" alt="Notion" width={24} height={24} style={{ display: 'block' }} />
     },
     { 
       id: 'github', 
       name: 'GitHub', 
+      type: 'url',
       placeholder: 'https://github.com/owner/repo or https://github.com/owner/repo/issues',
       icon: (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -158,8 +222,148 @@ export function TableManageDialog({
       )
     },
     { 
+      id: 'gmail', 
+      name: 'Gmail', 
+      type: 'oauth',
+      description: 'Import emails from your Gmail account',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73l-6.545 4.909-6.545-4.909v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.909 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" fill="#EA4335"/>
+        </svg>
+      ),
+      configFields: [
+        {
+          key: 'label',
+          label: 'Label',
+          type: 'select',
+          options: [
+            { value: 'INBOX', label: 'Inbox' },
+            { value: 'SENT', label: 'Sent' },
+            { value: 'IMPORTANT', label: 'Important' },
+            { value: 'STARRED', label: 'Starred' },
+            { value: 'ALL', label: 'All Mail' },
+          ],
+          defaultValue: 'INBOX'
+        },
+        {
+          key: 'timeRange',
+          label: 'Time Range',
+          type: 'select',
+          options: [
+            { value: '7d', label: 'Last 7 days' },
+            { value: '30d', label: 'Last 30 days' },
+            { value: '90d', label: 'Last 90 days' },
+            { value: 'all', label: 'All time' },
+          ],
+          defaultValue: '30d'
+        },
+        {
+          key: 'maxEmails',
+          label: 'Max Emails',
+          type: 'select',
+          options: [
+            { value: '50', label: '50 emails' },
+            { value: '100', label: '100 emails' },
+            { value: '500', label: '500 emails' },
+            { value: '1000', label: '1000 emails' },
+          ],
+          defaultValue: '100'
+        },
+      ]
+    },
+    { 
+      id: 'drive', 
+      name: 'Google Drive', 
+      type: 'oauth',
+      description: 'Import files from your Google Drive',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 87.3 78" fill="none">
+          <path d="M6.6 66.85L3.85 61.35L29.95 17.2L32.7 22.7L6.6 66.85Z" fill="#0066DA"/>
+          <path d="M58.05 66.85H53.25L27.15 22.7H31.95L58.05 66.85Z" fill="#00AC47"/>
+          <path d="M83.45 66.85L80.7 61.35L54.6 17.2H59.4L85.5 61.35L83.45 66.85Z" fill="#EA4335"/>
+          <path d="M87.3 66.85H0L13.05 78H74.25L87.3 66.85Z" fill="#00832D"/>
+          <path d="M43.65 0L13.05 52.7L0 66.85L29.95 17.2H58.05L43.65 0Z" fill="#2684FC"/>
+          <path d="M87.3 66.85L74.25 52.7L43.65 0L58.05 17.2L87.3 66.85Z" fill="#FFBA00"/>
+        </svg>
+      ),
+      configFields: [
+        {
+          key: 'folderPath',
+          label: 'Folder Path',
+          type: 'text',
+          defaultValue: '/'
+        },
+        {
+          key: 'fileTypes',
+          label: 'File Types',
+          type: 'select',
+          options: [
+            { value: 'all', label: 'All files' },
+            { value: 'docs', label: 'Documents only' },
+            { value: 'sheets', label: 'Spreadsheets only' },
+            { value: 'pdf', label: 'PDFs only' },
+          ],
+          defaultValue: 'all'
+        },
+        {
+          key: 'includeShared',
+          label: 'Include shared files',
+          type: 'checkbox',
+          defaultValue: false
+        },
+      ]
+    },
+    { 
+      id: 'calendar', 
+      name: 'Google Calendar', 
+      type: 'oauth',
+      description: 'Import events from your Google Calendar',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M18 4H17V3C17 2.45 16.55 2 16 2C15.45 2 15 2.45 15 3V4H9V3C9 2.45 8.55 2 8 2C7.45 2 7 2.45 7 3V4H6C4.9 4 4 4.9 4 6V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V6C20 4.9 19.1 4 18 4ZM18 20H6V9H18V20Z" fill="#4285F4"/>
+          <path d="M8 11H10V13H8V11Z" fill="#4285F4"/>
+          <path d="M11 11H13V13H11V11Z" fill="#4285F4"/>
+          <path d="M14 11H16V13H14V11Z" fill="#4285F4"/>
+          <path d="M8 14H10V16H8V14Z" fill="#4285F4"/>
+          <path d="M11 14H13V16H11V14Z" fill="#4285F4"/>
+          <path d="M14 14H16V16H14V14Z" fill="#4285F4"/>
+        </svg>
+      ),
+      configFields: [
+        {
+          key: 'calendarId',
+          label: 'Calendar',
+          type: 'select',
+          options: [
+            { value: 'primary', label: 'Primary Calendar' },
+          ],
+          defaultValue: 'primary'
+        },
+        {
+          key: 'timeRange',
+          label: 'Time Range',
+          type: 'select',
+          options: [
+            { value: 'future_7d', label: 'Next 7 days' },
+            { value: 'future_30d', label: 'Next 30 days' },
+            { value: 'past_30d', label: 'Past 30 days' },
+            { value: 'past_90d', label: 'Past 90 days' },
+          ],
+          defaultValue: 'future_30d'
+        },
+      ]
+    },
+    { 
+      id: 'sheets', 
+      name: 'Google Sheets', 
+      type: 'url',
+      placeholder: 'https://docs.google.com/spreadsheets/d/...',
+      icon: <img src="/icons/Google_Docs_logo.png" alt="Google Sheets" width={24} height={24} style={{ display: 'block', borderRadius: 4 }} />
+    },
+    { 
       id: 'airtable', 
       name: 'Airtable', 
+      type: 'url',
       placeholder: 'https://airtable.com/appXXX/tblXXX/... or shared view link',
       icon: <img src="/icons/airtable.png" alt="Airtable" width={24} height={24} style={{ display: 'block', borderRadius: 4 }} />
     },
@@ -179,12 +383,6 @@ export function TableManageDialog({
           <path d="M61.6387.456393c-.226.05054-.4516.102234-.677.155187L97.3882 97.0384c.053-.2255.1047-.4511.1552-.677C99.2037 89.4676 100 82.3054 100 75.0001c0-41.4215-33.5786-75.00003-75-75.00003-7.3052 0-14.4675.79626-21.3614 2.45642Z" fill="#5E6AD2"/>
         </svg>
       )
-    },
-    { 
-      id: 'sheets', 
-      name: 'Google Sheets', 
-      placeholder: 'https://docs.google.com/spreadsheets/d/...',
-      icon: <img src="/icons/Google_Docs_logo.png" alt="Google Sheets" width={24} height={24} style={{ display: 'block', borderRadius: 4 }} />
     },
   ];
 
@@ -240,9 +438,8 @@ export function TableManageDialog({
   };
 
   /**
-   * 一键导入 SaaS 数据
-   * - GitHub: 使用 Sync Task API（因为文件多，需要进度显示）
-   * - 其他 SaaS: 使用 /connect/import API（数据量小，直接导入）
+   * 一键导入 SaaS 数据 - 统一使用新的异步 /api/v1/import/submit API
+   * 所有 SaaS 导入（GitHub, Notion, Airtable 等）都走相同的异步路径
    */
   const handleSaasImport = useCallback(async () => {
     if (!connectUrlInput.trim() || !projectId || !selectedSaas) return;
@@ -252,129 +449,46 @@ export function TableManageDialog({
     setConnectNeedsAuth(false);
     
     const url = connectUrlInput.trim();
-    const isGitHub = selectedSaas === 'github';
-    
-    // GitHub 使用 sync task 机制
-    if (isGitHub) {
-      const repoName = url.split('/').slice(-2).join('/') || 'GitHub Repo';
-      
-      const attemptStartSync = async (): Promise<boolean> => {
-        try {
-          const task = await startSyncImport({
-            url,
-            project_id: projectId,
-          });
-          
-          // 添加到任务列表（使用现有的 BackgroundTaskNotifier 系统）
-          addPendingTasks([{
-            taskId: String(task.id),
-            projectId: projectId,
-            filename: repoName,
-            taskType: 'github',
-            status: 'pending',
-          }]);
-          
-          // 立即关闭对话框
-          resetConnectState();
-          onClose();
-          
-          return true;
-        } catch (err) {
-          const message = err instanceof Error ? err.message : 'Failed to import';
-          const lower = message.toLowerCase();
-          if (lower.includes('auth') || lower.includes('401') || lower.includes('not connected')) {
-            return false; // 需要授权
-          }
-          setConnectError(message);
-          setConnectLoading(false);
-          return true;
-        }
-      };
-      
-      const success = await attemptStartSync();
-      if (!success) {
-        setConnectLoading(false);
-        try {
-          const authorized = await openOAuthPopup(selectedSaas as SaasType);
-          if (authorized) {
-            setConnectLoading(true);
-            setConnectError(null);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await attemptStartSync();
-          }
-        } catch (authErr) {
-          setConnectError('Authorization failed. Please try again.');
-        }
-      }
-      return;
-    }
-    
-    // 其他 SaaS (Notion, Airtable, Google Sheets, Linear) 使用 connect/import API
     const taskName = name.trim() || url.split('/').pop() || 'Imported Data';
-    const taskType = selectedSaas as 'notion' | 'airtable' | 'google_sheets' | 'linear';
-    
-    // 生成临时任务 ID（负数表示客户端生成的占位任务）
-    const tempTaskId = `-${Date.now()}`;
+    const taskType = selectedSaas as 'notion' | 'github' | 'airtable' | 'google_sheets' | 'linear';
     
     const attemptImport = async (): Promise<boolean> => {
       try {
-        // 添加占位任务到任务列表
+        // 1. 提交导入任务到新的统一 API
+        const response = await submitImport({
+          project_id: projectId,
+          url: url,
+          name: taskName,
+        });
+        
+        // 2. 添加任务到 pending tasks 列表（使用后端返回的真实 task_id）
         addPendingTasks([{
-          taskId: tempTaskId,
+          taskId: response.task_id,
           projectId: projectId,
           filename: taskName,
           taskType: taskType,
           status: 'pending',
         }]);
         
-        // 立即关闭对话框，让用户可以继续其他操作
+        // 3. 立即关闭对话框
         resetConnectState();
         onClose();
         
-        const result = await importData({
-          url,
-          project_id: projectId,
-          table_name: name.trim() || undefined,
-        });
+        // 4. 开始轮询任务状态
+        pollTaskStatus(response.task_id, taskName, taskType);
         
-        if (result.success) {
-          // 更新任务状态为完成
-          replacePlaceholderTasks('', [{
-            taskId: tempTaskId,
-            projectId: projectId,
-            filename: taskName,
-            taskType: taskType,
-            status: 'completed',
-          }]);
-          await refreshProjects();
-          // 触发刷新事件
-          window.dispatchEvent(new CustomEvent('saas-task-completed', {
-            detail: { taskId: tempTaskId, filename: taskName, taskType },
-          }));
-        }
         return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to import';
         const lower = message.toLowerCase();
         if (lower.includes('auth') || lower.includes('401') || lower.includes('not connected')) {
-          // 需要授权 - 更新任务状态为失败
-          replacePlaceholderTasks('', [{
-            taskId: tempTaskId,
-            projectId: projectId,
-            filename: taskName,
-            taskType: taskType,
-            status: 'failed',
-          }]);
+          setConnectNeedsAuth(true);
+          setConnectError('Authorization required. Please connect your account first.');
+          setConnectLoading(false);
           return false;
         }
-        // 更新任务状态为失败
-        replacePlaceholderTasks('', [{
-          taskId: tempTaskId,
-          projectId: projectId,
-          filename: taskName,
-          taskType: taskType,
-          status: 'failed',
-        }]);
+        setConnectError(message);
+        setConnectLoading(false);
         return true;
       }
     };
@@ -384,28 +498,61 @@ export function TableManageDialog({
       try {
         const authorized = await openOAuthPopup(selectedSaas as SaasType);
         if (authorized) {
-          // 重新尝试 - 更新状态为 pending
-          replacePlaceholderTasks('', [{
-            taskId: tempTaskId,
-            projectId: projectId,
-            filename: taskName,
-            taskType: taskType,
-            status: 'pending',
-          }]);
+          setConnectLoading(true);
+          setConnectError(null);
+          setConnectNeedsAuth(false);
           await new Promise(resolve => setTimeout(resolve, 500));
           await attemptImport();
         }
       } catch (authErr) {
-        replacePlaceholderTasks('', [{
-          taskId: tempTaskId,
-          projectId: projectId,
-          filename: taskName,
-          taskType: taskType,
-          status: 'failed',
-        }]);
+        setConnectError('Authorization failed. Please try again.');
+        setConnectLoading(false);
       }
     }
   }, [connectUrlInput, projectId, selectedSaas, name, onClose, resetConnectState]);
+
+  /**
+   * 轮询任务状态，更新 UI
+   */
+  const pollTaskStatus = useCallback(async (
+    taskId: string,
+    taskName: string,
+    taskType: 'notion' | 'github' | 'airtable' | 'google_sheets' | 'linear'
+  ) => {
+    const poll = async () => {
+      try {
+        const task = await getImportTask(taskId);
+        
+        // 更新任务状态
+        updateTaskStatusById(taskId, task.status as any);
+        
+        if (isTerminalStatus(task.status)) {
+          if (task.status === 'completed') {
+            // 刷新项目列表
+            await refreshProjects();
+            // 触发完成事件
+            window.dispatchEvent(new CustomEvent('saas-task-completed', {
+              detail: { taskId, filename: taskName, taskType, contentNodeId: task.content_node_id },
+            }));
+          } else if (task.status === 'failed') {
+            // 触发失败事件
+            window.dispatchEvent(new CustomEvent('saas-task-failed', {
+              detail: { taskId, filename: taskName, error: task.error },
+            }));
+          }
+        } else {
+          // 继续轮询
+          setTimeout(poll, 1500);
+        }
+      } catch (error) {
+        console.error('Failed to poll task status:', error);
+        // 出错时标记为失败
+        updateTaskStatusById(taskId, 'failed');
+      }
+    };
+    
+    poll();
+  }, []);
 
   // 处理 sync task 完成
   const handleSyncComplete = useCallback(async (rootNodeId: string) => {
@@ -425,7 +572,7 @@ export function TableManageDialog({
   const handleCancelSync = useCallback(async () => {
     if (syncTaskId) {
       try {
-        await cancelSyncTask(syncTaskId);
+        await cancelImportTask(syncTaskId);
       } catch (e) {
         // Ignore cancel errors
       }
@@ -612,8 +759,9 @@ export function TableManageDialog({
         
         // 处理 ETL 文件
         if (etlFiles.length > 0 && projectId) {
+          const baseTimestamp = Date.now();
           const placeholderTasks = etlFiles.map(({ file }, index) => ({
-            taskId: -(Date.now() + index),
+            taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
             projectId: projectId,
             tableId: rootFolderId,
             tableName: finalName,
@@ -951,81 +1099,323 @@ export function TableManageDialog({
                     </div>
                   )}
 
-                  {/* 选中 SaaS 后显示 URL 输入 (hide when syncing) */}
-                  {selectedSaas && !syncTaskId && (
-                    <>
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: 12,
-                        padding: '12px 16px',
-                        background: '#27272A',
-                        borderRadius: 8,
-                        border: '1px solid #3F3F46',
-                      }}>
-                        <div>
-                          {SAAS_OPTIONS.find(s => s.id === selectedSaas)?.icon}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, fontWeight: 500, color: '#E4E4E7' }}>
-                            {SAAS_OPTIONS.find(s => s.id === selectedSaas)?.name}
+                  {/* 选中 SaaS 后显示对应的 UI (hide when syncing) */}
+                  {selectedSaas && !syncTaskId && (() => {
+                    const selectedSaasConfig = SAAS_OPTIONS.find(s => s.id === selectedSaas);
+                    if (!selectedSaasConfig) return null;
+                    
+                    return (
+                      <>
+                        {/* SaaS Header */}
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: 12,
+                          padding: '12px 16px',
+                          background: '#27272A',
+                          borderRadius: 8,
+                          border: '1px solid #3F3F46',
+                        }}>
+                          <div>
+                            {selectedSaasConfig.icon}
                           </div>
-                          <div style={{ fontSize: 11, color: '#71717A', marginTop: 2 }}>
-                            Paste a URL to import data
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 14, fontWeight: 500, color: '#E4E4E7' }}>
+                              {selectedSaasConfig.name}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#71717A', marginTop: 2 }}>
+                              {selectedSaasConfig.type === 'url' 
+                                ? 'Paste a URL to import data'
+                                : selectedSaasConfig.description || 'Connect your account to import data'
+                              }
+                            </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSaas(null);
+                              setConnectUrlInput('');
+                              setConnectError(null);
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#71717A',
+                              cursor: 'pointer',
+                              padding: 4,
+                              display: 'flex',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M18 6L6 18M6 6l12 12" />
+                            </svg>
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedSaas(null);
-                            setConnectUrlInput('');
-                            setConnectError(null);
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#71717A',
-                            cursor: 'pointer',
-                            padding: 4,
-                            display: 'flex',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 6L6 18M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
 
-                      <div>
-                        <label style={labelStyle}>
-                          {SAAS_OPTIONS.find(s => s.id === selectedSaas)?.name} URL
-                        </label>
-                     <div style={{ display: 'flex', gap: 8 }}>
-                       <input
-                         type='text'
-                            placeholder={SAAS_OPTIONS.find(s => s.id === selectedSaas)?.placeholder || 'Enter URL...'}
-                         value={connectUrlInput}
-                         onChange={e => setConnectUrlInput(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleSaasImport(); } }}
-                         style={{ ...inputStyle, flex: 1 }}
-                         autoFocus
-                       />
-                       <button
-                         type='button'
-                            onClick={() => void handleSaasImport()}
-                            disabled={connectLoading || connectImporting || !connectUrlInput.trim()}
-                         style={{
-                              ...buttonStyle(true),
-                              opacity: connectLoading || connectImporting || !connectUrlInput.trim() ? 0.5 : 1
-                         }}
-                       >
-                            {connectLoading ? 'Connecting...' : connectImporting ? 'Importing...' : 'Import'}
-                       </button>
-                     </div>
-                  </div>
-                    </>
-                  )}
+                        {/* URL 类型: 显示 URL 输入框 */}
+                        {selectedSaasConfig.type === 'url' && (
+                          <div>
+                            <label style={labelStyle}>
+                              {selectedSaasConfig.name} URL
+                            </label>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <input
+                                type='text'
+                                placeholder={selectedSaasConfig.placeholder || 'Enter URL...'}
+                                value={connectUrlInput}
+                                onChange={e => setConnectUrlInput(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleSaasImport(); } }}
+                                style={{ ...inputStyle, flex: 1 }}
+                                autoFocus
+                              />
+                              <button
+                                type='button'
+                                onClick={() => void handleSaasImport()}
+                                disabled={connectLoading || connectImporting || !connectUrlInput.trim()}
+                                style={{
+                                  ...buttonStyle(true),
+                                  opacity: connectLoading || connectImporting || !connectUrlInput.trim() ? 0.5 : 1
+                                }}
+                              >
+                                {connectLoading ? 'Connecting...' : connectImporting ? 'Importing...' : 'Import'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* OAuth 类型: 简化的连接 + 导入流程 */}
+                        {selectedSaasConfig.type === 'oauth' && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {/* 未连接: 显示连接按钮 */}
+                            {!oauthConnected?.connected && !oauthChecking && (
+                              <div style={{ 
+                                padding: 20,
+                                background: '#1C1C1E',
+                                borderRadius: 8,
+                                border: '1px solid #3F3F46',
+                                textAlign: 'center',
+                              }}>
+                                <div style={{ fontSize: 13, color: '#71717A', marginBottom: 16 }}>
+                                  Connect your {selectedSaasConfig.name} account to import data
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      setConnectLoading(true);
+                                      const { openOAuthPopup, getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus } = await import('@/lib/oauthApi');
+                                      await openOAuthPopup(selectedSaas as 'gmail' | 'drive' | 'calendar');
+                                      // Re-check status after OAuth
+                                      let status: { connected: boolean; email?: string } = { connected: false };
+                                      if (selectedSaas === 'gmail') status = await getGmailStatus();
+                                      else if (selectedSaas === 'drive') status = await getGoogleDriveStatus();
+                                      else if (selectedSaas === 'calendar') status = await getGoogleCalendarStatus();
+                                      setOauthConnected(status);
+                                    } catch (err) {
+                                      setConnectError(err instanceof Error ? err.message : 'OAuth failed');
+                                    } finally {
+                                      setConnectLoading(false);
+                                    }
+                                  }}
+                                  disabled={connectLoading}
+                                  style={{
+                                    padding: '10px 24px',
+                                    background: '#3B82F6',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: 6,
+                                    fontSize: 14,
+                                    fontWeight: 500,
+                                    cursor: connectLoading ? 'not-allowed' : 'pointer',
+                                    opacity: connectLoading ? 0.7 : 1,
+                                  }}
+                                >
+                                  {connectLoading ? 'Connecting...' : `Connect ${selectedSaasConfig.name}`}
+                                </button>
+                              </div>
+                            )}
+
+                            {/* 检查中 */}
+                            {oauthChecking && (
+                              <div style={{ 
+                                padding: 20,
+                                background: '#1C1C1E',
+                                borderRadius: 8,
+                                border: '1px solid #3F3F46',
+                                textAlign: 'center',
+                                color: '#71717A',
+                              }}>
+                                Checking connection...
+                              </div>
+                            )}
+
+                            {/* 已连接: 显示账户信息 + 配置 + 导入按钮 */}
+                            {oauthConnected?.connected && (
+                              <>
+                                {/* 账户信息条 */}
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '10px 14px',
+                                  background: 'rgba(34, 197, 94, 0.1)',
+                                  borderRadius: 6,
+                                  border: '1px solid rgba(34, 197, 94, 0.3)',
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
+                                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                      <polyline points="22 4 12 14.01 9 11.01" />
+                                    </svg>
+                                    <span style={{ fontSize: 13, color: '#22c55e' }}>
+                                      {oauthConnected.email || 'Connected'}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        setConnectLoading(true);
+                                        const { openOAuthPopup, getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus } = await import('@/lib/oauthApi');
+                                        await openOAuthPopup(selectedSaas as 'gmail' | 'drive' | 'calendar');
+                                        let status: { connected: boolean; email?: string } = { connected: false };
+                                        if (selectedSaas === 'gmail') status = await getGmailStatus();
+                                        else if (selectedSaas === 'drive') status = await getGoogleDriveStatus();
+                                        else if (selectedSaas === 'calendar') status = await getGoogleCalendarStatus();
+                                        setOauthConnected(status);
+                                      } catch (err) {
+                                        setConnectError(err instanceof Error ? err.message : 'OAuth failed');
+                                      } finally {
+                                        setConnectLoading(false);
+                                      }
+                                    }}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: '#71717A',
+                                      fontSize: 12,
+                                      cursor: 'pointer',
+                                      textDecoration: 'underline',
+                                    }}
+                                  >
+                                    Switch
+                                  </button>
+                                </div>
+
+                                {/* 配置选项 (简化显示) */}
+                                {selectedSaasConfig.configFields && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    {selectedSaasConfig.configFields.map(field => (
+                                      <div key={field.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <label style={{ fontSize: 13, color: '#A1A1AA', minWidth: 80 }}>{field.label}</label>
+                                        {field.type === 'select' && (
+                                          <select
+                                            id={`oauth-config-${field.key}`}
+                                            style={{
+                                              flex: 1,
+                                              padding: '6px 10px',
+                                              background: '#27272A',
+                                              border: '1px solid #3F3F46',
+                                              borderRadius: 6,
+                                              color: '#E4E4E7',
+                                              fontSize: 13,
+                                            }}
+                                            defaultValue={field.defaultValue as string}
+                                          >
+                                            {field.options?.map(opt => (
+                                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                            ))}
+                                          </select>
+                                        )}
+                                        {field.type === 'text' && (
+                                          <input
+                                            id={`oauth-config-${field.key}`}
+                                            type="text"
+                                            placeholder={field.label}
+                                            defaultValue={field.defaultValue as string}
+                                            style={{ ...inputStyle, flex: 1, padding: '6px 10px', fontSize: 13 }}
+                                          />
+                                        )}
+                                        {field.type === 'checkbox' && (
+                                          <input
+                                            id={`oauth-config-${field.key}`}
+                                            type="checkbox"
+                                            defaultChecked={field.defaultValue as boolean}
+                                            style={{ width: 16, height: 16 }}
+                                          />
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Import 按钮 - 和 Notion 一样的样式 */}
+                                <button
+                                  type="button"
+                                  disabled={connectImporting}
+                                  onClick={async () => {
+                                    if (!projectId) return;
+                                    
+                                    setConnectImporting(true);
+                                    const taskName = name.trim() || `${selectedSaasConfig.name} Import`;
+                                    
+                                    // 收集配置值
+                                    const syncConfig: Record<string, unknown> = {};
+                                    selectedSaasConfig.configFields?.forEach(field => {
+                                      const el = document.getElementById(`oauth-config-${field.key}`) as HTMLInputElement | HTMLSelectElement;
+                                      if (el) {
+                                        syncConfig[field.key] = field.type === 'checkbox' ? (el as HTMLInputElement).checked : el.value;
+                                      }
+                                    });
+                                    
+                                    try {
+                                      // 提交任务到统一的 import API
+                                      const { submitImport } = await import('@/lib/importApi');
+                                      const response = await submitImport({
+                                        project_id: projectId,
+                                        url: `oauth://${selectedSaas}`, // 特殊 URL 格式标识 OAuth 导入
+                                        name: taskName,
+                                        sync_config: syncConfig,
+                                      });
+                                      
+                                      // 添加到 pending tasks
+                                      addPendingTasks([{
+                                        taskId: response.task_id,
+                                        projectId: projectId,
+                                        filename: taskName,
+                                        taskType: selectedSaas as 'gmail' | 'drive' | 'calendar',
+                                        status: 'pending',
+                                      }]);
+                                      
+                                      // 关闭对话框
+                                      resetConnectState();
+                                      onClose();
+                                      
+                                      // 轮询任务状态
+                                      pollTaskStatus(response.task_id, taskName, selectedSaas as 'gmail' | 'drive' | 'calendar');
+                                    } catch (err) {
+                                      const message = err instanceof Error ? err.message : 'Failed to start import';
+                                      setConnectError(message);
+                                      setConnectImporting(false);
+                                    }
+                                  }}
+                                  style={{
+                                    ...buttonStyle(true),
+                                    width: '100%',
+                                    marginTop: 4,
+                                    opacity: connectImporting ? 0.7 : 1,
+                                  }}
+                                >
+                                  {connectImporting ? 'Starting...' : 'Import'}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {/* Sync Progress Panel */}
                   {syncTaskId && (

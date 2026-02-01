@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { parseUrl } from '../../../../lib/connectApi';
+import { parseImportUrl } from '../../../../lib/importApi';
 
 interface DataImportDialogProps {
   visible: boolean;
@@ -182,7 +182,7 @@ export function DataImportDialog({
     setIsLoading(true);
     setError(null);
     try {
-      const result = await parseUrl(url);
+      const result = await parseImportUrl(url);
       if (result && result.sample_data) {
         setParsedData(result.sample_data);
         if (currentValue && typeof currentValue === 'object') {

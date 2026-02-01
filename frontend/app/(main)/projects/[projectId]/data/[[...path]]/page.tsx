@@ -52,9 +52,12 @@ import { MarkdownEditor } from '@/components/editors/markdown';
 // GitHub Repo View
 import { GithubRepoView } from '@/components/views/GithubRepoView';
 
+// Node Type Config
+import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
+
 // Finder View Components
-import { GridView, ListView, MillerColumnsView, type MillerColumnItem, type AgentResource } from '../../../[[...slug]]/components/views';
-import { CreateMenu, type ContentType } from '../../../[[...slug]]/components/finder';
+import { GridView, ListView, ExplorerSidebar, type MillerColumnItem, type AgentResource, type ContentType } from '../components/views';
+import { CreateMenu } from '../../../[[...slug]]/components/finder';
 
 // Agent Context
 import { useAgent } from '@/contexts/AgentContext';
@@ -103,8 +106,8 @@ export default function DataPage({ params }: DataPageProps) {
   // 客户端 mount 后从 localStorage 读取
   useEffect(() => {
     const savedViewType = localStorage.getItem('puppyone-view-type');
-    if (savedViewType === 'grid' || savedViewType === 'list' || savedViewType === 'column') {
-      setViewTypeState(savedViewType);
+    if (savedViewType === 'grid' || savedViewType === 'list' || savedViewType === 'explorer') {
+      setViewTypeState(savedViewType as ViewType);
     }
     
     const savedEditorType = localStorage.getItem('puppyone-editor-type');
@@ -155,6 +158,7 @@ export default function DataPage({ params }: DataPageProps) {
   const [createTableOpen, setCreateTableOpen] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [defaultStartOption, setDefaultStartOption] = useState<'empty' | 'documents' | 'url' | 'connect'>('empty');
+  const [defaultSelectedSaas, setDefaultSelectedSaas] = useState<'notion' | 'github' | 'airtable' | 'linear' | 'google_sheets' | undefined>(undefined);
 
   // Create menu state
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -168,41 +172,32 @@ export default function DataPage({ params }: DataPageProps) {
   // Convert resources to AgentResource format for views
   // Priority: 1) Hovered Agent (Preview), 2) Setting Mode (Draft), 3) Deployed Mode (Active Agent)
   const agentResources: AgentResource[] = useMemo(() => {
-    // 1. Hover Preview
+    // Helper to convert resource to AgentResource format
+    // Support both new format (readonly) and legacy format (terminal/terminalReadonly)
+    const toAgentResource = (r: { nodeId: string; readonly?: boolean; terminal?: boolean; terminalReadonly?: boolean }) => ({
+      nodeId: r.nodeId,
+      // New format uses 'readonly', legacy uses 'terminalReadonly'
+      terminalReadonly: r.readonly ?? r.terminalReadonly ?? true,
+    });
+
+    // 1. Hover Preview - highest priority
     if (hoveredAgentId) {
       const agent = savedAgents.find(a => a.id === hoveredAgentId);
-      if (agent?.resources) {
-        return agent.resources
-          .filter(r => r.terminal || r.terminalReadonly)
-          .map(r => ({
-            nodeId: r.nodeId,
-            terminalReadonly: r.terminalReadonly,
-          }));
+      if (agent?.resources && agent.resources.length > 0) {
+        return agent.resources.map(toAgentResource);
       }
     }
 
-    // 2. Setting Mode
+    // 2. Setting Mode - show draft resources
     if (sidebarMode === 'setting') {
-      // Editing mode: show draft resources
-      return draftResources
-        .filter(r => r.terminal || r.terminalReadonly) // Show items with terminal access
-        .map(r => ({
-          nodeId: r.nodeId,
-          terminalReadonly: r.terminalReadonly,
-        }));
+      return draftResources.map(toAgentResource);
     }
     
-    // 3. Deployed Mode
+    // 3. Deployed Mode - show current agent's resources
     if (sidebarMode === 'deployed' && currentAgentId) {
-      // Viewing a saved agent: show its configured resources
       const agent = savedAgents.find(a => a.id === currentAgentId);
-      if (agent?.resources) {
-        return agent.resources
-          .filter(r => r.terminal || r.terminalReadonly) // Show items with terminal access
-          .map(r => ({
-            nodeId: r.nodeId,
-            terminalReadonly: r.terminalReadonly,
-          }));
+      if (agent?.resources && agent.resources.length > 0) {
+        return agent.resources.map(toAgentResource);
       }
     }
     
@@ -291,8 +286,11 @@ export default function DataPage({ params }: DataPageProps) {
           setActiveNodeId(lastNode.id);
           setActiveNodeType(lastNode.type);
           
-          // If markdown, load content (from content field or S3)
-          if (lastNode.type === 'markdown') {
+          // Check if this node type should render as markdown
+          const nodeConfig = getNodeTypeConfig(lastNode.type);
+          const shouldLoadAsMarkdown = nodeConfig.renderAs === 'markdown';
+          
+          if (shouldLoadAsMarkdown) {
             setIsLoadingMarkdown(true);
             try {
               // Get full node detail to check content field
@@ -303,10 +301,10 @@ export default function DataPage({ params }: DataPageProps) {
                 setMarkdownContent(fullNode.content);
               } else if (fullNode.s3_key) {
                 // Content is in S3, download it
-              const { download_url } = await getDownloadUrl(lastNode.id);
-              const response = await fetch(download_url);
-              const content = await response.text();
-              setMarkdownContent(content);
+                const { download_url } = await getDownloadUrl(lastNode.id);
+                const response = await fetch(download_url);
+                const content = await response.text();
+                setMarkdownContent(content);
               } else {
                 // No content available
                 setMarkdownContent('');
@@ -460,7 +458,8 @@ export default function DataPage({ params }: DataPageProps) {
 
       // Node segment
       if (activeNodeId && currentTableData) {
-        const nodeIcon = activeNodeType === 'markdown' ? markdownIcon : tableIcon;
+        const renderAs = getNodeTypeConfig(activeNodeType).renderAs;
+        const nodeIcon = renderAs === 'markdown' ? markdownIcon : tableIcon;
         segments.push({ label: currentTableData.name, icon: nodeIcon });
       } else if (activeNodeId) {
         segments.push({ label: '...', icon: loadingIcon });
@@ -572,6 +571,96 @@ export default function DataPage({ params }: DataPageProps) {
     for (const t of toDelete) await deleteTool(t.id);
   }
 
+  // === View Helpers (Hoisted) ===
+  const items = contentNodes.map(node => ({
+    id: node.id,
+    name: node.name,
+    type: node.type as ContentType,
+    description: node.type === 'folder' ? 'Folder' : node.type === 'markdown' ? 'Markdown' : 'JSON',
+    is_synced: node.is_synced,
+    sync_source: node.sync_source,
+    sync_url: node.sync_url,
+    last_synced_at: node.last_synced_at,
+    onClick: () => {
+      const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
+      const newPath = currentPath ? `${currentPath}/${node.id}` : node.id;
+      router.push(`/projects/${projectId}/data/${newPath}`);
+    },
+  }));
+
+  const handleCreateClick = (e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+    setCreateInFolderId(undefined); 
+    setCreateMenuOpen(true);
+  };
+
+  const handleMillerCreateClick = (e: React.MouseEvent, parentId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+    setCreateInFolderId(parentId); 
+    setCreateMenuOpen(true);
+  };
+
+  const loadChildren = async (folderId: string | null): Promise<MillerColumnItem[]> => {
+    try {
+      const response = await listNodes(projectId, folderId ?? undefined);
+      return response.nodes.map(node => ({
+        id: node.id,
+        name: node.name,
+        type: node.type as ContentType,
+        is_synced: node.is_synced,
+        sync_source: node.sync_source,
+        last_synced_at: node.last_synced_at,
+      }));
+    } catch (err) {
+      console.error('Failed to load folder children:', err);
+      return [];
+    }
+  };
+
+  const handleMillerNavigate = (item: MillerColumnItem, pathToItem: string[]) => {
+    const newPath = pathToItem.join('/');
+    router.push(`/projects/${projectId}/data/${newPath}`);
+  };
+
+  const handleRename = async (id: string, currentName: string) => {
+    const newName = window.prompt('Enter new name:', currentName);
+    if (newName && newName !== currentName) {
+      try {
+        await updateNode(id, { name: newName });
+        loadContentNodes(currentFolderId);
+      } catch (err) {
+        console.error('Failed to rename:', err);
+        alert('Failed to rename item');
+      }
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    const confirmed = window.confirm(`Are you sure you want to delete "${name}"?`);
+    if (confirmed) {
+      try {
+        await deleteNode(id);
+        loadContentNodes(currentFolderId);
+      } catch (err) {
+        console.error('Failed to delete:', err);
+        alert('Failed to delete item');
+      }
+    }
+  };
+
+  const handleRefresh = async (id: string) => {
+    const node = contentNodes.find(n => n.id === id);
+    if (!node?.sync_url) {
+      alert('No sync URL available for this item');
+      return;
+    }
+    alert(`Refreshing from: ${node.sync_url}\n\n(Not yet implemented)`);
+  };
+
   return (
     <>
       {/* Header (Full Width) */}
@@ -586,11 +675,25 @@ export default function DataPage({ params }: DataPageProps) {
 
       {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+          {viewType === 'explorer' && (
+            <ExplorerSidebar
+              currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
+              onLoadChildren={loadChildren}
+              onNavigate={handleMillerNavigate}
+              agentResources={agentResources}
+              style={{
+                width: 250,
+                borderRight: '1px solid rgba(255,255,255,0.08)',
+                background: '#141414',
+                flexShrink: 0
+              }}
+            />
+          )}
           {/* Editor View */}
           {isEditorView && activeProject && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
-              {/* Markdown Editor */}
-              {activeNodeType === 'markdown' ? (
+              {/* Markdown Editor (for markdown, notion_page, github_file, etc.) */}
+              {getNodeTypeConfig(activeNodeType).renderAs === 'markdown' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                   {isLoadingMarkdown ? (
                   <div style={{ 
@@ -682,7 +785,7 @@ export default function DataPage({ params }: DataPageProps) {
           )}
 
           {/* Folder View */}
-          {isFolderView && (
+          {isFolderView && viewType !== 'explorer' && (
             <div style={{ width: '100%', height: '100%', overflow: 'auto', padding: 24 }}>
               {/* Generic Loading State */}
               {isLoading ? (
@@ -723,154 +826,47 @@ export default function DataPage({ params }: DataPageProps) {
                   <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
                 </div>
               ) : (
-                (() => {
-                  const items = contentNodes.map(node => ({
-                    id: node.id,
-                    name: node.name,
-                    type: node.type as ContentType,
-                    description: node.type === 'folder' ? 'Folder' : node.type === 'markdown' ? 'Markdown' : 'JSON',
-                    // 同步相关字段
-                    is_synced: node.is_synced,
-                    sync_source: node.sync_source,
-                    sync_url: node.sync_url,
-                    last_synced_at: node.last_synced_at,
-                    onClick: () => {
-                      const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
-                      const newPath = currentPath ? `${currentPath}/${node.id}` : node.id;
-                      router.push(`/projects/${projectId}/data/${newPath}`);
-                    },
-                  }));
-
-                  const handleCreateClick = (e: React.MouseEvent) => {
-                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                    setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
-                    setCreateInFolderId(undefined); // Use current folder
-                    setCreateMenuOpen(true);
-                  };
-
-                  const handleMillerCreateClick = (e: React.MouseEvent, parentId: string | null) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                    setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
-                    setCreateInFolderId(parentId); // Use specific folder from Miller Columns
-                    setCreateMenuOpen(true);
-                  };
-
-                  // Miller Columns View: load children async (null = root)
-                  const loadChildren = async (folderId: string | null): Promise<MillerColumnItem[]> => {
-                    try {
-                      const response = await listNodes(projectId, folderId ?? undefined);
-                      return response.nodes.map(node => ({
-                        id: node.id,
-                        name: node.name,
-                        type: node.type as ContentType,
-                        is_synced: node.is_synced,
-                        sync_source: node.sync_source,
-                        last_synced_at: node.last_synced_at,
-                      }));
-                    } catch (err) {
-                      console.error('Failed to load folder children:', err);
-                      return [];
-                    }
-                  };
-
-                  const handleMillerNavigate = (item: MillerColumnItem, pathToItem: string[]) => {
-                    // pathToItem contains the full path to reach this item
-                    const newPath = pathToItem.join('/');
-                    router.push(`/projects/${projectId}/data/${newPath}`);
-                  };
-
-                  // === Item Actions ===
-                  const handleRename = async (id: string, currentName: string) => {
-                    const newName = window.prompt('Enter new name:', currentName);
-                    if (newName && newName !== currentName) {
-                      try {
-                        await updateNode(id, { name: newName });
-                        // Refresh the content
-                        loadContentNodes(currentFolderId);
-                      } catch (err) {
-                        console.error('Failed to rename:', err);
-                        alert('Failed to rename item');
-                      }
-                    }
-                  };
-
-                  const handleDelete = async (id: string, name: string) => {
-                    const confirmed = window.confirm(`Are you sure you want to delete "${name}"?`);
-                    if (confirmed) {
-                      try {
-                        await deleteNode(id);
-                        // Refresh the content
-                        loadContentNodes(currentFolderId);
-                      } catch (err) {
-                        console.error('Failed to delete:', err);
-                        alert('Failed to delete item');
-                      }
-                    }
-                  };
-
-                  // Refresh synced content from source
-                  const handleRefresh = async (id: string) => {
-                    const node = contentNodes.find(n => n.id === id);
-                    if (!node?.sync_url) {
-                      alert('No sync URL available for this item');
-                      return;
-                    }
-                    
-                    // TODO: Implement re-sync from source
-                    // For now, just show a message
-                    alert(`Refreshing from: ${node.sync_url}\n\n(Not yet implemented)`);
-                    
-                    // Future implementation:
-                    // await resyncNode(id, node.sync_url);
-                    // loadContentNodes(currentFolderId);
-                  };
-
-                  if (viewType === 'column') {
-                    return (
-                      <MillerColumnsView
-                        currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
-                        currentItems={items.map(i => ({ 
-                          id: i.id, 
-                          name: i.name, 
-                          type: i.type,
-                          is_synced: i.is_synced,
-                          sync_source: i.sync_source,
-                          sync_url: i.sync_url,
-                          last_synced_at: i.last_synced_at,
-                        }))}
-                        onLoadChildren={loadChildren}
-                        onNavigate={handleMillerNavigate}
-                        onCreateClick={handleMillerCreateClick}
-                        onRename={handleRename}
-                        onDelete={handleDelete}
-                        onRefresh={handleRefresh}
-                        agentResources={agentResources}
-                      />
-                    );
-                  }
-
-                  return viewType === 'list' ? (
-                    <ListView
-                      items={items}
-                      onRename={handleRename}
-                      onDelete={handleDelete}
-                      onRefresh={handleRefresh}
-                      agentResources={agentResources}
-                    />
-                  ) : (
-                    <GridView
-                      items={items}
-                      onCreateClick={handleCreateClick}
-                      onRename={handleRename}
-                      onDelete={handleDelete}
-                      onRefresh={handleRefresh}
-                      agentResources={agentResources}
-                    />
-                  );
-                })()
+                viewType === 'list' ? (
+                  <ListView
+                    items={items}
+                    onRename={handleRename}
+                    onDelete={handleDelete}
+                    onRefresh={handleRefresh}
+                    agentResources={agentResources}
+                  />
+                ) : (
+                  <GridView
+                    items={items}
+                    onCreateClick={handleCreateClick}
+                    onRename={handleRename}
+                    onDelete={handleDelete}
+                    onRefresh={handleRefresh}
+                    agentResources={agentResources}
+                  />
+                )
               )}
+            </div>
+          )}
+
+          {/* Explorer View - Empty State (when no file selected) */}
+          {viewType === 'explorer' && isFolderView && (
+            <div style={{ 
+              flex: 1, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              flexDirection: 'column',
+              gap: 12,
+              color: '#525252',
+              background: '#0a0a0a'
+            }}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.5">
+                <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" />
+                <path d="M14 2V8H20" />
+                <path d="M12 18V12" />
+                <path d="M9 15L12 12L15 15" />
+              </svg>
+              <div style={{ fontSize: 14 }}>Select a file to preview</div>
             </div>
           )}
 
@@ -878,8 +874,8 @@ export default function DataPage({ params }: DataPageProps) {
           <TaskStatusWidget inline />
 
           {/* Unified View Toggle - Bottom Left (moved from right to avoid conflict with TaskStatusWidget) */}
-          {/* Hide for markdown editor */}
-          {activeNodeType !== 'markdown' && (
+          {/* Hide for markdown editor (including notion_page, github_file, etc.) */}
+          {getNodeTypeConfig(activeNodeType).renderAs !== 'markdown' && (
           <div
             style={{
               position: 'absolute',
@@ -1014,7 +1010,7 @@ export default function DataPage({ params }: DataPageProps) {
                   </svg>
                 </button>
                 <button
-                  onClick={() => setViewType('column')}
+                  onClick={() => setViewType('explorer')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1023,17 +1019,16 @@ export default function DataPage({ params }: DataPageProps) {
                     height: 24,
                     borderRadius: 4,
                     border: 'none',
-                    background: viewType === 'column' ? '#2a2a2a' : 'transparent',
-                    color: viewType === 'column' ? '#fff' : '#737373',
+                    background: viewType === 'explorer' ? '#2a2a2a' : 'transparent',
+                    color: viewType === 'explorer' ? '#fff' : '#737373',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                   }}
-                  title="Column view"
+                  title="Explorer view"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="5" height="18" rx="1" />
-                    <rect x="10" y="3" width="5" height="18" rx="1" />
-                    <rect x="17" y="3" width="5" height="18" rx="1" />
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <line x1="9" y1="3" x2="9" y2="21" />
                   </svg>
                 </button>
               </>
@@ -1111,6 +1106,35 @@ export default function DataPage({ params }: DataPageProps) {
               }}
               onImportFromSaas={() => {
                 setDefaultStartOption('connect');
+                setDefaultSelectedSaas(undefined);
+                setCreateTableOpen(true);
+              }}
+              onImportNotion={() => {
+                setDefaultSelectedSaas('notion');
+                setCreateTableOpen(true);
+              }}
+              onImportGitHub={() => {
+                setDefaultSelectedSaas('github');
+                setCreateTableOpen(true);
+              }}
+              onImportGmail={() => {
+                setDefaultSelectedSaas('gmail');
+                setCreateTableOpen(true);
+              }}
+              onImportDrive={() => {
+                setDefaultSelectedSaas('drive');
+                setCreateTableOpen(true);
+              }}
+              onImportCalendar={() => {
+                setDefaultSelectedSaas('calendar');
+                setCreateTableOpen(true);
+              }}
+              onImportSheets={() => {
+                setDefaultSelectedSaas('sheets');
+                setCreateTableOpen(true);
+              }}
+              onImportAirtable={() => {
+                setDefaultSelectedSaas('airtable');
                 setCreateTableOpen(true);
               }}
           />
@@ -1127,9 +1151,11 @@ export default function DataPage({ params }: DataPageProps) {
           projects={projects}
           onClose={() => {
             setCreateTableOpen(false);
-            setDefaultStartOption('empty'); // Reset for next time
+            setDefaultStartOption('empty');
+            setDefaultSelectedSaas(undefined);
           }}
           defaultStartOption={defaultStartOption}
+          defaultSelectedSaas={defaultSelectedSaas}
         />
       )}
 

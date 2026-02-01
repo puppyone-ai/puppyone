@@ -35,9 +35,8 @@ from src.etl.tasks.repository import ETLTaskRepositorySupabase
 from src.llm.service import LLMService
 from src.s3.service import S3Service
 
-# Import sync jobs
-from src.import_.saas.jobs import SYNC_JOBS
-from src.import_.saas.state_repository import SyncStateRepositoryRedis
+# Import sync job bridge (uses new import_ handlers)
+from src.import_.jobs.jobs import legacy_sync_job
 
 logger = logging.getLogger(__name__)
 
@@ -56,29 +55,24 @@ async def startup(ctx: dict) -> None:
     ctx["state_repo"] = ETLStateRepositoryRedis(ctx["redis"])
     ctx["arq_queue_name"] = etl_config.etl_arq_queue_name
     
-    # ========== Sync Services ==========
+    # ========== Sync Services (for legacy_sync_job bridge) ==========
     # Import dependencies here to avoid circular imports
-    from src.sync_task.repository import SyncTaskRepository
     from src.content_node.service import ContentNodeService
     from src.content_node.repository import ContentNodeRepository
     from src.oauth.github_service import GithubOAuthService
+    from src.oauth.notion_service import NotionOAuthService
     from src.supabase.client import SupabaseClient
     
     # SupabaseClient wraps the raw supabase.Client
     supabase_wrapper = SupabaseClient()
     
-    # Sync task repository (database) - needs raw Client
-    ctx["sync_task_repository"] = SyncTaskRepository(supabase_wrapper.client)
-    
-    # Sync runtime state repo (Redis)
-    ctx["sync_state_repo"] = SyncStateRepositoryRedis(ctx["redis"])
-    
     # Content node service for creating nodes (needs repo + s3)
     content_node_repo = ContentNodeRepository(supabase_wrapper)
-    ctx["content_node_service"] = ContentNodeService(content_node_repo, ctx["s3_service"])
+    ctx["node_service"] = ContentNodeService(content_node_repo, ctx["s3_service"])
     
-    # GitHub OAuth service
+    # OAuth services
     ctx["github_service"] = GithubOAuthService()
+    ctx["notion_service"] = NotionOAuthService()
     
     logger.info("Unified ARQ worker startup complete (ETL + Sync)")
 
@@ -91,8 +85,8 @@ async def shutdown(ctx: dict) -> None:
 
 
 class WorkerSettings:
-    # Combine ETL jobs and sync jobs
-    functions = [etl_ocr_job, etl_postprocess_job] + SYNC_JOBS
+    # Combine ETL jobs and sync bridge job
+    functions = [etl_ocr_job, etl_postprocess_job, legacy_sync_job]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(etl_config.etl_redis_url)

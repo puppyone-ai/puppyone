@@ -2,17 +2,17 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  getSyncTaskStatus,
+  getImportTask,
   isTerminalStatus,
   getStatusInfo,
   formatBytes,
-  type SyncTaskStatusResponse,
-  type SyncTaskStatus,
-} from '../lib/syncApi';
+  type ImportTaskResponse,
+  type ImportStatus,
+} from '../lib/importApi';
 
 interface SyncProgressPanelProps {
-  taskId: number;
-  onComplete?: (rootNodeId: string) => void;
+  taskId: string;
+  onComplete?: (contentNodeId: string) => void;
   onError?: (error: string) => void;
   onCancel?: () => void;
 }
@@ -23,25 +23,26 @@ export function SyncProgressPanel({
   onError,
   onCancel,
 }: SyncProgressPanelProps) {
-  const [status, setStatus] = useState<SyncTaskStatusResponse | null>(null);
+  const [status, setStatus] = useState<ImportTaskResponse | null>(null);
   const [polling, setPolling] = useState(true);
 
   const fetchStatus = useCallback(async () => {
     try {
-      const result = await getSyncTaskStatus(taskId);
+      const result = await getImportTask(taskId);
       setStatus(result);
 
-      if (result.is_terminal) {
+      const isTerminal = isTerminalStatus(result.status);
+      if (isTerminal) {
         setPolling(false);
 
-        if (result.status === 'completed' && result.root_node_id && onComplete) {
-          onComplete(result.root_node_id);
+        if (result.status === 'completed' && result.content_node_id && onComplete) {
+          onComplete(result.content_node_id);
         } else if (result.status === 'failed' && result.error && onError) {
           onError(result.error);
         }
       }
     } catch (error) {
-      console.error('Failed to fetch sync status:', error);
+      console.error('Failed to fetch import status:', error);
     }
   }, [taskId, onComplete, onError]);
 
@@ -69,8 +70,9 @@ export function SyncProgressPanel({
     );
   }
 
-  const statusInfo = getStatusInfo(status.status as SyncTaskStatus);
+  const statusInfo = getStatusInfo(status.status);
   const progressPercent = Math.max(0, Math.min(100, status.progress));
+  const isTerminal = isTerminalStatus(status.status);
 
   return (
     <div style={containerStyle}>
@@ -83,19 +85,21 @@ export function SyncProgressPanel({
               borderRadius: 4,
               fontSize: 11,
               fontWeight: 500,
-              ...statusInfo,
+              color: statusInfo.color.replace('text-', ''),
+              backgroundColor: statusInfo.bgColor.replace('bg-', ''),
             }}
+            className={`${statusInfo.color} ${statusInfo.bgColor}`}
           >
             {statusInfo.label}
           </span>
-          {!status.is_terminal && (
+          {!isTerminal && (
             <span style={{ color: '#71717A', fontSize: 12 }}>
               {progressPercent}%
             </span>
           )}
         </div>
         
-        {!status.is_terminal && onCancel && (
+        {!isTerminal && onCancel && (
           <button
             type="button"
             onClick={onCancel}
@@ -127,22 +131,15 @@ export function SyncProgressPanel({
 
       {/* Progress message */}
       <div style={{ color: '#A1A1AA', fontSize: 12, minHeight: 16 }}>
-        {status.progress_message || 'Processing...'}
+        {status.message || 'Processing...'}
       </div>
 
       {/* Stats */}
-      {(status.bytes_total > 0 || status.files_total > 0) && (
+      {status.items_count !== null && status.items_count > 0 && (
         <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#71717A' }}>
-          {status.bytes_total > 0 && (
-            <span>
-              {formatBytes(status.bytes_downloaded)} / {formatBytes(status.bytes_total)}
-            </span>
-          )}
-          {status.files_total > 0 && (
-            <span>
-              {status.files_processed} / {status.files_total} files
-            </span>
-          )}
+          <span>
+            {status.items_count} items
+          </span>
         </div>
       )}
 
@@ -203,4 +200,3 @@ if (typeof document !== 'undefined') {
 }
 
 export default SyncProgressPanel;
-

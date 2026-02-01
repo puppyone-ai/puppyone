@@ -23,6 +23,7 @@ class ContentNode(BaseModel):
     # 同步相关字段
     sync_url: Optional[str] = Field(None, description="同步来源 URL（仅同步类型有值）")
     sync_id: Optional[str] = Field(None, description="外部平台资源 ID（仅同步类型有值）")
+    sync_config: Optional[dict] = Field(None, description="同步配置（如 recursive, max_depth 等）")
     last_synced_at: Optional[datetime] = Field(None, description="上次同步时间")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
