@@ -97,7 +97,7 @@ class SchedulerService:
             client = SupabaseClient().client
             
             # Query all schedule type agents with cron trigger
-            result = client.table("agent").select("*").eq("type", "schedule").eq("trigger_type", "cron").execute()
+            result = client.table("agents").select("*").eq("type", "schedule").eq("trigger_type", "cron").execute()
             
             agents = result.data or []
             log_info(f"📋 Found {len(agents)} schedule agents to load")

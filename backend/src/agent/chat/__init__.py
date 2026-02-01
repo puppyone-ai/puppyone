@@ -9,3 +9,4 @@ This module persists chat history to Supabase/PostgREST tables:
 
 
 
+

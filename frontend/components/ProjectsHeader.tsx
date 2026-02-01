@@ -4,7 +4,7 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 
 export type EditorType = 'treeline-virtual' | 'monaco' | 'table';
-export type ViewType = 'grid' | 'list' | 'column';
+export type ViewType = 'grid' | 'list' | 'explorer';
 
 export type BreadcrumbSegment = {
   label: string;

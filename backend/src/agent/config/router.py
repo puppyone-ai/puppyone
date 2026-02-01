@@ -21,6 +21,9 @@ from src.agent.config.schemas import (
     AgentCreate,
     AgentUpdate,
     AgentOut,
+    AgentBashCreate,
+    AgentBashUpdate,
+    AgentBashOut,
     AgentAccessCreate,
     AgentAccessUpdate,
     AgentAccessOut,
@@ -42,6 +45,34 @@ router = APIRouter(
 
 def _to_agent_out(agent: Agent) -> AgentOut:
     """转换 Agent 为 AgentOut"""
+    # 新版 Bash 访问权限
+    bash_out = [
+        AgentBashOut(
+            id=a.id,
+            agent_id=a.agent_id,
+            node_id=a.node_id,
+            json_path=a.json_path,
+            readonly=a.readonly,
+        )
+        for a in agent.bash_accesses
+    ]
+    
+    # 向后兼容的旧版格式
+    accesses_out = [
+        AgentAccessOut(
+            id=a.id,
+            agent_id=a.agent_id,
+            node_id=a.node_id,
+            terminal=True,
+            terminal_readonly=a.readonly,
+            can_read=False,
+            can_write=not a.readonly,
+            can_delete=False,
+            json_path=a.json_path,
+        )
+        for a in agent.bash_accesses
+    ]
+    
     return AgentOut(
         id=agent.id,
         name=agent.name,
@@ -58,20 +89,8 @@ def _to_agent_out(agent: Agent) -> AgentOut:
         external_config=agent.external_config,
         created_at=agent.created_at.isoformat(),
         updated_at=agent.updated_at.isoformat(),
-        accesses=[
-            AgentAccessOut(
-                id=a.id,
-                agent_id=a.agent_id,
-                node_id=a.node_id,
-                terminal=a.terminal,
-                terminal_readonly=a.terminal_readonly,
-                can_read=a.can_read,
-                can_write=a.can_write,
-                can_delete=a.can_delete,
-                json_path=a.json_path,
-            )
-            for a in agent.accesses
-        ],
+        bash_accesses=bash_out,
+        accesses=accesses_out,
     )
 
 
@@ -300,13 +319,111 @@ def delete_agent(
 
 
 # ============================================
-# AgentAccess CRUD
+# AgentBash CRUD (新版)
+# ============================================
+
+@router.post(
+    "/{agent_id}/bash",
+    response_model=ApiResponse[AgentBashOut],
+    summary="添加 Bash 访问权限",
+    description="为 Agent 添加一个新的 Bash 终端访问权限",
+    status_code=status.HTTP_201_CREATED,
+)
+def add_bash(
+    payload: AgentBashCreate,
+    agent: Agent = Depends(get_verified_agent),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AgentConfigService = Depends(get_agent_config_service),
+):
+    bash = service.add_bash(
+        agent_id=agent.id,
+        user_id=current_user.user_id,
+        node_id=payload.node_id,
+        json_path=payload.json_path,
+        readonly=payload.readonly,
+    )
+    if not bash:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to add bash access",
+        )
+    return ApiResponse.success(
+        data=AgentBashOut(
+            id=bash.id,
+            agent_id=bash.agent_id,
+            node_id=bash.node_id,
+            json_path=bash.json_path,
+            readonly=bash.readonly,
+        ),
+        message="Bash 访问权限添加成功",
+    )
+
+
+@router.put(
+    "/{agent_id}/bash/{bash_id}",
+    response_model=ApiResponse[AgentBashOut],
+    summary="更新 Bash 访问权限",
+    description="更新 Agent 的 Bash 终端访问权限",
+)
+def update_bash(
+    bash_id: str,
+    payload: AgentBashUpdate,
+    agent: Agent = Depends(get_verified_agent),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AgentConfigService = Depends(get_agent_config_service),
+):
+    bash = service.update_bash(
+        bash_id=bash_id,
+        user_id=current_user.user_id,
+        json_path=payload.json_path,
+        readonly=payload.readonly,
+    )
+    if not bash:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bash access not found or not authorized",
+        )
+    return ApiResponse.success(
+        data=AgentBashOut(
+            id=bash.id,
+            agent_id=bash.agent_id,
+            node_id=bash.node_id,
+            json_path=bash.json_path,
+            readonly=bash.readonly,
+        ),
+        message="Bash 访问权限更新成功",
+    )
+
+
+@router.delete(
+    "/{agent_id}/bash/{bash_id}",
+    response_model=ApiResponse[None],
+    summary="删除 Bash 访问权限",
+    description="删除 Agent 的单个 Bash 终端访问权限",
+)
+def remove_bash(
+    bash_id: str,
+    agent: Agent = Depends(get_verified_agent),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AgentConfigService = Depends(get_agent_config_service),
+):
+    success = service.remove_bash(bash_id, current_user.user_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bash access not found or not authorized",
+        )
+    return ApiResponse.success(message="Bash 访问权限删除成功")
+
+
+# ============================================
+# AgentAccess CRUD (向后兼容)
 # ============================================
 
 @router.post(
     "/{agent_id}/accesses",
     response_model=ApiResponse[AgentAccessOut],
-    summary="添加访问权限",
+    summary="添加访问权限（向后兼容）",
     description="为 Agent 添加一个新的访问权限",
     status_code=status.HTTP_201_CREATED,
 )
@@ -316,33 +433,31 @@ def add_access(
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
-    access = service.add_access(
+    # 转换为新格式
+    readonly = payload.terminal_readonly if payload.terminal else True
+    bash = service.add_bash(
         agent_id=agent.id,
         user_id=current_user.user_id,
         node_id=payload.node_id,
-        terminal=payload.terminal,
-        terminal_readonly=payload.terminal_readonly,
-        can_read=payload.can_read,
-        can_write=payload.can_write,
-        can_delete=payload.can_delete,
         json_path=payload.json_path,
+        readonly=readonly,
     )
-    if not access:
+    if not bash:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add access",
         )
     return ApiResponse.success(
         data=AgentAccessOut(
-            id=access.id,
-            agent_id=access.agent_id,
-            node_id=access.node_id,
-            terminal=access.terminal,
-            terminal_readonly=access.terminal_readonly,
-            can_read=access.can_read,
-            can_write=access.can_write,
-            can_delete=access.can_delete,
-            json_path=access.json_path,
+            id=bash.id,
+            agent_id=bash.agent_id,
+            node_id=bash.node_id,
+            terminal=True,
+            terminal_readonly=bash.readonly,
+            can_read=False,
+            can_write=not bash.readonly,
+            can_delete=False,
+            json_path=bash.json_path,
         ),
         message="访问权限添加成功",
     )
@@ -351,7 +466,7 @@ def add_access(
 @router.put(
     "/{agent_id}/accesses/{access_id}",
     response_model=ApiResponse[AgentAccessOut],
-    summary="更新访问权限",
+    summary="更新访问权限（向后兼容）",
     description="更新 Agent 的访问权限",
 )
 def update_access(
@@ -361,32 +476,28 @@ def update_access(
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
-    access = service.update_access(
-        access_id=access_id,
+    bash = service.update_bash(
+        bash_id=access_id,
         user_id=current_user.user_id,
-        terminal=payload.terminal,
-        terminal_readonly=payload.terminal_readonly,
-        can_read=payload.can_read,
-        can_write=payload.can_write,
-        can_delete=payload.can_delete,
         json_path=payload.json_path,
+        readonly=payload.terminal_readonly,
     )
-    if not access:
+    if not bash:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Access not found or not authorized",
         )
     return ApiResponse.success(
         data=AgentAccessOut(
-            id=access.id,
-            agent_id=access.agent_id,
-            node_id=access.node_id,
-            terminal=access.terminal,
-            terminal_readonly=access.terminal_readonly,
-            can_read=access.can_read,
-            can_write=access.can_write,
-            can_delete=access.can_delete,
-            json_path=access.json_path,
+            id=bash.id,
+            agent_id=bash.agent_id,
+            node_id=bash.node_id,
+            terminal=True,
+            terminal_readonly=bash.readonly,
+            can_read=False,
+            can_write=not bash.readonly,
+            can_delete=False,
+            json_path=bash.json_path,
         ),
         message="访问权限更新成功",
     )
@@ -395,7 +506,7 @@ def update_access(
 @router.delete(
     "/{agent_id}/accesses/{access_id}",
     response_model=ApiResponse[None],
-    summary="删除访问权限",
+    summary="删除访问权限（向后兼容）",
     description="删除 Agent 的单个访问权限",
 )
 def remove_access(
@@ -404,7 +515,7 @@ def remove_access(
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
-    success = service.remove_access(access_id, current_user.user_id)
+    success = service.remove_bash(access_id, current_user.user_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -437,9 +548,41 @@ def get_execution_history(
 
 
 @router.put(
+    "/{agent_id}/bash",
+    response_model=ApiResponse[List[AgentBashOut]],
+    summary="同步 Bash 访问权限",
+    description="全量替换 Agent 的所有 Bash 终端访问权限",
+)
+def sync_bash(
+    bash_list: List[AgentBashCreate],
+    agent: Agent = Depends(get_verified_agent),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AgentConfigService = Depends(get_agent_config_service),
+):
+    result = service.sync_bash(
+        agent_id=agent.id,
+        user_id=current_user.user_id,
+        bash_list=bash_list,
+    )
+    return ApiResponse.success(
+        data=[
+            AgentBashOut(
+                id=a.id,
+                agent_id=a.agent_id,
+                node_id=a.node_id,
+                json_path=a.json_path,
+                readonly=a.readonly,
+            )
+            for a in result
+        ],
+        message="Bash 访问权限同步成功",
+    )
+
+
+@router.put(
     "/{agent_id}/accesses",
     response_model=ApiResponse[List[AgentAccessOut]],
-    summary="同步访问权限",
+    summary="同步访问权限（向后兼容）",
     description="全量替换 Agent 的所有访问权限",
 )
 def sync_accesses(
@@ -448,10 +591,19 @@ def sync_accesses(
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
-    result = service.sync_accesses(
+    # 转换为新格式
+    bash_list = [
+        AgentBashCreate(
+            node_id=a.node_id,
+            json_path=a.json_path,
+            readonly=a.terminal_readonly if a.terminal else True,
+        )
+        for a in accesses
+    ]
+    result = service.sync_bash(
         agent_id=agent.id,
         user_id=current_user.user_id,
-        accesses=accesses,
+        bash_list=bash_list,
     )
     return ApiResponse.success(
         data=[
@@ -459,11 +611,11 @@ def sync_accesses(
                 id=a.id,
                 agent_id=a.agent_id,
                 node_id=a.node_id,
-                terminal=a.terminal,
-                terminal_readonly=a.terminal_readonly,
-                can_read=a.can_read,
-                can_write=a.can_write,
-                can_delete=a.can_delete,
+                terminal=True,
+                terminal_readonly=a.readonly,
+                can_read=False,
+                can_write=not a.readonly,
+                can_delete=False,
                 json_path=a.json_path,
             )
             for a in result

@@ -1,7 +1,7 @@
 """
 Agent Config 数据模型
 
-定义 Agent 和 AgentAccess 的业务领域模型
+定义 Agent 和 AgentBash 的业务领域模型
 """
 
 from datetime import datetime
@@ -13,25 +13,32 @@ AgentType = Literal["chat", "devbox", "webhook", "schedule"]
 TriggerType = Literal["manual", "cron", "webhook"]
 
 
-class AgentAccess(BaseModel):
-    """Agent 访问权限模型"""
+class AgentBash(BaseModel):
+    """Agent Bash 终端访问权限模型"""
 
-    id: str = Field(..., description="访问权限ID")
+    id: str = Field(..., description="Bash 权限 ID")
     agent_id: str = Field(..., description="所属 Agent ID")
     node_id: str = Field(..., description="Content Node ID")
-
-    # Terminal 权限
-    terminal: bool = Field(default=False, description="是否有 Terminal 访问权限")
-    terminal_readonly: bool = Field(default=True, description="Terminal 是否只读")
-
-    # Data 权限
-    can_read: bool = Field(default=False, description="是否可读")
-    can_write: bool = Field(default=False, description="是否可写")
-    can_delete: bool = Field(default=False, description="是否可删除")
-
-    # JSON 路径（可选）
     json_path: str = Field(default="", description="JSON 内部路径")
+    readonly: bool = Field(default=True, description="是否只读")
+    created_at: datetime = Field(..., description="创建时间")
 
+    class Config:
+        from_attributes = True
+
+
+# 为了向后兼容，保留 AgentAccess 别名
+AgentAccess = AgentBash
+
+
+class AgentTool(BaseModel):
+    """Agent Tool 关联模型 - 关联 Agent 和 Tool"""
+
+    id: str = Field(..., description="关联 ID")
+    agent_id: str = Field(..., description="所属 Agent ID")
+    tool_id: str = Field(..., description="关联的 Tool ID")
+    enabled: bool = Field(default=True, description="是否启用")
+    mcp_exposed: bool = Field(default=False, description="是否通过 MCP 对外暴露")
     created_at: datetime = Field(..., description="创建时间")
 
     class Config:
@@ -64,8 +71,20 @@ class Agent(BaseModel):
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
-    # 关联的访问权限（可选，用于完整加载）
-    accesses: List[AgentAccess] = Field(default_factory=list, description="访问权限列表")
+    # 关联的 Bash 访问权限（可选，用于完整加载）
+    bash_accesses: List[AgentBash] = Field(default_factory=list, description="Bash 访问权限列表")
+    
+    # 关联的 Tools（可选，用于完整加载）
+    tools: List[AgentTool] = Field(default_factory=list, description="关联的工具列表")
+    
+    # 为了向后兼容，保留 accesses 属性
+    @property
+    def accesses(self) -> List[AgentBash]:
+        return self.bash_accesses
+    
+    @accesses.setter
+    def accesses(self, value: List[AgentBash]):
+        self.bash_accesses = value
 
     class Config:
         from_attributes = True

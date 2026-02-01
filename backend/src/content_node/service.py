@@ -1,5 +1,6 @@
 """Content Node Service - 业务逻辑层"""
 
+from datetime import datetime
 from typing import Optional, List, Any
 from src.content_node.models import ContentNode
 from src.content_node.repository import ContentNodeRepository
@@ -162,6 +163,7 @@ class ContentNodeService:
         content: Any,
         parent_id: Optional[str] = None,
         sync_id: Optional[str] = None,
+        sync_config: Optional[dict] = None,
     ) -> ContentNode:
         """
         创建同步节点（从 SaaS 平台导入的数据）
@@ -174,6 +176,7 @@ class ContentNodeService:
             sync_url: 来源 URL
             content: 数据内容（存储到 JSONB）
             sync_id: 外部平台的资源 ID（可选）
+            sync_config: 同步配置（如 recursive, max_depth 等）
         """
         import uuid
         from datetime import datetime
@@ -195,6 +198,60 @@ class ContentNodeService:
             mime_type="application/json",
             sync_url=sync_url,
             sync_id=sync_id,
+            sync_config=sync_config,
+            last_synced_at=datetime.utcnow(),
+        )
+
+    async def create_github_repo_node(
+        self,
+        user_id: str,
+        project_id: str,
+        name: str,
+        sync_url: str,
+        sync_id: str,
+        s3_prefix: str,
+        metadata: dict,
+        parent_id: Optional[str] = None,
+        sync_config: Optional[dict] = None,
+    ) -> ContentNode:
+        """
+        创建 GitHub repo 节点（单节点模式）
+        
+        设计原则：
+        - 整个 repo 是一个节点，不创建子节点
+        - 所有文件存储在 S3 目录下（通过 s3_prefix 定位）
+        - content 字段存储 repo 元信息（文件列表、统计等）
+        - 用户只能看到 repo 的基本信息，不暴露内部文件结构
+        - Agent 使用时从 S3 下载整个目录到 sandbox
+        
+        Args:
+            name: repo 名称
+            sync_url: GitHub repo URL
+            sync_id: owner/repo 格式
+            s3_prefix: S3 目录前缀，如 users/xxx/repos/owner_repo
+            metadata: repo 元信息（包含文件列表、描述等）
+            sync_config: 同步配置（如 branch, include_issues 等）
+        """
+        import uuid
+        from datetime import datetime
+        
+        new_id = str(uuid.uuid4())
+        id_path = self._build_id_path(user_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        
+        return self.repo.create(
+            user_id=user_id,
+            project_id=project_id,
+            name=unique_name,
+            node_type="github_repo",
+            id_path=id_path,
+            parent_id=parent_id,
+            content=metadata,  # 存储 repo 元信息
+            s3_key=s3_prefix,  # 存储 S3 目录前缀（用于 Agent 下载）
+            mime_type="application/x-github-repo",  # 自定义 MIME 类型
+            sync_url=sync_url,
+            sync_id=sync_id,
+            sync_config=sync_config,
             last_synced_at=datetime.utcnow(),
         )
 
@@ -254,6 +311,60 @@ class ContentNodeService:
             s3_key=s3_key,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
+        )
+
+    async def create_synced_markdown_node(
+        self, 
+        user_id: str,
+        project_id: str,
+        name: str, 
+        content: str,
+        sync_type: str,
+        sync_url: str,
+        sync_id: Optional[str] = None,
+        sync_config: Optional[dict] = None,
+        parent_id: Optional[str] = None,
+    ) -> ContentNode:
+        """
+        创建同步的 Markdown 节点
+        
+        用于存储来自 SaaS 平台的 Markdown 内容（如 Notion Page），
+        同时保留同步元数据以支持刷新功能。
+        
+        Args:
+            sync_type: 同步类型，如 notion_page
+            sync_url: 来源 URL
+            sync_id: 外部平台的资源 ID
+            sync_config: 同步配置（如 recursive, max_depth 等）
+        """
+        import uuid
+        new_id = str(uuid.uuid4())
+        id_path = self._build_id_path(user_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        
+        # 生成 S3 key 并上传内容
+        s3_key = f"users/{user_id}/content/{uuid.uuid4()}.md"
+        content_bytes = content.encode('utf-8')
+        await self.s3.upload_file(
+            key=s3_key,
+            content=content_bytes,
+            content_type="text/markdown",
+        )
+        
+        return self.repo.create(
+            user_id=user_id,
+            project_id=project_id,
+            name=unique_name,
+            node_type=sync_type,  # 使用 sync_type 作为节点类型（如 notion_page）
+            id_path=id_path,
+            parent_id=parent_id,
+            s3_key=s3_key,
+            mime_type="text/markdown",
+            size_bytes=len(content_bytes),
+            sync_url=sync_url,
+            sync_id=sync_id,
+            sync_config=sync_config,
+            last_synced_at=datetime.utcnow(),
         )
 
     async def bulk_create_nodes(

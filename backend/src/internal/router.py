@@ -5,7 +5,6 @@ Internal API路由
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from typing import Optional, Dict, Any, List
-from src.mcp.dependencies import get_mcp_instance_service
 from src.table.dependencies import get_table_service
 from src.config import settings
 from src.exceptions import AppException
@@ -15,6 +14,8 @@ from src.search.dependencies import get_search_service
 from src.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
 from src.agent.config.service import AgentConfigService
 from src.agent.config.repository import AgentRepository
+from src.tool.repository import ToolRepositorySupabase
+from src.tool.models import Tool
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -43,91 +44,11 @@ router.include_router(
 )
 
 
-@router.get(
-    "/mcp-instance/{api_key}",
-    summary="获取MCP实例数据",
-    description="根据API key获取MCP实例的完整数据",
-    dependencies=[Depends(verify_internal_secret)],
-)
-async def get_mcp_instance(api_key: str, mcp_service=Depends(get_mcp_instance_service)):
-    """
-    获取MCP实例数据
-
-    Args:
-        api_key: API key
-
-    Returns:
-        MCP实例数据
-    """
-    instance = await mcp_service.get_mcp_instance_by_api_key(api_key)
-    if not instance:
-        raise HTTPException(status_code=404, detail="MCP instance not found")
-
-    return {
-        "api_key": instance.api_key,
-        "user_id": instance.user_id,
-        "project_id": instance.project_id,
-        "table_id": instance.table_id,
-        "json_path": instance.json_path,
-        "status": instance.status,
-        "tools_definition": instance.tools_definition,
-        "register_tools": instance.register_tools,
-        "preview_keys": instance.preview_keys,
-    }
-
-
-@router.get(
-    "/mcp-v2/{api_key}",
-    summary="获取 MCP v2 实例及其绑定工具列表",
-    description="根据 api_key 获取 mcp_v2 实例 + 已绑定工具（用于 mcp_service list_tools/call_tool）",
-    dependencies=[Depends(verify_internal_secret)],
-)
-async def get_mcp_v2_instance_and_tools(
-    api_key: str,
-    supabase_repo=Depends(get_supabase_repository),
-):
-    """
-    返回结构（稳定契约）:
-    {
-      "mcp_v2": { id, api_key, user_id, name, status },
-      "bound_tools": [
-        { tool: {...tool fields...}, binding: { id, status } }
-      ]
-    }
-    """
-    mcp = supabase_repo.get_mcp_v2_by_api_key(api_key)
-    if not mcp:
-        raise HTTPException(status_code=404, detail="MCP v2 instance not found")
-
-    bindings = supabase_repo.get_mcp_bindings_by_mcp_id(mcp.id)
-    bound_tools = []
-    for b in bindings:
-        # 默认只返回启用的 binding（禁用的在 mcp_service 不展示，也不允许执行）
-        if b.status is False:
-            continue
-        tool_id = b.tool_id or ""
-        if not tool_id:
-            continue
-        tool = supabase_repo.get_tool(tool_id)
-        if not tool:
-            continue
-        bound_tools.append(
-            {
-                "tool": tool.model_dump(),
-                "binding": {"id": b.id, "status": bool(b.status)},
-            }
-        )
-
-    return {
-        "mcp_v2": {
-            "id": mcp.id,
-            "api_key": mcp.api_key,
-            "user_id": mcp.user_id,
-            "name": mcp.name,
-            "status": bool(mcp.status),
-        },
-        "bound_tools": bound_tools,
-    }
+# ============================================================
+# 已废弃的端点（V2 和 Legacy 模式已移除，只保留 Agent 模式）
+# /mcp-instance/{api_key} - Legacy 模式，已移除
+# /mcp-v2/{api_key} - V2 模式，已移除
+# ============================================================
 
 
 @router.get(
@@ -480,7 +401,7 @@ def get_agent_config_service() -> AgentConfigService:
 
 @router.get(
     "/agent-by-mcp-key/{mcp_api_key}",
-    summary="根据 MCP API key 获取 Agent 及其访问权限",
+    summary="根据 MCP API key 获取 Agent 及其访问权限和工具",
     description="MCP Server 调用此端点获取 Agent 配置，用于生成工具列表",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -489,7 +410,7 @@ async def get_agent_by_mcp_key(
     agent_service: AgentConfigService = Depends(get_agent_config_service),
 ):
     """
-    根据 MCP API key 获取 Agent 及其 accesses
+    根据 MCP API key 获取 Agent 及其 bash_accesses 和 tools
     
     返回结构：
     {
@@ -498,12 +419,26 @@ async def get_agent_by_mcp_key(
             {
                 "node_id": "xxx",
                 "bash_enabled": true,
-                "bash_readonly": false,
+                "bash_readonly": true,
                 "tool_query": true,
-                "tool_create": true,
-                "tool_update": true,
+                "tool_create": false,
+                "tool_update": false,
                 "tool_delete": false,
                 "json_path": ""
+            }
+        ],
+        "tools": [
+            {
+                "id": "xxx",
+                "tool_id": "xxx",
+                "name": "tool_name",
+                "type": "search",
+                "description": "...",
+                "node_id": "xxx",
+                "json_path": "",
+                "input_schema": {...},
+                "enabled": true,
+                "mcp_exposed": true
             }
         ]
     }
@@ -512,6 +447,26 @@ async def get_agent_by_mcp_key(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found for this MCP API key")
     
+    # 获取关联的 Tool 详细信息
+    tool_repo = ToolRepositorySupabase(get_supabase_repository())
+    tools_data = []
+    for agent_tool in agent.tools:  # agent.tools 已在 get_by_mcp_api_key_with_accesses 中加载
+        tool = tool_repo.get_by_id(agent_tool.tool_id)
+        if tool:
+            tools_data.append({
+                "id": agent_tool.id,  # agent_tool 关联 ID
+                "tool_id": tool.id,
+                "name": tool.name,
+                "type": tool.type,
+                "description": tool.description,
+                "node_id": tool.node_id,
+                "json_path": tool.json_path,
+                "input_schema": tool.input_schema,
+                "category": tool.category,
+                "enabled": agent_tool.enabled,
+                "mcp_exposed": agent_tool.mcp_exposed,
+            })
+    
     return {
         "agent": {
             "id": agent.id,
@@ -519,17 +474,20 @@ async def get_agent_by_mcp_key(
             "user_id": agent.user_id,
             "type": agent.type,
         },
+        # Bash 访问权限（用于数据 CRUD 操作）
         "accesses": [
             {
-                "node_id": a.node_id,
-                "bash_enabled": a.terminal,
-                "bash_readonly": a.terminal_readonly,
-                "tool_query": a.can_read,
-                "tool_create": a.can_write,
-                "tool_update": a.can_write,
-                "tool_delete": a.can_delete,
-                "json_path": a.json_path or "",
+                "node_id": bash.node_id,
+                "bash_enabled": True,  # 所有 bash_accesses 都是启用的
+                "bash_readonly": bash.readonly,
+                "tool_query": True,  # 允许查询
+                "tool_create": not bash.readonly,  # 非只读时允许创建
+                "tool_update": not bash.readonly,  # 非只读时允许更新
+                "tool_delete": not bash.readonly,  # 非只读时允许删除
+                "json_path": bash.json_path or "",
             }
-            for a in agent.accesses
+            for bash in agent.bash_accesses
         ],
+        # 关联的 Tools（mcp_exposed=True 的 tools）
+        "tools": tools_data,
     }

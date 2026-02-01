@@ -60,7 +60,7 @@ export default function MainLayout({
   }, [activeBaseId]);
 
   // 计算 Active View
-  // New URL structure: /projects/{projectId}/data|tools|settings
+  // New URL structure: /projects/{projectId}/data|tools|logs|settings
   const activeView = useMemo(() => {
     if (!pathname) return 'data';
     
@@ -72,6 +72,7 @@ export default function MainLayout({
     // Project-specific routes
     if (pathname.includes('/projects/')) {
       if (pathname.includes('/tools')) return 'tools';
+      if (pathname.includes('/logs')) return 'logs';
       if (pathname.includes('/settings')) return 'settings';
       return 'data'; // /projects/{id}/data/... or /projects/{id}
     }

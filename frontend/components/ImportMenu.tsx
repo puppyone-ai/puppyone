@@ -329,8 +329,9 @@ export function ImportMenu({
       // 3. 如果有 ETL 文件，先预先添加"准备上传"状态的任务
       //    这样侧边栏能立即显示转圈样式
       if (etlFiles.length > 0) {
+        const baseTimestamp = Date.now();
         const placeholderTasks = etlFiles.map((file, index) => ({
-          taskId: -(Date.now() + index), // 负数临时 ID，后面会被替换
+          taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
           projectId: projectId,
           tableId: String(newTableId),
           tableName: finalTableName,

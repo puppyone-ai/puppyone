@@ -10,21 +10,27 @@ import {
   getAllPendingTasks,
   clearAllTasks,
   PendingTask,
+  TaskType,
 } from './BackgroundTaskNotifier';
 
 interface TaskWithStatus extends PendingTask {
   displayStatus: ETLTaskStatus['status'] | 'uploading';
 }
 
+interface TaskStatusWidgetProps {
+  /** Use absolute positioning within parent instead of fixed */
+  inline?: boolean;
+}
+
 /**
- * 右下角任务状态浮窗
+ * 任务状态浮窗
  *
  * 简洁交互：
  * - 收起：小圆圈，点击展开
  * - 展开：任务列表 + 收起按钮 + 清空按钮
  * - 不自己轮询，只监听 BackgroundTaskNotifier 的事件
  */
-export function TaskStatusWidget() {
+export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
   const [tasks, setTasks] = useState<TaskWithStatus[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -75,21 +81,27 @@ export function TaskStatusWidget() {
   const processingCount = tasks.filter(
     t => !isTaskTerminal(t.displayStatus)
   ).length;
-  const completedCount = tasks.filter(
-    t => t.displayStatus === 'completed'
-  ).length;
   const failedCount = tasks.filter(t => t.displayStatus === 'failed').length;
 
-  return (
-    <div
-      style={{
+  // Position styles based on inline prop
+  const containerStyle: React.CSSProperties = inline
+    ? {
+        position: 'absolute',
+        bottom: 12,
+        right: 12,
+        zIndex: 30,
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      }
+    : {
         position: 'fixed',
         bottom: 20,
         right: 20,
         zIndex: 9999,
         fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}
-    >
+      };
+
+  return (
+    <div style={containerStyle}>
       <style>{`
         @keyframes widget-spin {
           from { transform: rotate(0deg); }
@@ -105,8 +117,8 @@ export function TaskStatusWidget() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 40,
-            height: 40,
+            width: 36,
+            height: 36,
             background: '#1e1e22',
             border: `1px solid ${processingCount > 0 ? '#1e40af' : failedCount > 0 ? '#7f1d1d' : '#166534'}`,
             borderRadius: '50%',
@@ -117,8 +129,8 @@ export function TaskStatusWidget() {
         >
           {processingCount > 0 ? (
             <svg
-              width='18'
-              height='18'
+              width='16'
+              height='16'
               viewBox='0 0 18 18'
               fill='none'
               style={{ animation: 'widget-spin 1s linear infinite' }}
@@ -134,7 +146,7 @@ export function TaskStatusWidget() {
               />
             </svg>
           ) : failedCount > 0 ? (
-            <svg width='16' height='16' viewBox='0 0 16 16' fill='none'>
+            <svg width='14' height='14' viewBox='0 0 16 16' fill='none'>
               <path
                 d='M4 4L12 12M12 4L4 12'
                 stroke='#f87171'
@@ -143,7 +155,7 @@ export function TaskStatusWidget() {
               />
             </svg>
           ) : (
-            <svg width='16' height='16' viewBox='0 0 16 16' fill='none'>
+            <svg width='14' height='14' viewBox='0 0 16 16' fill='none'>
               <path
                 d='M4 8L7 11L12 5'
                 stroke='#4ade80'
@@ -185,7 +197,7 @@ export function TaskStatusWidget() {
         /* 展开状态 */
         <div
           style={{
-            width: 300,
+            width: 260,
             background: '#1e1e22',
             border: '1px solid #333',
             borderRadius: 8,
@@ -199,15 +211,15 @@ export function TaskStatusWidget() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '10px 12px',
+              padding: '8px 10px',
               borderBottom: '1px solid #333',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {processingCount > 0 ? (
                 <svg
-                  width='14'
-                  height='14'
+                  width='12'
+                  height='12'
                   viewBox='0 0 14 14'
                   fill='none'
                   style={{ animation: 'widget-spin 1s linear infinite' }}
@@ -223,7 +235,7 @@ export function TaskStatusWidget() {
                   />
                 </svg>
               ) : (
-                <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+                <svg width='12' height='12' viewBox='0 0 14 14' fill='none'>
                   <path
                     d='M3 7L6 10L11 4'
                     stroke='#4ade80'
@@ -233,11 +245,11 @@ export function TaskStatusWidget() {
                   />
                 </svg>
               )}
-              <span style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 500 }}>
-                {processingCount > 0 ? `处理中 (${processingCount})` : '已完成'}
+              <span style={{ color: '#e2e8f0', fontSize: 11, fontWeight: 500 }}>
+                {processingCount > 0 ? `${processingCount} processing` : 'Done'}
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               {/* 收起按钮 */}
               <button
                 onClick={() => setIsExpanded(false)}
@@ -249,9 +261,9 @@ export function TaskStatusWidget() {
                   color: '#6b7280',
                   display: 'flex',
                 }}
-                title='收起'
+                title='Minimize'
               >
-                <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
+                <svg width='10' height='10' viewBox='0 0 12 12' fill='none'>
                   <path
                     d='M2 6h8'
                     stroke='currentColor'
@@ -271,9 +283,9 @@ export function TaskStatusWidget() {
                   color: '#6b7280',
                   display: 'flex',
                 }}
-                title='清空'
+                title='Clear'
               >
-                <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
+                <svg width='10' height='10' viewBox='0 0 12 12' fill='none'>
                   <path
                     d='M2 2L10 10M10 2L2 10'
                     stroke='currentColor'
@@ -285,97 +297,11 @@ export function TaskStatusWidget() {
             </div>
           </div>
 
-          {/* 任务列表 */}
-          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+          {/* 任务列表 - 简化版，无底部统计 */}
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
             {tasks.map(task => (
               <TaskRow key={task.taskId} task={task} />
             ))}
-          </div>
-
-          {/* 底部统计 */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '8px 12px',
-              borderTop: '1px solid #333',
-              background: '#1a1a1e',
-            }}
-          >
-            {completedCount > 0 && (
-              <span
-                style={{
-                  color: '#4ade80',
-                  fontSize: 11,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                <svg width='10' height='10' viewBox='0 0 10 10' fill='none'>
-                  <path
-                    d='M2 5L4 7L8 3'
-                    stroke='currentColor'
-                    strokeWidth='1.5'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                  />
-                </svg>
-                {completedCount} 成功
-              </span>
-            )}
-            {failedCount > 0 && (
-              <span
-                style={{
-                  color: '#f87171',
-                  fontSize: 11,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                <svg width='10' height='10' viewBox='0 0 10 10' fill='none'>
-                  <path
-                    d='M2 2L8 8M8 2L2 8'
-                    stroke='currentColor'
-                    strokeWidth='1.5'
-                    strokeLinecap='round'
-                  />
-                </svg>
-                {failedCount} 失败
-              </span>
-            )}
-            {processingCount > 0 && (
-              <span
-                style={{
-                  color: '#3b82f6',
-                  fontSize: 11,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                <svg
-                  width='10'
-                  height='10'
-                  viewBox='0 0 10 10'
-                  fill='none'
-                  style={{ animation: 'widget-spin 1s linear infinite' }}
-                >
-                  <circle
-                    cx='5'
-                    cy='5'
-                    r='3.5'
-                    stroke='currentColor'
-                    strokeWidth='1.5'
-                    strokeLinecap='round'
-                    strokeDasharray='16 5'
-                  />
-                </svg>
-                {processingCount} 处理中
-              </span>
-            )}
           </div>
         </div>
       )}
@@ -390,8 +316,55 @@ function isTaskTerminal(status: string): boolean {
   );
 }
 
+// SaaS 类型图标
+const SaasIcons: Record<string, (props: { size?: number }) => JSX.Element> = {
+  notion: ({ size = 12 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.98-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466l1.823 1.447zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.84-.046.933-.56.933-1.167V6.354c0-.606-.233-.933-.746-.886l-15.177.887c-.56.046-.747.326-.747.933z"/>
+    </svg>
+  ),
+  github: ({ size = 12 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+    </svg>
+  ),
+  airtable: ({ size = 12 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M11.992 1.966L2.183 5.655a.29.29 0 00.004.548l9.89 3.691a.3.3 0 00.21 0l9.89-3.691a.29.29 0 00.003-.548L12.372 1.966a.6.6 0 00-.38 0z"/>
+    </svg>
+  ),
+  google_sheets: ({ size = 12 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zM9 18H6v-3h3v3zm0-4.5H6v-3h3v3zm0-4.5H6V6h3v3z"/>
+    </svg>
+  ),
+  linear: ({ size = 12 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M2.05 11.61c-.06.37-.05.76.05 1.12l8.78 8.78c.36.1.75.11 1.12.05L2.05 11.61z"/>
+    </svg>
+  ),
+};
+
+// 获取 SaaS 状态文本
+function getSaasStatusText(status: string): string {
+  switch (status) {
+    case 'pending': return 'Waiting...';
+    case 'downloading': return 'Downloading...';
+    case 'extracting': return 'Extracting...';
+    case 'uploading': return 'Uploading...';
+    case 'creating_nodes': return 'Creating...';
+    case 'completed': return 'Done';
+    case 'failed': return 'Failed';
+    case 'cancelled': return 'Cancelled';
+    default: return status;
+  }
+}
+
 /** 单个任务行 */
 function TaskRow({ task }: { task: TaskWithStatus }) {
+  const isSaasTask = task.taskType && task.taskType !== 'file';
+  const SaasIcon = isSaasTask && task.taskType ? SaasIcons[task.taskType] : null;
+  
   const getStatusColor = () => {
     switch (task.displayStatus) {
       case 'completed':
@@ -418,7 +391,7 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
       }}
     >
       {/* 状态图标 */}
-      <div style={{ flexShrink: 0 }}>
+      <div style={{ flexShrink: 0, position: 'relative' }}>
         {task.displayStatus === 'completed' ? (
           <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
             <path
@@ -457,6 +430,21 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
             />
           </svg>
         )}
+        
+        {/* SaaS 图标角标 */}
+        {SaasIcon && (
+          <div style={{
+            position: 'absolute',
+            bottom: -3,
+            right: -5,
+            background: '#1e1e22',
+            borderRadius: 3,
+            padding: 1,
+            color: '#a1a1aa',
+          }}>
+            <SaasIcon size={8} />
+          </div>
+        )}
       </div>
 
       {/* 文件名和状态 */}
@@ -473,7 +461,7 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
           {task.filename}
         </div>
         <div style={{ color: getStatusColor(), fontSize: 10, marginTop: 2 }}>
-          {getStatusDisplayText(task.displayStatus)}
+          {isSaasTask ? getSaasStatusText(task.displayStatus) : getStatusDisplayText(task.displayStatus)}
         </div>
       </div>
     </div>

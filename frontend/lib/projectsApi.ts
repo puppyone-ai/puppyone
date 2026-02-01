@@ -28,8 +28,11 @@ export type TableInfo = {
 export type TableData = {
   id: string;
   name: string;
+  type?: string;
   rows: number;
   data: any; // 任意 JSON 数据（对象、数组、字符串、数字等）
+  content?: any; // 原始 content 字段（用于 github_repo 等特殊类型）
+  sync_url?: string | null; // 同步 URL
 };
 
 // 项目相关API
@@ -85,6 +88,8 @@ export async function getTable(
     content: any;
     s3_key: string | null;
     permissions: any;
+    sync_url: string | null;
+    sync_id: string | null;
     created_at: string;
     updated_at: string;
   }>(`/api/v1/nodes/${nodeId}`);
@@ -126,8 +131,11 @@ export async function getTable(
   return {
     id: node.id,
     name: node.name || '',
+    type: node.type,
     rows,
     data: data ?? null,
+    content: node.content,  // 原始 content 字段
+    sync_url: node.sync_url,
   };
 }
 

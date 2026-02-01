@@ -11,12 +11,18 @@ from src.oauth.dependencies import (
     get_notion_service,
     get_github_service,
     get_google_sheets_service,
+    get_gmail_service,
+    get_google_drive_service,
+    get_google_calendar_service,
     get_linear_service,
     get_airtable_service,
 )
 from src.oauth.notion_service import NotionOAuthService
 from src.oauth.github_service import GithubOAuthService
 from src.oauth.google_sheets_service import GoogleSheetsOAuthService
+from src.oauth.gmail_service import GmailOAuthService
+from src.oauth.google_drive_service import GoogleDriveOAuthService
+from src.oauth.google_calendar_service import GoogleCalendarOAuthService
 from src.oauth.linear_service import LinearOAuthService
 from src.oauth.airtable_service import AirtableOAuthService
 from src.oauth.schemas import (
@@ -747,4 +753,397 @@ async def airtable_disconnect(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to disconnect from Airtable: {str(e)}",
+        )
+
+
+# ==================== Gmail OAuth endpoints ====================
+
+@router.get("/gmail/authorize", response_model=ApiResponse[OAuthAuthorizeResponse])
+async def gmail_authorize(
+    gmail_service: Annotated[GmailOAuthService, Depends(get_gmail_service)],
+):
+    """Get Gmail OAuth authorization URL."""
+    try:
+        client_id = settings.GMAIL_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID
+        client_secret = settings.GMAIL_CLIENT_SECRET or settings.GOOGLE_SHEETS_CLIENT_SECRET
+        
+        if not client_id or not client_secret:
+            raise HTTPException(
+                status_code=500,
+                detail="Gmail OAuth is not configured. Please set GMAIL_CLIENT_ID/SECRET or GOOGLE_SHEETS_CLIENT_ID/SECRET environment variables.",
+            )
+
+        authorization_url, _ = await gmail_service.get_authorization_url()
+        return ApiResponse.success(
+            data=OAuthAuthorizeResponse(authorization_url=authorization_url),
+            message="Gmail authorization URL generated successfully",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate Gmail authorization URL: {str(e)}",
+        )
+
+
+@router.post("/gmail/callback", response_model=ApiResponse[OAuthCallbackResponse])
+async def gmail_callback(
+    request: OAuthCallbackRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    gmail_service: Annotated[GmailOAuthService, Depends(get_gmail_service)],
+):
+    """Handle Gmail OAuth callback."""
+    try:
+        success, message, connection_info = await gmail_service.handle_callback(
+            user_id=current_user.user_id,
+            code=request.code,
+        )
+
+        return ApiResponse.success(
+            data=OAuthCallbackResponse(
+                success=success,
+                message=message,
+                workspace_name=connection_info.get("email") if connection_info else None,
+            ),
+            message="Gmail OAuth callback processed",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to handle Gmail callback: {str(e)}",
+        )
+
+
+@router.get("/gmail/status", response_model=ApiResponse[OAuthStatusResponse])
+async def gmail_status(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    gmail_service: Annotated[GmailOAuthService, Depends(get_gmail_service)],
+):
+    """Check Gmail connection status."""
+    try:
+        connection = await gmail_service.get_connection(current_user.user_id)
+
+        if connection:
+            is_expired = await gmail_service.is_token_expired(current_user.user_id)
+            if is_expired:
+                connection = await gmail_service.refresh_token_if_needed(current_user.user_id)
+
+            return ApiResponse.success(
+                data=OAuthStatusResponse(
+                    connected=connection is not None,
+                    workspace_name=connection.workspace_name if connection else None,
+                    connected_at=connection.created_at if connection else None,
+                ),
+                message="Gmail connection status retrieved",
+            )
+
+        return ApiResponse.success(
+            data=OAuthStatusResponse(
+                connected=False,
+                workspace_name=None,
+                connected_at=None,
+            ),
+            message="Gmail connection status retrieved",
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check Gmail status: {str(e)}",
+        )
+
+
+@router.delete("/gmail/disconnect", response_model=ApiResponse[OAuthDisconnectResponse])
+async def gmail_disconnect(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    gmail_service: Annotated[GmailOAuthService, Depends(get_gmail_service)],
+):
+    """Disconnect Gmail integration."""
+    try:
+        success = await gmail_service.disconnect(current_user.user_id)
+
+        if success:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=True,
+                    message="Successfully disconnected from Gmail",
+                ),
+                message="Gmail disconnected",
+            )
+        else:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=False,
+                    message="No active Gmail connection found",
+                ),
+                message="No active Gmail connection",
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to disconnect from Gmail: {str(e)}",
+        )
+
+
+# ==================== Google Drive OAuth endpoints ====================
+
+@router.get("/google-drive/authorize", response_model=ApiResponse[OAuthAuthorizeResponse])
+async def google_drive_authorize(
+    google_drive_service: Annotated[GoogleDriveOAuthService, Depends(get_google_drive_service)],
+):
+    """Get Google Drive OAuth authorization URL."""
+    try:
+        client_id = settings.GOOGLE_DRIVE_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID
+        client_secret = settings.GOOGLE_DRIVE_CLIENT_SECRET or settings.GOOGLE_SHEETS_CLIENT_SECRET
+        
+        if not client_id or not client_secret:
+            raise HTTPException(
+                status_code=500,
+                detail="Google Drive OAuth is not configured. Please set GOOGLE_DRIVE_CLIENT_ID/SECRET or GOOGLE_SHEETS_CLIENT_ID/SECRET environment variables.",
+            )
+
+        authorization_url, _ = await google_drive_service.get_authorization_url()
+        return ApiResponse.success(
+            data=OAuthAuthorizeResponse(authorization_url=authorization_url),
+            message="Google Drive authorization URL generated successfully",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate Google Drive authorization URL: {str(e)}",
+        )
+
+
+@router.post("/google-drive/callback", response_model=ApiResponse[OAuthCallbackResponse])
+async def google_drive_callback(
+    request: OAuthCallbackRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_drive_service: Annotated[GoogleDriveOAuthService, Depends(get_google_drive_service)],
+):
+    """Handle Google Drive OAuth callback."""
+    try:
+        success, message, connection_info = await google_drive_service.handle_callback(
+            user_id=current_user.user_id,
+            code=request.code,
+        )
+
+        return ApiResponse.success(
+            data=OAuthCallbackResponse(
+                success=success,
+                message=message,
+                workspace_name=connection_info.get("email") if connection_info else None,
+            ),
+            message="Google Drive OAuth callback processed",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to handle Google Drive callback: {str(e)}",
+        )
+
+
+@router.get("/google-drive/status", response_model=ApiResponse[OAuthStatusResponse])
+async def google_drive_status(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_drive_service: Annotated[GoogleDriveOAuthService, Depends(get_google_drive_service)],
+):
+    """Check Google Drive connection status."""
+    try:
+        connection = await google_drive_service.get_connection(current_user.user_id)
+
+        if connection:
+            is_expired = await google_drive_service.is_token_expired(current_user.user_id)
+            if is_expired:
+                connection = await google_drive_service.refresh_token_if_needed(current_user.user_id)
+
+            return ApiResponse.success(
+                data=OAuthStatusResponse(
+                    connected=connection is not None,
+                    workspace_name=connection.workspace_name if connection else None,
+                    connected_at=connection.created_at if connection else None,
+                ),
+                message="Google Drive connection status retrieved",
+            )
+
+        return ApiResponse.success(
+            data=OAuthStatusResponse(
+                connected=False,
+                workspace_name=None,
+                connected_at=None,
+            ),
+            message="Google Drive connection status retrieved",
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check Google Drive status: {str(e)}",
+        )
+
+
+@router.delete("/google-drive/disconnect", response_model=ApiResponse[OAuthDisconnectResponse])
+async def google_drive_disconnect(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_drive_service: Annotated[GoogleDriveOAuthService, Depends(get_google_drive_service)],
+):
+    """Disconnect Google Drive integration."""
+    try:
+        success = await google_drive_service.disconnect(current_user.user_id)
+
+        if success:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=True,
+                    message="Successfully disconnected from Google Drive",
+                ),
+                message="Google Drive disconnected",
+            )
+        else:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=False,
+                    message="No active Google Drive connection found",
+                ),
+                message="No active Google Drive connection",
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to disconnect from Google Drive: {str(e)}",
+        )
+
+
+# ==================== Google Calendar OAuth endpoints ====================
+
+@router.get("/google-calendar/authorize", response_model=ApiResponse[OAuthAuthorizeResponse])
+async def google_calendar_authorize(
+    google_calendar_service: Annotated[GoogleCalendarOAuthService, Depends(get_google_calendar_service)],
+):
+    """Get Google Calendar OAuth authorization URL."""
+    try:
+        client_id = settings.GOOGLE_CALENDAR_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID
+        client_secret = settings.GOOGLE_CALENDAR_CLIENT_SECRET or settings.GOOGLE_SHEETS_CLIENT_SECRET
+        
+        if not client_id or not client_secret:
+            raise HTTPException(
+                status_code=500,
+                detail="Google Calendar OAuth is not configured. Please set GOOGLE_CALENDAR_CLIENT_ID/SECRET or GOOGLE_SHEETS_CLIENT_ID/SECRET environment variables.",
+            )
+
+        authorization_url, _ = await google_calendar_service.get_authorization_url()
+        return ApiResponse.success(
+            data=OAuthAuthorizeResponse(authorization_url=authorization_url),
+            message="Google Calendar authorization URL generated successfully",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate Google Calendar authorization URL: {str(e)}",
+        )
+
+
+@router.post("/google-calendar/callback", response_model=ApiResponse[OAuthCallbackResponse])
+async def google_calendar_callback(
+    request: OAuthCallbackRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_calendar_service: Annotated[GoogleCalendarOAuthService, Depends(get_google_calendar_service)],
+):
+    """Handle Google Calendar OAuth callback."""
+    try:
+        success, message, connection_info = await google_calendar_service.handle_callback(
+            user_id=current_user.user_id,
+            code=request.code,
+        )
+
+        return ApiResponse.success(
+            data=OAuthCallbackResponse(
+                success=success,
+                message=message,
+                workspace_name=connection_info.get("email") if connection_info else None,
+            ),
+            message="Google Calendar OAuth callback processed",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to handle Google Calendar callback: {str(e)}",
+        )
+
+
+@router.get("/google-calendar/status", response_model=ApiResponse[OAuthStatusResponse])
+async def google_calendar_status(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_calendar_service: Annotated[GoogleCalendarOAuthService, Depends(get_google_calendar_service)],
+):
+    """Check Google Calendar connection status."""
+    try:
+        connection = await google_calendar_service.get_connection(current_user.user_id)
+
+        if connection:
+            is_expired = await google_calendar_service.is_token_expired(current_user.user_id)
+            if is_expired:
+                connection = await google_calendar_service.refresh_token_if_needed(current_user.user_id)
+
+            return ApiResponse.success(
+                data=OAuthStatusResponse(
+                    connected=connection is not None,
+                    workspace_name=connection.workspace_name if connection else None,
+                    connected_at=connection.created_at if connection else None,
+                ),
+                message="Google Calendar connection status retrieved",
+            )
+
+        return ApiResponse.success(
+            data=OAuthStatusResponse(
+                connected=False,
+                workspace_name=None,
+                connected_at=None,
+            ),
+            message="Google Calendar connection status retrieved",
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check Google Calendar status: {str(e)}",
+        )
+
+
+@router.delete("/google-calendar/disconnect", response_model=ApiResponse[OAuthDisconnectResponse])
+async def google_calendar_disconnect(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_calendar_service: Annotated[GoogleCalendarOAuthService, Depends(get_google_calendar_service)],
+):
+    """Disconnect Google Calendar integration."""
+    try:
+        success = await google_calendar_service.disconnect(current_user.user_id)
+
+        if success:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=True,
+                    message="Successfully disconnected from Google Calendar",
+                ),
+                message="Google Calendar disconnected",
+            )
+        else:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=False,
+                    message="No active Google Calendar connection found",
+                ),
+                message="No active Google Calendar connection",
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to disconnect from Google Calendar: {str(e)}",
         )

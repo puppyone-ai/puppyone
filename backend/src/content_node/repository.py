@@ -32,6 +32,7 @@ class ContentNodeRepository:
             # 同步相关字段
             sync_url=row.get("sync_url"),
             sync_id=row.get("sync_id"),
+            sync_config=row.get("sync_config"),
             last_synced_at=row.get("last_synced_at"),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
@@ -141,6 +142,7 @@ class ContentNodeRepository:
         size_bytes: int = 0,
         sync_url: Optional[str] = None,
         sync_id: Optional[str] = None,
+        sync_config: Optional[dict] = None,
         last_synced_at: Optional[datetime] = None,
     ) -> ContentNode:
         """创建节点"""
@@ -161,6 +163,8 @@ class ContentNodeRepository:
             data["sync_url"] = sync_url
         if sync_id is not None:
             data["sync_id"] = sync_id
+        if sync_config is not None:
+            data["sync_config"] = sync_config
         if last_synced_at is not None:
             data["last_synced_at"] = last_synced_at.isoformat()
         
@@ -198,6 +202,39 @@ class ContentNodeRepository:
             data["s3_key"] = s3_key
         if size_bytes is not None:
             data["size_bytes"] = size_bytes
+
+        if not data:
+            return self.get_by_id(node_id)
+
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .update(data)
+            .eq("id", node_id)
+            .execute()
+        )
+        if response.data:
+            return self._row_to_model(response.data[0])
+        return None
+
+    def update_sync_info(
+        self,
+        node_id: str,
+        sync_url: Optional[str] = None,
+        sync_id: Optional[str] = None,
+        last_synced_at: Optional[datetime] = None,
+    ) -> Optional[ContentNode]:
+        """更新节点的同步信息
+        
+        用于将普通节点（如 markdown）标记为可同步，
+        或更新已有同步节点的同步元数据。
+        """
+        data = {}
+        if sync_url is not None:
+            data["sync_url"] = sync_url
+        if sync_id is not None:
+            data["sync_id"] = sync_id
+        if last_synced_at is not None:
+            data["last_synced_at"] = last_synced_at.isoformat()
 
         if not data:
             return self.get_by_id(node_id)

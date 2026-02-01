@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { AgentProvider, useAgent } from '@/contexts/AgentContext';
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
 import { AgentViewport } from '@/components/agent/AgentViewport';
@@ -80,8 +81,13 @@ function ResizeHandle({
 }
 
 function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
+  
+  // Hide Agent sidebar on non-context pages (tools/dashboard, logs, settings)
+  // Agent sidebar only makes sense on /data (Context) page where users interact with content
+  const hideAgentSidebar = pathname?.includes('/tools') || pathname?.includes('/logs') || pathname?.includes('/settings');
   
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -141,14 +147,19 @@ function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
             {children}
           </div>
           
-          {/* Resize Handle - 在 Rail 左侧 */}
-          <ResizeHandle isResizing={isResizing} onMouseDown={handleMouseDown} />
-          
-          {/* Agent Rail - persists across navigation */}
-          <AgentRailVertical />
-          
-          {/* Chat Sidebar - persists across navigation */}
-          <AgentViewportWrapper chatWidth={chatWidth} />
+          {/* Agent Sidebar - hidden on monitoring pages */}
+          {!hideAgentSidebar && (
+            <>
+              {/* Resize Handle - 在 Rail 左侧 */}
+              <ResizeHandle isResizing={isResizing} onMouseDown={handleMouseDown} />
+              
+              {/* Agent Rail - persists across navigation */}
+              <AgentRailVertical />
+              
+              {/* Chat Sidebar - persists across navigation */}
+              <AgentViewportWrapper chatWidth={chatWidth} />
+            </>
+          )}
         </div>
       </div>
     </div>

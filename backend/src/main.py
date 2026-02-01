@@ -57,7 +57,7 @@ from src.table.router import router as table_router
 table_router_duration = time.time() - table_router_start
 
 #
-# 旧版 MCP（src.mcp）路由已下线：统一由 src.mcp_v2 对外暴露为 /mcp
+# MCP V3：基于 Agent 架构的 MCP 访问层
 #
 
 # tool_router_start = time.time()
@@ -66,10 +66,10 @@ from src.tool.router import router as tool_router
 
 tool_router_duration = time.time() - tool_router_start
 
-mcp_v2_router_start = time.time()
-from src.mcp_v2.router import router as mcp_v2_router
+mcp_v3_router_start = time.time()
+from src.mcp_v3.router import router as mcp_v3_router
 
-mcp_v2_router_duration = time.time() - mcp_v2_router_start
+mcp_v3_router_duration = time.time() - mcp_v3_router_start
 
 agent_router_start = time.time()
 from src.agent.router import router as agent_router
@@ -101,15 +101,11 @@ from src.project.router import router as project_router
 
 project_router_duration = time.time() - project_router_start
 
-connect_router_start = time.time()
-from src.connect.router import router as connect_router
+# Unified import router (replaced connect and sync_task)
+import_router_start = time.time()
+from src.import_.router import router as import_router
 
-connect_router_duration = time.time() - connect_router_start
-
-sync_task_router_start = time.time()
-from src.sync_task.router import router as sync_task_router
-
-sync_task_router_duration = time.time() - sync_task_router_start
+import_router_duration = time.time() - import_router_start
 
 oauth_router_start = time.time()
 from src.oauth.router import router as oauth_router
@@ -126,6 +122,11 @@ from src.content_node.router import router as content_node_router
 
 content_node_router_duration = time.time() - content_node_router_start
 
+analytics_router_start = time.time()
+from src.analytics.router import router as analytics_router
+
+analytics_router_duration = time.time() - analytics_router_start
+
 # Scheduler service import
 scheduler_start = time.time()
 from src.scheduler.service import get_scheduler_service
@@ -136,15 +137,16 @@ scheduler_import_duration = time.time() - scheduler_start
 routers_duration = (
     table_router_duration
     + tool_router_duration
-    + mcp_v2_router_duration
+    + mcp_v3_router_duration
     + agent_router_duration
     + context_publish_router_duration
     + etl_router_duration
     + project_router_duration
-    + connect_router_duration
+    + import_router_duration
     + oauth_router_duration
     + internal_router_duration
     + content_node_router_duration
+    + analytics_router_duration
 )
 
 
@@ -169,7 +171,7 @@ async def app_lifespan(app: FastAPI):
     log_info("  ├─ 路由模块:")
     log_info(f"  │  ├─ table_router: {table_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ tool_router: {tool_router_duration * 1000:.2f}ms")
-    log_info(f"  │  ├─ mcp_router(v2): {mcp_v2_router_duration * 1000:.2f}ms")
+    log_info(f"  │  ├─ mcp_router(v3): {mcp_v3_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ agent_router: {agent_router_duration * 1000:.2f}ms")
     log_info(
         f"  │  ├─ context_publish_router: {context_publish_router_duration * 1000:.2f}ms"
@@ -179,7 +181,7 @@ async def app_lifespan(app: FastAPI):
     else:
         log_info("  │  ├─ etl_router: skipped (ENABLE_ETL=0 or DEBUG auto)")
     log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
-    log_info(f"  │  ├─ connect_router: {connect_router_duration * 1000:.2f}ms")
+    log_info(f"  │  ├─ import_router: {import_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ internal_router: {internal_router_duration * 1000:.2f}ms")
     log_info(f"  │  └─ content_node_router: {content_node_router_duration * 1000:.2f}ms")
@@ -319,9 +321,8 @@ def create_app() -> FastAPI:
     # 注册路由
     router_register_start = time.time()
     app.include_router(table_router, prefix="/api/v1", tags=["tables"])
-    # 旧版 /mcp 路由已下线（避免与 v2 对外前缀 /mcp 冲突）
     app.include_router(tool_router, prefix="/api/v1", tags=["tools"])
-    app.include_router(mcp_v2_router, prefix="/api/v1", tags=["mcp"])
+    app.include_router(mcp_v3_router, prefix="/api/v1", tags=["mcp"])
     app.include_router(agent_router, prefix="/api/v1", tags=["agents"])
     app.include_router(agent_config_router, prefix="/api/v1", tags=["agent-config"])
     app.include_router(context_publish_router, prefix="/api/v1", tags=["publishes"])
@@ -331,13 +332,14 @@ def create_app() -> FastAPI:
     if etl_router is not None:
         app.include_router(etl_router, prefix="/api/v1", tags=["etl"])
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
-    app.include_router(connect_router, prefix="/api/v1", tags=["connect"])
-    app.include_router(sync_task_router, prefix="/api/v1", tags=["sync"])
+    # Unified import router (replaced connect_router and sync_task_router)
+    app.include_router(import_router, prefix="/api/v1", tags=["import"])
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
     app.include_router(
         internal_router, tags=["internal"]
     )  # Internal API不加/api/v1前缀
     app.include_router(content_node_router, prefix="/api/v1", tags=["content-nodes"])
+    app.include_router(analytics_router, tags=["analytics"])
     router_register_duration = time.time() - router_register_start
 
     # 注册异常处理器

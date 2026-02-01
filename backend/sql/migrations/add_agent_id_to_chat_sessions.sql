@@ -12,3 +12,4 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_agent ON chat_sessions(user_id
 -- Note: Existing sessions will have agent_id = NULL (playground mode)
 -- New sessions created for specific agents will have agent_id set
 
+

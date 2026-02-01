@@ -38,49 +38,85 @@ class ToolService:
         self.node_service = node_service
         self._sb = get_supabase_repository()
 
-    def _invalidate_bound_mcps(self, tool_id: str) -> None:
+    def _invalidate_bound_agents_mcp(self, tool_id: str) -> None:
         """
-        best-effort：当 tool 发生变化时，通知所有绑定到它的 mcp_v2 使缓存失效。
+        best-effort：当 tool 发生变化时，通知所有绑定了该 tool 的 Agent 使 MCP 缓存失效。
+        
+        基于新的 agent_tool 表结构：
+        - 查找所有绑定了该 tool 的 agent_tool 记录
+        - 获取对应 Agent 的 mcp_api_key
+        - 使 MCP 缓存失效
         """
-        bindings = self._sb.get_mcp_bindings_by_tool_id(tool_id)
-        for b in bindings:
-            mcp_id = b.mcp_id
-            if not mcp_id:
-                continue
-            mcp = self._sb.get_mcp_v2(mcp_id)
-            if not mcp or not mcp.api_key:
-                continue
-            invalidate_mcp_cache(mcp.api_key)
+        from src.agent.config.repository import AgentRepository
+        
+        try:
+            # 查询 agent_tool 表中绑定了该 tool 的记录
+            response = self._sb._client.table("agent_tool").select("agent_id").eq("tool_id", tool_id).execute()
+            if not response.data:
+                return
+            
+            agent_repo = AgentRepository()
+            seen_keys = set()
+            
+            for row in response.data:
+                agent_id = row.get("agent_id")
+                if not agent_id:
+                    continue
+                agent = agent_repo.get_by_id(agent_id)
+                if not agent or not agent.mcp_api_key:
+                    continue
+                if agent.mcp_api_key in seen_keys:
+                    continue
+                seen_keys.add(agent.mcp_api_key)
+                invalidate_mcp_cache(agent.mcp_api_key)
+        except Exception:
+            # best-effort，不抛异常
+            pass
 
     def _assert_name_update_no_conflict(
         self, tool_id: str, user_id: str, new_name: str
     ) -> None:
         """
-        如果该 tool 已绑定到任意 mcp_v2，则更新 name 前需要保证
-        在每个相关 mcp_v2 内仍然保持 name 唯一。
+        检查更新 tool name 是否会导致冲突。
+        
+        在 MCP V3 架构中，Tool 通过 agent_tool 绑定到 Agent。
+        同一个 Agent 下的 Tools 名称应该唯一（通过 MCP 暴露时）。
         """
-        bindings = self._sb.get_mcp_bindings_by_tool_id(tool_id)
-        for b in bindings:
-            mcp_id = b.mcp_id
-            if not mcp_id:
-                continue
-            # 拉取该 mcp_id 下所有绑定的 tool，检查 name 冲突
-            siblings = self._sb.get_mcp_bindings_by_mcp_id(mcp_id)
-            for sb in siblings:
-                sib_tool_id = sb.tool_id or ""
-                if not sib_tool_id or sib_tool_id == tool_id:
+        from src.agent.config.repository import AgentRepository
+        
+        try:
+            # 查询 agent_tool 表中绑定了该 tool 的 Agent
+            response = self._sb._client.table("agent_tool").select("agent_id").eq("tool_id", tool_id).execute()
+            if not response.data:
+                return
+            
+            agent_repo = AgentRepository()
+            
+            for row in response.data:
+                agent_id = row.get("agent_id")
+                if not agent_id:
                     continue
-                sib = self.repo.get_by_id(sib_tool_id)
-                if not sib:
-                    continue
-                if sib.user_id != user_id:
-                    # 正常不该出现（绑定/权限已校验），但这里保持安全
-                    continue
-                if sib.name == new_name:
-                    raise BusinessException(
-                        f"Tool name conflict within mcp_v2 (mcp_id={mcp_id}): name='{new_name}'",
-                        code=ErrorCode.VALIDATION_ERROR,
-                    )
+                
+                # 获取该 Agent 的所有 Tools
+                agent_tools = agent_repo.get_tools_by_agent_id(agent_id)
+                for at in agent_tools:
+                    if at.tool_id == tool_id:
+                        continue
+                    sib = self.repo.get_by_id(at.tool_id)
+                    if not sib:
+                        continue
+                    if sib.user_id != user_id:
+                        continue
+                    if sib.name == new_name:
+                        raise BusinessException(
+                            f"Tool name conflict within Agent (agent_id={agent_id}): name='{new_name}'",
+                            code=ErrorCode.VALIDATION_ERROR,
+                        )
+        except BusinessException:
+            raise
+        except Exception:
+            # 其他异常忽略
+            pass
 
     def list_user_tools(
         self, user_id: str, *, skip: int = 0, limit: int = 100
@@ -197,8 +233,8 @@ class ToolService:
                 "Tool owner mismatch after update", code=ErrorCode.INTERNAL_SERVER_ERROR
             )
 
-        # 触发所有绑定该 tool 的 mcp_v2 失效（工具列表/执行参数都可能变化）
-        self._invalidate_bound_mcps(tool_id)
+        # 触发所有绑定该 tool 的 Agent MCP 缓存失效
+        self._invalidate_bound_agents_mcp(tool_id)
 
         return updated
 
@@ -223,4 +259,4 @@ class ToolService:
             raise BusinessException(
                 "Tool delete failed", code=ErrorCode.INTERNAL_SERVER_ERROR
             )
-        self._invalidate_bound_mcps(tool_id)
+        self._invalidate_bound_agents_mcp(tool_id)

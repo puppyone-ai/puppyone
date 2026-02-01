@@ -69,6 +69,68 @@ interface ChatRuntimeViewProps {
   projectTools?: DbTool[];
 }
 
+// Sub-component for agent name button with hover state
+function AgentNameButton({ 
+  agentIcon, 
+  agentName, 
+  isEditing, 
+  canEdit, 
+  onClick 
+}: { 
+  agentIcon: string; 
+  agentName: string; 
+  isEditing: boolean; 
+  canEdit: boolean; 
+  onClick: () => void; 
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  return (
+    <button
+      onClick={onClick}
+      disabled={!canEdit}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        height: 28,
+        padding: '0 8px',
+        background: isEditing ? 'rgba(255,255,255,0.08)' : isHovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+        border: '1px solid transparent',
+        borderRadius: 6,
+        cursor: canEdit ? 'pointer' : 'default',
+        transition: 'all 0.15s',
+      }}
+    >
+      {/* Agent icon */}
+      <span style={{ fontSize: 14 }}>{agentIcon}</span>
+      {/* Agent name */}
+      <span style={{ fontSize: 13, fontWeight: 500, color: '#a1a1aa' }}>{agentName}</span>
+      {/* Edit pencil icon - only show on hover */}
+      {canEdit && (
+        <svg 
+          width="12" 
+          height="12" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="#525252" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          style={{
+            opacity: isHovered || isEditing ? 1 : 0,
+            transition: 'opacity 0.15s',
+          }}
+        >
+          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+        </svg>
+      )}
+    </button>
+  );
+}
+
 export function ChatRuntimeView({
   availableTools,
   tableData,
@@ -111,6 +173,7 @@ export function ChatRuntimeView({
   // Chat history 菜单
   const [isHistoryMenuOpen, setIsHistoryMenuOpen] = useState(false);
   const historyMenuRef = useRef<HTMLDivElement>(null);
+  const editPopoverRef = useRef<HTMLDivElement>(null);
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -118,12 +181,32 @@ export function ChatRuntimeView({
       if (historyMenuRef.current && !historyMenuRef.current.contains(e.target as Node)) {
         setIsHistoryMenuOpen(false);
       }
+      if (editPopoverRef.current && !editPopoverRef.current.contains(e.target as Node)) {
+        setIsEditingInfo(false);
+      }
     };
-    if (isHistoryMenuOpen) {
+    if (isHistoryMenuOpen || isEditingInfo) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isHistoryMenuOpen]);
+  }, [isHistoryMenuOpen, isEditingInfo]);
+
+  // 初始化编辑值（当打开编辑弹窗时）
+  useEffect(() => {
+    if (isEditingInfo && currentAgent) {
+      setEditingName(currentAgent.name);
+      const iconIdx = parseInt(currentAgent.icon || '0');
+      setEditingIconIdx(isNaN(iconIdx) ? ACCESS_ICONS.indexOf(currentAgent.icon || '') : iconIdx);
+    }
+  }, [isEditingInfo, currentAgent]);
+
+  // 保存 agent 信息
+  const handleSaveAgentInfo = useCallback(() => {
+    if (currentAgentId && editingName.trim()) {
+      updateAgentInfo(currentAgentId, editingName.trim(), String(editingIconIdx));
+      setIsEditingInfo(false);
+    }
+  }, [currentAgentId, editingName, editingIconIdx, updateAgentInfo]);
 
   // 当展开设置面板时，初始化编辑值
   useEffect(() => {
@@ -136,6 +219,7 @@ export function ChatRuntimeView({
 
   // Database state
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [isNewChatMode, setIsNewChatMode] = useState(false); // 标记用户是否主动点击了"新建聊天"
   const prevAgentIdRef = useRef<string | null>(null);
 
   // @ mention Hook
@@ -154,6 +238,7 @@ export function ChatRuntimeView({
       // Agent 切换了，重置 session
       setCurrentSessionId(null);
       setMessages([]);
+      setIsNewChatMode(false); // 切换 agent 时重置新建聊天模式
       prevSessionIdRef.current = null;
       hasLoadedForSessionRef.current = null;
       prevAgentIdRef.current = currentAgentId;
@@ -161,13 +246,13 @@ export function ChatRuntimeView({
     }
   }, [currentAgentId]);
 
-  // 当 sessions 加载后，自动选择最新的 session
+  // 当 sessions 加载后，自动选择最新的 session（但如果用户主动新建聊天则不自动选择）
   useEffect(() => {
-    if (sessions.length > 0 && currentSessionId === null) {
+    if (sessions.length > 0 && currentSessionId === null && !isNewChatMode) {
       // 选择最新的 session（第一个）
       setCurrentSessionId(sessions[0].id);
     }
-  }, [sessions, currentSessionId]);
+  }, [sessions, currentSessionId, isNewChatMode]);
 
   // Sync dbMessages to local messages (on session switch only)
   useEffect(() => {
@@ -327,6 +412,7 @@ export function ChatRuntimeView({
                 prevSessionIdRef.current = event.sessionId;
                 hasLoadedForSessionRef.current = event.sessionId;
                 setCurrentSessionId(event.sessionId);
+                setIsNewChatMode(false); // 新 session 创建成功，重置新建聊天模式
                 refreshChatSessions(currentAgentId);
               }
               continue;
@@ -496,6 +582,7 @@ export function ChatRuntimeView({
   const handleNewChat = useCallback(() => {
     setCurrentSessionId(null);
     setMessages([]);
+    setIsNewChatMode(true); // 标记为新建聊天模式，防止自动选择最新 session
   }, []);
 
   return (
@@ -510,10 +597,146 @@ export function ChatRuntimeView({
         alignItems: 'center',
         flexShrink: 0 
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}>
-            {agentName}
-          </span>
+        {/* Left: Agent name with edit button */}
+        <div style={{ position: 'relative' }} ref={editPopoverRef}>
+          <AgentNameButton
+            agentIcon={currentAgent ? parseAgentIcon(currentAgent.icon) : '💬'}
+            agentName={agentName}
+            isEditing={isEditingInfo}
+            canEdit={!!currentAgentId}
+            onClick={() => currentAgentId && setIsEditingInfo(!isEditingInfo)}
+          />
+
+          {/* Edit Popover - Compact inline design */}
+          {isEditingInfo && currentAgent && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              left: 0,
+              background: '#161616',
+              border: '1px solid #262626',
+              borderRadius: 8,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+              zIndex: 100,
+              overflow: 'hidden',
+            }}>
+              {/* Input row with icon selector */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                padding: 8,
+                gap: 8,
+                borderBottom: '1px solid #222',
+              }}>
+                {/* Current icon button - click to show picker */}
+                <button
+                  onClick={() => {
+                    const next = (editingIconIdx + 1) % ACCESS_ICONS.length;
+                    setEditingIconIdx(next);
+                  }}
+                  title="Click to change icon"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#1f1f1f',
+                    border: '1px solid #333',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    flexShrink: 0,
+                  }}
+                >
+                  {ACCESS_ICONS[editingIconIdx]}
+                </button>
+                
+                {/* Name input */}
+                <input
+                  type="text"
+                  value={editingName}
+                  onChange={e => setEditingName(e.target.value)}
+                  onKeyDown={e => { 
+                    if (e.key === 'Enter') handleSaveAgentInfo(); 
+                    if (e.key === 'Escape') setIsEditingInfo(false);
+                  }}
+                  placeholder="Agent name"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    height: 32,
+                    padding: '0 10px',
+                    background: '#1f1f1f',
+                    border: '1px solid #333',
+                    borderRadius: 6,
+                    color: '#e4e4e7',
+                    fontSize: 13,
+                    outline: 'none',
+                  }}
+                  autoFocus
+                />
+                
+                {/* Save button */}
+                <button
+                  onClick={handleSaveAgentInfo}
+                  disabled={!editingName.trim()}
+                  style={{
+                    height: 32,
+                    padding: '0 12px',
+                    background: editingName.trim() ? '#22c55e' : '#262626',
+                    border: 'none',
+                    borderRadius: 6,
+                    color: editingName.trim() ? '#fff' : '#525252',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: editingName.trim() ? 'pointer' : 'not-allowed',
+                    flexShrink: 0,
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+
+              {/* Icon grid - compact */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(8, 1fr)', 
+                gap: 2,
+                padding: 6,
+                maxHeight: 96,
+                overflowY: 'auto',
+              }}>
+                {ACCESS_ICONS.map((icon, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setEditingIconIdx(idx)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: editingIconIdx === idx ? '#333' : 'transparent',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      opacity: editingIconIdx === idx ? 1 : 0.6,
+                      transition: 'all 0.1s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = '#2a2a2a'; }}
+                    onMouseLeave={e => { 
+                      e.currentTarget.style.opacity = editingIconIdx === idx ? '1' : '0.6'; 
+                      e.currentTarget.style.background = editingIconIdx === idx ? '#333' : 'transparent'; 
+                    }}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Right side buttons */}
@@ -785,11 +1008,7 @@ export function ChatRuntimeView({
                     nodeId: node.id,
                     nodeName: node.name,
                     nodeType: isFolder ? 'folder' : (isJson ? 'json' : 'file'),
-                    terminal: true,
-                    terminalReadonly: false, // 默认 Write
-                    canRead: false,
-                    canWrite: false,
-                    canDelete: false,
+                    readonly: false, // 默认 Write 模式
                   });
                 }
               } catch (err) {
@@ -798,108 +1017,112 @@ export function ChatRuntimeView({
             }}
           >
             {/* 文件列表 */}
-            <div style={{ padding: currentAgent.resources && currentAgent.resources.filter(r => r.terminal).length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {currentAgent.resources && currentAgent.resources.filter(r => r.terminal).map(resource => (
-                <div 
-                  key={resource.nodeId}
-                  style={{ 
-                    height: 32,
-                    display: 'flex', 
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0 10px',
-                    borderRadius: 4,
-                    background: '#1a1a1a',
-                    border: '1px solid #252525',
-                    transition: 'all 0.1s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#222'; e.currentTarget.style.borderColor = '#333'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.borderColor = '#252525'; }}
-                >
-                  {/* 左侧：名称 */}
-                  <span style={{ fontSize: 14, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
-                    {resource.nodeName}
-                  </span>
-                  
-                  {/* 右侧：权限切换 + 删除 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    {/* Segmented Control: Read | Write */}
-                    <div style={{
-                      display: 'flex',
-                      background: '#0f0f0f',
-                      border: '1px solid #2a2a2a',
+            <div style={{ padding: currentAgent.resources && currentAgent.resources.length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {currentAgent.resources && currentAgent.resources.map(resource => {
+                // 使用新的 readonly 字段，向后兼容 terminalReadonly
+                const isReadonly = resource.readonly ?? resource.terminalReadonly ?? true;
+                return (
+                  <div 
+                    key={resource.nodeId}
+                    style={{ 
+                      height: 32,
+                      display: 'flex', 
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0 10px',
                       borderRadius: 4,
-                      padding: 2,
-                      gap: 1,
-                    }}>
-                      <button 
-                        onClick={() => updateDraftResource(resource.nodeId, { terminalReadonly: true })}
-                        style={{
-                          background: resource.terminalReadonly ? '#333' : 'transparent',
-                          border: 'none',
-                          borderRadius: 3,
-                          color: resource.terminalReadonly ? '#e5e5e5' : '#505050',
+                      background: '#1a1a1a',
+                      border: '1px solid #252525',
+                      transition: 'all 0.1s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#222'; e.currentTarget.style.borderColor = '#333'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.borderColor = '#252525'; }}
+                  >
+                    {/* 左侧：名称 */}
+                    <span style={{ fontSize: 14, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
+                      {resource.nodeName}
+                    </span>
+                    
+                    {/* 右侧：权限切换 + 删除 */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      {/* Segmented Control: Read | Write */}
+                      <div style={{
+                        display: 'flex',
+                        background: '#0f0f0f',
+                        border: '1px solid #2a2a2a',
+                        borderRadius: 4,
+                        padding: 2,
+                        gap: 1,
+                      }}>
+                        <button 
+                          onClick={() => updateDraftResource(resource.nodeId, { readonly: true })}
+                          style={{
+                            background: isReadonly ? '#333' : 'transparent',
+                            border: 'none',
+                            borderRadius: 3,
+                            color: isReadonly ? '#e5e5e5' : '#505050',
+                            cursor: 'pointer',
+                            fontSize: 11,
+                            padding: '2px 8px',
+                            fontWeight: 500,
+                            transition: 'all 0.1s',
+                          }}
+                        >
+                          Read
+                        </button>
+                        <button 
+                          onClick={() => updateDraftResource(resource.nodeId, { readonly: false })}
+                          style={{
+                            background: !isReadonly ? 'rgba(251, 191, 36, 0.15)' : 'transparent',
+                            border: 'none',
+                            borderRadius: 3,
+                            color: !isReadonly ? '#fbbf24' : '#505050',
+                            cursor: 'pointer',
+                            fontSize: 11,
+                            padding: '2px 8px',
+                            fontWeight: 500,
+                            transition: 'all 0.1s',
+                          }}
+                        >
+                          Write
+                        </button>
+                      </div>
+                      
+                      <button
+                        onClick={() => removeDraftResource(resource.nodeId)}
+                        style={{ 
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          width: 20, height: 20, borderRadius: 4,
+                          background: 'transparent', 
+                          border: 'none', 
+                          color: '#505050', 
                           cursor: 'pointer',
-                          fontSize: 11,
-                          padding: '2px 8px',
-                          fontWeight: 500,
                           transition: 'all 0.1s',
                         }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}
                       >
-                        Read
-                      </button>
-                      <button 
-                        onClick={() => updateDraftResource(resource.nodeId, { terminalReadonly: false })}
-                        style={{
-                          background: !resource.terminalReadonly ? 'rgba(251, 191, 36, 0.15)' : 'transparent',
-                          border: 'none',
-                          borderRadius: 3,
-                          color: !resource.terminalReadonly ? '#fbbf24' : '#505050',
-                          cursor: 'pointer',
-                          fontSize: 11,
-                          padding: '2px 8px',
-                          fontWeight: 500,
-                          transition: 'all 0.1s',
-                        }}
-                      >
-                        Write
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
                       </button>
                     </div>
-                    
-                    <button
-                      onClick={() => removeDraftResource(resource.nodeId)}
-                      style={{ 
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: 20, height: 20, borderRadius: 4,
-                        background: 'transparent', 
-                        border: 'none', 
-                        color: '#505050', 
-                        cursor: 'pointer',
-                        transition: 'all 0.1s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             
             {/* 拖拽提示 */}
             <div style={{ 
-              minHeight: currentAgent.resources && currentAgent.resources.filter(r => r.terminal).length > 0 ? 32 : 88,
+              minHeight: currentAgent.resources && currentAgent.resources.length > 0 ? 32 : 88,
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center', 
               color: '#525252',
             }}>
               <span style={{ fontSize: 12 }}>
-                {currentAgent.resources && currentAgent.resources.filter(r => r.terminal).length > 0 ? 'Drag more' : 'Drag items into this'}
+                {currentAgent.resources && currentAgent.resources.length > 0 ? 'Drag more' : 'Drag items into this'}
               </span>
             </div>
           </div>

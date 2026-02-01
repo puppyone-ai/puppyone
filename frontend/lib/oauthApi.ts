@@ -574,6 +574,150 @@ export async function disconnectGoogleSheets(): Promise<GoogleSheetsDisconnectRe
   }
 }
 
+// ========== Gmail OAuth functions ==========
+export async function gmailCallback(code: string): Promise<{ success: boolean; message: string }> {
+  const token = await getApiAccessToken();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/gmail/callback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ code }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to handle Gmail callback: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error('Error handling Gmail callback:', error);
+    throw error;
+  }
+}
+
+export async function getGmailStatus(): Promise<{ connected: boolean; email?: string }> {
+  const token = await getApiAccessToken();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/gmail/status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    });
+    if (!response.ok) return { connected: false };
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error('Error getting Gmail status:', error);
+    return { connected: false };
+  }
+}
+
+export async function disconnectGmail(): Promise<void> {
+  const token = await getApiAccessToken();
+  await fetch(`${API_BASE_URL}/api/v1/oauth/gmail/disconnect`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: 'include',
+  });
+}
+
+// ========== Google Drive OAuth functions ==========
+export async function googleDriveCallback(code: string): Promise<{ success: boolean; message: string }> {
+  const token = await getApiAccessToken();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-drive/callback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ code }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to handle Google Drive callback: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error('Error handling Google Drive callback:', error);
+    throw error;
+  }
+}
+
+export async function getGoogleDriveStatus(): Promise<{ connected: boolean; email?: string }> {
+  const token = await getApiAccessToken();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-drive/status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    });
+    if (!response.ok) return { connected: false };
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error('Error getting Google Drive status:', error);
+    return { connected: false };
+  }
+}
+
+// ========== Google Calendar OAuth functions ==========
+export async function googleCalendarCallback(code: string): Promise<{ success: boolean; message: string }> {
+  const token = await getApiAccessToken();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-calendar/callback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ code }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to handle Google Calendar callback: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error('Error handling Google Calendar callback:', error);
+    throw error;
+  }
+}
+
+export async function getGoogleCalendarStatus(): Promise<{ connected: boolean; email?: string }> {
+  const token = await getApiAccessToken();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-calendar/status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    });
+    if (!response.ok) return { connected: false };
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error('Error getting Google Calendar status:', error);
+    return { connected: false };
+  }
+}
+
 // Linear OAuth functions
 async function getLinearAuthUrl(): Promise<string> {
   const token = await getApiAccessToken();
@@ -834,75 +978,36 @@ export async function disconnectAirtable(): Promise<AirtableDisconnectResponse> 
 }
 
 // ========== SAAS 类型映射 ==========
-type SaasType = 'notion' | 'github' | 'sheets' | 'linear' | 'airtable';
+type SaasType = 'notion' | 'github' | 'sheets' | 'gmail' | 'drive' | 'calendar' | 'linear' | 'airtable';
+
+// 通用的 OAuth URL 获取函数
+async function getOAuthUrl(endpoint: string): Promise<string> {
+  const token = await getApiAccessToken();
+  const response = await fetch(`${API_BASE_URL}/api/v1/oauth/${endpoint}/authorize`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to get authorization URL: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.data?.authorization_url || data.authorization_url;
+}
 
 // OAuth URL 获取函数映射
 const getAuthUrlMap: Record<SaasType, () => Promise<string>> = {
   notion: getNotionAuthUrl,
-  github: async () => {
-    const token = await getApiAccessToken();
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/authorize`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to get authorization URL: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.data?.authorization_url || data.authorization_url;
-  },
-  sheets: async () => {
-    const token = await getApiAccessToken();
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-sheets/authorize`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to get authorization URL: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.data?.authorization_url || data.authorization_url;
-  },
-  linear: async () => {
-    const token = await getApiAccessToken();
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/linear/authorize`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to get authorization URL: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.data?.authorization_url || data.authorization_url;
-  },
-  airtable: async () => {
-    const token = await getApiAccessToken();
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/airtable/authorize`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to get authorization URL: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.data?.authorization_url || data.authorization_url;
-  },
+  github: () => getOAuthUrl('github'),
+  sheets: () => getOAuthUrl('google-sheets'),
+  gmail: () => getOAuthUrl('gmail'),
+  drive: () => getOAuthUrl('google-drive'),
+  calendar: () => getOAuthUrl('google-calendar'),
+  linear: () => getOAuthUrl('linear'),
+  airtable: () => getOAuthUrl('airtable'),
 };
 
 /**

@@ -556,6 +556,8 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {agent.resources.map((resource) => {
                 const { icon, color } = getNodeIcon(resource.nodeType);
+                // 使用新的 readonly 字段，向后兼容 terminalReadonly
+                const isReadonly = resource.readonly ?? resource.terminalReadonly ?? true;
                 return (
                   <div
                     key={resource.nodeId}
@@ -576,12 +578,12 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                     <span style={{
                       fontSize: 10,
                       padding: '2px 6px',
-                      background: resource.terminalReadonly ? '#1a1a1a' : 'rgba(251, 191, 36, 0.1)',
-                      border: resource.terminalReadonly ? '1px solid #2a2a2a' : '1px solid rgba(251, 191, 36, 0.2)',
+                      background: isReadonly ? '#1a1a1a' : 'rgba(251, 191, 36, 0.1)',
+                      border: isReadonly ? '1px solid #2a2a2a' : '1px solid rgba(251, 191, 36, 0.2)',
                       borderRadius: 4,
-                      color: resource.terminalReadonly ? '#737373' : '#fbbf24',
+                      color: isReadonly ? '#737373' : '#fbbf24',
                     }}>
-                      {resource.terminalReadonly ? 'Read' : 'Edit'}
+                      {isReadonly ? 'Read' : 'Edit'}
                     </span>
                   </div>
                 );

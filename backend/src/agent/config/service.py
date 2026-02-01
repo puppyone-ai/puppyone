@@ -6,9 +6,9 @@ Agent 配置的业务逻辑层
 
 from typing import List, Optional
 
-from src.agent.config.models import Agent, AgentAccess
+from src.agent.config.models import Agent, AgentBash
 from src.agent.config.repository import AgentRepository
-from src.agent.config.schemas import AgentAccessCreate
+from src.agent.config.schemas import AgentAccessCreate, AgentBashCreate
 
 
 class AgentConfigService:
@@ -33,7 +33,7 @@ class AgentConfigService:
         """获取用户的默认 Agent"""
         agent = self._repo.get_default_agent(user_id)
         if agent:
-            agent.accesses = self._repo.get_accesses_by_agent_id(agent.id)
+            agent.bash_accesses = self._repo.get_bash_by_agent_id(agent.id)
         return agent
 
     def get_by_mcp_api_key(self, mcp_api_key: str) -> Optional[Agent]:
@@ -80,20 +80,17 @@ class AgentConfigService:
             external_config=external_config,
         )
 
-        # 创建访问权限
+        # 创建访问权限（向后兼容旧的 accesses 格式）
         if accesses:
             for access in accesses:
-                self._repo.create_access(
+                readonly = access.terminal_readonly if access.terminal else True
+                self._repo.create_bash(
                     agent_id=agent.id,
                     node_id=access.node_id,
-                    terminal=access.terminal,
-                    terminal_readonly=access.terminal_readonly,
-                    can_read=access.can_read,
-                    can_write=access.can_write,
-                    can_delete=access.can_delete,
                     json_path=access.json_path,
+                    readonly=readonly,
                 )
-            agent.accesses = self._repo.get_accesses_by_agent_id(agent.id)
+            agent.bash_accesses = self._repo.get_bash_by_agent_id(agent.id)
 
         return agent
 
@@ -136,7 +133,7 @@ class AgentConfigService:
             external_config=external_config,
         )
         if agent:
-            agent.accesses = self._repo.get_accesses_by_agent_id(agent_id)
+            agent.bash_accesses = self._repo.get_bash_by_agent_id(agent_id)
         return agent
 
     def delete_agent(self, agent_id: str, user_id: str) -> bool:
@@ -153,7 +150,94 @@ class AgentConfigService:
             self._repo.update(current_default.id, is_default=False)
 
     # ============================================
-    # AgentAccess 操作
+    # AgentBash 操作 (新版)
+    # ============================================
+
+    def add_bash(
+        self,
+        agent_id: str,
+        user_id: str,
+        node_id: str,
+        json_path: str = "",
+        readonly: bool = True,
+    ) -> Optional[AgentBash]:
+        """添加 Bash 访问权限"""
+        # 验证权限
+        if not self._repo.verify_access(agent_id, user_id):
+            return None
+
+        return self._repo.create_bash(
+            agent_id=agent_id,
+            node_id=node_id,
+            json_path=json_path,
+            readonly=readonly,
+        )
+
+    def update_bash(
+        self,
+        bash_id: str,
+        user_id: str,
+        json_path: Optional[str] = None,
+        readonly: Optional[bool] = None,
+    ) -> Optional[AgentBash]:
+        """更新 Bash 访问权限"""
+        # 获取 bash 并验证权限
+        bash = self._repo.get_bash_by_id(bash_id)
+        if not bash:
+            return None
+        if not self._repo.verify_access(bash.agent_id, user_id):
+            return None
+
+        return self._repo.update_bash(
+            bash_id=bash_id,
+            json_path=json_path,
+            readonly=readonly,
+        )
+
+    def remove_bash(self, bash_id: str, user_id: str) -> bool:
+        """删除 Bash 访问权限"""
+        # 获取 bash 并验证权限
+        bash = self._repo.get_bash_by_id(bash_id)
+        if not bash:
+            return False
+        if not self._repo.verify_access(bash.agent_id, user_id):
+            return False
+
+        return self._repo.delete_bash(bash_id)
+
+    def sync_bash(
+        self,
+        agent_id: str,
+        user_id: str,
+        bash_list: List[AgentBashCreate],
+    ) -> List[AgentBash]:
+        """
+        同步 Bash 访问权限（全量替换）
+        
+        删除旧的，创建新的
+        """
+        # 验证权限
+        if not self._repo.verify_access(agent_id, user_id):
+            return []
+
+        # 删除旧的
+        self._repo.delete_bash_by_agent_id(agent_id)
+
+        # 创建新的
+        result = []
+        for bash in bash_list:
+            new_bash = self._repo.create_bash(
+                agent_id=agent_id,
+                node_id=bash.node_id,
+                json_path=bash.json_path,
+                readonly=bash.readonly,
+            )
+            result.append(new_bash)
+
+        return result
+
+    # ============================================
+    # 向后兼容的别名方法
     # ============================================
 
     def add_access(
@@ -167,22 +251,10 @@ class AgentConfigService:
         can_write: bool = False,
         can_delete: bool = False,
         json_path: str = "",
-    ) -> Optional[AgentAccess]:
-        """添加访问权限"""
-        # 验证权限
-        if not self._repo.verify_access(agent_id, user_id):
-            return None
-
-        return self._repo.create_access(
-            agent_id=agent_id,
-            node_id=node_id,
-            terminal=terminal,
-            terminal_readonly=terminal_readonly,
-            can_read=can_read,
-            can_write=can_write,
-            can_delete=can_delete,
-            json_path=json_path,
-        )
+    ) -> Optional[AgentBash]:
+        """添加访问权限（向后兼容）"""
+        readonly = terminal_readonly if terminal else True
+        return self.add_bash(agent_id, user_id, node_id, json_path, readonly)
 
     def update_access(
         self,
@@ -194,70 +266,30 @@ class AgentConfigService:
         can_write: Optional[bool] = None,
         can_delete: Optional[bool] = None,
         json_path: Optional[str] = None,
-    ) -> Optional[AgentAccess]:
-        """更新访问权限"""
-        # 获取 access 并验证权限
-        access = self._repo.get_access_by_id(access_id)
-        if not access:
-            return None
-        if not self._repo.verify_access(access.agent_id, user_id):
-            return None
-
-        return self._repo.update_access(
-            access_id=access_id,
-            terminal=terminal,
-            terminal_readonly=terminal_readonly,
-            can_read=can_read,
-            can_write=can_write,
-            can_delete=can_delete,
-            json_path=json_path,
-        )
+    ) -> Optional[AgentBash]:
+        """更新访问权限（向后兼容）"""
+        return self.update_bash(access_id, user_id, json_path, terminal_readonly)
 
     def remove_access(self, access_id: str, user_id: str) -> bool:
-        """删除访问权限"""
-        # 获取 access 并验证权限
-        access = self._repo.get_access_by_id(access_id)
-        if not access:
-            return False
-        if not self._repo.verify_access(access.agent_id, user_id):
-            return False
-
-        return self._repo.delete_access(access_id)
+        """删除访问权限（向后兼容）"""
+        return self.remove_bash(access_id, user_id)
 
     def sync_accesses(
         self,
         agent_id: str,
         user_id: str,
         accesses: List[AgentAccessCreate],
-    ) -> List[AgentAccess]:
-        """
-        同步访问权限（全量替换）
-        
-        删除旧的，创建新的
-        """
-        # 验证权限
-        if not self._repo.verify_access(agent_id, user_id):
-            return []
-
-        # 删除旧的
-        self._repo.delete_accesses_by_agent_id(agent_id)
-
-        # 创建新的
-        result = []
-        for access in accesses:
-            new_access = self._repo.create_access(
-                agent_id=agent_id,
-                node_id=access.node_id,
-                terminal=access.terminal,
-                terminal_readonly=access.terminal_readonly,
-                can_read=access.can_read,
-                can_write=access.can_write,
-                can_delete=access.can_delete,
-                json_path=access.json_path,
+    ) -> List[AgentBash]:
+        """同步访问权限（向后兼容）"""
+        bash_list = [
+            AgentBashCreate(
+                node_id=a.node_id,
+                json_path=a.json_path,
+                readonly=a.terminal_readonly if a.terminal else True,
             )
-            result.append(new_access)
-
-        return result
+            for a in accesses
+        ]
+        return self.sync_bash(agent_id, user_id, bash_list)
 
     # ============================================
     # Execution History

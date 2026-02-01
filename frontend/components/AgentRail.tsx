@@ -23,17 +23,20 @@ export interface ExternalConfig {
   [key: string]: unknown;
 }
 
-// 资源访问配置
+// Bash 访问资源配置（新版简化结构）
 export interface AccessResource {
   nodeId: string;
   nodeName: string;
   nodeType: 'folder' | 'json' | 'file';
-  terminal: boolean;
-  terminalReadonly: boolean;
-  canRead: boolean;
-  canWrite: boolean;
-  canDelete: boolean;
   jsonPath?: string;
+  readonly: boolean;  // 新版：只有一个 readonly 字段
+  
+  // 向后兼容的字段（将被废弃）
+  terminal?: boolean;
+  terminalReadonly?: boolean;
+  canRead?: boolean;
+  canWrite?: boolean;
+  canDelete?: boolean;
 }
 
 export interface SavedAgent {
