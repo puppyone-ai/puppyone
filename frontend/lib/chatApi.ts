@@ -206,6 +206,74 @@ export async function deleteChatMessage(messageId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ============ Analytics ============
+
+/**
+ * 获取当前用户的所有消息（用于 dashboard 统计）
+ */
+export async function getAllChatMessages(): Promise<ChatMessage[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // 先获取用户的所有 session ids
+  const { data: sessions, error: sessionsError } = await supabase
+    .from('chat_sessions')
+    .select('id')
+    .eq('user_id', user.id);
+
+  if (sessionsError) throw sessionsError;
+  if (!sessions || sessions.length === 0) return [];
+
+  const sessionIds = sessions.map(s => s.id);
+
+  // 获取这些 sessions 的所有消息
+  const { data: messages, error: messagesError } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .in('session_id', sessionIds)
+    .order('created_at', { ascending: false });
+
+  if (messagesError) throw messagesError;
+  return messages || [];
+}
+
+/**
+ * Agent Log 类型
+ */
+export interface AgentLog {
+  id: string;
+  created_at: string;
+  user_id: string | null;
+  agent_id: string | null;
+  session_id: string | null;
+  call_type: 'bash' | 'tool' | 'llm';
+  success: boolean;
+  latency_ms: number | null;
+  error_message: string | null;
+  details: any;
+}
+
+/**
+ * 获取当前用户的所有 Agent Logs（bash executions 等）
+ */
+export async function getAgentLogs(): Promise<AgentLog[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('agent_logs')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
 // ============ Utility ============
 
 /**
@@ -218,4 +286,150 @@ export function generateSessionTitle(
   const cleaned = firstMessage.replace(/\n/g, ' ').trim();
   if (cleaned.length <= maxLen) return cleaned;
   return cleaned.substring(0, maxLen) + '...';
+}
+
+// ============ Dashboard RPC ============
+
+/**
+ * Dashboard 聚合数据类型
+ */
+export interface DashboardData {
+  // 总计统计
+  totalAgents: number;
+  totalSessions: number;
+  totalBash: number;
+  totalTools: number;
+  totalMessages: number;
+  activeAgents: number;
+  
+  // 时间范围内统计
+  bashInRange: number;
+  toolsInRange: number;
+  messagesInRange: number;
+  sessionsInRange: number;
+  
+  // 按小时聚合（时间序列）
+  bashPerHour: { bucket: string; count: number }[];
+  toolsPerHour: { bucket: string; count: number }[];
+  messagesPerHour: { bucket: string; count: number }[];
+  sessionsPerHour: { bucket: string; count: number }[];
+  
+  // Agent 列表（带统计）
+  agents: {
+    id: string;
+    name: string;
+    icon: string | null;
+    agent_type: string;
+    created_at: string;
+    chat_count: number;
+    last_active: string | null;
+    bash_count: number;
+    data_access_count: number;
+  }[];
+}
+
+/**
+ * 获取 Dashboard 聚合数据（并行请求，简单可靠）
+ * @param hours 时间范围（小时），默认 24
+ */
+export async function getDashboardData(hours: number = 24): Promise<DashboardData> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const timeStart = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+  // 并行请求所有数据
+  // 注意：chat_messages 没有 user_id 字段，但有 RLS 策略会自动过滤
+  const [
+    agentsResult,
+    sessionsResult,
+    messagesResult,
+    logsResult,
+  ] = await Promise.all([
+    supabase.from('agents').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+    supabase.from('chat_sessions').select('*').eq('user_id', user.id),
+    supabase.from('chat_messages').select('id, session_id, created_at'),  // RLS 自动过滤
+    supabase.from('agent_logs').select('id, call_type, agent_id, created_at').eq('user_id', user.id),
+  ]);
+
+  // 检查错误
+  if (agentsResult.error) throw new Error(`Failed to fetch agents: ${agentsResult.error.message}`);
+  if (sessionsResult.error) throw new Error(`Failed to fetch sessions: ${sessionsResult.error.message}`);
+  if (messagesResult.error) throw new Error(`Failed to fetch messages: ${messagesResult.error.message}`);
+  if (logsResult.error) throw new Error(`Failed to fetch logs: ${logsResult.error.message}`);
+
+  const agents = agentsResult.data || [];
+  const sessions = sessionsResult.data || [];
+  const allMessages = messagesResult.data || [];
+  const logs = logsResult.data || [];
+
+  // 过滤有效 session（agent 存在的）
+  const agentIds = new Set(agents.map(a => a.id));
+  const validSessions = sessions.filter(s => s.agent_id && agentIds.has(s.agent_id));
+  
+  // 过滤有效 messages（属于用户 session 的）
+  const sessionIds = new Set(sessions.map(s => s.id));
+  const messages = allMessages.filter(m => sessionIds.has(m.session_id));
+
+  // 计算聚合数据
+  const bashLogs = logs.filter(l => l.call_type === 'bash');
+  const toolLogs = logs.filter(l => l.call_type === 'tool');
+
+  // 时间范围内的数据
+  const inRange = (item: { created_at: string }) => new Date(item.created_at) >= new Date(timeStart);
+  const bashInRange = bashLogs.filter(inRange);
+  const toolsInRange = toolLogs.filter(inRange);
+  const messagesInRange = messages.filter(inRange);
+  const sessionsInRange = validSessions.filter(inRange);
+
+  // 按小时聚合
+  const aggregateByHour = (items: { created_at: string }[]) => {
+    const buckets: Record<string, number> = {};
+    items.filter(inRange).forEach(item => {
+      const hour = new Date(item.created_at);
+      hour.setMinutes(0, 0, 0);
+      const key = hour.toISOString();
+      buckets[key] = (buckets[key] || 0) + 1;
+    });
+    return Object.entries(buckets).map(([bucket, count]) => ({ bucket, count })).sort((a, b) => a.bucket.localeCompare(b.bucket));
+  };
+
+  // 构建 Agent 列表（带统计）
+  const agentsWithStats = agents.map(a => {
+    const agentSessions = sessions.filter(s => s.agent_id === a.id);
+    const agentBashLogs = bashLogs.filter(l => l.agent_id === a.id);
+    const lastSession = agentSessions.sort((x, y) => new Date(y.updated_at).getTime() - new Date(x.updated_at).getTime())[0];
+    
+    return {
+      id: a.id,
+      name: a.name,
+      icon: a.icon,
+      agent_type: a.type,
+      created_at: a.created_at,
+      chat_count: agentSessions.length,
+      last_active: lastSession?.updated_at || null,
+      bash_count: agentBashLogs.length,
+      data_access_count: (a.bash_accesses?.length || 0) + (a.accesses?.length || 0),
+    };
+  });
+
+  return {
+    totalAgents: agents.length,
+    totalSessions: validSessions.length,
+    totalBash: bashLogs.length,
+    totalTools: toolLogs.length,
+    totalMessages: messages.length,
+    activeAgents: new Set(validSessions.map(s => s.agent_id)).size,
+    bashInRange: bashInRange.length,
+    toolsInRange: toolsInRange.length,
+    messagesInRange: messagesInRange.length,
+    sessionsInRange: sessionsInRange.length,
+    bashPerHour: aggregateByHour(bashLogs),
+    toolsPerHour: aggregateByHour(toolLogs),
+    messagesPerHour: aggregateByHour(messages),
+    sessionsPerHour: aggregateByHour(validSessions),
+    agents: agentsWithStats,
+  };
 }

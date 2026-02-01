@@ -46,7 +46,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         db_client = SupabaseClient().client
         
         # 1. Load agent configuration
-        agent_result = db_client.table("agent").select("*").eq("id", agent_id).single().execute()
+        agent_result = db_client.table("agents").select("*").eq("id", agent_id).single().execute()
         agent = agent_result.data
         
         if not agent:

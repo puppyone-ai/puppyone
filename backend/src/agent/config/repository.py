@@ -34,7 +34,7 @@ class AgentRepository:
     def get_by_id(self, agent_id: str) -> Optional[Agent]:
         """根据 ID 获取 Agent"""
         response = (
-            self._client.table("agent")
+            self._client.table("agents")
             .select("*")
             .eq("id", agent_id)
             .execute()
@@ -54,7 +54,7 @@ class AgentRepository:
     def get_by_user_id(self, user_id: str) -> List[Agent]:
         """根据用户 ID 获取 Agent 列表"""
         response = (
-            self._client.table("agent")
+            self._client.table("agents")
             .select("*")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
@@ -73,7 +73,7 @@ class AgentRepository:
     def get_default_agent(self, user_id: str) -> Optional[Agent]:
         """获取用户的默认 Agent"""
         response = (
-            self._client.table("agent")
+            self._client.table("agents")
             .select("*")
             .eq("user_id", user_id)
             .eq("is_default", True)
@@ -86,7 +86,7 @@ class AgentRepository:
     def get_by_mcp_api_key(self, mcp_api_key: str) -> Optional[Agent]:
         """根据 MCP API key 获取 Agent"""
         response = (
-            self._client.table("agent")
+            self._client.table("agents")
             .select("*")
             .eq("mcp_api_key", mcp_api_key)
             .execute()
@@ -137,7 +137,7 @@ class AgentRepository:
             "task_node_id": task_node_id,
             "external_config": external_config,
         }
-        response = self._client.table("agent").insert(data).execute()
+        response = self._client.table("agents").insert(data).execute()
         return Agent(**response.data[0])
 
     def update(
@@ -184,7 +184,7 @@ class AgentRepository:
 
         data["updated_at"] = "now()"
         response = (
-            self._client.table("agent")
+            self._client.table("agents")
             .update(data)
             .eq("id", agent_id)
             .execute()
@@ -196,7 +196,7 @@ class AgentRepository:
     def delete(self, agent_id: str) -> bool:
         """删除 Agent（会级联删除 agent_bash）"""
         response = (
-            self._client.table("agent")
+            self._client.table("agents")
             .delete()
             .eq("id", agent_id)
             .execute()

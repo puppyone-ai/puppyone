@@ -15,8 +15,6 @@ from src.supabase.projects.repository import ProjectRepository
 from src.supabase.tables.repository import TableRepository
 from src.supabase.mcps.repository import McpRepository
 from src.supabase.tools.repository import ToolRepository
-from src.supabase.mcp_v2.repository import McpV2Repository
-from src.supabase.mcp_binding.repository import McpBindingRepository
 from src.supabase.context_publish.repository import ContextPublishRepository
 
 # 导入各个子模块的 Schema
@@ -36,12 +34,6 @@ from src.supabase.mcps.schemas import (
     McpResponse,
 )
 from src.supabase.tools.schemas import ToolCreate, ToolUpdate, ToolResponse
-from src.supabase.mcp_v2.schemas import McpV2Create, McpV2Update, McpV2Response
-from src.supabase.mcp_binding.schemas import (
-    McpBindingCreate,
-    McpBindingUpdate,
-    McpBindingResponse,
-)
 from src.supabase.context_publish.schemas import (
     ContextPublishCreate,
     ContextPublishUpdate,
@@ -69,8 +61,6 @@ class SupabaseRepository:
         self._table_repo = TableRepository(self._client)
         self._mcp_repo = McpRepository(self._client)
         self._tool_repo = ToolRepository(self._client)
-        self._mcp_v2_repo = McpV2Repository(self._client)
-        self._mcp_binding_repo = McpBindingRepository(self._client)
         self._context_publish_repo = ContextPublishRepository(self._client)
 
     # ==================== Project 相关操作 ====================
@@ -392,73 +382,6 @@ class SupabaseRepository:
 
     def delete_tool(self, tool_id: str) -> bool:
         return self._tool_repo.delete(tool_id)
-
-    # ==================== MCP v2 相关操作 ====================
-
-    def create_mcp_v2(self, data: McpV2Create) -> McpV2Response:
-        return self._mcp_v2_repo.create(data)
-
-    def get_mcp_v2(self, mcp_id: str) -> Optional[McpV2Response]:
-        return self._mcp_v2_repo.get_by_id(mcp_id)
-
-    def get_mcp_v2_by_api_key(self, api_key: str) -> Optional[McpV2Response]:
-        return self._mcp_v2_repo.get_by_api_key(api_key)
-
-    def get_mcp_v2_list(
-        self,
-        *,
-        skip: int = 0,
-        limit: int = 100,
-        user_id: Optional[str] = None,
-    ) -> List[McpV2Response]:
-        return self._mcp_v2_repo.get_list(skip=skip, limit=limit, user_id=user_id)
-
-    def update_mcp_v2(self, mcp_id: str, data: McpV2Update) -> Optional[McpV2Response]:
-        return self._mcp_v2_repo.update(mcp_id, data)
-
-    def delete_mcp_v2(self, mcp_id: str) -> bool:
-        return self._mcp_v2_repo.delete(mcp_id)
-
-    # ==================== MCP Binding 相关操作 ====================
-
-    def create_mcp_binding(self, data: McpBindingCreate) -> McpBindingResponse:
-        return self._mcp_binding_repo.create(data)
-
-    def get_mcp_binding(self, binding_id: str) -> Optional[McpBindingResponse]:
-        return self._mcp_binding_repo.get_by_id(binding_id)
-
-    def get_mcp_binding_by_mcp_and_tool(
-        self, mcp_id: str, tool_id: str
-    ) -> Optional[McpBindingResponse]:
-        return self._mcp_binding_repo.get_by_mcp_and_tool(mcp_id, tool_id)
-
-    def get_mcp_bindings_by_mcp_id(
-        self,
-        mcp_id: str,
-        *,
-        skip: int = 0,
-        limit: int = 1000,
-    ) -> List[McpBindingResponse]:
-        return self._mcp_binding_repo.get_list_by_mcp_id(mcp_id, skip=skip, limit=limit)
-
-    def get_mcp_bindings_by_tool_id(
-        self,
-        tool_id: str,
-        *,
-        skip: int = 0,
-        limit: int = 1000,
-    ) -> List[McpBindingResponse]:
-        return self._mcp_binding_repo.get_list_by_tool_id(
-            tool_id, skip=skip, limit=limit
-        )
-
-    def update_mcp_binding(
-        self, binding_id: str, data: McpBindingUpdate
-    ) -> Optional[McpBindingResponse]:
-        return self._mcp_binding_repo.update(binding_id, data)
-
-    def delete_mcp_binding(self, binding_id: str) -> bool:
-        return self._mcp_binding_repo.delete(binding_id)
 
     # ==================== Context Publish 相关操作 ====================
 

@@ -4,34 +4,36 @@
  * Project Agents Page (Agent Dashboard)
  * 
  * Monitoring dashboard with multiple charts:
- * 1. Sessions per Day (7 days)
- * 2. Active Agents per Day
- * 3. Top Accessed Nodes (placeholder for access_logs)
+ * 1. Bash Executions (24h)
+ * 2. Tool Usage (24h)
+ * 3. Messages (24h)
+ * 4. Sessions (24h)
+ * 
+ * Uses a single RPC call to fetch all dashboard data for optimal performance.
  */
 
-import { use, useEffect, useState, useMemo } from 'react';
+import { use, useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProjects } from '@/lib/hooks/useData';
-import { get } from '@/lib/apiClient';
-import { getChatSessions, type ChatSession } from '@/lib/chatApi';
+import { getDashboardData, type DashboardData } from '@/lib/chatApi';
 
 // ================= Types =================
 
 interface TimeSeriesBucket {
-  bucket: string;
+  bucket: string;  // Local hour key like "2026-01-31-14"
   count: number;
 }
 
-interface Agent {
+interface DashboardAgent {
   id: string;
   name: string;
-  icon: string;
-  type: string;
-  description?: string;
-  updated_at?: string;
-  accesses?: any[];
-  bash_accesses?: any[];
-  tools?: any[];
+  icon: string | null;
+  agent_type: string;
+  created_at: string;
+  chat_count: number;
+  last_active: string | null;
+  bash_count: number;
+  data_access_count: number;
 }
 
 // ================= Helpers =================
@@ -45,8 +47,15 @@ function getLocalHourKey(date: Date): string {
   return `${y}-${m}-${d}-${h}`;
 }
 
-// Build hourly time series from sessions (last 24 hours, LOCAL time)
-function buildHourlyTimeSeries(sessions: ChatSession[], rangeHours: number = 24): TimeSeriesBucket[] {
+/**
+ * Convert RPC time series (UTC buckets) to local time buckets
+ * RPC returns: [{ bucket: "2026-01-31T14:00:00+00:00", count: 5 }, ...]
+ * We need: [{ bucket: "2026-01-31-22", count: 5 }, ...] (local time keys)
+ */
+function convertToLocalTimeSeries(
+  rpcData: { bucket: string; count: number }[] | null,
+  rangeHours: number = 24
+): TimeSeriesBucket[] {
   const now = new Date();
   const startTime = new Date(now.getTime() - rangeHours * 60 * 60 * 1000);
   
@@ -58,52 +67,24 @@ function buildHourlyTimeSeries(sessions: ChatSession[], rangeHours: number = 24)
   while (current <= now) {
     const key = getLocalHourKey(current);
     buckets.set(key, 0);
-    current.setTime(current.getTime() + 60 * 60 * 1000); // +1 hour
+    current.setTime(current.getTime() + 60 * 60 * 1000);
   }
   
-  // Count sessions per hour
-  sessions.forEach(session => {
-    const createdAt = new Date(session.created_at);
-    if (createdAt >= startTime && createdAt <= now) {
-      const key = getLocalHourKey(createdAt);
-      if (buckets.has(key)) {
-        buckets.set(key, (buckets.get(key) || 0) + 1);
+  // Map RPC data (UTC) to local buckets
+  if (rpcData && Array.isArray(rpcData)) {
+    rpcData.forEach(item => {
+      // Parse UTC timestamp and convert to local
+      const utcDate = new Date(item.bucket);
+      const localKey = getLocalHourKey(utcDate);
+      if (buckets.has(localKey)) {
+        buckets.set(localKey, (buckets.get(localKey) || 0) + item.count);
       }
-    }
-  });
+    });
+  }
   
   return Array.from(buckets.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([bucket, count]) => ({ bucket, count }));
-}
-
-// Build active agents per hour (last 24 hours, LOCAL time)
-function buildActiveAgentsPerHour(sessions: ChatSession[], rangeHours: number = 24): TimeSeriesBucket[] {
-  const now = new Date();
-  const startTime = new Date(now.getTime() - rangeHours * 60 * 60 * 1000);
-  
-  // Group sessions by hour, then count unique agents
-  const hourAgents: Map<string, Set<string>> = new Map();
-  
-  const current = new Date(startTime);
-  current.setMinutes(0, 0, 0);
-  while (current <= now) {
-    const key = getLocalHourKey(current);
-    hourAgents.set(key, new Set());
-    current.setTime(current.getTime() + 60 * 60 * 1000);
-  }
-  
-  sessions.forEach(session => {
-    const createdAt = new Date(session.created_at);
-    if (createdAt >= startTime && createdAt <= now && session.agent_id) {
-      const key = getLocalHourKey(createdAt);
-      hourAgents.get(key)?.add(session.agent_id);
-    }
-  });
-  
-  return Array.from(hourAgents.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([bucket, agents]) => ({ bucket, count: agents.size }));
 }
 
 const AGENT_TYPE_LABELS: Record<string, string> = {
@@ -186,7 +167,8 @@ interface BarChartProps {
 }
 
 function BarChart({ title, subtitle, data, total, color = '#34d399', loading, showDate = false }: BarChartProps) {
-  const max = Math.max(...data.map(d => d.count), 1);
+  // Base max for Y-axis scale. 
+  const max = Math.max(...data.map(d => d.count), 16);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   
   // Find indices for x-axis labels (start, middle, end)
@@ -218,127 +200,143 @@ function BarChart({ title, subtitle, data, total, color = '#34d399', loading, sh
       background: '#0a0a0a',
       border: '1px solid #27272a',
       borderRadius: 8,
-      padding: '16px 20px',
-      flex: 1,
-      minWidth: 280,
+      padding: '20px 24px',
+      minHeight: 240,       // Increased total height significantly
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative', // For absolute tooltip
     }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {title}
+      {/* Header - Optimized Layout */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 11, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+            {title}
+          </span>
+          {showDate && (
+            <span style={{ fontSize: 11, color: '#3f3f46' }}>
+              {formatDateShort()}
             </span>
-            {showDate && (
-              <span style={{ fontSize: 11, color: '#52525b' }}>
-                · {formatDateShort()}
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 24, fontWeight: 600, color: '#f4f4f5', marginTop: 4 }}>
+          )}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ fontSize: 32, fontWeight: 500, color: '#f4f4f5', letterSpacing: '-0.02em', lineHeight: 1 }}>
             {loading ? '...' : total}
           </div>
-          {subtitle && <div style={{ fontSize: 11, color: '#52525b', marginTop: 2 }}>{subtitle}</div>}
+          
+          {/* Hover tooltip - Absolute Positioned */}
+          {hoveredIndex !== null && data[hoveredIndex] && (
+            <div style={{ 
+              position: 'absolute',
+              top: 20,
+              right: 24,
+              fontSize: 11, 
+              color: '#e4e4e7', 
+              background: '#27272a', 
+              padding: '4px 8px', 
+              borderRadius: 4,
+              whiteSpace: 'nowrap',
+              border: '1px solid #3f3f46',
+              zIndex: 10,
+              pointerEvents: 'none', 
+            }}>
+              {formatHourFull(data[hoveredIndex].bucket)}: <strong>{data[hoveredIndex].count}</strong>
+            </div>
+          )}
         </div>
-        
-        {/* Hover tooltip */}
-        {hoveredIndex !== null && data[hoveredIndex] && (
-          <div style={{ 
-            fontSize: 11, 
-            color: '#e4e4e7', 
-            background: '#27272a', 
-            padding: '4px 8px', 
-            borderRadius: 4,
-            whiteSpace: 'nowrap',
-          }}>
-            {formatHourFull(data[hoveredIndex].bucket)}: <strong>{data[hoveredIndex].count}</strong>
-          </div>
-        )}
       </div>
       
       {/* Chart */}
-      {loading ? (
-        <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#52525b', fontSize: 12 }}>
-          Loading...
-        </div>
-      ) : data.length === 0 ? (
-        <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#52525b', fontSize: 12 }}>
-          No data
-        </div>
-      ) : (
-        <>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 60 }}>
-            {data.map((d, i) => (
-              <div
-                key={d.bucket}
-                onMouseEnter={() => setHoveredIndex(i)}
-                onMouseLeave={() => setHoveredIndex(null)}
-                style={{
-                  flex: 1,
-                  height: `${Math.max((d.count / max) * 100, 4)}%`,
-                  background: hoveredIndex === i 
-                    ? (d.count > 0 ? '#fff' : '#3f3f46') 
-                    : (d.count > 0 ? color : '#27272a'),
-                  borderRadius: '2px 2px 0 0',
-                  minHeight: 4,
-                  cursor: 'pointer',
-                  transition: 'background 0.1s',
-                }}
-              />
-            ))}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        {loading ? (
+          <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#52525b', fontSize: 12 }}>
+            Loading...
           </div>
-          
-          {/* X-Axis with time markers */}
-          <div style={{ position: 'relative', height: 16, marginTop: 8 }}>
-            {xAxisLabels.map(({ index, label }) => (
-              <span 
-                key={index}
-                style={{ 
-                  position: 'absolute', 
-                  left: `${(index / (data.length - 1)) * 100}%`, 
-                  transform: 'translateX(-50%)',
-                  fontSize: 10, 
-                  color: '#52525b',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {label}
-              </span>
-            ))}
+        ) : data.length === 0 ? (
+          <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#52525b', fontSize: 12 }}>
+            No data
           </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// Simple stat card (no chart)
-interface StatCardProps {
-  label: string;
-  value: number | string;
-  subLabel?: string;
-}
-
-function StatCard({ label, value, subLabel }: StatCardProps) {
-  return (
-    <div style={{
-      background: '#0a0a0a',
-      border: '1px solid #27272a',
-      borderRadius: 8,
-      padding: '16px 20px',
-      minWidth: 140,
-    }}>
-      <div style={{ fontSize: 11, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-        {label}
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 160 }}>
+              {data.map((d, i) => {
+                const isHovered = hoveredIndex === i;
+                const count = d.count;
+                // Threshold: If count <= 14, show as mosaic blocks. 
+                const isMosaic = count > 0 && count <= 14; 
+                
+                return (
+                  <div
+                    key={d.bucket}
+                    onMouseEnter={() => setHoveredIndex(i)}
+                    onMouseLeave={() => setHoveredIndex(null)}
+                    style={{
+                      flex: 1,
+                      height: '100%', 
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {isMosaic ? (
+                      // Mosaic Mode: Stack of distinct blocks
+                      <div style={{ width: '100%', display: 'flex', flexDirection: 'column-reverse', gap: 2 }}>
+                        {Array.from({ length: count }).map((_, idx) => (
+                          <div 
+                            key={idx}
+                            style={{
+                              width: '100%',
+                              height: 8, // Refined height: 8px (Balanced)
+                              background: isHovered ? '#fff' : color,
+                              opacity: isHovered ? 1 : 0.8 + (idx * 0.02),
+                              borderRadius: 1,
+                              transition: 'background 0.1s',
+                            }} 
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      // Bar Mode: Continuous bar (or tiny placeholder for 0)
+                      <div
+                        style={{
+                          width: '100%',
+                          // If 0, show tiny 2px placeholder. If > threshold, show percentage.
+                          height: d.count === 0 ? 2 : `${Math.max((d.count / max) * 100, 8)}%`,
+                          background: isHovered 
+                            ? (d.count > 0 ? '#fff' : '#3f3f46') 
+                            : (d.count > 0 ? color : '#27272a'),
+                          borderRadius: d.count === 0 ? 1 : '2px 2px 0 0',
+                          minHeight: d.count === 0 ? 2 : 8,
+                          transition: 'background 0.1s',
+                          opacity: d.count === 0 ? 0.5 : 1, // Dim the zero placeholder
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* X-Axis with time markers */}
+            <div style={{ position: 'relative', height: 16, marginTop: 8 }}>
+              {xAxisLabels.map(({ index, label }) => (
+                <span 
+                  key={index}
+                  style={{ 
+                    position: 'absolute', 
+                    left: `${(index / (data.length - 1)) * 100}%`, 
+                    transform: 'translateX(-50%)',
+                    fontSize: 10, 
+                    color: '#52525b',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
       </div>
-      <div style={{ fontSize: 24, fontWeight: 600, color: '#f4f4f5', lineHeight: 1 }}>
-        {value}
-      </div>
-      {subLabel && (
-        <div style={{ fontSize: 11, color: '#52525b', marginTop: 4 }}>
-          {subLabel}
-        </div>
-      )}
     </div>
   );
 }
@@ -346,14 +344,12 @@ function StatCard({ label, value, subLabel }: StatCardProps) {
 // ================= Agents Table =================
 
 interface AgentsTableProps {
-  agents: Agent[];
-  chatCounts: Record<string, number>;
-  lastActive: Record<string, string>;
+  agents: DashboardAgent[];
   maxChatCount: number;
   onDelete?: (id: string) => void;
 }
 
-function AgentsTable({ agents, chatCounts, lastActive, maxChatCount, onDelete }: AgentsTableProps) {
+function AgentsTable({ agents, maxChatCount, onDelete }: AgentsTableProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const gridTemplate = '40px 1.5fr 100px 120px 140px 100px 40px';
 
@@ -379,11 +375,8 @@ function AgentsTable({ agents, chatCounts, lastActive, maxChatCount, onDelete }:
 
       {agents.map((agent, index) => {
         const isHovered = hoveredId === agent.id;
-        const typeLabel = AGENT_TYPE_LABELS[agent.type] || agent.type;
-        const resourceCount = (agent.bash_accesses || agent.accesses || []).length;
-        const chatCount = chatCounts[agent.id] || 0;
-        const lastActiveTime = lastActive[agent.id];
-        const usagePercent = maxChatCount > 0 ? (chatCount / maxChatCount) * 100 : 0;
+        const typeLabel = AGENT_TYPE_LABELS[agent.agent_type] || agent.agent_type;
+        const usagePercent = maxChatCount > 0 ? (agent.chat_count / maxChatCount) * 100 : 0;
 
         return (
           <div
@@ -398,31 +391,31 @@ function AgentsTable({ agents, chatCounts, lastActive, maxChatCount, onDelete }:
             <div style={{ textAlign: 'center', color: '#52525b', fontSize: 12 }}>{index + 1}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 28, height: 28, borderRadius: 6, background: '#27272a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-                {parseAgentIcon(agent.icon)}
+                {parseAgentIcon(agent.icon || '')}
               </div>
               <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{agent.name}</div>
             </div>
             <div style={{ fontSize: 12, color: '#71717a' }}>{typeLabel}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {resourceCount > 0 ? (
+              {agent.data_access_count > 0 ? (
                 <>
                   <div style={{ width: 8, height: 8, borderRadius: 2, background: '#3b82f6' }} />
-                  <span style={{ fontSize: 12, color: '#d4d4d8' }}>{resourceCount} sources</span>
+                  <span style={{ fontSize: 12, color: '#d4d4d8' }}>{agent.data_access_count} sources</span>
                 </>
               ) : (
                 <span style={{ fontSize: 12, color: '#52525b' }}>—</span>
               )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 12, color: '#e4e4e7', minWidth: 20 }}>{chatCount}</span>
-              {chatCount > 0 && (
+              <span style={{ fontSize: 12, color: '#e4e4e7', minWidth: 20 }}>{agent.chat_count}</span>
+              {agent.chat_count > 0 && (
                 <div style={{ flex: 1, height: 4, background: '#27272a', borderRadius: 2, maxWidth: 80 }}>
                   <div style={{ width: `${usagePercent}%`, height: '100%', background: '#10b981', borderRadius: 2 }} />
                 </div>
               )}
             </div>
-            <div style={{ fontSize: 12, color: lastActiveTime ? '#a1a1aa' : '#52525b' }}>
-              {formatRelativeTime(lastActiveTime)}
+            <div style={{ fontSize: 12, color: agent.last_active ? '#a1a1aa' : '#52525b' }}>
+              {formatRelativeTime(agent.last_active || undefined)}
             </div>
             <div style={{ opacity: isHovered ? 1 : 0, transition: 'opacity 0.1s' }}>
               {onDelete && (
@@ -453,147 +446,209 @@ export default function ProjectAgentsPage({ params }: { params: Promise<{ projec
   const { projects } = useProjects();
   const currentProject = projects.find(p => p.id === projectId);
   
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const RANGE_HOURS = 12; // Show last 12 hours for more relevant data
+  const RANGE_HOURS = 24; // Show last 24 hours
 
-  // Chart 1: Sessions per Hour (last 24h)
-  const sessionsPerHour = useMemo(() => buildHourlyTimeSeries(chatSessions, RANGE_HOURS), [chatSessions]);
-  const totalSessionsInRange = useMemo(() => sessionsPerHour.reduce((sum, b) => sum + b.count, 0), [sessionsPerHour]);
+  // Convert RPC time series to local time buckets
+  const bashPerHour = useMemo(() => 
+    convertToLocalTimeSeries(dashboardData?.bashPerHour || null, RANGE_HOURS), 
+    [dashboardData?.bashPerHour]
+  );
+  const toolsPerHour = useMemo(() => 
+    convertToLocalTimeSeries(dashboardData?.toolsPerHour || null, RANGE_HOURS), 
+    [dashboardData?.toolsPerHour]
+  );
+  const messagesPerHour = useMemo(() => 
+    convertToLocalTimeSeries(dashboardData?.messagesPerHour || null, RANGE_HOURS), 
+    [dashboardData?.messagesPerHour]
+  );
+  const sessionsPerHour = useMemo(() => 
+    convertToLocalTimeSeries(dashboardData?.sessionsPerHour || null, RANGE_HOURS), 
+    [dashboardData?.sessionsPerHour]
+  );
 
-  // Chart 2: Active Agents per Hour (last 24h)
-  const activeAgentsPerHour = useMemo(() => buildActiveAgentsPerHour(chatSessions, RANGE_HOURS), [chatSessions]);
-  const maxActiveAgents = useMemo(() => {
-    return Math.max(...activeAgentsPerHour.map(b => b.count), 0);
-  }, [activeAgentsPerHour]);
-
-  // Stats
-  const stats = useMemo(() => {
-    const agentIds = new Set(agents.map(a => a.id));
-    const validSessions = chatSessions.filter(s => s.agent_id && agentIds.has(s.agent_id));
-    const activeAgentIds = new Set(validSessions.map(s => s.agent_id));
-    return {
-      totalSessions: validSessions.length,
-      activeAgents: activeAgentIds.size,
-      totalAgents: agents.length,
-    };
-  }, [chatSessions, agents]);
-
-  const chatCountByAgent = useMemo(() => {
-    const counts: Record<string, number> = {};
-    chatSessions.forEach(s => { if(s.agent_id) counts[s.agent_id] = (counts[s.agent_id] || 0) + 1; });
-    return counts;
-  }, [chatSessions]);
-
+  // Max chat count for usage bar scaling
   const maxChatCount = useMemo(() => {
-    const counts = Object.values(chatCountByAgent);
+    if (!dashboardData?.agents) return 0;
+    const counts = dashboardData.agents.map(a => a.chat_count);
     return counts.length > 0 ? Math.max(...counts) : 0;
-  }, [chatCountByAgent]);
+  }, [dashboardData?.agents]);
 
-  const lastActiveByAgent = useMemo(() => {
-    const times: Record<string, string> = {};
-    chatSessions.forEach(s => {
-      if(s.agent_id && (!times[s.agent_id] || s.updated_at > times[s.agent_id])) times[s.agent_id] = s.updated_at;
-    });
-    return times;
-  }, [chatSessions]);
-
-  const fetchData = async () => {
+  // Fetch dashboard data with single RPC call
+  const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const [agentsData, sessionsData] = await Promise.all([
-        get<Agent[]>('/api/v1/agent-config/'),
-        getChatSessions(),
-      ]);
-      setAgents(agentsData);
-      setChatSessions(sessionsData);
+      const data = await getDashboardData(RANGE_HOURS);
+      setDashboardData(data);
     } catch (err) {
-      console.error('Failed to fetch data:', err);
+      console.error('Failed to fetch dashboard data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, [projectId]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this agent?')) {
       console.log('Delete agent:', id);
+      // TODO: Implement delete and refresh
     }
   };
+
+  // Error state
+  if (error && !loading) {
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#09090b' }}>
+        <div style={{ textAlign: 'center', color: '#ef4444' }}>
+          <p style={{ marginBottom: 16 }}>{error}</p>
+          <button 
+            onClick={fetchData}
+            style={{ padding: '8px 16px', background: '#18181b', border: '1px solid #27272a', borderRadius: 6, color: '#a1a1aa', fontSize: 12, cursor: 'pointer' }}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#09090b', overflow: 'hidden' }}>
       
-      {/* Header */}
-      <div style={{ padding: '24px 32px 16px', borderBottom: '1px solid #1f1f22', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, color: '#f4f4f5', margin: 0 }}>Agents</h1>
-          <p style={{ fontSize: 13, color: '#71717a', margin: '4px 0 0 0' }}>{currentProject?.name || 'Project'}</p>
+      {/* Context Header - Aligned with ProjectsHeader */}
+      <div style={{ 
+        height: 48, 
+        minHeight: 48,
+        borderBottom: '1px solid rgba(255,255,255,0.06)', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        padding: '0 16px',
+        background: '#141414',
+        flexShrink: 0 
+      }}>
+        {/* Left: Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h1 style={{ fontSize: 14, fontWeight: 500, color: '#e4e4e7', margin: 0 }}>Context Access Dashboard</h1>
         </div>
-        <button 
-          onClick={fetchData}
-          style={{ padding: '8px 12px', background: '#18181b', border: '1px solid #27272a', borderRadius: 6, color: '#a1a1aa', fontSize: 12, cursor: 'pointer' }}
-        >
-          Refresh
-        </button>
+        
+        {/* Right: Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button 
+            onClick={fetchData}
+            disabled={loading}
+            style={{ 
+              background: 'transparent', 
+              border: 'none', 
+              borderRadius: 4, 
+              color: loading ? '#52525b' : '#a1a1aa', 
+              cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              padding: 6,
+              transition: 'color 0.2s, background 0.2s',
+            }}
+            title="Refresh"
+            onMouseEnter={e => !loading && (e.currentTarget.style.background = 'rgba(255,255,255,0.05)', e.currentTarget.style.color = '#e4e4e7')}
+            onMouseLeave={e => !loading && (e.currentTarget.style.background = 'transparent', e.currentTarget.style.color = '#a1a1aa')}
+          >
+            <svg 
+              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }}
+            >
+              <path d="M23 4v6h-6" />
+              <path d="M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            <style jsx>{`
+              @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            `}</style>
+          </button>
+        </div>
       </div>
 
-      {/* Charts Row */}
-      <div style={{ padding: '20px 32px', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        {/* Chart 1: Sessions per Hour (12h) */}
-        <BarChart 
-          title="Sessions"
-          subtitle="Last 12 hours"
-          data={sessionsPerHour}
-          total={totalSessionsInRange}
-          color="#34d399"
-          loading={loading}
-          showDate={true}
-        />
-        
-        {/* Chart 2: Active Agents per Hour (12h) */}
-        <BarChart 
-          title="Active Agents"
-          subtitle={`Peak: ${maxActiveAgents}`}
-          data={activeAgentsPerHour}
-          total={stats.activeAgents}
-          color="#60a5fa"
-          loading={loading}
-          showDate={true}
-        />
-        
-        {/* Stat Cards */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <StatCard 
-            label="Total Agents" 
-            value={stats.totalAgents}
-            subLabel="configured"
-          />
-          <StatCard 
-            label="All-time Sessions" 
-            value={stats.totalSessions}
-            subLabel="total recorded"
-          />
-        </div>
-      </div>
+      {/* Main Content (Scrollable) */}
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px' }}>
 
-      {/* Table */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 32px 32px' }}>
-        <div style={{ background: '#0a0a0a', border: '1px solid #27272a', borderRadius: 12, overflow: 'hidden' }}>
-          {loading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#52525b' }}>Loading...</div>
-          ) : (
-            <AgentsTable 
-              agents={agents} 
-              chatCounts={chatCountByAgent} 
-              lastActive={lastActiveByAgent}
-              maxChatCount={maxChatCount}
-              onDelete={handleDelete}
+          {/* Section: Access Monitor - L2 */}
+          <div style={{ marginBottom: 32 }}>
+            <h3 style={{ 
+              fontSize: 16, 
+              fontWeight: 500, 
+              color: '#71717a', 
+              margin: '0 0 16px 0',
+            }}>
+              Access Monitor
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            <BarChart 
+              title="Bash Executions"
+              data={bashPerHour}
+              total={dashboardData?.bashInRange ?? 0}
+              color="#34d399"
+              loading={loading}
+              showDate={true}
             />
-          )}
+            
+            <BarChart 
+              title="Tool Usage"
+              data={toolsPerHour}
+              total={dashboardData?.toolsInRange ?? 0}
+              color="#34d399"
+              loading={loading}
+              showDate={true}
+            />
+            
+            <BarChart 
+              title="Messages"
+              data={messagesPerHour}
+              total={dashboardData?.messagesInRange ?? 0}
+              color="#34d399"
+              loading={loading}
+              showDate={true}
+            />
+
+            <BarChart 
+              title="Sessions"
+              data={sessionsPerHour}
+              total={dashboardData?.sessionsInRange ?? 0}
+              color="#34d399"
+              loading={loading}
+              showDate={true}
+            />
+            </div>
+          </div>
+
+          {/* Section: Access Points - L3 */}
+          <div style={{ marginBottom: 48 }}>
+            <h3 style={{ 
+              fontSize: 16, 
+              fontWeight: 500, 
+              color: '#71717a', 
+              margin: '0 0 16px 0',
+            }}>
+              Access Points
+            </h3>
+            <div style={{ background: '#0a0a0a', border: '1px solid #27272a', borderRadius: 12, overflow: 'hidden' }}>
+            {loading ? (
+              <div style={{ padding: 40, textAlign: 'center', color: '#52525b' }}>Loading...</div>
+            ) : (
+              <AgentsTable 
+                agents={dashboardData?.agents ?? []} 
+                maxChatCount={maxChatCount}
+                onDelete={handleDelete}
+              />
+            )}
+            </div>
+          </div>
+        
         </div>
       </div>
     </div>
