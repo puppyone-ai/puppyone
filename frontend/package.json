@@ -22,6 +22,7 @@
     "@milkdown/preset-gfm": "^7.18.0",
     "@milkdown/prose": "^7.18.0",
     "@milkdown/react": "^7.18.0",
+    "@milkdown/utils": "^7.18.0",
     "@monaco-editor/react": "^4.7.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.46.1",
