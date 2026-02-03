@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, use } from 'react';
 import { usePathname } from 'next/navigation';
 import { AgentProvider, useAgent } from '@/contexts/AgentContext';
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
@@ -85,9 +85,10 @@ function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   
-  // Hide Agent sidebar on non-context pages (tools/dashboard, logs, settings)
+  // Hide Agent sidebar on non-context pages
   // Agent sidebar only makes sense on /data (Context) page where users interact with content
-  const hideAgentSidebar = pathname?.includes('/tools') || pathname?.includes('/logs') || pathname?.includes('/settings');
+  const isDataPage = pathname?.endsWith('/data') || pathname?.includes('/data/');
+  const hideAgentSidebar = !isDataPage;
   
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -166,13 +167,19 @@ function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
   );
 }
 
+interface ProjectLayoutProps {
+  children: React.ReactNode;
+  params: Promise<{ projectId: string }>;
+}
+
 export default function ProjectLayout({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+  params,
+}: ProjectLayoutProps) {
+  const { projectId } = use(params);
+  
   return (
-    <AgentProvider>
+    <AgentProvider projectId={projectId}>
       <WorkspaceProvider>
         <ProjectLayoutInner>{children}</ProjectLayoutInner>
       </WorkspaceProvider>

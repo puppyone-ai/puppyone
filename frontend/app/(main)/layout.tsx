@@ -60,7 +60,7 @@ export default function MainLayout({
   }, [activeBaseId]);
 
   // 计算 Active View
-  // New URL structure: /projects/{projectId}/data|tools|logs|settings
+  // New URL structure: /projects/{projectId}/data|toolkit|tools|logs|settings
   const activeView = useMemo(() => {
     if (!pathname) return 'data';
     
@@ -71,6 +71,8 @@ export default function MainLayout({
     
     // Project-specific routes
     if (pathname.includes('/projects/')) {
+      // Check toolkit before tools (toolkit used to be context-tools)
+      if (pathname.includes('/toolkit')) return 'toolkit';
       if (pathname.includes('/tools')) return 'tools';
       if (pathname.includes('/logs')) return 'logs';
       if (pathname.includes('/settings')) return 'settings';

@@ -1,70 +1,95 @@
-# PuppyOne
+# puppyone
 
-**AI Agent 的统一上下文基座 (Context Base)。**
+**AI Agent 的 Context Base。**
 
-> **汇聚分散知识，赋能每一个 Agent。**
+一个**中心化、结构化、可扩展**的上下文库。把你分散在 Notion、GitHub、Airtable、本地文件里的数据统一到一个中心的、可供多agent协作的、可扩展的上下文库，让你的任何 Agent 接入这一个上下文库即可接入所有的上下文。
+
+---
+
+## 它解决什么痛点？
+
+**1. 数据太分散，Agent 拿不到完整上下文**
+
+你的数据可能分散在 30 多个地方：产品文档在 Notion，代码在 GitHub，客户信息在 Airtable，报价表在 Google Sheets，还有一堆 PDF 和 Word 文件躺在本地。每次让 Agent 用这些数据，都要重新对接一遍。
+
+**2. 不同 Agent 需要不同权限，配置很繁琐**
+
+客服 Agent 只能读产品目录，不能改价格；研发 Agent 可以编辑需求文档；销售 Agent 能看报价但不能删除客户信息。你需要细粒度的中心化的面向不同场景的权限控制，而不是"全开"或"全关"。
+
+**3. 每种 Agent 的连接方式都不一样，维护成本高**
+
+Cursor 要 MCP，后端脚本要 REST API，实时场景要 SSE 长连接，复杂任务还得让 Agent 进沙盒跑代码。每种对接逻辑，都需要统一的日志和监控。哪个 Context 被调取了，query是什么、什么时候调取的、成功还是失败。
+
+---
+
+## puppyone 怎么解决？
+
+我们把所有问题归结为一件事：**给 Agent 一个它能理解的、统一的上下文库**。
+
+puppyone 的答案是一个**云端文件夹**。不管你的数据来自 Notion、GitHub、Airtable 还是本地 PDF，一旦连入 puppyone，它们都会变成这个文件夹里的文件——Notion 页面变成 Markdown，GitHub 仓库变成代码目录，Airtable 表格变成结构化文档。对 Agent 来说，世界从此只有一个文件夹，没有 30 种 SaaS。
+
+第二，我们给每个 Agent 准备了一个**沙盒**。你可以像管理本地文件夹一样，给每个 Agent 划定边界：客服 Agent 只能读 `/产品文档`，看不到 `/财务报表`；研发 Agent 可以写 `/需求文档`；销售 Agent 能看报价但不能删。Agent 不只能「读」这些文件，还能在沙盒里用 Bash 命令整理文件、用代码处理数据——就像你在本地终端操作一样，但所有动作都被隔离，不会泄露、不会越界。
+
+最后是**监测**。不管你的 Agent 是通过 MCP 连接的 Cursor、还是通过 REST API 调用的后端脚本、还是在沙盒里执行的自动化任务——所有请求都走同一套接口，所有操作都有统一的日志。哪个 Agent 调了哪个文件、什么时候调的、query 是什么、成功还是失败，一目了然。
+
+---
+
+## 5 分钟上手
+
+```
+1. 导入数据      →  连接 Notion / GitHub / 上传文件
+2. 设置权限      →  选择 Agent 能用哪些 Tool、访问哪些路径
+3. 连接 Agent    →  复制 MCP 配置到 Cursor，或者用 API 调用
+```
+
+[开始使用 →](/zh/quickstart/cloud)
+
+---
+
+## 典型场景
+
+| 场景 | 数据来源 | Agent 权限 |
+|------|----------|-----------|
+| **客服 Agent** | 产品目录 + FAQ | 只读 |
+| **研发 Agent** | 需求文档 + 代码知识库 | 读写 |
+| **销售 Agent** | 报价表 + CRM 数据 | 只读 |
+
+---
+
+## 核心流程
 
 ```
 ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
-│  Notion  │  │  GitHub  │  │ Airtable │  │   文件   │
+│  Notion  │  │  GitHub  │  │ Airtable │  │  文件    │
 └─────┬────┘  └─────┬────┘  └─────┬────┘  └─────┬────┘
       │             │             │             │
       └─────────────▼─────────────▼─────────────┘
                     │
             ╔═══════▼═══════╗
-            ║   PuppyOne    ║  ◄── Context Base
-            ║ (索引/同步)   ║
+            ║   puppyone    ║  ◄── 云端文件夹 (Context Base)
+            ║ 文件/Markdown ║
             ╚═══════▲═══════╝
                     │
       ┌─────────────┼─────────────┐
       │             │             │
   ┌───▼───┐     ┌───▼───┐     ┌───▼───┐
-  │  MCP  │     │  API  │     │Skills │
+  │  MCP  │     │  API  │     │Publish│
   └───┬───┘     └───┬───┘     └───┬───┘
       │             │             │
 ┌─────▼────┐  ┌─────▼────┐  ┌─────▼────┐
-│Cursor/IDE│  │ 自定义   │  │ 云端     │
-│ Agent    │  │ 工作流   │  │ Agent    │
+│ Cursor   │  │ 自研     │  │ 公开     │
+│ Claude   │  │ Agent    │  │ 链接     │
 └──────────┘  └──────────┘  └──────────┘
 ```
 
 ---
 
-## PuppyOne 能做什么
+## 下一步
 
-PuppyOne 将你组织内分散的数据统一为一个**单一的、结构化的上下文基座 (Context Base)**，并实时分发给任何 AI Agent。
+import { Cards, Card } from 'nextra/components'
 
-### 1. 集中上下文 (The "One" Base)
-与其让每个 Agent 单独连接每个数据源，不如将它们全部连接到 PuppyOne。
-- **连接器**: Notion, GitHub, Airtable, Google Sheets, Linear, Slack。
-- **文件**: PDF, DOCX, Markdown, 代码库。
-- **结构化**: 自动 ETL 流水线将原始数据清洗并组织为结构化 JSON。
-
-### 2. 全渠道分发 (The Interface)
-我们为每种类型的 Agent 提供最合适的接口：
-
-| 接口 | 适用场景 |
-|-----|----------|
-| **MCP Server** | **Cursor, Claude Desktop**。原生集成，零代码接入。 |
-| **REST API** | **自定义 Agent (Python/Node)**。完整的编程访问能力。 |
-| **Cloud Skills** | **ChatGPT, Coze**。为托管 Agent 提供的即插即用技能。 |
-| **Sandbox** | **安全执行**。让 Agent 在安全环境中针对数据运行代码。 |
-
-### 3. Agent 原生管控
-- **确定性索引**: Agent 需要精确路径和结构化查询，而不仅仅是模糊的向量搜索。
-- **权限范围**: 给客服 Agent `/docs` 的只读权限，但给开发 Agent `/code` 的读写权限。
-
----
-
-## 为什么需要 PuppyOne
-
-- **消除幻觉**: 在处理价格、规格和代码时，结构化上下文优于向量搜索。
-- **统一 Agent 记忆**: 当开发 Agent 更新了需求文档，QA Agent 能瞬间看到。
-- **安全与治理**: 在一个地方统一管理所有 Agent 的可见范围和操作权限。
-
----
-
-## 快速开始
-
-- **[云端版 →](/zh/quickstart/cloud)**
-- **[自托管 →](/zh/quickstart/self-hosted)**
+<Cards>
+  <Card title="快速开始" href="/zh/quickstart/cloud" />
+  <Card title="连接数据" href="/zh/connect" />
+  <Card title="连接 Agent" href="/zh/agents" />
+</Cards>

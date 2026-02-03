@@ -6,8 +6,8 @@ import { AgentSettingView } from './views/AgentSettingView';
 import { ChatRuntimeView } from './views/ChatRuntimeView';
 import { McpConnectionView } from './views/McpConnectionView';
 import { AgentDetailView } from './views/AgentDetailView';
-import { type McpToolPermissions, type Tool as DbTool } from '../lib/mcpApi';
-import type { AccessOption } from './chat/ChatInputArea';
+import { type McpToolPermissions, type Tool as DbTool } from '@/lib/mcpApi';
+import type { AccessOption } from '../chat/ChatInputArea';
 import type { SavedAgent } from '@/components/AgentRail';
 
 // Access Point 图标 - 动物 emoji（和 ProjectsHeader 保持一致）
@@ -26,7 +26,8 @@ const parseAgentIcon = (icon?: string): string => {
 
 const DEFAULT_CHAT_WIDTH = 400;
 
-// Tool labels (Duplicated from ChatSidebar, maybe extract to constants later)
+// Tool type labels
+// NOTE: shell_access is NOT a tool - it's managed via agent_bash per Agent
 const toolTypeLabels: Record<string, string> = {
   query_data: 'Query',
   search: 'Search',
@@ -34,8 +35,7 @@ const toolTypeLabels: Record<string, string> = {
   create: 'Create',
   update: 'Update',
   delete: 'Delete',
-  shell_access: 'Bash',
-  shell_access_readonly: 'Bash (Read-only)',
+  custom_script: 'Custom Script',
 };
 
 interface AccessPoint {
@@ -72,6 +72,10 @@ export function AgentViewport({
   const { sidebarMode, savedAgents, currentAgentId, deleteAgent, editAgent } = useAgent();
   const [isFullyOpen, setIsFullyOpen] = useState(sidebarMode !== 'closed');
 
+  // --- Determine Current Agent ---
+  const currentAgent = currentAgentId ? savedAgents.find(a => a.id === currentAgentId) : null;
+  const currentType = currentAgent?.type || 'chat'; // If playground (null), default to 'chat'.
+
   // --- Animation State ---
   useEffect(() => {
     if (sidebarMode !== 'closed') {
@@ -83,22 +87,17 @@ export function AgentViewport({
   }, [sidebarMode]);
 
   // --- Available Tools Calculation ---
+  // NOTE: shell_access is NOT stored in projectTools anymore
+  // It's managed via agent.resources (loaded from agent_bash table)
   const availableTools: AccessOption[] = [];
-  const allToolTypes = [
-    'shell_access',
-    'shell_access_readonly',
-    'query_data',
-    'search',
-    'get_all_data',
-    'create',
-    'update',
-    'delete',
-  ] as const;
 
+  // 1. Add real tools from projectTools (not shell_access)
   if (projectTools && projectTools.length > 0) {
     for (const t of projectTools) {
       const type = (t.type || '').trim();
-      const isBash = type === 'shell_access' || type === 'shell_access_readonly';
+      // Skip any legacy shell_access entries (they should be cleaned up)
+      if (type === 'shell_access' || type === 'shell_access_readonly') continue;
+      
       const nid = t.node_id || null;
       const nodeName =
         nid && tableNameById?.[nid]
@@ -113,33 +112,29 @@ export function AgentViewport({
       availableTools.push({
         id: optionId,
         label,
-        type: isBash ? ('bash' as const) : ('tool' as const),
+        type: 'tool' as const,
         tableId: nid ?? undefined,
         tableName: nodeName,
       });
     }
-  } else {
-    accessPoints.forEach(ap => {
-      allToolTypes.forEach(toolType => {
-        // @ts-ignore
-        if (ap.permissions[toolType]) {
-          availableTools.push({
-            id: `${ap.id}-${toolType}`,
-            label: toolTypeLabels[toolType] || toolType,
-            type:
-              toolType === 'shell_access' || toolType === 'shell_access_readonly'
-                ? ('bash' as const)
-                : ('tool' as const),
-          });
-        }
-      });
-    });
   }
 
-  // --- Determine Current Agent Type ---
-  const currentAgent = currentAgentId ? savedAgents.find(a => a.id === currentAgentId) : null;
-  // If playground (null), default to 'chat'.
-  const currentType = currentAgent?.type || 'chat';
+  // 2. Add bash accesses from current agent's resources
+  // These come from agent_bash table via agent.resources
+  if (currentAgent?.resources && currentAgent.resources.length > 0) {
+    for (const res of currentAgent.resources) {
+      const nodeName = res.nodeName || res.nodeId;
+      const label = `${nodeName} · Bash${res.readonly ? ' (Read-only)' : ''}`;
+      const optionId = `bash:${res.nodeId}`;
+      availableTools.push({
+        id: optionId,
+        label,
+        type: 'bash' as const,
+        tableId: res.nodeId,
+        tableName: nodeName,
+      });
+    }
+  }
 
   return (
     <aside
@@ -165,6 +160,8 @@ export function AgentViewport({
       {sidebarMode === 'setting' && (
         <AgentSettingView 
           availableTools={availableTools} 
+          projectTools={projectTools}
+          tableNameById={tableNameById}
           currentTableId={tableId ? String(tableId) : undefined} 
         />
       )}

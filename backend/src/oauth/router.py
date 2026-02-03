@@ -14,6 +14,7 @@ from src.oauth.dependencies import (
     get_gmail_service,
     get_google_drive_service,
     get_google_calendar_service,
+    get_google_docs_service,
     get_linear_service,
     get_airtable_service,
 )
@@ -23,6 +24,7 @@ from src.oauth.google_sheets_service import GoogleSheetsOAuthService
 from src.oauth.gmail_service import GmailOAuthService
 from src.oauth.google_drive_service import GoogleDriveOAuthService
 from src.oauth.google_calendar_service import GoogleCalendarOAuthService
+from src.oauth.google_docs_service import GoogleDocsOAuthService
 from src.oauth.linear_service import LinearOAuthService
 from src.oauth.airtable_service import AirtableOAuthService
 from src.oauth.schemas import (
@@ -1146,4 +1148,127 @@ async def google_calendar_disconnect(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to disconnect from Google Calendar: {str(e)}",
+        )
+
+
+# Google Docs OAuth endpoints
+@router.get("/google-docs/authorize", response_model=ApiResponse[OAuthAuthorizeResponse])
+async def google_docs_authorize(
+    google_docs_service: Annotated[GoogleDocsOAuthService, Depends(get_google_docs_service)],
+):
+    """Generate Google Docs OAuth authorization URL."""
+    try:
+        authorization_url, state = await google_docs_service.get_authorization_url()
+
+        return ApiResponse.success(
+            data=OAuthAuthorizeResponse(
+                authorization_url=authorization_url,
+                state=state,
+            ),
+            message="Google Docs authorization URL generated",
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate Google Docs authorization URL: {str(e)}",
+        )
+
+
+@router.post("/google-docs/callback", response_model=ApiResponse[OAuthCallbackResponse])
+async def google_docs_callback(
+    request: OAuthCallbackRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_docs_service: Annotated[GoogleDocsOAuthService, Depends(get_google_docs_service)],
+):
+    """Handle Google Docs OAuth callback."""
+    try:
+        success, message, connection_info = await google_docs_service.handle_callback(
+            user_id=current_user.user_id,
+            code=request.code,
+        )
+
+        return ApiResponse.success(
+            data=OAuthCallbackResponse(
+                success=success,
+                message=message,
+                workspace_name=connection_info.get("email") if connection_info else None,
+            ),
+            message="Google Docs OAuth callback processed",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to handle Google Docs callback: {str(e)}",
+        )
+
+
+@router.get("/google-docs/status", response_model=ApiResponse[OAuthStatusResponse])
+async def google_docs_status(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_docs_service: Annotated[GoogleDocsOAuthService, Depends(get_google_docs_service)],
+):
+    """Check Google Docs connection status."""
+    try:
+        connection = await google_docs_service.get_connection(current_user.user_id)
+
+        if connection:
+            metadata = connection.metadata or {}
+            user_info = metadata.get("user", {})
+
+            return ApiResponse.success(
+                data=OAuthStatusResponse(
+                    connected=True,
+                    workspace_name=user_info.get("email"),
+                    connected_at=connection.created_at.isoformat() if connection.created_at else None,
+                ),
+                message="Google Docs connection active",
+            )
+        else:
+            return ApiResponse.success(
+                data=OAuthStatusResponse(
+                    connected=False,
+                    workspace_name=None,
+                    connected_at=None,
+                ),
+                message="Google Docs not connected",
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check Google Docs status: {str(e)}",
+        )
+
+
+@router.delete("/google-docs/disconnect", response_model=ApiResponse[OAuthDisconnectResponse])
+async def google_docs_disconnect(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    google_docs_service: Annotated[GoogleDocsOAuthService, Depends(get_google_docs_service)],
+):
+    """Disconnect Google Docs integration."""
+    try:
+        success = await google_docs_service.disconnect(current_user.user_id)
+
+        if success:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=True,
+                    message="Successfully disconnected from Google Docs",
+                ),
+                message="Google Docs disconnected",
+            )
+        else:
+            return ApiResponse.success(
+                data=OAuthDisconnectResponse(
+                    success=False,
+                    message="No active Google Docs connection found",
+                ),
+                message="No active Google Docs connection",
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to disconnect from Google Docs: {str(e)}",
         )

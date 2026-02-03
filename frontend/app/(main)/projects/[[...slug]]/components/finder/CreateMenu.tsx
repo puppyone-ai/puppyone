@@ -18,10 +18,12 @@ export interface CreateMenuProps {
   onImportNotion?: () => void;
   onImportGitHub?: () => void;
   onImportGmail?: () => void;
-  onImportDrive?: () => void;
+  // onImportDrive?: () => void; // Google Drive temporarily disabled
+  onImportDocs?: () => void;
   onImportCalendar?: () => void;
   onImportSheets?: () => void;
-  onImportAirtable?: () => void;
+  // onImportAirtable?: () => void; // Airtable temporarily disabled
+  // onImportLinear?: () => void; // Linear temporarily disabled
 }
 
 interface MenuItemProps {
@@ -90,42 +92,80 @@ function Submenu({
   parentRect: DOMRect | null 
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ left?: string | number; right?: string | number; top: number }>({ left: '100%', top: -4 });
+  const [adjustedStyle, setAdjustedStyle] = useState<React.CSSProperties>({
+    left: '100%',
+    top: -4,
+    marginLeft: 8,
+  });
 
   useEffect(() => {
-    if (ref.current && parentRect) {
+    if (!ref.current || !parentRect) return;
+    
+    // Use requestAnimationFrame to ensure the element is rendered
+    requestAnimationFrame(() => {
+      if (!ref.current) return;
+      
       const rect = ref.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const padding = 12;
       
-      // Check if submenu overflows the right edge
-      // parentRect.right is the right edge of the parent menu
-      // We want to place submenu at parentRect.right + 8
+      // Horizontal positioning - check if submenu overflows right edge
       const spaceRight = viewportWidth - parentRect.right;
       const spaceLeft = parentRect.left;
+      const openToLeft = spaceRight < 250 && spaceLeft > spaceRight;
       
-      // If not enough space on right (< 200px) and more space on left, flip to left
-      if (spaceRight < 220 && spaceLeft > spaceRight) {
-         setPosition({ right: '100%', top: -4 });
-      } else {
-         setPosition({ left: '100%', top: -4 });
+      // Vertical positioning - check actual position and adjust if needed
+      let topOffset = -4; // Default offset from parent menu item
+      
+      // Check if submenu bottom would overflow viewport
+      if (rect.bottom > viewportHeight - padding) {
+        // Calculate how much we need to move up
+        const overflow = rect.bottom - (viewportHeight - padding);
+        topOffset = -4 - overflow;
+        
+        // Make sure we don't go above the viewport top
+        const newTop = rect.top - overflow;
+        if (newTop < padding) {
+          topOffset = -4 - (rect.top - padding);
+        }
       }
-    }
-  }, [parentRect]);
+      
+      // Check if submenu top would overflow viewport (in case of very tall submenu)
+      const newRect = {
+        top: rect.top + (topOffset - (-4)),
+        bottom: rect.bottom + (topOffset - (-4)),
+      };
+      
+      if (newRect.top < padding) {
+        topOffset = -4 + (padding - rect.top);
+      }
+      
+      setAdjustedStyle({
+        left: openToLeft ? undefined : '100%',
+        right: openToLeft ? '100%' : undefined,
+        top: topOffset,
+        marginLeft: openToLeft ? 0 : 8,
+        marginRight: openToLeft ? 8 : 0,
+      });
+    });
+  }, [parentRect, children]); // Re-run when children change (affects height)
 
   return (
     <div
       ref={ref}
       style={{
         position: 'absolute',
-        ...position,
-        marginLeft: position.left ? 8 : 0,
-        marginRight: position.right ? 8 : 0,
+        ...adjustedStyle,
         background: 'rgba(28, 28, 30, 0.98)',
         backdropFilter: 'blur(20px)',
         border: '1px solid rgba(255,255,255,0.1)',
         borderRadius: 8,
         padding: '4px 0',
-        minWidth: 180,
+        minWidth: 240,
+        maxHeight: 'calc(100vh - 24px)',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
         zIndex: 1001,
       }}
@@ -137,7 +177,7 @@ function Submenu({
           top: 0,
           bottom: 0,
           width: 20,
-          [position.left ? 'right' : 'left']: '100%',
+          [adjustedStyle.left ? 'right' : 'left']: '100%',
           background: 'transparent',
         }} 
       />
@@ -164,44 +204,34 @@ const GitHubIcon = () => (
 );
 
 const GmailIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73l-6.545 4.909-6.545-4.909v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.909 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" fill="#EA4335"/>
-  </svg>
+  <img src="/icons/gmail.svg" alt="Gmail" width={14} height={14} style={{ display: 'block' }} />
 );
 
-const DriveIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 87.3 78" fill="none">
-    <path d="M6.6 66.85L3.85 61.35L29.95 17.2L32.7 22.7L6.6 66.85Z" fill="#0066DA"/>
-    <path d="M58.05 66.85H53.25L27.15 22.7H31.95L58.05 66.85Z" fill="#00AC47"/>
-    <path d="M83.45 66.85L80.7 61.35L54.6 17.2H59.4L85.5 61.35L83.45 66.85Z" fill="#EA4335"/>
-    <path d="M87.3 66.85H0L13.05 78H74.25L87.3 66.85Z" fill="#00832D"/>
-    <path d="M43.65 0L13.05 52.7L0 66.85L29.95 17.2H58.05L43.65 0Z" fill="#2684FC"/>
-    <path d="M87.3 66.85L74.25 52.7L43.65 0L58.05 17.2L87.3 66.85Z" fill="#FFBA00"/>
-  </svg>
+// Google Drive temporarily disabled
+// const DriveIcon = () => (
+//   <img src="/icons/google_drive.svg" alt="Google Drive" width={14} height={14} style={{ display: 'block' }} />
+// );
+
+const DocsIcon = () => (
+  <img src="/icons/google_doc.svg" alt="Google Docs" width={14} height={14} style={{ display: 'block' }} />
 );
 
 const CalendarIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M18 4H17V3C17 2.45 16.55 2 16 2C15.45 2 15 2.45 15 3V4H9V3C9 2.45 8.55 2 8 2C7.45 2 7 2.45 7 3V4H6C4.9 4 4 4.9 4 6V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V6C20 4.9 19.1 4 18 4ZM18 20H6V9H18V20Z" fill="#4285F4"/>
-    <path d="M8 11H10V13H8V11ZM11 11H13V13H11V11ZM14 11H16V13H14V11ZM8 14H10V16H8V14ZM11 14H13V16H11V14ZM14 14H16V16H14V14Z" fill="#4285F4"/>
-  </svg>
+  <img src="/icons/google_calendar.svg" alt="Google Calendar" width={14} height={14} style={{ display: 'block' }} />
 );
 
 const SheetsIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3Z" fill="#0F9D58"/>
-    <path d="M7 7H17V9H7V7ZM7 11H17V13H7V11ZM7 15H13V17H7V15Z" fill="white"/>
-  </svg>
+  <img src="/icons/google_sheet.svg" alt="Google Sheets" width={14} height={14} style={{ display: 'block' }} />
 );
 
-const AirtableIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M11.992 1.5L2.25 5.953v12.094l9.742 4.453 9.758-4.453V5.953L11.992 1.5z" fill="#FCB400"/>
-    <path d="M12 12.75L2.25 8.297v9.797L12 22.5V12.75z" fill="#18BFFF"/>
-    <path d="M12 12.75l9.75-4.453v9.797L12 22.5V12.75z" fill="#F82B60"/>
-    <path d="M12 1.5L2.25 5.953 12 10.406l9.75-4.453L12 1.5z" fill="#FFCC00" fillOpacity="0.5"/>
-  </svg>
-);
+// Airtable and Linear temporarily disabled - not yet integrated
+// const AirtableIcon = () => (
+//   <img src="/icons/airtable.png" alt="Airtable" width={14} height={14} style={{ display: 'block', borderRadius: 2 }} />
+// );
+
+// const LinearIcon = () => (
+//   <img src="/icons/linear.svg" alt="Linear" width={14} height={14} style={{ display: 'block' }} />
+// );
 
 export function CreateMenu({
   x,
@@ -216,14 +246,55 @@ export function CreateMenu({
   onImportNotion,
   onImportGitHub,
   onImportGmail,
-  onImportDrive,
+  // onImportDrive, // Google Drive temporarily disabled
+  onImportDocs,
   onImportCalendar,
   onImportSheets,
-  onImportAirtable,
+  // onImportAirtable, // Airtable temporarily disabled
+  // onImportLinear, // Linear temporarily disabled
 }: CreateMenuProps) {
   const [activeSubmenu, setActiveSubmenu] = useState<'context' | 'import' | null>(null);
+  const [adjustedPosition, setAdjustedPosition] = useState<{ top: number; left: number }>({ top: y, left: x });
   const menuRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Adjust menu position to prevent overflow
+  useEffect(() => {
+    if (menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      const padding = 12; // Minimum distance from viewport edge
+      
+      let newTop = y;
+      let newLeft = x;
+      
+      // Check bottom overflow - if menu would go below viewport, position it above the click point
+      if (y + rect.height > viewportHeight - padding) {
+        // Position menu so its bottom is at the click point (or as close as possible)
+        newTop = Math.max(padding, y - rect.height);
+      }
+      
+      // Check right overflow
+      if (x + rect.width > viewportWidth - padding) {
+        newLeft = Math.max(padding, viewportWidth - rect.width - padding);
+      }
+      
+      // Check left overflow
+      if (newLeft < padding) {
+        newLeft = padding;
+      }
+      
+      // Check top overflow (in case we moved it up too much)
+      if (newTop < padding) {
+        newTop = padding;
+      }
+      
+      if (newTop !== adjustedPosition.top || newLeft !== adjustedPosition.left) {
+        setAdjustedPosition({ top: newTop, left: newLeft });
+      }
+    }
+  }, [x, y]); // Only run when initial position changes
 
   const handleMouseEnterItem = (submenu: 'context' | 'import' | null) => {
     if (closeTimeoutRef.current) {
@@ -253,8 +324,8 @@ export function CreateMenu({
       ref={menuRef}
       style={{
         position: 'fixed',
-        top: y,
-        left: x,
+        top: adjustedPosition.top,
+        left: adjustedPosition.left,
         zIndex: 1000,
         background: 'rgba(28, 28, 30, 0.98)',
         backdropFilter: 'blur(20px)',
@@ -370,14 +441,15 @@ export function CreateMenu({
             />
             <Divider />
             {/* Quick SaaS shortcuts */}
-            {onImportNotion && (
+            {/* Notion temporarily hidden - still in development */}
+            {/* {onImportNotion && (
               <MenuItem
                 icon={<NotionIcon />}
                 label="Notion"
                 sublabel="Page or Database"
                 onClick={() => { onImportNotion(); onClose(); }}
               />
-            )}
+            )} */}
             {onImportGitHub && (
               <MenuItem
                 icon={<GitHubIcon />}
@@ -394,12 +466,21 @@ export function CreateMenu({
                 onClick={() => { onImportGmail(); onClose(); }}
               />
             )}
-            {onImportDrive && (
+            {/* Google Drive temporarily disabled */}
+            {/* {onImportDrive && (
               <MenuItem
                 icon={<DriveIcon />}
                 label="Google Drive"
                 sublabel="Files"
                 onClick={() => { onImportDrive(); onClose(); }}
+              />
+            )} */}
+            {onImportDocs && (
+              <MenuItem
+                icon={<DocsIcon />}
+                label="Google Docs"
+                sublabel="Document"
+                onClick={() => { onImportDocs(); onClose(); }}
               />
             )}
             {onImportCalendar && (
@@ -418,12 +499,21 @@ export function CreateMenu({
                 onClick={() => { onImportSheets(); onClose(); }}
               />
             )}
-            {onImportAirtable && (
+            {/* Airtable and Linear temporarily disabled - not yet integrated */}
+            {/* {onImportAirtable && (
               <MenuItem
                 icon={<AirtableIcon />}
                 label="Airtable"
                 sublabel="Base"
                 onClick={() => { onImportAirtable(); onClose(); }}
+              />
+            )}
+            {onImportLinear && (
+              <MenuItem
+                icon={<LinearIcon />}
+                label="Linear"
+                sublabel="Issues"
+                onClick={() => { onImportLinear(); onClose(); }}
               />
             )}
             <MenuItem
@@ -434,9 +524,8 @@ export function CreateMenu({
                 </svg>
               }
               label="More Sources..."
-              sublabel="Linear..."
               onClick={() => { onImportFromSaas(); onClose(); }}
-            />
+            /> */}
           </Submenu>
         )}
       </div>

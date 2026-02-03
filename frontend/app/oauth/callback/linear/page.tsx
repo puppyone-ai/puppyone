@@ -17,21 +17,27 @@ function LinearCallbackContent() {
       const code = searchParams.get('code');
       const error = searchParams.get('error');
 
+      const redirectOrClose = (delay: number) => {
+        setTimeout(() => {
+          if (window.opener) {
+            window.close();
+          } else {
+            router.push('/settings/connect');
+          }
+        }, delay);
+      };
+
       if (error) {
         setStatus('error');
         setMessage(`Authorization failed: ${error}`);
-        setTimeout(() => {
-          router.push('/settings/connect');
-        }, 3000);
+        redirectOrClose(3000);
         return;
       }
 
       if (!code) {
         setStatus('error');
         setMessage('No authorization code received');
-        setTimeout(() => {
-          router.push('/settings/connect');
-        }, 3000);
+        redirectOrClose(3000);
         return;
       }
 
@@ -41,24 +47,18 @@ function LinearCallbackContent() {
         if (result.success) {
           setStatus('success');
           setMessage(result.message || 'Successfully connected to Linear!');
-          setTimeout(() => {
-            router.push('/settings/connect');
-          }, 2000);
+          redirectOrClose(1000);
         } else {
           setStatus('error');
           setMessage(result.message || 'Failed to connect to Linear');
-          setTimeout(() => {
-            router.push('/settings/connect');
-          }, 3000);
+          redirectOrClose(3000);
         }
       } catch (err) {
         setStatus('error');
         setMessage(
           err instanceof Error ? err.message : 'An unexpected error occurred'
         );
-        setTimeout(() => {
-          router.push('/settings/connect');
-        }, 3000);
+        redirectOrClose(3000);
       }
     };
 

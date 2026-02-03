@@ -21,7 +21,7 @@ interface Agent {
   type: string;
 }
 
-type LogFilterType = 'all' | 'bash' | 'tool' | 'api' | string; // 'all', type, or agent_id
+type LogFilterType = 'all' | 'bash' | 'tool' | 'llm' | string; // 'all', type, or agent_id
 
 // ================= Helpers =================
 
@@ -50,14 +50,17 @@ function formatRelativeTime(isoString: string) {
 }
 
 function formatFullTime(isoString: string) {
-  return new Date(isoString).toLocaleString(undefined, {
+  const date = new Date(isoString);
+  const baseFormat = date.toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    millisecond: 'numeric' // Added ms for precision
   });
+  // Add milliseconds manually for precision
+  const ms = date.getMilliseconds().toString().padStart(3, '0');
+  return `${baseFormat}.${ms}`;
 }
 
 // ================= Components =================
@@ -166,14 +169,14 @@ function LogRow({
   onClick: () => void; 
   active: boolean; 
 }) {
-  const isSuccess = log.status === 'success';
+  const isSuccess = log.success;
   const details = log.details as Record<string, any> || {};
   
   // Parse command/content
   let content = '';
   if (log.call_type === 'bash') content = details.command || '';
   else if (log.call_type === 'tool') content = `${details.tool_name}(...)`;
-  else if (log.call_type === 'api') content = `${details.method || 'GET'} ${details.endpoint || ''}`;
+  else if (log.call_type === 'llm') content = details.model || 'LLM call';
   
   // Truncate content
   if (content.length > 80) content = content.substring(0, 80) + '...';
@@ -234,7 +237,7 @@ function LogRow({
 
       {/* Duration */}
       <div style={{ textAlign: 'right', color: '#52525b', fontSize: 12 }}>
-        {log.duration_ms ? `${log.duration_ms}ms` : '-'}
+        {log.latency_ms ? `${log.latency_ms}ms` : '-'}
       </div>
     </div>
   );
@@ -251,7 +254,7 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
   const [loading, setLoading] = useState(true);
   
   // UI State
-  const [selectedFilter, setSelectedFilter] = useState<LogFilterType>('all'); // 'all', 'bash', 'tool', 'api', or agent_id
+  const [selectedFilter, setSelectedFilter] = useState<LogFilterType>('all'); // 'all', 'bash', 'tool', 'llm', or agent_id
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
 
@@ -287,12 +290,12 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
       // 1. Sidebar Filter
       if (selectedFilter === 'bash' && log.call_type !== 'bash') return false;
       if (selectedFilter === 'tool' && log.call_type !== 'tool') return false;
-      if (selectedFilter === 'api' && log.call_type !== 'api') return false;
+      if (selectedFilter === 'llm' && log.call_type !== 'llm') return false;
       if (
         selectedFilter !== 'all' && 
         selectedFilter !== 'bash' && 
         selectedFilter !== 'tool' && 
-        selectedFilter !== 'api' &&
+        selectedFilter !== 'llm' &&
         log.agent_id !== selectedFilter // Agent ID check
       ) return false;
 
@@ -300,7 +303,7 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const details = JSON.stringify(log.details).toLowerCase();
-        const agentName = (agentMap[log.agent_id]?.name || '').toLowerCase();
+        const agentName = (log.agent_id ? agentMap[log.agent_id]?.name || '' : '').toLowerCase();
         if (!details.includes(query) && !agentName.includes(query)) return false;
       }
 
@@ -366,11 +369,11 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
               count={logs.filter(l => l.call_type === 'tool').length}
             />
             <SidebarItem 
-              active={selectedFilter === 'api'} 
-              label="API Calls" 
+              active={selectedFilter === 'llm'} 
+              label="LLM Calls" 
               icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>}
-              onClick={() => setSelectedFilter('api')}
-              count={logs.filter(l => l.call_type === 'api').length}
+              onClick={() => setSelectedFilter('llm')}
+              count={logs.filter(l => l.call_type === 'llm').length}
             />
           </div>
 
@@ -498,7 +501,7 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
                 <LogRow 
                   key={log.id} 
                   log={log} 
-                  agent={agentMap[log.agent_id]} 
+                  agent={log.agent_id ? agentMap[log.agent_id] : undefined} 
                   onClick={() => setSelectedLogId(log.id === selectedLogId ? null : log.id)}
                   active={selectedLogId === log.id}
                 />

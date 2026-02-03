@@ -214,7 +214,7 @@ function PrimitiveValueEditor({
           {/* Preview 文本 - 自适应宽度，CSS 自动截断 */}
           <span
             style={{
-              fontSize: 16,
+              fontSize: 14,
               color: '#e2e8f0',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -291,7 +291,7 @@ function PrimitiveValueEditor({
           onClick={isSelectingAccessPoint ? undefined : handleEditClick}
           style={{
             color: typeInfo.color,
-            fontSize: 16,
+            fontSize: 14,
             flex: 1,
             whiteSpace: 'nowrap',
             overflow: 'hidden',

@@ -19,6 +19,7 @@ class ToolBase(BaseModel):
     """Tool 基础模型"""
 
     user_id: Optional[str] = None
+    project_id: Optional[str] = None  # 所属项目 ID
     node_id: Optional[str] = None  # 绑定的 content_nodes 节点 ID
     json_path: Optional[str] = None  # JSON 内部路径
 
@@ -46,6 +47,7 @@ class ToolCreate(ToolBase):
 class ToolUpdate(BaseModel):
     """更新 Tool 模型"""
 
+    project_id: Optional[str] = None  # 所属项目 ID
     node_id: Optional[str] = None  # 绑定的 content_nodes 节点 ID
     json_path: Optional[str] = None
 

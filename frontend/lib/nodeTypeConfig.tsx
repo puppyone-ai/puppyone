@@ -40,19 +40,52 @@ export const AirtableIcon = ({ size = 12 }: { size?: number }) => (
 );
 
 export const LinearIcon = ({ size = 12 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M3.357 3.357a1.068 1.068 0 011.51 0l15.776 15.776a1.068 1.068 0 01-1.51 1.51L3.357 4.867a1.068 1.068 0 010-1.51z"/>
-    <path d="M2 7.5A5.5 5.5 0 017.5 2h9a5.5 5.5 0 015.5 5.5v9a5.5 5.5 0 01-5.5 5.5h-9A5.5 5.5 0 012 16.5z" fillOpacity="0.3"/>
-  </svg>
+  <img 
+    src="/icons/linear.svg" 
+    alt="Linear" 
+    width={size} 
+    height={size} 
+    style={{ display: 'block' }}
+  />
 );
 
 export const SheetsIcon = ({ size = 12 }: { size?: number }) => (
   <img 
-    src="/icons/Google_Docs_logo.png" 
+    src="/icons/google_sheet.svg" 
     alt="Google Sheets" 
     width={size} 
     height={size} 
-    style={{ display: 'block', borderRadius: 2 }}
+    style={{ display: 'block' }}
+  />
+);
+
+export const GmailIcon = ({ size = 12 }: { size?: number }) => (
+  <img 
+    src="/icons/gmail.svg" 
+    alt="Gmail" 
+    width={size} 
+    height={size} 
+    style={{ display: 'block' }}
+  />
+);
+
+export const GoogleDriveIcon = ({ size = 12 }: { size?: number }) => (
+  <img 
+    src="/icons/google_drive.svg" 
+    alt="Google Drive" 
+    width={size} 
+    height={size} 
+    style={{ display: 'block' }}
+  />
+);
+
+export const GoogleCalendarIcon = ({ size = 12 }: { size?: number }) => (
+  <img 
+    src="/icons/google_calendar.svg" 
+    alt="Google Calendar" 
+    width={size} 
+    height={size} 
+    style={{ display: 'block' }}
   />
 );
 
@@ -171,36 +204,119 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
   },
 
   // === Airtable 类型 ===
+  'airtable_base': {
+    renderAs: 'json',
+    color: '#FFBF00',  // Airtable 黄色
+    label: 'Airtable Base',
+    badgeIcon: AirtableIcon,
+    isReadOnly: false,
+  },
   'airtable_table': {
     renderAs: 'json',
-    color: '#34d399',
+    color: '#FFBF00',
     label: 'Airtable Table',
     badgeIcon: AirtableIcon,
     isReadOnly: false,
   },
 
   // === Linear 类型 ===
+  'linear_issues': {
+    renderAs: 'json',
+    color: '#5E6AD2',  // Linear 紫色
+    label: 'Linear Issues',
+    badgeIcon: LinearIcon,
+    isReadOnly: false,
+  },
   'linear_project': {
     renderAs: 'json',
-    color: '#34d399',
+    color: '#5E6AD2',
     label: 'Linear Project',
     badgeIcon: LinearIcon,
     isReadOnly: false,
   },
   'linear_issue': {
     renderAs: 'json',
-    color: '#34d399',
+    color: '#5E6AD2',
     label: 'Linear Issue',
     badgeIcon: LinearIcon,
     isReadOnly: false,
   },
 
   // === Google Sheets 类型 ===
-  'sheets_table': {
+  'google_sheets_sync': {
     renderAs: 'json',
-    color: '#34d399',
+    color: '#0F9D58',  // Google Sheets 绿色
     label: 'Google Sheets',
     badgeIcon: SheetsIcon,
+    isReadOnly: false,
+  },
+  'sheets_table': {
+    renderAs: 'json',
+    color: '#0F9D58',
+    label: 'Google Sheets',
+    badgeIcon: SheetsIcon,
+    isReadOnly: false,
+  },
+  'google_sheets': {
+    renderAs: 'json',
+    color: '#0F9D58',
+    label: 'Google Sheets',
+    badgeIcon: SheetsIcon,
+    isReadOnly: false,
+  },
+
+  // === Gmail 类型 ===
+  'gmail_inbox': {
+    renderAs: 'json',
+    color: '#EA4335',  // Gmail 红色
+    label: 'Gmail Inbox',
+    badgeIcon: GmailIcon,
+    isReadOnly: false,
+  },
+  'gmail_email': {
+    renderAs: 'json',
+    color: '#EA4335',
+    label: 'Gmail Email',
+    badgeIcon: GmailIcon,
+    isReadOnly: false,
+  },
+
+  // === Google Drive 类型 ===
+  'google_drive': {
+    renderAs: 'json',
+    color: '#4285F4',  // Google 蓝色
+    label: 'Google Drive',
+    badgeIcon: GoogleDriveIcon,
+    isReadOnly: false,
+  },
+  'google_drive_file': {
+    renderAs: 'file',
+    color: '#4285F4',
+    label: 'Google Drive File',
+    badgeIcon: GoogleDriveIcon,
+    isReadOnly: false,
+  },
+
+  // === Google Calendar 类型 ===
+  'google_calendar_sync': {
+    renderAs: 'json',
+    color: '#4285F4',  // Google 蓝色
+    label: 'Google Calendar',
+    badgeIcon: GoogleCalendarIcon,
+    isReadOnly: false,
+  },
+  'google_calendar': {
+    renderAs: 'json',
+    color: '#4285F4',
+    label: 'Google Calendar',
+    badgeIcon: GoogleCalendarIcon,
+    isReadOnly: false,
+  },
+  'google_calendar_event': {
+    renderAs: 'json',
+    color: '#4285F4',
+    label: 'Calendar Event',
+    badgeIcon: GoogleCalendarIcon,
     isReadOnly: false,
   },
 };
@@ -272,6 +388,8 @@ export function getSyncSourceIcon(source: string | null): React.ComponentType<{ 
     case 'airtable': return AirtableIcon;
     case 'linear': return LinearIcon;
     case 'sheets': return SheetsIcon;
+    case 'gmail': return GmailIcon;
+    case 'google': return GoogleDriveIcon;  // google_drive, google_calendar, google_sheets
     default: return null;
   }
 }

@@ -98,6 +98,11 @@ class Settings(BaseSettings):
     GOOGLE_CALENDAR_CLIENT_SECRET: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_SECRET
     GOOGLE_CALENDAR_REDIRECT_URI: str = "http://localhost:3000/oauth/google-calendar/callback"
 
+    # Google Docs OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
+    GOOGLE_DOCS_CLIENT_ID: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_ID
+    GOOGLE_DOCS_CLIENT_SECRET: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_SECRET
+    GOOGLE_DOCS_REDIRECT_URI: str = "http://localhost:3000/oauth/google-docs/callback"
+
     # Linear OAuth 配置
     LINEAR_CLIENT_ID: str = ""
     LINEAR_CLIENT_SECRET: str = ""

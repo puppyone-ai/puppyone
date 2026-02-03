@@ -48,6 +48,7 @@ def _node_to_info(node) -> NodeInfo:
         # 同步相关字段
         sync_url=node.sync_url,
         sync_id=node.sync_id,
+        sync_status=node.sync_status,
         last_synced_at=node.last_synced_at.isoformat() if node.last_synced_at else None,
         is_synced=node.is_synced,
         sync_source=node.sync_source,

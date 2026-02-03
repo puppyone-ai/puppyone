@@ -111,6 +111,7 @@ class AgentAccessOut(BaseModel):
 
 class AgentCreate(BaseModel):
     """创建 Agent 的请求"""
+    project_id: str = Field(..., description="所属项目 ID（必填）")
     name: str = Field(..., min_length=1, max_length=100, description="Agent 名称")
     icon: str = Field(default="✨", description="Agent 图标")
     type: Literal["chat", "devbox", "webhook", "schedule"] = Field(default="chat")
@@ -149,6 +150,7 @@ class AgentUpdate(BaseModel):
 class AgentOut(BaseModel):
     """Agent 响应"""
     id: str
+    project_id: str  # 所属项目 ID（必填）
     name: str
     icon: str
     type: str

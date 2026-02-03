@@ -25,13 +25,13 @@ class AgentConfigService:
         """获取 Agent"""
         return self._repo.get_by_id_with_accesses(agent_id)
 
-    def list_agents(self, user_id: str) -> List[Agent]:
-        """获取用户的所有 Agent"""
-        return self._repo.get_by_user_id_with_accesses(user_id)
+    def list_agents(self, project_id: str) -> List[Agent]:
+        """获取项目的 Agent 列表"""
+        return self._repo.get_by_project_id_with_accesses(project_id)
 
-    def get_default_agent(self, user_id: str) -> Optional[Agent]:
-        """获取用户的默认 Agent"""
-        agent = self._repo.get_default_agent(user_id)
+    def get_default_agent(self, project_id: str) -> Optional[Agent]:
+        """获取项目的默认 Agent"""
+        agent = self._repo.get_default_agent(project_id)
         if agent:
             agent.bash_accesses = self._repo.get_bash_by_agent_id(agent.id)
         return agent
@@ -42,7 +42,7 @@ class AgentConfigService:
 
     def create_agent(
         self,
-        user_id: str,
+        project_id: str,
         name: str,
         icon: str = "✨",
         type: str = "chat",
@@ -59,15 +59,15 @@ class AgentConfigService:
         """
         创建 Agent
         
-        如果设置为默认，会先取消其他默认 Agent
+        如果设置为默认，会先取消项目中其他默认 Agent
         """
         # 如果设置为默认，先取消其他默认
         if is_default:
-            self._clear_default_agent(user_id)
+            self._clear_default_agent(project_id)
 
         # 创建 Agent
         agent = self._repo.create(
-            user_id=user_id,
+            project_id=project_id,
             name=name,
             icon=icon,
             type=type,
@@ -143,9 +143,9 @@ class AgentConfigService:
             return False
         return self._repo.delete(agent_id)
 
-    def _clear_default_agent(self, user_id: str):
-        """取消用户当前的默认 Agent"""
-        current_default = self._repo.get_default_agent(user_id)
+    def _clear_default_agent(self, project_id: str):
+        """取消项目当前的默认 Agent"""
+        current_default = self._repo.get_default_agent(project_id)
         if current_default:
             self._repo.update(current_default.id, is_default=False)
 

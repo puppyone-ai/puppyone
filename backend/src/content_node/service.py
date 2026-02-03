@@ -153,6 +153,100 @@ class ContentNodeService:
             mime_type="application/json",
         )
 
+    def create_placeholder_node(
+        self,
+        user_id: str,
+        project_id: str,
+        name: str,
+        placeholder_type: str,
+        parent_id: Optional[str] = None,
+    ) -> ContentNode:
+        """
+        创建占位符节点（未连接状态）
+        
+        用于 Onboarding 等场景，展示"可以连接但尚未连接"的数据源。
+        用户点击后可以触发 OAuth 授权流程。
+        
+        Args:
+            placeholder_type: 平台类型，会映射到对应的 node_type
+                'gmail' -> 'gmail_inbox'
+                'sheets' -> 'google_sheets_sync'
+                'calendar' -> 'google_calendar_sync'
+                'docs' -> 'google_docs_sync'
+                'notion' -> 'notion_database'
+                'github' -> 'github_repo'
+        """
+        import uuid
+        
+        # 类型映射
+        TYPE_MAP = {
+            'gmail': 'gmail_inbox',
+            'sheets': 'google_sheets_sync',
+            'calendar': 'google_calendar_sync',
+            'docs': 'google_docs_sync',
+            'notion': 'notion_database',
+            'github': 'github_repo',
+        }
+        
+        node_type = TYPE_MAP.get(placeholder_type, f'{placeholder_type}_placeholder')
+        
+        new_id = str(uuid.uuid4())
+        id_path = self._build_id_path(user_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        
+        # 占位符的默认内容：告诉用户如何连接
+        placeholder_content = {
+            "_status": "not_connected",
+            "_placeholder_type": placeholder_type,
+            "_message": f"Click to connect your {placeholder_type.replace('_', ' ').title()} account",
+        }
+        
+        return self.repo.create(
+            user_id=user_id,
+            project_id=project_id,
+            name=unique_name,
+            node_type=node_type,
+            id_path=id_path,
+            parent_id=parent_id,
+            content=placeholder_content,
+            mime_type="application/json",
+            sync_status="not_connected",  # 关键：标记为占位符
+        )
+
+    async def convert_placeholder_to_synced(
+        self,
+        node_id: str,
+        user_id: str,
+        content: Any,
+        sync_url: str,
+        sync_id: str,
+        sync_config: Optional[dict] = None,
+    ) -> ContentNode:
+        """
+        将占位符节点转换为已同步的节点
+        
+        在用户完成 OAuth 授权并同步数据后调用。
+        """
+        from datetime import datetime
+        
+        node = self.get_by_id(node_id, user_id)
+        
+        if node.sync_status != "not_connected":
+            raise BusinessException(
+                f"Node is not a placeholder: {node.sync_status}",
+                code=ErrorCode.BAD_REQUEST
+            )
+        
+        return self.repo.update_sync_info(
+            node_id=node_id,
+            sync_url=sync_url,
+            sync_id=sync_id,
+            sync_status="idle",  # 转换为已连接状态
+            sync_config=sync_config,
+            last_synced_at=datetime.utcnow(),
+            content=content,
+        )
+
     async def create_synced_node(
         self,
         user_id: str,
@@ -199,6 +293,7 @@ class ContentNodeService:
             sync_url=sync_url,
             sync_id=sync_id,
             sync_config=sync_config,
+            sync_status="idle",  # 已连接，空闲状态
             last_synced_at=datetime.utcnow(),
         )
 

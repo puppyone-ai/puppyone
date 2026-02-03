@@ -10,26 +10,20 @@ import { useState, useEffect, useCallback } from 'react';
 // } from '../lib/connectApi';
 // import CrawlOptionsPanel from './CrawlOptionsPanel';
 import {
-  getNotionStatus,
-  connectNotion,
-  disconnectNotion,
-  type NotionStatusResponse,
   getGithubStatus,
-  connectGithub,
   disconnectGithub,
   type GithubStatusResponse,
   getGoogleSheetsStatus,
-  connectGoogleSheets,
   disconnectGoogleSheets,
   type GoogleSheetsStatusResponse,
-  getLinearStatus,
-  connectLinear,
-  disconnectLinear,
-  type LinearStatusResponse,
-  getAirtableStatus,
-  connectAirtable,
-  disconnectAirtable,
-  type AirtableStatusResponse,
+  getGmailStatus,
+  disconnectGmail,
+  getGoogleCalendarStatus,
+  getGoogleDriveStatus,
+  getGoogleDocsStatus,
+  disconnectGoogleDocs,
+  openOAuthPopup,
+  type SaasType,
 } from '../lib/oauthApi';
 import { useProjects } from '../lib/hooks/useData';
 
@@ -37,7 +31,7 @@ type ConnectContentViewProps = {
   onBack: () => void;
 };
 
-type PlatformId = 'notion' | 'github' | 'google-sheets' | 'linear' | 'airtable';
+type PlatformId = 'github' | 'google-sheets' | 'google-docs' | 'gmail' | 'google-calendar' | 'google-drive';
 
 type PlatformStatusType = 'disconnected' | 'connected' | 'error';
 
@@ -57,17 +51,6 @@ type PlatformConfig = {
 
 const platformConfigs: PlatformConfig[] = [
   {
-    id: 'notion',
-    name: 'Notion',
-    description: 'Databases, pages, wikis',
-    isEnabled: true,
-    icon: (
-      <svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-        <path d='M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.98-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466l1.823 1.447zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.886l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952l1.448.327s0 .84-1.168.84l-3.22.186c-.094-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.453-.234 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.886.747-.933l3.222-.187z' />
-      </svg>
-    ),
-  },
-  {
     id: 'github',
     name: 'GitHub',
     description: 'Issues, projects, repos',
@@ -84,33 +67,48 @@ const platformConfigs: PlatformConfig[] = [
     description: 'Spreadsheets, worksheets',
     isEnabled: true,
     icon: (
-      <svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-        <path d='M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z' />
-      </svg>
+      <img src="/icons/google_sheet.svg" alt="Google Sheets" width={20} height={20} style={{ display: 'block' }} />
     ),
   },
   {
-    id: 'linear',
-    name: 'Linear',
-    description: 'Issues, projects, roadmaps',
+    id: 'google-docs',
+    name: 'Google Docs',
+    description: 'Documents, notes',
     isEnabled: true,
     icon: (
-      <svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-        <path d='M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z' />
-      </svg>
+      <img src="/icons/google_doc.svg" alt="Google Docs" width={20} height={20} style={{ display: 'block' }} />
     ),
   },
   {
-    id: 'airtable',
-    name: 'Airtable',
-    description: 'Bases, tables, views',
+    id: 'gmail',
+    name: 'Gmail',
+    description: 'Emails, contacts',
     isEnabled: true,
     icon: (
-      <svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-        <path d='M11.992 1.966c-.434 0-.87.086-1.28.257L1.779 5.917c-.503.208-.49.908.012 1.116l8.982 3.558a3.266 3.266 0 0 0 2.454 0l8.982-3.558c.503-.196.503-.908.012-1.116l-8.957-3.694a3.255 3.255 0 0 0-1.272-.257zM23.4 8.056a.589.589 0 0 0-.222.045l-10.012 3.877a.612.612 0 0 0-.38.564v8.896a.6.6 0 0 0 .821.552L23.62 18.1a.583.583 0 0 0 .38-.551V8.653a.6.6 0 0 0-.6-.596zM.676 8.095a.644.644 0 0 0-.48.19C.086 8.396 0 8.53 0 8.69v8.355c0 .442.515.737.908.54l6.27-3.006.307-.147 2.969-1.436c.466-.22.43-.908-.061-1.092L.883 8.138a.57.57 0 0 0-.207-.044z' />
-      </svg>
+      <img src="/icons/gmail.svg" alt="Gmail" width={20} height={20} style={{ display: 'block' }} />
     ),
   },
+  {
+    id: 'google-calendar',
+    name: 'Google Calendar',
+    description: 'Events, schedules',
+    isEnabled: true,
+    icon: (
+      <img src="/icons/google_calendar.svg" alt="Google Calendar" width={20} height={20} style={{ display: 'block' }} />
+    ),
+  },
+  // Google Drive temporarily hidden - not yet implemented
+  // {
+  //   id: 'google-drive',
+  //   name: 'Google Drive',
+  //   description: 'Files, folders',
+  //   isEnabled: true,
+  //   icon: (
+  //     <svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
+  //       <path d='M7.71 3.5L1.15 15l2.29 4.01L10 7.5 7.71 3.5zm6.58 0l-6.58 11h6.58l6.58-11h-6.58zm2.56 11.5L22.85 15l-2.14 3.75-3.36-3.75h-.5z' />
+  //     </svg>
+  //   ),
+  // },
 ];
 
 const getDefaultPlatformStates = (): Record<PlatformId, PlatformState> =>
@@ -142,9 +140,6 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   // const [parseResult, setParseResult] = useState<ParseUrlResponse | null>(null);
 
   // OAuth states
-  const [notionStatus, setNotionStatus] = useState<NotionStatusResponse>({
-    connected: false,
-  });
   const [githubStatus, setGithubStatus] = useState<GithubStatusResponse>({
     connected: false,
   });
@@ -152,10 +147,16 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     useState<GoogleSheetsStatusResponse>({
       connected: false,
     });
-  const [linearStatus, setLinearStatus] = useState<LinearStatusResponse>({
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email?: string }>({
     connected: false,
   });
-  const [airtableStatus, setAirtableStatus] = useState<AirtableStatusResponse>({
+  const [googleCalendarStatus, setGoogleCalendarStatus] = useState<{ connected: boolean; email?: string }>({
+    connected: false,
+  });
+  const [googleDriveStatus, setGoogleDriveStatus] = useState<{ connected: boolean; email?: string }>({
+    connected: false,
+  });
+  const [googleDocsStatus, setGoogleDocsStatus] = useState<{ connected: boolean; email?: string }>({
     connected: false,
   });
   const [platformStates, setPlatformStates] = useState<
@@ -207,30 +208,6 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     []
   );
 
-  const checkNotionStatus = useCallback(async () => {
-    updatePlatformState('notion', { isLoading: true });
-    try {
-      const status = await getNotionStatus();
-      setNotionStatus(status);
-      updatePlatformState('notion', {
-        status: status.connected ? 'connected' : 'disconnected',
-        label: status.connected
-          ? status.workspace_name
-            ? `Connected to ${status.workspace_name}`
-            : 'Connected'
-          : 'Not connected',
-        isLoading: false,
-      });
-    } catch (err) {
-      console.error('Failed to check Notion status:', err);
-      updatePlatformState('notion', {
-        status: 'error',
-        label: 'Authorization error',
-        isLoading: false,
-      });
-    }
-  }, [updatePlatformState]);
-
   const checkGithubStatus = useCallback(async () => {
     updatePlatformState('github', { isLoading: true });
     try {
@@ -279,23 +256,23 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     }
   }, [updatePlatformState]);
 
-  const checkLinearStatus = useCallback(async () => {
-    updatePlatformState('linear', { isLoading: true });
+  const checkGmailStatus = useCallback(async () => {
+    updatePlatformState('gmail', { isLoading: true });
     try {
-      const status = await getLinearStatus();
-      setLinearStatus(status);
-      updatePlatformState('linear', {
+      const status = await getGmailStatus();
+      setGmailStatus(status);
+      updatePlatformState('gmail', {
         status: status.connected ? 'connected' : 'disconnected',
         label: status.connected
-          ? status.workspace_name
-            ? `Connected to ${status.workspace_name}`
+          ? status.email
+            ? `Connected to ${status.email}`
             : 'Connected'
           : 'Not connected',
         isLoading: false,
       });
     } catch (err) {
-      console.error('Failed to check Linear status:', err);
-      updatePlatformState('linear', {
+      console.error('Failed to check Gmail status:', err);
+      updatePlatformState('gmail', {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
@@ -303,23 +280,23 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     }
   }, [updatePlatformState]);
 
-  const checkAirtableStatus = useCallback(async () => {
-    updatePlatformState('airtable', { isLoading: true });
+  const checkGoogleCalendarStatus = useCallback(async () => {
+    updatePlatformState('google-calendar', { isLoading: true });
     try {
-      const status = await getAirtableStatus();
-      setAirtableStatus(status);
-      updatePlatformState('airtable', {
+      const status = await getGoogleCalendarStatus();
+      setGoogleCalendarStatus(status);
+      updatePlatformState('google-calendar', {
         status: status.connected ? 'connected' : 'disconnected',
         label: status.connected
-          ? status.workspace_name
-            ? `Connected to ${status.workspace_name}`
+          ? status.email
+            ? `Connected to ${status.email}`
             : 'Connected'
           : 'Not connected',
         isLoading: false,
       });
     } catch (err) {
-      console.error('Failed to check Airtable status:', err);
-      updatePlatformState('airtable', {
+      console.error('Failed to check Google Calendar status:', err);
+      updatePlatformState('google-calendar', {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
@@ -327,84 +304,103 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     }
   }, [updatePlatformState]);
 
-  const startGoogleSheetsConnect = async () => {
-    updatePlatformState('google-sheets', {
-      isLoading: true,
-      label: 'Redirecting to Google…',
-    });
+  const checkGoogleDriveStatus = useCallback(async () => {
+    updatePlatformState('google-drive', { isLoading: true });
     try {
-      await connectGoogleSheets();
+      const status = await getGoogleDriveStatus();
+      setGoogleDriveStatus(status);
+      updatePlatformState('google-drive', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected
+          ? status.email
+            ? `Connected to ${status.email}`
+            : 'Connected'
+          : 'Not connected',
+        isLoading: false,
+      });
     } catch (err) {
-      console.error('Failed to connect to Google Sheets:', err);
-      updatePlatformState('google-sheets', {
+      console.error('Failed to check Google Drive status:', err);
+      updatePlatformState('google-drive', {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
       });
     }
-  };
+  }, [updatePlatformState]);
 
-  const startLinearConnect = async () => {
-    updatePlatformState('linear', {
-      isLoading: true,
-      label: 'Redirecting to Linear…',
-    });
+  const checkGoogleDocsStatus = useCallback(async () => {
+    updatePlatformState('google-docs', { isLoading: true });
     try {
-      await connectLinear();
+      const status = await getGoogleDocsStatus();
+      setGoogleDocsStatus(status);
+      updatePlatformState('google-docs', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected
+          ? status.email
+            ? `Connected to ${status.email}`
+            : 'Connected'
+          : 'Not connected',
+        isLoading: false,
+      });
     } catch (err) {
-      console.error('Failed to connect to Linear:', err);
-      updatePlatformState('linear', {
+      console.error('Failed to check Google Docs status:', err);
+      updatePlatformState('google-docs', {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
       });
     }
+  }, [updatePlatformState]);
+
+  // Map platform ID to SaasType
+  const platformToSaasType: Record<PlatformId, SaasType> = {
+    'github': 'github',
+    'google-sheets': 'sheets',
+    'google-docs': 'docs',
+    'gmail': 'gmail',
+    'google-calendar': 'calendar',
+    'google-drive': 'drive',
   };
 
-  const startAirtableConnect = async () => {
-    updatePlatformState('airtable', {
-      isLoading: true,
-      label: 'Redirecting to Airtable…',
-    });
-    try {
-      await connectAirtable();
-    } catch (err) {
-      console.error('Failed to connect to Airtable:', err);
-      updatePlatformState('airtable', {
-        status: 'error',
-        label: 'Authorization error',
-        isLoading: false,
-      });
-    }
+  // Map platform ID to status check function
+  const platformStatusCheckers: Record<PlatformId, () => Promise<void>> = {
+    'github': checkGithubStatus,
+    'google-sheets': checkGoogleSheetsStatus,
+    'google-docs': checkGoogleDocsStatus,
+    'gmail': checkGmailStatus,
+    'google-calendar': checkGoogleCalendarStatus,
+    'google-drive': checkGoogleDriveStatus,
   };
 
-  const startNotionConnect = async () => {
-    updatePlatformState('notion', {
+  const startOAuthConnect = async (platformId: PlatformId) => {
+    const saasType = platformToSaasType[platformId];
+    const platformName = getPlatformName(platformId);
+    
+    updatePlatformState(platformId, {
       isLoading: true,
-      label: 'Redirecting to Notion…',
+      label: `Connecting to ${platformName}…`,
     });
+    
     try {
-      await connectNotion();
+      const completed = await openOAuthPopup(saasType);
+      
+      if (completed) {
+        // Popup closed, refresh the status
+        await platformStatusCheckers[platformId]();
+      } else {
+        // Timeout or cancelled
+        updatePlatformState(platformId, {
+          isLoading: false,
+          label: 'Authorization cancelled',
+        });
+        // Reset after a moment
+        setTimeout(() => {
+          platformStatusCheckers[platformId]();
+        }, 2000);
+      }
     } catch (err) {
-      console.error('Failed to connect to Notion:', err);
-      updatePlatformState('notion', {
-        status: 'error',
-        label: 'Authorization error',
-        isLoading: false,
-      });
-    }
-  };
-
-  const startGithubConnect = async () => {
-    updatePlatformState('github', {
-      isLoading: true,
-      label: 'Redirecting to GitHub…',
-    });
-    try {
-      await connectGithub();
-    } catch (err) {
-      console.error('Failed to connect to GitHub:', err);
-      updatePlatformState('github', {
+      console.error(`Failed to connect to ${platformName}:`, err);
+      updatePlatformState(platformId, {
         status: 'error',
         label: 'Authorization error',
         isLoading: false,
@@ -416,7 +412,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     const platformId = disconnectConfirmation.platformId;
     if (
       !platformId ||
-      !['notion', 'github', 'google-sheets', 'linear', 'airtable'].includes(
+      !['github', 'google-sheets', 'google-docs', 'gmail', 'google-calendar', 'google-drive'].includes(
         platformId
       )
     ) {
@@ -429,21 +425,24 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       label: 'Disconnecting…',
     });
     try {
-      if (platformId === 'notion') {
-        await disconnectNotion();
-        setNotionStatus({ connected: false });
-      } else if (platformId === 'github') {
+      if (platformId === 'github') {
         await disconnectGithub();
         setGithubStatus({ connected: false });
       } else if (platformId === 'google-sheets') {
         await disconnectGoogleSheets();
         setGoogleSheetsStatus({ connected: false });
-      } else if (platformId === 'linear') {
-        await disconnectLinear();
-        setLinearStatus({ connected: false });
-      } else if (platformId === 'airtable') {
-        await disconnectAirtable();
-        setAirtableStatus({ connected: false });
+      } else if (platformId === 'google-docs') {
+        await disconnectGoogleDocs();
+        setGoogleDocsStatus({ connected: false });
+      } else if (platformId === 'gmail') {
+        await disconnectGmail();
+        setGmailStatus({ connected: false });
+      } else if (platformId === 'google-calendar') {
+        // Google Calendar disconnect not implemented yet
+        setGoogleCalendarStatus({ connected: false });
+      } else if (platformId === 'google-drive') {
+        // Google Drive disconnect not implemented yet
+        setGoogleDriveStatus({ connected: false });
       }
 
       updatePlatformState(platformId, {
@@ -483,17 +482,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
         return;
       }
 
-      if (platformId === 'notion') {
-        void startNotionConnect();
-      } else if (platformId === 'github') {
-        void startGithubConnect();
-      } else if (platformId === 'google-sheets') {
-        void startGoogleSheetsConnect();
-      } else if (platformId === 'linear') {
-        void startLinearConnect();
-      } else if (platformId === 'airtable') {
-        void startAirtableConnect();
-      }
+      void startOAuthConnect(platformId);
     } else {
       setDisconnectConfirmation({ visible: true, platformId });
     }
@@ -514,32 +503,25 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     const checkAllPlatformStatus = async () => {
       setIsInitialLoading(true);
       await Promise.allSettled([
-        checkNotionStatus(),
         checkGithubStatus(),
         checkGoogleSheetsStatus(),
-        checkLinearStatus(),
-        checkAirtableStatus(),
+        checkGoogleDocsStatus(),
+        checkGmailStatus(),
+        checkGoogleCalendarStatus(),
+        checkGoogleDriveStatus(),
       ]);
       setIsInitialLoading(false);
     };
 
     void checkAllPlatformStatus();
   }, [
-    checkNotionStatus,
     checkGithubStatus,
     checkGoogleSheetsStatus,
-    checkLinearStatus,
-    checkAirtableStatus,
+    checkGoogleDocsStatus,
+    checkGmailStatus,
+    checkGoogleCalendarStatus,
+    checkGoogleDriveStatus,
   ]);
-
-  const isNotionUrl = (url: string) => {
-    return url.includes('notion.so') || url.includes('notion.site');
-  };
-  const isGithubUrl = (url: string) => url.includes('github.com');
-  const isGoogleSheetsUrl = (url: string) =>
-    url.includes('docs.google.com') && url.includes('spreadsheets');
-  const isLinearUrl = (url: string) => url.includes('linear.app');
-  const isAirtableUrl = (url: string) => url.includes('airtable.com');
 
   // URL parsing和导入功能已移至 TableManageDialog
   // const handleParse = async () => {

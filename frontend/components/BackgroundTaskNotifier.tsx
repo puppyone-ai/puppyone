@@ -16,7 +16,7 @@ function isPlaceholderTaskId(taskId: string): boolean {
 /**
  * 任务类型
  */
-export type TaskType = 'file' | 'notion' | 'github' | 'airtable' | 'google_sheets' | 'linear';
+export type TaskType = 'file' | 'notion' | 'github' | 'airtable' | 'google_sheets' | 'google_docs' | 'linear' | 'gmail' | 'drive' | 'calendar';
 
 /**
  * 任务记录（存储在 sessionStorage 中，刷新即消失）

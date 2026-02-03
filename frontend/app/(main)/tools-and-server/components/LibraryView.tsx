@@ -21,12 +21,12 @@ export function LibraryView({
   onRefresh,
   onMcpCreated,
 }: any) {
-  const [selectedTools, setSelectedTools] = useState<Set<number>>(new Set());
+  const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [newServerName, setNewServerName] = useState('');
   const [creating, setCreating] = useState(false);
-  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
   // 编辑状态
   const [editingTool, setEditingTool] = useState<Tool | null>(null);
@@ -78,7 +78,7 @@ export function LibraryView({
     );
   }, [tools, tablePathMap]);
 
-  const toggleSelect = (id: number) => {
+  const toggleSelect = (id: string) => {
     const next = new Set(selectedTools);
     if (next.has(id)) next.delete(id);
     else next.add(id);

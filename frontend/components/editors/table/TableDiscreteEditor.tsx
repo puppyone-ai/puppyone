@@ -9,7 +9,6 @@ import React, {
 } from 'react';
 import { ContextMenuState } from './components/ContextMenu';
 import { NodeContextMenu } from './components/NodeContextMenu';
-import { RightAccessSidebar } from './components/RightAccessSidebar';
 import { TableResizeHeader } from './components/TableResizeHeader';
 import { VirtualRow } from './components/VirtualRow';
 import { McpToolPermissions } from '../../../lib/mcpApi';
@@ -32,6 +31,7 @@ interface TreeLineVirtualEditorProps {
   tableId?: number;
   onImportSuccess?: () => void;
   onOpenDocument?: (path: string, value: string) => void;
+  onCreateTool?: (jsonPath: string, value: any) => void;
 }
 
 // ============================================
@@ -129,6 +129,7 @@ export default function TableDiscreteEditor({
   tableId,
   onImportSuccess,
   onOpenDocument,
+  onCreateTool,
 }: TreeLineVirtualEditorProps) {
   // --- 1. State & Setup ---
   const [scrollIndex, setScrollIndex] = useState(0);
@@ -180,11 +181,6 @@ export default function TableDiscreteEditor({
   });
 
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [lockedPopoverPath, setLockedPopoverPath] = useState<string | null>(
-    null
-  );
-  // 新增：追踪当前 hover 的行路径
-  const [hoveredRowPath, setHoveredRowPath] = useState<string | null>(null);
   const [keyWidths, setKeyWidths] = useState<number[]>(() =>
     Array(MAX_DEPTH_LEVELS).fill(DEFAULT_KEY_WIDTH)
   );
@@ -513,35 +509,17 @@ export default function TableDiscreteEditor({
                 isSelectingAccessPoint={isSelectingAccessPoint}
                 onAddAccessPoint={onAddAccessPoint}
                 configuredAccess={configuredAccessMap.get(node.path) || null}
-                configuredAccessMap={configuredAccessMap} // Pass map
+                configuredAccessMap={configuredAccessMap}
                 isContextMenuOpen={
                   contextMenu.visible && contextMenu.path === node.path
                 }
                 onOpenDocument={onOpenDocument}
-                onHoverChange={setHoveredRowPath}
-                isPopoverOpen={lockedPopoverPath === node.path}
-                isHoveredExternal={hoveredRowPath === node.path}
               />
             </div>
           ))}
         </div>
 
-        {/* Right Access Sidebar - 独立的右侧面板 */}
-        <RightAccessSidebar
-          visibleRows={visibleRows}
-          rowHeight={ROW_HEIGHT}
-          configuredAccessMap={configuredAccessMap}
-          lockedPopoverPath={lockedPopoverPath}
-          onPopoverOpenChange={setLockedPopoverPath}
-          onAccessChange={onAccessPointChange}
-          onRemove={onAccessPointRemove}
-          isSelectingAccessPoint={isSelectingAccessPoint}
-          hoveredRowPath={hoveredRowPath}
-          onHoverRow={setHoveredRowPath}
-          containerWidth={mainContentWidth} // 传递稳定的父容器宽度
-        />
-
-        {/* Custom Discrete Scrollbar (Moved to far right) */}
+        {/* Custom Discrete Scrollbar */}
         {flatNodes.length > visibleCount && (
           <div
             className='custom-scrollbar-track'
@@ -590,6 +568,7 @@ export default function TableDiscreteEditor({
         onClose={() => setContextMenu(prev => ({ ...prev, visible: false }))}
         onChange={onChange}
         onImportSuccess={onImportSuccess}
+        onCreateTool={onCreateTool}
       />
     </div>
   );

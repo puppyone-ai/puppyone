@@ -1,0 +1,187 @@
+# GitHub
+
+从 GitHub 导入代码仓库、Issue、Pull Request 到 PuppyOne。
+
+---
+
+## 支持的内容
+
+| 类型 | 支持 | 说明 |
+|------|------|------|
+| 仓库文件 | ✅ | 代码、README、配置文件等 |
+| Issue | ✅ | 包括标签、评论 |
+| Pull Request | ✅ | 包括状态、评审 |
+| Wiki | ⚠️ | 部分支持 |
+| Actions | ❌ | 暂不支持 |
+
+---
+
+## 设置步骤
+
+### Step 1: 开始导入
+
+1. 打开你的 Table
+2. 点击 **Import** → **GitHub**
+
+### Step 2: 授权 GitHub
+
+首次使用需要 OAuth 授权：
+
+1. 点击 **Connect GitHub**
+2. 在 GitHub 页面选择授权范围
+3. 选择要授权的仓库（可以选择全部或特定仓库）
+4. 点击 **Authorize**
+
+> 💡 **提示**：推荐只授权需要的仓库，遵循最小权限原则。
+
+### Step 3: 选择导入方式
+
+你可以通过两种方式指定要导入的内容：
+
+**方式一：粘贴 URL**
+
+直接粘贴 GitHub URL，PuppyOne 会自动识别：
+
+```
+# 整个仓库
+https://github.com/owner/repo
+
+# 特定目录
+https://github.com/owner/repo/tree/main/docs
+
+# 特定文件
+https://github.com/owner/repo/blob/main/README.md
+
+# Issue 列表
+https://github.com/owner/repo/issues
+
+# 单个 Issue
+https://github.com/owner/repo/issues/123
+```
+
+**方式二：浏览选择**
+
+1. 在文件浏览器中导航到目标位置
+2. 勾选要导入的文件或文件夹
+3. 点击 **Import**
+
+### Step 4: 配置导入选项
+
+| 选项 | 说明 | 默认值 |
+|------|------|--------|
+| 包含子目录 | 是否递归导入子文件夹 | ✅ |
+| 文件类型过滤 | 只导入特定后缀（如 `.md`, `.py`） | 全部 |
+| 分支 | 选择要导入的分支 | 默认分支 |
+
+---
+
+## 数据结构示例
+
+### 仓库文件 → JSON
+
+```json
+{
+  "repo": "owner/repo",
+  "branch": "main",
+  "files": [
+    {
+      "path": "README.md",
+      "content": "# My Project\n\nThis is...",
+      "language": "markdown"
+    },
+    {
+      "path": "src/main.py",
+      "content": "def hello():\n    print('Hello')",
+      "language": "python"
+    }
+  ]
+}
+```
+
+### Issue → JSON
+
+```json
+{
+  "repo": "owner/repo",
+  "issues": [
+    {
+      "number": 123,
+      "title": "Bug: 登录失败",
+      "state": "open",
+      "labels": ["bug", "high-priority"],
+      "body": "## 问题描述\n\n用户反馈...",
+      "comments": [
+        {
+          "author": "developer",
+          "body": "已确认，正在修复"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## 使用场景
+
+### 场景一：代码知识库
+
+导入整个代码仓库，让 Agent 可以：
+
+- 回答代码相关问题
+- 生成代码文档
+- 协助代码审查
+
+```json
+{
+  "path": "/src",
+  "content": "..."
+}
+```
+
+### 场景二：项目管理
+
+导入 Issue 和 PR，让 Agent 可以：
+
+- 查询项目进度
+- 汇总未解决的问题
+- 生成周报
+
+---
+
+## 同步设置
+
+### 手动同步
+
+点击 **Sync** 按钮拉取最新代码和 Issue。
+
+### Webhook 同步（即将推出）
+
+未来将支持 GitHub Webhook，代码提交后自动同步。
+
+---
+
+## 常见问题
+
+### 私有仓库可以导入吗？
+
+可以，只要你在 OAuth 授权时选择了该仓库。
+
+### 大型仓库导入失败？
+
+建议分批导入，先导入核心目录（如 `src/`、`docs/`），而不是整个仓库。
+
+### 二进制文件会导入吗？
+
+不会。PuppyOne 只导入文本文件（代码、Markdown、配置等）。
+
+---
+
+## 下一步
+
+- [管理导入的数据](/zh/editor)
+- [设置访问权限](/zh/access)
+- [连接 Agent](/zh/agents)
+
+

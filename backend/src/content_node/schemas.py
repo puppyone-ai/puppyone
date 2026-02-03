@@ -87,6 +87,7 @@ class NodeInfo(BaseModel):
     # 同步相关字段
     sync_url: Optional[str] = None
     sync_id: Optional[str] = None
+    sync_status: str = "idle"  # 同步状态: not_connected, idle, syncing, error
     last_synced_at: Optional[str] = None
     # 计算属性
     is_synced: bool = False  # 是否为同步类型

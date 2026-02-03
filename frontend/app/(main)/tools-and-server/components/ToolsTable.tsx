@@ -61,14 +61,14 @@ type ToolsTableProps = {
   showPath?: boolean;
   // 是否支持多选
   selectable?: boolean;
-  selectedIds?: Set<number>;
-  onToggleSelect?: (id: number) => void;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
   // 删除/移除操作
-  onRemove?: (id: number) => void;
+  onRemove?: (id: string) => void;
   removeIcon?: 'delete' | 'remove';
   // hover 状态
-  hoveredId?: number | null;
-  onHover?: (id: number | null) => void;
+  hoveredId?: string | null;
+  onHover?: (id: string | null) => void;
 };
 
 export function ToolsTable({
@@ -83,7 +83,7 @@ export function ToolsTable({
   onHover: externalOnHover,
 }: ToolsTableProps) {
   // 内部 hover 状态（如果外部没有传入）
-  const [internalHoveredId, setInternalHoveredId] = useState<number | null>(
+  const [internalHoveredId, setInternalHoveredId] = useState<string | null>(
     null
   );
   const hoveredId =

@@ -977,8 +977,64 @@ export async function disconnectAirtable(): Promise<AirtableDisconnectResponse> 
   }
 }
 
+// ========== Google Docs OAuth functions ==========
+export async function googleDocsCallback(code: string): Promise<{ success: boolean; message: string }> {
+  const token = await getApiAccessToken();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-docs/callback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ code }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to handle Google Docs callback: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error('Error handling Google Docs callback:', error);
+    throw error;
+  }
+}
+
+export async function getGoogleDocsStatus(): Promise<{ connected: boolean; email?: string }> {
+  const token = await getApiAccessToken();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-docs/status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+    });
+    if (!response.ok) return { connected: false };
+    const data = await response.json();
+    return { connected: data.data?.connected, email: data.data?.workspace_name };
+  } catch (error) {
+    console.error('Error getting Google Docs status:', error);
+    return { connected: false };
+  }
+}
+
+export async function disconnectGoogleDocs(): Promise<void> {
+  const token = await getApiAccessToken();
+  await fetch(`${API_BASE_URL}/api/v1/oauth/google-docs/disconnect`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: 'include',
+  });
+}
+
 // ========== SAAS 类型映射 ==========
-type SaasType = 'notion' | 'github' | 'sheets' | 'gmail' | 'drive' | 'calendar' | 'linear' | 'airtable';
+type SaasType = 'notion' | 'github' | 'sheets' | 'gmail' | 'drive' | 'calendar' | 'docs' | 'linear' | 'airtable';
 
 // 通用的 OAuth URL 获取函数
 async function getOAuthUrl(endpoint: string): Promise<string> {
@@ -1006,6 +1062,7 @@ const getAuthUrlMap: Record<SaasType, () => Promise<string>> = {
   gmail: () => getOAuthUrl('gmail'),
   drive: () => getOAuthUrl('google-drive'),
   calendar: () => getOAuthUrl('google-calendar'),
+  docs: () => getOAuthUrl('google-docs'),
   linear: () => getOAuthUrl('linear'),
   airtable: () => getOAuthUrl('airtable'),
 };

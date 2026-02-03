@@ -30,31 +30,47 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
         className={`absolute inset-0 bg-gradient-to-br ${randomGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}
       />
 
-      {/* Decorative large icon (watermark style) - optional, removing per request if needed, keeping it very subtle for now */}
-      <div className='absolute top-4 right-4 text-[#1a1a1a] group-hover:text-[#222] transition-colors'>
+      {/* Decorative large icon (watermark style) */}
+      <div className='absolute -right-4 -top-4 text-[#1a1a1a] group-hover:text-[#222] transition-colors transform rotate-12 group-hover:rotate-0 duration-500'>
         <svg
-          width='48'
-          height='48'
+          width='96'
+          height='96'
           viewBox='0 0 24 24'
           fill='none'
           stroke='currentColor'
-          strokeWidth='1'
+          strokeWidth='0.5'
         >
           <path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' />
         </svg>
       </div>
 
-      {/* Content: Just the Name */}
-      <div className='relative z-10'>
-        <h3 className='text-lg font-medium text-[#ccc] group-hover:text-white transition-colors truncate tracking-tight'>
-          {project.name}
-        </h3>
-        {/* Optional: very subtle description if needed, otherwise hidden */}
-        {project.description && (
-          <p className='text-[11px] text-[#444] group-hover:text-[#666] transition-colors mt-1 line-clamp-1'>
-            {project.description}
+      {/* Content */}
+      <div className='relative z-10 flex flex-col h-full justify-between'>
+        <div className='flex items-center gap-2'>
+          <div className='p-1.5 rounded-md bg-[#1a1a1a] text-[#666] group-hover:text-[#888] transition-colors'>
+            <svg
+              width='14'
+              height='14'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' />
+            </svg>
+          </div>
+        </div>
+
+        <div>
+          <h3 className='text-base font-medium text-[#eee] group-hover:text-white transition-colors truncate tracking-tight'>
+            {project.name}
+          </h3>
+          <p className='text-[11px] text-[#555] group-hover:text-[#777] transition-colors mt-1 line-clamp-1'>
+            {project.description || 'No description'}
           </p>
-        )}
+        </div>
       </div>
     </div>
   );

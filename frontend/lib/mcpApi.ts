@@ -14,7 +14,8 @@ import { apiRequest, get, post, put, del } from './apiClient';
 // 类型定义
 // ============================================
 
-// 后端支持的工具类型 (增加 shell_access, shell_access_readonly, custom_script)
+// 后端支持的工具类型
+// NOTE: shell_access 和 shell_access_readonly 已移至 agent_bash 表管理，不再是 Tool 类型
 export type McpToolType =
   | 'get_data_schema'
   | 'get_all_data'
@@ -25,14 +26,13 @@ export type McpToolType =
   | 'delete'
   | 'preview'
   | 'select'
-  | 'shell_access'
-  | 'shell_access_readonly'
   | 'custom_script';
 
 // 工具分类
 export type ToolCategory = 'builtin' | 'custom';
 
 // MCP 工具权限类型（用于前端状态管理）
+// NOTE: shell_access 权限现在由 agent_bash 表管理，不在这里
 export interface McpToolPermissions {
   get_data_schema?: boolean;
   get_all_data?: boolean;
@@ -43,8 +43,6 @@ export interface McpToolPermissions {
   create?: boolean;
   update?: boolean;
   delete?: boolean;
-  shell_access?: boolean;
-  shell_access_readonly?: boolean; // Bash 只读模式
 }
 
 // AccessPoint definition (Shared)
@@ -291,8 +289,35 @@ export interface McpStatusResponse {
 }
 
 // ============================================
+// Search Index 类型定义 (新增)
+// ============================================
+
+export interface SearchIndexTask {
+  tool_id: string;
+  status: 'pending' | 'indexing' | 'ready' | 'error';
+  started_at: string | null;
+  finished_at: string | null;
+  nodes_count: number | null;
+  chunks_count: number | null;
+  indexed_chunks_count: number | null;
+  folder_node_id?: string | null;
+  total_files?: number | null;
+  indexed_files?: number | null;
+  last_error: string | null;
+}
+
+// ============================================
 // MCP API 函数
 // ============================================
+
+/**
+ * 获取 Search Tool 的索引构建状态
+ */
+export async function getSearchIndexStatus(
+  toolId: string
+): Promise<SearchIndexTask> {
+  return get<SearchIndexTask>(`/api/v1/tools/${toolId}/search-index`);
+}
 
 /**
  * 获取用户的所有 MCP 实例
@@ -539,7 +564,7 @@ export async function updateBinding(
  */
 export async function deleteBinding(
   apiKey: string,
-  toolId: number
+  toolId: string
 ): Promise<void> {
   return del<void>(`/api/v1/mcp/${apiKey}/bindings/${toolId}`);
 }
@@ -562,6 +587,7 @@ export async function getBoundTools(
 
 /**
  * 将前端权限配置转换为后端 register_tools 格式
+ * NOTE: shell_access 由 agent_bash 表管理，不在这里
  */
 export function permissionsToRegisterTools(
   permissions: McpToolPermissions
@@ -576,13 +602,12 @@ export function permissionsToRegisterTools(
   if (permissions.create) tools.push('create');
   if (permissions.update) tools.push('update');
   if (permissions.delete) tools.push('delete');
-  if (permissions.shell_access) tools.push('shell_access');
-  if (permissions.shell_access_readonly) tools.push('shell_access_readonly');
   return tools;
 }
 
 /**
  * 将后端 register_tools 转换为前端权限配置
+ * NOTE: shell_access 由 agent_bash 表管理，不在这里
  */
 export function registerToolsToPermissions(
   tools: McpToolType[] | null
@@ -598,38 +623,71 @@ export function registerToolsToPermissions(
     create: tools.includes('create'),
     update: tools.includes('update'),
     delete: tools.includes('delete'),
-    shell_access: tools.includes('shell_access'),
-    shell_access_readonly: tools.includes('shell_access_readonly'),
   };
 }
 
 /**
  * 工具类型的显示信息
+ * NOTE: shell_access 由 agent_bash 表管理，不在 Tool 类型中
+ * NOTE: query_data (JMESPath) is kept for advanced JSON queries but not primary UI
  */
 export const TOOL_INFO: Record<
   McpToolType,
-  { label: string; description: string }
+  { label: string; description: string; appliesTo: string[] }
 > = {
-  get_data_schema: { label: 'Get Schema', description: '获取数据结构' },
-  get_all_data: { label: 'Get All', description: '获取所有数据' },
-  query_data: { label: 'Query', description: '查询数据（支持 JMESPath）' },
-  search: { label: 'Search', description: '语义检索（Semantic Search）' },
-  preview: { label: 'Preview', description: '预览数据（轻量级）' },
-  select: { label: 'Select', description: '批量选择数据' },
-  create: { label: 'Create', description: '创建新元素' },
-  update: { label: 'Update', description: '更新现有元素' },
-  delete: { label: 'Delete', description: '删除元素' },
-  shell_access: {
-    label: 'Bash / Shell Access',
-    description: 'Provide raw shell access to data via jq/cli',
+  // Primary tool - works on ALL content types
+  search: { 
+    label: 'Search', 
+    description: 'AI-powered search across content',
+    appliesTo: ['folder', 'json', 'markdown'],
   },
-  shell_access_readonly: {
-    label: 'Bash / Shell Access (Read-only)',
-    description: 'Provide read-only shell access to data via jq/cli',
+  // Read tools
+  get_data_schema: { 
+    label: 'Get Schema', 
+    description: 'Get data structure',
+    appliesTo: ['json'],
   },
+  get_all_data: { 
+    label: 'Get Content', 
+    description: 'Retrieve all content',
+    appliesTo: ['folder', 'json', 'markdown', 'image'],
+  },
+  query_data: { 
+    label: 'Query (JMESPath)', 
+    description: 'Advanced JSON query',
+    appliesTo: ['json'],
+  },
+  preview: { 
+    label: 'Preview', 
+    description: 'Lightweight data preview',
+    appliesTo: ['json'],
+  },
+  select: { 
+    label: 'Select', 
+    description: 'Batch select data items',
+    appliesTo: ['json'],
+  },
+  // Write tools
+  create: { 
+    label: 'Add Element', 
+    description: 'Add new element to data',
+    appliesTo: ['json'],  // folder support coming soon
+  },
+  update: { 
+    label: 'Edit Data', 
+    description: 'Edit existing content',
+    appliesTo: ['json', 'markdown'],
+  },
+  delete: { 
+    label: 'Remove Element', 
+    description: 'Remove element from data',
+    appliesTo: ['json'],  // folder support coming soon
+  },
+  // Custom
   custom_script: {
     label: 'Custom Script',
-    description: '自定义脚本工具（Python/JavaScript/Shell）',
+    description: 'Custom tool with Python/JavaScript/Shell',
+    appliesTo: ['folder', 'json', 'markdown', 'image'],
   },
 };
 

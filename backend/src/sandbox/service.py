@@ -37,7 +37,7 @@ class SandboxService:
                 hint = (
                     "E2B sandbox auth is not configured.\n"
                     "- Set `E2B_API_KEY` in `backend/.env` (or export it) and restart the backend, OR\n"
-                    "- Disable bash access in the chat access points (shell_access / shell_access_readonly).\n"
+                    "- Remove bash access from the Agent configuration (Agent Settings → Data Access).\n"
                     f"- Detected E2B_API_KEY={'set' if os.getenv('E2B_API_KEY') else 'missing'}"
                 )
                 msg = f"{hint}\nOriginal error: {msg}"
@@ -71,7 +71,7 @@ class SandboxService:
                 hint = (
                     "E2B sandbox auth is not configured.\n"
                     "- Set `E2B_API_KEY` in `backend/.env` (or export it) and restart the backend, OR\n"
-                    "- Disable bash access in the chat access points.\n"
+                    "- Remove bash access from the Agent configuration (Agent Settings → Data Access).\n"
                     f"- Detected E2B_API_KEY={'set' if os.getenv('E2B_API_KEY') else 'missing'}"
                 )
                 msg = f"{hint}\nOriginal error: {msg}"

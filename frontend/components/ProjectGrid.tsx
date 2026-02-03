@@ -33,7 +33,7 @@ export function ProjectGrid({ projects, onSelect }: ProjectGridProps) {
         <div style={{ fontSize: 12, color: '#9aa' }}>{project.description}</div>
       )}
       <div style={{ fontSize: 12, color: '#8fb' }}>
-        {project.nodes.length} items
+        {project.tables.length} items
       </div>
     </>
   );
