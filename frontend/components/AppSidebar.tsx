@@ -78,6 +78,16 @@ export function AppSidebar({
         ),
       },
       {
+        id: 'toolkit',
+        label: 'Toolkit',
+        icon: (
+          // Wrench icon for tools
+          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
+            <path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' />
+          </svg>
+        ),
+      },
+      {
         id: 'tools',
         label: 'Context Access',
         icon: (
@@ -130,6 +140,8 @@ export function AppSidebar({
         onNavigate={(viewId) => {
           if (viewId === 'projects' || viewId === 'data') {
             router.push(`/projects/${activeProject.id}/data`);
+          } else if (viewId === 'toolkit') {
+            router.push(`/projects/${activeProject.id}/toolkit`);
           } else if (viewId === 'tools') {
             router.push(`/projects/${activeProject.id}/tools`);
           } else if (viewId === 'logs') {
@@ -151,10 +163,12 @@ export function AppSidebar({
   }
 
   // Global Dashboard View Nav Items
+  // Note: Tools are project-scoped, not global - they appear under each project's sidebar
+  // Note: Integrations/Connections moved to User Menu (per-user settings, not organization)
   const globalNavItems: NavItem[] = [
     {
-      id: 'home', // Changed ID to home
-      label: 'Home', // Changed Label to Home
+      id: 'home',
+      label: 'Home',
       icon: (
         <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
           <path d='M7 0.5L1 3.5V10.5L7 13.5L13 10.5V3.5L7 0.5Z' stroke='currentColor' strokeWidth='1.2' strokeLinejoin='round' />
@@ -186,16 +200,6 @@ export function AppSidebar({
         </svg>
       ),
     },
-    {
-      id: 'settings',
-      label: 'Organization Settings', // Global Settings
-      icon: (
-        <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-          <circle cx='12' cy='12' r='3' />
-          <path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z' />
-        </svg>
-      ),
-    },
   ];
 
   return (
@@ -213,10 +217,11 @@ export function AppSidebar({
           router.push('/home');
         } else if (viewId === 'tools') {
           router.push('/tools-and-server/tools-list');
-        } else if (viewId === 'settings') {
-          router.push('/settings/connect');
+        } else if (viewId === 'team') {
+          router.push('/team');
+        } else if (viewId === 'billing') {
+          router.push('/billing');
         }
-        // TODO: Handle Team/Billing routes
       }}
       userInitial={userInitial}
       userAvatarUrl={userAvatarUrl}

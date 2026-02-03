@@ -28,6 +28,7 @@ class ToolRepositoryBase(ABC):
         skip: int = 0,
         limit: int = 100,
         node_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> List[Tool]:
         pass
 
@@ -49,6 +50,7 @@ class ToolRepositorySupabase(ToolRepositoryBase):
             id=resp.id,
             created_at=resp.created_at,
             user_id=str(resp.user_id) if resp.user_id else "",
+            project_id=resp.project_id,
             node_id=resp.node_id,
             json_path=resp.json_path or "",
             type=resp.type or "",
@@ -80,9 +82,10 @@ class ToolRepositorySupabase(ToolRepositoryBase):
         skip: int = 0,
         limit: int = 100,
         node_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> List[Tool]:
         resps = self._repo.get_tools(
-            skip=skip, limit=limit, user_id=user_id, node_id=node_id
+            skip=skip, limit=limit, user_id=user_id, node_id=node_id, project_id=project_id
         )
         return [self._to_model(r) for r in resps]
 

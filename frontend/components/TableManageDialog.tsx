@@ -19,10 +19,12 @@ import {
   removeAllPlaceholdersForTable,
   updateTaskStatusById,
   removeTaskById,
+  type TaskType,
 } from './BackgroundTaskNotifier';
 import { type CrawlOptions } from '../lib/importApi';
 import { openOAuthPopup, type SaasType } from '../lib/oauthApi';
 import CrawlOptionsPanel from './CrawlOptionsPanel';
+import SyncProgressPanel from './SyncProgressPanel';
 import {
   submitImport,
   getImportTask,
@@ -33,7 +35,7 @@ import {
 
 type StartOption = 'empty' | 'documents' | 'url' | 'connect';
 type DialogMode = 'create' | 'edit' | 'delete';
-type SaasId = 'notion' | 'github' | 'airtable' | 'linear' | 'google_sheets';
+type SaasId = 'notion' | 'github' | 'airtable' | 'linear' | 'google_sheets' | 'gmail' | 'calendar' | 'drive' | 'docs' | 'sheets';
 
 type TableManageDialogProps = {
   mode: DialogMode;
@@ -128,7 +130,14 @@ export function TableManageDialog({
     if (connectLoading) return { label: 'Connecting...', color: '#3b82f6' };
     if (connectError && !connectNeedsAuth) return { label: connectError, color: '#ef4444' };
     if (connectUrlInput.trim()) return { label: 'Ready to import', color: '#22c55e' };
-    if (selectedSaas) return { label: 'Enter URL to continue', color: '#595959' };
+    // 对于需要 URL 输入的 sources，提示输入 URL
+    // URL-type: github, notion, airtable, linear
+    // OAuth-type 但需要 URL: sheets, docs
+    const urlRequiredSources = ['github', 'notion', 'airtable', 'linear', 'sheets', 'docs'];
+    if (selectedSaas && urlRequiredSources.includes(selectedSaas)) {
+      return { label: 'Enter URL to continue', color: '#595959' };
+    }
+    // 对于纯 OAuth sources (gmail, calendar)，不显示 URL 提示
     return null;
   })();
 
@@ -161,7 +170,7 @@ export function TableManageDialog({
 
       setOauthChecking(true);
       try {
-        const { getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus } = await import('@/lib/oauthApi');
+        const { getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus, getGoogleSheetsStatus, getGoogleDocsStatus } = await import('@/lib/oauthApi');
         let status: { connected: boolean; email?: string } = { connected: false };
         
         if (selectedSaas === 'gmail') {
@@ -170,6 +179,11 @@ export function TableManageDialog({
           status = await getGoogleDriveStatus();
         } else if (selectedSaas === 'calendar') {
           status = await getGoogleCalendarStatus();
+        } else if (selectedSaas === 'sheets') {
+          const sheetsStatus = await getGoogleSheetsStatus();
+          status = { connected: sheetsStatus.connected, email: sheetsStatus.workspace_name };
+        } else if (selectedSaas === 'docs') {
+          status = await getGoogleDocsStatus();
         }
         
         setOauthConnected(status);
@@ -203,13 +217,14 @@ export function TableManageDialog({
       defaultValue?: unknown;
     }>;
   }> = [
-    { 
-      id: 'notion', 
-      name: 'Notion', 
-      type: 'url',
-      placeholder: 'https://notion.so/your-page or https://notion.site/...',
-      icon: <img src="/icons/notion.svg" alt="Notion" width={24} height={24} style={{ display: 'block' }} />
-    },
+    // Notion temporarily hidden - still in development
+    // { 
+    //   id: 'notion', 
+    //   name: 'Notion', 
+    //   type: 'url',
+    //   placeholder: 'https://notion.so/your-page or https://notion.site/...',
+    //   icon: <img src="/icons/notion.svg" alt="Notion" width={24} height={24} style={{ display: 'block' }} />
+    // },
     { 
       id: 'github', 
       name: 'GitHub', 
@@ -226,11 +241,7 @@ export function TableManageDialog({
       name: 'Gmail', 
       type: 'oauth',
       description: 'Import emails from your Gmail account',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73l-6.545 4.909-6.545-4.909v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.909 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" fill="#EA4335"/>
-        </svg>
-      ),
+      icon: <img src="/icons/gmail.svg" alt="Gmail" width={24} height={24} style={{ display: 'block' }} />,
       configFields: [
         {
           key: 'label',
@@ -271,64 +282,21 @@ export function TableManageDialog({
         },
       ]
     },
-    { 
-      id: 'drive', 
-      name: 'Google Drive', 
-      type: 'oauth',
-      description: 'Import files from your Google Drive',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 87.3 78" fill="none">
-          <path d="M6.6 66.85L3.85 61.35L29.95 17.2L32.7 22.7L6.6 66.85Z" fill="#0066DA"/>
-          <path d="M58.05 66.85H53.25L27.15 22.7H31.95L58.05 66.85Z" fill="#00AC47"/>
-          <path d="M83.45 66.85L80.7 61.35L54.6 17.2H59.4L85.5 61.35L83.45 66.85Z" fill="#EA4335"/>
-          <path d="M87.3 66.85H0L13.05 78H74.25L87.3 66.85Z" fill="#00832D"/>
-          <path d="M43.65 0L13.05 52.7L0 66.85L29.95 17.2H58.05L43.65 0Z" fill="#2684FC"/>
-          <path d="M87.3 66.85L74.25 52.7L43.65 0L58.05 17.2L87.3 66.85Z" fill="#FFBA00"/>
-        </svg>
-      ),
-      configFields: [
-        {
-          key: 'folderPath',
-          label: 'Folder Path',
-          type: 'text',
-          defaultValue: '/'
-        },
-        {
-          key: 'fileTypes',
-          label: 'File Types',
-          type: 'select',
-          options: [
-            { value: 'all', label: 'All files' },
-            { value: 'docs', label: 'Documents only' },
-            { value: 'sheets', label: 'Spreadsheets only' },
-            { value: 'pdf', label: 'PDFs only' },
-          ],
-          defaultValue: 'all'
-        },
-        {
-          key: 'includeShared',
-          label: 'Include shared files',
-          type: 'checkbox',
-          defaultValue: false
-        },
-      ]
-    },
+    // Google Drive temporarily disabled
+    // { 
+    //   id: 'drive', 
+    //   name: 'Google Drive', 
+    //   type: 'oauth',
+    //   description: 'Import files from your Google Drive',
+    //   icon: <img src="/icons/google_drive.svg" alt="Google Drive" width={24} height={24} style={{ display: 'block' }} />,
+    //   configFields: [...]
+    // },
     { 
       id: 'calendar', 
       name: 'Google Calendar', 
       type: 'oauth',
       description: 'Import events from your Google Calendar',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M18 4H17V3C17 2.45 16.55 2 16 2C15.45 2 15 2.45 15 3V4H9V3C9 2.45 8.55 2 8 2C7.45 2 7 2.45 7 3V4H6C4.9 4 4 4.9 4 6V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V6C20 4.9 19.1 4 18 4ZM18 20H6V9H18V20Z" fill="#4285F4"/>
-          <path d="M8 11H10V13H8V11Z" fill="#4285F4"/>
-          <path d="M11 11H13V13H11V11Z" fill="#4285F4"/>
-          <path d="M14 11H16V13H14V11Z" fill="#4285F4"/>
-          <path d="M8 14H10V16H8V14Z" fill="#4285F4"/>
-          <path d="M11 14H13V16H11V14Z" fill="#4285F4"/>
-          <path d="M14 14H16V16H14V14Z" fill="#4285F4"/>
-        </svg>
-      ),
+      icon: <img src="/icons/google_calendar.svg" alt="Google Calendar" width={24} height={24} style={{ display: 'block' }} />,
       configFields: [
         {
           key: 'calendarId',
@@ -356,34 +324,50 @@ export function TableManageDialog({
     { 
       id: 'sheets', 
       name: 'Google Sheets', 
-      type: 'url',
+      type: 'oauth',
+      description: 'Paste a URL to import data',
       placeholder: 'https://docs.google.com/spreadsheets/d/...',
-      icon: <img src="/icons/Google_Docs_logo.png" alt="Google Sheets" width={24} height={24} style={{ display: 'block', borderRadius: 4 }} />
+      icon: <img src="/icons/google_sheet.svg" alt="Google Sheets" width={24} height={24} style={{ display: 'block' }} />,
+      configFields: [
+        {
+          key: 'url',
+          label: 'Google Sheets URL',
+          type: 'text',
+          defaultValue: ''
+        },
+      ]
     },
     { 
-      id: 'airtable', 
-      name: 'Airtable', 
-      type: 'url',
-      placeholder: 'https://airtable.com/appXXX/tblXXX/... or shared view link',
-      icon: <img src="/icons/airtable.png" alt="Airtable" width={24} height={24} style={{ display: 'block', borderRadius: 4 }} />
+      id: 'docs', 
+      name: 'Google Docs', 
+      type: 'oauth',
+      description: 'Paste a URL to import document',
+      placeholder: 'https://docs.google.com/document/d/...',
+      icon: <img src="/icons/google_doc.svg" alt="Google Docs" width={24} height={24} style={{ display: 'block' }} />,
+      configFields: [
+        {
+          key: 'url',
+          label: 'Google Docs URL',
+          type: 'text',
+          defaultValue: ''
+        },
+      ]
     },
-    { 
-      id: 'linear', 
-      name: 'Linear', 
-      placeholder: 'https://linear.app/team/issue/XXX-123 or project URL',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 100 100" fill="none">
-          <path d="M1.22541 61.5228c-.2225-.9485.90748-1.5459 1.59638-.857L39.3342 97.1782c.6889.6889.0915 1.8189-.857 1.5765-21.4563-5.4825-38.3203-22.3465-43.80257-43.8028-.01967-.0838-.03863-.1684-.05765-.2521Z" fill="#5E6AD2"/>
-          <path d="M.00189135 46.8891c-.01764375.2833-.00613497.5765.03387245.8765.00541.0407.01112.0814.01719.122.40219 2.6789 1.04338 5.3086 1.90098 7.8743.09193.2753.18599.5497.28237.8231.05099.1448.10275.2892.15534.433l35.9974 35.9975c.1438.0526.2882.1043.433.1553.2734.0964.5478.1905.8231.2823 2.5657.8576 5.1954 1.4988 7.8742 1.901.0407.0061.0814.0118.1221.0172.2999.04.5765.0515.8598.0339.0069-.0004.0137-.0009.0206-.0013.0081.003.0166-.0037.0246-.0007 2.1919-.1149 4.3893-.3874 6.5775-.8296L1.53232 39.8813C1.0891 42.0766.82108 44.2744.7056 46.4612c.00029.0042.00029.0085.0001.0128-.00041.1386-.00108.2762-.00373.4147l.00002.0003v.0001Z" fill="#5E6AD2"/>
-          <path d="M4.5765 32.3539c.01735-.0393.03489-.0786.05264-.1178L52.7633 80.3702c-.0392.0178-.0785.0353-.1178.0527-2.5549 1.1265-5.2275 2.042-7.9935 2.7262l-42.10031-42.1004c.68415-2.7659 1.5997-5.4385 2.72621-7.9935-.0009.003-.00169.0064-.00252.0099-.01098-.0208-.0046-.0448.00162-.0652.10199-.2337.20583-.4664.31164-.6982l.00001-.0001-.00011-.0001-.00004.0001Z" fill="#5E6AD2"/>
-          <path d="M13.0619 19.0412c-.097.0851-.1935.171-.2895.2574L60.7015 77.228c.0864-.096.1724-.1925.2574-.2896 1.5498-1.7707 2.9566-3.6665 4.2025-5.6752L18.7371 14.8387c-2.0087 1.246-3.9045 2.6527-5.6752 4.2025Z" fill="#5E6AD2"/>
-          <path d="M24.8296 10.467c-.1479.1118-.2952.2246-.4419.3383l54.8071 54.8071c.1137-.1467.2264-.294.3383-.4418 1.1991-1.5869 2.2804-3.265 3.2319-5.0222L27.8519 7.23504c-1.7573.95158-3.4354 2.03283-5.0223 3.23196Z" fill="#5E6AD2"/>
-          <path d="M35.1818 4.32765c-.2106.12005-.4205.24136-.6296.36397l50.7579 50.75788c.1226-.2091.2439-.4189.3639-.6296 1.0192-1.7888 1.9046-3.6504 2.6475-5.5715L38.7533 1.68011c-1.921.74293-3.7826 1.62833-5.5715 2.64754Z" fill="#5E6AD2"/>
-          <path d="M47.8371 1.17315c-.2471.08995-.4933.18143-.7385.27445l41.2552 41.2551c.093-.2451.1845-.4913.2744-.7385.6003-1.6492 1.1132-3.3365 1.5343-5.0577L48.8948-.36222c-1.7212.42109-3.4085.93398-5.0577 1.53437v.001Z" fill="#5E6AD2"/>
-          <path d="M61.6387.456393c-.226.05054-.4516.102234-.677.155187L97.3882 97.0384c.053-.2255.1047-.4511.1552-.677C99.2037 89.4676 100 82.3054 100 75.0001c0-41.4215-33.5786-75.00003-75-75.00003-7.3052 0-14.4675.79626-21.3614 2.45642Z" fill="#5E6AD2"/>
-        </svg>
-      )
-    },
+    // Airtable and Linear temporarily disabled - not yet integrated
+    // { 
+    //   id: 'airtable', 
+    //   name: 'Airtable', 
+    //   type: 'url',
+    //   placeholder: 'https://airtable.com/appXXX/tblXXX/... or shared view link',
+    //   icon: <img src="/icons/airtable.png" alt="Airtable" width={24} height={24} style={{ display: 'block', borderRadius: 4 }} />
+    // },
+    // { 
+    //   id: 'linear', 
+    //   name: 'Linear', 
+    //   type: 'url',
+    //   placeholder: 'https://linear.app/team/issue/XXX-123 or project URL',
+    //   icon: <img src="/icons/linear.svg" alt="Linear" width={24} height={24} style={{ display: 'block' }} />
+    // },
   ];
 
   useEffect(() => {
@@ -517,7 +501,7 @@ export function TableManageDialog({
   const pollTaskStatus = useCallback(async (
     taskId: string,
     taskName: string,
-    taskType: 'notion' | 'github' | 'airtable' | 'google_sheets' | 'linear'
+    taskType: TaskType
   ) => {
     const poll = async () => {
       try {
@@ -799,7 +783,7 @@ export function TableManageDialog({
                   const item = response.items[0];
                   if (item && item.status !== 'failed') {
                     replacePlaceholderTasks(rootFolderId, [{
-                      taskId: item.task_id,
+                      taskId: String(item.task_id),
                       projectId: projectId,
                       tableId: rootFolderId,
                       tableName: finalName,
@@ -1332,7 +1316,7 @@ export function TableManageDialog({
                                           <input
                                             id={`oauth-config-${field.key}`}
                                             type="text"
-                                            placeholder={field.label}
+                                            placeholder={selectedSaasConfig.placeholder || field.label}
                                             defaultValue={field.defaultValue as string}
                                             style={{ ...inputStyle, flex: 1, padding: '6px 10px', fontSize: 13 }}
                                           />
@@ -1357,9 +1341,6 @@ export function TableManageDialog({
                                   onClick={async () => {
                                     if (!projectId) return;
                                     
-                                    setConnectImporting(true);
-                                    const taskName = name.trim() || `${selectedSaasConfig.name} Import`;
-                                    
                                     // 收集配置值
                                     const syncConfig: Record<string, unknown> = {};
                                     selectedSaasConfig.configFields?.forEach(field => {
@@ -1369,22 +1350,49 @@ export function TableManageDialog({
                                       }
                                     });
                                     
+                                    // 对于 sheets 和 docs，验证 URL 是否已输入
+                                    if ((selectedSaas === 'sheets' || selectedSaas === 'docs') && !syncConfig.url) {
+                                      setConnectError('Please enter a URL');
+                                      return;
+                                    }
+                                    
+                                    setConnectImporting(true);
+                                    const taskName = name.trim() || `${selectedSaasConfig.name} Import`;
+                                    
                                     try {
                                       // 提交任务到统一的 import API
                                       const { submitImport } = await import('@/lib/importApi');
+                                      
+                                      // 对于 sheets 和 docs，使用用户输入的 URL；其他 OAuth 类型使用特殊前缀
+                                      let importUrl = `oauth://${selectedSaas}`;
+                                      if ((selectedSaas === 'sheets' || selectedSaas === 'docs') && syncConfig.url) {
+                                        importUrl = syncConfig.url as string;
+                                        delete syncConfig.url; // 从 sync_config 中移除，避免重复
+                                      }
+                                      
                                       const response = await submitImport({
                                         project_id: projectId,
-                                        url: `oauth://${selectedSaas}`, // 特殊 URL 格式标识 OAuth 导入
+                                        url: importUrl,
                                         name: taskName,
                                         sync_config: syncConfig,
                                       });
+                                      
+                                      // Map SAAS option ids to TaskType
+                                      const taskTypeMap: Record<string, TaskType> = {
+                                        'gmail': 'gmail',
+                                        'drive': 'drive',
+                                        'calendar': 'calendar',
+                                        'sheets': 'google_sheets',
+                                        'docs': 'google_docs',
+                                      };
+                                      const taskType = taskTypeMap[selectedSaas] || 'file';
                                       
                                       // 添加到 pending tasks
                                       addPendingTasks([{
                                         taskId: response.task_id,
                                         projectId: projectId,
                                         filename: taskName,
-                                        taskType: selectedSaas as 'gmail' | 'drive' | 'calendar',
+                                        taskType: taskType,
                                         status: 'pending',
                                       }]);
                                       
@@ -1393,7 +1401,7 @@ export function TableManageDialog({
                                       onClose();
                                       
                                       // 轮询任务状态
-                                      pollTaskStatus(response.task_id, taskName, selectedSaas as 'gmail' | 'drive' | 'calendar');
+                                      pollTaskStatus(response.task_id, taskName, taskType);
                                     } catch (err) {
                                       const message = err instanceof Error ? err.message : 'Failed to start import';
                                       setConnectError(message);

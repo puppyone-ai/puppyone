@@ -14,7 +14,7 @@ import {
 } from './BackgroundTaskNotifier';
 
 interface TaskWithStatus extends PendingTask {
-  displayStatus: ETLTaskStatus['status'] | 'uploading';
+  displayStatus: ETLTaskStatus['status'] | 'uploading' | 'downloading' | 'extracting' | 'creating_nodes';
 }
 
 interface TaskStatusWidgetProps {
@@ -39,7 +39,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
     const allTasks = getAllPendingTasks();
     const tasksWithStatus: TaskWithStatus[] = allTasks.map(t => ({
       ...t,
-      displayStatus: t.taskId < 0 ? 'uploading' : t.status || 'pending',
+      displayStatus: t.taskId.startsWith('-') ? 'uploading' : t.status || 'pending',
     }));
     setTasks(tasksWithStatus);
 
@@ -316,12 +316,10 @@ function isTaskTerminal(status: string): boolean {
   );
 }
 
-// SaaS 类型图标
+// SaaS 类型图标 - 使用图片文件
 const SaasIcons: Record<string, (props: { size?: number }) => JSX.Element> = {
   notion: ({ size = 12 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.98-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466l1.823 1.447zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.84-.046.933-.56.933-1.167V6.354c0-.606-.233-.933-.746-.886l-15.177.887c-.56.046-.747.326-.747.933z"/>
-    </svg>
+    <img src="/icons/notion.svg" alt="Notion" width={size} height={size} style={{ display: 'block' }} />
   ),
   github: ({ size = 12 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -329,19 +327,22 @@ const SaasIcons: Record<string, (props: { size?: number }) => JSX.Element> = {
     </svg>
   ),
   airtable: ({ size = 12 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M11.992 1.966L2.183 5.655a.29.29 0 00.004.548l9.89 3.691a.3.3 0 00.21 0l9.89-3.691a.29.29 0 00.003-.548L12.372 1.966a.6.6 0 00-.38 0z"/>
-    </svg>
+    <img src="/icons/airtable.png" alt="Airtable" width={size} height={size} style={{ display: 'block' }} />
   ),
   google_sheets: ({ size = 12 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zM9 18H6v-3h3v3zm0-4.5H6v-3h3v3zm0-4.5H6V6h3v3z"/>
-    </svg>
+    <img src="/icons/google_sheet.svg" alt="Google Sheets" width={size} height={size} style={{ display: 'block' }} />
   ),
   linear: ({ size = 12 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M2.05 11.61c-.06.37-.05.76.05 1.12l8.78 8.78c.36.1.75.11 1.12.05L2.05 11.61z"/>
-    </svg>
+    <img src="/icons/linear.svg" alt="Linear" width={size} height={size} style={{ display: 'block' }} />
+  ),
+  gmail: ({ size = 12 }) => (
+    <img src="/icons/gmail.svg" alt="Gmail" width={size} height={size} style={{ display: 'block' }} />
+  ),
+  drive: ({ size = 12 }) => (
+    <img src="/icons/google_drive.svg" alt="Google Drive" width={size} height={size} style={{ display: 'block' }} />
+  ),
+  calendar: ({ size = 12 }) => (
+    <img src="/icons/google_calendar.svg" alt="Google Calendar" width={size} height={size} style={{ display: 'block' }} />
   ),
 };
 
@@ -461,7 +462,7 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
           {task.filename}
         </div>
         <div style={{ color: getStatusColor(), fontSize: 10, marginTop: 2 }}>
-          {isSaasTask ? getSaasStatusText(task.displayStatus) : getStatusDisplayText(task.displayStatus)}
+          {isSaasTask ? getSaasStatusText(task.displayStatus) : getStatusDisplayText(task.displayStatus as ETLTaskStatus['status'] | 'uploading')}
         </div>
       </div>
     </div>

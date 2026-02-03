@@ -5,8 +5,8 @@ Agent 配置的 REST API
 """
 
 import asyncio
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
 
 from src.agent.config.service import AgentConfigService
 from src.scheduler.service import get_scheduler_service
@@ -80,6 +80,7 @@ def _to_agent_out(agent: Agent) -> AgentOut:
         type=agent.type,
         description=agent.description,
         is_default=agent.is_default,
+        project_id=agent.project_id,
         mcp_api_key=agent.mcp_api_key,
         # Schedule Agent 新字段
         trigger_type=agent.trigger_type,
@@ -102,13 +103,15 @@ def _to_agent_out(agent: Agent) -> AgentOut:
     "/",
     response_model=ApiResponse[List[AgentOut]],
     summary="获取 Agent 列表",
-    description="获取当前用户的所有 Agent",
+    description="获取指定项目的 Agent 列表",
 )
 def list_agents(
+    project_id: str = Query(..., description="项目 ID（必填）"),
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
-    agents = service.list_agents(current_user.user_id)
+    # 权限检查由 RLS 或 service 层处理
+    agents = service.list_agents(project_id)
     return ApiResponse.success(
         data=[_to_agent_out(a) for a in agents],
         message="Agent 列表获取成功",
@@ -119,13 +122,14 @@ def list_agents(
     "/default",
     response_model=ApiResponse[AgentOut],
     summary="获取默认 Agent",
-    description="获取当前用户的默认 Agent",
+    description="获取指定项目的默认 Agent",
 )
 def get_default_agent(
+    project_id: str = Query(..., description="项目 ID"),
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
-    agent = service.get_default_agent(current_user.user_id)
+    agent = service.get_default_agent(project_id)
     if not agent:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -201,8 +205,14 @@ def create_agent(
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
+    if not payload.project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="project_id is required",
+        )
+    
     agent = service.create_agent(
-        user_id=current_user.user_id,
+        project_id=payload.project_id,
         name=payload.name,
         icon=payload.icon,
         type=payload.type,

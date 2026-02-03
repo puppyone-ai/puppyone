@@ -33,6 +33,7 @@ class ContentNodeRepository:
             sync_url=row.get("sync_url"),
             sync_id=row.get("sync_id"),
             sync_config=row.get("sync_config"),
+            sync_status=row.get("sync_status", "idle"),
             last_synced_at=row.get("last_synced_at"),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
@@ -143,6 +144,7 @@ class ContentNodeRepository:
         sync_url: Optional[str] = None,
         sync_id: Optional[str] = None,
         sync_config: Optional[dict] = None,
+        sync_status: str = "idle",
         last_synced_at: Optional[datetime] = None,
     ) -> ContentNode:
         """创建节点"""
@@ -157,6 +159,7 @@ class ContentNodeRepository:
             "s3_key": s3_key,
             "mime_type": mime_type,
             "size_bytes": size_bytes,
+            "sync_status": sync_status,
         }
         # 添加同步相关字段（仅当有值时）
         if sync_url is not None:
@@ -221,20 +224,30 @@ class ContentNodeRepository:
         node_id: str,
         sync_url: Optional[str] = None,
         sync_id: Optional[str] = None,
+        sync_status: Optional[str] = None,
+        sync_config: Optional[dict] = None,
         last_synced_at: Optional[datetime] = None,
+        content: Optional[dict] = None,
     ) -> Optional[ContentNode]:
         """更新节点的同步信息
         
         用于将普通节点（如 markdown）标记为可同步，
         或更新已有同步节点的同步元数据。
+        也用于将占位符节点转换为已同步节点。
         """
         data = {}
         if sync_url is not None:
             data["sync_url"] = sync_url
         if sync_id is not None:
             data["sync_id"] = sync_id
+        if sync_status is not None:
+            data["sync_status"] = sync_status
+        if sync_config is not None:
+            data["sync_config"] = sync_config
         if last_synced_at is not None:
             data["last_synced_at"] = last_synced_at.isoformat()
+        if content is not None:
+            data["content"] = content
 
         if not data:
             return self.get_by_id(node_id)

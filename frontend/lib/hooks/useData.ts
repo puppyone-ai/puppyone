@@ -104,11 +104,17 @@ export function useOrphanTables() {
 
 /**
  * 手动刷新项目列表（用于创建/删除项目后）
+ * 
+ * @returns Promise that resolves when the data is actually fetched
  */
-export function refreshProjects() {
+export async function refreshProjects() {
   // 同时刷新孤儿 tables
   mutate('orphan-tables');
-  return mutate('projects');
+  // Force revalidation and wait for the actual data to be fetched
+  // Setting the second param to undefined and third to { revalidate: true }
+  // ensures we actually fetch fresh data from the server
+  const result = await mutate('projects', undefined, { revalidate: true });
+  return result;
 }
 
 /**

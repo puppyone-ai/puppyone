@@ -31,9 +31,23 @@ function NotionCallbackContent() {
           setStatus('success');
           setMessage('Successfully connected to Notion!');
           setWorkspaceName(result.workspace_name || '');
+          
+          // 如果是 popup 窗口，自动关闭
+          if (window.opener) {
+            setTimeout(() => {
+              window.close();
+            }, 1000);
+          }
         } else {
           setStatus('error');
           setMessage(result.message || 'Failed to connect to Notion');
+          
+          // 即使失败也尝试关闭 popup
+          if (window.opener) {
+            setTimeout(() => {
+              window.close();
+            }, 3000);
+          }
         }
       } catch (error) {
         console.error('Notion OAuth callback error:', error);
@@ -43,6 +57,13 @@ function NotionCallbackContent() {
             ? error.message
             : 'An unexpected error occurred'
         );
+        
+        // 即使出错也尝试关闭 popup
+        if (window.opener) {
+          setTimeout(() => {
+            window.close();
+          }, 3000);
+        }
       }
     };
 
@@ -50,11 +71,20 @@ function NotionCallbackContent() {
   }, [searchParams]);
 
   const handleContinue = () => {
-    router.push('/connect');
+    // 如果是 popup 窗口，关闭它
+    if (window.opener) {
+      window.close();
+    } else {
+      router.push('/settings/connect');
+    }
   };
 
   const handleRetry = () => {
-    router.push('/connect?auth=notion');
+    if (window.opener) {
+      window.close();
+    } else {
+      router.push('/settings/connect');
+    }
   };
 
   return (
@@ -299,7 +329,13 @@ function NotionCallbackContent() {
 
         <div style={{ textAlign: 'center', marginTop: '16px' }}>
           <button
-            onClick={() => router.push('/connect')}
+            onClick={() => {
+              if (window.opener) {
+                window.close();
+              } else {
+                router.push('/settings/connect');
+              }
+            }}
             style={{
               backgroundColor: 'transparent',
               color: '#6b7280',

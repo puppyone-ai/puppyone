@@ -16,6 +16,7 @@ export interface ListViewItem {
   is_synced?: boolean;
   sync_source?: string | null;
   sync_url?: string | null;
+  sync_status?: 'not_connected' | 'idle' | 'syncing' | 'error';
   last_synced_at?: string | null;
 }
 
@@ -26,6 +27,7 @@ export interface ListViewProps {
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
+  onCreateTool?: (id: string, name: string, type: string) => void;
   createLabel?: string;
   loading?: boolean;
   agentResources?: AgentResource[];
@@ -91,6 +93,33 @@ function getIconColor(type: string) {
   return config.color;
 }
 
+// Sync Status indicator (只显示 syncing/error，占位符不显示任何东西)
+const SyncStatusIndicator = ({ status }: { status?: string }) => {
+  if (!status || status === 'idle' || status === 'not_connected') return null;
+
+  const configs: Record<string, { color: string; label: string }> = {
+    'syncing': { color: '#3b82f6', label: 'Syncing...' },
+    'error': { color: '#ef4444', label: 'Error' },
+  };
+  
+  const config = configs[status];
+  if (!config) return null;
+  
+  return (
+    <span style={{
+      marginLeft: 8,
+      padding: '1px 6px',
+      borderRadius: 4,
+      fontSize: 11,
+      fontWeight: 500,
+      background: `${config.color}20`,
+      color: config.color,
+    }}>
+      {config.label}
+    </span>
+  );
+};
+
 function ListItem({
   item,
   agentResource,
@@ -98,6 +127,7 @@ function ListItem({
   onDelete,
   onDuplicate,
   onRefresh,
+  onCreateTool,
 }: {
   item: ListViewItem;
   agentResource?: AgentResource;
@@ -105,6 +135,7 @@ function ListItem({
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
+  onCreateTool?: (id: string, name: string, type: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   
@@ -112,6 +143,7 @@ function ListItem({
   const typeConfig = getNodeTypeConfig(item.type);
   const isFolder = typeConfig.renderAs === 'folder';
   const BadgeIcon = typeConfig.badgeIcon;
+  const isPlaceholder = item.sync_status === 'not_connected';
 
   // Check if this item has agent access
   const hasAgentAccess = !!agentResource;
@@ -122,9 +154,9 @@ function ListItem({
       onClick={item.onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      draggable={!typeConfig.isReadOnly}
+      draggable={!typeConfig.isReadOnly && !isPlaceholder}
       onDragStart={(e) => {
-        if (typeConfig.isReadOnly) {
+        if (typeConfig.isReadOnly || isPlaceholder) {
           e.preventDefault();
           return;
         }
@@ -150,9 +182,11 @@ function ListItem({
         borderBottom: '1px solid rgba(255,255,255,0.04)',
         // 左边橙色边条表示 agent access
         borderLeft: hasAgentAccess 
-          ? '3px solid rgba(249, 115, 22, 0.6)' 
-          : '3px solid transparent',
-        transition: 'all 0.1s',
+            ? '3px solid rgba(249, 115, 22, 0.6)' 
+            : '3px solid transparent',
+        transition: 'all 0.15s',
+        // 占位符：只用透明度，hover 时恢复
+        opacity: isPlaceholder ? (hovered ? 1 : 0.45) : 1,
       }}
     >
       {/* Icon with Sync Badge */}
@@ -181,7 +215,7 @@ function ListItem({
         )}
       </div>
 
-      {/* Name */}
+      {/* Name + Sync Status */}
       <div style={{
         flex: 1,
         fontSize: 14,
@@ -189,12 +223,16 @@ function ListItem({
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
+        display: 'flex',
+        alignItems: 'center',
+        transition: 'color 0.15s',
       }}>
         {item.name}
+        <SyncStatusIndicator status={item.sync_status} />
       </div>
 
-      {/* Action Menu */}
-      {(onRename || onDelete || onDuplicate || (isSyncedType(item.type) && onRefresh)) && (
+      {/* Action Menu (不显示给占位符) */}
+      {!isPlaceholder && (onRename || onDelete || onDuplicate || onCreateTool || (isSyncedType(item.type) && onRefresh)) && (
         <ItemActionMenu
           itemId={item.id}
           itemName={item.name}
@@ -203,9 +241,24 @@ function ListItem({
           onDelete={onDelete}
           onDuplicate={onDuplicate}
           onRefresh={isSyncedType(item.type) ? onRefresh : undefined}
+          onCreateTool={onCreateTool}
           syncUrl={item.sync_url}
           visible={hovered}
           compact
+        />
+      )}
+
+      {/* 占位符状态：小圆点提示 */}
+      {isPlaceholder && (
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: '#ca8a04', // 土黄色
+            flexShrink: 0,
+          }}
+          title="Click to connect"
         />
       )}
 
@@ -240,6 +293,7 @@ export function ListView({
   onDelete,
   onDuplicate,
   onRefresh,
+  onCreateTool,
   createLabel = 'New...',
   loading,
   agentResources,
@@ -272,6 +326,7 @@ export function ListView({
           onDelete={onDelete}
           onDuplicate={onDuplicate}
           onRefresh={onRefresh}
+          onCreateTool={onCreateTool}
         />
       ))}
 

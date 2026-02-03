@@ -32,7 +32,7 @@ export function ToolItem({
 }: ToolItemProps) {
   const config = TOOL_CONFIG[toolId] || { label: toolId, short: toolId };
   const isExpanded = expandedToolId === `${ap.id}-${toolId}`;
-  const isBash = toolId === 'shell_access';
+  const isBash = (toolId as string) === 'shell_access';
 
   // 生成工具名称
   const toolName = isBash ? `${toolId}_${safeName}` : `${toolId}_${safeName}`;

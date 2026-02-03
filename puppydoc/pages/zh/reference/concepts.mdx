@@ -1,0 +1,160 @@
+# 核心概念
+
+PuppyOne 的核心概念和术语解释。
+
+---
+
+## 数据层级
+
+```
+Workspace（工作区）
+└── Project（项目）
+    └── Table（表）
+        └── JSON Data（数据）
+```
+
+### Workspace
+
+工作区是你的 PuppyOne 账户的顶层容器。
+
+- 每个用户有一个 Workspace
+- 包含所有 Project 和设置
+- 管理团队成员和计费
+
+### Project
+
+项目是组织数据的命名空间。
+
+- 一个业务场景对应一个 Project
+- 例如：「产品知识库」「客服FAQ」「研发文档」
+- 可以设置项目级别的访问控制
+
+### Table
+
+表是存储结构化数据的容器。
+
+- 每个 Table 存储一份 JSON 数据
+- 支持任意嵌套的 JSON 结构
+- 自动追踪版本历史
+- 可以配置独立的访问权限
+
+---
+
+## Agent 相关
+
+### Tool
+
+Tool 是 Agent 可以调用的数据操作。
+
+| Tool | 说明 |
+|------|------|
+| `query_data` | 带条件查询数据 |
+| `get_all_data` | 获取全部数据 |
+| `create` | 创建新条目 |
+| `update` | 修改数据 |
+| `delete` | 删除数据 |
+
+### MCP (Model Context Protocol)
+
+MCP 是 Anthropic 提出的开放协议，定义了 AI 模型如何与外部工具交互。
+
+- PuppyOne 为每个 Table 提供 MCP Server
+- 支持 Cursor、Claude Desktop 等客户端
+- Agent 通过 MCP 协议调用 Tool
+
+### API Key
+
+API Key 是 Agent 访问 PuppyOne 的凭证。
+
+- 每个 API Key 关联特定的权限配置
+- 一个 Agent 应该使用一个独立的 API Key
+- 支持创建、禁用、删除
+
+---
+
+## 数据相关
+
+### JSON Path
+
+JSON Path 用于定位 JSON 数据中的特定位置。
+
+```
+/                    → 根路径（整个数据）
+/products            → products 字段
+/products/0          → 第一个产品
+/products/0/name     → 第一个产品的名称
+/products/*          → 所有产品
+```
+
+### Connector
+
+Connector 是连接外部数据源的组件。
+
+支持的 Connector：
+- Notion
+- GitHub
+- Airtable
+- Google Sheets
+- 文件上传
+- URL 爬取
+
+### ETL
+
+ETL (Extract, Transform, Load) 是数据处理流程。
+
+```
+提取 (Extract) → 转换 (Transform) → 加载 (Load)
+```
+
+PuppyOne 自动执行 ETL：
+1. **提取**：从数据源获取原始数据
+2. **转换**：解析、清洗、结构化
+3. **加载**：存储为 JSON 格式
+
+---
+
+## 访问控制
+
+### 权限模型
+
+```
+Tool 权限（Agent 能做什么）
+    ↓
+路径权限（能访问哪些数据）
+```
+
+### 最小权限原则
+
+只授予 Agent 完成任务所需的最小权限。
+
+---
+
+## 分发方式
+
+### MCP Server
+
+为 Cursor、Claude Desktop 等 MCP 客户端提供服务。
+
+### REST API
+
+HTTP API，适合自研 Agent 和后端集成。
+
+### Publish Link
+
+公开链接，任何人可以通过链接访问（只读）。
+
+---
+
+## 术语对照
+
+| 英文 | 中文 | 说明 |
+|------|------|------|
+| Context Base | 上下文基座 | PuppyOne 的核心定位 |
+| Workspace | 工作区 | 账户级容器 |
+| Project | 项目 | 命名空间 |
+| Table | 表 | 数据容器 |
+| Tool | 工具 | Agent 可调用的操作 |
+| Connector | 连接器 | 数据源适配器 |
+| API Key | API 密钥 | 访问凭证 |
+
+

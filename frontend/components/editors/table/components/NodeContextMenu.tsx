@@ -12,6 +12,7 @@ interface NodeContextMenuProps {
   onClose: () => void;
   onChange?: (newJson: any) => void;
   onImportSuccess?: () => void;
+  onCreateTool?: (path: string, value: any) => void;
 }
 
 type JsonValue =
@@ -30,6 +31,7 @@ export function NodeContextMenu({
   onClose,
   onChange,
   onImportSuccess,
+  onCreateTool,
 }: NodeContextMenuProps) {
   // Import Dialog 状态
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -74,6 +76,13 @@ export function NodeContextMenu({
           .catch(err => {
             console.error('Failed to copy path:', err);
           });
+        onClose();
+        return;
+      }
+
+      // Handle create-tool action
+      if (action === 'create-tool') {
+        onCreateTool?.(path, value);
         onClose();
         return;
       }

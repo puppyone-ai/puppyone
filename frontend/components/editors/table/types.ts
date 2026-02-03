@@ -1,4 +1,4 @@
-import { McpToolPermissions } from '../../../../lib/mcpApi';
+import { McpToolPermissions } from '@/lib/mcpApi';
 
 export type JsonValue =
   | string
@@ -28,5 +28,6 @@ export interface ConfiguredAccessPoint {
   path: string;
   permissions: McpToolPermissions;
 }
+
 
 

@@ -49,7 +49,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
         borderBottom: '1px solid rgba(255,255,255,0.06)', 
         display: 'flex', 
         alignItems: 'center', 
-        padding: '0 16px',
+        padding: '0 20px',
         background: '#141414',
         flexShrink: 0 
       }}>
@@ -62,23 +62,20 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
           
           {/* Section: General */}
           <div style={{ marginBottom: 48 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 500, color: '#e4e4e7', marginBottom: 8 }}>General</h2>
-            <p style={{ fontSize: 13, color: '#a1a1aa', marginBottom: 24 }}>
-              Configuration for your project.
-            </p>
-
+            <h2 style={{ fontSize: 14, fontWeight: 600, color: '#e4e4e7', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>General</h2>
+            
             {/* List Group */}
             <div style={{ 
-              border: '1px solid #27272a', 
+              border: '1px solid #1f1f23', 
               borderRadius: 8, 
               overflow: 'hidden',
-              background: '#0c0c0d'
+              background: '#0c0c0c'
             }}>
               
               {/* Row 1: Project Name */}
               <div style={{ 
-                padding: '20px 24px', 
-                borderBottom: '1px solid #27272a',
+                padding: '16px 20px', 
+                borderBottom: '1px solid #1f1f23',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center'
@@ -87,12 +84,12 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 4 }}>
                     Project Name
                   </label>
-                  <div style={{ fontSize: 13, color: '#a1a1aa' }}>
+                  <div style={{ fontSize: 12, color: '#71717a' }}>
                     Used to identify your project in the dashboard.
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 13, color: '#e4e4e7', fontWeight: 500 }}>
+                  <span style={{ fontSize: 13, color: '#e4e4e7' }}>
                     {currentProject.name}
                   </span>
                   <button
@@ -106,7 +103,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                       fontSize: 12,
                       fontWeight: 500,
                       cursor: 'pointer',
-                      transition: 'border-color 0.15s',
+                      transition: 'all 0.15s',
                     }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = '#52525b'}
                     onMouseLeave={e => e.currentTarget.style.borderColor = '#27272a'}
@@ -118,7 +115,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
 
               {/* Row 2: Project ID */}
               <div style={{ 
-                padding: '20px 24px', 
+                padding: '16px 20px', 
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center'
@@ -127,7 +124,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 4 }}>
                     Project ID
                   </label>
-                  <div style={{ fontSize: 13, color: '#a1a1aa' }}>
+                  <div style={{ fontSize: 12, color: '#71717a' }}>
                     Unique identifier for API access.
                   </div>
                 </div>
@@ -156,7 +153,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                       color: '#a1a1aa',
                       fontSize: 12,
                       cursor: 'pointer',
-                      transition: 'color 0.15s, border-color 0.15s',
+                      transition: 'all 0.15s',
                     }}
                     onMouseEnter={e => {
                       e.currentTarget.style.borderColor = '#52525b';
@@ -177,10 +174,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
 
           {/* Section: Danger Zone */}
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 500, color: '#ef4444', marginBottom: 8 }}>Danger Zone</h2>
-            <p style={{ fontSize: 13, color: '#a1a1aa', marginBottom: 24 }}>
-              Irreversible actions for your project.
-            </p>
+            <h2 style={{ fontSize: 14, fontWeight: 600, color: '#ef4444', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Danger Zone</h2>
 
             <div style={{ 
               border: '1px solid rgba(239, 68, 68, 0.2)', 
@@ -189,7 +183,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
               background: 'rgba(239, 68, 68, 0.05)'
             }}>
               <div style={{ 
-                padding: '20px 24px', 
+                padding: '16px 20px', 
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center'
@@ -198,19 +192,19 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 4 }}>
                     Delete Project
                   </label>
-                  <div style={{ fontSize: 13, color: '#a1a1aa' }}>
+                  <div style={{ fontSize: 12, color: '#a1a1aa' }}>
                     Permanently remove this project and all its data.
                   </div>
                 </div>
                 <button
                   onClick={() => setDeleteDialogOpen(true)}
                   style={{
-                    padding: '8px 16px',
+                    padding: '6px 16px',
                     background: '#ef4444',
                     border: '1px solid #dc2626',
                     borderRadius: 6,
                     color: '#ffffff',
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: 500,
                     cursor: 'pointer',
                     transition: 'background 0.15s',

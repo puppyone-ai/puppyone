@@ -16,6 +16,7 @@ class McpToolsDefinition(BaseModel):
 
 
 # 工具类型定义（注意：get已改为query，preview和select为新增工具）
+# NOTE: shell_access 和 shell_access_readonly 已移至 agent_bash 表管理，不再是 Tool 类型
 ToolTypeKey = Literal[
     "get_data_schema",
     "get_all_data",
@@ -26,9 +27,7 @@ ToolTypeKey = Literal[
     "preview",
     "select",
     "search",
-    # Batch / Bash access (stored in public.tool, used by Agent UI)
-    "shell_access",
-    "shell_access_readonly",
+    "custom_script",  # 用户自定义脚本工具
 ]
 
 
@@ -82,7 +81,7 @@ class McpCreate(BaseModel):
     @field_validator("tools_definition")
     @classmethod
     def validate_tools_definition_keys(cls, v):
-        """验证 tools_definition 的 key 只能是get_data_schema/get_all_data/query_data/create/update/delete/preview/select"""
+        """验证 tools_definition 的 key 只能是有效的 Tool 类型"""
         if v is not None:
             valid_keys = {
                 "get_data_schema",
@@ -94,8 +93,7 @@ class McpCreate(BaseModel):
                 "preview",
                 "select",
                 "search",
-                "shell_access",
-                "shell_access_readonly",
+                "custom_script",
             }
             for key in v.keys():
                 if key not in valid_keys:
@@ -107,7 +105,7 @@ class McpCreate(BaseModel):
     @field_validator("register_tools")
     @classmethod
     def validate_register_tools(cls, v):
-        """验证 register_tools 的值只能是 get_data_schema/get_all_data/query_data/create/update/delete/preview/select"""
+        """验证 register_tools 的值只能是有效的 Tool 类型"""
         if v is not None:
             valid_keys = {
                 "get_data_schema",
@@ -119,8 +117,7 @@ class McpCreate(BaseModel):
                 "preview",
                 "select",
                 "search",
-                "shell_access",
-                "shell_access_readonly",
+                "custom_script",
             }
             invalid_keys = set(v) - valid_keys
             if invalid_keys:
@@ -175,7 +172,7 @@ class McpUpdate(BaseModel):
     @field_validator("tools_definition")
     @classmethod
     def validate_tools_definition_keys(cls, v):
-        """验证 tools_definition 的 key 只能是 get_data_schema/get_all_data/query_data/create/update/delete/preview/select"""
+        """验证 tools_definition 的 key 只能是有效的 Tool 类型"""
         if v is not None:
             valid_keys = {
                 "get_data_schema",
@@ -187,8 +184,7 @@ class McpUpdate(BaseModel):
                 "preview",
                 "select",
                 "search",
-                "shell_access",
-                "shell_access_readonly",
+                "custom_script",
             }
             for key in v.keys():
                 if key not in valid_keys:
@@ -200,7 +196,7 @@ class McpUpdate(BaseModel):
     @field_validator("register_tools")
     @classmethod
     def validate_register_tools(cls, v):
-        """验证 register_tools 的值只能是 get_data_schema/get_all_data/query_data/create/update/delete/preview/select"""
+        """验证 register_tools 的值只能是有效的 Tool 类型"""
         if v is not None:
             valid_keys = {
                 "get_data_schema",
@@ -212,8 +208,7 @@ class McpUpdate(BaseModel):
                 "preview",
                 "select",
                 "search",
-                "shell_access",
-                "shell_access_readonly",
+                "custom_script",
             }
             invalid_keys = set(v) - valid_keys
             if invalid_keys:

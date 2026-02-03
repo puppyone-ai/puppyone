@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import type { Tool as DbTool } from '@/lib/mcpApi';
+import type { Tool as DbTool, AccessPoint } from '@/lib/mcpApi';
 import type { AccessOption } from '@/components/chat/ChatInputArea';
-import type { AccessPoint } from '@/app/(main)/projects/[projectId]/data/[[...path]]/page';
 
+// NOTE: shell_access is NOT a Tool - it's managed via agent_bash table per Agent
 const toolTypeLabels: Record<string, string> = {
   query_data: 'Query',
   search: 'Search',
@@ -10,19 +10,17 @@ const toolTypeLabels: Record<string, string> = {
   create: 'Create',
   update: 'Update',
   delete: 'Delete',
-  shell_access: 'Bash',
-  shell_access_readonly: 'Bash (Read-only)',
+  custom_script: 'Custom Script',
 };
 
 const allToolTypes = [
-  'shell_access',
-  'shell_access_readonly',
   'query_data',
   'search',
   'get_all_data',
   'create',
   'update',
   'delete',
+  'custom_script',
 ] as const;
 
 export function useAvailableTools(
@@ -32,12 +30,15 @@ export function useAvailableTools(
 ): AccessOption[] {
   return useMemo(() => {
     const availableTools: AccessOption[] = [];
-    const optionIdToTool = new Map<string, DbTool>();
 
+    // Process real tools from projectTools
+    // NOTE: shell_access is NOT stored here - it's in agent_bash per Agent
     if (projectTools && projectTools.length > 0) {
       for (const t of projectTools) {
         const type = (t.type || '').trim();
-        const isBash = type === 'shell_access' || type === 'shell_access_readonly';
+        // Skip any legacy shell_access entries (should be cleaned up in DB)
+        if (type === 'shell_access' || type === 'shell_access_readonly') continue;
+        
         const nid = t.node_id || null;
         const nodeName =
           nid && tableNameById?.[nid]
@@ -52,13 +53,13 @@ export function useAvailableTools(
         availableTools.push({
           id: optionId,
           label,
-          type: isBash ? ('bash' as const) : ('tool' as const),
+          type: 'tool' as const,
           tableId: nid ?? undefined,
           tableName: nodeName,
         });
-        optionIdToTool.set(optionId, t);
       }
     } else {
+      // Fallback to accessPoints (legacy)
       accessPoints.forEach(ap => {
         allToolTypes.forEach(toolType => {
           // @ts-ignore
@@ -66,10 +67,7 @@ export function useAvailableTools(
             availableTools.push({
               id: `${ap.id}-${toolType}`,
               label: toolTypeLabels[toolType] || toolType,
-              type:
-                toolType === 'shell_access' || toolType === 'shell_access_readonly'
-                  ? ('bash' as const)
-                  : ('tool' as const),
+              type: 'tool' as const,
             });
           }
         });

@@ -108,9 +108,6 @@ interface VirtualRowProps {
   configuredAccessMap: Map<string, McpToolPermissions>;
   isContextMenuOpen?: boolean;
   onOpenDocument?: (path: string, value: string) => void;
-  onHoverChange?: (path: string | null) => void;
-  isPopoverOpen?: boolean;
-  isHoveredExternal?: boolean;
 }
 
 export const VirtualRow = React.memo(function VirtualRow({
@@ -131,13 +128,8 @@ export const VirtualRow = React.memo(function VirtualRow({
   configuredAccessMap,
   isContextMenuOpen,
   onOpenDocument,
-  onHoverChange,
-  isPopoverOpen,
-  isHoveredExternal,
 }: VirtualRowProps) {
-  const isPopoverOwner = isPopoverOpen || false;
   const [hovered, setHovered] = useState(false);
-  const isHovered = hovered || isHoveredExternal;
   const keyRef = useRef<HTMLSpanElement>(null);
   const [isEditingKey, setIsEditingKey] = useState(false);
   const isConfigured =
@@ -195,7 +187,7 @@ export const VirtualRow = React.memo(function VirtualRow({
 
   let rowBaseBg = index % 2 === 0 ? ROW_BG_EVEN : ROW_BG_ODD;
 
-  if (isHovered) {
+  if (hovered) {
     rowBaseBg = 'rgba(255, 255, 255, 0.04)';
   }
 
@@ -205,10 +197,8 @@ export const VirtualRow = React.memo(function VirtualRow({
 
   let valueOverlayBg = 'transparent';
 
-  if (isPopoverOwner) {
-    valueOverlayBg = 'rgba(255, 167, 61, 0.2)';
-  } else if (isConfigured) {
-    valueOverlayBg = isHovered
+  if (isConfigured) {
+    valueOverlayBg = hovered
       ? 'rgba(255, 167, 61, 0.15)'
       : 'rgba(255, 167, 61, 0.08)';
   }
@@ -218,6 +208,35 @@ export const VirtualRow = React.memo(function VirtualRow({
     ? 'rgba(255, 167, 61, 0.4)'
     : BORDER_COLOR;
   const keyBorderLeftWidth = isKeyBorderHighlighted ? 1 : 1;
+
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      // 只有在非编辑状态下才允许拖拽
+      if (isEditingKey || !tableId) return;
+
+      e.stopPropagation();
+      
+      const dragData = {
+        id: tableId.toString(),
+        name: node.key.toString(),
+        type: 'json_path', // 特殊类型，表示这是 JSON 内部的一个节点
+        jsonPath: node.path,
+        // 为了兼容旧逻辑，也可以保留 nodeId
+        nodeId: tableId.toString(),
+      };
+
+      e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify(dragData));
+      e.dataTransfer.effectAllowed = 'copy';
+      
+      // 设置拖拽时的预览图（可选）
+      // const preview = document.createElement('div');
+      // preview.innerText = node.key.toString();
+      // document.body.appendChild(preview);
+      // e.dataTransfer.setDragImage(preview, 0, 0);
+      // setTimeout(() => document.body.removeChild(preview), 0);
+    },
+    [isEditingKey, tableId, node.key, node.path]
+  );
 
   if (isRootNode) {
     return (
@@ -235,14 +254,8 @@ export const VirtualRow = React.memo(function VirtualRow({
           borderTop: `1px solid ${BORDER_COLOR}`,
         }}
         onClick={handleRowClick}
-        onMouseEnter={() => {
-          setHovered(true);
-          onHoverChange?.(node.path);
-        }}
-        onMouseLeave={() => {
-          setHovered(false);
-          onHoverChange?.(null);
-        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
       >
         <div
           style={{
@@ -288,7 +301,7 @@ export const VirtualRow = React.memo(function VirtualRow({
               border: 'none',
               borderRadius: 4,
               cursor: 'pointer',
-              opacity: isHovered || !!isContextMenuOpen ? 1 : 0,
+              opacity: hovered || !!isContextMenuOpen ? 1 : 0,
               color: '#e5e5e5',
               transition: 'all 0.1s',
               zIndex: 10,
@@ -323,7 +336,7 @@ export const VirtualRow = React.memo(function VirtualRow({
                 border: 'none',
                 borderRadius: 4,
                 cursor: 'pointer',
-                opacity: isHovered ? 1 : 0,
+                opacity: hovered ? 1 : 0,
                 color: '#e5e5e5',
                 transition: 'all 0.1s',
                 zIndex: 10,
@@ -363,14 +376,8 @@ export const VirtualRow = React.memo(function VirtualRow({
         userSelect: 'none',
       }}
       onClick={handleRowClick}
-      onMouseEnter={() => {
-        setHovered(true);
-        onHoverChange?.(node.path);
-      }}
-      onMouseLeave={() => {
-        setHovered(false);
-        onHoverChange?.(null);
-      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <TableGridLines
         depth={effectiveDepth}
@@ -385,10 +392,12 @@ export const VirtualRow = React.memo(function VirtualRow({
           display: 'flex',
           alignItems: 'stretch',
           background: rowBaseBg,
-          cursor: 'pointer',
+          cursor: 'grab',
           position: 'relative',
           zIndex: 1,
         }}
+        draggable={!isEditingKey}
+        onDragStart={handleDragStart}
       >
         {/* KEY CELL */}
         <div
@@ -528,7 +537,7 @@ export const VirtualRow = React.memo(function VirtualRow({
               isExpanded={node.isExpanded}
               isExpandable={node.isExpandable}
               isSelectingAccessPoint={isSelectingAccessPoint}
-              showQuickAdd={isHovered && node.isExpandable && !isRootNode}
+              showQuickAdd={hovered && node.isExpandable && !isRootNode}
               onQuickAdd={handleQuickAdd}
               onChange={v => onValueChange(node.path, v)}
               onToggle={() => onToggle(node.path)}

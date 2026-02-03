@@ -1,18 +1,127 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
+import {
+  getGithubStatus,
+  disconnectGithub,
+  type GithubStatusResponse,
+  getGoogleSheetsStatus,
+  disconnectGoogleSheets,
+  type GoogleSheetsStatusResponse,
+  getGmailStatus,
+  disconnectGmail,
+  getGoogleCalendarStatus,
+  getGoogleDriveStatus,
+  getGoogleDocsStatus,
+  disconnectGoogleDocs,
+  openOAuthPopup,
+  type SaasType,
+} from '../lib/oauthApi';
 
 interface UserMenuPanelProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+// Platform types for integrations tab
+type PlatformId = 'github' | 'google-sheets' | 'google-docs' | 'gmail' | 'google-calendar' | 'google-drive';
+
+type PlatformStatusType = 'disconnected' | 'connected' | 'error';
+
+type PlatformState = {
+  status: PlatformStatusType;
+  label: string;
+  isLoading: boolean;
+};
+
+type PlatformConfig = {
+  id: PlatformId;
+  name: string;
+  description: string;
+  icon: JSX.Element;
+};
+
+const platformConfigs: PlatformConfig[] = [
+  {
+    id: 'github',
+    name: 'GitHub',
+    description: 'Issues, projects, repos',
+    icon: (
+      <svg width='18' height='18' viewBox='0 0 24 24' fill='currentColor'>
+        <path d='M12 2C6.477 2 2 6.59 2 12.253c0 4.51 2.865 8.332 6.839 9.69.5.1.683-.223.683-.495 0-.244-.01-1.051-.015-1.905-2.782.615-3.369-1.215-3.369-1.215-.455-1.185-1.11-1.5-1.11-1.5-.908-.636.069-.623.069-.623 1.002.072 1.53 1.058 1.53 1.058.893 1.567 2.343 1.115 2.914.853.091-.663.35-1.115.636-1.372-2.221-.259-4.555-1.136-4.555-5.056 0-1.117.387-2.03 1.024-2.746-.103-.26-.444-1.303.098-2.716 0 0 .837-.272 2.744 1.048a9.205 9.205 0 0 1 2.5-.346c.848.004 1.705.118 2.505.346 1.905-1.32 2.741-1.048 2.741-1.048.544 1.413.203 2.456.1 2.716.64.716 1.023 1.629 1.023 2.746 0 3.931-2.338 4.794-4.566 5.047.36.318.68.94.68 1.896 0 1.368-.013 2.471-.013 2.809 0 .274.18.598.688.495C19.138 20.582 22 16.761 22 12.253 22 6.59 17.523 2 12 2z' />
+      </svg>
+    ),
+  },
+  {
+    id: 'google-sheets',
+    name: 'Google Sheets',
+    description: 'Spreadsheets, worksheets',
+    icon: (
+      <img src="/icons/google_sheet.svg" alt="Google Sheets" width={18} height={18} style={{ display: 'block' }} />
+    ),
+  },
+  {
+    id: 'google-docs',
+    name: 'Google Docs',
+    description: 'Documents, notes',
+    icon: (
+      <img src="/icons/google_doc.svg" alt="Google Docs" width={18} height={18} style={{ display: 'block' }} />
+    ),
+  },
+  {
+    id: 'gmail',
+    name: 'Gmail',
+    description: 'Emails, contacts',
+    icon: (
+      <img src="/icons/gmail.svg" alt="Gmail" width={18} height={18} style={{ display: 'block' }} />
+    ),
+  },
+  {
+    id: 'google-calendar',
+    name: 'Google Calendar',
+    description: 'Events, schedules',
+    icon: (
+      <img src="/icons/google_calendar.svg" alt="Google Calendar" width={18} height={18} style={{ display: 'block' }} />
+    ),
+  },
+  // Google Drive temporarily hidden - not yet implemented
+  // {
+  //   id: 'google-drive',
+  //   name: 'Google Drive',
+  //   description: 'Files, folders',
+  //   icon: (
+  //     <svg width='18' height='18' viewBox='0 0 24 24' fill='currentColor'>
+  //       <path d='M7.71 3.5L1.15 15l2.29 4.01L10 7.5 7.71 3.5zm6.58 0l-6.58 11h6.58l6.58-11h-6.58zm2.56 11.5L22.85 15l-2.14 3.75-3.36-3.75h-.5z' />
+  //     </svg>
+  //   ),
+  // },
+];
+
+const getDefaultPlatformStates = (): Record<PlatformId, PlatformState> =>
+  platformConfigs.reduce(
+    (acc, platform) => {
+      acc[platform.id] = {
+        status: 'disconnected',
+        label: 'Not connected',
+        isLoading: false,
+      };
+      return acc;
+    },
+    {} as Record<PlatformId, PlatformState>
+  );
+
+const statusColors: Record<PlatformStatusType, string> = {
+  connected: '#22c55e',
+  disconnected: '#595959',
+  error: '#ef4444',
+};
+
 export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
   const { session, signOut } = useAuth();
   const [isRendered, setIsRendered] = React.useState(false);
   const [animateIn, setAnimateIn] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<'account' | 'about'>(
+  const [activeTab, setActiveTab] = React.useState<'account' | 'integrations' | 'about'>(
     'account'
   );
 
@@ -25,6 +134,232 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
     (typeof userMeta?.['name'] === 'string' && userMeta['name']) ||
     (typeof userMeta?.['full_name'] === 'string' && userMeta['full_name']) ||
     (email.includes('@') ? email.split('@')[0] : 'User');
+
+  // Integration states
+  const [githubStatus, setGithubStatus] = useState<GithubStatusResponse>({ connected: false });
+  const [googleSheetsStatus, setGoogleSheetsStatus] = useState<GoogleSheetsStatusResponse>({ connected: false });
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email?: string }>({ connected: false });
+  const [googleCalendarStatus, setGoogleCalendarStatus] = useState<{ connected: boolean; email?: string }>({ connected: false });
+  const [googleDriveStatus, setGoogleDriveStatus] = useState<{ connected: boolean; email?: string }>({ connected: false });
+  const [googleDocsStatus, setGoogleDocsStatus] = useState<{ connected: boolean; email?: string }>({ connected: false });
+  const [platformStates, setPlatformStates] = useState<Record<PlatformId, PlatformState>>(() => getDefaultPlatformStates());
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [disconnectConfirmation, setDisconnectConfirmation] = useState<{
+    visible: boolean;
+    platformId: PlatformId | null;
+  }>({ visible: false, platformId: null });
+
+  const getPlatformName = useCallback((platformId: PlatformId) => {
+    return platformConfigs.find(platform => platform.id === platformId)?.name ?? platformId;
+  }, []);
+
+  const updatePlatformState = useCallback(
+    (platformId: PlatformId, updates: Partial<PlatformState>) => {
+      setPlatformStates(prev => ({
+        ...prev,
+        [platformId]: { ...prev[platformId], ...updates },
+      }));
+    },
+    []
+  );
+
+  const checkGithubStatus = useCallback(async () => {
+    updatePlatformState('github', { isLoading: true });
+    try {
+      const status = await getGithubStatus();
+      setGithubStatus(status);
+      updatePlatformState('github', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected ? (status.username ? `Connected to ${status.username}` : 'Connected') : 'Not connected',
+        isLoading: false,
+      });
+    } catch {
+      updatePlatformState('github', { status: 'error', label: 'Authorization error', isLoading: false });
+    }
+  }, [updatePlatformState]);
+
+  const checkGoogleSheetsStatus = useCallback(async () => {
+    updatePlatformState('google-sheets', { isLoading: true });
+    try {
+      const status = await getGoogleSheetsStatus();
+      setGoogleSheetsStatus(status);
+      updatePlatformState('google-sheets', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected ? (status.workspace_name ? `Connected to ${status.workspace_name}` : 'Connected') : 'Not connected',
+        isLoading: false,
+      });
+    } catch {
+      updatePlatformState('google-sheets', { status: 'error', label: 'Authorization error', isLoading: false });
+    }
+  }, [updatePlatformState]);
+
+  const checkGmailStatus = useCallback(async () => {
+    updatePlatformState('gmail', { isLoading: true });
+    try {
+      const status = await getGmailStatus();
+      setGmailStatus(status);
+      updatePlatformState('gmail', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected ? (status.email ? `Connected to ${status.email}` : 'Connected') : 'Not connected',
+        isLoading: false,
+      });
+    } catch {
+      updatePlatformState('gmail', { status: 'error', label: 'Authorization error', isLoading: false });
+    }
+  }, [updatePlatformState]);
+
+  const checkGoogleCalendarStatus = useCallback(async () => {
+    updatePlatformState('google-calendar', { isLoading: true });
+    try {
+      const status = await getGoogleCalendarStatus();
+      setGoogleCalendarStatus(status);
+      updatePlatformState('google-calendar', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected ? (status.email ? `Connected to ${status.email}` : 'Connected') : 'Not connected',
+        isLoading: false,
+      });
+    } catch {
+      updatePlatformState('google-calendar', { status: 'error', label: 'Authorization error', isLoading: false });
+    }
+  }, [updatePlatformState]);
+
+  const checkGoogleDriveStatus = useCallback(async () => {
+    updatePlatformState('google-drive', { isLoading: true });
+    try {
+      const status = await getGoogleDriveStatus();
+      setGoogleDriveStatus(status);
+      updatePlatformState('google-drive', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected ? (status.email ? `Connected to ${status.email}` : 'Connected') : 'Not connected',
+        isLoading: false,
+      });
+    } catch {
+      updatePlatformState('google-drive', { status: 'error', label: 'Authorization error', isLoading: false });
+    }
+  }, [updatePlatformState]);
+
+  const checkGoogleDocsStatus = useCallback(async () => {
+    updatePlatformState('google-docs', { isLoading: true });
+    try {
+      const status = await getGoogleDocsStatus();
+      setGoogleDocsStatus(status);
+      updatePlatformState('google-docs', {
+        status: status.connected ? 'connected' : 'disconnected',
+        label: status.connected ? (status.email ? `Connected to ${status.email}` : 'Connected') : 'Not connected',
+        isLoading: false,
+      });
+    } catch {
+      updatePlatformState('google-docs', { status: 'error', label: 'Authorization error', isLoading: false });
+    }
+  }, [updatePlatformState]);
+
+  const platformToSaasType: Record<PlatformId, SaasType> = {
+    'github': 'github',
+    'google-sheets': 'sheets',
+    'google-docs': 'docs',
+    'gmail': 'gmail',
+    'google-calendar': 'calendar',
+    'google-drive': 'drive',
+  };
+
+  const platformStatusCheckers: Record<PlatformId, () => Promise<void>> = {
+    'github': checkGithubStatus,
+    'google-sheets': checkGoogleSheetsStatus,
+    'google-docs': checkGoogleDocsStatus,
+    'gmail': checkGmailStatus,
+    'google-calendar': checkGoogleCalendarStatus,
+    'google-drive': checkGoogleDriveStatus,
+  };
+
+  const startOAuthConnect = async (platformId: PlatformId) => {
+    const saasType = platformToSaasType[platformId];
+    const platformName = getPlatformName(platformId);
+    
+    updatePlatformState(platformId, { isLoading: true, label: `Connecting to ${platformName}…` });
+    
+    try {
+      const completed = await openOAuthPopup(saasType);
+      
+      if (completed) {
+        await platformStatusCheckers[platformId]();
+      } else {
+        updatePlatformState(platformId, { isLoading: false, label: 'Authorization cancelled' });
+        setTimeout(() => { platformStatusCheckers[platformId](); }, 2000);
+      }
+    } catch {
+      updatePlatformState(platformId, { status: 'error', label: 'Authorization error', isLoading: false });
+    }
+  };
+
+  const handleDisconnectConfirm = async () => {
+    const platformId = disconnectConfirmation.platformId;
+    if (!platformId) {
+      closeDisconnectModal();
+      return;
+    }
+
+    updatePlatformState(platformId, { isLoading: true, label: 'Disconnecting…' });
+    try {
+      if (platformId === 'github') {
+        await disconnectGithub();
+        setGithubStatus({ connected: false });
+      } else if (platformId === 'google-sheets') {
+        await disconnectGoogleSheets();
+        setGoogleSheetsStatus({ connected: false });
+      } else if (platformId === 'google-docs') {
+        await disconnectGoogleDocs();
+        setGoogleDocsStatus({ connected: false });
+      } else if (platformId === 'gmail') {
+        await disconnectGmail();
+        setGmailStatus({ connected: false });
+      } else if (platformId === 'google-calendar') {
+        setGoogleCalendarStatus({ connected: false });
+      } else if (platformId === 'google-drive') {
+        setGoogleDriveStatus({ connected: false });
+      }
+
+      updatePlatformState(platformId, { status: 'disconnected', label: 'Not connected', isLoading: false });
+    } catch {
+      updatePlatformState(platformId, { status: 'error', label: 'Authorization error', isLoading: false });
+    } finally {
+      closeDisconnectModal();
+    }
+  };
+
+  const handlePlatformToggle = (platformId: PlatformId, nextChecked: boolean) => {
+    const state = platformStates[platformId];
+    if (!state || state.isLoading) return;
+
+    if (nextChecked) {
+      if (state.status === 'connected') return;
+      void startOAuthConnect(platformId);
+    } else {
+      setDisconnectConfirmation({ visible: true, platformId });
+    }
+  };
+
+  const closeDisconnectModal = () => {
+    setDisconnectConfirmation({ visible: false, platformId: null });
+  };
+
+  // Load integration status when tab becomes active
+  useEffect(() => {
+    if (activeTab === 'integrations' && isOpen) {
+      const checkAllPlatformStatus = async () => {
+        setIsInitialLoading(true);
+        await Promise.allSettled([
+          checkGithubStatus(),
+          checkGoogleSheetsStatus(),
+          checkGoogleDocsStatus(),
+          checkGmailStatus(),
+          checkGoogleCalendarStatus(),
+          checkGoogleDriveStatus(),
+        ]);
+        setIsInitialLoading(false);
+      };
+      void checkAllPlatformStatus();
+    }
+  }, [activeTab, isOpen, checkGithubStatus, checkGoogleSheetsStatus, checkGoogleDocsStatus, checkGmailStatus, checkGoogleCalendarStatus, checkGoogleDriveStatus]);
 
   // ESC to close
   React.useEffect(() => {
@@ -64,7 +399,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
     label,
     icon,
   }: {
-    id: 'account' | 'about';
+    id: 'account' | 'integrations' | 'about';
     label: string;
     icon?: React.ReactNode;
   }) => (
@@ -152,6 +487,42 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
     },
   ];
 
+  // Integration toggle component
+  const IntegrationToggle = ({ checked, onChange, disabled }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) => (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      style={{
+        width: 36,
+        height: 20,
+        borderRadius: 10,
+        border: 'none',
+        background: checked ? '#22c55e' : '#3a3a3a',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        position: 'relative',
+        transition: 'background 200ms ease',
+        opacity: disabled ? 0.5 : 1,
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          top: 2,
+          left: checked ? 18 : 2,
+          width: 16,
+          height: 16,
+          borderRadius: '50%',
+          background: '#fff',
+          transition: 'left 200ms ease',
+        }}
+      />
+    </button>
+  );
+
   return (
     <div
       role='dialog'
@@ -187,7 +558,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
           transform: `translate(-50%, -50%) scale(${animateIn ? 1 : 0.97})`,
           opacity: animateIn ? 1 : 0,
           width: 'min(720px, 96vw)',
-          height: '420px',
+          height: '480px',
           overflow: 'hidden',
           background:
             'linear-gradient(140deg, rgba(22,22,22,0.98) 0%, rgba(14,14,14,0.98) 100%)',
@@ -244,6 +615,24 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                 }
               />
               <NavBtn
+                id='integrations'
+                label='Integrations'
+                icon={
+                  <svg
+                    width='16'
+                    height='16'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth='2'
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                  >
+                    <path d='M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83' />
+                  </svg>
+                }
+              />
+              <NavBtn
                 id='about'
                 label='About'
                 icon={
@@ -292,7 +681,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
               <div
                 style={{ fontSize: '16px', fontWeight: 600, color: '#e6e6e6' }}
               >
-                {activeTab === 'account' ? 'Account' : 'About'}
+                {activeTab === 'account' ? 'Account' : activeTab === 'integrations' ? 'Integrations' : 'About'}
               </div>
             </div>
 
@@ -423,6 +812,79 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Integrations Tab */}
+            {activeTab === 'integrations' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ fontSize: 12, color: '#8a8a8a', marginBottom: 4 }}>
+                  Connect your accounts to import data from external services.
+                </div>
+
+                {isInitialLoading ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, color: '#666' }}>
+                    Loading...
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {platformConfigs.map(platform => {
+                      const state = platformStates[platform.id];
+                      const isConnected = state.status === 'connected';
+                      
+                      return (
+                        <div
+                          key={platform.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            padding: '12px 16px',
+                            borderRadius: 10,
+                            border: '1px solid #2a2a2a',
+                            background: 'linear-gradient(135deg, #0a0a0a 0%, #121212 100%)',
+                            transition: 'border-color 150ms ease',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#3a3a3a'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a2a'; }}
+                        >
+                          {/* Icon */}
+                          <div style={{ color: isConnected ? '#22c55e' : '#666', flexShrink: 0 }}>
+                            {platform.icon}
+                          </div>
+                          
+                          {/* Name and status */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: '#e5e5e5' }}>
+                              {platform.name}
+                            </div>
+                            <div style={{ 
+                              fontSize: 11, 
+                              color: statusColors[state.status],
+                              marginTop: 2,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}>
+                              {state.isLoading ? (
+                                <span style={{ color: '#666' }}>{state.label}</span>
+                              ) : (
+                                state.label
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Toggle */}
+                          <IntegrationToggle
+                            checked={isConnected}
+                            onChange={(checked) => handlePlatformToggle(platform.id, checked)}
+                            disabled={state.isLoading}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -559,6 +1021,80 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
           </div>
         </div>
       </div>
+
+      {/* Disconnect Confirmation Modal */}
+      {disconnectConfirmation.visible && disconnectConfirmation.platformId && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1001,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={closeDisconnectModal}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0,0,0,0.5)',
+            }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              background: '#1a1a1a',
+              border: '1px solid #2a2a2a',
+              borderRadius: 12,
+              padding: 24,
+              width: 'min(400px, 90vw)',
+              boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
+            }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#e5e5e5', marginBottom: 8 }}>
+              Disconnect {getPlatformName(disconnectConfirmation.platformId)}?
+            </div>
+            <div style={{ fontSize: 13, color: '#8a8a8a', marginBottom: 20 }}>
+              You will need to re-authorize to import data from this service again.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={closeDisconnectModal}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  border: '1px solid #2a2a2a',
+                  background: 'transparent',
+                  color: '#e5e5e5',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDisconnectConfirm}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: '#ef4444',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

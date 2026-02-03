@@ -51,3 +51,4 @@ class ImportConfig(BaseSettings):
 # Global config instance
 import_config = ImportConfig()
 
+

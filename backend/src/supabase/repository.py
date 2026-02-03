@@ -370,9 +370,10 @@ class SupabaseRepository:
         limit: int = 100,
         user_id: Optional[str] = None,
         node_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> List[ToolResponse]:
         return self._tool_repo.get_list(
-            skip=skip, limit=limit, user_id=user_id, node_id=node_id
+            skip=skip, limit=limit, user_id=user_id, node_id=node_id, project_id=project_id
         )
 
     def update_tool(

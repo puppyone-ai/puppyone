@@ -1,0 +1,198 @@
+# Cursor
+
+在 Cursor IDE 中连接 PuppyOne，让 AI 助手访问你的数据。
+
+---
+
+## 前提条件
+
+- Cursor 版本 0.40+（支持 MCP）
+- PuppyOne 账号和至少一个 Table
+
+---
+
+## 配置步骤
+
+### Step 1: 获取 MCP 配置
+
+1. 登录 PuppyOne Dashboard
+2. 打开你的 Table
+3. 点击右上角 **Connect Agent**
+4. 选择 **Cursor**
+5. 复制生成的配置
+
+配置示例：
+
+```json
+{
+  "mcpServers": {
+    "puppyone-products": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+### Step 2: 配置 Cursor
+
+**方式一：通过 UI 配置**
+
+1. 打开 Cursor
+2. `Cmd/Ctrl + ,` 打开设置
+3. 搜索 "MCP"
+4. 点击 **Edit in settings.json**
+5. 添加上面的配置
+
+**方式二：直接编辑配置文件**
+
+编辑 `~/.cursor/mcp.json`（如果不存在则创建）：
+
+```json
+{
+  "mcpServers": {
+    "puppyone-products": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+### Step 3: 重启 Cursor
+
+完全关闭并重新打开 Cursor。
+
+### Step 4: 验证连接
+
+1. 打开 Cursor 的 AI Chat（`Cmd/Ctrl + L`）
+2. 输入：`查询我的产品数据`
+3. 如果配置正确，Agent 会调用 PuppyOne Tool
+
+---
+
+## 配置多个 Table
+
+如果你有多个 Table，可以配置多个 MCP Server：
+
+```json
+{
+  "mcpServers": {
+    "products": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_products"]
+    },
+    "faq": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_faq"]
+    },
+    "docs": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_docs"]
+    }
+  }
+}
+```
+
+---
+
+## 使用示例
+
+配置成功后，你可以这样使用：
+
+### 查询数据
+
+```
+用户：查一下价格低于 100 元的产品
+
+AI：[调用 query_data Tool]
+    找到 5 个符合条件的产品：
+    1. Widget Mini - ¥59.99
+    2. Gadget Lite - ¥79.99
+    ...
+```
+
+### 获取全部数据
+
+```
+用户：列出所有产品分类
+
+AI：[调用 get_all_data Tool]
+    当前有 3 个分类：
+    - 电子产品
+    - 配件
+    - 服务
+```
+
+### 修改数据（需要权限）
+
+```
+用户：把 Widget Pro 的价格改成 89.99
+
+AI：[调用 update Tool]
+    已更新：Widget Pro 价格从 ¥99.99 改为 ¥89.99
+```
+
+---
+
+## 故障排查
+
+### MCP 没有加载
+
+**检查**：
+1. Cursor 版本是否支持 MCP（0.40+）
+2. 配置文件 JSON 格式是否正确
+3. 是否完全重启了 Cursor
+
+**查看日志**：
+- `Cmd/Ctrl + Shift + P` → "Developer: Toggle Developer Tools"
+- 查看 Console 中的 MCP 相关错误
+
+### 连接超时
+
+**检查**：
+1. 网络是否正常
+2. API Key 是否有效
+3. PuppyOne 服务是否正常
+
+### Tool 调用失败
+
+**检查**：
+1. 该 API Key 是否有对应 Tool 的权限
+2. 路径权限是否允许访问
+
+---
+
+## 最佳实践
+
+### 1. 命名清晰
+
+```json
+{
+  "mcpServers": {
+    "客服知识库": { ... },  // ✅ 清晰
+    "mcp1": { ... }         // ❌ 不清晰
+  }
+}
+```
+
+### 2. 最小权限
+
+为 Cursor 创建专用的 API Key，只授予需要的 Tool：
+
+```yaml
+Tools: [query_data, get_all_data]  # 只读
+```
+
+### 3. 分项目配置
+
+不同项目使用不同的 Table 和 API Key，避免混淆。
+
+---
+
+## 下一步
+
+- [访问控制](/zh/access) - 调整 Agent 权限
+- [Claude Desktop](/zh/agents/claude-desktop) - 配置其他客户端
+
+

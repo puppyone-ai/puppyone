@@ -433,10 +433,10 @@ def create_search_tool_async(
 ):
     if (payload.type or "").strip() != "search":
         # 这里不复用 AppException，避免引入新的错误类型；保持简单
-        return ApiResponse.error(message="payload.type must be 'search'")
+        return ApiResponse.error(code=400, message="payload.type must be 'search'")
 
     if not payload.node_id:
-        return ApiResponse.error(message="node_id is required for search tool")
+        return ApiResponse.error(code=400, message="node_id is required for search tool")
 
     # 获取节点信息，判断是 folder search 还是 json search
     node = node_service.get_by_id(payload.node_id, current_user.user_id)
@@ -579,7 +579,7 @@ def get_search_index_status(
         log_info(
             f"[search-index-status] not_search_tool: tool_id={tool_id} total_ms={int((time.perf_counter() - t0) * 1000)}"
         )
-        return ApiResponse.error(message="Tool is not a search tool")
+        return ApiResponse.error(code=400, message="Tool is not a search tool")
 
     t2 = time.perf_counter()
     sb_client = SupabaseClient().get_client()
@@ -598,7 +598,7 @@ def get_search_index_status(
         log_info(
             f"[search-index-status] task_not_found: tool_id={tool_id} total_ms={int((time.perf_counter() - t0) * 1000)}"
         )
-        return ApiResponse.error(message="Search index task not found")
+        return ApiResponse.error(code=404, message="Search index task not found")
 
     out = SearchIndexTaskOut(
         tool_id=tool_id,

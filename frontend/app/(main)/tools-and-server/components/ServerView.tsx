@@ -43,7 +43,7 @@ export function ServerView({
 
   const [showAddTools, setShowAddTools] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedToolIds, setSelectedToolIds] = useState<Set<number>>(
+  const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(
     new Set()
   );
   const [activeTab, setActiveTab] = useState<'json' | 'yaml'>('json');
@@ -58,7 +58,7 @@ export function ServerView({
     setNameValue(server.name || '');
   }, [server.name]);
 
-  const handleRemoveTool = async (toolId: number) => {
+  const handleRemoveTool = async (toolId: string) => {
     try {
       await deleteBinding(server.api_key, toolId);
       refreshBoundTools();
@@ -67,7 +67,7 @@ export function ServerView({
     }
   };
 
-  const handleAddTools = async (toolIds: number[]) => {
+  const handleAddTools = async (toolIds: string[]) => {
     try {
       const bindings = toolIds.map(id => ({ tool_id: id, status: true }));
       await createBindings(server.api_key, bindings);

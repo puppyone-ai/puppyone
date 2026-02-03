@@ -20,3 +20,4 @@ COMMENT ON TABLE agents IS 'Agent configurations for users. Renamed from agent t
 
 -- Note: After running this migration, update all backend code to use "agents" instead of "agent"
 
+

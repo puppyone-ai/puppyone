@@ -377,7 +377,7 @@ export function ImportMenu({
             const realTasks = response.items
               .filter(item => item.status !== 'failed')
               .map(item => ({
-                taskId: item.task_id,
+                taskId: String(item.task_id),
                 projectId: projectId,
                 tableId: String(newTableId),
                 tableName: finalTableName,

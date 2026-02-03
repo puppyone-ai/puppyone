@@ -26,7 +26,7 @@ export default function ToolsListPage() {
 
   const loading = toolsLoading || instancesLoading;
 
-  const handleDeleteTool = async (toolId: number) => {
+  const handleDeleteTool = async (toolId: string) => {
     if (!confirm('Delete this tool?')) return;
     try {
       await deleteTool(toolId);

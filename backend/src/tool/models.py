@@ -14,10 +14,11 @@ class Tool(BaseModel):
     created_at: datetime
 
     user_id: str
+    project_id: Optional[str] = None  # 所属项目 ID（用于按项目过滤）
     node_id: Optional[str] = None  # 绑定的 content_nodes 节点 ID
     json_path: str = ""  # JSON 内部路径（如 /users/0）
 
-    type: str  # 工具类型：get_data_schema, query_data, create, update, delete, shell_access, custom_script 等
+    type: str  # 工具类型：search, query_data, create, update, delete, custom_script 等（注：shell_access 已移至 agent_bash）
     name: str
     alias: Optional[str] = None
     description: Optional[str] = None

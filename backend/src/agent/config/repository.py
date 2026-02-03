@@ -51,31 +51,31 @@ class AgentRepository:
             agent.tools = self.get_tools_by_agent_id(agent_id)
         return agent
 
-    def get_by_user_id(self, user_id: str) -> List[Agent]:
-        """根据用户 ID 获取 Agent 列表"""
+    def get_by_project_id(self, project_id: str) -> List[Agent]:
+        """根据项目 ID 获取 Agent 列表"""
         response = (
             self._client.table("agents")
             .select("*")
-            .eq("user_id", user_id)
+            .eq("project_id", project_id)
             .order("created_at", desc=True)
             .execute()
         )
         return [Agent(**row) for row in response.data]
 
-    def get_by_user_id_with_accesses(self, user_id: str) -> List[Agent]:
-        """根据用户 ID 获取 Agent 列表，包含 Bash 访问权限和 Tools"""
-        agents = self.get_by_user_id(user_id)
+    def get_by_project_id_with_accesses(self, project_id: str) -> List[Agent]:
+        """根据项目 ID 获取 Agent 列表，包含 Bash 访问权限和 Tools"""
+        agents = self.get_by_project_id(project_id)
         for agent in agents:
             agent.bash_accesses = self.get_bash_by_agent_id(agent.id)
             agent.tools = self.get_tools_by_agent_id(agent.id)
         return agents
 
-    def get_default_agent(self, user_id: str) -> Optional[Agent]:
-        """获取用户的默认 Agent"""
+    def get_default_agent(self, project_id: str) -> Optional[Agent]:
+        """获取项目的默认 Agent"""
         response = (
             self._client.table("agents")
             .select("*")
-            .eq("user_id", user_id)
+            .eq("project_id", project_id)
             .eq("is_default", True)
             .execute()
         )
@@ -106,7 +106,7 @@ class AgentRepository:
 
     def create(
         self,
-        user_id: str,
+        project_id: str,
         name: str,
         icon: str = "✨",
         type: str = "chat",
@@ -124,7 +124,7 @@ class AgentRepository:
         mcp_api_key = generate_mcp_api_key()
         data = {
             "id": agent_id,
-            "user_id": user_id,
+            "project_id": project_id,
             "name": name,
             "icon": icon,
             "type": type,
@@ -204,11 +204,20 @@ class AgentRepository:
         return len(response.data) > 0
 
     def verify_access(self, agent_id: str, user_id: str) -> bool:
-        """验证用户是否有权限访问指定的 Agent"""
+        """验证用户是否有权限访问指定的 Agent（通过 project 检查）"""
         agent = self.get_by_id(agent_id)
         if not agent:
             return False
-        return agent.user_id == user_id
+        # 通过 project_id 查询 project，检查 project.user_id
+        response = (
+            self._client.table("project")
+            .select("user_id")
+            .eq("id", agent.project_id)
+            .execute()
+        )
+        if not response.data:
+            return False
+        return str(response.data[0]["user_id"]) == user_id
 
     # ============================================
     # AgentBash CRUD (Bash 终端访问权限)

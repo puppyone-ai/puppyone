@@ -10,12 +10,13 @@
  */
 
 import { useEffect, useMemo, useState, useRef, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import {
   useProjects,
   useTableTools,
   refreshTableTools,
+  refreshProjectTools,
   useTable,
   useProjectTools,
 } from '@/lib/hooks/useData';
@@ -62,8 +63,17 @@ import { CreateMenu } from '../../../[[...slug]]/components/finder';
 // Agent Context
 import { useAgent } from '@/contexts/AgentContext';
 
+// Tool Creation
+import { NodeAccessPanel } from '@/components/NodeAccessPanel';
+
 // Task Status
 import { TaskStatusWidget } from '@/components/TaskStatusWidget';
+
+// Onboarding Components
+import { OnboardingGuide } from '@/components/onboarding/OnboardingGuide';
+
+// Rename Dialog
+import { NodeRenameDialog } from '@/components/NodeRenameDialog';
 
 // Panel content types
 type RightPanelContent = 'NONE' | 'EDITOR';
@@ -80,7 +90,11 @@ interface DataPageProps {
 export default function DataPage({ params }: DataPageProps) {
   const { projectId, path = [] } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { session } = useAuth();
+  
+  // Onboarding state
+  const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
   
   // Workspace context - for sharing state with AgentViewport in layout
   const { 
@@ -116,6 +130,25 @@ export default function DataPage({ params }: DataPageProps) {
     }
   }, []);
   
+  // Check for welcome parameter (new user onboarding)
+  useEffect(() => {
+    const isWelcome = searchParams.get('welcome') === 'true';
+    if (isWelcome) {
+      // Force refresh projects list to ensure the new demo project is visible
+      // This fixes the race condition where the redirect happens before SWR cache updates
+      refreshProjects().then(() => {
+        setShowOnboardingGuide(true);
+        // Clean up URL (remove ?welcome=true)
+        router.replace(`/projects/${projectId}/data`);
+      });
+    }
+  }, [searchParams, projectId, router]);
+  
+  const handleOnboardingComplete = () => {
+    // Mark onboarding as seen in sessionStorage
+    sessionStorage.setItem(`onboarding-completed-${projectId}`, 'true');
+  };
+  
   // Wrapper to persist viewType changes
   const setViewType = (newViewType: ViewType) => {
     setViewTypeState(newViewType);
@@ -146,6 +179,10 @@ export default function DataPage({ params }: DataPageProps) {
   const [markdownContent, setMarkdownContent] = useState<string>('');
   const [isLoadingMarkdown, setIsLoadingMarkdown] = useState(false);
 
+  // Rename dialog state
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
+
   // Tools for current node
   const { tools: tableTools, isLoading: toolsLoading } = useTableTools(activeNodeId);
   const { tableData: currentTableData, refresh: refreshTable } = useTable(projectId, activeNodeId);
@@ -158,13 +195,16 @@ export default function DataPage({ params }: DataPageProps) {
   const [createTableOpen, setCreateTableOpen] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [defaultStartOption, setDefaultStartOption] = useState<'empty' | 'documents' | 'url' | 'connect'>('empty');
-  const [defaultSelectedSaas, setDefaultSelectedSaas] = useState<'notion' | 'github' | 'airtable' | 'linear' | 'google_sheets' | undefined>(undefined);
+  const [defaultSelectedSaas, setDefaultSelectedSaas] = useState<'notion' | 'github' | 'airtable' | 'linear' | 'google_sheets' | 'gmail' | 'calendar' | 'drive' | 'docs' | 'sheets' | undefined>(undefined);
 
   // Create menu state
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [createMenuPosition, setCreateMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [createInFolderId, setCreateInFolderId] = useState<string | null | undefined>(undefined); // undefined = use currentFolderId
   const createMenuRef = useRef<HTMLDivElement>(null);
+
+  // Tool creation panel state
+  const [toolPanelTarget, setToolPanelTarget] = useState<{ id: string; name: string; type: string; jsonPath?: string } | null>(null);
 
   // Agent Context - get draft resources for highlighting
   const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId } = useAgent();
@@ -209,6 +249,7 @@ export default function DataPage({ params }: DataPageProps) {
     () => projects.find(p => p.id === projectId) ?? null,
     [projects, projectId]
   );
+  
 
   // Load content nodes
   const loadContentNodes = async (parentId: string | null) => {
@@ -518,7 +559,8 @@ export default function DataPage({ params }: DataPageProps) {
   }, [refreshTable, setOnDataUpdate]);
 
   // Tool sync helpers
-  const TOOL_TYPES: McpToolType[] = ['shell_access', 'shell_access_readonly', 'query_data', 'get_all_data', 'create', 'update', 'delete'];
+  // NOTE: shell_access is NOT a Tool - it's managed via agent_bash table per Agent
+  const TOOL_TYPES: McpToolType[] = ['search', 'query_data', 'get_all_data', 'create', 'update', 'delete'];
 
   function normalizeJsonPath(p: string) {
     if (!p || p === '/') return '';
@@ -533,14 +575,13 @@ export default function DataPage({ params }: DataPageProps) {
     for (const t of existingTools) {
       if (t.node_id !== nodeId) continue;
       if ((t.json_path || '') !== jsonPath) continue;
+      // Skip legacy shell_access entries (cast to string for comparison with legacy types)
+      const toolType = t.type as string;
+      if (toolType === 'shell_access' || toolType === 'shell_access_readonly') continue;
       byType.set(t.type, t);
     }
 
-    const wantShellReadonly = !!(permissions as any)?.shell_access_readonly;
-    const wantShellFull = !!(permissions as any)?.shell_access;
     const effectivePermissions: Record<string, boolean> = { ...(permissions as any) };
-    if (wantShellReadonly) effectivePermissions['shell_access'] = false;
-    if (wantShellFull) effectivePermissions['shell_access_readonly'] = false;
 
     const toDelete: string[] = [];
     const toCreate: McpToolType[] = [];
@@ -572,6 +613,20 @@ export default function DataPage({ params }: DataPageProps) {
   }
 
   // === View Helpers (Hoisted) ===
+  
+  // Helper: Map node type to SaasId for placeholder nodes
+  const getPlaceholderSaasId = (nodeType: string): string | null => {
+    const mapping: Record<string, string> = {
+      'gmail_inbox': 'gmail',
+      'google_sheets_sync': 'sheets',
+      'google_calendar_sync': 'calendar',
+      'google_docs_sync': 'docs',
+      'notion_database': 'notion',
+      'github_repo': 'github',
+    };
+    return mapping[nodeType] || null;
+  };
+
   const items = contentNodes.map(node => ({
     id: node.id,
     name: node.name,
@@ -580,8 +635,22 @@ export default function DataPage({ params }: DataPageProps) {
     is_synced: node.is_synced,
     sync_source: node.sync_source,
     sync_url: node.sync_url,
+    sync_status: node.sync_status,
     last_synced_at: node.last_synced_at,
     onClick: () => {
+      // Handle placeholder nodes: open configuration dialog instead of navigating
+      if (node.sync_status === 'not_connected') {
+        const saasId = getPlaceholderSaasId(node.type);
+        if (saasId) {
+          // Open TableManageDialog with the corresponding SaaS pre-selected
+          setDefaultStartOption('connect');
+          setDefaultSelectedSaas(saasId as any);
+          setCreateTableOpen(true);
+        }
+        return;
+      }
+      
+      // Normal navigation for connected nodes
       const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
       const newPath = currentPath ? `${currentPath}/${node.id}` : node.id;
       router.push(`/projects/${projectId}/data/${newPath}`);
@@ -626,16 +695,19 @@ export default function DataPage({ params }: DataPageProps) {
     router.push(`/projects/${projectId}/data/${newPath}`);
   };
 
-  const handleRename = async (id: string, currentName: string) => {
-    const newName = window.prompt('Enter new name:', currentName);
-    if (newName && newName !== currentName) {
+  const handleRename = (id: string, currentName: string) => {
+    setRenameTarget({ id, name: currentName });
+    setRenameDialogOpen(true);
+  };
+
+  const handleRenameConfirm = async (newName: string) => {
+    if (!renameTarget) return;
       try {
-        await updateNode(id, { name: newName });
+      await updateNode(renameTarget.id, { name: newName });
         loadContentNodes(currentFolderId);
       } catch (err) {
         console.error('Failed to rename:', err);
         alert('Failed to rename item');
-      }
     }
   };
 
@@ -661,8 +733,32 @@ export default function DataPage({ params }: DataPageProps) {
     alert(`Refreshing from: ${node.sync_url}\n\n(Not yet implemented)`);
   };
 
+  // Handle creating tools from the context menu
+  const handleCreateTool = (id: string, name: string, type: string, jsonPath?: string) => {
+    setToolPanelTarget({ id, name, type, jsonPath });
+  };
+
   return (
     <>
+      {/* Onboarding Guide for new users */}
+      <OnboardingGuide
+        isOpen={showOnboardingGuide}
+        onClose={() => setShowOnboardingGuide(false)}
+        onComplete={handleOnboardingComplete}
+        userName={session?.user?.email?.split('@')[0]}
+      />
+
+      {/* Rename Dialog */}
+      <NodeRenameDialog
+        isOpen={renameDialogOpen}
+        currentName={renameTarget?.name ?? ''}
+        onClose={() => {
+          setRenameDialogOpen(false);
+          setRenameTarget(null);
+        }}
+        onConfirm={handleRenameConfirm}
+      />
+      
       {/* Header (Full Width) */}
       <div style={{ flexShrink: 0, zIndex: 60 }}>
         <ProjectsHeader
@@ -730,7 +826,7 @@ export default function DataPage({ params }: DataPageProps) {
                   nodeId={activeNodeId}
                   nodeName={currentTableData?.name || ''}
                   content={currentTableData?.content}
-                  syncUrl={currentTableData?.sync_url}
+                  syncUrl={currentTableData?.sync_url ?? undefined}
                 />
               ) : (
                 /* JSON Editor */
@@ -778,6 +874,10 @@ export default function DataPage({ params }: DataPageProps) {
                   onOpenDocument={(docPath: string, value: string) => {
                     setEditorTarget({ path: docPath, value });
                     setRightPanelContent('EDITOR');
+                  }}
+                  onCreateTool={(path: string, value: any) => {
+                    if (!activeNodeId) return;
+                    handleCreateTool(activeNodeId, `${currentTableData?.name || 'File'}`, 'json', path);
                   }}
                 />
               )}
@@ -832,6 +932,7 @@ export default function DataPage({ params }: DataPageProps) {
                     onRename={handleRename}
                     onDelete={handleDelete}
                     onRefresh={handleRefresh}
+                    onCreateTool={handleCreateTool}
                     agentResources={agentResources}
                   />
                 ) : (
@@ -841,6 +942,7 @@ export default function DataPage({ params }: DataPageProps) {
                     onRename={handleRename}
                     onDelete={handleDelete}
                     onRefresh={handleRefresh}
+                    onCreateTool={handleCreateTool}
                     agentResources={agentResources}
                   />
                 )
@@ -1121,8 +1223,8 @@ export default function DataPage({ params }: DataPageProps) {
                 setDefaultSelectedSaas('gmail');
                 setCreateTableOpen(true);
               }}
-              onImportDrive={() => {
-                setDefaultSelectedSaas('drive');
+              onImportDocs={() => {
+                setDefaultSelectedSaas('docs');
                 setCreateTableOpen(true);
               }}
               onImportCalendar={() => {
@@ -1131,10 +1233,6 @@ export default function DataPage({ params }: DataPageProps) {
               }}
               onImportSheets={() => {
                 setDefaultSelectedSaas('sheets');
-                setCreateTableOpen(true);
-              }}
-              onImportAirtable={() => {
-                setDefaultSelectedSaas('airtable');
                 setCreateTableOpen(true);
               }}
           />
@@ -1167,6 +1265,38 @@ export default function DataPage({ params }: DataPageProps) {
           onClose={() => setCreateFolderOpen(false)}
           onSuccess={() => loadContentNodes(currentFolderId)}
         />
+      )}
+
+      {/* Tool Creation Panel */}
+      {toolPanelTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={() => setToolPanelTarget(null)}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <NodeAccessPanel
+              nodeId={toolPanelTarget.id}
+              nodeType={toolPanelTarget.type as 'folder' | 'json' | 'file' | 'markdown' | 'pdf' | 'image'}
+              nodeName={toolPanelTarget.name}
+              jsonPath={toolPanelTarget.jsonPath} // 新增
+              existingTools={projectTools}
+              onToolsChange={() => {
+                // Refresh tools list
+                refreshTableTools(toolPanelTarget.id);
+              }}
+              onClose={() => setToolPanelTarget(null)}
+            />
+          </div>
+        </div>
       )}
 
     </>

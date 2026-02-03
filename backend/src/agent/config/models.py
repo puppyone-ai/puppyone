@@ -49,7 +49,7 @@ class Agent(BaseModel):
     """Agent 领域模型"""
 
     id: str = Field(..., description="Agent ID")
-    user_id: str = Field(..., description="所属用户 ID")
+    project_id: str = Field(..., description="所属项目 ID")
 
     name: str = Field(..., description="Agent 名称")
     icon: str = Field(default="✨", description="Agent 图标")

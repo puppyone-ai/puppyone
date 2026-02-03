@@ -3,11 +3,91 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAgent, AgentType } from '@/contexts/AgentContext';
 import type { AccessResource } from '@/contexts/AgentContext';
+import type { Tool as DbTool } from '@/lib/mcpApi';
 
 interface AgentSettingViewProps {
   availableTools?: unknown[];
+  projectTools?: DbTool[];
+  tableNameById?: Record<string, string>;
   currentTableId?: string;
 }
+
+// Tool type icons
+const ToolIcon = ({ type }: { type: string }) => {
+  const iconStyle = { width: 14, height: 14, flexShrink: 0 };
+  
+  switch (type) {
+    case 'search':
+      return (
+        <svg style={iconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35" />
+        </svg>
+      );
+    case 'get_all_data':
+    case 'query_data':
+      return (
+        <svg style={iconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <ellipse cx="12" cy="5" rx="9" ry="3" />
+          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+        </svg>
+      );
+    case 'create':
+      return (
+        <svg style={iconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v8M8 12h8" />
+        </svg>
+      );
+    case 'update':
+      return (
+        <svg style={iconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+        </svg>
+      );
+    case 'delete':
+      return (
+        <svg style={iconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </svg>
+      );
+    case 'custom_script':
+      return (
+        <svg style={iconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="16 18 22 12 16 6" />
+          <polyline points="8 6 2 12 8 18" />
+        </svg>
+      );
+    case 'preview':
+      return (
+        <svg style={iconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      );
+    default:
+      return (
+        <svg style={iconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        </svg>
+      );
+  }
+};
+
+// Tool type labels for display
+const toolTypeLabels: Record<string, { label: string; desc: string }> = {
+  get_all_data: { label: 'Read Content', desc: 'Read full content' },
+  query_data: { label: 'Query Data', desc: 'Read from tables' },
+  search: { label: 'Search', desc: 'Semantic search' },
+  create: { label: 'Create', desc: 'Add new data' },
+  update: { label: 'Update', desc: 'Modify data' },
+  delete: { label: 'Delete', desc: 'Remove data' },
+  preview: { label: 'Preview', desc: 'Preview content' },
+  select: { label: 'Select', desc: 'Select items' },
+  custom_script: { label: 'Custom Script', desc: 'Python or JS' },
+};
 
 // Agent Icon 组件 - 带 fallback
 const AgentIcon = ({ src, fallback, alt }: { src?: string; fallback: string; alt: string }) => {
@@ -743,9 +823,11 @@ interface ScheduleTasksSectionProps {
 const ScheduleTasksSection = ({ draftTaskContent, setDraftTaskContent }: ScheduleTasksSectionProps) => {
   // 将 taskContent 解析为数组
   const tasks = draftTaskContent ? draftTaskContent.split('\n').filter(t => t.trim()) : [];
-  const [newTask, setNewTask] = useState('');
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newTaskText, setNewTaskText] = useState('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
+  const newTaskInputRef = useRef<HTMLInputElement>(null);
 
   const labelStyle: React.CSSProperties = {
     fontSize: 12,
@@ -759,10 +841,22 @@ const ScheduleTasksSection = ({ draftTaskContent, setDraftTaskContent }: Schedul
     setDraftTaskContent(newTasks.join('\n'));
   };
 
-  const addTask = () => {
-    if (!newTask.trim()) return;
-    updateTasks([...tasks, newTask.trim()]);
-    setNewTask('');
+  // 保存新任务（从空状态或 "+ Add" 按钮触发的输入框）
+  const saveNewTask = () => {
+    if (!newTaskText.trim()) {
+      setIsAddingNew(false);
+      setNewTaskText('');
+      return;
+    }
+    updateTasks([...tasks, newTaskText.trim()]);
+    setNewTaskText('');
+    setIsAddingNew(false);
+  };
+
+  // 开始添加新任务（点击 "+ Add task" 按钮）
+  const startAddingNew = () => {
+    setIsAddingNew(true);
+    setTimeout(() => newTaskInputRef.current?.focus(), 0);
   };
 
   const removeTask = (index: number) => {
@@ -789,6 +883,68 @@ const ScheduleTasksSection = ({ draftTaskContent, setDraftTaskContent }: Schedul
     setEditingText('');
   };
 
+  // 空状态：直接显示输入框
+  if (tasks.length === 0 && !isAddingNew) {
+    const hasContent = newTaskText.trim().length > 0;
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+          <label style={labelStyle}>Tasks</label>
+          <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
+        </div>
+        
+        {/* 空状态：直接输入第一个任务 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            height: 32,
+            padding: '0 10px',
+            background: hasContent ? '#161616' : 'transparent',
+            border: hasContent ? '1px solid #2a2a2a' : '1px dashed #2a2a2a',
+            borderRadius: 8,
+          }}
+        >
+          <div style={{
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            background: '#262626',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 10,
+            fontWeight: 600,
+            color: '#737373',
+            flexShrink: 0,
+          }}>
+            1
+          </div>
+          <input
+            type="text"
+            value={newTaskText}
+            onChange={(e) => setNewTaskText(e.target.value)}
+            onKeyDown={(e) => { 
+              if (e.key === 'Enter' && newTaskText.trim()) saveNewTask(); 
+            }}
+            onBlur={() => { if (newTaskText.trim()) saveNewTask(); }}
+            placeholder="Describe what the agent should do..."
+            autoFocus
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              color: '#e5e5e5',
+              fontSize: 13,
+              outline: 'none',
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
@@ -797,15 +953,16 @@ const ScheduleTasksSection = ({ draftTaskContent, setDraftTaskContent }: Schedul
       </div>
       
       {/* 任务列表 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {tasks.map((task, index) => (
           <div
             key={index}
             style={{
               display: 'flex',
-              alignItems: 'flex-start',
+              alignItems: 'center',
               gap: 8,
-              padding: '10px 12px',
+              height: 32,
+              padding: '0 10px',
               background: '#161616',
               border: '1px solid #2a2a2a',
               borderRadius: 8,
@@ -813,18 +970,17 @@ const ScheduleTasksSection = ({ draftTaskContent, setDraftTaskContent }: Schedul
           >
             {/* 序号 */}
             <div style={{
-              width: 20,
-              height: 20,
+              width: 18,
+              height: 18,
               borderRadius: '50%',
               background: '#262626',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: 600,
               color: '#737373',
               flexShrink: 0,
-              marginTop: 1,
             }}>
               {index + 1}
             </div>
@@ -843,10 +999,8 @@ const ScheduleTasksSection = ({ draftTaskContent, setDraftTaskContent }: Schedul
                 autoFocus
                 style={{
                   flex: 1,
-                  background: '#0f0f0f',
-                  border: '1px solid #3a3a3a',
-                  borderRadius: 4,
-                  padding: '4px 8px',
+                  background: 'transparent',
+                  border: 'none',
                   color: '#e5e5e5',
                   fontSize: 13,
                   outline: 'none',
@@ -858,8 +1012,10 @@ const ScheduleTasksSection = ({ draftTaskContent, setDraftTaskContent }: Schedul
                   flex: 1, 
                   fontSize: 13, 
                   color: '#d4d4d4', 
-                  lineHeight: 1.4,
                   cursor: 'text',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 }}
                 onClick={() => startEditing(index)}
               >
@@ -871,8 +1027,8 @@ const ScheduleTasksSection = ({ draftTaskContent, setDraftTaskContent }: Schedul
             <button
               onClick={() => removeTask(index)}
               style={{
-                width: 20,
-                height: 20,
+                width: 18,
+                height: 18,
                 borderRadius: 4,
                 background: 'transparent',
                 border: 'none',
@@ -890,51 +1046,97 @@ const ScheduleTasksSection = ({ draftTaskContent, setDraftTaskContent }: Schedul
             </button>
           </div>
         ))}
+
+        {/* 新增任务输入框（点击 + Add task 后显示） */}
+        {isAddingNew && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              height: 32,
+              padding: '0 10px',
+              background: newTaskText.trim() ? '#161616' : 'transparent',
+              border: newTaskText.trim() ? '1px solid #2a2a2a' : '1px dashed #2a2a2a',
+              borderRadius: 8,
+            }}
+          >
+            <div style={{
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              background: '#262626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 10,
+              fontWeight: 600,
+              color: '#737373',
+              flexShrink: 0,
+            }}>
+              {tasks.length + 1}
+            </div>
+            <input
+              ref={newTaskInputRef}
+              type="text"
+              value={newTaskText}
+              onChange={(e) => setNewTaskText(e.target.value)}
+              onKeyDown={(e) => { 
+                if (e.key === 'Enter') saveNewTask();
+                if (e.key === 'Escape') { setIsAddingNew(false); setNewTaskText(''); }
+              }}
+              onBlur={saveNewTask}
+              placeholder="Describe the task..."
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                color: '#e5e5e5',
+                fontSize: 13,
+                outline: 'none',
+              }}
+            />
+          </div>
+        )}
       </div>
 
-      {/* 添加新任务 */}
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          type="text"
-          value={newTask}
-          onChange={(e) => setNewTask(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') addTask(); }}
-          placeholder="Add a new task..."
+      {/* 添加新任务按钮（在任务列表下方） */}
+      {!isAddingNew && (
+        <button
+          onClick={startAddingNew}
           style={{
-            flex: 1,
-            height: 36,
-            background: '#0f0f0f',
+            width: '100%',
+            height: 32,
+            marginTop: 8,
+            background: 'transparent',
             border: '1px dashed #2a2a2a',
             borderRadius: 8,
-            padding: '0 12px',
-            color: '#e5e5e5',
+            color: '#525252',
             fontSize: 13,
-            outline: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
           }}
-        />
-        <button
-          onClick={addTask}
-          disabled={!newTask.trim()}
-          style={{
-            height: 36,
-            padding: '0 16px',
-            background: newTask.trim() ? '#262626' : 'transparent',
-            border: '1px solid #2a2a2a',
-            borderRadius: 8,
-            color: newTask.trim() ? '#e5e5e5' : '#525252',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: newTask.trim() ? 'pointer' : 'default',
+          onMouseEnter={e => { 
+            e.currentTarget.style.borderColor = '#3a3a3a'; 
+            e.currentTarget.style.color = '#737373';
+          }}
+          onMouseLeave={e => { 
+            e.currentTarget.style.borderColor = '#2a2a2a'; 
+            e.currentTarget.style.color = '#525252';
           }}
         >
-          + Add
+          <span style={{ fontSize: 14 }}>+</span>
+          <span>Add task</span>
         </button>
-      </div>
+      )}
     </div>
   );
 };
 
-export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
+export function AgentSettingView({ projectTools, tableNameById, currentTableId }: AgentSettingViewProps) {
   const { 
     draftType, 
     setDraftType, 
@@ -983,6 +1185,7 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
   // UI States
   const [isTypeOpen, setIsTypeOpen] = useState(false);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
+  const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set());
   const typeRef = useRef<HTMLDivElement>(null);
   const toolsRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -1058,11 +1261,11 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
         const isJson = node.type === 'json';
         
         const newResource: AccessResource = {
-          nodeId: node.id,
+          nodeId: node.nodeId || node.id, // 兼容 json_path 拖拽数据结构
           nodeName: node.name,
           nodeType: isFolder ? 'folder' : (isJson ? 'json' : 'file'),
           readonly: false, // 默认 Write 模式
-          jsonPath: '',
+          jsonPath: node.jsonPath || '',
         };
         
         addDraftResource(newResource);
@@ -1080,10 +1283,33 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
     updateDraftResource(nodeId, { readonly: !currentReadonly });
   };
 
-  const handleAddTool = (toolType: string) => {
-    setIsToolsOpen(false);
-    alert(`Adding ${toolType} tool - coming soon`);
+  const handleAddTool = (toolId: string) => {
+    // Toggle tool selection
+    setSelectedToolIds(prev => {
+      const next = new Set(prev);
+      if (next.has(toolId)) {
+        next.delete(toolId);
+      } else {
+        next.add(toolId);
+      }
+      return next;
+    });
+    // Keep dropdown open for multi-select
   };
+
+  const handleRemoveTool = (toolId: string) => {
+    setSelectedToolIds(prev => {
+      const next = new Set(prev);
+      next.delete(toolId);
+      return next;
+    });
+  };
+
+  // Get selected tools info
+  const selectedTools = useMemo(() => {
+    if (!projectTools) return [];
+    return projectTools.filter(t => selectedToolIds.has(t.id));
+  }, [projectTools, selectedToolIds]);
 
   const hasAnyContent = terminalResources.length > 0;
 
@@ -1179,7 +1405,9 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
             background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6,
             overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', zIndex: 100,
           }}>
-            {(Object.keys(AGENT_TYPE_CONFIG) as AgentType[]).map((type) => (
+            {(Object.keys(AGENT_TYPE_CONFIG) as AgentType[])
+              .filter(type => type !== 'webhook' && type !== 'devbox')  // TODO: 暂时隐藏未完成的类型
+              .map((type) => (
               <button
                 key={type}
                 onClick={() => { setDraftType(type); setIsTypeOpen(false); }}
@@ -1242,7 +1470,7 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
           <div style={{ padding: terminalResources.length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
             {terminalResources.map((resource) => {
               const { icon, color } = getNodeIcon(resource.nodeType);
-              const pathDisplay = resource.nodePath || resource.nodeName;
+              const pathDisplay = resource.jsonPath ? `${resource.nodeName} (${resource.jsonPath})` : resource.nodeName;
               return (
                 <div 
                   key={resource.nodeId}
@@ -1390,31 +1618,130 @@ export function AgentSettingView({ currentTableId }: AgentSettingViewProps) {
             left: 0, right: 0,
             background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6,
             overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', zIndex: 100,
+            maxHeight: 240, overflowY: 'auto',
           }}>
-            {[
-              { id: 'query', label: 'Query Data', desc: 'Read from tables' },
-              { id: 'create', label: 'Create Record', desc: 'Add new data' },
-              { id: 'update', label: 'Update Record', desc: 'Modify existing data' },
-              { id: 'delete', label: 'Delete Record', desc: 'Remove data' },
-              { id: 'custom', label: 'Custom Script', desc: 'Python or JS' },
-            ].map((tool) => (
-              <button
-                key={tool.id}
-                onClick={() => handleAddTool(tool.id)}
-                style={{
-                  width: '100%', height: 36, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px',
-                  background: 'transparent',
-                  border: 'none', borderBottom: '1px solid #1f1f1f',
-                  color: '#a3a3a3', cursor: 'pointer', textAlign: 'left',
-                  fontSize: 14,
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#1f1f1f'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <span style={{ fontWeight: 500, color: '#e5e5e5' }}>{tool.label}</span>
-                <span style={{ fontSize: 11, color: '#525252' }}>{tool.desc}</span>
-              </button>
-            ))}
+            {(!projectTools || projectTools.length === 0) ? (
+              <div style={{
+                padding: '16px 12px',
+                textAlign: 'center',
+                color: '#525252',
+                fontSize: 13,
+              }}>
+                <div style={{ marginBottom: 4 }}>No tools configured</div>
+                <div style={{ fontSize: 11 }}>Add tools in Toolkit</div>
+              </div>
+            ) : (
+              projectTools.map((tool) => {
+                const typeInfo = toolTypeLabels[tool.type] || { label: tool.type, desc: '' };
+                const displayName = tool.name || typeInfo.label;
+                const displayDesc = tool.description || typeInfo.desc;
+                const isSelected = selectedToolIds.has(tool.id);
+                
+                return (
+                  <button
+                    key={tool.id}
+                    onClick={() => handleAddTool(tool.id)}
+                    style={{
+                      width: '100%', 
+                      height: 32, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      padding: '0 10px',
+                      gap: 8,
+                      background: isSelected ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
+                      border: 'none', 
+                      borderBottom: '1px solid #1f1f1f',
+                      cursor: 'pointer', 
+                      textAlign: 'left',
+                      fontSize: 13,
+                    }}
+                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#1f1f1f'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? 'rgba(34, 197, 94, 0.1)' : 'transparent'; }}
+                  >
+                    {/* Left: Checkbox + Icon + Name */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, color: isSelected ? '#22c55e' : '#737373' }}>
+                      {/* Checkbox */}
+                      <div style={{
+                        width: 14, height: 14, flexShrink: 0,
+                        borderRadius: 3,
+                        border: isSelected ? 'none' : '1px solid #525252',
+                        background: isSelected ? '#22c55e' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {isSelected && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
+                      <ToolIcon type={tool.type} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {displayName}
+                      </span>
+                    </div>
+                    {/* Right: Description */}
+                    <span style={{ fontSize: 11, color: '#525252', flexShrink: 0 }}>
+                      {displayDesc}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* Selected Tools Display */}
+        {selectedTools.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {selectedTools.map((tool) => {
+              const typeInfo = toolTypeLabels[tool.type] || { label: tool.type, desc: '' };
+              const displayName = tool.name || typeInfo.label;
+              
+              return (
+                <div
+                  key={tool.id}
+                  style={{
+                    height: 32,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0 10px',
+                    background: '#161616',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: 6,
+                    fontSize: 13,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#a3a3a3', flex: 1, minWidth: 0 }}>
+                    <ToolIcon type={tool.type} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {displayName}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveTool(tool.id)}
+                    style={{
+                      width: 20, height: 20,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      color: '#525252',
+                      flexShrink: 0,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#2a2a2a'; e.currentTarget.style.color = '#ef4444'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#525252'; }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

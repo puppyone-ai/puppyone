@@ -149,7 +149,12 @@ interface AgentContextValue {
 
 const AgentContext = createContext<AgentContextValue | null>(null);
 
-export function AgentProvider({ children }: { children: ReactNode }) {
+interface AgentProviderProps {
+  children: ReactNode;
+  projectId?: string;  // 可选，用于按项目过滤 agents
+}
+
+export function AgentProvider({ children, projectId }: AgentProviderProps) {
   // 初始为空，从数据库加载
   const [savedAgents, setSavedAgents] = useState<SavedAgent[]>([]);
   const [currentAgentId, setCurrentAgentId] = useState<string | null>(null);
@@ -177,9 +182,15 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   // Legacy isChatOpen computed from sidebarMode
   const isChatOpen = sidebarMode !== 'closed';
 
-  // 页面加载时从数据库获取 agents
+  // 页面加载时从数据库获取 agents（按 project_id 过滤）
   useEffect(() => {
     const loadAgents = async () => {
+      // 必须有 projectId 才能加载 agents
+      if (!projectId) {
+        setSavedAgents([]);
+        return;
+      }
+      
       try {
         const agents = await get<Array<{
           id: string;
@@ -211,7 +222,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
             can_delete: boolean;
             json_path: string;
           }>;
-        }>>('/api/v1/agent-config/');
+        }>>(`/api/v1/agent-config/?project_id=${projectId}`);
         
         // 优先使用 bash_accesses，fallback 到 accesses
         const getNodeIds = (a: typeof agents[0]) => {
@@ -278,14 +289,14 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         });
         
         setSavedAgents(loadedAgents);
-        console.log('Loaded agents from database:', loadedAgents.length);
+        console.log('Loaded agents from database:', loadedAgents.length, 'for project:', projectId);
       } catch (error) {
         console.error('Failed to load agents:', error);
       }
     };
     
     loadAgents();
-  }, []);
+  }, [projectId]);
 
   // 切换 Agent (Triggers Deployed Mode)
   const selectAgent = useCallback((agentId: string | null) => {
@@ -461,16 +472,19 @@ export function AgentProvider({ children }: { children: ReactNode }) {
                 type: draftType, 
                 resources: draftResources,
                 trigger_type: draftTriggerType,
-                trigger_config: draftTriggerConfig,
-                task_content: draftTaskContent,
-                task_node_id: draftTaskNodeId,
-                external_config: draftExternalConfig,
+                trigger_config: draftTriggerConfig ?? undefined,
+                task_content: draftTaskContent ?? undefined,
+                task_node_id: draftTaskNodeId ?? undefined,
+                external_config: draftExternalConfig ?? undefined,
               }
             : a
         ));
         console.log('Agent updated:', agentId);
       } else {
-        // 新建模式：创建新 Agent
+        // 新建模式：创建新 Agent（必须有 projectId）
+        if (!projectId) {
+          throw new Error('projectId is required to create agent');
+        }
         const response = await post<{
           id: string;
           name: string;
@@ -487,6 +501,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           name,
           icon,
           type: draftType,
+          project_id: projectId,  // 新增：传递 project_id
           accesses,
           // Schedule Agent 新字段
           trigger_type: draftTriggerType,
@@ -509,10 +524,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           resources: draftResources,
           mcp_api_key: response.mcp_api_key,
           trigger_type: draftTriggerType,
-          trigger_config: draftTriggerConfig,
-          task_content: draftTaskContent,
-          task_node_id: draftTaskNodeId,
-          external_config: draftExternalConfig,
+          trigger_config: draftTriggerConfig ?? undefined,
+          task_content: draftTaskContent ?? undefined,
+          task_node_id: draftTaskNodeId ?? undefined,
+          external_config: draftExternalConfig ?? undefined,
         };
         setSavedAgents(prev => [...prev, newAgent]);
         console.log('Agent created:', agentId, 'MCP Key:', response.mcp_api_key);
@@ -527,7 +542,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       console.error('Failed to save agent:', error);
       alert('Failed to save agent. Please try again.');
     }
-  }, [draftType, draftCapabilities, draftResources, editingAgentId, draftTriggerType, draftTriggerConfig, draftTaskContent, draftTaskNodeId, draftExternalConfig]);
+  }, [draftType, draftCapabilities, draftResources, editingAgentId, draftTriggerType, draftTriggerConfig, draftTaskContent, draftTaskNodeId, draftExternalConfig, projectId]);
 
   // Legacy saveAgent (maps to deploy with current selected capabilities if possible, or simple save)
   const saveAgent = useCallback((name: string, icon: string, capabilities: string[]) => {
@@ -731,4 +746,3 @@ export function useAgent() {
 
 // 导出类型供其他组件使用
 export type { SavedAgent, AgentType, TriggerType, TriggerConfig, ExternalConfig } from '@/components/AgentRail';
-export type { AccessResource };

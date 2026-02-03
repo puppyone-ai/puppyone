@@ -228,7 +228,7 @@ export function ImportModal({
       // Auto-fill table name if empty (for create_table mode)
       if (mode === 'create_table' && !newTableName.trim()) {
         const suggestedName =
-          result.title || `${result.source_type}_data` || 'imported_data';
+          result.title || `${result.import_type}_data` || 'imported_data';
         setNewTableName(suggestedName);
       }
     } catch (err) {
@@ -574,7 +574,7 @@ export function ImportModal({
           {parseResult && (
             <>
               <div style={styles.infoText}>
-                Found {parseResult.total_items} items ({parseResult.source_type}
+                Found {parseResult.total_items} items ({parseResult.import_type}
                 )
               </div>
 

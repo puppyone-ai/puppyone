@@ -245,6 +245,7 @@ export function ProjectWorkspaceView({
                 tableId={validTableId ? Number(validTableId) : undefined}
                 onImportSuccess={props.onImportSuccess}
                 onOpenDocument={props.onOpenDocument}
+                onCreateTool={props.onCreateTool}
               />
             </div>
           ) : (

@@ -171,6 +171,10 @@ class ImportService:
         if "docs.google.com" in host and "/spreadsheets/" in url:
             return ImportTaskType.GOOGLE_SHEETS
         
+        # Google Docs
+        if "docs.google.com" in host and "/document/" in url:
+            return ImportTaskType.GOOGLE_DOCS
+        
         # Linear
         if "linear.app" in host:
             return ImportTaskType.LINEAR

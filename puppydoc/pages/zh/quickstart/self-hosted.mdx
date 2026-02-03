@@ -1,43 +1,136 @@
 # 自托管快速开始
 
-在你自己的基础设施上运行 PuppyOne。
+在本地运行 PuppyOne。
 
-## 前置条件
+---
+
+## 前提条件
 
 - Docker & Docker Compose
-- 至少 4GB 内存
+- 或者：Python 3.10+, Node.js 18+
 
-## 第一步：克隆仓库
+---
+
+## 方式一：Docker Compose（推荐）
+
+### 1. 克隆仓库
 
 ```bash
 git clone https://github.com/puppyone-ai/puppyone.git
 cd puppyone
 ```
 
-## 第二步：配置环境变量
+### 2. 启动服务
 
 ```bash
+docker compose up --build
+```
+
+### 3. 访问服务
+
+- **Frontend**: http://localhost:4000
+- **Backend API**: http://localhost:9090
+
+---
+
+## 方式二：手动启动
+
+### 1. 克隆仓库
+
+```bash
+git clone https://github.com/puppyone-ai/puppyone.git
+cd puppyone
+```
+
+### 2. 启动后端
+
+```bash
+cd backend
+cp .env.example .env  # 配置环境变量
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m uvicorn src.main:app --port 9090
+```
+
+### 3. 启动前端
+
+```bash
+cd frontend
 cp .env.example .env
-# 编辑 .env，填入你的 API 密钥
+npm install
+npm run dev
 ```
 
-## 第三步：启动服务
+### 4. 访问
+
+- **Frontend**: http://localhost:4000
+- **Backend API**: http://localhost:9090
+
+---
+
+## 环境变量
+
+主要配置项（在 `.env` 文件中）：
 
 ```bash
-docker-compose up -d
+# 数据库
+DATABASE_URL=postgresql://...
+
+# JWT 密钥
+JWT_SECRET=your-secret-key
+
+# OpenAI（用于 ETL）
+OPENAI_API_KEY=sk-...
+
+# Supabase（可选）
+SUPABASE_URL=...
+SUPABASE_KEY=...
 ```
 
-## 第四步：访问控制台
+---
 
-在浏览器打开 `http://localhost:3000`。
+## 连接 Agent
+
+自托管环境下，MCP Server URL 是：
+
+```
+http://localhost:9090/api/v1/mcp/server/{API_KEY}
+```
+
+Cursor 配置：
+
+```json
+{
+  "mcpServers": {
+    "puppyone-local": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:9090/api/v1/mcp/server/sk_xxx"]
+    }
+  }
+}
+```
+
+---
+
+## 常见问题
+
+### 端口冲突
+
+修改 `docker-compose.yml` 或启动命令中的端口。
+
+### 数据库连接失败
+
+检查 `DATABASE_URL` 配置是否正确。
+
+### MCP 连接失败
+
+确保 `MCP_SERVER_URL` 环境变量配置正确。
+
+---
 
 ## 下一步
 
-- [核心概念](/zh/concepts)
-- [API 参考](/zh/api)
-
-
-
-
-
-
+- [连接数据源](/zh/connect)
+- [设置访问权限](/zh/access)
+- [连接 Agent](/zh/agents)

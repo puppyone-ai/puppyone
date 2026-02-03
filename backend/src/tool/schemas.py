@@ -23,8 +23,8 @@ class ToolCreate(BaseModel):
     )
     type: ToolTypeKey = Field(
         ...,
-        description="Tool 类型",
-        examples=["search", "create", "query_data", "shell_access", "custom_script"],
+        description="Tool 类型（注意：shell_access 已移至 agent_bash 表管理）",
+        examples=["search", "create", "query_data", "custom_script"],
     )
 
     name: str = Field(..., description="工具唯一调用名（建议在同一 MCP 内唯一）")
@@ -86,6 +86,7 @@ class ToolOut(BaseModel):
     created_at: datetime
 
     user_id: str
+    project_id: Optional[str] = None  # 所属项目 ID
     node_id: Optional[str] = None
     json_path: str = ""
 

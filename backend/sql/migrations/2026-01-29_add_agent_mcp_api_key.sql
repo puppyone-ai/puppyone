@@ -11,3 +11,4 @@ CREATE INDEX IF NOT EXISTS idx_agent_mcp_api_key ON agent(mcp_api_key);
 COMMENT ON COLUMN agent.mcp_api_key IS 'MCP API key for external access (Claude Desktop, Cursor, etc.)';
 
 
+

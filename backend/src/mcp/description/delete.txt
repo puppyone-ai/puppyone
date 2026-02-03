@@ -1,20 +1,26 @@
-批量删除指定的键值对。
+Remove Element - 从数据中移除指定元素。
+
+适用内容类型：
+- JSON：从数组或对象中删除指定元素
+- Folder：（即将支持）删除文件夹内的指定文件
 
 表格：{table_name}
 {table_description}
 
 参数：
-- keys (List[str], 必填): 要删除的 key 列表
+- keys (List[str], 必填): 要删除的元素标识符列表
 
-挂载点类型说明（由 MCP 实例的 json_path 决定）：
-- 挂载点为 Dict：keys 是要删除的键名；若某个 key 不存在会失败
-- 挂载点为 List：keys 视为下标（如 "0", "1"）；按倒序删除避免下标位移；下标必须在范围内，否则会失败
+行为说明：
+- 目标为 Dict 时：keys 为要删除的键名；若 key 不存在会失败
+- 目标为 List 时：keys 为下标（如 "0", "1"）；按倒序删除避免下标位移
 
-使用前提：先用 get_data_schema 或 query_data 确认 key 存在
+使用前提：先用 get_data_schema 或 query_data 确认元素存在
 
 示例：
-keys = ["user_001", "user_002"]
+keys = ["user_001", "user_002"]  # 删除 Dict 中的键
+keys = ["0", "2"]  # 删除 List 中的第 0 和第 2 个元素
 
 注意：
+- 仅适用于 JSON 类型数据
 - 删除操作不可逆，请谨慎使用
-- 若传入不存在的 key/下标，会导致本次删除失败
+- 若传入不存在的 key/下标，会导致删除失败

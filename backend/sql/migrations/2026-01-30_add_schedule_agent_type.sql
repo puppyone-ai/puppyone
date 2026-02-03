@@ -12,3 +12,4 @@ ALTER TABLE agent ADD CONSTRAINT agent_type_check
 COMMENT ON CONSTRAINT agent_type_check ON agent IS 'Allowed agent types: chat, devbox, webhook, schedule';
 
 
+

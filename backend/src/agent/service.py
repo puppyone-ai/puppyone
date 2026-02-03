@@ -464,27 +464,9 @@ class AgentService:
             except Exception as e:
                 logger.warning(f"[Agent] Failed to get agent config: {e}")
         
-        # 旧版兼容：如果没有从 agent_access 获取到配置，fallback 到 tool 表
-        if len(bash_tools) == 0 and request.active_tool_ids and current_user and tool_service:
-            logger.info(f"[Agent] Fallback to tool table for bash config")
-            for tool_id in request.active_tool_ids:
-                try:
-                    tool = tool_service.get_by_id(tool_id)
-                    logger.info(f"[Agent DEBUG] tool_id={tool_id}, tool={tool}")
-                    if tool:
-                        logger.info(f"[Agent DEBUG] tool.user_id={tool.user_id}, current_user.user_id={current_user.user_id}")
-                        logger.info(f"[Agent DEBUG] tool.type={tool.type}, tool.node_id={tool.node_id}")
-                    if tool and tool.user_id == current_user.user_id:
-                        tool_type = (tool.type or "").strip()
-                        if tool_type in ("shell_access", "shell_access_readonly"):
-                            bash_tools.append({
-                                "node_id": tool.node_id,
-                                    "json_path": (tool.json_path or "").strip(),
-                                    "readonly": tool_type == "shell_access_readonly",
-                            })
-                            logger.info(f"[Agent] Found bash tool from tool table: node_id={tool.node_id}")
-                except Exception as e:
-                    logger.warning(f"[Agent] Failed to get tool {tool_id}: {e}")
+        # NOTE: Legacy fallback to tool table for shell_access has been removed.
+        # Shell/bash access is now managed exclusively via agent_bash table.
+        # See architecture: agents → agent_bash (data access) + agent_tool (tool bindings)
         
         # ========== 2. Chat persistence (best-effort) ==========
         persisted_session_id: str | None = None

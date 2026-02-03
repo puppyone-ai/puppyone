@@ -9,7 +9,6 @@ import React, {
 } from 'react';
 import { ContextMenu, type ContextMenuState } from './components/ContextMenu';
 import { NodeContextMenu } from './components/NodeContextMenu';
-import { RightAccessSidebar } from './components/RightAccessSidebar';
 import { ValueRenderer } from './components/ValueRenderer';
 import { DepthResizeBar } from './components/DepthResizeBar';
 import { McpToolPermissions } from '../../../lib/mcpApi';
@@ -287,10 +286,9 @@ interface VirtualRowProps {
   configuredAccess?: McpToolPermissions | null;
   isContextMenuOpen?: boolean;
   onOpenDocument?: (path: string, value: string) => void;
-  // 新增：hover 状态通知
+  // hover 状态通知
   onHoverChange?: (path: string | null) => void;
-  isPopoverOpen?: boolean;
-  // 新增：外部 hover 状态（来自 sidebar menu 区域）
+  // 外部 hover 状态
   isHoveredExternal?: boolean;
 }
 
@@ -311,10 +309,8 @@ const VirtualRow = React.memo(function VirtualRow({
   isContextMenuOpen,
   onOpenDocument,
   onHoverChange,
-  isPopoverOpen,
   isHoveredExternal,
 }: VirtualRowProps) {
-  const isPopoverOwner = isPopoverOpen || false;
   const [hovered, setHovered] = useState(false);
   // 合并本地 hover 和外部 hover
   const isHovered = hovered || isHoveredExternal;
@@ -372,7 +368,7 @@ const VirtualRow = React.memo(function VirtualRow({
         height: ROW_HEIGHT, // 固定高度 28px
         overflow: 'hidden',
         background:
-          isHovered || isPopoverOwner
+          isHovered || isContextMenuOpen
             ? 'rgba(255, 255, 255, 0.08)'
             : 'transparent',
         cursor: 'pointer',
@@ -561,10 +557,10 @@ const VirtualRow = React.memo(function VirtualRow({
             minHeight: 28,
             transition: 'all 0.12s',
             background:
-              isPopoverOwner && !isConfigured
+              isContextMenuOpen && !isConfigured
                 ? 'rgba(255, 167, 61, 0.12)'
                 : isConfigured
-                  ? isPopoverOwner
+                  ? isContextMenuOpen
                     ? 'rgba(255, 167, 61, 0.18)' // 激活态
                     : 'rgba(255, 167, 61, 0.12)' // 默认已配置 - 更明显
                   : 'transparent',
@@ -618,7 +614,6 @@ export default function TreeLineDiscreteEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const mainContentRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(0);
-  const [mainContentWidth, setMainContentWidth] = useState(0);
   const accumulatedDelta = useRef(0);
 
   // Use the shared actions hook
@@ -663,10 +658,7 @@ export default function TreeLineDiscreteEditor({
   });
 
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [lockedPopoverPath, setLockedPopoverPath] = useState<string | null>(
-    null
-  );
-  // 新增：追踪当前 hover 的行路径
+  // 追踪当前 hover 的行路径
   const [hoveredRowPath, setHoveredRowPath] = useState<string | null>(null);
   const [keyWidths, setKeyWidths] = useState<number[]>(() =>
     Array(MAX_DEPTH_LEVELS).fill(DEFAULT_KEY_WIDTH)
@@ -703,17 +695,6 @@ export default function TreeLineDiscreteEditor({
     return () => observer.disconnect();
   }, []);
 
-  // Resize Observer for Main Content Width (稳定，不受 Menu 展开影响)
-  useEffect(() => {
-    if (!mainContentRef.current) return;
-    const observer = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        setMainContentWidth(entry.contentRect.width);
-      }
-    });
-    observer.observe(mainContentRef.current);
-    return () => observer.disconnect();
-  }, []);
 
   // Wheel Handler - The Core of "Discrete" feel
   const handleWheel = useCallback(
@@ -892,27 +873,12 @@ export default function TreeLineDiscreteEditor({
                 }
                 onOpenDocument={onOpenDocument}
                 onHoverChange={setHoveredRowPath}
-                isPopoverOpen={lockedPopoverPath === node.path}
                 isHoveredExternal={hoveredRowPath === node.path}
               />
             </div>
           ))}
         </div>
 
-        {/* Right Access Sidebar - 独立的右侧面板 */}
-        <RightAccessSidebar
-          visibleRows={visibleRows}
-          rowHeight={ROW_HEIGHT}
-          configuredAccessMap={configuredAccessMap}
-          lockedPopoverPath={lockedPopoverPath}
-          onPopoverOpenChange={setLockedPopoverPath}
-          onAccessChange={onAccessPointChange}
-          onRemove={onAccessPointRemove}
-          isSelectingAccessPoint={isSelectingAccessPoint}
-          hoveredRowPath={hoveredRowPath}
-          onHoverRow={setHoveredRowPath}
-          containerWidth={mainContentWidth} // 传递稳定的父容器宽度
-        />
 
         {/* Custom Discrete Scrollbar (Moved to far right) */}
         {flatNodes.length > visibleCount && (

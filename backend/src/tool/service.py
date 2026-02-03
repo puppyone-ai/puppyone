@@ -164,10 +164,14 @@ class ToolService:
         category: str = "builtin",
         script_type: Optional[str] = None,
         script_content: Optional[str] = None,
+        project_id: Optional[str] = None,  # 新增：允许直接传入 project_id
     ) -> Tool:
         # 对于内置工具，强校验：node 必须属于当前用户
+        # 同时自动获取 project_id（如果未传入）
         if node_id and category == "builtin":
-            self.node_service.get_by_id(node_id, user_id)
+            node = self.node_service.get_by_id(node_id, user_id)
+            if not project_id:
+                project_id = node.project_id
 
         # 默认工具描述：当未传 description（或仅空白）时，根据 type 自动填充默认值
         if description is None or not str(description).strip():
@@ -176,6 +180,7 @@ class ToolService:
         created = self.repo.create(
             SbToolCreate(
                 user_id=user_id,
+                project_id=project_id,
                 node_id=node_id,
                 json_path=json_path,
                 type=type,
@@ -246,11 +251,12 @@ class ToolService:
         limit: int = 1000,
     ) -> List[Tool]:
         """
-        项目级聚合：返回该用户的所有 tools。
-        注意：实际按 project 过滤由前端完成（根据 node_id 对应的节点所属项目）。
-        TODO: 后续可以优化为在数据库层面 JOIN content_nodes 表进行过滤。
+        项目级聚合：返回该用户在指定项目下的所有 tools。
+        通过 tool.project_id 字段直接过滤。
         """
-        return self.repo.get_by_user_id(user_id, skip=0, limit=limit)
+        return self.repo.get_by_user_id(
+            user_id, skip=0, limit=limit, project_id=project_id
+        )
 
     def delete(self, tool_id: str, user_id: str) -> None:
         _ = self.get_by_id_with_access_check(tool_id, user_id)

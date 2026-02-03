@@ -7,73 +7,140 @@ import { getNodeTypeConfig, isSyncedType, getSyncSource, LockIcon } from '@/lib/
 // Content type definition
 export type ContentType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'github_repo' | 'notion_page' | 'notion_database' | 'airtable_base' | 'linear_project' | 'google_sheets';
 
-// Type icons - 实色填充 + 保留线条语言
-const FolderIconLarge = ({ color = '#a1a1aa' }: { color?: string }) => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-    <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill={color} fillOpacity="0.25" stroke={color} strokeWidth="1.5" />
+// --- Rich Icons (拟物化图标) ---
+
+// 1. 文件夹 (使用外部 SVG)
+const FolderIconLarge = () => (
+  <img src="/icons/folder.svg" alt="Folder" width={64} height={64} style={{ display: 'block' }} />
+);
+
+// 通用文档背景 (Paper Base)
+const DocBase = ({ children }: { children?: React.ReactNode }) => (
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+    {/* 纸张阴影 */}
+    <rect x="12" y="6" width="40" height="52" rx="3" fill="black" fillOpacity="0.3" transform="translate(2, 2)" />
+    {/* 纸张主体 */}
+    <rect x="12" y="6" width="40" height="52" rx="3" fill="#27272a" stroke="#3f3f46" strokeWidth="1" />
+    {/* 内容区 */}
+    {children}
   </svg>
 );
 
-const JsonIconLarge = ({ color = '#34d399' }: { color?: string }) => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-    {/* 背景填充 */}
-    <rect x="3" y="3" width="18" height="18" rx="2" fill={color} fillOpacity="0.2" />
-    {/* 网格线条 */}
-    <rect x="3" y="3" width="18" height="18" rx="2" stroke={color} strokeWidth="1.5" fill="none" />
-    <path d="M3 9H21" stroke={color} strokeWidth="1.5" />
-    <path d="M9 3V21" stroke={color} strokeWidth="1.5" />
-  </svg>
+// 2. JSON 文档图标 (使用外部 SVG)
+const JsonIconLarge = () => (
+  <img src="/icons/json-doc.svg" alt="JSON" width={64} height={64} style={{ display: 'block' }} />
 );
 
-const MarkdownIconLarge = ({ color = '#60a5fa' }: { color?: string }) => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-    {/* 文档主体填充 */}
-    <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" fill={color} fillOpacity="0.2" />
-    {/* 文档边框 */}
-    <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke={color} strokeWidth="1.5" fill="none" />
-    {/* 折角 */}
-    <path d="M14 2V8H20" stroke={color} strokeWidth="1.5" />
-  </svg>
+// 3. Markdown 文档图标 (使用外部 SVG)
+const MarkdownIconLarge = () => (
+  <img src="/icons/markdown-doc.svg" alt="Markdown" width={64} height={64} style={{ display: 'block' }} />
 );
 
-// 带 Logo 的通用图标 (支持 Folder, Markdown, Json)
-// 只显示 Logo，不显示文字（文字标签移到名称下方）
-const BrandedIcon = ({ 
-  BaseIcon,
-  BadgeIcon,
-  color = '#a1a1aa',
-  badgeSize = 20
-}: { 
-  BaseIcon: React.ElementType;
-  BadgeIcon?: React.ElementType;
-  color?: string;
-  badgeSize?: number;
-}) => (
-  <div style={{ position: 'relative', width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    {/* 底层图标 - 降低透明度作为背景轮廓 */}
-    <div style={{ opacity: 0.4 }}>
-      <BaseIcon color={color} />
-    </div>
+// 4. 网格背景 (Grid Base) - 用于 Sheets
+const GridBase = ({ children }: { children?: React.ReactNode }) => (
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+    {/* 纸张阴影 */}
+    <rect x="12" y="6" width="40" height="52" rx="3" fill="black" fillOpacity="0.3" transform="translate(2, 2)" />
+    {/* 纸张主体 */}
+    <rect x="12" y="6" width="40" height="52" rx="3" fill="#27272a" stroke="#3f3f46" strokeWidth="1" />
     
-    {/* 顶层 Logo - 无背景，浅色，带柔和发光 */}
-    {BadgeIcon && (
-      <div style={{
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#e4e4e7',
-        filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.25)) drop-shadow(0 2px 3px rgba(0,0,0,0.5))',
-        zIndex: 10,
-      }}>
-        <BadgeIcon size={badgeSize} />
-      </div>
-    )}
-  </div>
+    {/* 极简网格线 - 降低透明度，减少视觉噪音 */}
+    <path d="M12 22H52" stroke="#3f3f46" strokeWidth="1" strokeOpacity="0.4" />
+    <path d="M12 36H52" stroke="#3f3f46" strokeWidth="1" strokeOpacity="0.4" />
+    <path d="M12 50H52" stroke="#3f3f46" strokeWidth="1" strokeOpacity="0.4" />
+    <path d="M32 6V58" stroke="#3f3f46" strokeWidth="1" strokeOpacity="0.4" />
+
+    {children}
+  </svg>
 );
+
+// 5. Branded Doc - JSON 图标 + 右下角来源 Logo
+const BrandedIcon = ({ 
+  BadgeIcon,
+  type,
+  badgeSize = 20,
+  showWarning = false,
+}: { 
+  BadgeIcon?: React.ElementType;
+  type: string;
+  badgeSize?: number;
+  showWarning?: boolean;
+}) => {
+  return (
+    <div style={{ position: 'relative', width: 64, height: 64 }}>
+      {/* 
+        底板：使用 JSON 图标显示数据格式
+        如果是 placeholder，应用灰度，表示"文件未生成"
+      */}
+      <img 
+        src="/icons/json-doc.svg" 
+        alt="Data" 
+        width={64} 
+        height={64} 
+        style={{ 
+          display: 'block',
+          filter: showWarning ? 'grayscale(100%) opacity(0.5)' : 'none',
+          transition: 'all 0.3s ease'
+        }} 
+      />
+      
+      {/* 右下角来源 Logo - 保持原色，方便识别 */}
+      {BadgeIcon && (
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          right: -2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#e4e4e7',
+          // 如果是 placeholder，稍微降低一点透明度，不那么"跳"，但保留颜色
+          opacity: showWarning ? 0.8 : 1,
+          filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))',
+          zIndex: 10,
+          transition: 'opacity 0.3s ease'
+        }}>
+          <BadgeIcon size={badgeSize} />
+        </div>
+      )}
+
+      {/* 警告徽章 - 独立于主体，鲜艳突出 */}
+      {showWarning && BadgeIcon && (
+        <div style={{
+          position: 'absolute',
+          bottom: 12,
+          right: -4,
+          width: 16,
+          height: 16,
+          borderRadius: '50%',
+          background: '#f59e0b',
+          border: '2px solid #18181b',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 20,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+          animation: 'pulse-badge 2s infinite'
+        }}>
+          <span style={{ 
+            color: '#000', 
+            fontSize: 10, 
+            fontWeight: 800,
+            lineHeight: 1,
+            marginBottom: 1 
+          }}>!</span>
+        </div>
+      )}
+      <style jsx>{`
+        @keyframes pulse-badge {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+          100% { transform: scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+};
 
 const CreateIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -99,6 +166,7 @@ export interface GridViewItem {
   // 同步相关字段
   is_synced?: boolean;
   sync_source?: string | null;
+  sync_status?: 'not_connected' | 'idle' | 'syncing' | 'error';
   last_synced_at?: string | null;
 }
 
@@ -109,6 +177,7 @@ export interface GridViewProps {
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
+  onCreateTool?: (id: string, name: string, type: string) => void;
   loading?: boolean;
   agentResources?: AgentResource[];
 }
@@ -120,6 +189,7 @@ function GridItem({
   onDelete,
   onDuplicate,
   onRefresh,
+  onCreateTool,
 }: {
   item: GridViewItem;
   agentResource?: AgentResource;
@@ -127,6 +197,7 @@ function GridItem({
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
+  onCreateTool?: (id: string, name: string, type: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -139,6 +210,7 @@ function GridItem({
   const isSynced = item.is_synced || isSyncedType(item.type);
   const BadgeIcon = typeConfig.badgeIcon;
   const syncSource = getSyncSource(item.type);
+  const isPlaceholder = item.sync_status === 'not_connected';
   
   // 格式化来源名称
   const formatSourceName = (source: string | null) => {
@@ -149,6 +221,10 @@ function GridItem({
       'airtable': 'Airtable',
       'linear': 'Linear',
       'sheets': 'Sheets',
+      'gmail': 'Gmail',
+      'drive': 'Drive',
+      'calendar': 'Calendar',
+      'docs': 'Docs',
     };
     return names[source] || source;
   };
@@ -158,33 +234,22 @@ function GridItem({
     const config = getNodeTypeConfig(item.type);
     
     // 对于所有同步类型 (GitHub Repo, Notion Page/Database, Airtable, etc.)
-    // 都使用 "图标 + Logo + 标签" 的 Branded 样式
+    // 使用拟物化的 "文档 + Logo"
     if (isSyncedType(item.type) || item.is_synced) {
-      // 确定基础图标
-      let BaseIcon = JsonIconLarge;
-      if (item.type === 'github_repo' || item.type === 'notion_database' || config.renderAs === 'folder') {
-        BaseIcon = FolderIconLarge;
-      } else if (config.renderAs === 'markdown') {
-        BaseIcon = MarkdownIconLarge;
-      }
-
-      // 统一使用中性灰色作为底层图标颜色（和普通文件夹一致）
-      const neutralColor = hovered ? '#a1a1aa' : '#71717a';
-
       return (
         <BrandedIcon 
-          BaseIcon={BaseIcon} 
           BadgeIcon={config.badgeIcon}
-          color={neutralColor} 
+          type={item.type} // 传入类型以决定底板
+          showWarning={isPlaceholder} // 如果是占位符，显示警告
         />
       );
     }
     
-    // 普通类型（非同步）使用各自的颜色
+    // 普通类型（非同步）使用拟物化图标
     switch (config.renderAs) {
-      case 'folder': return <FolderIconLarge color={hovered ? '#a1a1aa' : '#71717a'} />;
-      case 'markdown': return <MarkdownIconLarge color={hovered ? '#93c5fd' : config.color} />;
-      default: return <JsonIconLarge color={hovered ? '#6ee7b7' : config.color} />;
+      case 'folder': return <FolderIconLarge />;
+      case 'markdown': return <MarkdownIconLarge />;
+      default: return <JsonIconLarge />;
     }
   };
 
@@ -193,9 +258,9 @@ function GridItem({
       onClick={item.onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      draggable={!typeConfig.isReadOnly}
+      draggable={!typeConfig.isReadOnly && !isPlaceholder}
       onDragStart={(e) => {
-        if (typeConfig.isReadOnly) {
+        if (typeConfig.isReadOnly || isPlaceholder) {
           e.preventDefault();
           return;
         }
@@ -209,141 +274,104 @@ function GridItem({
       style={{
         display: 'flex',
         flexDirection: 'column',
+        alignItems: 'center', // 整体水平居中
+        justifyContent: 'center', // 整体垂直居中 (Finder 风格)
         width: 120,
         height: 120,
         borderRadius: 8,
         cursor: 'pointer',
         background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-        transition: 'background 0.15s',
+        transition: 'all 0.15s',
         position: 'relative',
-        outline: hasAgentAccess ? '2px solid rgba(249, 115, 22, 0.5)' : 'none',
+        outline: hasAgentAccess 
+            ? '2px solid rgba(249, 115, 22, 0.5)' 
+            : 'none',
         outlineOffset: -2,
+        // 移除 opacity 控制，由 BrandedIcon 内部处理视觉状态
+        opacity: 1, 
+        gap: 8, // 图标和文字的间距
+        padding: 8,
       }}
     >
       {/* 图标区域 */}
-      <div 
-        style={{ 
-          flex: 1,
-          display: 'flex', 
-          alignItems: 'flex-end',
-          justifyContent: 'center',
-          position: 'relative',
-          minHeight: 0,
-          paddingBottom: 10,
-        }}
-      >
-        {/* 图标 */}
-        <div style={{ position: 'relative' }}>
-          {getTypeIcon()}
-          
-          {/* Source Badge - 右下角角标 (仅非同步类型或无中心Logo时显示，防止重复) */}
-          {syncSource && BadgeIcon && !isSynced && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: -8,
-                right: -8,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 32,
-                height: 32,
-                background: '#27272a',
-                border: '3px solid #18181b',
-                borderRadius: 8,
-                color: '#e4e4e7',
-                boxShadow: '0 4px 8px rgba(0,0,0,0.4)',
-                zIndex: 10,
-              }}
-              title={`Source: ${formatSourceName(syncSource)}`}
-            >
-              <BadgeIcon size={20} />
-            </div>
-          )}
-        </div>
-        
-        {/* Action Menu - 右上角 */}
-        {(onRename || onDelete || onDuplicate || (isSynced && onRefresh)) && (
-          <div style={{ position: 'absolute', top: 4, right: 4 }}>
-            <ItemActionMenu
-              itemId={item.id}
-              itemName={item.name}
-              itemType={item.type}
-              onRename={onRename}
-              onDelete={onDelete}
-              onDuplicate={onDuplicate}
-              onRefresh={isSynced ? onRefresh : undefined}
-              syncUrl={item.sync_url}
-              visible={hovered}
-            />
-          </div>
-        )}
-
-        {/* Read-only Lock Icon - 右上角 (for synced items) */}
-        {typeConfig.isReadOnly && (
-          <div style={{ 
-            position: 'absolute', 
-            top: 4, 
-            right: 4,
-            color: '#525252',
-            display: 'flex',
-            alignItems: 'center',
-          }}>
-            <LockIcon size={12} />
-          </div>
-        )}
-
-        {/* Agent Access Badge - 左上角 */}
-        {hasAgentAccess && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 4,
-              left: 4,
-              padding: '2px 6px',
-              borderRadius: 3,
-              background: accessMode === 'write' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(100, 100, 100, 0.25)',
-              fontSize: 10,
-              fontWeight: 500,
-              color: accessMode === 'write' ? '#fb923c' : '#a1a1aa',
-            }}
-          >
-            {accessMode === 'write' ? 'Edit' : 'View'}
-          </div>
-        )}
+      <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }} title={isPlaceholder ? "Click to connect" : undefined}>
+        {getTypeIcon()}
       </div>
+      
+      {/* Action Menu - 右上角 (absolute 定位相对于 GridItem) */}
+      {(onRename || onDelete || onDuplicate || onCreateTool || (isSynced && onRefresh)) && !isPlaceholder && (
+        <div style={{ position: 'absolute', top: 4, right: 4 }}>
+          <ItemActionMenu
+            itemId={item.id}
+            itemName={item.name}
+            itemType={item.type}
+            onRename={onRename}
+            onDelete={onDelete}
+            onDuplicate={onDuplicate}
+            onRefresh={isSynced ? onRefresh : undefined}
+            onCreateTool={onCreateTool}
+            syncUrl={item.sync_url}
+            visible={hovered}
+          />
+        </div>
+      )}
 
-      {/* Name - 底部区域，固定高度保证两行 */}
-      <div
-        style={{
-          flexShrink: 0,
-          height: 40,
-          padding: '0 6px 6px 6px',
+      {/* Read-only Lock Icon - 右上角 */}
+      {typeConfig.isReadOnly && !isPlaceholder && (
+        <div style={{ 
+          position: 'absolute', 
+          top: 4, 
+          right: 4,
+          color: '#525252',
           display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'center',
-        }}
-      >
-        {/* 文件名 + 来源标签 */}
+          alignItems: 'center',
+        }}>
+          <LockIcon size={12} />
+        </div>
+      )}
+
+      {/* Agent Access Badge - 左上角 */}
+      {hasAgentAccess && (
         <div
           style={{
-            fontSize: 13,
-            color: hovered ? '#fff' : '#a1a1aa',
-            wordBreak: 'break-word',
-            lineHeight: 1.35,
-            overflow: 'hidden',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            textAlign: 'center',
+            position: 'absolute',
+            top: 4,
+            left: 4,
+            padding: '2px 6px',
+            borderRadius: 3,
+            background: accessMode === 'write' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(100, 100, 100, 0.25)',
+            fontSize: 10,
+            fontWeight: 500,
+            color: accessMode === 'write' ? '#fb923c' : '#a1a1aa',
           }}
         >
-          {item.name}
-          {/* 来源标签 - 紧跟在名字后面 */}
-          {isSynced && syncSource && (
-            <span style={{ color: '#52525b', fontSize: 11 }}> · {formatSourceName(syncSource)}</span>
-          )}
+          {accessMode === 'write' ? 'Edit' : 'View'}
         </div>
+      )}
+
+      {/* Name - 紧贴图标下方 */}
+      <div
+        style={{
+          fontSize: 13,
+          color: hovered ? '#fff' : '#a1a1aa',
+          wordBreak: 'break-word',
+          lineHeight: 1.3,
+          maxHeight: 34, // 限制高度，最多两行
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          textAlign: 'center',
+          transition: 'color 0.15s',
+          width: '100%',
+          padding: '0 4px',
+        }}
+      >
+        {item.name}
+        {/* 来源标签 - 紧跟在名字后面 */}
+        {isSynced && syncSource && !isPlaceholder && (
+          <span style={{ color: '#52525b', fontSize: 11 }}> · {formatSourceName(syncSource)}</span>
+        )}
       </div>
     </div>
   );
@@ -407,6 +435,7 @@ export function GridView({
   onDelete,
   onDuplicate,
   onRefresh,
+  onCreateTool,
   loading,
   agentResources,
 }: GridViewProps) {
@@ -435,6 +464,7 @@ export function GridView({
           onDelete={onDelete}
           onDuplicate={onDuplicate}
           onRefresh={onRefresh}
+          onCreateTool={onCreateTool}
         />
       ))}
 
@@ -444,4 +474,3 @@ export function GridView({
     </div>
   );
 }
-

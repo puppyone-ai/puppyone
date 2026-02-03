@@ -29,6 +29,12 @@ from src.supabase.client import SupabaseClient
 from src.oauth.github_service import GithubOAuthService
 from src.oauth.notion_service import NotionOAuthService
 from src.oauth.gmail_service import GmailOAuthService
+from src.oauth.google_drive_service import GoogleDriveOAuthService
+from src.oauth.google_calendar_service import GoogleCalendarOAuthService
+from src.oauth.google_sheets_service import GoogleSheetsOAuthService
+from src.oauth.google_docs_service import GoogleDocsOAuthService
+from src.oauth.airtable_service import AirtableOAuthService
+from src.oauth.linear_service import LinearOAuthService
 from src.s3.service import S3Service
 from src.utils.logger import log_info
 
@@ -50,11 +56,19 @@ async def startup(ctx: dict[str, Any]) -> None:
     ctx["task_manager"] = ImportTaskManager(task_repository)
     ctx["node_service"] = ContentNodeService(node_repository, s3_service)
     ctx["s3_service"] = s3_service
+    
+    # OAuth services
     ctx["github_service"] = GithubOAuthService()
     ctx["notion_service"] = NotionOAuthService()
     ctx["gmail_service"] = GmailOAuthService()
+    ctx["drive_service"] = GoogleDriveOAuthService()
+    ctx["calendar_service"] = GoogleCalendarOAuthService()
+    ctx["sheets_service"] = GoogleSheetsOAuthService()
+    ctx["docs_service"] = GoogleDocsOAuthService()
+    ctx["airtable_service"] = AirtableOAuthService()
+    ctx["linear_service"] = LinearOAuthService()
     
-    log_info("Import worker initialized")
+    log_info("Import worker initialized with all OAuth services")
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:

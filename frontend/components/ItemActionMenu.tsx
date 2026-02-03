@@ -44,6 +44,12 @@ const RefreshIcon = () => (
   </svg>
 );
 
+const ToolIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const ExternalLinkIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
     <path d="M18 13V19C18 19.5304 17.7893 20.0391 17.4142 20.4142C17.0391 20.7893 16.5304 21 16 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V8C3 7.46957 3.21071 6.96086 3.58579 6.58579C3.96086 6.21071 4.46957 6 5 6H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -63,6 +69,8 @@ export interface ItemActionMenuProps {
   onDuplicate?: (id: string) => void;
   /** 刷新同步数据（仅 synced 类型显示） */
   onRefresh?: (id: string) => void;
+  /** 创建 Tool（打开 Tool 创建面板） */
+  onCreateTool?: (id: string, name: string, type: string) => void;
   /** 同步来源 URL（仅 synced 类型显示） */
   syncUrl?: string | null;
   /** 是否显示按钮（hover 时才显示） */
@@ -74,10 +82,12 @@ export interface ItemActionMenuProps {
 }
 
 interface MenuItem {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
+  type: 'item' | 'separator';
+  icon?: React.ReactNode;
+  label?: string;
+  onClick?: () => void;
   danger?: boolean;
+  highlightColor?: string;
 }
 
 // === Menu Component ===
@@ -90,6 +100,7 @@ export function ItemActionMenu({
   onDelete,
   onDuplicate,
   onRefresh,
+  onCreateTool,
   syncUrl,
   visible = true,
   position = 'bottom-left',
@@ -105,7 +116,7 @@ export function ItemActionMenu({
     if (!buttonRef.current) return null;
     
     const rect = buttonRef.current.getBoundingClientRect();
-    const menuWidth = 140;
+    const menuWidth = 160; // Increased width slightly for better padding
     
     let left: number;
     if (position === 'bottom-right') {
@@ -122,7 +133,7 @@ export function ItemActionMenu({
     }
     
     return {
-      top: rect.bottom + 4,
+      top: rect.bottom + 6,
       left,
     };
   };
@@ -175,30 +186,10 @@ export function ItemActionMenu({
 
   const menuItems: MenuItem[] = [];
 
-  if (onRefresh) {
-    menuItems.push({
-      icon: <RefreshIcon />,
-      label: 'Refresh',
-      onClick: () => {
-        handleClose();
-        onRefresh(itemId);
-      },
-    });
-  }
-
-  if (syncUrl) {
-    menuItems.push({
-      icon: <ExternalLinkIcon />,
-      label: 'View Original',
-      onClick: () => {
-        handleClose();
-        window.open(syncUrl, '_blank');
-      },
-    });
-  }
-
+  // 1. Standard File Actions (Rename is most common)
   if (onRename) {
     menuItems.push({
+      type: 'item',
       icon: <RenameIcon />,
       label: 'Rename',
       onClick: () => {
@@ -210,6 +201,7 @@ export function ItemActionMenu({
 
   if (onDuplicate) {
     menuItems.push({
+      type: 'item',
       icon: <DuplicateIcon />,
       label: 'Duplicate',
       onClick: () => {
@@ -219,8 +211,64 @@ export function ItemActionMenu({
     });
   }
 
-  if (onDelete) {
+  // 2. Sync / External Actions (if applicable)
+  const hasSyncActions = syncUrl || onRefresh;
+  if (hasSyncActions && (onRename || onDuplicate)) {
+    menuItems.push({ type: 'separator' });
+  }
+
+  if (onRefresh) {
     menuItems.push({
+      type: 'item',
+      icon: <RefreshIcon />,
+      label: 'Refresh Data',
+      onClick: () => {
+        handleClose();
+        onRefresh(itemId);
+      },
+    });
+  }
+
+  if (syncUrl) {
+    menuItems.push({
+      type: 'item',
+      icon: <ExternalLinkIcon />,
+      label: 'View Original',
+      onClick: () => {
+        handleClose();
+        window.open(syncUrl, '_blank');
+      },
+    });
+  }
+
+  // 3. Tool Actions (Special / Advanced)
+  if (onCreateTool) {
+    // Add separator if there were previous items
+    if (menuItems.length > 0 && menuItems[menuItems.length - 1].type !== 'separator') {
+      menuItems.push({ type: 'separator' });
+    }
+
+    menuItems.push({
+      type: 'item',
+      icon: <ToolIcon />,
+      label: 'Create Tool',
+      highlightColor: '#f97316', // Orange-500
+      onClick: () => {
+        handleClose();
+        onCreateTool(itemId, itemName, itemType);
+      },
+    });
+  }
+
+  // 4. Delete (Always last)
+  if (onDelete) {
+    // Add separator if there were previous items
+    if (menuItems.length > 0 && menuItems[menuItems.length - 1].type !== 'separator') {
+      menuItems.push({ type: 'separator' });
+    }
+
+    menuItems.push({
+      type: 'item',
       icon: <DeleteIcon />,
       label: 'Delete',
       danger: true,
@@ -290,52 +338,74 @@ export function ItemActionMenu({
             position: 'fixed',
             top: menuPosition.top,
             left: menuPosition.left,
-            minWidth: 140,
+            minWidth: 160,
             background: '#1f1f23',
             border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 8,
-            padding: '4px 0',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            borderRadius: 12, // More rounded corners for menu container
+            padding: 4, // Padding around the list
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.1)',
             zIndex: 10000,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2, // Tiny gap between items
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {menuItems.map((item, index) => (
-            <div
-              key={index}
-              onClick={(e) => {
-                e.stopPropagation();
-                item.onClick();
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 12px',
-                cursor: 'pointer',
-                color: item.danger ? '#f87171' : '#d4d4d8',
-                fontSize: 13,
-                transition: 'background 0.1s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = item.danger
-                  ? 'rgba(248, 113, 113, 0.1)'
-                  : 'rgba(255,255,255,0.06)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                {item.icon}
+          {menuItems.map((item, index) => {
+            if (item.type === 'separator') {
+              return (
+                <div 
+                  key={`sep-${index}`} 
+                  style={{ 
+                    height: 1, 
+                    background: 'rgba(255,255,255,0.1)', 
+                    margin: '4px 8px' // Indented separator
+                  }} 
+                />
+              );
+            }
+
+            return (
+              <div
+                key={index}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  item.onClick && item.onClick();
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '6px 8px', // Inner padding for the item
+                  borderRadius: 6, // Rounded items
+                  cursor: 'pointer',
+                  color: item.danger 
+                    ? '#f87171' 
+                    : item.highlightColor || '#e4e4e7',
+                  fontSize: 13,
+                  transition: 'background 0.1s, color 0.1s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = item.danger
+                    ? 'rgba(248, 113, 113, 0.1)'
+                    : item.highlightColor 
+                      ? 'rgba(249, 115, 22, 0.1)' // Orange bg for highlight
+                      : 'rgba(255,255,255,0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', color: item.danger ? 'inherit' : (item.highlightColor || '#a1a1aa') }}>
+                  {item.icon}
+                </div>
+                <span style={{ fontWeight: 400 }}>{item.label}</span>
               </div>
-              <span>{item.label}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>,
         document.body
       )}
     </div>
   );
 }
-

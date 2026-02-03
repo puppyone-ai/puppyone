@@ -25,7 +25,10 @@ export type SyncNodeType =
 export type NodeType = BaseNodeType | SyncNodeType;
 
 // 同步来源
-export type SyncSource = 'github' | 'notion' | 'airtable' | 'linear' | 'sheets' | string;
+export type SyncSource = 'github' | 'notion' | 'airtable' | 'linear' | 'sheets' | 'gmail' | 'google' | string;
+
+// 同步状态
+export type SyncStatus = 'not_connected' | 'idle' | 'syncing' | 'error';
 
 export interface NodeInfo {
   id: string;
@@ -39,6 +42,14 @@ export interface NodeInfo {
   // 同步相关字段
   sync_url: string | null;
   sync_id: string | null;
+  sync_status: SyncStatus;  // 新增：同步状态
+  sync_config: {
+    mode?: 'manual' | 'auto';
+    interval?: string;
+    account?: string;
+    last_error?: string;
+    [key: string]: any;
+  } | null;
   last_synced_at: string | null;
   is_synced: boolean;
   sync_source: SyncSource | null;

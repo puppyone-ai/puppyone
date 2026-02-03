@@ -35,6 +35,7 @@ class ImportTaskType(str, Enum):
     GMAIL = "gmail"
     GOOGLE_DRIVE = "google_drive"
     GOOGLE_CALENDAR = "google_calendar"
+    GOOGLE_DOCS = "google_docs"
 
 
 class ImportTask(BaseModel):

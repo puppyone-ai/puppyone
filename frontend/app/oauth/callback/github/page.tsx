@@ -63,11 +63,19 @@ function GithubCallbackContent() {
   }, [searchParams]);
 
   const handleContinue = () => {
-    router.push('/connect');
+    if (window.opener) {
+      window.close();
+    } else {
+      router.push('/settings/connect');
+    }
   };
 
   const handleRetry = () => {
-    router.push('/connect?auth=github');
+    if (window.opener) {
+      window.close();
+    } else {
+      router.push('/settings/connect');
+    }
   };
 
   return (
@@ -292,7 +300,13 @@ function GithubCallbackContent() {
 
         <div style={{ textAlign: 'center', marginTop: '16px' }}>
           <button
-            onClick={() => router.push('/connect')}
+            onClick={() => {
+              if (window.opener) {
+                window.close();
+              } else {
+                router.push('/settings/connect');
+              }
+            }}
             style={{
               backgroundColor: 'transparent',
               color: '#6b7280',

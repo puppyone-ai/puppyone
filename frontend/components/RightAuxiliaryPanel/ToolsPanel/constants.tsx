@@ -5,6 +5,7 @@ import { type McpToolType } from '../../../lib/mcpApi';
 export const ACCENT_COLOR = '#f97316'; // Orange-500
 
 // Define Tool Groups
+// NOTE: shell_access is NOT a Tool - it's managed via agent_bash table per Agent
 export const READ_TOOLS = [
   'query_data',
   'search',
@@ -12,14 +13,13 @@ export const READ_TOOLS = [
 ] as McpToolType[];
 export const WRITE_TOOLS = ['create', 'update', 'delete'] as McpToolType[];
 export const ALL_TOOLS = [
-  'shell_access',
   ...READ_TOOLS,
   ...WRITE_TOOLS,
+  'custom_script',
 ] as McpToolType[];
 
 // Tool Config Map for display
 export const TOOL_CONFIG: Record<string, { label: string; short: string }> = {
-  shell_access: { label: 'Bash / Shell Access', short: 'Bash' },
   get_data_schema: { label: 'Get Schema', short: 'Schema' },
   query_data: { label: 'Query Data', short: 'Query' },
   search: { label: 'Semantic Search', short: 'Search' },
@@ -27,6 +27,7 @@ export const TOOL_CONFIG: Record<string, { label: string; short: string }> = {
   create: { label: 'Create Row', short: 'Create' },
   update: { label: 'Update Row', short: 'Update' },
   delete: { label: 'Delete Row', short: 'Delete' },
+  custom_script: { label: 'Custom Script', short: 'Script' },
 };
 
 // Bash Icon - shared across components

@@ -636,6 +636,32 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
         label='Delete Node'
         destructive
       />
+
+      <div style={styles.menuDivider} />
+
+      {/* Create Tool for Agent */}
+      <MenuItem
+        onClick={() => onAction('create-tool')}
+        icon={
+          <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+            <path
+              d='M12.5 7.5l-4.2 4.2a1.5 1.5 0 01-2.1 0l-.4-.4a1.5 1.5 0 010-2.1L10 5M10 5l2.5-2.5M10 5l1 1'
+              stroke='currentColor'
+              strokeWidth='1.2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            />
+            <path
+              d='M2.5 12.5l2-2'
+              stroke='currentColor'
+              strokeWidth='1.2'
+              strokeLinecap='round'
+            />
+            <circle cx='4' cy='4' r='2.5' stroke='currentColor' strokeWidth='1.2' />
+          </svg>
+        }
+        label='Create Tool'
+      />
     </div>
   );
 }
