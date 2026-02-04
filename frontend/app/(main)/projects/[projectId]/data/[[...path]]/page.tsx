@@ -148,7 +148,7 @@ export default function DataPage({ params }: DataPageProps) {
     // Mark onboarding as seen in sessionStorage
     sessionStorage.setItem(`onboarding-completed-${projectId}`, 'true');
   };
-
+  
   // Cleanup markdown save timeouts on unmount
   useEffect(() => {
     return () => {
@@ -919,10 +919,10 @@ export default function DataPage({ params }: DataPageProps) {
                           )}
                         </div>
                       )}
-                      <MarkdownEditor
-                        content={markdownContent}
+                  <MarkdownEditor
+                    content={markdownContent}
                         onChange={handleMarkdownChange}
-                      />
+                  />
                     </div>
                   )}
                 </div>
@@ -1396,8 +1396,9 @@ export default function DataPage({ params }: DataPageProps) {
               jsonPath={toolPanelTarget.jsonPath} // 新增
               existingTools={projectTools}
               onToolsChange={() => {
-                // Refresh tools list
+                // Refresh both node-level and project-level tools list
                 refreshTableTools(toolPanelTarget.id);
+                refreshProjectTools(projectId);
               }}
               onClose={() => setToolPanelTarget(null)}
             />

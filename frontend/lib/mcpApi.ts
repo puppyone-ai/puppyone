@@ -417,6 +417,16 @@ export async function createTool(request: ToolCreateRequest): Promise<Tool> {
 }
 
 /**
+ * 创建 Search Tool（异步索引版本）
+ * 
+ * 与 createTool 不同，此函数会触发后台异步索引构建（Chunking + Embedding + Upsert）。
+ * 索引状态通过 getSearchIndexStatus() 轮询获取。
+ */
+export async function createSearchTool(request: ToolCreateRequest): Promise<Tool> {
+  return post<Tool>('/api/v1/tools/search', request);
+}
+
+/**
  * 更新 Tool
  */
 export async function updateTool(

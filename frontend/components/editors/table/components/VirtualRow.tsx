@@ -209,35 +209,6 @@ export const VirtualRow = React.memo(function VirtualRow({
     : BORDER_COLOR;
   const keyBorderLeftWidth = isKeyBorderHighlighted ? 1 : 1;
 
-  const handleDragStart = useCallback(
-    (e: React.DragEvent) => {
-      // 只有在非编辑状态下才允许拖拽
-      if (isEditingKey || !tableId) return;
-
-      e.stopPropagation();
-      
-      const dragData = {
-        id: tableId.toString(),
-        name: node.key.toString(),
-        type: 'json_path', // 特殊类型，表示这是 JSON 内部的一个节点
-        jsonPath: node.path,
-        // 为了兼容旧逻辑，也可以保留 nodeId
-        nodeId: tableId.toString(),
-      };
-
-      e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify(dragData));
-      e.dataTransfer.effectAllowed = 'copy';
-      
-      // 设置拖拽时的预览图（可选）
-      // const preview = document.createElement('div');
-      // preview.innerText = node.key.toString();
-      // document.body.appendChild(preview);
-      // e.dataTransfer.setDragImage(preview, 0, 0);
-      // setTimeout(() => document.body.removeChild(preview), 0);
-    },
-    [isEditingKey, tableId, node.key, node.path]
-  );
-
   if (isRootNode) {
     return (
       <div
@@ -392,12 +363,9 @@ export const VirtualRow = React.memo(function VirtualRow({
           display: 'flex',
           alignItems: 'stretch',
           background: rowBaseBg,
-          cursor: 'grab',
           position: 'relative',
           zIndex: 1,
         }}
-        draggable={!isEditingKey}
-        onDragStart={handleDragStart}
       >
         {/* KEY CELL */}
         <div
