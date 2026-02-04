@@ -103,7 +103,8 @@ class AgentService:
             if not agent:
                 return {"status": "failed", "error": f"Agent not found: {agent_id}"}
             
-            if agent.user_id != user_id:
+            # 通过 project 验证权限
+            if not agent_config_service.verify_access(agent_id, user_id):
                 return {"status": "failed", "error": "Unauthorized access to agent"}
             
             logger.info(f"[ScheduleAgent] Executing agent: {agent.name} (id={agent_id})")
@@ -442,13 +443,22 @@ class AgentService:
         # ========== 1. 解析配置，优先使用新版 agent_access ==========
         bash_tools: list[dict] = []  # [{node_id, json_path, readonly}, ...]
         
-        logger.info(f"[Agent DEBUG] agent_id={request.agent_id}, active_tool_ids={request.active_tool_ids}")
+        logger.info(f"[Agent DEBUG] agent_id={request.agent_id}, active_tool_ids={request.active_tool_ids}, user_id={current_user.user_id if current_user else None}")
         
         # 新版：如果有 agent_id，从 agent_bash 表读取配置
         if request.agent_id and current_user and agent_config_service:
             try:
                 agent = agent_config_service.get_agent(request.agent_id)
-                if agent and agent.user_id == current_user.user_id:
+                logger.info(f"[Agent DEBUG] Got agent: {agent.id if agent else None}, project_id={agent.project_id if agent else None}")
+                
+                # 验证权限：通过 project_id 检查用户是否有权限访问此 Agent
+                # 注意：Agent 模型没有 user_id 字段，需要通过 project 表验证
+                has_access = False
+                if agent:
+                    has_access = agent_config_service.verify_access(request.agent_id, current_user.user_id)
+                    logger.info(f"[Agent DEBUG] Access check: has_access={has_access}")
+                
+                if agent and has_access:
                     logger.info(f"[Agent] Found agent config: id={agent.id}, bash_accesses={len(agent.bash_accesses)}")
                     # 收集所有 Bash 访问权限（新版架构下所有 bash_accesses 都是终端访问）
                     for bash in agent.bash_accesses:
@@ -460,9 +470,9 @@ class AgentService:
                         logger.info(f"[Agent] Found bash access from agent_bash: node_id={bash.node_id}")
                     logger.info(f"[Agent] Total bash accesses collected: {len(bash_tools)}")
                 else:
-                    logger.warning(f"[Agent] Agent not found or unauthorized: {request.agent_id}")
+                    logger.warning(f"[Agent] Agent not found or unauthorized: agent_id={request.agent_id}, has_access={has_access}")
             except Exception as e:
-                logger.warning(f"[Agent] Failed to get agent config: {e}")
+                logger.warning(f"[Agent] Failed to get agent config: {e}", exc_info=True)
         
         # NOTE: Legacy fallback to tool table for shell_access has been removed.
         # Shell/bash access is now managed exclusively via agent_bash table.

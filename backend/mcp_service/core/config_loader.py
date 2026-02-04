@@ -60,7 +60,7 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
         "agent": {
             "id": agent_info.get("id"),
             "name": agent_info.get("name"),
-            "user_id": agent_info.get("user_id"),
+            "project_id": agent_info.get("project_id"),  # Agent 绑定到 Project
             "type": agent_info.get("type"),
         },
         # Bash 访问权限（用于内置数据 CRUD 工具）

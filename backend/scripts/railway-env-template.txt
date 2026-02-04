@@ -1,0 +1,89 @@
+# ============================================================
+# Railway 环境变量模板
+# ============================================================
+# 使用方法:
+# 1. 复制此文件内容
+# 2. 在 Railway Dashboard 中，选择服务 → Variables → Raw Editor
+# 3. 粘贴并修改实际值
+# ============================================================
+
+# ==================== 通用配置 (所有服务) ====================
+
+# Supabase 数据库 (必需)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-supabase-anon-key
+
+# S3 存储 (必需)
+S3_ENDPOINT_URL=https://s3.amazonaws.com
+S3_BUCKET_NAME=your-bucket-name
+S3_REGION=us-east-1
+S3_ACCESS_KEY_ID=your-access-key
+S3_SECRET_ACCESS_KEY=your-secret-key
+
+# JWT 安全配置 (必需)
+JWT_SECRET=your-secure-random-secret-key
+JWT_ALGORITHM=HS256
+
+# Redis (必需 - 从 Railway Redis 获取 Internal URL)
+ETL_REDIS_URL=redis://default:xxx@redis.railway.internal:6379
+IMPORT_REDIS_URL=redis://default:xxx@redis.railway.internal:6379
+
+# 应用配置
+DEBUG=False
+APP_NAME=ContextBase
+VERSION=1.0.0
+ALLOWED_HOSTS=https://your-frontend.com
+PUBLIC_URL=https://your-api.railway.app
+
+# ==================== API 服务专用 ====================
+# SERVICE_ROLE=api  (或不设置，默认值)
+
+# ==================== ETL Worker 专用 ====================
+# SERVICE_ROLE=etl_worker
+
+# MineRU API (文件 OCR)
+MINERU_API_KEY=your-mineru-api-key
+
+# ETL 配置 (可选)
+# ETL_QUEUE_SIZE=30
+# ETL_WORKER_COUNT=3
+# ETL_TASK_TIMEOUT=600
+# ETL_ARQ_QUEUE_NAME=etl
+
+# ==================== Import Worker 专用 ====================
+# SERVICE_ROLE=import_worker
+
+# Import 配置 (可选)
+# IMPORT_ARQ_QUEUE_NAME=import:queue
+# IMPORT_JOB_TIMEOUT_SECONDS=1800
+# IMPORT_MAX_JOBS=10
+
+# --- GitHub OAuth ---
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+GITHUB_REDIRECT_URI=https://your-frontend.com/oauth/callback/github
+
+# --- Notion OAuth ---
+NOTION_CLIENT_ID=your-notion-client-id
+NOTION_CLIENT_SECRET=your-notion-client-secret
+NOTION_REDIRECT_URI=https://your-frontend.com/oauth/callback/notion
+
+# --- Google OAuth (Gmail/Drive/Calendar/Sheets/Docs 共用) ---
+GOOGLE_SHEETS_CLIENT_ID=your-google-client-id
+GOOGLE_SHEETS_CLIENT_SECRET=your-google-client-secret
+GOOGLE_SHEETS_REDIRECT_URI=https://your-frontend.com/oauth/google-sheets/callback
+GMAIL_REDIRECT_URI=https://your-frontend.com/oauth/gmail/callback
+GOOGLE_DRIVE_REDIRECT_URI=https://your-frontend.com/oauth/google-drive/callback
+GOOGLE_CALENDAR_REDIRECT_URI=https://your-frontend.com/oauth/google-calendar/callback
+GOOGLE_DOCS_REDIRECT_URI=https://your-frontend.com/oauth/google-docs/callback
+
+# --- Linear OAuth ---
+LINEAR_CLIENT_ID=your-linear-client-id
+LINEAR_CLIENT_SECRET=your-linear-client-secret
+LINEAR_REDIRECT_URI=https://your-frontend.com/oauth/callback/linear
+
+# --- Airtable OAuth ---
+AIRTABLE_CLIENT_ID=your-airtable-client-id
+AIRTABLE_CLIENT_SECRET=your-airtable-client-secret
+AIRTABLE_REDIRECT_URI=https://your-frontend.com/oauth/callback/airtable
+

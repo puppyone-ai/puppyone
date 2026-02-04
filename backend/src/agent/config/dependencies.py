@@ -34,6 +34,7 @@ def get_verified_agent(
     验证并获取 Agent
     
     如果 Agent 不存在或用户无权限，抛出 404 或 403
+    权限通过 project_id 验证（Agent 绑定到 Project，不是 User）
     """
     agent = service.get_agent(agent_id)
     if not agent:
@@ -41,7 +42,8 @@ def get_verified_agent(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Agent not found",
         )
-    if agent.user_id != current_user.user_id:
+    # 通过 project 表验证用户权限
+    if not service.verify_access(agent_id, current_user.user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access this agent",

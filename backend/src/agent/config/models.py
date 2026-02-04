@@ -50,6 +50,7 @@ class Agent(BaseModel):
 
     id: str = Field(..., description="Agent ID")
     project_id: str = Field(..., description="所属项目 ID")
+    # 注意：Agent 没有 user_id 字段，权限通过 project_id 验证
 
     name: str = Field(..., description="Agent 名称")
     icon: str = Field(default="✨", description="Agent 图标")

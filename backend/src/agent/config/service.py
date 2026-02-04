@@ -40,6 +40,10 @@ class AgentConfigService:
         """根据 MCP API key 获取 Agent（带 accesses）"""
         return self._repo.get_by_mcp_api_key_with_accesses(mcp_api_key)
 
+    def verify_access(self, agent_id: str, user_id: str) -> bool:
+        """验证用户是否有权限访问指定的 Agent（通过 project 检查）"""
+        return self._repo.verify_access(agent_id, user_id)
+
     def create_agent(
         self,
         project_id: str,

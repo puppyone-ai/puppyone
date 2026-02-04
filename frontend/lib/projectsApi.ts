@@ -97,8 +97,12 @@ export async function getTable(
   // 获取数据：优先从 content 字段，否则从 S3 下载
   let data = node.content;
   
-  // 如果 content 为空但有 s3_key，从 S3 下载
-  if (data == null && node.s3_key) {
+  // 判断是否为非 JSON 类型（如 markdown），这些类型的内容不应通过 getTable 加载
+  const nonJsonTypes = ['markdown', 'image', 'pdf', 'video', 'file'];
+  const isNonJsonType = nonJsonTypes.some(t => node.type.includes(t));
+  
+  // 如果 content 为空但有 s3_key，从 S3 下载（仅对 JSON 类型）
+  if (data == null && node.s3_key && !isNonJsonType) {
     try {
       const { download_url } = await apiRequest<{ download_url: string }>(
         `/api/v1/nodes/${nodeId}/download`
