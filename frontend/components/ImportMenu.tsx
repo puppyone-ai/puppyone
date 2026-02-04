@@ -298,11 +298,38 @@ export function ImportMenu({
     [onLog]
   );
 
-  const handleFilesSelected = async (files: FileList) => {
+import { ImportConfigDialog, ImportConfig } from './ImportConfigDialog';
+
+// ... (other imports)
+
+export function ImportMenu({
+  projectId,
+  onProjectsRefresh,
+  onLog,
+  onCloseOtherMenus,
+}: ImportMenuProps) {
+  // ... (existing state)
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
+
+  // ...
+
+  const handleFilesSelected = (files: FileList) => {
     if (!projectId) {
       onLog?.('error', 'No project selected');
       return;
     }
+    // Store files and open dialog
+    setPendingFiles(files);
+    setConfigDialogOpen(true);
+  };
+
+  const handleConfigConfirm = async (config: ImportConfig) => {
+    setConfigDialogOpen(false);
+    if (!pendingFiles || !projectId) return;
+
+    const files = pendingFiles;
+    setPendingFiles(null);
 
     const finalTableName = tableName.trim()
       ? tableName.replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -313,11 +340,14 @@ export function ImportMenu({
     try {
       onLog?.('info', 'Preparing files...');
 
-      // 1. 解析文件结构，收集需要 ETL 的文件（这步很快）
+      // 1. Parse folder structure
+      // For RAW mode, we might want to treat everything as ETL files (direct upload), 
+      // but current parse logic splits text vs binary.
+      // To keep it simple, we reuse parse logic but override behavior later.
       const { structure: folderStructure, etlFiles } =
         await parseFolderStructure(files);
 
-      // 2. 创建 Table（包含文本文件内容和 ETL 文件的 null 占位符）
+      // 2. Create Table
       onLog?.('info', 'Creating table...');
       const newTable = await createTable(
         projectId,
@@ -326,8 +356,7 @@ export function ImportMenu({
       );
       const newTableId = newTable.id;
 
-      // 3. 如果有 ETL 文件，先预先添加"准备上传"状态的任务
-      //    这样侧边栏能立即显示转圈样式
+      // 3. Add placeholders for ETL files
       if (etlFiles.length > 0) {
         const baseTimestamp = Date.now();
         const placeholderTasks = etlFiles.map((file, index) => ({
@@ -341,16 +370,15 @@ export function ImportMenu({
         addPendingTasks(placeholderTasks);
       }
 
-      // 4. 立即关闭菜单，刷新项目列表
+      // 4. Close menu & Refresh
       onLog?.('success', `Table "${finalTableName}" created!`);
       onProjectsRefresh?.();
       setTableName('');
       setIsOpen(false);
       setIsImporting(false);
 
-      // 5. 后台上传 ETL 文件（菜单已关闭，用户可以继续其他操作）
+      // 5. Upload files in background with CONFIG
       if (etlFiles.length > 0 && session?.access_token && newTableId) {
-        // 创建文件名映射：后端返回的 filename -> 前端的 file.name
         const filenameMap = new Map<string, string>();
         etlFiles.forEach(f => {
           filenameMap.set(f.name, f.name);
@@ -359,21 +387,21 @@ export function ImportMenu({
           }
         });
 
-        // 使用 setTimeout 确保菜单已关闭
         setTimeout(async () => {
           try {
             const response = await uploadAndSubmit(
               {
                 projectId: Number(projectId),
                 files: etlFiles,
-                nodeId: String(newTableId),  // 使用 nodeId (UUID 字符串)
-                jsonPath: '', // 挂载到根路径
+                nodeId: String(newTableId),
+                jsonPath: '',
+                mode: config.mode, // Pass the selected mode
+                ruleId: config.ruleId,
               },
               session.access_token
             );
 
-            // 用真正的任务 ID 替换临时占位任务
-            // 使用文件名映射确保和 JSON key 匹配
+            // Handle response (existing logic)
             const realTasks = response.items
               .filter(item => item.status !== 'failed')
               .map(item => ({
@@ -381,17 +409,15 @@ export function ImportMenu({
                 projectId: projectId,
                 tableId: String(newTableId),
                 tableName: finalTableName,
-                // 使用映射找到正确的前端文件名，fallback 到后端返回的
                 filename: filenameMap.get(item.filename) || item.filename,
-                status: 'pending' as const,
+                // If raw mode, backend returns COMPLETED immediately
+                status: (item.status === 'completed' ? 'completed' : 'pending') as any,
               }));
 
-            // 移除临时任务，添加真正的任务
             if (realTasks.length > 0) {
               replacePlaceholderTasks(String(newTableId), realTasks);
             }
 
-            // 报告失败的文件
             const failedFiles = response.items.filter(
               item => item.status === 'failed'
             );
@@ -401,7 +427,6 @@ export function ImportMenu({
                 'warning',
                 `${failedFiles.length} file(s) failed to upload`
               );
-              // 移除失败文件的占位任务
               const failedFileNames = failedFiles.map(
                 f => filenameMap.get(f.filename) || f.filename
               );
@@ -413,13 +438,12 @@ export function ImportMenu({
               'warning',
               `ETL upload failed: ${etlError instanceof Error ? etlError.message : 'Unknown error'}`
             );
-            // 上传完全失败，移除所有占位任务
             removeAllPlaceholdersForTable(String(newTableId));
           }
         }, 100);
       }
 
-      return; // 提前返回
+      return;
     } catch (error) {
       onLog?.(
         'error',
@@ -428,6 +452,28 @@ export function ImportMenu({
       setIsImporting(false);
     }
   };
+
+  // ... (render logic)
+
+  return (
+    <>
+      <div ref={menuRef} style={{ position: 'relative' }}>
+        {/* ... existing menu button ... */}
+      </div>
+      
+      {/* Configuration Dialog */}
+      <ImportConfigDialog
+        isOpen={configDialogOpen}
+        onClose={() => {
+          setConfigDialogOpen(false);
+          setPendingFiles(null);
+        }}
+        onConfirm={handleConfigConfirm}
+        files={pendingFiles ? Array.from(pendingFiles) : []}
+      />
+    </>
+  );
+}
 
   /**
    * 解析文件列表，构建文件夹结构

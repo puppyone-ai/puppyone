@@ -67,51 +67,53 @@ class Settings(BaseSettings):
     # 方式1: Internal Integration (简单，只需 API Key)
     NOTION_API_KEY: str = ""  # 格式: secret_xxx，从 https://www.notion.so/my-integrations 获取
     # 方式2: OAuth (适合多用户场景)
+    # ========== OAuth 配置 ==========
+    # 统一格式: /oauth/{provider}/callback
+    
+    # Notion OAuth 配置
     NOTION_CLIENT_ID: str = ""
     NOTION_CLIENT_SECRET: str = ""
-    NOTION_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/notion"
+    NOTION_REDIRECT_URI: str = "http://localhost:3000/oauth/notion/callback"
 
     # GitHub OAuth 配置
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_SECRET: str = ""
-    GITHUB_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/github"
+    GITHUB_REDIRECT_URI: str = "http://localhost:3000/oauth/github/callback"
 
-    # Google Sheets OAuth 配置
+    # Google Sheets OAuth 配置 (所有 Google 服务共用 Client ID/Secret)
     GOOGLE_SHEETS_CLIENT_ID: str = ""
     GOOGLE_SHEETS_CLIENT_SECRET: str = ""
-    GOOGLE_SHEETS_REDIRECT_URI: str = (
-        "http://localhost:3000/oauth/google-sheets/callback"
-    )
+    GOOGLE_SHEETS_REDIRECT_URI: str = "http://localhost:3000/oauth/google-sheets/callback"
 
     # Gmail OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
-    GMAIL_CLIENT_ID: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_ID
-    GMAIL_CLIENT_SECRET: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_SECRET
+    GMAIL_CLIENT_ID: Optional[str] = None
+    GMAIL_CLIENT_SECRET: Optional[str] = None
     GMAIL_REDIRECT_URI: str = "http://localhost:3000/oauth/gmail/callback"
 
     # Google Drive OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
-    GOOGLE_DRIVE_CLIENT_ID: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_ID
-    GOOGLE_DRIVE_CLIENT_SECRET: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_SECRET
+    GOOGLE_DRIVE_CLIENT_ID: Optional[str] = None
+    GOOGLE_DRIVE_CLIENT_SECRET: Optional[str] = None
     GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:3000/oauth/google-drive/callback"
 
     # Google Calendar OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
-    GOOGLE_CALENDAR_CLIENT_ID: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_ID
-    GOOGLE_CALENDAR_CLIENT_SECRET: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_SECRET
+    GOOGLE_CALENDAR_CLIENT_ID: Optional[str] = None
+    GOOGLE_CALENDAR_CLIENT_SECRET: Optional[str] = None
     GOOGLE_CALENDAR_REDIRECT_URI: str = "http://localhost:3000/oauth/google-calendar/callback"
 
     # Google Docs OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
-    GOOGLE_DOCS_CLIENT_ID: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_ID
-    GOOGLE_DOCS_CLIENT_SECRET: Optional[str] = None  # 留空则自动使用 GOOGLE_SHEETS_CLIENT_SECRET
+    GOOGLE_DOCS_CLIENT_ID: Optional[str] = None
+    GOOGLE_DOCS_CLIENT_SECRET: Optional[str] = None
     GOOGLE_DOCS_REDIRECT_URI: str = "http://localhost:3000/oauth/google-docs/callback"
 
     # Linear OAuth 配置
     LINEAR_CLIENT_ID: str = ""
     LINEAR_CLIENT_SECRET: str = ""
-    LINEAR_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/linear"
+    LINEAR_REDIRECT_URI: str = "http://localhost:3000/oauth/linear/callback"
 
     # Airtable OAuth 配置
     AIRTABLE_CLIENT_ID: str = ""
     AIRTABLE_CLIENT_SECRET: str = ""
-    AIRTABLE_REDIRECT_URI: str = "http://localhost:3000/oauth/callback/airtable"
+    AIRTABLE_REDIRECT_URI: str = "http://localhost:3000/oauth/airtable/callback"
 
     # 服务间通信
     INTERNAL_API_SECRET: str = ""  # 内部服务通信密钥
