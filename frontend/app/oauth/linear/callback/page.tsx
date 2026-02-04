@@ -1,15 +1,12 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { linearCallback } from '@/lib/oauthApi';
 
 function LinearCallbackContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
-    'loading'
-  );
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState<string>('');
 
   useEffect(() => {
@@ -17,27 +14,17 @@ function LinearCallbackContent() {
       const code = searchParams.get('code');
       const error = searchParams.get('error');
 
-      const redirectOrClose = (delay: number) => {
-        setTimeout(() => {
-          if (window.opener) {
-            window.close();
-          } else {
-            router.push('/settings/connect');
-          }
-        }, delay);
-      };
-
       if (error) {
         setStatus('error');
         setMessage(`Authorization failed: ${error}`);
-        redirectOrClose(3000);
+        setTimeout(() => window.close(), 3000);
         return;
       }
 
       if (!code) {
         setStatus('error');
         setMessage('No authorization code received');
-        redirectOrClose(3000);
+        setTimeout(() => window.close(), 3000);
         return;
       }
 
@@ -47,59 +34,38 @@ function LinearCallbackContent() {
         if (result.success) {
           setStatus('success');
           setMessage(result.message || 'Successfully connected to Linear!');
-          redirectOrClose(1000);
+          setTimeout(() => window.close(), 2000);
         } else {
           setStatus('error');
           setMessage(result.message || 'Failed to connect to Linear');
-          redirectOrClose(3000);
+          setTimeout(() => window.close(), 3000);
         }
       } catch (err) {
         setStatus('error');
-        setMessage(
-          err instanceof Error ? err.message : 'An unexpected error occurred'
-        );
-        redirectOrClose(3000);
+        setMessage(err instanceof Error ? err.message : 'An unexpected error occurred');
+        setTimeout(() => window.close(), 3000);
       }
     };
 
     handleCallback();
-  }, [searchParams, router]);
+  }, [searchParams]);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: '#0a0a0a',
-        color: '#CDCDCD',
-      }}
-    >
-      <div
-        style={{
-          textAlign: 'center',
-          maxWidth: 400,
-          padding: 32,
-        }}
-      >
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
+      background: '#0a0a0a',
+      color: '#CDCDCD',
+    }}>
+      <div style={{ textAlign: 'center', maxWidth: 400, padding: 32 }}>
         {status === 'loading' && (
           <>
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 500,
-                marginBottom: 16,
-              }}
-            >
+            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16 }}>
               Connecting to Linear...
             </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: '#8B8B8B',
-              }}
-            >
+            <div style={{ fontSize: 13, color: '#8B8B8B' }}>
               Please wait while we complete the authorization
             </div>
           </>
@@ -107,80 +73,26 @@ function LinearCallbackContent() {
 
         {status === 'success' && (
           <>
-            <div
-              style={{
-                fontSize: 40,
-                marginBottom: 16,
-              }}
-            >
-              ✓
-            </div>
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 500,
-                marginBottom: 8,
-                color: '#22c55e',
-              }}
-            >
+            <div style={{ fontSize: 40, marginBottom: 16, color: '#22c55e' }}>✓</div>
+            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, color: '#22c55e' }}>
               Success!
             </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: '#8B8B8B',
-              }}
-            >
-              {message}
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: '#666',
-                marginTop: 16,
-              }}
-            >
-              Redirecting back to Connect...
+            <div style={{ fontSize: 13, color: '#8B8B8B' }}>{message}</div>
+            <div style={{ fontSize: 12, color: '#666', marginTop: 16 }}>
+              This window will close automatically...
             </div>
           </>
         )}
 
         {status === 'error' && (
           <>
-            <div
-              style={{
-                fontSize: 40,
-                marginBottom: 16,
-              }}
-            >
-              ✗
-            </div>
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 500,
-                marginBottom: 8,
-                color: '#ef4444',
-              }}
-            >
+            <div style={{ fontSize: 40, marginBottom: 16, color: '#ef4444' }}>✗</div>
+            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, color: '#ef4444' }}>
               Connection Failed
             </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: '#8B8B8B',
-              }}
-            >
-              {message}
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: '#666',
-                marginTop: 16,
-              }}
-            >
-              Redirecting back to Connect...
+            <div style={{ fontSize: 13, color: '#8B8B8B' }}>{message}</div>
+            <div style={{ fontSize: 12, color: '#666', marginTop: 16 }}>
+              This window will close automatically...
             </div>
           </>
         )}
@@ -191,22 +103,18 @@ function LinearCallbackContent() {
 
 export default function LinearCallbackPage() {
   return (
-    <Suspense
-      fallback={
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '100vh',
-            background: '#0a0a0a',
-            color: '#CDCDCD',
-          }}
-        >
-          <div>Loading...</div>
-        </div>
-      }
-    >
+    <Suspense fallback={
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#0a0a0a',
+        color: '#CDCDCD',
+      }}>
+        <div>Loading...</div>
+      </div>
+    }>
       <LinearCallbackContent />
     </Suspense>
   );
