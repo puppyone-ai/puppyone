@@ -471,7 +471,7 @@ async def get_agent_by_mcp_key(
         "agent": {
             "id": agent.id,
             "name": agent.name,
-            "user_id": agent.user_id,
+            "project_id": agent.project_id,  # Agent 绑定到 Project，不是 User
             "type": agent.type,
         },
         # Bash 访问权限（用于数据 CRUD 操作）

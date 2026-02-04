@@ -46,7 +46,7 @@ class McpV3Service:
     def get_agent_mcp_info(self, agent_id: str, user_id: str) -> McpAgentInfo:
         """获取 Agent 的 MCP 配置信息"""
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or agent.user_id != user_id:
+        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
             raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
 
         return McpAgentInfo(
@@ -61,7 +61,7 @@ class McpV3Service:
     def regenerate_mcp_key(self, agent_id: str, user_id: str) -> str:
         """重新生成 Agent 的 MCP API Key"""
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or agent.user_id != user_id:
+        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
             raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
 
         # 使旧 key 的缓存失效
@@ -92,7 +92,7 @@ class McpV3Service:
     ) -> List[McpBoundTool]:
         """获取 Agent 绑定的 Tools"""
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or agent.user_id != user_id:
+        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
             raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
 
         # 获取绑定关系
@@ -133,12 +133,12 @@ class McpV3Service:
         mcp_exposed: bool = True,
     ) -> AgentTool:
         """绑定 Tool 到 Agent"""
-        # 验证 Agent 权限
+        # 验证 Agent 权限（通过 project）
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or agent.user_id != user_id:
+        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
             raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
 
-        # 验证 Tool 权限
+        # 验证 Tool 权限（Tool 直接绑定到 user_id）
         tool = self._tool_repo.get_by_id(tool_id)
         if not tool or tool.user_id != user_id:
             raise NotFoundException("Tool not found", code=ErrorCode.NOT_FOUND)
@@ -164,9 +164,9 @@ class McpV3Service:
         bindings: List[BindToolRequest],
     ) -> List[AgentTool]:
         """批量绑定 Tools 到 Agent"""
-        # 验证 Agent 权限
+        # 验证 Agent 权限（通过 project）
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or agent.user_id != user_id:
+        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
             raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
 
         result: List[AgentTool] = []
@@ -201,9 +201,9 @@ class McpV3Service:
         mcp_exposed: Optional[bool] = None,
     ) -> AgentTool:
         """更新 Tool 绑定"""
-        # 验证 Agent 权限
+        # 验证 Agent 权限（通过 project）
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or agent.user_id != user_id:
+        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
             raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
 
         # 查找现有绑定
@@ -231,9 +231,9 @@ class McpV3Service:
 
     def unbind_tool(self, agent_id: str, user_id: str, tool_id: str) -> bool:
         """解绑 Tool"""
-        # 验证 Agent 权限
+        # 验证 Agent 权限（通过 project）
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or agent.user_id != user_id:
+        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
             raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
 
         # 查找现有绑定
@@ -258,7 +258,7 @@ class McpV3Service:
     def get_mcp_status(self, agent_id: str, user_id: str) -> dict:
         """获取 Agent 的 MCP 状态摘要"""
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or agent.user_id != user_id:
+        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
             raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
 
         all_tools = self._agent_repo.get_tools_by_agent_id(agent_id)
