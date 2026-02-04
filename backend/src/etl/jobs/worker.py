@@ -1,7 +1,8 @@
 """
-Unified ARQ Worker Settings
+ETL ARQ Worker Settings
 
-This worker handles both ETL jobs and SaaS sync jobs.
+This worker handles ETL jobs (OCR + postprocess for document processing).
+SaaS sync jobs are handled by the separate import_worker.
 
 Run worker:
   uv run arq src.etl.jobs.worker.WorkerSettings
@@ -35,15 +36,15 @@ from src.etl.tasks.repository import ETLTaskRepositorySupabase
 from src.llm.service import LLMService
 from src.s3.service import S3Service
 
-# Import sync job bridge (uses new import_ handlers)
-from src.import_.jobs.jobs import legacy_sync_job
+# NOTE: legacy_sync_job has been removed - SaaS sync now uses separate import_worker
+# See: src/import_/jobs/worker.py
 
 logger = logging.getLogger(__name__)
 
 
 async def startup(ctx: dict) -> None:
     """
-    Initialize services for both ETL and sync jobs.
+    Initialize services for ETL jobs.
     """
     # ========== ETL Services ==========
     ctx["s3_service"] = S3Service()
@@ -55,38 +56,19 @@ async def startup(ctx: dict) -> None:
     ctx["state_repo"] = ETLStateRepositoryRedis(ctx["redis"])
     ctx["arq_queue_name"] = etl_config.etl_arq_queue_name
     
-    # ========== Sync Services (for legacy_sync_job bridge) ==========
-    # Import dependencies here to avoid circular imports
-    from src.content_node.service import ContentNodeService
-    from src.content_node.repository import ContentNodeRepository
-    from src.oauth.github_service import GithubOAuthService
-    from src.oauth.notion_service import NotionOAuthService
-    from src.supabase.client import SupabaseClient
-    
-    # SupabaseClient wraps the raw supabase.Client
-    supabase_wrapper = SupabaseClient()
-    
-    # Content node service for creating nodes (needs repo + s3)
-    content_node_repo = ContentNodeRepository(supabase_wrapper)
-    ctx["node_service"] = ContentNodeService(content_node_repo, ctx["s3_service"])
-    
-    # OAuth services
-    ctx["github_service"] = GithubOAuthService()
-    ctx["notion_service"] = NotionOAuthService()
-    
-    logger.info("Unified ARQ worker startup complete (ETL + Sync)")
+    logger.info("ETL ARQ worker startup complete")
 
 
 async def shutdown(ctx: dict) -> None:
     """
     Cleanup on worker shutdown.
     """
-    logger.info("Unified ARQ worker shutdown")
+    logger.info("ETL ARQ worker shutdown")
 
 
 class WorkerSettings:
-    # Combine ETL jobs and sync bridge job
-    functions = [etl_ocr_job, etl_postprocess_job, legacy_sync_job]
+    # ETL jobs only (SaaS sync uses separate import_worker)
+    functions = [etl_ocr_job, etl_postprocess_job]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(etl_config.etl_redis_url)

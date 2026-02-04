@@ -149,6 +149,62 @@ export default function DataPage({ params }: DataPageProps) {
     sessionStorage.setItem(`onboarding-completed-${projectId}`, 'true');
   };
   
+  // Cleanup markdown save timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (markdownSaveTimeoutRef.current) {
+        clearTimeout(markdownSaveTimeoutRef.current);
+      }
+      if (markdownSaveStatusTimeoutRef.current) {
+        clearTimeout(markdownSaveStatusTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Markdown save handler with debounce
+  const handleMarkdownChange = (newContent: string) => {
+    setMarkdownContent(newContent);
+
+    // Clear previous save timeout
+    if (markdownSaveTimeoutRef.current) {
+      clearTimeout(markdownSaveTimeoutRef.current);
+    }
+
+    // Clear previous status timeout
+    if (markdownSaveStatusTimeoutRef.current) {
+      clearTimeout(markdownSaveStatusTimeoutRef.current);
+    }
+
+    // 1.5s debounce save
+    markdownSaveTimeoutRef.current = setTimeout(async () => {
+      if (!activeNodeId) return;
+
+      setIsSavingMarkdown(true);
+      setMarkdownSaveStatus('saving');
+
+      try {
+        await updateNode(activeNodeId, { content: newContent });
+        console.log('[Markdown AutoSave] Saved successfully');
+        setMarkdownSaveStatus('saved');
+        
+        // Clear "Saved" status after 2 seconds
+        markdownSaveStatusTimeoutRef.current = setTimeout(() => {
+          setMarkdownSaveStatus('idle');
+        }, 2000);
+      } catch (err) {
+        console.error('[Markdown AutoSave] Failed:', err);
+        setMarkdownSaveStatus('error');
+        
+        // Clear error status after 3 seconds
+        markdownSaveStatusTimeoutRef.current = setTimeout(() => {
+          setMarkdownSaveStatus('idle');
+        }, 3000);
+      } finally {
+        setIsSavingMarkdown(false);
+      }
+    }, 1500);
+  };
+  
   // Wrapper to persist viewType changes
   const setViewType = (newViewType: ViewType) => {
     setViewTypeState(newViewType);
@@ -178,6 +234,10 @@ export default function DataPage({ params }: DataPageProps) {
   // Markdown content state
   const [markdownContent, setMarkdownContent] = useState<string>('');
   const [isLoadingMarkdown, setIsLoadingMarkdown] = useState(false);
+  const [isSavingMarkdown, setIsSavingMarkdown] = useState(false);
+  const [markdownSaveStatus, setMarkdownSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const markdownSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const markdownSaveStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Rename dialog state
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -809,13 +869,59 @@ export default function DataPage({ params }: DataPageProps) {
                     </div>
                   </div>
                 ) : (
-                    <div style={{ flex: 1, minHeight: 0 }}>
+                    <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+                      {/* Save Status Indicator */}
+                      {markdownSaveStatus !== 'idle' && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 12,
+                            right: 12,
+                            zIndex: 30,
+                            background: markdownSaveStatus === 'error' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(0, 0, 0, 0.7)',
+                            color: '#fff',
+                            padding: '6px 12px',
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 500,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            backdropFilter: 'blur(8px)',
+                          }}
+                        >
+                          {markdownSaveStatus === 'saving' && (
+                            <>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                              Saving...
+                            </>
+                          )}
+                          {markdownSaveStatus === 'saved' && (
+                            <>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                              Saved
+                            </>
+                          )}
+                          {markdownSaveStatus === 'error' && (
+                            <>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="15" y1="9" x2="9" y2="15" />
+                                <line x1="9" y1="9" x2="15" y2="15" />
+                              </svg>
+                              Save failed
+                            </>
+                          )}
+                        </div>
+                      )}
                   <MarkdownEditor
                     content={markdownContent}
-                    onChange={(newContent) => {
-                      setMarkdownContent(newContent);
-                      // TODO: Save markdown content to S3
-                    }}
+                        onChange={handleMarkdownChange}
                   />
                     </div>
                   )}
@@ -1290,8 +1396,9 @@ export default function DataPage({ params }: DataPageProps) {
               jsonPath={toolPanelTarget.jsonPath} // 新增
               existingTools={projectTools}
               onToolsChange={() => {
-                // Refresh tools list
+                // Refresh both node-level and project-level tools list
                 refreshTableTools(toolPanelTarget.id);
+                refreshProjectTools(projectId);
               }}
               onClose={() => setToolPanelTarget(null)}
             />

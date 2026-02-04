@@ -61,6 +61,14 @@ export interface UploadAndSubmitParams {
   ruleId?: number;
   nodeId?: string;  // 改为 nodeId，类型为 UUID 字符串
   jsonPath?: string;
+  mode?: 'smart' | 'raw' | 'structured';
+}
+
+export interface ETLHealthResponse {
+  status: string;
+  queue_size: number;
+  task_count: number;
+  worker_count: number;
 }
 
 // ============= Helper Functions =============
@@ -80,25 +88,38 @@ export function isTerminalStatus(status: ETLStatus): boolean {
 export function getStatusDisplayText(status: ETLStatus | 'uploading'): string {
   switch (status) {
     case 'uploading':
-      return '正在上传...';
+      return 'Uploading...';
     case 'pending':
-      return '等待处理';
+      return 'Pending';
     case 'mineru_parsing':
-      return '正在识别文档...';
+      return 'Processing document (OCR)...';
     case 'llm_processing':
-      return '正在提取结构化信息...';
+      return 'Extracting structured data...';
     case 'completed':
-      return '已完成';
+      return 'Completed';
     case 'failed':
-      return '处理失败';
+      return 'Failed';
     case 'cancelled':
-      return '已取消';
+      return 'Cancelled';
     default:
-      return '未知状态';
+      return 'Unknown Status';
   }
 }
 
 // ============= API Functions =============
+
+/**
+ * Get ETL Service Health
+ */
+export async function getETLHealth(): Promise<ETLHealthResponse> {
+  const response = await fetch(`${API_URL}/api/v1/etl/health`, {
+    method: 'GET',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to check ETL health');
+  }
+  return await response.json();
+}
 
 /**
  * 一体化上传并提交 ETL 任务（新接口）
@@ -120,6 +141,9 @@ export async function uploadAndSubmit(
   }
   if (params.jsonPath !== undefined) {
     formData.append('json_path', params.jsonPath);
+  }
+  if (params.mode) {
+    formData.append('mode', params.mode);
   }
 
   // 添加所有文件

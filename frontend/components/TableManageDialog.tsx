@@ -32,6 +32,7 @@ import {
   isTerminalStatus,
   type ImportTaskResponse,
 } from '../lib/importApi';
+import { ImportConfigDialog, type ImportConfig } from './ImportConfigDialog';
 
 type StartOption = 'empty' | 'documents' | 'url' | 'connect';
 type DialogMode = 'create' | 'edit' | 'delete';
@@ -125,6 +126,10 @@ export function TableManageDialog({
   const [oauthConnected, setOauthConnected] = useState<{ connected: boolean; email?: string } | null>(null);
   const [oauthChecking, setOauthChecking] = useState(false);
   
+  // New state for config dialog
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [pendingConfigFiles, setPendingConfigFiles] = useState<File[]>([]);
+
   const connectStatusMeta = (() => {
     if (connectImporting) return { label: 'Importing...', color: '#22c55e' };
     if (connectLoading) return { label: 'Connecting...', color: '#3b82f6' };
@@ -712,6 +717,19 @@ export function TableManageDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    
+    // If documents mode, intercept submit to show config dialog
+    if (startOption === 'documents' && selectedFiles && selectedFiles.length > 0) {
+      setPendingConfigFiles(Array.from(selectedFiles));
+      setConfigDialogOpen(true);
+      return;
+    }
+
+    // Otherwise proceed with standard submit
+    await handleFinalSubmit();
+  };
+
+  const handleFinalSubmit = async (config?: ImportConfig) => {
     try {
       setLoading(true);
       if (mode === 'edit' && tableId) {
@@ -776,6 +794,8 @@ export function TableManageDialog({
                       projectId: Number(projectId), 
                       files: [file], 
                       nodeId: targetNodeId, // 直接更新这个 pending 节点
+                      mode: config?.mode, // Pass mode from dialog
+                      ruleId: config?.ruleId,
                     }, 
                     session.access_token
                   );
@@ -788,7 +808,8 @@ export function TableManageDialog({
                       tableId: rootFolderId,
                       tableName: finalName,
                       filename: file.name,
-                      status: 'pending' as const,
+                      // If raw mode, backend returns COMPLETED immediately
+                      status: (item.status === 'completed' ? 'completed' : 'pending') as any,
                     }]);
                   } else if (item?.status === 'failed') {
                     removeFailedPlaceholders(rootFolderId, [file.name]);
@@ -1491,6 +1512,20 @@ export function TableManageDialog({
           onSuccess={() => { setShowImportModal(false); setUrlInput(''); refreshProjects(); onClose(); }}
         />
       )}
+
+      {/* Config Dialog for file uploads */}
+      <ImportConfigDialog
+        isOpen={configDialogOpen}
+        onClose={() => {
+          setConfigDialogOpen(false);
+          setPendingConfigFiles([]);
+        }}
+        onConfirm={(config) => {
+          setConfigDialogOpen(false);
+          handleFinalSubmit(config);
+        }}
+        files={pendingConfigFiles}
+      />
     </div>
   );
 }

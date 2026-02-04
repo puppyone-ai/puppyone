@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   createTool,
+  createSearchTool,
   deleteTool,
   getSearchIndexStatus,
   type Tool,
@@ -232,14 +233,21 @@ export function NodeAccessPanel({
         // 如果有 jsonPath，添加到 tool name 中以防冲突
         const pathSuffix = jsonPath ? `_${jsonPath.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'item'}` : '';
         
-        await createTool({
+        const toolRequest = {
           node_id: nodeId,
           json_path: jsonPath,
           type: toolType,
           name: `${toolType}_${safeName}${pathSuffix}`,
           description: `${TOOL_INFO[toolType]?.label || toolType} for ${nodeName}${jsonPath ? ` at ${jsonPath}` : ''}`,
-          category: 'builtin',
-        });
+          category: 'builtin' as const,
+        };
+        
+        // Search 工具使用异步索引端点
+        if (toolType === 'search') {
+          await createSearchTool(toolRequest);
+        } else {
+          await createTool(toolRequest);
+        }
       }
       onToolsChange?.();
     } catch (err) {
