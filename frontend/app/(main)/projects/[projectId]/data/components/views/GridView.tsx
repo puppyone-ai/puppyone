@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
-import { getNodeTypeConfig, isSyncedType, getSyncSource, LockIcon } from '@/lib/nodeTypeConfig';
+import { getNodeTypeConfig, isSyncedType, getSyncSource, getSyncSourceIcon, LockIcon } from '@/lib/nodeTypeConfig';
 
 // Content type definition
-export type ContentType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'github_repo' | 'notion_page' | 'notion_database' | 'airtable_base' | 'linear_project' | 'google_sheets';
+export type ContentType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'sync' | 'github_repo' | 'notion_page' | 'notion_database' | 'airtable_base' | 'linear_project' | 'google_sheets';
 
 // --- Rich Icons (拟物化图标) ---
 
@@ -165,7 +165,8 @@ export interface GridViewItem {
   onClick: (e: React.MouseEvent) => void;
   // 同步相关字段
   is_synced?: boolean;
-  sync_source?: string | null;
+  sync_source?: string | null;  // 来源（github, notion, gmail 等）
+  source?: string | null;        // 数据库 source 字段
   sync_status?: 'not_connected' | 'idle' | 'syncing' | 'error';
   last_synced_at?: string | null;
 }
@@ -207,9 +208,12 @@ function GridItem({
 
   // Get type config for synced items
   const typeConfig = getNodeTypeConfig(item.type);
-  const isSynced = item.is_synced || isSyncedType(item.type);
-  const BadgeIcon = typeConfig.badgeIcon;
-  const syncSource = getSyncSource(item.type);
+  // 判断是否为同步类型：新架构使用 type === 'sync' 或 is_synced 字段
+  const isSynced = item.is_synced || item.type === 'sync' || isSyncedType(item.type);
+  // 从 source 或 sync_source 获取来源，用于显示 Logo
+  const syncSource = item.source || item.sync_source || getSyncSource(item.type);
+  // 根据 source 获取对应的 Logo 图标
+  const BadgeIcon = getSyncSourceIcon(syncSource) || typeConfig.badgeIcon;
   const isPlaceholder = item.sync_status === 'not_connected';
   
   // 格式化来源名称
@@ -235,10 +239,10 @@ function GridItem({
     
     // 对于所有同步类型 (GitHub Repo, Notion Page/Database, Airtable, etc.)
     // 使用拟物化的 "文档 + Logo"
-    if (isSyncedType(item.type) || item.is_synced) {
+    if (isSynced) {
       return (
         <BrandedIcon 
-          BadgeIcon={config.badgeIcon}
+          BadgeIcon={BadgeIcon}
           type={item.type} // 传入类型以决定底板
           showWarning={isPlaceholder} // 如果是占位符，显示警告
         />

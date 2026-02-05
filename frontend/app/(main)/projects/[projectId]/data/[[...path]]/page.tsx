@@ -698,6 +698,7 @@ export default function DataPage({ params }: DataPageProps) {
                  node.type === 'sync' ? `Sync (${node.source})` : 'Unknown',
     is_synced: node.is_synced,
     sync_source: node.sync_source,
+    source: node.source,  // 新增：传递 source 字段用于显示 Logo
     sync_url: node.sync_url,
     sync_status: node.sync_status,
     last_synced_at: node.last_synced_at,
