@@ -69,7 +69,8 @@ export interface UploadAndSubmitParams {
   ruleId?: number;
   nodeId?: string;
   jsonPath?: string;
-  mode?: 'smart' | 'raw' | 'structured';
+  /** Processing mode: 'ocr_parse' (Smart Parse) or 'raw' (Raw Storage) */
+  mode?: 'ocr_parse' | 'raw';
 }
 
 export interface ETLHealthResponse {

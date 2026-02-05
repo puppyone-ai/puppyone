@@ -36,7 +36,51 @@ const MarkdownIconLarge = () => (
   <img src="/icons/markdown-doc.svg" alt="Markdown" width={64} height={64} style={{ display: 'block' }} />
 );
 
-// 4. 网格背景 (Grid Base) - 用于 Sheets
+// 4. File 图标 (纯 S3 存储的文件)
+// 设计逻辑：实线空心边框 = "文件实体"
+//          中心文字(后缀名) = "原始格式信息" (这是Raw文件唯一可确定的信息)
+const FileIconLarge = ({ ext }: { ext: string }) => (
+  <div style={{ position: 'relative', width: 64, height: 64 }}>
+    {/* 文件主体 - 实线空心 */}
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <path 
+        d="M16 8H40L50 18V56H16V8Z" 
+        stroke="#52525b" 
+        strokeWidth="1.5" 
+        fill="none" 
+      />
+      <path 
+        d="M40 8V18H50" 
+        stroke="#52525b" 
+        strokeWidth="1.5"
+        fill="none"
+      />
+    </svg>
+    
+    {/* 中心显示后缀名 */}
+    <div style={{
+      position: 'absolute',
+      inset: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingTop: 8, // 稍微向下偏移一点，避开折角视觉重心
+    }}>
+      <span style={{
+        fontSize: 10,
+        fontWeight: 700,
+        color: '#71717a', // 中灰色，不抢眼
+        fontFamily: 'monospace',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+      }}>
+        {ext}
+      </span>
+    </div>
+  </div>
+);
+
+// 5. 网格背景 (Grid Base) - 用于 Sheets
 const GridBase = ({ children }: { children?: React.ReactNode }) => (
   <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
     {/* 纸张阴影 */}
@@ -253,6 +297,11 @@ function GridItem({
     switch (config.renderAs) {
       case 'folder': return <FolderIconLarge />;
       case 'markdown': return <MarkdownIconLarge />;
+      case 'file':
+      case 'image': 
+        // 提取文件后缀名 (最多显示4个字符)
+        const ext = item.name.split('.').pop()?.slice(0, 4) || 'FILE';
+        return <FileIconLarge ext={ext} />;
       default: return <JsonIconLarge />;
     }
   };

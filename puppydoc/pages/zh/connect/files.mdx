@@ -105,6 +105,54 @@
 
 ---
 
+## 处理模式
+
+PuppyOne 提供两种文件处理模式：
+
+| 模式 | 说明 | 适用场景 |
+|------|------|----------|
+| **raw** | 原始模式，直接存储文件内容 | JSON、Markdown 等已结构化的文件 |
+| **ocr_parse** | OCR 解析模式，提取文本并结构化 | PDF、图片等需要文字识别的文件 |
+
+---
+
+## 存储结果对比
+
+不同文件类型在不同处理模式下的存储结果：
+
+| 场景 | mode | 文件类型 | type | preview_type | preview_json | preview_md | s3_key |
+|------|------|----------|------|--------------|--------------|------------|--------|
+| 上传 `data.json` | raw | json | json | json | ✓ | - | - |
+| 上传 `data.json` | ocr_parse | json | json | json | ✓ | - | - |
+| 上传 `readme.md` | raw | text | markdown | markdown | - | ✓ | - |
+| 上传 `readme.md` | ocr_parse | text | markdown | markdown | - | ✓ | - |
+| 上传 `doc.pdf` | raw | binary | file | NULL | - | - | ✓ |
+| 上传 `doc.pdf` | ocr_parse | ocr_needed | file→markdown | NULL→markdown | - | ✓ (OCR后) | ✓ (原始) |
+| 上传 `image.jpg` | raw | binary | file | NULL | - | - | ✓ |
+| 上传 `image.jpg` | ocr_parse | ocr_needed | file→markdown | NULL→markdown | - | ✓ (OCR后) | ✓ (原始) |
+| 上传 `video.mp4` | raw | binary | file | NULL | - | - | ✓ |
+| 上传 `video.mp4` | ocr_parse | binary | file | NULL | - | - | ✓ |
+
+### 字段说明
+
+| 字段 | 说明 |
+|------|------|
+| **type** | 文件的原始类型标识 |
+| **preview_type** | 预览内容的格式（json / markdown / NULL） |
+| **preview_json** | 结构化 JSON 内容，用于直接查询 |
+| **preview_md** | Markdown 格式内容，用于展示和 Agent 读取 |
+| **s3_key** | 原始文件的 S3 存储路径（二进制文件） |
+
+### 处理逻辑说明
+
+1. **JSON / Markdown 文件**：无论使用哪种模式，都直接解析内容，不需要 OCR
+2. **PDF / 图片**：
+   - `raw` 模式：仅存储原始文件到 S3，不做解析
+   - `ocr_parse` 模式：保留原始文件到 S3 + OCR 提取文本存入 `preview_md`
+3. **视频等二进制文件**：仅存储到 S3，不支持内容解析
+
+---
+
 ## 文件大小限制
 
 | 计划 | 单文件限制 | 总存储 |

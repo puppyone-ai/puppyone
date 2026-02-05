@@ -795,12 +795,17 @@ export function TableManageDialog({
                 }
                 
                 try {
+                  // 映射前端 mode 到后端 mode
+                  // frontend: 'smart' | 'raw' | 'structured'
+                  // backend: 'ocr_parse' | 'raw'
+                  const backendMode = config?.mode === 'smart' ? 'ocr_parse' : 'raw';
+                  
                   const response = await uploadAndSubmit(
                     { 
-                      projectId: Number(projectId), 
+                      projectId: projectId, // 直接传字符串，不要转换为 Number
                       files: [file], 
                       nodeId: targetNodeId, // 直接更新这个 pending 节点
-                      mode: config?.mode, // Pass mode from dialog
+                      mode: backendMode,
                       ruleId: config?.ruleId,
                     }, 
                     session.access_token
@@ -1545,7 +1550,7 @@ export function TableManageDialog({
       {showImportModal && projectId && (
         <ImportModal
           visible={showImportModal}
-          projectId={Number(projectId)}
+          projectId={projectId || ''}
           mode='create_table'
           tableName={name || 'Imported Content'}
           initialUrl={urlInput}

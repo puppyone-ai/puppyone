@@ -12,7 +12,7 @@ import {
   removeAllPlaceholdersForTable,
 } from './BackgroundTaskNotifier';
 import { createTable } from '../lib/projectsApi';
-import { ImportConfigDialog, type ImportConfig } from './ImportConfigDialog';
+import { FileImportDialog } from './FileImportDialog';
 
 interface ImportMenuProps {
   projectId?: string;
@@ -208,13 +208,11 @@ export function ImportMenu({
   );
   const [urlInput, setUrlInput] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
-  const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
+  const [fileImportDialogOpen, setFileImportDialogOpen] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const dropzoneRef = useRef<HTMLDivElement>(null);
 
   // Calculate menu position to prevent overflow
@@ -234,8 +232,13 @@ export function ImportMenu({
   }, [isOpen]);
 
   // Close menu when clicking outside
+  // 但当 FileImportDialog 打开时不关闭
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // 如果 FileImportDialog 或 ImportModal 打开，不处理外部点击
+      if (fileImportDialogOpen || showImportModal) {
+        return;
+      }
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -248,7 +251,7 @@ export function ImportMenu({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen]);
+  }, [isOpen, fileImportDialogOpen, showImportModal]);
 
   // Drag and drop handlers
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -276,41 +279,12 @@ export function ImportMenu({
       e.stopPropagation();
       setIsDragging(false);
 
-      const items = e.dataTransfer.items;
-      if (items && items.length > 0) {
-        // Check if it's a folder
-        const item = items[0];
-        if (item.webkitGetAsEntry) {
-          const entry = item.webkitGetAsEntry();
-          if (entry?.isDirectory) {
-            // For folders, we need to use the file input
-            // Show a message that folder needs to be selected via browse
-            onLog?.('info', 'For folders, please use "Browse folder" option');
-            fileInputRef.current?.click();
-            return;
-          }
-        }
-      }
-
-      // Handle files
-      const files = e.dataTransfer.files;
-      if (files && files.length > 0) {
-        handleFilesSelected(files);
-      }
+      // 直接打开文件导入对话框
+      // FileImportDialog 内部支持拖放和浏览
+      setFileImportDialogOpen(true);
     },
-    [onLog]
+    []
   );
-
-  // Handler for file selection (opens config dialog)
-  const handleFilesSelected = useCallback((files: FileList) => {
-    if (!projectId) {
-      onLog?.('error', 'No project selected');
-      return;
-    }
-    // Store files and open dialog
-    setPendingFiles(files);
-    setConfigDialogOpen(true);
-  }, [projectId, onLog]);
 
   /**
    * Parse folder structure
@@ -375,25 +349,33 @@ export function ImportMenu({
     return { structure, etlFiles };
   }, [onLog]);
 
-  // Handler for config dialog confirmation
-  const handleConfigConfirm = useCallback(async (config: ImportConfig) => {
-    setConfigDialogOpen(false);
-    if (!pendingFiles || !projectId) return;
-
-    const files = pendingFiles;
-    setPendingFiles(null);
+  // Handler for file import dialog confirmation
+  const handleFileImportConfirm = useCallback(async (
+    importFiles: File[], 
+    mode: 'ocr_parse' | 'raw'
+  ) => {
+    setFileImportDialogOpen(false);
+    if (!projectId || importFiles.length === 0) return;
 
     const finalTableName = tableName.trim()
       ? tableName.replace(/[^a-zA-Z0-9_-]/g, '_')
       : `context_${Date.now()}`;
 
     setIsImporting(true);
+    setIsOpen(false);
 
     try {
       onLog?.('info', 'Preparing files...');
 
-      const { structure: folderStructure, etlFiles } =
-        await parseFolderStructure(files);
+      // 创建一个简单的 FileList-like 对象
+      const fileListLike = {
+        length: importFiles.length,
+        item: (i: number) => importFiles[i],
+        [Symbol.iterator]: function* () { yield* importFiles; }
+      } as unknown as FileList;
+
+      const { structure: folderStructure } =
+        await parseFolderStructure(fileListLike);
 
       onLog?.('info', 'Creating table...');
       const newTable = await createTable(
@@ -403,15 +385,17 @@ export function ImportMenu({
       );
       const newTableId = newTable.id;
 
-      if (etlFiles.length > 0) {
+      // 所有选中的文件都添加到任务列表
+      if (importFiles.length > 0) {
         const baseTimestamp = Date.now();
-        const placeholderTasks = etlFiles.map((file, index) => ({
+        const placeholderTasks = importFiles.map((file, index) => ({
           taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
           projectId: projectId,
           tableId: String(newTableId),
           tableName: finalTableName,
           filename: file.name,
           status: 'pending' as const,
+          taskType: 'file' as const,
         }));
         addPendingTasks(placeholderTasks);
       }
@@ -419,28 +403,24 @@ export function ImportMenu({
       onLog?.('success', `Table "${finalTableName}" created!`);
       onProjectsRefresh?.();
       setTableName('');
-      setIsOpen(false);
       setIsImporting(false);
 
-      if (etlFiles.length > 0 && session?.access_token && newTableId) {
+      // 上传所有文件
+      if (importFiles.length > 0 && session?.access_token && newTableId) {
         const filenameMap = new Map<string, string>();
-        etlFiles.forEach(f => {
+        importFiles.forEach(f => {
           filenameMap.set(f.name, f.name);
-          if (f.webkitRelativePath) {
-            filenameMap.set(f.webkitRelativePath, f.name);
-          }
         });
 
         setTimeout(async () => {
           try {
             const response = await uploadAndSubmit(
               {
-                projectId: Number(projectId),
-                files: etlFiles,
+                projectId: projectId, // 直接传字符串，不要转换为 Number
+                files: importFiles,
                 nodeId: String(newTableId),
                 jsonPath: '',
-                mode: config.mode,
-                ruleId: config.ruleId,
+                mode: mode,
               },
               session.access_token
             );
@@ -454,6 +434,7 @@ export function ImportMenu({
                 tableName: finalTableName,
                 filename: filenameMap.get(item.filename!) || item.filename!,
                 status: (item.status === 'completed' ? 'completed' : 'pending') as any,
+                taskType: 'file' as const,
               }));
 
             if (realTasks.length > 0) {
@@ -475,10 +456,10 @@ export function ImportMenu({
               removeFailedPlaceholders(String(newTableId), failedFileNames);
             }
           } catch (etlError) {
-            console.error('ETL upload failed:', etlError);
+            console.error('File upload failed:', etlError);
             onLog?.(
               'warning',
-              `ETL upload failed: ${etlError instanceof Error ? etlError.message : 'Unknown error'}`
+              `File upload failed: ${etlError instanceof Error ? etlError.message : 'Unknown error'}`
             );
             removeAllPlaceholdersForTable(String(newTableId));
           }
@@ -493,7 +474,7 @@ export function ImportMenu({
       );
       setIsImporting(false);
     }
-  }, [pendingFiles, projectId, tableName, session?.access_token, parseFolderStructure, onLog, onProjectsRefresh]);
+  }, [projectId, tableName, session?.access_token, parseFolderStructure, onLog, onProjectsRefresh]);
 
   return (
     <div ref={menuRef} style={{ position: 'relative' }}>
@@ -611,25 +592,14 @@ export function ImportMenu({
               </div>
             ) : (
               <>
-                <input
-                  ref={fileInputRef}
-                  type='file'
-                  {...({ webkitdirectory: '', directory: '' } as any)}
-                  onChange={e =>
-                    e.target.files && handleFilesSelected(e.target.files)
-                  }
-                  multiple
-                  style={{ display: 'none' }}
-                />
-
-                {/* Dropzone */}
+                {/* Dropzone - 点击或拖放都打开统一对话框 */}
                 <div
                   ref={dropzoneRef}
                   onDragEnter={handleDragEnter}
                   onDragLeave={handleDragLeave}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => setFileImportDialogOpen(true)}
                   style={{
                     padding: '16px',
                     border: '1px dashed',
@@ -660,7 +630,7 @@ export function ImportMenu({
                     <line x1='12' y1='3' x2='12' y2='15' />
                   </svg>
                   <div style={{ fontSize: 14, color: '#9ca3af' }}>
-                    Drop files or folder here
+                    Import files...
                   </div>
                 </div>
 
@@ -807,7 +777,7 @@ export function ImportMenu({
       {showImportModal && projectId && (
         <ImportModal
           visible={showImportModal}
-          projectId={Number(projectId)}
+          projectId={projectId}
           mode='create_table'
           tableName={tableName}
           initialUrl={urlInput}
@@ -825,15 +795,11 @@ export function ImportMenu({
         />
       )}
 
-      {/* Configuration Dialog */}
-      <ImportConfigDialog
-        isOpen={configDialogOpen}
-        onClose={() => {
-          setConfigDialogOpen(false);
-          setPendingFiles(null);
-        }}
-        onConfirm={handleConfigConfirm}
-        files={pendingFiles ? Array.from(pendingFiles) : []}
+      {/* File Import Dialog - 统一的拖放 + 模式选择界面 */}
+      <FileImportDialog
+        isOpen={fileImportDialogOpen}
+        onClose={() => setFileImportDialogOpen(false)}
+        onConfirm={handleFileImportConfirm}
       />
     </div>
   );

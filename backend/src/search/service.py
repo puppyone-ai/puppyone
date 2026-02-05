@@ -206,8 +206,8 @@ class SearchService:
         node = await asyncio.to_thread(
             self._node_service.get_by_id, node_id, project_id
         )
-        # 从 node.json_content 获取 JSON 数据，然后提取指定路径的子数据
-        full_data = node.json_content or {}
+        # 从 node.preview_json 获取 JSON 数据，然后提取指定路径的子数据
+        full_data = node.preview_json or {}
         scope_data = _extract_by_pointer(full_data, scope_pointer)
         log_info(
             f"[index_scope] step1_get_scope_data: node_id={node_id} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
@@ -589,14 +589,14 @@ class SearchService:
         is_json = file_node.type == "json" or file_node.preview_type == "json"
         
         if is_json:
-            # JSON content is stored in node.json_content
-            content_data = file_node.json_content or {}
+            # JSON content is stored in node.preview_json
+            content_data = file_node.preview_json or {}
             # Use root pointer for JSON files in folder context
             scope_pointer = ""
         elif is_markdown:
-            # Markdown content: prefer md_content, fallback to S3
-            if file_node.md_content:
-                content_data = file_node.md_content
+            # Markdown content: prefer preview_md, fallback to S3
+            if file_node.preview_md:
+                content_data = file_node.preview_md
                 scope_pointer = "/"
             elif file_node.s3_key:
                 try:

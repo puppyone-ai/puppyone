@@ -23,7 +23,7 @@ interface ImportModalProps {
   currentValue?: any; // Optional - only for path-level import
   tableId?: number; // Optional - only for existing table import
   tableName?: string; // Optional - for new table creation
-  projectId: number;
+  projectId: number | string; // Support both number and string
   mode?: 'create_table' | 'import_to_table'; // New: specify import mode
   initialUrl?: string; // Optional - auto-parse this URL on mount
   initialCrawlOptions?: CrawlOptions; // Optional - initial crawl options

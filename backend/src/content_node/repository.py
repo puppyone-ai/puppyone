@@ -29,8 +29,8 @@ class ContentNodeRepository:
             preview_type=row.get("preview_type"),
             id_path=row["id_path"],
             # 内容字段
-            json_content=row.get("json_content"),
-            md_content=row.get("md_content"),
+            preview_json=row.get("preview_json"),
+            preview_md=row.get("preview_md"),
             s3_key=row.get("s3_key"),
             mime_type=row.get("mime_type"),
             size_bytes=row.get("size_bytes", 0),
@@ -160,8 +160,8 @@ class ContentNodeRepository:
         sync_oauth_user_id: Optional[str] = None,  # 仅 sync 类型必填
         source: Optional[str] = None,
         preview_type: Optional[str] = None,  # json | markdown | NULL
-        json_content: Optional[dict] = None,
-        md_content: Optional[str] = None,
+        preview_json: Optional[dict] = None,
+        preview_md: Optional[str] = None,
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
         size_bytes: int = 0,
@@ -180,8 +180,8 @@ class ContentNodeRepository:
             "source": source,
             "preview_type": preview_type,
             "id_path": id_path,
-            "json_content": json_content,
-            "md_content": md_content,
+            "preview_json": preview_json,
+            "preview_md": preview_md,
             "s3_key": s3_key,
             "mime_type": mime_type,
             "size_bytes": size_bytes,
@@ -209,33 +209,33 @@ class ContentNodeRepository:
         self,
         node_id: str,
         name: Optional[str] = None,
-        json_content: Optional[dict] = None,
-        md_content: Optional[str] = None,
+        preview_json: Optional[dict] = None,
+        preview_md: Optional[str] = None,
         preview_type: Optional[str] = None,
         id_path: Optional[str] = None,
         parent_id: Optional[str] = None,
         s3_key: Optional[str] = None,
         size_bytes: Optional[int] = None,
-        clear_json_content: bool = False,
-        clear_md_content: bool = False,
+        clear_preview_json: bool = False,
+        clear_preview_md: bool = False,
     ) -> Optional[ContentNode]:
         """更新节点
         
         Args:
-            clear_json_content: 如果为 True，将 json_content 字段设为 null
-            clear_md_content: 如果为 True，将 md_content 字段设为 null
+            clear_preview_json: 如果为 True，将 preview_json 字段设为 null
+            clear_preview_md: 如果为 True，将 preview_md 字段设为 null
         """
         data = {}
         if name is not None:
             data["name"] = name
-        if json_content is not None:
-            data["json_content"] = json_content
-        elif clear_json_content:
-            data["json_content"] = None
-        if md_content is not None:
-            data["md_content"] = md_content
-        elif clear_md_content:
-            data["md_content"] = None
+        if preview_json is not None:
+            data["preview_json"] = preview_json
+        elif clear_preview_json:
+            data["preview_json"] = None
+        if preview_md is not None:
+            data["preview_md"] = preview_md
+        elif clear_preview_md:
+            data["preview_md"] = None
         if preview_type is not None:
             data["preview_type"] = preview_type
         if id_path is not None:
@@ -268,7 +268,7 @@ class ContentNodeRepository:
         sync_status: Optional[str] = None,
         sync_config: Optional[dict] = None,
         last_synced_at: Optional[datetime] = None,
-        json_content: Optional[dict] = None,
+        preview_json: Optional[dict] = None,
         preview_type: Optional[str] = None,
         sync_oauth_user_id: Optional[str] = None,  # 新增：同步绑定的 OAuth 用户
     ) -> Optional[ContentNode]:
@@ -289,8 +289,8 @@ class ContentNodeRepository:
             data["sync_config"] = sync_config
         if last_synced_at is not None:
             data["last_synced_at"] = last_synced_at.isoformat()
-        if json_content is not None:
-            data["json_content"] = json_content
+        if preview_json is not None:
+            data["preview_json"] = preview_json
         if preview_type is not None:
             data["preview_type"] = preview_type
         if sync_oauth_user_id is not None:
@@ -314,8 +314,8 @@ class ContentNodeRepository:
         node_id: str,
         node_type: Optional[str] = None,  # folder | json | markdown | file | sync
         name: Optional[str] = None,
-        json_content: Optional[dict] = None,
-        md_content: Optional[str] = None,
+        preview_json: Optional[dict] = None,
+        preview_md: Optional[str] = None,
         preview_type: Optional[str] = None,
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
@@ -327,10 +327,10 @@ class ContentNodeRepository:
             data["type"] = node_type
         if name is not None:
             data["name"] = name
-        if json_content is not None:
-            data["json_content"] = json_content
-        if md_content is not None:
-            data["md_content"] = md_content
+        if preview_json is not None:
+            data["preview_json"] = preview_json
+        if preview_md is not None:
+            data["preview_md"] = preview_md
         if preview_type is not None:
             data["preview_type"] = preview_type
         if s3_key is not None:

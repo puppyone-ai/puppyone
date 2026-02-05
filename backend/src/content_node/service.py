@@ -150,7 +150,7 @@ class ContentNodeService:
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
-            json_content=content,
+            preview_json=content,
             preview_type="json",
             mime_type="application/json",
         )
@@ -209,7 +209,7 @@ class ContentNodeService:
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
-            json_content=placeholder_content,
+            preview_json=placeholder_content,
             preview_type="json",
             mime_type="application/json",
             sync_status="not_connected",
@@ -242,7 +242,7 @@ class ContentNodeService:
             sync_status="idle",
             sync_config=sync_config,
             last_synced_at=datetime.utcnow(),
-            json_content=content,
+            preview_json=content,
             preview_type="json",
             sync_oauth_user_id=sync_oauth_user_id,
         )
@@ -263,7 +263,7 @@ class ContentNodeService:
         """
         创建同步节点（从 SaaS 平台导入的结构化数据）
         
-        JSON 数据直接存 JSONB（json_content 字段）。
+        JSON 数据直接存 JSONB（preview_json 字段）。
         sync_oauth_user_id 用于标识使用哪个用户的 OAuth 凭证进行同步。
         """
         import uuid
@@ -281,7 +281,7 @@ class ContentNodeService:
             parent_id=parent_id,
             created_by=created_by,
             sync_oauth_user_id=sync_oauth_user_id,
-            json_content=content,
+            preview_json=content,
             preview_type="json",
             mime_type="application/json",
             sync_url=sync_url,
@@ -320,7 +320,7 @@ class ContentNodeService:
             parent_id=parent_id,
             created_by=created_by,
             sync_oauth_user_id=sync_oauth_user_id,
-            json_content=metadata,
+            preview_json=metadata,
             preview_type="json",
             s3_key=s3_prefix,
             mime_type="application/x-github-repo",
@@ -336,6 +336,9 @@ class ContentNodeService:
         name: str, 
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
+        s3_key: Optional[str] = None,
+        mime_type: Optional[str] = None,
+        size_bytes: int = 0,
     ) -> ContentNode:
         """创建待处理节点（ETL 处理前的占位符）"""
         import uuid
@@ -350,7 +353,38 @@ class ContentNodeService:
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
-            mime_type="application/octet-stream",
+            s3_key=s3_key,
+            mime_type=mime_type or "application/octet-stream",
+            size_bytes=size_bytes,
+        )
+
+    def create_file_node(
+        self, 
+        project_id: str,
+        name: str, 
+        s3_key: str,
+        mime_type: Optional[str] = None,
+        size_bytes: int = 0,
+        parent_id: Optional[str] = None,
+        created_by: Optional[str] = None,
+    ) -> ContentNode:
+        """创建文件节点（二进制文件，存 S3，无预览）"""
+        import uuid
+        new_id = str(uuid.uuid4())
+        id_path = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        
+        return self.repo.create(
+            project_id=project_id,
+            name=unique_name,
+            node_type="file",
+            id_path=id_path,
+            parent_id=parent_id,
+            created_by=created_by,
+            s3_key=s3_key,
+            mime_type=mime_type or "application/octet-stream",
+            size_bytes=size_bytes,
+            # preview_type=NULL, 无预览
         )
 
     async def create_markdown_node(
@@ -361,20 +395,13 @@ class ContentNodeService:
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> ContentNode:
-        """创建 Markdown 节点（内容存储到 S3，同时保存到 md_content 用于预览）"""
+        """创建 Markdown 节点（内容直接存 preview_md，不存 S3）"""
         import uuid
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 生成 S3 key 并上传内容（使用 project_id）
-        s3_key = f"projects/{project_id}/content/{uuid.uuid4()}.md"
         content_bytes = content.encode('utf-8')
-        await self.s3.upload_file(
-            key=s3_key,
-            content=content_bytes,
-            content_type="text/markdown",
-        )
         
         return self.repo.create(
             project_id=project_id,
@@ -383,9 +410,8 @@ class ContentNodeService:
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
-            md_content=content,  # 保存到数据库用于预览
+            preview_md=content,  # 直接存数据库
             preview_type="markdown",
-            s3_key=s3_key,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
         )
@@ -403,20 +429,13 @@ class ContentNodeService:
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> ContentNode:
-        """创建同步的 Markdown 节点（如 Notion Page）"""
+        """创建同步的 Markdown 节点（如 Notion Page），内容直接存 preview_md，不存 S3"""
         import uuid
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 生成 S3 key 并上传内容（使用 project_id）
-        s3_key = f"projects/{project_id}/content/{uuid.uuid4()}.md"
         content_bytes = content.encode('utf-8')
-        await self.s3.upload_file(
-            key=s3_key,
-            content=content_bytes,
-            content_type="text/markdown",
-        )
         
         return self.repo.create(
             project_id=project_id,
@@ -427,9 +446,8 @@ class ContentNodeService:
             parent_id=parent_id,
             created_by=created_by,
             sync_oauth_user_id=sync_oauth_user_id,
-            md_content=content,  # 保存到数据库用于预览
+            preview_md=content,  # 直接存数据库
             preview_type="markdown",
-            s3_key=s3_key,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
             sync_url=sync_url,
@@ -482,12 +500,11 @@ class ContentNodeService:
                     node_type = node["type"]
                     content = node.get("content")
                     
-                    # 确定 mime_type, preview_type, json_content, md_content
+                    # 确定 mime_type, preview_type, preview_json, preview_md
                     mime_type = None
                     preview_type = None
-                    json_content = None
-                    md_content = None
-                    s3_key = None
+                    preview_json = None
+                    preview_md = None
                     size_bytes = 0
                     
                     if node_type == "folder":
@@ -495,21 +512,14 @@ class ContentNodeService:
                     elif node_type == "json":
                         mime_type = "application/json"
                         preview_type = "json"
-                        json_content = content
+                        preview_json = content
                     elif node_type == "markdown":
                         mime_type = "text/markdown"
                         preview_type = "markdown"
-                        md_content = content if isinstance(content, str) else ""
-                        # 上传到 S3（使用 project_id）
-                        if md_content:
-                            s3_key = f"projects/{project_id}/content/{uuid.uuid4()}.md"
-                            content_bytes = md_content.encode('utf-8')
-                            size_bytes = len(content_bytes)
-                            await self.s3.upload_file(
-                                key=s3_key,
-                                content=content_bytes,
-                                content_type="text/markdown",
-                            )
+                        preview_md = content if isinstance(content, str) else ""
+                        # Markdown 直接存数据库，不存 S3
+                        if preview_md:
+                            size_bytes = len(preview_md.encode('utf-8'))
                     elif node_type == "file":
                         mime_type = "application/octet-stream"
                     
@@ -520,10 +530,9 @@ class ContentNodeService:
                         id_path=id_path,
                         parent_id=real_parent_id,
                         created_by=created_by,
-                        json_content=json_content,
-                        md_content=md_content,
+                        preview_json=preview_json,
+                        preview_md=preview_md,
                         preview_type=preview_type,
-                        s3_key=s3_key,
                         mime_type=mime_type,
                         size_bytes=size_bytes,
                     )
@@ -610,10 +619,9 @@ class ContentNodeService:
         """
         完成 pending 节点的处理（ETL 完成后调用）
         
-        将 file 节点转换为 markdown（更新 type, md_content, preview_type）
+        将 file 节点转换为 markdown（更新 type, preview_md, preview_type）
+        Markdown 内容直接存数据库，不存 S3
         """
-        import uuid
-        
         node = self.get_by_id(node_id, project_id)
         
         # 检查是 file 类型
@@ -625,22 +633,13 @@ class ContentNodeService:
         
         content_bytes = content.encode('utf-8')
         
-        # 生成 S3 key 并上传内容（使用 project_id）
-        s3_key = f"projects/{project_id}/content/{uuid.uuid4()}.md"
-        await self.s3.upload_file(
-            key=s3_key,
-            content=content_bytes,
-            content_type="text/markdown",
-        )
-        
-        # 更新节点：file -> markdown
+        # 更新节点：file -> markdown（不存 S3）
         updated = self.repo.update_with_type(
             node_id,
             node_type="markdown",
             name=new_name,
-            md_content=content,  # 保存到数据库用于预览
+            preview_md=content,  # 直接存数据库
             preview_type="markdown",
-            s3_key=s3_key,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
         )
@@ -651,7 +650,7 @@ class ContentNodeService:
         node_id: str,
         project_id: str,
         name: Optional[str] = None,
-        json_content: Optional[Any] = None,
+        preview_json: Optional[Any] = None,
     ) -> ContentNode:
         """更新节点（重命名只改 name，id_path 不变）"""
         node = self.get_by_id(node_id, project_id)
@@ -659,7 +658,7 @@ class ContentNodeService:
         updated = self.repo.update(
             node_id=node_id,
             name=name,
-            json_content=json_content,
+            preview_json=preview_json,
         )
         
         return updated
@@ -670,8 +669,7 @@ class ContentNodeService:
         project_id: str,
         content: str,
     ) -> ContentNode:
-        """更新 markdown 节点的内容"""
-        import uuid
+        """更新 markdown 节点的内容（直接存数据库，不存 S3）"""
         import logging
         
         logger = logging.getLogger(__name__)
@@ -686,37 +684,14 @@ class ContentNodeService:
         
         content_bytes = content.encode('utf-8')
         
-        try:
-            if node.s3_key:
-                s3_key = node.s3_key
-            else:
-                s3_key = f"projects/{project_id}/content/{uuid.uuid4()}.md"
-            
-            await self.s3.upload_file(
-                key=s3_key,
-                content=content_bytes,
-                content_type="text/markdown",
-            )
-            
-            # 同时更新 S3 和 md_content
-            updated = self.repo.update(
-                node_id=node_id,
-                md_content=content,
-                preview_type="markdown",
-                s3_key=s3_key,
-                size_bytes=len(content_bytes),
-            )
-            logger.info(f"[ContentNode] Markdown saved to S3: {node_id}")
-            
-        except Exception as e:
-            logger.warning(f"[ContentNode] S3 upload failed for {node_id}, fallback to DB only: {e}")
-            updated = self.repo.update(
-                node_id=node_id,
-                md_content=content,
-                preview_type="markdown",
-                size_bytes=len(content_bytes),
-            )
-            logger.info(f"[ContentNode] Markdown saved to DB: {node_id}")
+        # 直接更新数据库，不存 S3
+        updated = self.repo.update(
+            node_id=node_id,
+            preview_md=content,
+            preview_type="markdown",
+            size_bytes=len(content_bytes),
+        )
+        logger.info(f"[ContentNode] Markdown saved to DB: {node_id}")
         
         return updated
 

@@ -5,10 +5,15 @@ This router provides a unified interface for all data ingestion:
 - FILE: Local file upload → File Worker (ETL)
 - SAAS: SaaS platform sync → SaaS Worker (Import)
 - URL: Generic URL crawl → SaaS Worker (Import)
+
+双层路由架构:
+- Layer 1: mode (raw | ocr_parse)
+- Layer 2: file_type (json | text | ocr_needed | binary)
 """
 
 import base64
 import hashlib
+import json
 import logging
 import os
 import uuid
@@ -52,6 +57,44 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
+# === File Type Classification ===
+
+# JSON 文件扩展名
+JSON_EXTS = {'.json'}
+
+# 文本文件扩展名（可直接读取内容）
+TEXT_EXTS = {
+    '.txt', '.md', '.py', '.js', '.ts', '.jsx', '.tsx', '.java', 
+    '.c', '.cpp', '.h', '.html', '.css', '.xml', '.yaml', '.yml', 
+    '.csv', '.sh', '.sql', '.go', '.rs', '.rb', '.php', '.swift',
+    '.kt', '.scala', '.r', '.m', '.pl', '.lua', '.dart', '.coffee',
+    '.toml', '.ini', '.cfg', '.log', '.tsv', '.bat', '.ps1',
+}
+
+# 需要 OCR 的文件扩展名
+OCR_EXTS = {
+    '.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.webp',
+    '.doc', '.docx', '.ppt', '.pptx',
+}
+
+
+def classify_file_type(ext: str) -> str:
+    """
+    分类文件类型
+    
+    Returns:
+        "json" | "text" | "ocr_needed" | "binary"
+    """
+    ext_lower = ext.lower()
+    if ext_lower in JSON_EXTS:
+        return "json"
+    elif ext_lower in TEXT_EXTS:
+        return "text"
+    elif ext_lower in OCR_EXTS:
+        return "ocr_needed"
+    else:
+        return "binary"
+
 
 # === File Upload Endpoint ===
 
@@ -62,10 +105,9 @@ async def submit_file_ingest(
     files: list[UploadFile] = File(..., description="Files to upload"),
     
     # Optional configuration
-    mode: str = Form("smart", description="Processing mode: smart, raw, structured"),
-    rule_id: Optional[int] = Form(None, description="ETL rule ID (for structured mode)"),
-    node_id: Optional[str] = Form(None, description="Target node ID"),
-    json_path: Optional[str] = Form(None, description="JSON Pointer mount path"),
+    mode: str = Form("ocr_parse", description="Processing mode: raw | ocr_parse"),
+    rule_id: Optional[int] = Form(None, description="ETL rule ID (for ocr_parse mode)"),
+    parent_id: Optional[str] = Form(None, description="Parent node ID for new nodes"),
     
     # Dependencies
     etl_service: ETLService = Depends(get_etl_service),
@@ -77,254 +119,301 @@ async def submit_file_ingest(
     """
     Submit file ingest tasks.
     
-    Processing modes:
-    - smart: Text files direct import; PDF/Image → OCR (File Worker)
-    - raw: All files direct import (no OCR, just storage)
-    - structured: All files → File Worker with specific rule
+    双层路由架构:
+    
+    Layer 1 - mode:
+      - raw: 原始存储（所有文件直接存储，不做 OCR）
+      - ocr_parse: 智能解析（文本直接存，OCR 文件走 Worker）
+    
+    Layer 2 - file_type (基于扩展名自动判断):
+      - json: .json → preview_json (不存 S3)
+      - text: .md/.txt/.py/... → preview_md (不存 S3)
+      - ocr_needed: .pdf/.jpg/.docx/... → S3 + ETL Worker → preview_md
+      - binary: 其他 → S3 only (无预览)
+    
+    存储规则:
+      ┌──────────┬────────────┬─────────────┬────────────┬────────────┬─────────┐
+      │  mode    │ file_type  │    type     │preview_type│preview_json│  s3_key │
+      ├──────────┼────────────┼─────────────┼────────────┼────────────┼─────────┤
+      │ raw      │ json       │ json        │ json       │ ✓          │ -       │
+      │ raw      │ text       │ markdown    │ markdown   │ -          │ -       │
+      │ raw      │ ocr_needed │ file        │ NULL       │ -          │ ✓       │
+      │ raw      │ binary     │ file        │ NULL       │ -          │ ✓       │
+      │ ocr_parse│ json       │ json        │ json       │ ✓          │ -       │
+      │ ocr_parse│ text       │ markdown    │ markdown   │ -          │ -       │
+      │ ocr_parse│ ocr_needed │ file→md     │ NULL→md    │ -          │ ✓       │
+      │ ocr_parse│ binary     │ file        │ NULL       │ -          │ ✓       │
+      └──────────┴────────────┴─────────────┴────────────┴────────────┴─────────┘
     """
     # Access checks
     if not project_service.verify_project_access(project_id, current_user.user_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
-    if node_id is not None:
-        node = node_service.get_by_id(node_id, project_id)
-        if not node:
-            raise HTTPException(status_code=404, detail="Node not found")
+    # Validate parent_id if provided
+    if parent_id is not None:
+        parent_node = node_service.get_by_id(parent_id, project_id)
+        if not parent_node:
+            raise HTTPException(status_code=404, detail="Parent node not found")
 
-    mount_json_path = json_path or ""
     items: list[IngestSubmitItem] = []
-    
-    # Text file extensions for smart mode
-    text_exts = {'.txt', '.md', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.java', 
-                 '.c', '.cpp', '.h', '.html', '.css', '.xml', '.yaml', '.yml', '.csv', '.sh', '.sql'}
 
     for f in files:
         original_filename = f.filename or "file"
         original_basename = Path(original_filename).name
-
-        # Generate safe S3 key
         _, ext = os.path.splitext(original_basename)
-        safe_filename = f"{uuid.uuid4()}{ext}"
-        s3_key = f"projects/{project_id}/raw/{safe_filename}"
-
-        # Upload to S3
+        
+        # 读取文件内容
+        content = await f.read()
+        content_size = len(content)
+        
+        # 分类文件类型
+        file_type = classify_file_type(ext)
+        
         try:
-            content = await f.read()
-            original_filename_b64 = base64.b64encode(
-                original_filename.encode("utf-8")
-            ).decode("ascii")
-            await s3_service.upload_file(
-                key=s3_key,
-                content=content,
-                content_type=f.content_type,
-                metadata={
-                    "original_filename_b64": original_filename_b64,
-                    "project_id": str(project_id),
-                },
-            )
-        except S3FileSizeExceededError as e:
-            task = await etl_service.create_failed_task(
-                user_id=current_user.user_id,
-                project_id=project_id,
-                filename=original_filename,
-                rule_id=rule_id,
-                error=str(e),
-                metadata={"error_stage": "upload"},
-            )
-            items.append(IngestSubmitItem(
-                task_id=str(task.task_id or 0),
-                source_type=SourceType.FILE,
-                ingest_type=detect_file_ingest_type(original_filename),
-                status=IngestStatus.FAILED,
-                filename=original_filename,
-                error=str(e),
-            ))
-            continue
-        except (S3Error, Exception) as e:
-            task = await etl_service.create_failed_task(
-                user_id=current_user.user_id,
-                project_id=project_id,
-                filename=original_filename,
-                rule_id=rule_id,
-                error=f"Upload failed: {e}",
-                metadata={"error_stage": "upload"},
-            )
-            items.append(IngestSubmitItem(
-                task_id=str(task.task_id or 0),
-                source_type=SourceType.FILE,
-                ingest_type=detect_file_ingest_type(original_filename),
-                status=IngestStatus.FAILED,
-                filename=original_filename,
-                error=str(e),
-            ))
-            continue
-
-        # Determine processing logic based on mode and file type
-        is_text_file = ext.lower() in text_exts
-        should_use_worker = True
-
-        if mode == "raw":
-            should_use_worker = False
-        elif mode == "smart":
-            if is_text_file:
-                should_use_worker = False
-        elif mode == "structured":
-            should_use_worker = True
-
-        if should_use_worker:
-            # Path A: Submit to File Worker (ETL)
-            try:
-                task = await etl_service.submit_etl_task(
-                    user_id=current_user.user_id,
-                    project_id=project_id,
-                    filename=original_filename,
-                    rule_id=rule_id,
-                    s3_key=s3_key,
-                )
-            except RuleNotFoundError as e:
-                task = await etl_service.create_failed_task(
-                    user_id=current_user.user_id,
-                    project_id=project_id,
-                    filename=original_filename,
-                    rule_id=rule_id,
-                    error=str(e),
-                    metadata={"error_stage": "submit", "s3_key": s3_key},
-                )
-                items.append(IngestSubmitItem(
-                    task_id=str(task.task_id or 0),
-                    source_type=SourceType.FILE,
-                    ingest_type=detect_file_ingest_type(original_filename),
-                    status=IngestStatus.FAILED,
-                    filename=original_filename,
-                    s3_key=s3_key,
-                    error=str(e),
-                ))
-                continue
+            # ═══════════════════════════════════════════════════════════════
+            # 根据 mode + file_type 决定处理方式
+            # ═══════════════════════════════════════════════════════════════
             
-            # Persist mount plan into task metadata
-            suffix = hashlib.sha1(s3_key.encode("utf-8")).hexdigest()
-            mount_key = f"{original_basename}-{suffix[:8]}"
-            task.metadata["mount_key"] = mount_key
-            task.metadata["mount_json_path"] = mount_json_path
-            if node_id is not None:
-                task.metadata["mount_node_id"] = node_id
-            else:
-                task.metadata["auto_node_name"] = suffix[:10]
-                task.metadata["auto_create_node"] = True
+            if file_type == "json":
+                # ─────────────────────────────────────────────────────────
+                # JSON 文件：直接存 preview_json，不存 S3
+                # ─────────────────────────────────────────────────────────
+                try:
+                    text_content = content.decode("utf-8", errors="ignore")
+                    json_data = json.loads(text_content)
+                except json.JSONDecodeError as e:
+                    # JSON 解析失败，作为文本处理
+                    logger.warning(f"JSON parse failed for {original_filename}: {e}")
+                    json_data = {"_raw": content.decode("utf-8", errors="ignore"), "_parse_error": str(e)}
                 
-            task.metadata["s3_key"] = s3_key
-            etl_service.task_repository.update_task(task)
-            
-            items.append(IngestSubmitItem(
-                task_id=str(task.task_id or 0),
-                source_type=SourceType.FILE,
-                ingest_type=detect_file_ingest_type(original_filename),
-                status=IngestStatus.PENDING if task.status == ETLTaskStatus.PENDING else IngestStatus.PROCESSING,
-                filename=original_filename,
-                s3_key=s3_key,
-            ))
-
-        else:
-            # Path B: Direct Create (No Worker)
-            try:
-                # Calculate node type
-                node_type = "file"
-                if ext.lower() == '.pdf':
-                    node_type = "pdf"
-                elif ext.lower() in {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'}:
-                    node_type = "image"
-                elif ext.lower() == '.md':
-                    node_type = "markdown"
-                elif ext.lower() == '.json':
-                    node_type = "json"
-
-                # Direct create node content
-                node_content = {}
-                if is_text_file:
-                    try:
-                        text_content = content.decode("utf-8", errors="ignore")
-                        if node_type == "json":
-                            import json
-                            try:
-                                node_content = json.loads(text_content)
-                            except Exception:
-                                node_content = {"raw": text_content}
-                        else:
-                            node_content = text_content
-                    except Exception as e:
-                        logger.warning(f"Failed to decode text file {original_filename}: {e}")
-                        node_content = {}
-                else:
-                    node_content = {
-                        "s3_key": s3_key,
-                        "filename": original_filename,
-                        "size": len(content),
-                        "mime_type": f.content_type
-                    }
-
-                # Create/Update node
-                created_node_id = None
-                if node_id:
-                    await node_service.finalize_pending_node(
-                        node_id=node_id,
+                node = node_service.create_json_node(
+                    project_id=project_id,
+                    name=original_basename,
+                    content=json_data,
+                    parent_id=parent_id,
+                    created_by=current_user.user_id,
+                )
+                
+                # 创建完成状态的任务记录（用于前端轮询）
+                task = await _create_completed_task(
+                    etl_service, current_user.user_id, project_id, 
+                    original_filename, rule_id, node.id, "json"
+                )
+                items.append(_make_completed_item(task, original_filename, node.id))
+                
+            elif file_type == "text":
+                # ─────────────────────────────────────────────────────────
+                # 文本文件：直接存 preview_md，不存 S3
+                # ─────────────────────────────────────────────────────────
+                text_content = content.decode("utf-8", errors="ignore")
+                
+                node = await node_service.create_markdown_node(
+                    project_id=project_id,
+                    name=original_basename,
+                    content=text_content,
+                    parent_id=parent_id,
+                    created_by=current_user.user_id,
+                )
+                
+                task = await _create_completed_task(
+                    etl_service, current_user.user_id, project_id,
+                    original_filename, rule_id, node.id, "markdown"
+                )
+                items.append(_make_completed_item(task, original_filename, node.id))
+                
+            elif file_type == "ocr_needed" and mode == "ocr_parse":
+                # ─────────────────────────────────────────────────────────
+                # OCR 文件 + ocr_parse 模式：上传 S3 + 提交 ETL Worker
+                # ─────────────────────────────────────────────────────────
+                # 1. 上传到 S3
+                s3_key = await _upload_to_s3(
+                    s3_service, project_id, original_filename, content, f.content_type
+                )
+                
+                # 2. 创建 pending 节点
+                pending_node = node_service.create_pending_node(
+                    project_id=project_id,
+                    name=original_basename,
+                    parent_id=parent_id,
+                    created_by=current_user.user_id,
+                    s3_key=s3_key,
+                    mime_type=f.content_type,
+                    size_bytes=content_size,
+                )
+                
+                # 3. 提交 ETL 任务
+                try:
+                    task = await etl_service.submit_etl_task(
+                        user_id=current_user.user_id,
                         project_id=project_id,
-                        content=node_content,
-                        new_name=original_filename,
+                        filename=original_filename,
+                        rule_id=rule_id,
+                        s3_key=s3_key,
                     )
-                    created_node_id = node_id
-                else:
-                    logger.warning("Direct create without node_id not fully implemented")
-                    created_node_id = "unknown"
-
-                # Create a completed task for history/polling
-                task = await etl_service.create_failed_task(
-                    user_id=current_user.user_id,
-                    project_id=project_id,
-                    filename=original_filename,
-                    rule_id=rule_id,
-                    error="Skipped (Direct Import)",
-                    metadata={
-                        "mode": mode,
-                        "skipped_worker": True,
-                        "node_id": created_node_id
-                    }
-                )
-                # Fix status to COMPLETED
-                task.status = ETLTaskStatus.COMPLETED
-                task.error = None
-                task.progress = 100
+                except RuleNotFoundError as e:
+                    items.append(_make_failed_item(
+                        await etl_service.create_failed_task(
+                            current_user.user_id, project_id, original_filename, rule_id, str(e)
+                        ),
+                        original_filename, s3_key, str(e)
+                    ))
+                    continue
+                
+                # 4. 记录挂载信息
+                task.metadata["mount_node_id"] = pending_node.id
+                task.metadata["s3_key"] = s3_key
                 etl_service.task_repository.update_task(task)
-
+                
                 items.append(IngestSubmitItem(
                     task_id=str(task.task_id or 0),
                     source_type=SourceType.FILE,
                     ingest_type=detect_file_ingest_type(original_filename),
-                    status=IngestStatus.COMPLETED,
+                    status=IngestStatus.PENDING if task.status == ETLTaskStatus.PENDING else IngestStatus.PROCESSING,
                     filename=original_filename,
                     s3_key=s3_key,
+                    node_id=pending_node.id,
                 ))
-
-            except Exception as e:
-                logger.error(f"Direct import failed: {e}", exc_info=True)
-                task = await etl_service.create_failed_task(
-                    user_id=current_user.user_id,
-                    project_id=project_id,
-                    filename=original_filename,
-                    rule_id=rule_id,
-                    error=f"Direct import failed: {e}",
-                    metadata={"error_stage": "direct_import"},
+                
+            else:
+                # ─────────────────────────────────────────────────────────
+                # 二进制文件（或 raw 模式下的 OCR 文件）：上传 S3，创建 file 节点
+                # ─────────────────────────────────────────────────────────
+                # 上传到 S3
+                s3_key = await _upload_to_s3(
+                    s3_service, project_id, original_filename, content, f.content_type
                 )
-                items.append(IngestSubmitItem(
-                    task_id=str(task.task_id or 0),
-                    source_type=SourceType.FILE,
-                    ingest_type=detect_file_ingest_type(original_filename),
-                    status=IngestStatus.FAILED,
-                    filename=original_filename,
+                
+                # 创建 file 节点（无预览）
+                node = node_service.create_file_node(
+                    project_id=project_id,
+                    name=original_basename,
                     s3_key=s3_key,
-                    error=str(e),
-                ))
+                    mime_type=f.content_type,
+                    size_bytes=content_size,
+                    parent_id=parent_id,
+                    created_by=current_user.user_id,
+                )
+                
+                task = await _create_completed_task(
+                    etl_service, current_user.user_id, project_id,
+                    original_filename, rule_id, node.id, "file"
+                )
+                items.append(_make_completed_item(task, original_filename, node.id, s3_key))
+                
+        except S3FileSizeExceededError as e:
+            items.append(_make_failed_item(
+                await etl_service.create_failed_task(
+                    current_user.user_id, project_id, original_filename, rule_id, str(e),
+                    metadata={"error_stage": "upload"}
+                ),
+                original_filename, None, str(e)
+            ))
+        except (S3Error, Exception) as e:
+            logger.error(f"File ingest failed for {original_filename}: {e}", exc_info=True)
+            items.append(_make_failed_item(
+                await etl_service.create_failed_task(
+                    current_user.user_id, project_id, original_filename, rule_id, f"Import failed: {e}",
+                    metadata={"error_stage": "process"}
+                ),
+                original_filename, None, str(e)
+            ))
 
     return IngestSubmitResponse(items=items, total=len(items))
+
+
+# === Helper Functions ===
+
+async def _upload_to_s3(
+    s3_service: S3Service,
+    project_id: str,
+    original_filename: str,
+    content: bytes,
+    content_type: Optional[str],
+) -> str:
+    """上传文件到 S3，返回 s3_key"""
+    _, ext = os.path.splitext(original_filename)
+    safe_filename = f"{uuid.uuid4()}{ext}"
+    s3_key = f"projects/{project_id}/files/{safe_filename}"
+    
+    original_filename_b64 = base64.b64encode(
+        original_filename.encode("utf-8")
+    ).decode("ascii")
+    
+    await s3_service.upload_file(
+        key=s3_key,
+        content=content,
+        content_type=content_type,
+        metadata={
+            "original_filename_b64": original_filename_b64,
+            "project_id": str(project_id),
+        },
+    )
+    return s3_key
+
+
+async def _create_completed_task(
+    etl_service: ETLService,
+    user_id: str,
+    project_id: str,
+    filename: str,
+    rule_id: Optional[int],
+    node_id: str,
+    node_type: str,
+):
+    """创建一个已完成状态的任务记录（用于前端轮询和历史记录）"""
+    task = await etl_service.create_failed_task(
+        user_id=user_id,
+        project_id=project_id,
+        filename=filename,
+        rule_id=rule_id,
+        error="Direct import completed",
+        metadata={
+            "direct_import": True,
+            "node_id": node_id,
+            "node_type": node_type,
+        }
+    )
+    task.status = ETLTaskStatus.COMPLETED
+    task.error = None
+    task.progress = 100
+    etl_service.task_repository.update_task(task)
+    return task
+
+
+def _make_completed_item(
+    task,
+    filename: str,
+    node_id: str,
+    s3_key: Optional[str] = None,
+) -> IngestSubmitItem:
+    """创建完成状态的响应项"""
+    return IngestSubmitItem(
+        task_id=str(task.task_id or 0),
+        source_type=SourceType.FILE,
+        ingest_type=detect_file_ingest_type(filename),
+        status=IngestStatus.COMPLETED,
+        filename=filename,
+        s3_key=s3_key,
+        node_id=node_id,
+    )
+
+
+def _make_failed_item(
+    task,
+    filename: str,
+    s3_key: Optional[str],
+    error: str,
+) -> IngestSubmitItem:
+    """创建失败状态的响应项"""
+    return IngestSubmitItem(
+        task_id=str(task.task_id or 0),
+        source_type=SourceType.FILE,
+        ingest_type=detect_file_ingest_type(filename),
+        status=IngestStatus.FAILED,
+        filename=filename,
+        s3_key=s3_key,
+        error=error,
+    )
 
 
 # === SaaS/URL Submit Endpoint ===

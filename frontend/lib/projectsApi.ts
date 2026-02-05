@@ -85,17 +85,17 @@ export async function getTable(
     project_id: string;
     id_path: string;
     parent_id: string | null;
-    content: any;
+    preview_json: any;  // 已重命名: json_content -> preview_json
     s3_key: string | null;
     permissions: any;
     sync_url: string | null;
     sync_id: string | null;
     created_at: string;
     updated_at: string;
-  }>(`/api/v1/nodes/${nodeId}`);
+  }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`);
 
-  // 获取数据：优先从 content 字段，否则从 S3 下载
-  let data = node.content;
+  // 获取数据：优先从 preview_json 字段，否则从 S3 下载
+  let data = node.preview_json;
   
   // 判断是否为非 JSON 类型（如 markdown），这些类型的内容不应通过 getTable 加载
   const nonJsonTypes = ['markdown', 'image', 'pdf', 'video', 'file'];
@@ -105,7 +105,7 @@ export async function getTable(
   if (data == null && node.s3_key && !isNonJsonType) {
     try {
       const { download_url } = await apiRequest<{ download_url: string }>(
-        `/api/v1/nodes/${nodeId}/download`
+        `/api/v1/nodes/${nodeId}/download?project_id=${encodeURIComponent(projectId)}`
       );
       const response = await fetch(download_url);
       if (response.ok) {
@@ -138,7 +138,7 @@ export async function getTable(
     type: node.type,
     rows,
     data: data ?? null,
-    content: node.content,  // 原始 content 字段
+    content: node.preview_json,  // 原始内容字段 (preview_json)
     sync_url: node.sync_url,
   };
 }
@@ -154,6 +154,7 @@ export async function createTable(
   }
 
   // 使用 content nodes API 创建 JSON 节点
+  // 注意: 请求参数仍使用 content，但响应返回 preview_json
   const body: Record<string, any> = {
     name,
     project_id: projectId,
@@ -169,7 +170,7 @@ export async function createTable(
     name: string;
     type: string;
     project_id: string;
-    content: any;
+    preview_json: any;  // 已重命名: content -> preview_json
     created_at: string;
     updated_at: string;
   }>('/api/v1/nodes/json', {
@@ -177,7 +178,7 @@ export async function createTable(
     body: JSON.stringify(body),
   });
 
-  const nodeContent = node.content;
+  const nodeContent = node.preview_json;
   let rows = 0;
   if (nodeContent != null) {
     if (Array.isArray(nodeContent)) {
@@ -207,15 +208,15 @@ export async function updateTable(
     name: string;
     type: string;
     project_id: string;
-    content: any;
+    preview_json: any;  // 已重命名: content -> preview_json
     created_at: string;
     updated_at: string;
-  }>(`/api/v1/nodes/${nodeId}`, {
+  }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`, {
     method: 'PUT',
     body: JSON.stringify({ name }),
   });
 
-  const data = node.content;
+  const data = node.preview_json;
   let rows = 0;
   if (data != null) {
     if (Array.isArray(data)) {
@@ -238,7 +239,7 @@ export async function deleteTable(
   nodeId: string
 ): Promise<void> {
   // 使用 content nodes API 删除节点
-  return apiRequest<void>(`/api/v1/nodes/${nodeId}`, {
+  return apiRequest<void>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`, {
     method: 'DELETE',
   });
 }
@@ -255,15 +256,15 @@ export async function updateTableData(
     name: string;
     type: string;
     project_id: string;
-    content: any;
+    preview_json: any;  // 已重命名: content -> preview_json
     created_at: string;
     updated_at: string;
-  }>(`/api/v1/nodes/${nodeId}`, {
+  }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`, {
     method: 'PUT',
-    body: JSON.stringify({ content: data }),
+    body: JSON.stringify({ preview_json: data }),  // 已重命名: content -> preview_json
   });
 
-  const nodeContent = node.content;
+  const nodeContent = node.preview_json;
   let rows = 0;
   if (nodeContent != null) {
     if (Array.isArray(nodeContent)) {

@@ -2,7 +2,6 @@
 
 # puppyone
 
-
 <a href="https://www.puppyone.ai" target="_blank">
   <img src="https://img.shields.io/badge/Web-puppyone.ai-39BC66?style=flat&logo=google-chrome&logoColor=white" alt="Homepage" height="22" />
 </a>
@@ -23,67 +22,124 @@
   <img src="https://img.shields.io/badge/FounderSupport-guantum@puppyagent.com-F44336?style=flat&logo=gmail&logoColor=white" alt="Support" height="22" />
 </a>
 
+**puppyone** is the **Context Base for AI Agents.**
 
-**puppyone** is the #1 **Context Base for AI agents**.
+A **centralized, structured, and scalable** context platform. Unify your scattered data from Notion, GitHub, Airtable, and local files into one central, multi-agent collaborative, extensible context base. Connect any Agent to this single source of truth—one integration, all your context.
 
-A structured, agent-native context platform where all your agents collaborate seamlessly in real-time. It support: 1. data indexing
+---
 
+## What Problems Does It Solve?
 
-<img src="assert/puppycontextintro.png" alt="Puppyone Introduction" width="100%" />
+**1. Data is too scattered — Agents can't get complete context**
 
+Your data is spread across 30+ places: product docs in Notion, code in GitHub, customer info in Airtable, pricing in Google Sheets, and PDFs on your local drive. Every time you want an Agent to use this data, you have to integrate it all over again.
 
-## Why puppyone
+**2. Different Agents need different permissions — configuration is tedious**
 
-### Agent Context Base vs. Knowledge Base
-A traditional Knowledge Base (like Notion) is designed for human reading, focusing on layout, formatting and human-collaborating. An Agent Context Base (ACB) is designed for **AI agents**, focusing on fiendness for agents. Structure, Logic, and Deterministic Indexing.
+Support Agents should only read product catalogs, not modify prices. Dev Agents can edit requirement docs. Sales Agents can view quotes but can't delete customer info. You need fine-grained, centralized permission control—not "all-or-nothing".
 
-### Agent Context Base vs. Vector Database
-Vector Databases rely on probabilistic similarity, which is inherently "fuzzy" and prone to hallucinations when dealing with precise data like SKUs, prices, or complex logic. Puppyone provides **deterministic, structured context** for reliable agent operations.
+**3. Every Agent connects differently — high maintenance cost**
 
-### Key Differentiators
+Cursor needs MCP, backend scripts need REST API, real-time scenarios need SSE. Each integration pattern needs unified logging and monitoring: which context was accessed, what was the query, when did it happen, success or failure.
 
-- **Context-centric**: Not flow orchestration; context is the interface, users face results
-- **Agent-friendly**: Agent-oriented indexing, not a static knowledge base or database
-- **Workflow as edge**: Workflows are edges between contexts; beyond orchestration, they embody agents
-- **RAG & Deep Research**: On local knowledge; supporting data cleaning, structuring, indexing
+---
 
+## How puppyone Solves This
 
-## Features
+We reduce all problems to one thing: **Give Agents a unified context base they can understand.**
 
-- **Agentic RAG**: Deep+wide research agent with Tavily / Exa / Local knowledge
-- **Context Management**: Ingest, clean, version and govern enterprise knowledge (CRUD operations)
-- **Hybrid Indexing**: High-performance vector indexing and hybrid search (vector DB / Semantic Search / LLM retriever)
-- **Multiple Distribution**: MCP for support agents, API for crawl agents, Skills for BI agents
-- **Visual Dashboard**: Supabase-like visual interface—no backend engineering required
+### 1. A Cloud Folder
 
+No matter where your data comes from—Notion, GitHub, Airtable, or local PDFs—once connected to puppyone, it all becomes files in this folder. Notion pages become Markdown, GitHub repos become code directories, Airtable tables become structured documents. For Agents, the world has just one folder, not 30 SaaS tools.
+
+### 2. A Sandbox for Each Agent
+
+Like managing local folders, you can set boundaries for each Agent: Support Agent can only read `/product-docs`, can't see `/financials`; Dev Agent can write to `/requirements`; Sales Agent can view quotes but can't delete. Agents can not only "read" these files but also use Bash commands and code in the sandbox—all actions isolated, no leaks, no boundary violations.
+
+### 3. Unified Monitoring
+
+Whether your Agent connects via MCP (Cursor), REST API (backend scripts), or sandbox automation—all requests go through one interface, all operations have unified logs. Which Agent accessed which file, when, what query, success or failure—all visible at a glance.
+
+---
+
+## Architecture
+
+```
+┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
+│  Notion  │  │  GitHub  │  │ Airtable │  │  Files   │
+└─────┬────┘  └─────┬────┘  └─────┬────┘  └─────┬────┘
+      │             │             │             │
+      └─────────────▼─────────────▼─────────────┘
+                    │
+            ╔═══════▼═══════╗
+            ║   puppyone    ║  ◄── Context Base (Cloud Folder)
+            ║  Files / JSON ║
+            ╚═══════▲═══════╝
+                    │
+      ┌─────────────┼─────────────┐
+      │             │             │
+  ┌───▼───┐     ┌───▼───┐     ┌───▼───┐
+  │  MCP  │     │  API  │     │Publish│
+  └───┬───┘     └───┬───┘     └───┬───┘
+      │             │             │
+┌─────▼────┐  ┌─────▼────┐  ┌─────▼────┐
+│ Cursor   │  │ Custom   │  │ Public   │
+│ Claude   │  │ Agent    │  │ Link     │
+└──────────┘  └──────────┘  └──────────┘
+```
+
+---
+
+## Typical Use Cases
+
+| Use Case | Data Sources | Agent Permissions |
+|----------|--------------|-------------------|
+| **Support Agent** | Product catalog + FAQ | Read-only |
+| **Dev Agent** | Requirements docs + Code knowledge base | Read & Write |
+| **Sales Agent** | Pricing sheets + CRM data | Read-only |
+
+---
 
 ## Quick Start
 
-Choose ONE (alternatives—pick just one):
-- **Cloud (Hosted)**: zero setup, managed upgrades/scaling, support.
-- **Self-Hosted (Local)**: runs fully on your machine; data stays local; best for prototyping/dev.
+```
+1. Import Data    →  Connect Notion / GitHub / Upload files
+2. Set Permissions →  Choose which Tools and paths the Agent can access
+3. Connect Agent   →  Copy MCP config to Cursor, or use API
+```
 
+### Cloud (Hosted) — No Setup
 
-### Cloud (Hosted) — no setup
+Create an account at [puppyone.ai](https://www.puppyone.ai) and get started in minutes.
 
-   Create an account at https://www.puppyone.ai and get started.
-
-### Self-Hosted (Local) — for developers
+### Self-Hosted (Local) — For Developers
 
 See docs for detailed steps:
-- Getting started: docs/getting-started.md
-- Configuration: docs/configuration.md
-- Docker Compose: docs/deployment/docker-compose.md
+- [Getting Started](docs/getting-started.md)
+- [Configuration](docs/configuration.md)
+- [Docker Compose](docs/deployment/docker-compose.md)
 
+---
 
 ## Core Concepts
 
-- **Workspace**: Your project context (workflows, assets, settings)
-- **Block**: An operation (e.g., load file, embed, query, call model)
-- **Edge**: A connection that passes data between blocks
-- **Workflow**: A graph of blocks and edges that runs as a job
-- **Storage**: Where files, chunks, and vectors are managed
+```
+Workspace (your account)
+└── Project (a context namespace, e.g., "Product Knowledge Base")
+    └── Table (a structured JSON document)
+        └── JSON Data (your actual content)
+```
 
+| Concept | Description |
+|---------|-------------|
+| **Project** | Top-level container for organizing context by business scenario |
+| **Table** | A structured JSON document with automatic version history |
+| **Tool** | Operations Agents can perform: `query_data`, `create`, `update`, `delete` |
+| **MCP** | Model Context Protocol — how Cursor/Claude access your data |
+| **Connector** | Integrations for Notion, GitHub, Airtable, Google Sheets, file upload, URL crawl |
+| **API Key** | Credential with specific permissions scoped to each Agent |
+
+---
 
 ## Contributing
 
@@ -91,17 +147,18 @@ See docs for detailed steps:
 - Please open a PR for small fixes; for larger changes, file an issue first to discuss the design
 - By contributing, you agree your contributions may be used under the project's license
 
+---
 
 ## License
 
 This repository uses the Puppyone Sustainable Use License (SUL).
 
 Summary (for convenience; the License controls):
-1) Personal use (individual): Allowed, free.
-2) Internal business use (single-tenant, per organization): Allowed, free.
-3) Self-hosted multi-tenant: Not allowed. To obtain rights, contact guantum@puppyagent.com.
-4) Managed/hosted service to third parties: Not allowed. Subscribe to the official hosted service at https://www.puppyone.ai or obtain a commercial license.
-5) Commercial redistribution (paid distribution): Not allowed. Commercial license required.
-6) Use of Puppyone trademarks/logos: Not granted; prior written permission required.
+1. Personal use (individual): Allowed, free.
+2. Internal business use (single-tenant, per organization): Allowed, free.
+3. Self-hosted multi-tenant: Not allowed. To obtain rights, contact guantum@puppyagent.com.
+4. Managed/hosted service to third parties: Not allowed. Subscribe to the official hosted service at https://www.puppyone.ai or obtain a commercial license.
+5. Commercial redistribution (paid distribution): Not allowed. Commercial license required.
+6. Use of Puppyone trademarks/logos: Not granted; prior written permission required.
 
 See `LICENSE` for full terms.

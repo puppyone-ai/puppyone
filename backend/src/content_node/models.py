@@ -11,14 +11,14 @@ class ContentNode(BaseModel):
     
     type 字段（5种）:
       - folder: 文件夹
-      - json: JSON 内容（存在 json_content）
-      - markdown: Markdown 内容（存在 md_content 或 s3_key）
+      - json: JSON 内容（存在 preview_json）
+      - markdown: Markdown 内容（存在 preview_md）
       - file: 文件（存在 s3_key）
       - sync: 外部同步（source 字段有值）
     
     preview_type 字段:
-      - json: 有 json_content 可预览
-      - markdown: 有 md_content 可预览
+      - json: 有 preview_json 可预览
+      - markdown: 有 preview_md 可预览
       - NULL: 无预览内容
     
     所有权字段：
@@ -42,9 +42,9 @@ class ContentNode(BaseModel):
     id_path: str = Field(..., description="ID 物化路径，如 /uuid1/uuid2/uuid3")
     
     # === 内容字段 ===
-    json_content: Optional[Any] = Field(None, description="JSON 内容（type=json 或 sync 时）")
-    md_content: Optional[str] = Field(None, description="Markdown 内容（type=markdown 时）")
-    s3_key: Optional[str] = Field(None, description="S3 对象 key（type=file/markdown/sync 时）")
+    preview_json: Optional[Any] = Field(None, description="JSON 格式的预览内容（type=json 或 sync 时）")
+    preview_md: Optional[str] = Field(None, description="Markdown 格式的预览内容（type=markdown 时）")
+    s3_key: Optional[str] = Field(None, description="S3 对象 key（type=file 或 sync 时的二进制文件）")
     
     mime_type: Optional[str] = Field(None, description="MIME 类型")
     size_bytes: int = Field(0, description="文件大小（字节）")
