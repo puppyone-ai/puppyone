@@ -113,6 +113,7 @@ interface AgentContextValue {
   saveAgent: (name: string, icon: string, capabilities: string[]) => void;
   deleteAgent: (agentId: string) => void;
   updateAgentInfo: (agentId: string, name: string, icon: string) => Promise<void>;
+  updateAgentResources: (agentId: string, resources: AccessResource[]) => Promise<void>;
   
   // New Actions
   openSetting: () => void;
@@ -128,6 +129,7 @@ interface AgentContextValue {
   addDraftResource: (resource: AccessResource) => void;
   updateDraftResource: (nodeId: string, updates: Partial<AccessResource>) => void;
   removeDraftResource: (nodeId: string) => void;
+  setDraftResources: (resources: AccessResource[]) => void;
   
   // Schedule Agent 新增 setters
   setDraftTriggerType: (type: TriggerType) => void;
@@ -603,6 +605,31 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     }
   }, []);
 
+  // 更新 Agent 资源权限（从 ChatRuntimeView 的设置面板调用）
+  const updateAgentResources = useCallback(async (agentId: string, resources: AccessResource[]) => {
+    try {
+      // 构建后端需要的 bash 数据
+      const bashAccesses = resources.map(r => ({
+        node_id: r.nodeId,
+        json_path: r.jsonPath || '',
+        readonly: r.readonly ?? true,
+      }));
+      
+      // 调用后端 API 更新资源权限
+      await put<unknown>(`/api/v1/agent-config/${agentId}/bash`, bashAccesses);
+      
+      // 更新前端状态
+      setSavedAgents(prev => prev.map(a => 
+        a.id === agentId ? { ...a, resources } : a
+      ));
+      
+      console.log('Agent resources updated:', agentId, resources.length, 'resources');
+    } catch (error) {
+      console.error('Failed to update agent resources:', error);
+      throw error; // 让调用者处理错误
+    }
+  }, []);
+
   // 取消设置，返回聊天界面
   const cancelSetting = useCallback(() => {
     if (editingAgentId) {
@@ -708,6 +735,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         saveAgent,
         deleteAgent,
         updateAgentInfo,
+        updateAgentResources,
         closeSidebar,
         
         setDraftType,
@@ -715,6 +743,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         addDraftResource,
         updateDraftResource,
         removeDraftResource,
+        setDraftResources,
         toggleCapability,
         
         // Schedule Agent setters

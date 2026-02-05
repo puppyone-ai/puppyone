@@ -148,8 +148,10 @@ export function ChatRuntimeView({
     addDraftResource,
     updateDraftResource,
     removeDraftResource,
+    setDraftResources,
     deleteAgent,
     updateAgentInfo,
+    updateAgentResources,
   } = useAgent();
 
   const currentAgent = currentAgentId ? savedAgents.find(a => a.id === currentAgentId) : null;
@@ -208,14 +210,48 @@ export function ChatRuntimeView({
     }
   }, [currentAgentId, editingName, editingIconIdx, updateAgentInfo]);
 
+  // 保存资源配置的状态
+  const [isSavingResources, setIsSavingResources] = useState(false);
+
+  // 检测资源是否有更改
+  const hasResourceChanges = React.useMemo(() => {
+    if (!currentAgent?.resources) return draftResources.length > 0;
+    if (draftResources.length !== currentAgent.resources.length) return true;
+    return draftResources.some((draft, i) => {
+      const original = currentAgent.resources![i];
+      return draft.nodeId !== original.nodeId || 
+             (draft.readonly ?? true) !== (original.readonly ?? original.terminalReadonly ?? true);
+    });
+  }, [draftResources, currentAgent?.resources]);
+
+  // 保存资源权限
+  const handleSaveResources = useCallback(async () => {
+    if (!currentAgentId || !hasResourceChanges) return;
+    setIsSavingResources(true);
+    try {
+      await updateAgentResources(currentAgentId, draftResources);
+    } catch (error) {
+      console.error('Failed to save resources:', error);
+      alert('Failed to save resource permissions. Please try again.');
+    } finally {
+      setIsSavingResources(false);
+    }
+  }, [currentAgentId, draftResources, hasResourceChanges, updateAgentResources]);
+
   // 当展开设置面板时，初始化编辑值
   useEffect(() => {
     if (isSettingsExpanded && currentAgent) {
       setEditingName(currentAgent.name);
       const iconIdx = parseInt(currentAgent.icon || '0');
       setEditingIconIdx(isNaN(iconIdx) ? ACCESS_ICONS.indexOf(currentAgent.icon || '') : iconIdx);
+      // 同步资源数据到 draftResources，以便编辑
+      if (currentAgent.resources) {
+        setDraftResources([...currentAgent.resources]);
+      } else {
+        setDraftResources([]);
+      }
     }
-  }, [isSettingsExpanded, currentAgent]);
+  }, [isSettingsExpanded, currentAgent, setDraftResources]);
 
   // Database state
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -1017,8 +1053,8 @@ export function ChatRuntimeView({
             }}
           >
             {/* 文件列表 */}
-            <div style={{ padding: currentAgent.resources && currentAgent.resources.length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {currentAgent.resources && currentAgent.resources.map(resource => {
+            <div style={{ padding: draftResources.length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {draftResources.map(resource => {
                 // 使用新的 readonly 字段，向后兼容 terminalReadonly
                 const isReadonly = resource.readonly ?? resource.terminalReadonly ?? true;
                 return (
@@ -1115,17 +1151,57 @@ export function ChatRuntimeView({
             
             {/* 拖拽提示 */}
             <div style={{ 
-              minHeight: currentAgent.resources && currentAgent.resources.length > 0 ? 32 : 88,
+              minHeight: draftResources.length > 0 ? 32 : 88,
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center', 
               color: '#525252',
             }}>
               <span style={{ fontSize: 12 }}>
-                {currentAgent.resources && currentAgent.resources.length > 0 ? 'Drag more' : 'Drag items into this'}
+                {draftResources.length > 0 ? 'Drag more' : 'Drag items into this'}
               </span>
             </div>
           </div>
+
+          {/* Save Resources Button - 只在有更改时显示 */}
+          {hasResourceChanges && (
+            <button
+              onClick={handleSaveResources}
+              disabled={isSavingResources}
+              style={{
+                marginTop: 4,
+                padding: '8px 12px',
+                background: isSavingResources ? '#262626' : '#4ade80',
+                border: 'none',
+                borderRadius: 4,
+                color: isSavingResources ? '#525252' : '#000',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: isSavingResources ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                transition: 'all 0.15s',
+              }}
+            >
+              {isSavingResources ? (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                    <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12"></circle>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  Save Changes
+                </>
+              )}
+            </button>
+          )}
 
           {/* Delete Button */}
           <button
