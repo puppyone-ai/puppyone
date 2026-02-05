@@ -1,218 +1,149 @@
-from dataclasses import dataclass
-import asyncio
-import inspect
-import json
+"""
+沙盒服务 - 统一接口
+
+根据配置自动选择 E2B 云沙盒或 Docker 本地沙盒。
+
+配置项（在 backend/src/config.py 中）：
+- SANDBOX_TYPE: "e2b" | "docker" | "auto"
+  - "e2b": 使用 E2B 云沙盒（需要 E2B_API_KEY）
+  - "docker": 使用本地 Docker 容器沙盒
+  - "auto": 自动选择（有 E2B_API_KEY 用 E2B，否则用 Docker）
+"""
+
 import os
 from typing import Any, Callable, Optional
 
-
-@dataclass
-class SandboxSession:
-    """Runtime holder for a sandbox session."""
-    sandbox: Any
-    readonly: bool
+from .base import SandboxBase
 
 
 class SandboxService:
-    """Sandbox lifecycle using e2b SDK."""
-
-    def __init__(self, sandbox_factory: Optional[Callable[[], Any]] = None):
-        """Initialize with a sandbox factory (mainly for testing)."""
-        self._sandbox_factory = sandbox_factory or _default_sandbox_factory
-        self._sessions: dict[str, SandboxSession] = {}
-
-    async def start(self, session_id: str, data, readonly: bool):
-        """Create a sandbox session and preload data into /workspace/data.json."""
-        if data is None:
-            return {"success": False, "error": "data is required"}
-        await self.stop(session_id)
-        # Create a fresh sandbox instance for this session.
-        try:
-            sandbox = await _call_maybe_async(self._sandbox_factory)
-        except Exception as e:
-            msg = str(e)
-            # e2b-code-interpreter 会在未配置认证信息时抛出该类错误：
-            # "Could not resolve authentication method. Expected either api_key or auth_token ..."
-            if "Could not resolve authentication method" in msg:
-                hint = (
-                    "E2B sandbox auth is not configured.\n"
-                    "- Set `E2B_API_KEY` in `backend/.env` (or export it) and restart the backend, OR\n"
-                    "- Remove bash access from the Agent configuration (Agent Settings → Data Access).\n"
-                    f"- Detected E2B_API_KEY={'set' if os.getenv('E2B_API_KEY') else 'missing'}"
-                )
-                msg = f"{hint}\nOriginal error: {msg}"
-            return {"success": False, "error": msg}
-        # Persist JSON data so bash tools can operate on it.
-        payload = json.dumps(data, ensure_ascii=False, indent=2)
-        await _call_maybe_async(sandbox.files.write, "/workspace/data.json", payload)
-        self._sessions[session_id] = SandboxSession(
-            sandbox=sandbox, readonly=bool(readonly)
-        )
-        return {"success": True}
-
-    async def start_with_files(self, session_id: str, files: list, readonly: bool, s3_service=None):
+    """
+    沙盒服务统一接口
+    
+    作为门面/代理类，委托给具体的沙盒实现（E2B 或 Docker）。
+    支持通过配置或环境变量自动切换后端。
+    """
+    
+    def __init__(
+        self,
+        sandbox_impl: Optional[SandboxBase] = None,
+        sandbox_factory: Optional[Callable[[], Any]] = None,
+    ):
         """
-        Create a sandbox session and preload multiple files.
+        初始化沙盒服务
         
         Args:
-            session_id: Unique session identifier
-            files: List of SandboxFile objects with path, content, and/or s3_key
-            readonly: Whether the sandbox is read-only
-            s3_service: Optional S3Service for downloading files from S3
+            sandbox_impl: 直接提供沙盒实现（用于测试或强制指定）
+            sandbox_factory: E2B 沙盒工厂（向后兼容，用于测试）
         """
-        await self.stop(session_id)
+        if sandbox_impl is not None:
+            self._impl = sandbox_impl
+        elif sandbox_factory is not None:
+            # 向后兼容：使用自定义工厂创建 E2B 沙盒
+            from .e2b_sandbox import E2BSandbox
+            self._impl = E2BSandbox(sandbox_factory=sandbox_factory)
+        else:
+            # 根据配置自动创建
+            self._impl = _create_sandbox_impl()
+    
+    async def start(self, session_id: str, data: Any, readonly: bool) -> dict:
+        """创建沙盒会话并预加载单个 JSON 数据"""
+        return await self._impl.start(session_id, data, readonly)
+    
+    async def start_with_files(
+        self, 
+        session_id: str, 
+        files: list, 
+        readonly: bool, 
+        s3_service: Optional[Any] = None
+    ) -> dict:
+        """创建沙盒会话并预加载多个文件"""
+        return await self._impl.start_with_files(session_id, files, readonly, s3_service)
+    
+    async def exec(self, session_id: str, command: str) -> dict:
+        """在沙盒中执行命令"""
+        return await self._impl.exec(session_id, command)
+    
+    async def read(self, session_id: str) -> dict:
+        """读取 /workspace/data.json 的内容"""
+        return await self._impl.read(session_id)
+    
+    async def read_file(self, session_id: str, path: str, parse_json: bool = False) -> dict:
+        """读取沙盒中指定路径的文件"""
+        return await self._impl.read_file(session_id, path, parse_json)
+    
+    async def stop(self, session_id: str) -> dict:
+        """停止并清理沙盒会话"""
+        return await self._impl.stop(session_id)
+    
+    async def status(self, session_id: str) -> dict:
+        """获取沙盒会话状态"""
+        return await self._impl.status(session_id)
+    
+    async def stop_all(self) -> None:
+        """停止所有沙盒会话"""
+        await self._impl.stop_all()
+    
+    @property
+    def sandbox_type(self) -> str:
+        """返回当前使用的沙盒类型"""
+        from .e2b_sandbox import E2BSandbox
+        from .docker_sandbox import DockerSandbox
         
-        # Create a fresh sandbox instance
-        try:
-            sandbox = await _call_maybe_async(self._sandbox_factory)
-        except Exception as e:
-            msg = str(e)
-            if "Could not resolve authentication method" in msg:
-                hint = (
-                    "E2B sandbox auth is not configured.\n"
-                    "- Set `E2B_API_KEY` in `backend/.env` (or export it) and restart the backend, OR\n"
-                    "- Remove bash access from the Agent configuration (Agent Settings → Data Access).\n"
-                    f"- Detected E2B_API_KEY={'set' if os.getenv('E2B_API_KEY') else 'missing'}"
-                )
-                msg = f"{hint}\nOriginal error: {msg}"
-            return {"success": False, "error": msg}
-        
-        # Create necessary directories and write files
-        created_dirs = set()
-        for f in files:
-            path = f.path if isinstance(f, dict) else getattr(f, 'path', None)
-            content = f.get('content') if isinstance(f, dict) else getattr(f, 'content', None)
-            s3_key = f.get('s3_key') if isinstance(f, dict) else getattr(f, 's3_key', None)
-            
-            if not path:
-                continue
-            
-            # Create parent directories
-            dir_path = os.path.dirname(path)
-            if dir_path and dir_path not in created_dirs:
-                try:
-                    await _call_maybe_async(sandbox.commands.run, f"mkdir -p {dir_path}")
-                    created_dirs.add(dir_path)
-                except Exception:
-                    pass
-            
-            # Write file content
-            if content is not None:
-                # Text/JSON content - write directly
-                await _call_maybe_async(sandbox.files.write, path, content)
-            elif s3_key and s3_service:
-                # S3 file - download and write
-                try:
-                    file_bytes = await s3_service.download_file(s3_key)
-                    if isinstance(file_bytes, bytes):
-                        # Binary file - write as bytes
-                        await _call_maybe_async(sandbox.files.write, path, file_bytes)
-                    else:
-                        await _call_maybe_async(sandbox.files.write, path, str(file_bytes))
-                except Exception as e:
-                    # Log but continue - don't fail the entire sandbox
-                    print(f"[SandboxService] Failed to download S3 file {s3_key}: {e}")
-        
-        self._sessions[session_id] = SandboxSession(
-            sandbox=sandbox, readonly=bool(readonly)
-        )
-        return {"success": True}
-
-    async def exec(self, session_id: str, command: str):
-        """Run a command inside the sandbox and return its output."""
-        session = self._sessions.get(session_id)
-        if not session:
-            return {
-                "success": False,
-                "error": "Sandbox session not found. Call start first.",
-            }
-        # Execute in sandbox and normalize output to text.
-        result = await _call_maybe_async(session.sandbox.commands.run, command)
-        output = getattr(result, "text", str(result))
-        return {"success": True, "output": output}
-
-    async def read(self, session_id: str):
-        """Read and parse JSON data from /workspace/data.json."""
-        session = self._sessions.get(session_id)
-        if not session:
-            return {"success": False, "error": "Sandbox session not found"}
-        raw = await _call_maybe_async(session.sandbox.files.read, "/workspace/data.json")
-        try:
-            if isinstance(raw, bytes):
-                raw = raw.decode("utf-8")
-            data = json.loads(raw)
-            return {"success": True, "data": data}
-        except Exception:
-            return {"success": False, "error": "Failed to parse JSON"}
-
-    async def read_file(self, session_id: str, path: str, parse_json: bool = False):
-        """
-        Read file content from sandbox at specified path.
-        
-        Args:
-            session_id: Sandbox session ID
-            path: File path in sandbox (e.g., /workspace/myfile.json)
-            parse_json: If True, parse content as JSON
-        
-        Returns:
-            {"success": True, "content": str/dict} or {"success": False, "error": str}
-        """
-        session = self._sessions.get(session_id)
-        if not session:
-            return {"success": False, "error": "Sandbox session not found"}
-        
-        try:
-            raw = await _call_maybe_async(session.sandbox.files.read, path)
-            if isinstance(raw, bytes):
-                raw = raw.decode("utf-8")
-            
-            if parse_json:
-                try:
-                    data = json.loads(raw)
-                    return {"success": True, "content": data}
-                except json.JSONDecodeError:
-                    return {"success": False, "error": f"Failed to parse JSON from {path}"}
-            else:
-                return {"success": True, "content": raw}
-        except Exception as e:
-            return {"success": False, "error": f"Failed to read {path}: {str(e)}"}
-
-    async def stop(self, session_id: str):
-        """Close and remove a sandbox session."""
-        session = self._sessions.pop(session_id, None)
-        if not session:
-            return {"success": True}
-        # Some sandbox implementations expose close(); guard it.
-        close = getattr(session.sandbox, "close", None)
-        if callable(close):
-            await _call_maybe_async(close)
-        return {"success": True}
-
-    async def status(self, session_id: str):
-        """Return session status and basic metadata."""
-        session = self._sessions.get(session_id)
-        if not session:
-            return {"active": False}
-        sandbox_id = getattr(session.sandbox, "id", None)
-        return {
-            "active": True,
-            "sandbox_id": sandbox_id,
-            "readonly": session.readonly,
-        }
+        if isinstance(self._impl, E2BSandbox):
+            return "e2b"
+        elif isinstance(self._impl, DockerSandbox):
+            return "docker"
+        else:
+            return "unknown"
 
 
-def _default_sandbox_factory():
-    """Default factory: create an e2b sandbox."""
-    from e2b_code_interpreter import Sandbox
+def _create_sandbox_impl() -> SandboxBase:
+    """
+    根据配置创建沙盒实现
+    
+    优先级：
+    1. 配置中的 SANDBOX_TYPE
+    2. auto 模式下，检测 E2B_API_KEY 是否存在
+    """
+    from src.config import settings
+    
+    sandbox_type = settings.SANDBOX_TYPE
+    
+    # auto 模式：检测环境
+    if sandbox_type == "auto":
+        if os.getenv("E2B_API_KEY"):
+            sandbox_type = "e2b"
+            print("[SandboxService] Auto-detected E2B_API_KEY, using E2B sandbox")
+        else:
+            sandbox_type = "docker"
+            print("[SandboxService] No E2B_API_KEY found, using Docker sandbox")
+    
+    # 创建对应的实现
+    if sandbox_type == "e2b":
+        from .e2b_sandbox import E2BSandbox
+        print("[SandboxService] Initializing E2B cloud sandbox")
+        return E2BSandbox()
+    else:
+        from .docker_sandbox import DockerSandbox
+        print("[SandboxService] Initializing Docker local sandbox")
+        return DockerSandbox()
 
-    return Sandbox.create()
 
-
-async def _call_maybe_async(func: Callable[..., Any], *args, **kwargs):
-    """Run sync calls in a thread; await async calls in-place."""
-    if inspect.iscoroutinefunction(func):
-        return await func(*args, **kwargs)
-    result = await asyncio.to_thread(func, *args, **kwargs)
-    if inspect.isawaitable(result):
-        return await result
-    return result
+def get_sandbox_type() -> str:
+    """
+    获取将要使用的沙盒类型（不创建实例）
+    
+    用于前端查询当前配置
+    """
+    from src.config import settings
+    
+    sandbox_type = settings.SANDBOX_TYPE
+    
+    if sandbox_type == "auto":
+        if os.getenv("E2B_API_KEY"):
+            return "e2b"
+        else:
+            return "docker"
+    
+    return sandbox_type
