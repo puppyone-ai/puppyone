@@ -971,11 +971,11 @@ export default function DataPage({ params }: DataPageProps) {
                   content={currentTableData?.content}
                   syncUrl={currentTableData?.sync_url ?? undefined}
                 />
-              ) : ['file', 'image'].includes(getNodeTypeConfig(activeNodeType).renderAs) ? (
-                /* File Preview (pure S3 storage, no preview content) */
+              ) : ['file', 'image'].includes(getNodeTypeConfig(activeNodeType).renderAs) && !currentTableData?.data && !markdownContent ? (
+                /* File Preview - ONLY when node truly has no preview content (no preview_json, no preview_md) */
                 <FilePreview nodeName={currentTableData?.name || ''} />
               ) : (
-                /* JSON Editor */
+                /* JSON Editor (default: handles json types, sync types with preview_json, etc.) */
                 <ProjectWorkspaceView
                   projectId={activeProject.id}
                   project={activeProject}

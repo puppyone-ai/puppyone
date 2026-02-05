@@ -208,7 +208,7 @@ async def submit_file_ingest(
                 text_content = content.decode("utf-8", errors="ignore")
                 
                 node = await node_service.create_markdown_node(
-                    project_id=project_id,
+                project_id=project_id,
                     name=original_basename,
                     content=text_content,
                     parent_id=parent_id,
@@ -218,7 +218,7 @@ async def submit_file_ingest(
                 task = await _create_completed_task(
                     etl_service, current_user.user_id, project_id,
                     original_filename, rule_id, node.id, "markdown"
-                )
+            )
                 items.append(_make_completed_item(task, original_filename, node.id))
                 
             elif file_type == "ocr_needed" and mode == "ocr_parse":
@@ -242,39 +242,39 @@ async def submit_file_ingest(
                 )
                 
                 # 3. 提交 ETL 任务
-                try:
-                    task = await etl_service.submit_etl_task(
-                        user_id=current_user.user_id,
-                        project_id=project_id,
-                        filename=original_filename,
-                        rule_id=rule_id,
-                        s3_key=s3_key,
-                    )
-                except RuleNotFoundError as e:
+            try:
+                task = await etl_service.submit_etl_task(
+                    user_id=current_user.user_id,
+                    project_id=project_id,
+                    filename=original_filename,
+                    rule_id=rule_id,
+                    s3_key=s3_key,
+                )
+            except RuleNotFoundError as e:
                     items.append(_make_failed_item(
                         await etl_service.create_failed_task(
                             current_user.user_id, project_id, original_filename, rule_id, str(e)
                         ),
                         original_filename, s3_key, str(e)
-                    ))
-                    continue
-                
+                ))
+                continue
+            
                 # 4. 记录挂载信息
                 task.metadata["mount_node_id"] = pending_node.id
-                task.metadata["s3_key"] = s3_key
-                etl_service.task_repository.update_task(task)
-                
-                items.append(IngestSubmitItem(
-                    task_id=str(task.task_id or 0),
-                    source_type=SourceType.FILE,
-                    ingest_type=detect_file_ingest_type(original_filename),
-                    status=IngestStatus.PENDING if task.status == ETLTaskStatus.PENDING else IngestStatus.PROCESSING,
-                    filename=original_filename,
-                    s3_key=s3_key,
+            task.metadata["s3_key"] = s3_key
+            etl_service.task_repository.update_task(task)
+            
+            items.append(IngestSubmitItem(
+                task_id=str(task.task_id or 0),
+                source_type=SourceType.FILE,
+                ingest_type=detect_file_ingest_type(original_filename),
+                status=IngestStatus.PENDING if task.status == ETLTaskStatus.PENDING else IngestStatus.PROCESSING,
+                filename=original_filename,
+                s3_key=s3_key,
                     node_id=pending_node.id,
-                ))
-                
-            else:
+            ))
+
+        else:
                 # ─────────────────────────────────────────────────────────
                 # 二进制文件（或 raw 模式下的 OCR 文件）：上传 S3，创建 file 节点
                 # ─────────────────────────────────────────────────────────
@@ -365,18 +365,18 @@ async def _create_completed_task(
         user_id=user_id,
         project_id=project_id,
         filename=filename,
-        rule_id=rule_id,
+                    rule_id=rule_id,
         error="Direct import completed",
-        metadata={
+                    metadata={
             "direct_import": True,
             "node_id": node_id,
             "node_type": node_type,
-        }
-    )
-    task.status = ETLTaskStatus.COMPLETED
-    task.error = None
-    task.progress = 100
-    etl_service.task_repository.update_task(task)
+                    }
+                )
+                task.status = ETLTaskStatus.COMPLETED
+                task.error = None
+                task.progress = 100
+                etl_service.task_repository.update_task(task)
     return task
 
 
@@ -388,12 +388,12 @@ def _make_completed_item(
 ) -> IngestSubmitItem:
     """创建完成状态的响应项"""
     return IngestSubmitItem(
-        task_id=str(task.task_id or 0),
-        source_type=SourceType.FILE,
+                    task_id=str(task.task_id or 0),
+                    source_type=SourceType.FILE,
         ingest_type=detect_file_ingest_type(filename),
-        status=IngestStatus.COMPLETED,
+                    status=IngestStatus.COMPLETED,
         filename=filename,
-        s3_key=s3_key,
+                    s3_key=s3_key,
         node_id=node_id,
     )
 
@@ -406,12 +406,12 @@ def _make_failed_item(
 ) -> IngestSubmitItem:
     """创建失败状态的响应项"""
     return IngestSubmitItem(
-        task_id=str(task.task_id or 0),
-        source_type=SourceType.FILE,
+                    task_id=str(task.task_id or 0),
+                    source_type=SourceType.FILE,
         ingest_type=detect_file_ingest_type(filename),
-        status=IngestStatus.FAILED,
+                    status=IngestStatus.FAILED,
         filename=filename,
-        s3_key=s3_key,
+                    s3_key=s3_key,
         error=error,
     )
 
