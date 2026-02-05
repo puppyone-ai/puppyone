@@ -95,10 +95,10 @@ class GoogleDriveHandler(BaseHandler):
         if not files:
             # Create empty folder
             node = self.node_service.create_folder(
-                user_id=task.user_id,
                 project_id=task.project_id,
                 name=f"Google Drive - {user_email}",
                 parent_id=config.get("parent_id"),
+                created_by=task.user_id,
             )
             return ImportResult(content_node_id=node.id, items_count=0)
 
@@ -107,10 +107,10 @@ class GoogleDriveHandler(BaseHandler):
         # Create parent folder
         folder_name = config.get("name") or f"Google Drive - {user_email}"
         folder = self.node_service.create_folder(
-            user_id=task.user_id,
             project_id=task.project_id,
             name=folder_name,
             parent_id=config.get("parent_id"),
+            created_by=task.user_id,
         )
 
         # Process each file
@@ -241,15 +241,16 @@ class GoogleDriveHandler(BaseHandler):
         }
 
         await self.node_service.create_synced_markdown_node(
-            user_id=task.user_id,
             project_id=task.project_id,
+            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=file_name[:100],
             content=markdown_content,
-            sync_type="google_drive",
+            source="google_drive",
             sync_url=file_info.get("webViewLink", f"https://drive.google.com/file/d/{file_id}"),
             sync_id=file_id,
             sync_config=sync_config,
             parent_id=parent_id,
+            created_by=task.user_id,
         )
 
     async def _export_file(self, access_token: str, file_id: str, export_mime: str) -> Optional[str]:

@@ -143,10 +143,10 @@ class GoogleCalendarHandler(BaseHandler):
 
         # Create single JSONB node
         node = await self.node_service.create_synced_node(
-            user_id=task.user_id,
             project_id=task.project_id,
+            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=config.get("name") or f"Google Calendar - {user_email}"[:100],
-            sync_type="google_calendar_sync",
+            source="google_calendar",
             sync_url="oauth://calendar",
             content=content,
             parent_id=parent_id,
@@ -156,6 +156,7 @@ class GoogleCalendarHandler(BaseHandler):
                 "days_future": days_future,
                 "max_results": max_results,
             },
+            created_by=task.user_id,
         )
 
         await on_progress(100, "Google Calendar import completed")

@@ -352,10 +352,10 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
             created_node = await asyncio.to_thread(
                 node_service.create_json_node,
                 project_id=task.project_id,
-                user_id=task.user_id,
                 name=auto_name,
                 content={},
                 parent_id=None,
+                created_by=task.user_id,
             )
             mount_node_id = created_node.id
             task.metadata["mount_node_id"] = mount_node_id
@@ -377,11 +377,11 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
         try:
             # Check if target node is a pending node (方案 B: 直接更新节点)
             existing_node = await asyncio.to_thread(
-                node_service.get_by_id, mount_node_id, task.user_id
+                node_service.get_by_id, mount_node_id, task.project_id
             )
             
-            # Check if it's a pending file (storage_type='file' and type='pending')
-            is_pending = existing_node.storage_type == "file" and existing_node.type == "pending"
+            # Check if it's a pending file (type='file' with no preview_type)
+            is_pending = existing_node.type == "file" and existing_node.preview_type is None
             if is_pending:
                 # 直接更新 pending 节点为 markdown 节点
                 # 提取 markdown 内容
@@ -403,14 +403,14 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
                 # 更新节点
                 await node_service.finalize_pending_node(
                     node_id=mount_node_id,
-                    user_id=task.user_id,
+                    project_id=task.project_id,
                     content=markdown_content,
                     new_name=new_name if new_name != original_name else None,
                 )
                 logger.info(f"ETL: Updated pending node {mount_node_id} to markdown: {new_name}")
             else:
                 # 传统逻辑：挂载到 JSON 节点
-                existing_content = existing_node.content or {}
+                existing_content = existing_node.json_content or {}
             
             # Merge data at the specified path
             if mount_json_path:

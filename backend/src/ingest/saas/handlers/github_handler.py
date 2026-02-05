@@ -179,13 +179,14 @@ class GithubHandler(BaseHandler):
         }
 
         root_node = await self.node_service.create_github_repo_node(
-            user_id=task.user_id,
             project_id=task.project_id,
+            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=repo,
             sync_url=task.source_url,
             sync_id=f"{owner}/{repo}",
             s3_prefix=s3_prefix,
             metadata=repo_metadata,
+            created_by=task.user_id,
         )
 
         on_progress(100, "Completed")

@@ -9,10 +9,10 @@ import { apiRequest } from './apiClient';
 
 // === Types ===
 
-// 存储类型（新类型系统）
-export type StorageType = 'folder' | 'json' | 'file' | 'sync';
+// 节点类型（5种）
+export type NodeType = 'folder' | 'json' | 'markdown' | 'file' | 'sync';
 
-// 同步来源（仅 sync 类型有值）
+// 数据来源（仅 sync 类型有值）
 export type SyncSource = 
   | 'github' 
   | 'notion' 
@@ -26,22 +26,8 @@ export type SyncSource =
   | 'slack'
   | string; // 允许未来扩展
 
-// 资源类型（仅 sync 类型有值）
-export type ResourceType = 
-  | 'repo' | 'issue' | 'file'  // GitHub
-  | 'database' | 'page'         // Notion
-  | 'inbox'                     // Gmail
-  | 'sync'                      // Google services
-  | 'base' | 'table'            // Airtable
-  | 'project'                   // Linear
-  | string;
-
-// 旧节点类型（兼容）
-export type LegacyNodeType = 
-  | 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'pending'
-  | 'github_repo' | 'github_issue' | 'notion_database' | 'notion_page'
-  | 'gmail_inbox' | 'google_sheets_sync' | 'google_calendar_sync'
-  | string;
+// 预览类型
+export type PreviewType = 'json' | 'markdown' | null;
 
 // 同步状态
 export type SyncStatus = 'not_connected' | 'idle' | 'syncing' | 'error';
@@ -53,18 +39,15 @@ export interface NodeInfo {
   id_path: string;
   parent_id: string | null;
   
-  // 新类型系统
-  storage_type: StorageType;
-  source: SyncSource | null;       // 仅 sync 类型
-  resource_type: ResourceType | null;  // 仅 sync 类型
-  
-  // 旧字段（兼容）
-  type: LegacyNodeType;
+  // 类型字段
+  type: NodeType;              // folder | json | markdown | file | sync
+  source: SyncSource | null;   // 仅 sync 类型有值
+  preview_type: PreviewType;   // json | markdown | null
   
   mime_type: string | null;
   size_bytes: number;
   
-  // 同步相关字段
+  // 同步相关字段（仅 type=sync 时有值）
   sync_url: string | null;
   sync_id: string | null;
   sync_status: SyncStatus;
@@ -78,15 +61,16 @@ export interface NodeInfo {
   last_synced_at: string | null;
   
   // 计算属性
-  is_synced: boolean;
-  sync_source: SyncSource | null;  // 等同于 source
+  is_synced: boolean;          // type === 'sync'
+  sync_source: SyncSource | null;  // 等同于 source（仅 sync 时有值）
   
   created_at: string;
   updated_at: string;
 }
 
 export interface NodeDetail extends NodeInfo {
-  content: any | null; // For JSON nodes
+  json_content: any | null;    // type=json 或 sync 时的 JSON 内容
+  md_content: string | null;   // type=markdown 时的 Markdown 内容
   s3_key: string | null;
   permissions: {
     public: boolean;
@@ -118,44 +102,49 @@ export interface DownloadUrlResponse {
  * 判断节点是否为文件夹
  */
 export function isFolder(node: NodeInfo): boolean {
-  return node.storage_type === 'folder';
+  return node.type === 'folder';
 }
 
 /**
  * 判断节点是否为 JSON 类型
  */
 export function isJson(node: NodeInfo): boolean {
-  return node.storage_type === 'json';
+  return node.type === 'json';
+}
+
+/**
+ * 判断节点是否为 Markdown 类型
+ */
+export function isMarkdown(node: NodeInfo): boolean {
+  return node.type === 'markdown';
 }
 
 /**
  * 判断节点是否为文件类型
  */
 export function isFile(node: NodeInfo): boolean {
-  return node.storage_type === 'file';
+  return node.type === 'file';
 }
 
 /**
  * 判断节点是否为同步类型
  */
 export function isSynced(node: NodeInfo): boolean {
-  return node.storage_type === 'sync';
+  return node.type === 'sync';
 }
 
 /**
- * 判断节点是否为 Markdown（本地或同步）
+ * 判断节点是否有预览内容
  */
-export function isMarkdown(node: NodeInfo): boolean {
-  return node.mime_type === 'text/markdown';
+export function hasPreview(node: NodeInfo): boolean {
+  return node.preview_type !== null;
 }
 
 /**
  * 判断节点是否可索引（用于搜索）
  */
 export function isIndexable(node: NodeInfo): boolean {
-  if (node.storage_type === 'json') return true;
-  if (node.mime_type === 'text/markdown') return true;
-  return false;
+  return node.type === 'json' || node.type === 'markdown' || node.preview_type !== null;
 }
 
 // === API Functions ===
@@ -178,9 +167,12 @@ export async function listNodes(
 
 /**
  * 获取节点详情
+ * @param nodeId 节点 ID
+ * @param projectId 项目 ID（用于权限检查）
  */
-export async function getNode(nodeId: string): Promise<NodeDetail> {
-  return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}`);
+export async function getNode(nodeId: string, projectId: string): Promise<NodeDetail> {
+  const params = new URLSearchParams({ project_id: projectId });
+  return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}?${params.toString()}`);
 }
 
 /**
@@ -303,12 +295,17 @@ export async function prepareUpload(
 
 /**
  * 更新节点
+ * @param nodeId 节点 ID
+ * @param projectId 项目 ID（用于权限检查）
+ * @param updates 更新内容
  */
 export async function updateNode(
   nodeId: string,
-  updates: { name?: string; content?: any }
+  projectId: string,
+  updates: { name?: string; json_content?: any }
 ): Promise<NodeDetail> {
-  return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}`, {
+  const params = new URLSearchParams({ project_id: projectId });
+  return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}?${params.toString()}`, {
     method: 'PUT',
     body: JSON.stringify(updates),
   });
@@ -316,12 +313,17 @@ export async function updateNode(
 
 /**
  * 移动节点
+ * @param nodeId 节点 ID
+ * @param projectId 项目 ID（用于权限检查）
+ * @param newParentId 新的父节点 ID
  */
 export async function moveNode(
   nodeId: string,
+  projectId: string,
   newParentId: string | null
 ): Promise<NodeDetail> {
-  return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}/move`, {
+  const params = new URLSearchParams({ project_id: projectId });
+  return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}/move?${params.toString()}`, {
     method: 'POST',
     body: JSON.stringify({ new_parent_id: newParentId }),
   });
@@ -329,20 +331,27 @@ export async function moveNode(
 
 /**
  * 删除节点
+ * @param nodeId 节点 ID
+ * @param projectId 项目 ID（用于权限检查）
  */
-export async function deleteNode(nodeId: string): Promise<void> {
-  return apiRequest<void>(`/api/v1/nodes/${nodeId}`, {
+export async function deleteNode(nodeId: string, projectId: string): Promise<void> {
+  const params = new URLSearchParams({ project_id: projectId });
+  return apiRequest<void>(`/api/v1/nodes/${nodeId}?${params.toString()}`, {
     method: 'DELETE',
   });
 }
 
 /**
  * 获取下载 URL
+ * @param nodeId 节点 ID
+ * @param projectId 项目 ID（用于权限检查）
  */
 export async function getDownloadUrl(
-  nodeId: string
+  nodeId: string,
+  projectId: string
 ): Promise<DownloadUrlResponse> {
-  return apiRequest<DownloadUrlResponse>(`/api/v1/nodes/${nodeId}/download`);
+  const params = new URLSearchParams({ project_id: projectId });
+  return apiRequest<DownloadUrlResponse>(`/api/v1/nodes/${nodeId}/download?${params.toString()}`);
 }
 
 // === 批量创建 API ===
@@ -350,16 +359,16 @@ export async function getDownloadUrl(
 export interface BulkCreateNodeItem {
   temp_id: string;
   name: string;
-  type: 'folder' | 'json' | 'file';  // 现在使用 storage_type
+  type: 'folder' | 'json' | 'markdown' | 'file';  // 节点类型
   parent_temp_id: string | null;
-  content?: any;  // file 类型时为 markdown 字符串，json 类型时为 dict
+  content?: any;  // markdown 类型时为字符串，json 类型时为 dict
 }
 
 export interface BulkCreateResultItem {
   temp_id: string;
   node_id: string;
   name: string;
-  type: StorageType;
+  type: NodeType;
 }
 
 export interface BulkCreateResponse {
@@ -371,7 +380,7 @@ export interface BulkCreateResponse {
  * 批量创建节点（用于文件夹上传）
  * 
  * @param projectId 项目 ID
- * @param nodes 节点列表，每个包含 temp_id, name, type(storage_type), parent_temp_id, content
+ * @param nodes 节点列表，每个包含 temp_id, name, type, parent_temp_id, content
  * @param parentId 整体挂载到哪个父节点下，null 表示项目根目录
  */
 export async function bulkCreateNodes(

@@ -18,18 +18,19 @@ class ContentNodeRepository:
         """将数据库行转换为模型"""
         return ContentNode(
             id=row["id"],
-            user_id=str(row["user_id"]),
             project_id=row["project_id"],
+            created_by=str(row["created_by"]) if row.get("created_by") else None,
+            sync_oauth_user_id=str(row["sync_oauth_user_id"]) if row.get("sync_oauth_user_id") else None,
             parent_id=row.get("parent_id"),
             name=row["name"],
-            # 新类型系统
-            storage_type=row["storage_type"],
-            source=row.get("source"),
-            resource_type=row.get("resource_type"),
-            # 旧字段（兼容）
+            # 类型字段
             type=row["type"],
+            source=row.get("source"),
+            preview_type=row.get("preview_type"),
             id_path=row["id_path"],
-            content=row.get("content"),
+            # 内容字段
+            json_content=row.get("json_content"),
+            md_content=row.get("md_content"),
             s3_key=row.get("s3_key"),
             mime_type=row.get("mime_type"),
             size_bytes=row.get("size_bytes", 0),
@@ -104,13 +105,12 @@ class ContentNodeRepository:
         return count + len(response2.data)
 
     def list_children(
-        self, user_id: str, project_id: str, parent_id: Optional[str] = None
+        self, project_id: str, parent_id: Optional[str] = None
     ) -> List[ContentNode]:
-        """列出子节点"""
+        """列出子节点（仅按 project_id 过滤）"""
         query = (
             self.client.table(self.TABLE_NAME)
             .select("*")
-            .eq("user_id", user_id)
             .eq("project_id", project_id)
         )
         if parent_id is None:
@@ -118,35 +118,50 @@ class ContentNodeRepository:
         else:
             query = query.eq("parent_id", parent_id)
         
-        # 按 storage_type 和 name 排序（folder 排在前面）
-        response = query.order("storage_type").order("name").execute()
+        # 按 type 和 name 排序（folder 排在前面）
+        response = query.order("type").order("name").execute()
         return [self._row_to_model(row) for row in response.data]
 
-    def list_by_user(self, user_id: str, storage_type: Optional[str] = None) -> List[ContentNode]:
-        """列出用户的所有节点"""
+    def list_by_project(self, project_id: str, node_type: Optional[str] = None) -> List[ContentNode]:
+        """列出项目的所有节点"""
         query = (
             self.client.table(self.TABLE_NAME)
             .select("*")
-            .eq("user_id", user_id)
+            .eq("project_id", project_id)
         )
-        if storage_type:
-            query = query.eq("storage_type", storage_type)
+        if node_type:
+            query = query.eq("type", node_type)
+        
+        response = query.order("id_path").execute()
+        return [self._row_to_model(row) for row in response.data]
+    
+    def list_by_sync_oauth_user(self, sync_oauth_user_id: str, node_type: Optional[str] = None) -> List[ContentNode]:
+        """列出某用户绑定的所有同步节点"""
+        query = (
+            self.client.table(self.TABLE_NAME)
+            .select("*")
+            .eq("sync_oauth_user_id", sync_oauth_user_id)
+            .eq("type", "sync")
+        )
+        if node_type:
+            query = query.eq("source", node_type)
         
         response = query.order("id_path").execute()
         return [self._row_to_model(row) for row in response.data]
 
     def create(
         self,
-        user_id: str,
         project_id: str,
         name: str,
-        storage_type: str,
+        node_type: str,  # folder | json | markdown | file | sync
         id_path: str,
-        node_type: str,  # 旧字段，兼容期保留
         parent_id: Optional[str] = None,
+        created_by: Optional[str] = None,
+        sync_oauth_user_id: Optional[str] = None,  # 仅 sync 类型必填
         source: Optional[str] = None,
-        resource_type: Optional[str] = None,
-        content: Optional[dict] = None,
+        preview_type: Optional[str] = None,  # json | markdown | NULL
+        json_content: Optional[dict] = None,
+        md_content: Optional[str] = None,
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
         size_bytes: int = 0,
@@ -158,23 +173,25 @@ class ContentNodeRepository:
     ) -> ContentNode:
         """创建节点"""
         data = {
-            "user_id": user_id,
             "project_id": project_id,
             "parent_id": parent_id,
             "name": name,
-            # 新类型系统
-            "storage_type": storage_type,
-            "source": source,
-            "resource_type": resource_type,
-            # 旧字段（兼容）
             "type": node_type,
+            "source": source,
+            "preview_type": preview_type,
             "id_path": id_path,
-            "content": content,
+            "json_content": json_content,
+            "md_content": md_content,
             "s3_key": s3_key,
             "mime_type": mime_type,
             "size_bytes": size_bytes,
             "sync_status": sync_status,
         }
+        # 添加可选字段
+        if created_by is not None:
+            data["created_by"] = created_by
+        if sync_oauth_user_id is not None:
+            data["sync_oauth_user_id"] = sync_oauth_user_id
         # 添加同步相关字段（仅当有值时）
         if sync_url is not None:
             data["sync_url"] = sync_url
@@ -192,25 +209,35 @@ class ContentNodeRepository:
         self,
         node_id: str,
         name: Optional[str] = None,
-        content: Optional[dict] = None,
+        json_content: Optional[dict] = None,
+        md_content: Optional[str] = None,
+        preview_type: Optional[str] = None,
         id_path: Optional[str] = None,
         parent_id: Optional[str] = None,
         s3_key: Optional[str] = None,
         size_bytes: Optional[int] = None,
-        clear_content: bool = False,
+        clear_json_content: bool = False,
+        clear_md_content: bool = False,
     ) -> Optional[ContentNode]:
         """更新节点
         
         Args:
-            clear_content: 如果为 True，将 content 字段设为 null
+            clear_json_content: 如果为 True，将 json_content 字段设为 null
+            clear_md_content: 如果为 True，将 md_content 字段设为 null
         """
         data = {}
         if name is not None:
             data["name"] = name
-        if content is not None:
-            data["content"] = content
-        elif clear_content:
-            data["content"] = None
+        if json_content is not None:
+            data["json_content"] = json_content
+        elif clear_json_content:
+            data["json_content"] = None
+        if md_content is not None:
+            data["md_content"] = md_content
+        elif clear_md_content:
+            data["md_content"] = None
+        if preview_type is not None:
+            data["preview_type"] = preview_type
         if id_path is not None:
             data["id_path"] = id_path
         if parent_id is not None:
@@ -241,7 +268,9 @@ class ContentNodeRepository:
         sync_status: Optional[str] = None,
         sync_config: Optional[dict] = None,
         last_synced_at: Optional[datetime] = None,
-        content: Optional[dict] = None,
+        json_content: Optional[dict] = None,
+        preview_type: Optional[str] = None,
+        sync_oauth_user_id: Optional[str] = None,  # 新增：同步绑定的 OAuth 用户
     ) -> Optional[ContentNode]:
         """更新节点的同步信息
         
@@ -260,8 +289,12 @@ class ContentNodeRepository:
             data["sync_config"] = sync_config
         if last_synced_at is not None:
             data["last_synced_at"] = last_synced_at.isoformat()
-        if content is not None:
-            data["content"] = content
+        if json_content is not None:
+            data["json_content"] = json_content
+        if preview_type is not None:
+            data["preview_type"] = preview_type
+        if sync_oauth_user_id is not None:
+            data["sync_oauth_user_id"] = sync_oauth_user_id
 
         if not data:
             return self.get_by_id(node_id)
@@ -279,24 +312,27 @@ class ContentNodeRepository:
     def update_with_type(
         self,
         node_id: str,
-        storage_type: Optional[str] = None,
-        type: Optional[str] = None,  # 旧字段
+        node_type: Optional[str] = None,  # folder | json | markdown | file | sync
         name: Optional[str] = None,
-        content: Optional[dict] = None,
+        json_content: Optional[dict] = None,
+        md_content: Optional[str] = None,
+        preview_type: Optional[str] = None,
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
         size_bytes: Optional[int] = None,
     ) -> Optional[ContentNode]:
-        """更新节点（包括类型变更，用于 ETL 完成后将 pending 转为 file）"""
+        """更新节点（包括类型变更，用于 ETL 完成后将 file 转为 markdown）"""
         data = {}
-        if storage_type is not None:
-            data["storage_type"] = storage_type
-        if type is not None:
-            data["type"] = type
+        if node_type is not None:
+            data["type"] = node_type
         if name is not None:
             data["name"] = name
-        if content is not None:
-            data["content"] = content
+        if json_content is not None:
+            data["json_content"] = json_content
+        if md_content is not None:
+            data["md_content"] = md_content
+        if preview_type is not None:
+            data["preview_type"] = preview_type
         if s3_key is not None:
             data["s3_key"] = s3_key
         if mime_type is not None:

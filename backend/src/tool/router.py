@@ -439,7 +439,8 @@ def create_search_tool_async(
         return ApiResponse.error(code=400, message="node_id is required for search tool")
 
     # 获取节点信息，判断是 folder search 还是 json search
-    node = node_service.get_by_id(payload.node_id, current_user.user_id)
+    # TODO: 添加 project 成员关系验证
+    node = node_service.get_by_id_unsafe(payload.node_id)
     project_id = node.project_id
     is_folder_search = node.type == "folder"
 

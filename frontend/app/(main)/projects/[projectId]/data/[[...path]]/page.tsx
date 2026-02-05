@@ -183,7 +183,7 @@ export default function DataPage({ params }: DataPageProps) {
       setMarkdownSaveStatus('saving');
 
       try {
-        await updateNode(activeNodeId, { content: newContent });
+        await updateNode(activeNodeId, projectId, { json_content: newContent });
         console.log('[Markdown AutoSave] Saved successfully');
         setMarkdownSaveStatus('saved');
         
@@ -359,22 +359,22 @@ export default function DataPage({ params }: DataPageProps) {
         }
 
         // Get info for each node in path
-        const pathNodes: Array<{ id: string; name: string; type: string; storage_type: string }> = [];
+        const pathNodes: Array<{ id: string; name: string; type: string }> = [];
         for (const nodeId of path) {
           try {
-            const node = await getNode(nodeId);
+            const node = await getNode(nodeId, projectId);
             if (node) {
-              pathNodes.push({ id: node.id, name: node.name, type: node.type, storage_type: node.storage_type });
+              pathNodes.push({ id: node.id, name: node.name, type: node.type });
             }
           } catch (err) {
             console.error(`Failed to get node ${nodeId}:`, err);
           }
         }
 
-        const folders = pathNodes.filter(n => n.storage_type === 'folder');
+        const folders = pathNodes.filter(n => n.type === 'folder');
         const lastNode = pathNodes[pathNodes.length - 1];
 
-        if (lastNode?.storage_type === 'folder') {
+        if (lastNode?.type === 'folder') {
           // Last is folder -> show folder contents
           setCurrentFolderId(lastNode.id);
           setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
@@ -395,14 +395,14 @@ export default function DataPage({ params }: DataPageProps) {
             setIsLoadingMarkdown(true);
             try {
               // Get full node detail to check content field
-              const fullNode = await getNode(lastNode.id);
+              const fullNode = await getNode(lastNode.id, projectId);
               
-              // First check if content is stored in the content field (批量创建的节点)
-              if (fullNode.content && typeof fullNode.content === 'string') {
-                setMarkdownContent(fullNode.content);
+              // First check if content is stored in the md_content field
+              if (fullNode.md_content && typeof fullNode.md_content === 'string') {
+                setMarkdownContent(fullNode.md_content);
               } else if (fullNode.s3_key) {
                 // Content is in S3, download it
-                const { download_url } = await getDownloadUrl(lastNode.id);
+                const { download_url } = await getDownloadUrl(lastNode.id, projectId);
                 const response = await fetch(download_url);
                 const content = await response.text();
                 setMarkdownContent(content);
@@ -767,7 +767,7 @@ export default function DataPage({ params }: DataPageProps) {
   const handleRenameConfirm = async (newName: string) => {
     if (!renameTarget) return;
       try {
-      await updateNode(renameTarget.id, { name: newName });
+      await updateNode(renameTarget.id, projectId, { name: newName });
         loadContentNodes(currentFolderId);
       } catch (err) {
         console.error('Failed to rename:', err);
@@ -779,7 +779,7 @@ export default function DataPage({ params }: DataPageProps) {
     const confirmed = window.confirm(`Are you sure you want to delete "${name}"?`);
     if (confirmed) {
       try {
-        await deleteNode(id);
+        await deleteNode(id, projectId);
         loadContentNodes(currentFolderId);
       } catch (err) {
         console.error('Failed to delete:', err);

@@ -64,19 +64,15 @@ class UrlHandler(BaseHandler):
 
             markdown_content = "\n\n".join(markdown_parts)
 
-            # Create content node
-            node = await self.node_service.create(
-                user_id=task.user_id,
+            # Create markdown content node
+            # Note: metadata (source_url, source_type, etc.) is logged but not stored in node
+            log_info(f"URL import metadata: source_url={task.source_url}, source_type={source_type}, sections={len(data)}")
+            node = await self.node_service.create_markdown_node(
                 project_id=task.project_id,
                 name=title,
-                type="markdown",
                 content=markdown_content,
-                metadata={
-                    "source_url": task.source_url,
-                    "source_type": source_type,
-                    "sections_count": len(data),
-                    "crawl_info": result.get("crawl_info"),
-                },
+                parent_id=task.parent_node_id,
+                created_by=task.user_id,
             )
 
             await on_progress(100, "Completed")

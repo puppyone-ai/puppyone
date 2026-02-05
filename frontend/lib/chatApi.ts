@@ -256,18 +256,34 @@ export interface AgentLog {
 }
 
 /**
- * 获取当前用户的所有 Agent Logs（bash executions 等）
+ * 获取指定项目的所有 Agent Logs（bash executions 等）
+ * @param projectId 项目 ID
  */
-export async function getAgentLogs(): Promise<AgentLog[]> {
+export async function getAgentLogs(projectId: string): Promise<AgentLog[]> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
+  // 1. 先获取该项目下的所有 agent IDs
+  const { data: agents, error: agentsError } = await supabase
+    .from('agents')
+    .select('id')
+    .eq('project_id', projectId);
+
+  if (agentsError) throw agentsError;
+  
+  const agentIds = agents?.map(a => a.id) || [];
+  
+  if (agentIds.length === 0) {
+    return []; // 没有 agents，就没有 logs
+  }
+
+  // 2. 获取这些 agents 的 logs
   const { data, error } = await supabase
     .from('agent_logs')
     .select('*')
-    .eq('user_id', user.id)
+    .in('agent_id', agentIds)
     .order('created_at', { ascending: false });
 
   if (error) throw error;

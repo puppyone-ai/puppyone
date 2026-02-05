@@ -87,7 +87,7 @@ async def submit_file_ingest(
         raise HTTPException(status_code=404, detail="Project not found")
 
     if node_id is not None:
-        node = node_service.get_by_id(node_id, current_user.user_id)
+        node = node_service.get_by_id(node_id, project_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
 
@@ -105,7 +105,7 @@ async def submit_file_ingest(
         # Generate safe S3 key
         _, ext = os.path.splitext(original_basename)
         safe_filename = f"{uuid.uuid4()}{ext}"
-        s3_key = f"users/{current_user.user_id}/raw/{project_id}/{safe_filename}"
+        s3_key = f"projects/{project_id}/raw/{safe_filename}"
 
         # Upload to S3
         try:
@@ -267,10 +267,9 @@ async def submit_file_ingest(
                 if node_id:
                     await node_service.finalize_pending_node(
                         node_id=node_id,
-                        user_id=current_user.user_id,
+                        project_id=project_id,
                         content=node_content,
                         new_name=original_filename,
-                        new_type=node_type
                     )
                     created_node_id = node_id
                 else:

@@ -372,27 +372,27 @@ class AgentService:
                                 continue
                             
                             sandbox_content = read_result.get("content")
-                            node = node_service.get_by_id(node_id, user_id)
+                            node = node_service.get_by_id_unsafe(node_id)
                             if not node:
                                 continue
                             
                             if node_type == "json":
                                 if json_path_config:
                                     updated_data = merge_data_by_path(
-                                        node.content or {}, json_path_config, sandbox_content
+                                        node.json_content or {}, json_path_config, sandbox_content
                                     )
                                 else:
                                     updated_data = sandbox_content
                                 
                                 node_service.update_node(
                                     node_id=node_id,
-                                    user_id=user_id,
-                                    content=updated_data,
+                                    project_id=node.project_id,
+                                    json_content=updated_data,
                                 )
                             elif node_type == "markdown":
                                 await node_service.update_markdown_content(
                                     node_id=node_id,
-                                    user_id=user_id,
+                                    project_id=node.project_id,
                                     content=sandbox_content,
                                 )
                             
@@ -1007,8 +1007,8 @@ class AgentService:
                         
                         sandbox_content = read_result.get("content")
                         
-                        # 获取原节点数据
-                        node = node_service.get_by_id(node_id, current_user.user_id)
+                        # 获取原节点数据（内部操作，权限已通过 access points 验证）
+                        node = node_service.get_by_id_unsafe(node_id)
                         if not node:
                             continue
                         
@@ -1017,22 +1017,22 @@ class AgentService:
                             # JSON 类型：合并数据（如果有 json_path）
                             if json_path:
                                 updated_data = merge_data_by_path(
-                                    node.content or {}, json_path, sandbox_content
+                                    node.json_content or {}, json_path, sandbox_content
                                 )
                             else:
                                 updated_data = sandbox_content
                             
-                            # 写回数据库（content 字段）
+                            # 写回数据库（json_content 字段）
                             node_service.update_node(
                                 node_id=node_id,
-                                user_id=current_user.user_id,
-                                content=updated_data,
+                                project_id=node.project_id,
+                                json_content=updated_data,
                             )
                         elif node_type == "markdown":
                             # markdown 类型：上传到 S3
                             await node_service.update_markdown_content(
                                 node_id=node_id,
-                                user_id=current_user.user_id,
+                                project_id=node.project_id,
                                 content=sandbox_content,
                             )
                         
@@ -1078,7 +1078,8 @@ async def prepare_sandbox_data(
     - github_repo: 从 S3 目录下载所有文件（单节点模式）
     - file/pdf/image/etc: 单个文件信息
     """
-    node = node_service.get_by_id(node_id, user_id)
+    # 内部操作，权限已通过 access points 验证
+    node = node_service.get_by_id_unsafe(node_id)
     if not node:
         raise ValueError(f"Node not found: {node_id}")
     
@@ -1088,9 +1089,9 @@ async def prepare_sandbox_data(
     node_type = node.type or "json"
     
     if node_type == "github_repo":
-        # GitHub Repo 节点（单节点模式）：从 content.files 读取文件列表
+        # GitHub Repo 节点（单节点模式）：从 json_content.files 读取文件列表
         # 每个文件都有 s3_key，用于从 S3 下载
-        content = node.content or {}
+        content = node.json_content or {}
         file_list = content.get("files", [])
         repo_name = content.get("repo", node.name or "repo")
         
@@ -1111,8 +1112,8 @@ async def prepare_sandbox_data(
             ))
     
     elif node_type == "json":
-        # JSON 节点：导出 content 为 data.json
-        content = node.content or {}
+        # JSON 节点：导出 json_content 为 data.json
+        content = node.json_content or {}
         if json_path:
             content = extract_data_by_path(content, json_path)
         
@@ -1149,7 +1150,7 @@ async def prepare_sandbox_data(
             return "/".join(path_parts)
         
         for child in children:
-            if child.storage_type == "folder":
+            if child.type == "folder":
                 continue  # 跳过子文件夹本身，只处理文件
             
             # 使用文件名构建相对路径（而非 UUID）
@@ -1157,11 +1158,11 @@ async def prepare_sandbox_data(
             if not relative_path:
                 relative_path = child.name
             
-            if child.storage_type == "json":
+            if child.type == "json":
                 # JSON 子节点：导出为 .json 文件
                 files.append(SandboxFile(
                     path=f"/workspace/{relative_path}.json",
-                    content=json.dumps(child.content or {}, ensure_ascii=False, indent=2),
+                    content=json.dumps(child.json_content or {}, ensure_ascii=False, indent=2),
                     content_type="application/json",
                 ))
             elif child.s3_key:
@@ -1172,14 +1173,14 @@ async def prepare_sandbox_data(
                     content_type=child.mime_type or "application/octet-stream",
                 ))
     else:
-        # 其他文件类型（pdf, image, file, markdown, notion_page 等）
+        # 其他文件类型（pdf, image, file, markdown, sync 等）
         file_name = node.name or "file"
         
-        if node.content and isinstance(node.content, (dict, list)):
+        if node.json_content and isinstance(node.json_content, (dict, list)):
             # 如果有 JSON content，导出为 JSON
             files.append(SandboxFile(
                 path=f"/workspace/{file_name}.json",
-                content=json.dumps(node.content, ensure_ascii=False, indent=2),
+                content=json.dumps(node.json_content, ensure_ascii=False, indent=2),
                 content_type="application/json",
             ))
         elif node.s3_key:
