@@ -383,7 +383,9 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
             # Check if it's a pending file (type='file' with no preview_type)
             is_pending = existing_node.type == "file" and existing_node.preview_type is None
             if is_pending:
-                # 直接更新 pending 节点为 markdown 节点
+                # ─────────────────────────────────────────────────────────────
+                # Pending 节点处理：直接更新为 markdown 节点，不走 JSON 挂载逻辑
+                # ─────────────────────────────────────────────────────────────
                 # 提取 markdown 内容
                 if isinstance(mount_value, dict) and "content" in mount_value:
                     markdown_content = mount_value["content"]
@@ -395,12 +397,13 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
                 # 生成新名称（.pdf -> .md）
                 original_name = existing_node.name
                 new_name = original_name
-                for ext in ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.tiff', '.bmp']:
+                for ext in ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.webp']:
                     if original_name.lower().endswith(ext):
                         new_name = original_name[:-len(ext)] + '.md'
                         break
                 
-                # 更新节点
+                # 更新节点：将 pending file 节点转换为 markdown 节点
+                # 内容存入 preview_md，不再存 S3
                 await node_service.finalize_pending_node(
                     node_id=mount_node_id,
                     project_id=task.project_id,
@@ -408,34 +411,37 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
                     new_name=new_name if new_name != original_name else None,
                 )
                 logger.info(f"ETL: Updated pending node {mount_node_id} to markdown: {new_name}")
+                # Pending 节点处理完成，跳过后面的 JSON 挂载逻辑
             else:
-                # 传统逻辑：挂载到 JSON 节点
-                existing_content = existing_node.json_content or {}
-            
-            # Merge data at the specified path
-            if mount_json_path:
-                # Navigate to the path and set the value
-                path_parts = [p for p in mount_json_path.split("/") if p]
-                current = existing_content
-                for part in path_parts[:-1]:
-                    if part not in current:
-                        current[part] = {}
-                    current = current[part]
-                if path_parts:
-                    current[path_parts[-1]] = {mount_key: mount_value}
+                # ─────────────────────────────────────────────────────────────
+                # 传统逻辑：挂载到已存在的 JSON 节点
+                # ─────────────────────────────────────────────────────────────
+                existing_content = existing_node.preview_json or {}
+                
+                # Merge data at the specified path
+                if mount_json_path:
+                    # Navigate to the path and set the value
+                    path_parts = [p for p in mount_json_path.split("/") if p]
+                    current = existing_content
+                    for part in path_parts[:-1]:
+                        if part not in current:
+                            current[part] = {}
+                        current = current[part]
+                    if path_parts:
+                        current[path_parts[-1]] = {mount_key: mount_value}
+                    else:
+                        existing_content[mount_key] = mount_value
                 else:
+                    # Mount at root level
                     existing_content[mount_key] = mount_value
-            else:
-                # Mount at root level
-                existing_content[mount_key] = mount_value
-            
-            # Update node with merged content
-            await asyncio.to_thread(
-                node_service.update_node,
-                mount_node_id,
-                task.user_id,
-                content=existing_content,
-            )
+                
+                # Update node with merged content
+                await asyncio.to_thread(
+                    node_service.update_node,
+                    mount_node_id,
+                    task.project_id,  # project_id, not user_id!
+                    preview_json=existing_content,  # 使用正确的参数名
+                )
         except Exception as e:
             # Mount failure => task failed (output exists in S3, but contract is "completed means mounted")
             err = f"Mount failed: {e}"

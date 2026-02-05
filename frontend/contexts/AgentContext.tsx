@@ -17,7 +17,7 @@ interface NodeInfo {
  * 批量获取节点信息
  * 通过 node IDs 获取对应的 name 和 type
  */
-async function fetchNodeInfoBatch(nodeIds: string[]): Promise<Map<string, NodeInfo>> {
+async function fetchNodeInfoBatch(nodeIds: string[], projectId: string): Promise<Map<string, NodeInfo>> {
   const nodeMap = new Map<string, NodeInfo>();
   if (nodeIds.length === 0) return nodeMap;
 
@@ -32,7 +32,7 @@ async function fetchNodeInfoBatch(nodeIds: string[]): Promise<Map<string, NodeIn
           id: string;
           name: string;
           type: string;
-        }>(`/api/v1/nodes/${nodeId}`);
+        }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`);
         return node;
       } catch (error) {
         console.warn(`Failed to fetch node info for ${nodeId}:`, error);
@@ -238,7 +238,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         const allNodeIds = agents.flatMap(getNodeIds);
         
         // 批量获取节点信息（name, type）
-        const nodeInfoMap = await fetchNodeInfoBatch(allNodeIds);
+        const nodeInfoMap = await fetchNodeInfoBatch(allNodeIds, projectId);
         
         const loadedAgents: SavedAgent[] = agents.map(a => {
           // 优先使用新版 bash_accesses
@@ -392,7 +392,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           const nodeIds = bashAccesses.length > 0 
             ? bashAccesses.map(b => b.node_id)
             : legacyAccesses.map(a => a.node_id);
-          const nodeInfoMap = await fetchNodeInfoBatch(nodeIds);
+          const nodeInfoMap = await fetchNodeInfoBatch(nodeIds, projectId || '');
           
           const resources: AccessResource[] = bashAccesses.length > 0
             ? bashAccesses.map(bash => {

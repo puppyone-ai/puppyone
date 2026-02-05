@@ -74,8 +74,8 @@ def _node_to_detail(node) -> NodeDetail:
         preview_type=node.preview_type,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
-        json_content=node.json_content,
-        md_content=node.md_content,
+        preview_json=node.preview_json,
+        preview_md=node.preview_md,
         s3_key=node.s3_key,
         permissions=node.permissions,
         # 同步相关字段
@@ -326,7 +326,7 @@ def update_node(
         node_id=node_id,
         project_id=project_id,
         name=request.name,
-        json_content=request.json_content,
+        preview_json=request.preview_json,
     )
     return ApiResponse.success(data=_node_to_detail(node), message="节点更新成功")
 

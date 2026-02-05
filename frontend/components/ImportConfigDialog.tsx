@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getETLHealth } from '@/lib/etlApi';
 
@@ -71,6 +71,19 @@ export function ImportConfigDialog({
     }
   }, [isOpen, fileStats.binaryCount]);
 
+  // 处理 overlay 点击 - 只有点击背景才关闭
+  const handleOverlayClick = useCallback((e: React.MouseEvent) => {
+    // 只有直接点击 overlay 背景时才关闭
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  }, [onClose]);
+
+  // 阻止模态框内部点击冒泡
+  const handleModalClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
+
   if (!isOpen) return null;
 
   return createPortal(
@@ -85,14 +98,15 @@ export function ImportConfigDialog({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 1100,
         backdropFilter: 'blur(2px)',
       }}
-      onClick={e => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={handleOverlayClick}
+      onMouseDown={e => e.stopPropagation()}
     >
       <div
+        onClick={handleModalClick}
+        onMouseDown={e => e.stopPropagation()}
         style={{
           width: 500,
           background: '#1e1e1e',

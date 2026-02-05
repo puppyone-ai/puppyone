@@ -37,13 +37,13 @@ def _convert_to_project_out(project: Project, nodes=None) -> ProjectOut:
     node_infos = []
     if nodes:
         for node in nodes:
-            # 计算 rows: 如果 json_content 是 list 则取长度，否则取 dict 的 key 数量
+            # 计算 rows: 如果 preview_json 是 list 则取长度，否则取 dict 的 key 数量
             rows = None
-            if node.json_content is not None:
-                if isinstance(node.json_content, list):
-                    rows = len(node.json_content)
-                elif isinstance(node.json_content, dict):
-                    rows = len(node.json_content)
+            if node.preview_json is not None:
+                if isinstance(node.preview_json, list):
+                    rows = len(node.preview_json)
+                elif isinstance(node.preview_json, dict):
+                    rows = len(node.preview_json)
             node_infos.append(
                 NodeInfo(
                     id=node.id,

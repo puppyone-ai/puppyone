@@ -87,6 +87,28 @@ interface DataPageProps {
   params: Promise<{ projectId: string; path?: string[] }>;
 }
 
+// === File Preview Component (for pure S3 files without preview content) ===
+function FilePreview({ nodeName }: { nodeName: string }) {
+  return (
+    <div style={{ 
+      flex: 1, 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      gap: 16,
+      color: '#71717a',
+    }}>
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <div style={{ fontSize: 16, fontWeight: 500 }}>{nodeName}</div>
+      <div style={{ fontSize: 13 }}>Raw file stored in S3</div>
+    </div>
+  );
+}
+
 export default function DataPage({ params }: DataPageProps) {
   const { projectId, path = [] } = use(params);
   const router = useRouter();
@@ -183,7 +205,7 @@ export default function DataPage({ params }: DataPageProps) {
       setMarkdownSaveStatus('saving');
 
       try {
-        await updateNode(activeNodeId, projectId, { json_content: newContent });
+        await updateNode(activeNodeId, projectId, { preview_json: newContent });
         console.log('[Markdown AutoSave] Saved successfully');
         setMarkdownSaveStatus('saved');
         
@@ -397,9 +419,9 @@ export default function DataPage({ params }: DataPageProps) {
               // Get full node detail to check content field
               const fullNode = await getNode(lastNode.id, projectId);
               
-              // First check if content is stored in the md_content field
-              if (fullNode.md_content && typeof fullNode.md_content === 'string') {
-                setMarkdownContent(fullNode.md_content);
+              // First check if content is stored in the preview_md field
+              if (fullNode.preview_md && typeof fullNode.preview_md === 'string') {
+                setMarkdownContent(fullNode.preview_md);
               } else if (fullNode.s3_key) {
                 // Content is in S3, download it
                 const { download_url } = await getDownloadUrl(lastNode.id, projectId);
@@ -513,6 +535,13 @@ export default function DataPage({ params }: DataPageProps) {
     </svg>
   );
 
+  const fileIcon = (
+    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' style={{ color: '#71717a' }}>
+      <path d='M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z' stroke='currentColor' strokeWidth='1.5' />
+      <path d='M14 2V8H20' stroke='currentColor' strokeWidth='1.5' />
+    </svg>
+  );
+
   const loadingIcon = (
     <svg width='14' height='14' viewBox='0 0 24 24' fill='none' style={{ color: '#525252' }}>
       <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='2' opacity='0.3' />
@@ -560,7 +589,10 @@ export default function DataPage({ params }: DataPageProps) {
       // Node segment
       if (activeNodeId && currentTableData) {
         const renderAs = getNodeTypeConfig(activeNodeType).renderAs;
-        const nodeIcon = renderAs === 'markdown' ? markdownIcon : tableIcon;
+        // markdown -> markdown icon, file/image -> file icon, others -> table icon
+        const nodeIcon = renderAs === 'markdown' ? markdownIcon 
+          : ['file', 'image'].includes(renderAs) ? fileIcon 
+          : tableIcon;
         segments.push({ label: currentTableData.name, icon: nodeIcon });
       } else if (activeNodeId) {
         segments.push({ label: '...', icon: loadingIcon });
@@ -853,7 +885,7 @@ export default function DataPage({ params }: DataPageProps) {
           {/* Editor View */}
           {isEditorView && activeProject && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
-              {/* Markdown Editor (for markdown, notion_page, github_file, etc.) */}
+              {/* Markdown Editor (only for types with preview_md content) */}
               {getNodeTypeConfig(activeNodeType).renderAs === 'markdown' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                   {isLoadingMarkdown ? (
@@ -939,6 +971,9 @@ export default function DataPage({ params }: DataPageProps) {
                   content={currentTableData?.content}
                   syncUrl={currentTableData?.sync_url ?? undefined}
                 />
+              ) : ['file', 'image'].includes(getNodeTypeConfig(activeNodeType).renderAs) ? (
+                /* File Preview (pure S3 storage, no preview content) */
+                <FilePreview nodeName={currentTableData?.name || ''} />
               ) : (
                 /* JSON Editor */
                 <ProjectWorkspaceView

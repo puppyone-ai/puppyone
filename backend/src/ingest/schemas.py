@@ -95,6 +95,7 @@ class IngestSubmitItem(BaseModel):
     status: IngestStatus
     filename: Optional[str] = None
     s3_key: Optional[str] = None
+    node_id: Optional[str] = None  # 创建的节点 ID
     error: Optional[str] = None
 
 

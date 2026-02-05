@@ -69,8 +69,8 @@ export interface NodeInfo {
 }
 
 export interface NodeDetail extends NodeInfo {
-  json_content: any | null;    // type=json 或 sync 时的 JSON 内容
-  md_content: string | null;   // type=markdown 时的 Markdown 内容
+  preview_json: any | null;    // type=json 或 sync 时的 JSON 预览内容
+  preview_md: string | null;   // type=markdown 时的 Markdown 预览内容
   s3_key: string | null;
   permissions: {
     public: boolean;
@@ -302,7 +302,7 @@ export async function prepareUpload(
 export async function updateNode(
   nodeId: string,
   projectId: string,
-  updates: { name?: string; json_content?: any }
+  updates: { name?: string; preview_json?: any }
 ): Promise<NodeDetail> {
   const params = new URLSearchParams({ project_id: projectId });
   return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}?${params.toString()}`, {

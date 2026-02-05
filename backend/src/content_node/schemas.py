@@ -32,7 +32,7 @@ class CreateMarkdownNodeRequest(BaseModel):
 class UpdateNodeRequest(BaseModel):
     """更新节点请求"""
     name: Optional[str] = Field(None, description="新名称")
-    json_content: Optional[Any] = Field(None, description="新内容（仅 JSON 类型）")
+    preview_json: Optional[Any] = Field(None, description="新内容（仅 JSON 类型）")
 
 
 class MoveNodeRequest(BaseModel):
@@ -106,8 +106,8 @@ class NodeInfo(BaseModel):
 
 class NodeDetail(NodeInfo):
     """节点详情（包含内容）"""
-    json_content: Optional[Any] = None  # type=json 或 sync 时的 JSON 内容
-    md_content: Optional[str] = None  # type=markdown 时的 Markdown 内容
+    preview_json: Optional[Any] = None  # type=json 或 sync 时的 JSON 预览内容
+    preview_md: Optional[str] = None  # type=markdown 时的 Markdown 预览内容
     s3_key: Optional[str] = None
     permissions: dict = Field(default_factory=lambda: {"inherit": True})
 
