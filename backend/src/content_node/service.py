@@ -685,13 +685,13 @@ class ContentNodeService:
         content_bytes = content.encode('utf-8')
         
         # 直接更新数据库，不存 S3
-            updated = self.repo.update(
-                node_id=node_id,
+        updated = self.repo.update(
+            node_id=node_id,
             preview_md=content,
-                preview_type="markdown",
-                size_bytes=len(content_bytes),
-            )
-            logger.info(f"[ContentNode] Markdown saved to DB: {node_id}")
+            preview_type="markdown",
+            size_bytes=len(content_bytes),
+        )
+        logger.info(f"[ContentNode] Markdown saved to DB: {node_id}")
         
         return updated
 
