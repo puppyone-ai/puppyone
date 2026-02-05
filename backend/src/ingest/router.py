@@ -273,7 +273,7 @@ async def submit_file_ingest(
                     s3_key=s3_key,
                     node_id=pending_node.id,
                 ))
-                
+
             else:
                 # ─────────────────────────────────────────────────────────
                 # 二进制文件（或 raw 模式下的 OCR 文件）：上传 S3，创建 file 节点
@@ -406,12 +406,12 @@ def _make_failed_item(
 ) -> IngestSubmitItem:
     """创建失败状态的响应项"""
     return IngestSubmitItem(
-        task_id=str(task.task_id or 0),
-        source_type=SourceType.FILE,
+                    task_id=str(task.task_id or 0),
+                    source_type=SourceType.FILE,
         ingest_type=detect_file_ingest_type(filename),
-        status=IngestStatus.FAILED,
+                    status=IngestStatus.FAILED,
         filename=filename,
-        s3_key=s3_key,
+                    s3_key=s3_key,
         error=error,
     )
 
