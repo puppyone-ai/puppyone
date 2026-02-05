@@ -691,11 +691,11 @@ export default function DataPage({ params }: DataPageProps) {
     id: node.id,
     name: node.name,
     type: node.type as ContentType,
-    storage_type: node.storage_type,
-    description: node.storage_type === 'folder' ? 'Folder' : 
-                 node.storage_type === 'json' ? 'JSON' : 
-                 node.storage_type === 'file' ? (node.mime_type === 'text/markdown' ? 'Markdown' : 'File') :
-                 node.storage_type === 'sync' ? `Sync (${node.source})` : 'Unknown',
+    description: node.type === 'folder' ? 'Folder' : 
+                 node.type === 'json' ? 'JSON' : 
+                 node.type === 'markdown' ? 'Markdown' :
+                 node.type === 'file' ? 'File' :
+                 node.type === 'sync' ? `Sync (${node.source})` : 'Unknown',
     is_synced: node.is_synced,
     sync_source: node.sync_source,
     sync_url: node.sync_url,
