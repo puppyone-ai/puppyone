@@ -56,11 +56,6 @@ from src.table.router import router as table_router
 
 table_router_duration = time.time() - table_router_start
 
-#
-# MCP V3：基于 Agent 架构的 MCP 访问层
-#
-
-# tool_router_start = time.time()
 tool_router_start = time.time()
 from src.tool.router import router as tool_router
 
@@ -77,35 +72,22 @@ from src.agent.config.router import router as agent_config_router
 
 agent_router_duration = time.time() - agent_router_start
 
-# context_publish_router_start = time.time()
 context_publish_router_start = time.time()
 from src.context_publish.router import router as context_publish_router
 from src.context_publish.router import public_router as context_publish_public_router
 
 context_publish_router_duration = time.time() - context_publish_router_start
 
-# s3_router_start = time.time()
-# from src.s3.router import router as s3_router
-# s3_router_duration = time.time() - s3_router_start
+# Unified ingest router (file + SaaS imports)
+ingest_router_start = time.time()
+from src.ingest.router import router as ingest_router
 
-etl_router = None
-etl_router_duration = 0.0
-if settings.etl_enabled:
-    etl_router_start = time.time()
-    from src.etl.router import router as etl_router
-
-    etl_router_duration = time.time() - etl_router_start
+ingest_router_duration = time.time() - ingest_router_start
 
 project_router_start = time.time()
 from src.project.router import router as project_router
 
 project_router_duration = time.time() - project_router_start
-
-# Unified import router (replaced connect and sync_task)
-import_router_start = time.time()
-from src.import_.router import router as import_router
-
-import_router_duration = time.time() - import_router_start
 
 oauth_router_start = time.time()
 from src.oauth.router import router as oauth_router
@@ -145,9 +127,8 @@ routers_duration = (
     + mcp_v3_router_duration
     + agent_router_duration
     + context_publish_router_duration
-    + etl_router_duration
+    + ingest_router_duration
     + project_router_duration
-    + import_router_duration
     + oauth_router_duration
     + internal_router_duration
     + content_node_router_duration
@@ -182,12 +163,8 @@ async def app_lifespan(app: FastAPI):
     log_info(
         f"  │  ├─ context_publish_router: {context_publish_router_duration * 1000:.2f}ms"
     )
-    if settings.etl_enabled:
-        log_info(f"  │  ├─ etl_router: {etl_router_duration * 1000:.2f}ms")
-    else:
-        log_info("  │  ├─ etl_router: skipped (ENABLE_ETL=0 or DEBUG auto)")
+    log_info(f"  │  ├─ ingest_router: {ingest_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
-    log_info(f"  │  ├─ import_router: {import_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ internal_router: {internal_router_duration * 1000:.2f}ms")
     log_info(f"  │  └─ content_node_router: {content_node_router_duration * 1000:.2f}ms")
@@ -231,31 +208,31 @@ async def app_lifespan(app: FastAPI):
         scheduler_duration = time.time() - scheduler_init_start
         log_error(f"❌ Scheduler 服务启动失败 (耗时: {scheduler_duration * 1000:.2f}ms): {e}")
 
-    # 3. 初始化 ETL 服务（需要启用 ETL）
+    # 3. 初始化 File Ingest 服务（需要启用）
     if settings.etl_enabled:
-        etl_init_start = time.time()
+        file_ingest_init_start = time.time()
         try:
-            log_info("📄 初始化 ETL 服务...")
-            from src.etl.dependencies import get_etl_service
+            log_info("📄 初始化 File Ingest 服务...")
+            from src.ingest.file.dependencies import get_etl_service
             from pathlib import Path
 
-            etl_service = await get_etl_service()
+            file_ingest_service = await get_etl_service()
 
             # 创建必要的目录
             Path(".mineru_cache").mkdir(parents=True, exist_ok=True)
             Path(".etl_rules").mkdir(parents=True, exist_ok=True)
 
-            # 启动 ETL 控制面（worker 由独立进程启动）
-            await etl_service.start()
-            etl_duration = time.time() - etl_init_start
-            log_info(f"✅ ETL 服务启动成功 (耗时: {etl_duration * 1000:.2f}ms)")
+            # 启动 File Ingest 控制面（worker 由独立进程启动）
+            await file_ingest_service.start()
+            file_ingest_duration = time.time() - file_ingest_init_start
+            log_info(f"✅ File Ingest 服务启动成功 (耗时: {file_ingest_duration * 1000:.2f}ms)")
             if settings.DEBUG:
-                log_info("   ℹ️  DEBUG 模式下 ETL workers 已启动（用于开发测试）")
+                log_info("   ℹ️  DEBUG 模式下 File workers 已启动（用于开发测试）")
         except Exception as e:
-            etl_duration = time.time() - etl_init_start
-            log_error(f"❌ ETL 服务启动失败 (耗时: {etl_duration * 1000:.2f}ms): {e}")
+            file_ingest_duration = time.time() - file_ingest_init_start
+            log_error(f"❌ File Ingest 服务启动失败 (耗时: {file_ingest_duration * 1000:.2f}ms): {e}")
     else:
-        log_info("⏭️  ETL 服务已跳过（ENABLE_ETL 关闭）")
+        log_info("⏭️  File Ingest 服务已跳过（ENABLE_ETL 关闭）")
 
     # 输出总启动时间
     total_startup_time = time.time() - APP_START_TIME
@@ -280,16 +257,16 @@ async def app_lifespan(app: FastAPI):
         except Exception as e:
             log_error(f"Failed to stop Scheduler service: {e}")
 
-    # 停止 ETL 服务（需要启用 ETL）
+    # 停止 File Ingest 服务
     if settings.etl_enabled:
         try:
-            from src.etl.dependencies import get_etl_service
+            from src.ingest.file.dependencies import get_etl_service
 
-            etl_service = await get_etl_service()
-            await etl_service.stop()
-            log_info("ETL service stopped successfully")
+            file_ingest_service = await get_etl_service()
+            await file_ingest_service.stop()
+            log_info("File Ingest service stopped successfully")
         except Exception as e:
-            log_error(f"Failed to stop ETL service: {e}")
+            log_error(f"Failed to stop File Ingest service: {e}")
 
 
 def create_app() -> FastAPI:
@@ -334,12 +311,11 @@ def create_app() -> FastAPI:
     app.include_router(context_publish_router, prefix="/api/v1", tags=["publishes"])
     # public short link: /p/{publish_key}
     app.include_router(context_publish_public_router, tags=["publishes"])
-    # app.include_router(s3_router, prefix="/api/v1")
-    if etl_router is not None:
-        app.include_router(etl_router, prefix="/api/v1", tags=["etl"])
+    
+    # Unified ingest router (file + SaaS imports)
+    app.include_router(ingest_router, prefix="/api/v1", tags=["ingest"])
+    
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
-    # Unified import router (replaced connect_router and sync_task_router)
-    app.include_router(import_router, prefix="/api/v1", tags=["import"])
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
     app.include_router(
         internal_router, tags=["internal"]

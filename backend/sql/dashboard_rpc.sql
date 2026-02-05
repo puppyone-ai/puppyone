@@ -17,13 +17,20 @@ DECLARE
 BEGIN
   SELECT json_build_object(
     -- ========== 总计统计 ==========
+    -- 注意：agents 表已移除 user_id 列，现在通过 project.user_id 关联
     'totalAgents', (
-      SELECT COUNT(*) FROM agents WHERE user_id = p_user_id
+      SELECT COUNT(*) FROM agents a
+      JOIN project p ON p.id = a.project_id
+      WHERE p.user_id = p_user_id
     ),
     'totalSessions', (
       SELECT COUNT(*) FROM chat_sessions 
       WHERE user_id = p_user_id 
-        AND agent_id IN (SELECT id FROM agents WHERE user_id = p_user_id)
+        AND agent_id IN (
+          SELECT a.id FROM agents a
+          JOIN project p ON p.id = a.project_id
+          WHERE p.user_id = p_user_id
+        )
     ),
     'totalBash', (
       SELECT COUNT(*) FROM agent_logs 
@@ -42,7 +49,11 @@ BEGIN
       SELECT COUNT(DISTINCT agent_id) 
       FROM chat_sessions 
       WHERE user_id = p_user_id 
-        AND agent_id IN (SELECT id FROM agents WHERE user_id = p_user_id)
+        AND agent_id IN (
+          SELECT a.id FROM agents a
+          JOIN project p ON p.id = a.project_id
+          WHERE p.user_id = p_user_id
+        )
     ),
     
     -- ========== 时间范围内统计 ==========
@@ -61,7 +72,11 @@ BEGIN
     'sessionsInRange', (
       SELECT COUNT(*) FROM chat_sessions 
       WHERE user_id = p_user_id 
-        AND agent_id IN (SELECT id FROM agents WHERE user_id = p_user_id)
+        AND agent_id IN (
+          SELECT a.id FROM agents a
+          JOIN project p ON p.id = a.project_id
+          WHERE p.user_id = p_user_id
+        )
         AND created_at >= time_start
     ),
     
@@ -121,7 +136,11 @@ BEGIN
           COUNT(*) AS count
         FROM chat_sessions 
         WHERE user_id = p_user_id 
-          AND agent_id IN (SELECT id FROM agents WHERE user_id = p_user_id)
+          AND agent_id IN (
+            SELECT a.id FROM agents a
+            JOIN project p ON p.id = a.project_id
+            WHERE p.user_id = p_user_id
+          )
           AND created_at >= time_start
         GROUP BY bucket
         ORDER BY bucket
@@ -144,7 +163,8 @@ BEGIN
           -- 计算 data access 数量
           COALESCE(jsonb_array_length(a.bash_accesses), 0) + COALESCE(jsonb_array_length(a.accesses), 0) AS data_access_count
         FROM agents a
-        WHERE a.user_id = p_user_id
+        JOIN project p ON p.id = a.project_id
+        WHERE p.user_id = p_user_id
         ORDER BY a.created_at DESC
       ) t
     )

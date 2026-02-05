@@ -45,15 +45,21 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
     try:
         db_client = SupabaseClient().client
         
-        # 1. Load agent configuration
-        agent_result = db_client.table("agents").select("*").eq("id", agent_id).single().execute()
+        # 1. Load agent configuration (agent 通过 project_id 关联 user)
+        agent_result = db_client.table("agents").select("*, project:project_id(user_id)").eq("id", agent_id).single().execute()
         agent = agent_result.data
         
         if not agent:
             log_error(f"Agent {agent_id} not found")
             return {"status": "failed", "error": "Agent not found"}
         
-        user_id = agent.get("user_id")
+        # 从关联的 project 获取 user_id
+        project_data = agent.get("project")
+        user_id = project_data.get("user_id") if project_data else None
+        if not user_id:
+            log_error(f"Agent {agent_id} has no associated project or user")
+            return {"status": "failed", "error": "Agent has no associated project"}
+        
         agent_name = agent.get("name", "Unknown")
         task_content = agent.get("task_content", "")
         

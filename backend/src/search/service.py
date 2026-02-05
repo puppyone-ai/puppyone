@@ -584,13 +584,19 @@ class SearchService:
         """
         t0 = time.perf_counter()
 
-        # 1) Read file content based on type
-        if file_node.type == "json":
+        # 1) Read file content based on storage_type
+        is_markdown = (
+            file_node.storage_type == "file" and file_node.mime_type == "text/markdown"
+        ) or (
+            file_node.storage_type == "sync" and file_node.mime_type == "text/markdown"
+        )
+        
+        if file_node.storage_type == "json" or file_node.is_json:
             # JSON content is stored in node.content
             content_data = file_node.content or {}
             # Use root pointer for JSON files in folder context
             scope_pointer = ""
-        elif file_node.type == "markdown":
+        elif is_markdown:
             # Markdown content is stored in S3
             if not file_node.s3_key:
                 log_info(f"[_index_file_node] skip: no s3_key for markdown node {file_node.id}")
@@ -607,12 +613,12 @@ class SearchService:
                 return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
         else:
             # Unsupported type
-            log_info(f"[_index_file_node] skip: unsupported type {file_node.type}")
+            log_info(f"[_index_file_node] skip: unsupported storage_type={file_node.storage_type} mime_type={file_node.mime_type}")
             return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
 
         # 2) Extract large string nodes or use content directly
         t2 = time.perf_counter()
-        if file_node.type == "json":
+        if file_node.storage_type == "json" or file_node.is_json:
             # For JSON, extract large string nodes
             nodes = await asyncio.to_thread(
                 lambda: list(

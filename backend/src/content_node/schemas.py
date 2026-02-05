@@ -46,9 +46,9 @@ class BulkCreateNodeItem(BaseModel):
     """批量创建中的单个节点"""
     temp_id: str = Field(..., description="临时 ID（用于建立父子关系引用）")
     name: str = Field(..., description="节点名称")
-    type: str = Field(..., description="节点类型: folder, json, markdown, pending")
+    type: str = Field(..., description="存储类型: folder | json | file")
     parent_temp_id: Optional[str] = Field(None, description="父节点的临时 ID，None 表示根节点")
-    content: Optional[Any] = Field(None, description="内容（type=json/markdown 时）")
+    content: Optional[Any] = Field(None, description="内容（type=json 时为 dict，type=file 时为 markdown 字符串）")
 
 
 class BulkCreateRequest(BaseModel):
@@ -63,7 +63,7 @@ class BulkCreateResultItem(BaseModel):
     temp_id: str = Field(..., description="原始临时 ID")
     node_id: str = Field(..., description="真实节点 ID")
     name: str = Field(..., description="节点名称")
-    type: str = Field(..., description="节点类型")
+    type: str = Field(..., description="存储类型: folder | json | file | sync")
 
 
 class BulkCreateResponse(BaseModel):
@@ -78,20 +78,31 @@ class NodeInfo(BaseModel):
     """节点基本信息（用于列表）"""
     id: str
     name: str
-    type: str
     project_id: str
     id_path: str
     parent_id: Optional[str] = None
+    
+    # 新类型系统
+    storage_type: str  # folder | json | file | sync
+    source: Optional[str] = None  # 仅 sync 类型: github | notion | gmail | ...
+    resource_type: Optional[str] = None  # 仅 sync 类型: repo | page | database | ...
+    
+    # 旧字段（兼容）
+    type: str
+    
     mime_type: Optional[str] = None
     size_bytes: int = 0
+    
     # 同步相关字段
     sync_url: Optional[str] = None
     sync_id: Optional[str] = None
-    sync_status: str = "idle"  # 同步状态: not_connected, idle, syncing, error
+    sync_status: str = "idle"
     last_synced_at: Optional[str] = None
+    
     # 计算属性
-    is_synced: bool = False  # 是否为同步类型
-    sync_source: Optional[str] = None  # 同步来源（如 github, notion）
+    is_synced: bool = False
+    sync_source: Optional[str] = None  # 等同于 source
+    
     created_at: str
     updated_at: str
 
@@ -120,4 +131,3 @@ class DownloadUrlResponse(BaseModel):
     """下载 URL 响应"""
     download_url: str
     expires_in: int = 3600
-

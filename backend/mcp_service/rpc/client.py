@@ -64,7 +64,7 @@ class InternalApiClient:
         Returns:
             Agent 数据字典，格式：
             {
-                "agent": { "id", "name", "user_id", "type" },
+                "agent": { "id", "name", "project_id", "type" },
                 "accesses": [
                     {
                         "node_id": "xxx",

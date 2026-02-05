@@ -1,6 +1,11 @@
 /**
- * ETL API 调用封装
+ * ETL API - Now forwards to unified Ingest API
+ *
+ * This file is kept for backward compatibility.
+ * All new code should use ingestApi.ts directly.
  */
+
+import { getAccessToken } from './apiClient';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -8,30 +13,34 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export type ETLStatus =
   | 'pending'
-  | 'mineru_parsing'
-  | 'llm_processing'
+  | 'processing'  // Unified status (replaces mineru_parsing, llm_processing)
   | 'completed'
   | 'failed'
   | 'cancelled';
 
 export interface ETLTaskStatus {
   task_id: string;
-  user_id: string;
-  project_id: string;
-  filename: string;
-  rule_id: string;
+  source_type: 'file';
+  ingest_type: string;
   status: ETLStatus;
   progress: number;
+  message?: string;
+  content_node_id?: string;
+  error?: string;
   created_at: string;
   updated_at: string;
+  completed_at?: string;
+  filename?: string;
+  // Legacy fields (for compatibility)
+  user_id?: string;
+  project_id?: string;
+  rule_id?: string;
   result?: {
-    output_path: string;
-    output_size: number;
-    processing_time: number;
-    mineru_task_id?: string;
+    output_path?: string;
+    output_size?: number;
+    processing_time?: number;
   };
-  error?: string;
-  metadata: Record<string, any>;
+  metadata?: Record<string, any>;
 }
 
 export interface BatchETLTaskStatusResponse {
@@ -39,62 +48,56 @@ export interface BatchETLTaskStatusResponse {
   total: number;
 }
 
-/** upload_and_submit 单个文件的返回结果 */
 export interface UploadAndSubmitItem {
-  filename: string;
-  task_id: number;
+  task_id: string;
+  source_type: 'file';
+  ingest_type: string;
   status: ETLStatus;
-  s3_key: string | null;
-  error: string | null;
+  filename?: string;
+  s3_key?: string;
+  error?: string;
 }
 
-/** upload_and_submit 响应 */
 export interface UploadAndSubmitResponse {
   items: UploadAndSubmitItem[];
   total: number;
 }
 
-/** upload_and_submit 请求参数 */
 export interface UploadAndSubmitParams {
-  projectId: number;
+  projectId: number | string;
   files: File[];
   ruleId?: number;
-  nodeId?: string;  // 改为 nodeId，类型为 UUID 字符串
+  nodeId?: string;
   jsonPath?: string;
   mode?: 'smart' | 'raw' | 'structured';
 }
 
 export interface ETLHealthResponse {
   status: string;
-  queue_size: number;
-  task_count: number;
-  worker_count: number;
+  file_worker: {
+    queue_size: number;
+    task_count: number;
+    worker_count: number;
+  };
+  saas_worker: {
+    status: string;
+  };
 }
 
 // ============= Helper Functions =============
 
-/**
- * 判断任务状态是否为终态（不再变化）
- */
 export function isTerminalStatus(status: ETLStatus): boolean {
-  return (
-    status === 'completed' || status === 'failed' || status === 'cancelled'
-  );
+  return status === 'completed' || status === 'failed' || status === 'cancelled';
 }
 
-/**
- * 获取状态的用户友好显示文本
- */
 export function getStatusDisplayText(status: ETLStatus | 'uploading'): string {
   switch (status) {
     case 'uploading':
       return 'Uploading...';
     case 'pending':
       return 'Pending';
-    case 'mineru_parsing':
-      return 'Processing document (OCR)...';
-    case 'llm_processing':
-      return 'Extracting structured data...';
+    case 'processing':
+      return 'Processing...';
     case 'completed':
       return 'Completed';
     case 'failed':
@@ -109,27 +112,35 @@ export function getStatusDisplayText(status: ETLStatus | 'uploading'): string {
 // ============= API Functions =============
 
 /**
- * Get ETL Service Health
+ * Get ETL Service Health (via unified ingest endpoint)
  */
 export async function getETLHealth(): Promise<ETLHealthResponse> {
-  const response = await fetch(`${API_URL}/api/v1/etl/health`, {
+  const accessToken = await getAccessToken();
+  
+  const response = await fetch(`${API_URL}/api/v1/ingest/health`, {
     method: 'GET',
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
   });
+
   if (!response.ok) {
     throw new Error('Failed to check ETL health');
   }
+
   return await response.json();
 }
 
 /**
- * 一体化上传并提交 ETL 任务（新接口）
- *
- * 替代旧的 /etl/upload + /projects/.../import-folder 流程
+ * Upload and submit file ingest task (via unified ingest endpoint)
  */
 export async function uploadAndSubmit(
   params: UploadAndSubmitParams,
-  accessToken: string
+  accessToken?: string
 ): Promise<UploadAndSubmitResponse> {
+  const token = accessToken || (await getAccessToken());
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+
   const formData = new FormData();
   formData.append('project_id', params.projectId.toString());
 
@@ -146,15 +157,14 @@ export async function uploadAndSubmit(
     formData.append('mode', params.mode);
   }
 
-  // 添加所有文件
   for (const file of params.files) {
     formData.append('files', file);
   }
 
-  const response = await fetch(`${API_URL}/api/v1/etl/upload_and_submit`, {
+  const response = await fetch(`${API_URL}/api/v1/ingest/submit/file`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${token}`,
     },
     body: formData,
   });
@@ -168,45 +178,58 @@ export async function uploadAndSubmit(
 }
 
 /**
- * 批量查询 ETL 任务状态
+ * Batch query ETL task status (via unified ingest endpoint)
  */
 export async function batchGetETLTaskStatus(
   taskIds: string[],
-  accessToken: string
+  accessToken?: string
 ): Promise<BatchETLTaskStatusResponse> {
-  const response = await fetch(
-    `${API_URL}/api/v1/etl/tasks/batch?task_ids=${taskIds.join(',')}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
+  const token = accessToken || (await getAccessToken());
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+
+  const tasks = taskIds.map((task_id) => ({ task_id, source_type: 'file' }));
+
+  const response = await fetch(`${API_URL}/api/v1/ingest/tasks/batch`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ tasks }),
+  });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch ETL task status: ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`Batch query failed: ${errorText}`);
   }
 
   return await response.json();
 }
 
 /**
- * 查询单个 ETL 任务状态
+ * Get single ETL task status (via unified ingest endpoint)
  */
 export async function getETLTaskStatus(
   taskId: string,
-  accessToken: string
+  accessToken?: string
 ): Promise<ETLTaskStatus> {
-  const response = await fetch(`${API_URL}/api/v1/etl/tasks/${taskId}`, {
+  const token = accessToken || (await getAccessToken());
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+
+  const response = await fetch(`${API_URL}/api/v1/ingest/tasks/${taskId}?source_type=file`, {
     method: 'GET',
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${token}`,
     },
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch ETL task status: ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`Get task failed: ${errorText}`);
   }
 
   return await response.json();

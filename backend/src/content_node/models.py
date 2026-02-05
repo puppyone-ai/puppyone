@@ -13,16 +13,25 @@ class ContentNode(BaseModel):
     project_id: str = Field(..., description="所属项目 ID")
     parent_id: Optional[str] = Field(None, description="父节点 ID，None 表示根节点")
     name: str = Field(..., description="节点名称")
-    type: str = Field(..., description="节点类型: 基础类型(folder, json, markdown等) 或同步类型(github_repo, notion_page等)")
+    
+    # === 新的类型系统 ===
+    storage_type: str = Field(..., description="存储类型: folder | json | file | sync")
+    source: Optional[str] = Field(None, description="数据来源（仅 sync 类型）: github | notion | gmail | ...")
+    resource_type: Optional[str] = Field(None, description="资源类型（仅 sync 类型）: repo | page | database | ...")
+    
+    # === 旧字段（兼容期保留）===
+    type: str = Field(..., description="[废弃] 旧类型字段，迁移期间保留")
+    
     id_path: str = Field(..., description="ID 物化路径，如 /uuid1/uuid2/uuid3")
-    content: Optional[Any] = Field(None, description="JSON 内容（type=json 时）")
-    s3_key: Optional[str] = Field(None, description="S3 对象 key（非 JSON 时）")
+    content: Optional[Any] = Field(None, description="JSON 内容（storage_type=json 时）")
+    s3_key: Optional[str] = Field(None, description="S3 对象 key（storage_type=file/sync 时）")
     mime_type: Optional[str] = Field(None, description="MIME 类型")
     size_bytes: int = Field(0, description="文件大小（字节）")
     permissions: dict = Field(default_factory=lambda: {"inherit": True}, description="权限配置")
+    
     # 同步相关字段
-    sync_url: Optional[str] = Field(None, description="同步来源 URL（仅同步类型有值）")
-    sync_id: Optional[str] = Field(None, description="外部平台资源 ID（仅同步类型有值）")
+    sync_url: Optional[str] = Field(None, description="同步来源 URL（仅 sync 类型有值）")
+    sync_id: Optional[str] = Field(None, description="外部平台资源 ID（仅 sync 类型有值）")
     sync_config: Optional[dict] = Field(None, description="同步配置（如 mode, interval, account, query 等）")
     sync_status: str = Field(
         default="idle", 
@@ -38,19 +47,42 @@ class ContentNode(BaseModel):
     @property
     def is_synced(self) -> bool:
         """判断是否为同步类型"""
-        return '_' in self.type
+        return self.storage_type == "sync"
 
     @property
     def sync_source(self) -> Optional[str]:
         """获取同步来源（如 github, notion）"""
-        if '_' in self.type:
-            return self.type.split('_')[0]
-        return None
+        return self.source
 
     @property
     def sync_resource(self) -> Optional[str]:
         """获取资源类型（如 repo, page）"""
-        if '_' in self.type:
-            return '_'.join(self.type.split('_')[1:])
-        return None
+        return self.resource_type
 
+    @property
+    def is_folder(self) -> bool:
+        """判断是否为文件夹"""
+        return self.storage_type == "folder"
+
+    @property
+    def is_json(self) -> bool:
+        """判断是否为 JSON 类型"""
+        return self.storage_type == "json"
+
+    @property
+    def is_file(self) -> bool:
+        """判断是否为文件类型"""
+        return self.storage_type == "file"
+
+    @property
+    def is_indexable(self) -> bool:
+        """判断是否可索引（用于搜索）"""
+        # JSON 和 Markdown 文件可索引
+        if self.storage_type == "json":
+            return True
+        if self.storage_type == "file" and self.mime_type == "text/markdown":
+            return True
+        # 同步的 Markdown 也可索引
+        if self.storage_type == "sync" and self.mime_type == "text/markdown":
+            return True
+        return False

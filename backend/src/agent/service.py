@@ -574,7 +574,7 @@ class AgentService:
                         session_id=request.session_id,
                     )
                     
-                    # 记录路径映射（用于回写）
+                    # 记录路径映射（用于回写和显示）
                     if data.files:
                         # 对于 JSON 和单文件，记录主文件路径
                         main_path = data.files[0].path
@@ -583,6 +583,15 @@ class AgentService:
                             "node_type": data.node_type,
                             "json_path": tool["json_path"],
                             "readonly": tool["readonly"],
+                        }
+                    else:
+                        # 空文件夹也记录，使用文件夹名作为路径
+                        node_path_map[tool["node_id"]] = {
+                            "path": f"/workspace/{data.root_node_name}" if data.root_node_name else "/workspace/(empty folder)",
+                            "node_type": data.node_type,
+                            "json_path": tool["json_path"],
+                            "readonly": tool["readonly"],
+                            "is_empty": True,
                         }
                     
                     # 第一个 access 决定主类型
@@ -672,10 +681,11 @@ class AgentService:
                 lines = []
                 for tool in bash_tools:
                     path_info = node_path_map.get(tool["node_id"], {})
-                    path = path_info.get("path", "/workspace/unknown")
-                    node_name = path.split("/")[-1] if path else "unknown"
+                    path = path_info.get("path", "/workspace/(unknown)")
                     mode = "👁️ View Only" if tool["readonly"] else "✏️ Editable"
-                    lines.append(f"  - {path} ({mode})")
+                    is_empty = path_info.get("is_empty", False)
+                    suffix = " 📁 (empty folder)" if is_empty else ""
+                    lines.append(f"  - {path} ({mode}){suffix}")
                 return "\n".join(lines) if lines else "  - /workspace/ (unknown)"
             
             if node_type == "json" and len(bash_tools) == 1:
@@ -1119,16 +1129,35 @@ async def prepare_sandbox_data(
         children = node_service.list_descendants(node.project_id, node_id)
         logger.info(f"[prepare_sandbox_data] Folder node, children count={len(children)}")
         
+        # 构建 id -> node 映射，用于计算名称路径
+        # 包含根节点和所有子孙节点
+        id_to_node: dict[str, Any] = {node.id: node}
         for child in children:
-            if child.type == "folder":
+            id_to_node[child.id] = child
+        
+        def build_name_path(target_node) -> str:
+            """根据 parent_id 链构建名称路径（从根文件夹下一级开始）"""
+            path_parts = []
+            current = target_node
+            while current and current.id != node.id:
+                path_parts.append(current.name)
+                if current.parent_id and current.parent_id in id_to_node:
+                    current = id_to_node[current.parent_id]
+                else:
+                    break
+            path_parts.reverse()
+            return "/".join(path_parts)
+        
+        for child in children:
+            if child.storage_type == "folder":
                 continue  # 跳过子文件夹本身，只处理文件
             
-            # 计算相对路径
-            relative_path = child.id_path.replace(node.id_path, "").lstrip("/")
+            # 使用文件名构建相对路径（而非 UUID）
+            relative_path = build_name_path(child)
             if not relative_path:
                 relative_path = child.name
             
-            if child.type == "json":
+            if child.storage_type == "json":
                 # JSON 子节点：导出为 .json 文件
                 files.append(SandboxFile(
                     path=f"/workspace/{relative_path}.json",

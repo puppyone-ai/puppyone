@@ -22,6 +22,11 @@ class ContentNodeRepository:
             project_id=row["project_id"],
             parent_id=row.get("parent_id"),
             name=row["name"],
+            # 新类型系统
+            storage_type=row["storage_type"],
+            source=row.get("source"),
+            resource_type=row.get("resource_type"),
+            # 旧字段（兼容）
             type=row["type"],
             id_path=row["id_path"],
             content=row.get("content"),
@@ -113,20 +118,21 @@ class ContentNodeRepository:
         else:
             query = query.eq("parent_id", parent_id)
         
-        response = query.order("type").order("name").execute()
+        # 按 storage_type 和 name 排序（folder 排在前面）
+        response = query.order("storage_type").order("name").execute()
         return [self._row_to_model(row) for row in response.data]
 
-    def list_by_user(self, user_id: str, node_type: Optional[str] = None) -> List[ContentNode]:
+    def list_by_user(self, user_id: str, storage_type: Optional[str] = None) -> List[ContentNode]:
         """列出用户的所有节点"""
         query = (
             self.client.table(self.TABLE_NAME)
             .select("*")
             .eq("user_id", user_id)
         )
-        if node_type:
-            query = query.eq("type", node_type)
+        if storage_type:
+            query = query.eq("storage_type", storage_type)
         
-        response = query.order("path").execute()
+        response = query.order("id_path").execute()
         return [self._row_to_model(row) for row in response.data]
 
     def create(
@@ -134,9 +140,12 @@ class ContentNodeRepository:
         user_id: str,
         project_id: str,
         name: str,
-        node_type: str,
+        storage_type: str,
         id_path: str,
+        node_type: str,  # 旧字段，兼容期保留
         parent_id: Optional[str] = None,
+        source: Optional[str] = None,
+        resource_type: Optional[str] = None,
         content: Optional[dict] = None,
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
@@ -153,6 +162,11 @@ class ContentNodeRepository:
             "project_id": project_id,
             "parent_id": parent_id,
             "name": name,
+            # 新类型系统
+            "storage_type": storage_type,
+            "source": source,
+            "resource_type": resource_type,
+            # 旧字段（兼容）
             "type": node_type,
             "id_path": id_path,
             "content": content,
@@ -265,15 +279,18 @@ class ContentNodeRepository:
     def update_with_type(
         self,
         node_id: str,
-        type: Optional[str] = None,
+        storage_type: Optional[str] = None,
+        type: Optional[str] = None,  # 旧字段
         name: Optional[str] = None,
         content: Optional[dict] = None,
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
         size_bytes: Optional[int] = None,
     ) -> Optional[ContentNode]:
-        """更新节点（包括类型变更，用于 ETL 完成后将 pending 转为 markdown）"""
+        """更新节点（包括类型变更，用于 ETL 完成后将 pending 转为 file）"""
         data = {}
+        if storage_type is not None:
+            data["storage_type"] = storage_type
         if type is not None:
             data["type"] = type
         if name is not None:
@@ -364,4 +381,3 @@ class ContentNodeRepository:
         
         response = query.execute()
         return [row["name"] for row in response.data]
-

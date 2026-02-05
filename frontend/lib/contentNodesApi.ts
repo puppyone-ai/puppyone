@@ -9,23 +9,39 @@ import { apiRequest } from './apiClient';
 
 // === Types ===
 
-// 基础节点类型
-export type BaseNodeType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'pending';
+// 存储类型（新类型系统）
+export type StorageType = 'folder' | 'json' | 'file' | 'sync';
 
-// 同步节点类型（{source}_{resource} 格式）
-export type SyncNodeType = 
-  | 'github_repo' | 'github_issue' | 'github_pr' | 'github_file'
-  | 'notion_database' | 'notion_page'
-  | 'airtable_table'
-  | 'linear_project' | 'linear_issue'
-  | 'sheets_table'
+// 同步来源（仅 sync 类型有值）
+export type SyncSource = 
+  | 'github' 
+  | 'notion' 
+  | 'gmail' 
+  | 'google_sheets' 
+  | 'google_calendar' 
+  | 'google_docs' 
+  | 'google_drive' 
+  | 'airtable' 
+  | 'linear' 
+  | 'slack'
   | string; // 允许未来扩展
 
-// 所有节点类型
-export type NodeType = BaseNodeType | SyncNodeType;
+// 资源类型（仅 sync 类型有值）
+export type ResourceType = 
+  | 'repo' | 'issue' | 'file'  // GitHub
+  | 'database' | 'page'         // Notion
+  | 'inbox'                     // Gmail
+  | 'sync'                      // Google services
+  | 'base' | 'table'            // Airtable
+  | 'project'                   // Linear
+  | string;
 
-// 同步来源
-export type SyncSource = 'github' | 'notion' | 'airtable' | 'linear' | 'sheets' | 'gmail' | 'google' | string;
+// 旧节点类型（兼容）
+export type LegacyNodeType = 
+  | 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'pending'
+  | 'github_repo' | 'github_issue' | 'notion_database' | 'notion_page'
+  | 'gmail_inbox' | 'google_sheets_sync' | 'google_calendar_sync'
+  | string;
 
 // 同步状态
 export type SyncStatus = 'not_connected' | 'idle' | 'syncing' | 'error';
@@ -33,16 +49,25 @@ export type SyncStatus = 'not_connected' | 'idle' | 'syncing' | 'error';
 export interface NodeInfo {
   id: string;
   name: string;
-  type: NodeType;
   project_id: string;
   id_path: string;
   parent_id: string | null;
+  
+  // 新类型系统
+  storage_type: StorageType;
+  source: SyncSource | null;       // 仅 sync 类型
+  resource_type: ResourceType | null;  // 仅 sync 类型
+  
+  // 旧字段（兼容）
+  type: LegacyNodeType;
+  
   mime_type: string | null;
   size_bytes: number;
+  
   // 同步相关字段
   sync_url: string | null;
   sync_id: string | null;
-  sync_status: SyncStatus;  // 新增：同步状态
+  sync_status: SyncStatus;
   sync_config: {
     mode?: 'manual' | 'auto';
     interval?: string;
@@ -51,8 +76,11 @@ export interface NodeInfo {
     [key: string]: any;
   } | null;
   last_synced_at: string | null;
+  
+  // 计算属性
   is_synced: boolean;
-  sync_source: SyncSource | null;
+  sync_source: SyncSource | null;  // 等同于 source
+  
   created_at: string;
   updated_at: string;
 }
@@ -82,6 +110,52 @@ export interface UploadUrlResponse {
 export interface DownloadUrlResponse {
   download_url: string;
   expires_in: number;
+}
+
+// === Helper Functions ===
+
+/**
+ * 判断节点是否为文件夹
+ */
+export function isFolder(node: NodeInfo): boolean {
+  return node.storage_type === 'folder';
+}
+
+/**
+ * 判断节点是否为 JSON 类型
+ */
+export function isJson(node: NodeInfo): boolean {
+  return node.storage_type === 'json';
+}
+
+/**
+ * 判断节点是否为文件类型
+ */
+export function isFile(node: NodeInfo): boolean {
+  return node.storage_type === 'file';
+}
+
+/**
+ * 判断节点是否为同步类型
+ */
+export function isSynced(node: NodeInfo): boolean {
+  return node.storage_type === 'sync';
+}
+
+/**
+ * 判断节点是否为 Markdown（本地或同步）
+ */
+export function isMarkdown(node: NodeInfo): boolean {
+  return node.mime_type === 'text/markdown';
+}
+
+/**
+ * 判断节点是否可索引（用于搜索）
+ */
+export function isIndexable(node: NodeInfo): boolean {
+  if (node.storage_type === 'json') return true;
+  if (node.mime_type === 'text/markdown') return true;
+  return false;
 }
 
 // === API Functions ===
@@ -276,16 +350,16 @@ export async function getDownloadUrl(
 export interface BulkCreateNodeItem {
   temp_id: string;
   name: string;
-  type: 'folder' | 'json' | 'markdown' | 'pending';
+  type: 'folder' | 'json' | 'file';  // 现在使用 storage_type
   parent_temp_id: string | null;
-  content?: any;
+  content?: any;  // file 类型时为 markdown 字符串，json 类型时为 dict
 }
 
 export interface BulkCreateResultItem {
   temp_id: string;
   node_id: string;
   name: string;
-  type: string;
+  type: StorageType;
 }
 
 export interface BulkCreateResponse {
@@ -297,7 +371,7 @@ export interface BulkCreateResponse {
  * 批量创建节点（用于文件夹上传）
  * 
  * @param projectId 项目 ID
- * @param nodes 节点列表，每个包含 temp_id, name, type, parent_temp_id, content
+ * @param nodes 节点列表，每个包含 temp_id, name, type(storage_type), parent_temp_id, content
  * @param parentId 整体挂载到哪个父节点下，null 表示项目根目录
  */
 export async function bulkCreateNodes(

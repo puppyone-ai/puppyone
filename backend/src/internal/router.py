@@ -414,7 +414,7 @@ async def get_agent_by_mcp_key(
     
     返回结构：
     {
-        "agent": { id, name, user_id, type },
+        "agent": { id, name, project_id, type },
         "accesses": [
             {
                 "node_id": "xxx",

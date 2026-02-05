@@ -8,8 +8,8 @@ import os
 import pytest
 from datetime import datetime, UTC
 
-from src.etl.rules.repository_supabase import RuleRepositorySupabase
-from src.etl.rules.schemas import RuleCreateRequest, RuleUpdateRequest
+from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
+from src.ingest.file.rules.schemas import RuleCreateRequest, RuleUpdateRequest
 from src.supabase.exceptions import SupabaseException
 from src.supabase.dependencies import get_supabase_client
 
