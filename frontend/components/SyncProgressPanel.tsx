@@ -135,7 +135,7 @@ export function SyncProgressPanel({
       </div>
 
       {/* Stats */}
-      {status.items_count !== null && status.items_count > 0 && (
+      {status.items_count != null && status.items_count > 0 && (
         <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#71717A' }}>
           <span>
             {status.items_count} items

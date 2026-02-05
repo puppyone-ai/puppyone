@@ -188,10 +188,7 @@ export default function Step2Page() {
           newState = 'completed';
         } else if (task.status === 'failed' || task.status === 'cancelled') {
           newState = 'failed';
-        } else if (
-          task.status === 'mineru_parsing' ||
-          task.status === 'llm_processing'
-        ) {
+        } else if (task.status === 'processing') {
           newState = 'parsing';
         } else {
           newState = 'pending';
