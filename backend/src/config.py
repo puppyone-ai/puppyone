@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     ANTHROPIC_BASE_URL: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-4-5-20250929"
 
+    # 沙盒配置
+    # - "e2b": 使用 E2B 云沙盒（需要 E2B_API_KEY）
+    # - "docker": 使用本地 Docker 容器沙盒
+    # - "auto": 自动选择（有 E2B_API_KEY 用 E2B，否则用 Docker）
+    SANDBOX_TYPE: Literal["e2b", "docker", "auto"] = "auto"
+    # 沙盒文件下载并发数
+    SANDBOX_DOWNLOAD_CONCURRENCY: int = 10
+    # 大文件流式处理阈值（字节），超过此大小使用流式传输
+    SANDBOX_LARGE_FILE_THRESHOLD: int = 50 * 1024 * 1024  # 50MB
+
     # 测试配置
     SKIP_AUTH: bool = False  # 是否跳过鉴权（仅用于测试环境）
 
