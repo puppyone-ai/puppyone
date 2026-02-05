@@ -89,6 +89,16 @@ export const GoogleCalendarIcon = ({ size = 12 }: { size?: number }) => (
   />
 );
 
+export const GoogleDocsIcon = ({ size = 12 }: { size?: number }) => (
+  <img 
+    src="/icons/google_doc.svg" 
+    alt="Google Docs" 
+    width={size} 
+    height={size} 
+    style={{ display: 'block' }}
+  />
+);
+
 export const LockIcon = ({ size = 12 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -378,18 +388,48 @@ export function getSyncResource(type: string): string | null {
 
 /**
  * 获取同步来源的 Logo 图标
+ * 支持数据库中的实际 source 值
  */
 export function getSyncSourceIcon(source: string | null): React.ComponentType<{ size?: number }> | null {
   if (!source) return null;
   
   switch (source) {
+    // GitHub
     case 'github': return GithubIcon;
+    
+    // Notion
     case 'notion': return NotionIcon;
-    case 'airtable': return AirtableIcon;
-    case 'linear': return LinearIcon;
+    
+    // Airtable
+    case 'airtable':
+    case 'airtable_base': return AirtableIcon;
+    
+    // Linear
+    case 'linear':
+    case 'linear_issue':
+    case 'linear_issues':
+    case 'linear_project': return LinearIcon;
+    
+    // Google Sheets
+    case 'google_sheets':
     case 'sheets': return SheetsIcon;
+    
+    // Gmail
     case 'gmail': return GmailIcon;
-    case 'google': return GoogleDriveIcon;  // google_drive, google_calendar, google_sheets
+    
+    // Google Drive
+    case 'google_drive':
+    case 'google':
+    case 'drive': return GoogleDriveIcon;
+    
+    // Google Calendar
+    case 'google_calendar':
+    case 'calendar': return GoogleCalendarIcon;
+    
+    // Google Docs
+    case 'google_docs':
+    case 'docs': return GoogleDocsIcon;
+    
     default: return null;
   }
 }
