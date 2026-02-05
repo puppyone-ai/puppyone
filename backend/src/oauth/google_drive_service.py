@@ -44,7 +44,7 @@ class GoogleDriveOAuthService:
             "scope": " ".join(self.DEFAULT_SCOPES),
             "state": state,
             "access_type": "offline",
-            "prompt": "consent",
+            "prompt": "consent select_account",  # Force consent + account selector
         }
 
         query_string = "&".join([f"{k}={v}" for k, v in params.items()])

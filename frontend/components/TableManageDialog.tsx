@@ -175,10 +175,13 @@ export function TableManageDialog({
 
       setOauthChecking(true);
       try {
-        const { getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus, getGoogleSheetsStatus, getGoogleDocsStatus } = await import('@/lib/oauthApi');
+        const { getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus, getGoogleSheetsStatus, getGoogleDocsStatus, getGithubStatus } = await import('@/lib/oauthApi');
         let status: { connected: boolean; email?: string } = { connected: false };
         
-        if (selectedSaas === 'gmail') {
+        if (selectedSaas === 'github') {
+          const githubStatus = await getGithubStatus();
+          status = { connected: githubStatus.connected, email: githubStatus.username };
+        } else if (selectedSaas === 'gmail') {
           status = await getGmailStatus();
         } else if (selectedSaas === 'drive') {
           status = await getGoogleDriveStatus();
@@ -233,13 +236,16 @@ export function TableManageDialog({
     { 
       id: 'github', 
       name: 'GitHub', 
-      type: 'url',
+      type: 'oauth',
+      description: 'Import repositories, issues, or PRs from GitHub',
       placeholder: 'https://github.com/owner/repo or https://github.com/owner/repo/issues',
       icon: (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
         </svg>
-      )
+      ),
+      // GitHub uses URL input after OAuth connection
+      configFields: []
     },
     { 
       id: 'gmail', 
@@ -1209,11 +1215,14 @@ export function TableManageDialog({
                                   onClick={async () => {
                                     try {
                                       setConnectLoading(true);
-                                      const { openOAuthPopup, getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus } = await import('@/lib/oauthApi');
-                                      await openOAuthPopup(selectedSaas as 'gmail' | 'drive' | 'calendar');
+                                      const { openOAuthPopup, getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus, getGithubStatus } = await import('@/lib/oauthApi');
+                                      await openOAuthPopup(selectedSaas as SaasType);
                                       // Re-check status after OAuth
                                       let status: { connected: boolean; email?: string } = { connected: false };
-                                      if (selectedSaas === 'gmail') status = await getGmailStatus();
+                                      if (selectedSaas === 'github') {
+                                        const githubStatus = await getGithubStatus();
+                                        status = { connected: githubStatus.connected, email: githubStatus.username };
+                                      } else if (selectedSaas === 'gmail') status = await getGmailStatus();
                                       else if (selectedSaas === 'drive') status = await getGoogleDriveStatus();
                                       else if (selectedSaas === 'calendar') status = await getGoogleCalendarStatus();
                                       setOauthConnected(status);
@@ -1282,10 +1291,13 @@ export function TableManageDialog({
                                     onClick={async () => {
                                       try {
                                         setConnectLoading(true);
-                                        const { openOAuthPopup, getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus } = await import('@/lib/oauthApi');
-                                        await openOAuthPopup(selectedSaas as 'gmail' | 'drive' | 'calendar');
+                                        const { openOAuthPopup, getGmailStatus, getGoogleDriveStatus, getGoogleCalendarStatus, getGithubStatus } = await import('@/lib/oauthApi');
+                                        await openOAuthPopup(selectedSaas as SaasType);
                                         let status: { connected: boolean; email?: string } = { connected: false };
-                                        if (selectedSaas === 'gmail') status = await getGmailStatus();
+                                        if (selectedSaas === 'github') {
+                                          const githubStatus = await getGithubStatus();
+                                          status = { connected: githubStatus.connected, email: githubStatus.username };
+                                        } else if (selectedSaas === 'gmail') status = await getGmailStatus();
                                         else if (selectedSaas === 'drive') status = await getGoogleDriveStatus();
                                         else if (selectedSaas === 'calendar') status = await getGoogleCalendarStatus();
                                         setOauthConnected(status);
@@ -1308,8 +1320,29 @@ export function TableManageDialog({
                                   </button>
                                 </div>
 
+                                {/* GitHub: 显示 URL 输入框 */}
+                                {selectedSaas === 'github' && (
+                                  <div>
+                                    <label style={{ fontSize: 13, color: '#A1A1AA', marginBottom: 6, display: 'block' }}>
+                                      GitHub URL
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder={selectedSaasConfig.placeholder || 'https://github.com/owner/repo'}
+                                      value={connectUrlInput}
+                                      onChange={e => setConnectUrlInput(e.target.value)}
+                                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleSaasImport(); } }}
+                                      style={{ ...inputStyle, width: '100%' }}
+                                      autoFocus
+                                    />
+                                    <div style={{ fontSize: 11, color: '#71717A', marginTop: 6 }}>
+                                      Supports: repos, issues, PRs
+                                    </div>
+                                  </div>
+                                )}
+
                                 {/* 配置选项 (简化显示) */}
-                                {selectedSaasConfig.configFields && (
+                                {selectedSaasConfig.configFields && selectedSaasConfig.configFields.length > 0 && (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                     {selectedSaasConfig.configFields.map(field => (
                                       <div key={field.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1371,6 +1404,12 @@ export function TableManageDialog({
                                       }
                                     });
                                     
+                                    // 对于 GitHub，验证 URL 是否已输入
+                                    if (selectedSaas === 'github' && !connectUrlInput.trim()) {
+                                      setConnectError('Please enter a GitHub URL');
+                                      return;
+                                    }
+                                    
                                     // 对于 sheets 和 docs，验证 URL 是否已输入
                                     if ((selectedSaas === 'sheets' || selectedSaas === 'docs') && !syncConfig.url) {
                                       setConnectError('Please enter a URL');
@@ -1384,9 +1423,11 @@ export function TableManageDialog({
                                       // 提交任务到统一的 import API
                                       const { submitImport } = await import('@/lib/importApi');
                                       
-                                      // 对于 sheets 和 docs，使用用户输入的 URL；其他 OAuth 类型使用特殊前缀
+                                      // 根据 SaaS 类型确定 URL
                                       let importUrl = `oauth://${selectedSaas}`;
-                                      if ((selectedSaas === 'sheets' || selectedSaas === 'docs') && syncConfig.url) {
+                                      if (selectedSaas === 'github' && connectUrlInput.trim()) {
+                                        importUrl = connectUrlInput.trim();
+                                      } else if ((selectedSaas === 'sheets' || selectedSaas === 'docs') && syncConfig.url) {
                                         importUrl = syncConfig.url as string;
                                         delete syncConfig.url; // 从 sync_config 中移除，避免重复
                                       }
@@ -1400,6 +1441,7 @@ export function TableManageDialog({
                                       
                                       // Map SAAS option ids to TaskType
                                       const taskTypeMap: Record<string, TaskType> = {
+                                        'github': 'github',
                                         'gmail': 'gmail',
                                         'drive': 'drive',
                                         'calendar': 'calendar',
