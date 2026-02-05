@@ -17,10 +17,17 @@ class ContentNodeService:
 
     # === 查询操作 ===
 
-    def get_by_id(self, node_id: str, user_id: str) -> ContentNode:
-        """获取节点（带权限检查）"""
+    def get_by_id(self, node_id: str, project_id: str) -> ContentNode:
+        """获取节点（带权限检查，基于 project_id）"""
         node = self.repo.get_by_id(node_id)
-        if not node or node.user_id != user_id:
+        if not node or node.project_id != project_id:
+            raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)
+        return node
+
+    def get_by_id_unsafe(self, node_id: str) -> ContentNode:
+        """获取节点（不检查权限，仅限内部使用）"""
+        node = self.repo.get_by_id(node_id)
+        if not node:
             raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)
         return node
 
@@ -32,19 +39,19 @@ class ContentNodeService:
         return node
 
     def list_children(
-        self, user_id: str, project_id: str, parent_id: Optional[str] = None
+        self, project_id: str, parent_id: Optional[str] = None
     ) -> List[ContentNode]:
-        """列出子节点"""
+        """列出子节点（仅按 project_id 过滤）"""
         if parent_id:
-            # 验证父节点存在且属于用户
+            # 验证父节点存在且属于该项目
             parent = self.repo.get_by_id(parent_id)
-            if not parent or parent.user_id != user_id:
+            if not parent or parent.project_id != project_id:
                 raise NotFoundException(f"Parent not found: {parent_id}", code=ErrorCode.NOT_FOUND)
-        return self.repo.list_children(user_id, project_id, parent_id)
+        return self.repo.list_children(project_id, parent_id)
 
-    def list_root_nodes(self, user_id: str, project_id: str) -> List[ContentNode]:
+    def list_root_nodes(self, project_id: str) -> List[ContentNode]:
         """列出项目根节点"""
-        return self.repo.list_children(user_id, project_id, None)
+        return self.repo.list_children(project_id, None)
 
     def list_descendants(self, project_id: str, node_id: str) -> List[ContentNode]:
         """列出某节点的所有子孙（用于导出到沙盒）"""
@@ -69,11 +76,11 @@ class ContentNodeService:
 
     # === 创建操作 ===
 
-    def _build_id_path(self, user_id: str, parent_id: Optional[str], new_node_id: str) -> str:
+    def _build_id_path(self, project_id: str, parent_id: Optional[str], new_node_id: str) -> str:
         """构建节点的 id_path"""
         if parent_id:
             parent = self.repo.get_by_id(parent_id)
-            if not parent or parent.user_id != user_id:
+            if not parent or parent.project_id != project_id:
                 raise NotFoundException(f"Parent not found: {parent_id}", code=ErrorCode.NOT_FOUND)
             return f"{parent.id_path}/{new_node_id}"
         return f"/{new_node_id}"
@@ -105,57 +112,56 @@ class ContentNodeService:
         return f"{base_name} ({counter})"
 
     def create_folder(
-        self, user_id: str, project_id: str, name: str, parent_id: Optional[str] = None
+        self, project_id: str, name: str, parent_id: Optional[str] = None, created_by: Optional[str] = None
     ) -> ContentNode:
         """创建文件夹"""
         import uuid
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(user_id, parent_id, new_id)
+        id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
         return self.repo.create(
-            user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            storage_type="folder",
-            node_type="folder",  # 旧字段兼容
+            node_type="folder",
             id_path=id_path,
             parent_id=parent_id,
+            created_by=created_by,
         )
 
     def create_json_node(
         self, 
-        user_id: str,
         project_id: str,
         name: str, 
         content: Any,
         parent_id: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> ContentNode:
         """创建 JSON 节点"""
         import uuid
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(user_id, parent_id, new_id)
+        id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
         return self.repo.create(
-            user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            storage_type="json",
-            node_type="json",  # 旧字段兼容
+            node_type="json",
             id_path=id_path,
             parent_id=parent_id,
-            content=content,
+            created_by=created_by,
+            json_content=content,
+            preview_type="json",
             mime_type="application/json",
         )
 
     def create_placeholder_node(
         self,
-        user_id: str,
         project_id: str,
         name: str,
         placeholder_type: str,
         parent_id: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> ContentNode:
         """
         创建占位符节点（未连接状态）
@@ -165,34 +171,25 @@ class ContentNodeService:
         
         Args:
             placeholder_type: 平台类型
+        
+        注意：占位符节点的 sync_oauth_user_id 为 None，授权后才会填充。
         """
         import uuid
         
-        # source 和 resource_type 映射
+        # source 映射
         SOURCE_MAP = {
-            'gmail': ('gmail', 'inbox'),
-            'sheets': ('google_sheets', 'sync'),
-            'calendar': ('google_calendar', 'sync'),
-            'docs': ('google_docs', 'sync'),
-            'notion': ('notion', 'database'),
-            'github': ('github', 'repo'),
+            'gmail': 'gmail',
+            'sheets': 'google_sheets',
+            'calendar': 'google_calendar',
+            'docs': 'google_docs',
+            'notion': 'notion',
+            'github': 'github',
         }
         
-        # 旧 type 映射（兼容）
-        OLD_TYPE_MAP = {
-            'gmail': 'gmail_inbox',
-            'sheets': 'google_sheets_sync',
-            'calendar': 'google_calendar_sync',
-            'docs': 'google_docs_sync',
-            'notion': 'notion_database',
-            'github': 'github_repo',
-        }
-        
-        source, resource_type = SOURCE_MAP.get(placeholder_type, (placeholder_type, 'placeholder'))
-        old_type = OLD_TYPE_MAP.get(placeholder_type, f'{placeholder_type}_placeholder')
+        source = SOURCE_MAP.get(placeholder_type, placeholder_type)
         
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(user_id, parent_id, new_id)
+        id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
         # 占位符的默认内容
@@ -202,17 +199,18 @@ class ContentNodeService:
             "_message": f"Click to connect your {placeholder_type.replace('_', ' ').title()} account",
         }
         
+        # 占位符不设 sync_oauth_user_id，因为还没授权
+        # 数据库约束 chk_sync_oauth_user 只要求 sync_status != 'not_connected' 时必须有
         return self.repo.create(
-            user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            storage_type="sync",
+            node_type="sync",
             source=source,
-            resource_type=resource_type,
-            node_type=old_type,  # 旧字段兼容
             id_path=id_path,
             parent_id=parent_id,
-            content=placeholder_content,
+            created_by=created_by,
+            json_content=placeholder_content,
+            preview_type="json",
             mime_type="application/json",
             sync_status="not_connected",
         )
@@ -220,14 +218,15 @@ class ContentNodeService:
     async def convert_placeholder_to_synced(
         self,
         node_id: str,
-        user_id: str,
+        project_id: str,
+        sync_oauth_user_id: str,  # 授权后必须提供
         content: Any,
         sync_url: str,
         sync_id: str,
         sync_config: Optional[dict] = None,
     ) -> ContentNode:
         """将占位符节点转换为已同步的节点"""
-        node = self.get_by_id(node_id, user_id)
+        node = self.get_by_id(node_id, project_id)
         
         if node.sync_status != "not_connected":
             raise BusinessException(
@@ -235,6 +234,7 @@ class ContentNodeService:
                 code=ErrorCode.BAD_REQUEST
             )
         
+        # 更新同步信息，并设置 sync_oauth_user_id
         return self.repo.update_sync_info(
             node_id=node_id,
             sync_url=sync_url,
@@ -242,47 +242,47 @@ class ContentNodeService:
             sync_status="idle",
             sync_config=sync_config,
             last_synced_at=datetime.utcnow(),
-            content=content,
+            json_content=content,
+            preview_type="json",
+            sync_oauth_user_id=sync_oauth_user_id,
         )
 
     async def create_synced_node(
         self,
-        user_id: str,
         project_id: str,
+        sync_oauth_user_id: str,  # 同步节点必须提供
         name: str,
         source: str,
-        resource_type: str,
         sync_url: str,
         content: Any,
         parent_id: Optional[str] = None,
         sync_id: Optional[str] = None,
         sync_config: Optional[dict] = None,
+        created_by: Optional[str] = None,
     ) -> ContentNode:
         """
         创建同步节点（从 SaaS 平台导入的结构化数据）
         
-        JSON 数据直接存 JSONB（content 字段）。
+        JSON 数据直接存 JSONB（json_content 字段）。
+        sync_oauth_user_id 用于标识使用哪个用户的 OAuth 凭证进行同步。
         """
         import uuid
         
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(user_id, parent_id, new_id)
+        id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 生成旧 type（兼容）
-        old_type = f"{source}_{resource_type}"
-        
         return self.repo.create(
-            user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            storage_type="sync",
+            node_type="sync",
             source=source,
-            resource_type=resource_type,
-            node_type=old_type,
             id_path=id_path,
             parent_id=parent_id,
-            content=content,
+            created_by=created_by,
+            sync_oauth_user_id=sync_oauth_user_id,
+            json_content=content,
+            preview_type="json",
             mime_type="application/json",
             sync_url=sync_url,
             sync_id=sync_id,
@@ -293,8 +293,8 @@ class ContentNodeService:
 
     async def create_github_repo_node(
         self,
-        user_id: str,
         project_id: str,
+        sync_oauth_user_id: str,  # GitHub 同步节点必须提供
         name: str,
         sync_url: str,
         sync_id: str,
@@ -302,25 +302,26 @@ class ContentNodeService:
         metadata: dict,
         parent_id: Optional[str] = None,
         sync_config: Optional[dict] = None,
+        created_by: Optional[str] = None,
     ) -> ContentNode:
         """创建 GitHub repo 节点（单节点模式）"""
         import uuid
         
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(user_id, parent_id, new_id)
+        id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
         return self.repo.create(
-            user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            storage_type="sync",
+            node_type="sync",
             source="github",
-            resource_type="repo",
-            node_type="github_repo",  # 旧字段兼容
             id_path=id_path,
             parent_id=parent_id,
-            content=metadata,
+            created_by=created_by,
+            sync_oauth_user_id=sync_oauth_user_id,
+            json_content=metadata,
+            preview_type="json",
             s3_key=s3_prefix,
             mime_type="application/x-github-repo",
             sync_url=sync_url,
@@ -331,44 +332,43 @@ class ContentNodeService:
 
     def create_pending_node(
         self, 
-        user_id: str,
         project_id: str,
         name: str, 
         parent_id: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> ContentNode:
         """创建待处理节点（ETL 处理前的占位符）"""
         import uuid
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(user_id, parent_id, new_id)
+        id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
         return self.repo.create(
-            user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            storage_type="file",
-            node_type="pending",  # 旧字段兼容
+            node_type="file",  # pending 是 file 类型
             id_path=id_path,
             parent_id=parent_id,
+            created_by=created_by,
             mime_type="application/octet-stream",
         )
 
     async def create_markdown_node(
         self, 
-        user_id: str,
         project_id: str,
         name: str, 
         content: str = "",
         parent_id: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> ContentNode:
-        """创建 Markdown 节点（内容存储到 S3）"""
+        """创建 Markdown 节点（内容存储到 S3，同时保存到 md_content 用于预览）"""
         import uuid
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(user_id, parent_id, new_id)
+        id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 生成 S3 key 并上传内容
-        s3_key = f"users/{user_id}/content/{uuid.uuid4()}.md"
+        # 生成 S3 key 并上传内容（使用 project_id）
+        s3_key = f"projects/{project_id}/content/{uuid.uuid4()}.md"
         content_bytes = content.encode('utf-8')
         await self.s3.upload_file(
             key=s3_key,
@@ -377,13 +377,14 @@ class ContentNodeService:
         )
         
         return self.repo.create(
-            user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            storage_type="file",
-            node_type="markdown",  # 旧字段兼容
+            node_type="markdown",
             id_path=id_path,
             parent_id=parent_id,
+            created_by=created_by,
+            md_content=content,  # 保存到数据库用于预览
+            preview_type="markdown",
             s3_key=s3_key,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
@@ -391,25 +392,25 @@ class ContentNodeService:
 
     async def create_synced_markdown_node(
         self, 
-        user_id: str,
         project_id: str,
+        sync_oauth_user_id: str,  # 同步 Markdown 节点必须提供
         name: str, 
         content: str,
         source: str,
-        resource_type: str,
         sync_url: str,
         sync_id: Optional[str] = None,
         sync_config: Optional[dict] = None,
         parent_id: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> ContentNode:
         """创建同步的 Markdown 节点（如 Notion Page）"""
         import uuid
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(user_id, parent_id, new_id)
+        id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 生成 S3 key 并上传内容
-        s3_key = f"users/{user_id}/content/{uuid.uuid4()}.md"
+        # 生成 S3 key 并上传内容（使用 project_id）
+        s3_key = f"projects/{project_id}/content/{uuid.uuid4()}.md"
         content_bytes = content.encode('utf-8')
         await self.s3.upload_file(
             key=s3_key,
@@ -417,19 +418,17 @@ class ContentNodeService:
             content_type="text/markdown",
         )
         
-        # 生成旧 type（兼容）
-        old_type = f"{source}_{resource_type}"
-        
         return self.repo.create(
-            user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            storage_type="sync",
+            node_type="sync",
             source=source,
-            resource_type=resource_type,
-            node_type=old_type,
             id_path=id_path,
             parent_id=parent_id,
+            created_by=created_by,
+            sync_oauth_user_id=sync_oauth_user_id,
+            md_content=content,  # 保存到数据库用于预览
+            preview_type="markdown",
             s3_key=s3_key,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
@@ -441,15 +440,15 @@ class ContentNodeService:
 
     async def bulk_create_nodes(
         self,
-        user_id: str,
         project_id: str,
         nodes: List[dict],
         root_parent_id: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> List[dict]:
         """
         批量创建节点（用于文件夹上传）
         
-        nodes 中每个节点的 type 字段现在对应 storage_type
+        nodes 中每个节点的 type 字段：folder | json | markdown | file
         """
         import uuid
         
@@ -477,53 +476,53 @@ class ContentNodeService:
                         real_parent_id = temp_to_real.get(parent_temp_id)
                     
                     new_id = str(uuid.uuid4())
-                    id_path = self._build_id_path(user_id, real_parent_id, new_id)
+                    id_path = self._build_id_path(project_id, real_parent_id, new_id)
                     
-                    # node["type"] 现在是 storage_type: folder, json, file
-                    storage_type = node["type"]
+                    # node["type"]: folder | json | markdown | file
+                    node_type = node["type"]
                     content = node.get("content")
                     
-                    # 确定 mime_type 和旧 node_type
+                    # 确定 mime_type, preview_type, json_content, md_content
                     mime_type = None
-                    old_node_type = storage_type  # 默认相同
-                    
-                    if storage_type == "folder":
-                        mime_type = None
-                        old_node_type = "folder"
-                    elif storage_type == "json":
-                        mime_type = "application/json"
-                        old_node_type = "json"
-                    elif storage_type == "file":
-                        # 根据内容判断是 markdown 还是其他文件
-                        if content and isinstance(content, str):
-                            mime_type = "text/markdown"
-                            old_node_type = "markdown"
-                        else:
-                            mime_type = "application/octet-stream"
-                            old_node_type = "pending"
-                    
-                    # 如果是 markdown (file + text/markdown) 且有内容，上传到 S3
+                    preview_type = None
+                    json_content = None
+                    md_content = None
                     s3_key = None
                     size_bytes = 0
-                    if storage_type == "file" and mime_type == "text/markdown" and content:
-                        s3_key = f"users/{user_id}/content/{uuid.uuid4()}.md"
-                        content_bytes = content.encode('utf-8')
-                        size_bytes = len(content_bytes)
-                        await self.s3.upload_file(
-                            key=s3_key,
-                            content=content_bytes,
-                            content_type="text/markdown",
-                        )
+                    
+                    if node_type == "folder":
+                        mime_type = None
+                    elif node_type == "json":
+                        mime_type = "application/json"
+                        preview_type = "json"
+                        json_content = content
+                    elif node_type == "markdown":
+                        mime_type = "text/markdown"
+                        preview_type = "markdown"
+                        md_content = content if isinstance(content, str) else ""
+                        # 上传到 S3（使用 project_id）
+                        if md_content:
+                            s3_key = f"projects/{project_id}/content/{uuid.uuid4()}.md"
+                            content_bytes = md_content.encode('utf-8')
+                            size_bytes = len(content_bytes)
+                            await self.s3.upload_file(
+                                key=s3_key,
+                                content=content_bytes,
+                                content_type="text/markdown",
+                            )
+                    elif node_type == "file":
+                        mime_type = "application/octet-stream"
                     
                     created = self.repo.create(
-                        user_id=user_id,
                         project_id=project_id,
                         name=node["name"],
-                        storage_type=storage_type,
-                        node_type=old_node_type,
+                        node_type=node_type,
                         id_path=id_path,
                         parent_id=real_parent_id,
-                        content=content if storage_type == "json" else None,
+                        created_by=created_by,
+                        json_content=json_content,
+                        md_content=md_content,
+                        preview_type=preview_type,
                         s3_key=s3_key,
                         mime_type=mime_type,
                         size_bytes=size_bytes,
@@ -535,7 +534,7 @@ class ContentNodeService:
                         "temp_id": node["temp_id"],
                         "node_id": created.id,
                         "name": created.name,
-                        "type": created.storage_type,  # 返回 storage_type
+                        "type": created.type,
                     })
                     progress_made = True
                 else:
@@ -553,33 +552,32 @@ class ContentNodeService:
 
     async def prepare_file_upload(
         self,
-        user_id: str,
         project_id: str,
         name: str,
         content_type: str,
         parent_id: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> tuple[ContentNode, str]:
         """准备文件上传（返回节点和预签名 URL）"""
         import uuid
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(user_id, parent_id, new_id)
+        id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 确定旧 node_type（用于兼容）
-        old_node_type = self._get_old_node_type_from_mime(content_type)
+        # 确定节点类型
+        node_type = self._get_node_type_from_mime(content_type)
         
-        # 生成 S3 key
-        s3_key = f"users/{user_id}/content/{uuid.uuid4()}"
+        # 生成 S3 key（使用 project_id）
+        s3_key = f"projects/{project_id}/content/{uuid.uuid4()}"
         
         # 创建节点记录
         node = self.repo.create(
-            user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            storage_type="file",
-            node_type=old_node_type,
+            node_type=node_type,
             id_path=id_path,
             parent_id=parent_id,
+            created_by=created_by,
             s3_key=s3_key,
             mime_type=content_type,
         )
@@ -593,15 +591,9 @@ class ContentNodeService:
         
         return node, upload_url
 
-    def _get_old_node_type_from_mime(self, mime_type: str) -> str:
-        """根据 MIME 类型确定旧 node_type（兼容期使用）"""
-        if mime_type.startswith("image/"):
-            return "image"
-        elif mime_type == "application/pdf":
-            return "pdf"
-        elif mime_type.startswith("video/"):
-            return "video"
-        elif mime_type in ("text/markdown", "text/x-markdown"):
+    def _get_node_type_from_mime(self, mime_type: str) -> str:
+        """根据 MIME 类型确定节点类型"""
+        if mime_type in ("text/markdown", "text/x-markdown"):
             return "markdown"
         else:
             return "file"
@@ -611,42 +603,43 @@ class ContentNodeService:
     async def finalize_pending_node(
         self,
         node_id: str,
-        user_id: str,
+        project_id: str,
         content: str,
         new_name: Optional[str] = None,
     ) -> ContentNode:
         """
         完成 pending 节点的处理（ETL 完成后调用）
         
-        将 pending 节点转换为 markdown 文件
+        将 file 节点转换为 markdown（更新 type, md_content, preview_type）
         """
         import uuid
         
-        node = self.get_by_id(node_id, user_id)
+        node = self.get_by_id(node_id, project_id)
         
-        # 检查是 pending 类型的文件
-        if not (node.storage_type == "file" and node.type in ("pending", "file")):
+        # 检查是 file 类型
+        if node.type != "file":
             raise BusinessException(
-                f"Node is not pending type: {node.type}", 
+                f"Node is not file type: {node.type}", 
                 code=ErrorCode.BAD_REQUEST
             )
         
         content_bytes = content.encode('utf-8')
         
-        # 生成 S3 key 并上传内容
-        s3_key = f"users/{user_id}/content/{uuid.uuid4()}.md"
+        # 生成 S3 key 并上传内容（使用 project_id）
+        s3_key = f"projects/{project_id}/content/{uuid.uuid4()}.md"
         await self.s3.upload_file(
             key=s3_key,
             content=content_bytes,
             content_type="text/markdown",
         )
         
-        # 更新节点
+        # 更新节点：file -> markdown
         updated = self.repo.update_with_type(
             node_id,
-            storage_type="file",  # 保持 file
-            type="markdown",  # 旧字段更新
+            node_type="markdown",
             name=new_name,
+            md_content=content,  # 保存到数据库用于预览
+            preview_type="markdown",
             s3_key=s3_key,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
@@ -656,17 +649,17 @@ class ContentNodeService:
     def update_node(
         self,
         node_id: str,
-        user_id: str,
+        project_id: str,
         name: Optional[str] = None,
-        content: Optional[Any] = None,
+        json_content: Optional[Any] = None,
     ) -> ContentNode:
         """更新节点（重命名只改 name，id_path 不变）"""
-        node = self.get_by_id(node_id, user_id)
+        node = self.get_by_id(node_id, project_id)
         
         updated = self.repo.update(
             node_id=node_id,
             name=name,
-            content=content,
+            json_content=json_content,
         )
         
         return updated
@@ -674,7 +667,7 @@ class ContentNodeService:
     async def update_markdown_content(
         self,
         node_id: str,
-        user_id: str,
+        project_id: str,
         content: str,
     ) -> ContentNode:
         """更新 markdown 节点的内容"""
@@ -682,12 +675,12 @@ class ContentNodeService:
         import logging
         
         logger = logging.getLogger(__name__)
-        node = self.get_by_id(node_id, user_id)
+        node = self.get_by_id(node_id, project_id)
         
         # 检查是 markdown 文件
-        if not (node.storage_type == "file" and node.mime_type == "text/markdown"):
+        if node.type != "markdown":
             raise BusinessException(
-                f"Node is not markdown type: storage_type={node.storage_type}, mime_type={node.mime_type}", 
+                f"Node is not markdown type: type={node.type}", 
                 code=ErrorCode.BAD_REQUEST
             )
         
@@ -697,7 +690,7 @@ class ContentNodeService:
             if node.s3_key:
                 s3_key = node.s3_key
             else:
-                s3_key = f"users/{user_id}/content/{uuid.uuid4()}.md"
+                s3_key = f"projects/{project_id}/content/{uuid.uuid4()}.md"
             
             await self.s3.upload_file(
                 key=s3_key,
@@ -705,19 +698,22 @@ class ContentNodeService:
                 content_type="text/markdown",
             )
             
+            # 同时更新 S3 和 md_content
             updated = self.repo.update(
                 node_id=node_id,
+                md_content=content,
+                preview_type="markdown",
                 s3_key=s3_key,
                 size_bytes=len(content_bytes),
-                clear_content=True,
             )
             logger.info(f"[ContentNode] Markdown saved to S3: {node_id}")
             
         except Exception as e:
-            logger.warning(f"[ContentNode] S3 upload failed for {node_id}, fallback to DB: {e}")
+            logger.warning(f"[ContentNode] S3 upload failed for {node_id}, fallback to DB only: {e}")
             updated = self.repo.update(
                 node_id=node_id,
-                content=content,
+                md_content=content,
+                preview_type="markdown",
                 size_bytes=len(content_bytes),
             )
             logger.info(f"[ContentNode] Markdown saved to DB: {node_id}")
@@ -727,14 +723,14 @@ class ContentNodeService:
     def move_node(
         self,
         node_id: str,
-        user_id: str,
+        project_id: str,
         new_parent_id: Optional[str],
     ) -> ContentNode:
         """移动节点"""
-        node = self.get_by_id(node_id, user_id)
+        node = self.get_by_id(node_id, project_id)
         old_id_path = node.id_path
         
-        new_id_path = self._build_id_path(user_id, new_parent_id, node_id)
+        new_id_path = self._build_id_path(project_id, new_parent_id, node_id)
         
         updated = self.repo.update(
             node_id=node_id,
@@ -750,9 +746,9 @@ class ContentNodeService:
 
     # === 删除操作 ===
 
-    async def delete_node(self, node_id: str, user_id: str) -> None:
+    async def delete_node(self, node_id: str, project_id: str) -> None:
         """删除节点（递归删除子节点和 S3 文件）"""
-        node = self.get_by_id(node_id, user_id)
+        node = self.get_by_id(node_id, project_id)
         await self._delete_recursive(node_id)
 
     async def _delete_recursive(self, node_id: str) -> None:
@@ -772,9 +768,9 @@ class ContentNodeService:
 
     # === 下载操作 ===
 
-    async def get_download_url(self, node_id: str, user_id: str) -> str:
+    async def get_download_url(self, node_id: str, project_id: str) -> str:
         """获取下载 URL"""
-        node = self.get_by_id(node_id, user_id)
+        node = self.get_by_id(node_id, project_id)
         
         if node.is_json:
             raise BusinessException("JSON nodes do not have download URL", code=ErrorCode.BAD_REQUEST)

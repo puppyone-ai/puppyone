@@ -37,13 +37,13 @@ def _convert_to_project_out(project: Project, nodes=None) -> ProjectOut:
     node_infos = []
     if nodes:
         for node in nodes:
-            # 计算 rows: 如果 content 是 list 则取长度，否则取 dict 的 key 数量
+            # 计算 rows: 如果 json_content 是 list 则取长度，否则取 dict 的 key 数量
             rows = None
-            if node.content is not None:
-                if isinstance(node.content, list):
-                    rows = len(node.content)
-                elif isinstance(node.content, dict):
-                    rows = len(node.content)
+            if node.json_content is not None:
+                if isinstance(node.json_content, list):
+                    rows = len(node.json_content)
+                elif isinstance(node.json_content, dict):
+                    rows = len(node.json_content)
             node_infos.append(
                 NodeInfo(
                     id=node.id,
@@ -80,7 +80,7 @@ def list_projects(
     # 从 content_nodes 获取每个项目的根目录内容
     result = []
     for p in projects:
-        nodes = content_node_service.list_root_nodes(current_user.user_id, str(p.id))
+        nodes = content_node_service.list_root_nodes(str(p.id))
         result.append(_convert_to_project_out(p, nodes))
     return ApiResponse.success(data=result, message="项目列表获取成功")
 
@@ -99,7 +99,7 @@ def get_project(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     # 从 content_nodes 获取项目下的根目录内容
-    nodes = content_node_service.list_root_nodes(current_user.user_id, str(project.id))
+    nodes = content_node_service.list_root_nodes(str(project.id))
     return ApiResponse.success(
         data=_convert_to_project_out(project, nodes), message="项目获取成功"
     )
@@ -152,7 +152,7 @@ def update_project(
     )
 
     # 从 content_nodes 获取项目下的根目录内容
-    nodes = content_node_service.list_root_nodes(current_user.user_id, str(project.id))
+    nodes = content_node_service.list_root_nodes(str(project.id))
     return ApiResponse.success(
         data=_convert_to_project_out(updated_project, nodes), message="项目更新成功"
     )

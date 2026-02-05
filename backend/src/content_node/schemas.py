@@ -32,7 +32,7 @@ class CreateMarkdownNodeRequest(BaseModel):
 class UpdateNodeRequest(BaseModel):
     """更新节点请求"""
     name: Optional[str] = Field(None, description="新名称")
-    content: Optional[Any] = Field(None, description="新内容（仅 JSON 类型）")
+    json_content: Optional[Any] = Field(None, description="新内容（仅 JSON 类型）")
 
 
 class MoveNodeRequest(BaseModel):
@@ -46,9 +46,9 @@ class BulkCreateNodeItem(BaseModel):
     """批量创建中的单个节点"""
     temp_id: str = Field(..., description="临时 ID（用于建立父子关系引用）")
     name: str = Field(..., description="节点名称")
-    type: str = Field(..., description="存储类型: folder | json | file")
+    type: str = Field(..., description="节点类型: folder | json | markdown | file")
     parent_temp_id: Optional[str] = Field(None, description="父节点的临时 ID，None 表示根节点")
-    content: Optional[Any] = Field(None, description="内容（type=json 时为 dict，type=file 时为 markdown 字符串）")
+    content: Optional[Any] = Field(None, description="内容（type=json 时为 dict，type=markdown 时为字符串）")
 
 
 class BulkCreateRequest(BaseModel):
@@ -63,7 +63,7 @@ class BulkCreateResultItem(BaseModel):
     temp_id: str = Field(..., description="原始临时 ID")
     node_id: str = Field(..., description="真实节点 ID")
     name: str = Field(..., description="节点名称")
-    type: str = Field(..., description="存储类型: folder | json | file | sync")
+    type: str = Field(..., description="节点类型: folder | json | markdown | file | sync")
 
 
 class BulkCreateResponse(BaseModel):
@@ -82,26 +82,23 @@ class NodeInfo(BaseModel):
     id_path: str
     parent_id: Optional[str] = None
     
-    # 新类型系统
-    storage_type: str  # folder | json | file | sync
-    source: Optional[str] = None  # 仅 sync 类型: github | notion | gmail | ...
-    resource_type: Optional[str] = None  # 仅 sync 类型: repo | page | database | ...
-    
-    # 旧字段（兼容）
-    type: str
+    # 类型字段
+    type: str  # folder | json | markdown | file | sync
+    source: Optional[str] = None  # 仅 sync 类型: github | notion | gmail | google_calendar | ...
+    preview_type: Optional[str] = None  # json | markdown | NULL
     
     mime_type: Optional[str] = None
     size_bytes: int = 0
     
-    # 同步相关字段
+    # 同步相关字段（仅 type=sync 时有值）
     sync_url: Optional[str] = None
     sync_id: Optional[str] = None
     sync_status: str = "idle"
     last_synced_at: Optional[str] = None
     
     # 计算属性
-    is_synced: bool = False
-    sync_source: Optional[str] = None  # 等同于 source
+    is_synced: bool = False  # type == 'sync'
+    sync_source: Optional[str] = None  # 等同于 source（仅 sync 时有值）
     
     created_at: str
     updated_at: str
@@ -109,7 +106,8 @@ class NodeInfo(BaseModel):
 
 class NodeDetail(NodeInfo):
     """节点详情（包含内容）"""
-    content: Optional[Any] = None
+    json_content: Optional[Any] = None  # type=json 或 sync 时的 JSON 内容
+    md_content: Optional[str] = None  # type=markdown 时的 Markdown 内容
     s3_key: Optional[str] = None
     permissions: dict = Field(default_factory=lambda: {"inherit": True})
 

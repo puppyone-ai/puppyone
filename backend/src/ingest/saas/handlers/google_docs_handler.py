@@ -79,18 +79,14 @@ class GoogleDocsHandler(BaseHandler):
         await on_progress(70, "Creating content node...")
 
         # Create content node
+        # Note: metadata (source, doc_id, etc.) is logged but not stored directly
+        log_info(f"Google Docs import: doc_id={doc_id}, title={title}, user={user_email}")
         node = await self.node_service.create_markdown_node(
             project_id=task.project_id,
-            parent_id=task.parent_node_id,
             name=f"{title}.md",
             content=markdown_content,
-            metadata={
-                "source": "google-docs",
-                "doc_id": doc_id,
-                "original_title": title,
-                "imported_at": datetime.utcnow().isoformat(),
-                "user_email": user_email,
-            },
+            parent_id=task.parent_node_id,
+            created_by=task.user_id,
         )
 
         await on_progress(100, "Import complete!")

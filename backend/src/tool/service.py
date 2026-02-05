@@ -131,8 +131,9 @@ class ToolService:
         skip: int = 0,
         limit: int = 1000,
     ) -> List[Tool]:
-        # 强校验：node 必须属于当前用户
-        self.node_service.get_by_id(node_id, user_id)
+        # 校验节点存在
+        # TODO: 添加 project 成员关系验证
+        self.node_service.get_by_id_unsafe(node_id)
         return self.repo.get_by_user_id(
             user_id, skip=skip, limit=limit, node_id=node_id
         )
@@ -166,10 +167,11 @@ class ToolService:
         script_content: Optional[str] = None,
         project_id: Optional[str] = None,  # 新增：允许直接传入 project_id
     ) -> Tool:
-        # 对于内置工具，强校验：node 必须属于当前用户
+        # 对于内置工具，校验节点存在
         # 同时自动获取 project_id（如果未传入）
+        # TODO: 添加 project 成员关系验证
         if node_id and category == "builtin":
-            node = self.node_service.get_by_id(node_id, user_id)
+            node = self.node_service.get_by_id_unsafe(node_id)
             if not project_id:
                 project_id = node.project_id
 
@@ -207,7 +209,8 @@ class ToolService:
 
         node_id = patch.get("node_id")
         if node_id is not None:
-            self.node_service.get_by_id(node_id, user_id)
+            # TODO: 添加 project 成员关系验证
+            self.node_service.get_by_id_unsafe(node_id)
 
         updated = self.repo.update(
             tool_id,

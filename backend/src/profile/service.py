@@ -276,7 +276,7 @@ Output format: Markdown
         try:
             # Step 1: 创建 Tool_Configs 文件夹
             tool_folder = self._content_node_service.create_folder(
-                user_id=user_id,
+                created_by=user_id,
                 project_id=project_id,
                 name="Tool_Configs",
                 parent_id=None,
@@ -285,16 +285,16 @@ Output format: Markdown
             # Step 2: 创建 Guide Docs (markdown 文件)
             markdown_tasks = [
                 self._content_node_service.create_markdown_node(
-                    user_id=user_id, project_id=project_id, name="01_Welcome.md", content=welcome_content, parent_id=None
+                    created_by=user_id, project_id=project_id, name="01_Welcome.md", content=welcome_content, parent_id=None
                 ),
                 self._content_node_service.create_markdown_node(
-                    user_id=user_id, project_id=project_id, name="02_Connect_Your_Data.md", content=connect_content, parent_id=None
+                    created_by=user_id, project_id=project_id, name="02_Connect_Your_Data.md", content=connect_content, parent_id=None
                 ),
                 self._content_node_service.create_markdown_node(
-                    user_id=user_id, project_id=project_id, name="03_Multi_Agent_Collaboration.md", content=collab_content, parent_id=None
+                    created_by=user_id, project_id=project_id, name="03_Multi_Agent_Collaboration.md", content=collab_content, parent_id=None
                 ),
                 self._content_node_service.create_markdown_node(
-                    user_id=user_id, project_id=project_id, name="04_Agent_Access_&_Tools.md", content=distribute_content, parent_id=None
+                    created_by=user_id, project_id=project_id, name="04_Agent_Access_&_Tools.md", content=distribute_content, parent_id=None
                 ),
             ]
 
@@ -302,7 +302,7 @@ Output format: Markdown
             if tool_folder:
                 markdown_tasks.append(
                     self._content_node_service.create_markdown_node(
-                        user_id=user_id,
+                        created_by=user_id,
                         project_id=project_id,
                         name="Report_Generator_Config.md",
                         content=tool_config_content,
@@ -316,7 +316,7 @@ Output format: Markdown
             # Step 3: 创建占位符节点 (Placeholder Nodes)
             # 这些节点会显示为"未连接"状态，用户点击后可以去配置 OAuth
             self._content_node_service.create_placeholder_node(
-                user_id=user_id,
+                created_by=user_id,
                 project_id=project_id,
                 name="Gmail - Connect Your Inbox",
                 placeholder_type="gmail",
@@ -324,7 +324,7 @@ Output format: Markdown
             )
 
             self._content_node_service.create_placeholder_node(
-                user_id=user_id,
+                created_by=user_id,
                 project_id=project_id,
                 name="Google Sheets - Connect",
                 placeholder_type="sheets",
@@ -333,7 +333,7 @@ Output format: Markdown
 
             # Step 4: 创建 JSON 示例数据
             self._content_node_service.create_json_node(
-                user_id=user_id,
+                created_by=user_id,
                 project_id=project_id,
                 name="Q1_Budget_Data.json",
                 content=json_content,

@@ -204,10 +204,10 @@ class SearchService:
         # 1) 读取 scope 数据（从 content_nodes 获取）
         t1 = time.perf_counter()
         node = await asyncio.to_thread(
-            self._node_service.get_by_id, node_id, user_id
+            self._node_service.get_by_id, node_id, project_id
         )
-        # 从 node.content 获取 JSON 数据，然后提取指定路径的子数据
-        full_data = node.content or {}
+        # 从 node.json_content 获取 JSON 数据，然后提取指定路径的子数据
+        full_data = node.json_content or {}
         scope_data = _extract_by_pointer(full_data, scope_pointer)
         log_info(
             f"[index_scope] step1_get_scope_data: node_id={node_id} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
@@ -584,41 +584,40 @@ class SearchService:
         """
         t0 = time.perf_counter()
 
-        # 1) Read file content based on storage_type
-        is_markdown = (
-            file_node.storage_type == "file" and file_node.mime_type == "text/markdown"
-        ) or (
-            file_node.storage_type == "sync" and file_node.mime_type == "text/markdown"
-        )
+        # 1) Read file content based on type
+        is_markdown = file_node.type == "markdown" or file_node.preview_type == "markdown"
+        is_json = file_node.type == "json" or file_node.preview_type == "json"
         
-        if file_node.storage_type == "json" or file_node.is_json:
-            # JSON content is stored in node.content
-            content_data = file_node.content or {}
+        if is_json:
+            # JSON content is stored in node.json_content
+            content_data = file_node.json_content or {}
             # Use root pointer for JSON files in folder context
             scope_pointer = ""
         elif is_markdown:
-            # Markdown content is stored in S3
-            if not file_node.s3_key:
-                log_info(f"[_index_file_node] skip: no s3_key for markdown node {file_node.id}")
-                return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
-            
-            try:
-                content_bytes = await s3_service.download_file(file_node.s3_key)
-                content_text = content_bytes.decode("utf-8")
-                # For markdown, we treat the whole content as a single large string
-                content_data = content_text
+            # Markdown content: prefer md_content, fallback to S3
+            if file_node.md_content:
+                content_data = file_node.md_content
                 scope_pointer = "/"
-            except Exception as e:
-                log_error(f"[_index_file_node] s3_download_error: {file_node.id} error={e}")
+            elif file_node.s3_key:
+                try:
+                    content_bytes = await s3_service.download_file(file_node.s3_key)
+                    content_text = content_bytes.decode("utf-8")
+                    content_data = content_text
+                    scope_pointer = "/"
+                except Exception as e:
+                    log_error(f"[_index_file_node] s3_download_error: {file_node.id} error={e}")
+                    return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
+            else:
+                log_info(f"[_index_file_node] skip: no content for markdown node {file_node.id}")
                 return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
         else:
             # Unsupported type
-            log_info(f"[_index_file_node] skip: unsupported storage_type={file_node.storage_type} mime_type={file_node.mime_type}")
+            log_info(f"[_index_file_node] skip: unsupported type={file_node.type} preview_type={file_node.preview_type}")
             return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
 
         # 2) Extract large string nodes or use content directly
         t2 = time.perf_counter()
-        if file_node.storage_type == "json" or file_node.is_json:
+        if is_json:
             # For JSON, extract large string nodes
             nodes = await asyncio.to_thread(
                 lambda: list(

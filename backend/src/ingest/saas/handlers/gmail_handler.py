@@ -87,15 +87,16 @@ class GmailHandler(BaseHandler):
                 "emails": [],
             }
             node = await self.node_service.create_synced_node(
-                user_id=task.user_id,
                 project_id=task.project_id,
+                sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
                 name=f"Gmail - {user_email}",
-                sync_type="gmail_inbox",
+                source="gmail",
                 sync_url="oauth://gmail",
                 content=content,
                 parent_id=parent_id,
                 sync_id=user_email,
                 sync_config={"max_results": max_results, "query": query},
+                created_by=task.user_id,
             )
             return ImportResult(content_node_id=node.id, items_count=0)
 
@@ -130,15 +131,16 @@ class GmailHandler(BaseHandler):
 
         # Create single node with all emails in JSONB
         node = await self.node_service.create_synced_node(
-            user_id=task.user_id,
             project_id=task.project_id,
+            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=config.get("name") or f"Gmail - {user_email}",
-            sync_type="gmail_inbox",
+            source="gmail",
             sync_url="oauth://gmail",
             content=content,
             parent_id=parent_id,
             sync_id=user_email,
             sync_config={"max_results": max_results, "query": query},
+            created_by=task.user_id,
         )
 
         await on_progress(100, "Gmail import completed")

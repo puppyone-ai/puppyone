@@ -263,8 +263,8 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
     setLoading(true);
     try {
       const [logsData, agentsData] = await Promise.all([
-        getAgentLogs(),
-        get<Agent[]>('/api/v1/agent-config/'),
+        getAgentLogs(projectId),
+        get<Agent[]>(`/api/v1/agent-config/?project_id=${projectId}`),
       ]);
       setLogs(logsData);
       setAgents(agentsData);
@@ -273,7 +273,7 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

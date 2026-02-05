@@ -125,15 +125,16 @@ class AirtableHandler(BaseHandler):
 
         # Create single JSONB node
         node = await self.node_service.create_synced_node(
-            user_id=task.user_id,
             project_id=task.project_id,
+            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=base_name[:100],
-            sync_type="airtable_base",
+            source="airtable",
             sync_url=source_url,
             content=content,
             parent_id=parent_id,
             sync_id=base_id,
             sync_config={"base_id": base_id},
+            created_by=task.user_id,
         )
 
         await on_progress(100, "Airtable import completed")

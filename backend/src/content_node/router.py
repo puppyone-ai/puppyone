@@ -42,12 +42,10 @@ def _node_to_info(node) -> NodeInfo:
         project_id=node.project_id,
         id_path=node.id_path,
         parent_id=node.parent_id,
-        # 新类型系统
-        storage_type=node.storage_type,
-        source=node.source,
-        resource_type=node.resource_type,
-        # 旧字段（兼容）
+        # 类型字段
         type=node.type,
+        source=node.source,
+        preview_type=node.preview_type,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
         # 同步相关字段
@@ -70,15 +68,14 @@ def _node_to_detail(node) -> NodeDetail:
         project_id=node.project_id,
         id_path=node.id_path,
         parent_id=node.parent_id,
-        # 新类型系统
-        storage_type=node.storage_type,
-        source=node.source,
-        resource_type=node.resource_type,
-        # 旧字段（兼容）
+        # 类型字段
         type=node.type,
+        source=node.source,
+        preview_type=node.preview_type,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
-        content=node.content,
+        json_content=node.json_content,
+        md_content=node.md_content,
         s3_key=node.s3_key,
         permissions=node.permissions,
         # 同步相关字段
@@ -107,7 +104,8 @@ def list_nodes(
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    nodes = service.list_children(current_user.user_id, project_id, parent_id)
+    # TODO: 验证当前用户是否有权限访问该 project
+    nodes = service.list_children(project_id, parent_id)
     return ApiResponse.success(
         data=NodeListResponse(
             nodes=[_node_to_info(n) for n in nodes],
@@ -123,10 +121,12 @@ def list_nodes(
 )
 def get_node(
     node_id: str,
+    project_id: str = Query(..., description="项目 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    node = service.get_by_id(node_id, current_user.user_id)
+    # TODO: 验证当前用户是否有权限访问该 project
+    node = service.get_by_id(node_id, project_id)
     return ApiResponse.success(data=_node_to_detail(node))
 
 
@@ -158,11 +158,12 @@ def create_folder(
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    # TODO: 验证当前用户是否有权限访问该 project
     node = service.create_folder(
-        user_id=current_user.user_id,
         project_id=request.project_id,
         name=request.name,
         parent_id=request.parent_id,
+        created_by=current_user.user_id,
     )
     return ApiResponse.success(data=_node_to_detail(node), message="文件夹创建成功")
 
@@ -178,12 +179,13 @@ def create_json_node(
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    # TODO: 验证当前用户是否有权限访问该 project
     node = service.create_json_node(
-        user_id=current_user.user_id,
         project_id=request.project_id,
         name=request.name,
         content=request.content,
         parent_id=request.parent_id,
+        created_by=current_user.user_id,
     )
     return ApiResponse.success(data=_node_to_detail(node), message="节点创建成功")
 
@@ -199,12 +201,13 @@ async def create_markdown_node(
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    # TODO: 验证当前用户是否有权限访问该 project
     node = await service.create_markdown_node(
-        user_id=current_user.user_id,
         project_id=request.project_id,
         name=request.name,
         content=request.content,
         parent_id=request.parent_id,
+        created_by=current_user.user_id,
     )
     return ApiResponse.success(data=_node_to_detail(node), message="Markdown 节点创建成功")
 
@@ -228,7 +231,7 @@ async def bulk_create_nodes(
     - temp_id: 每个节点的临时标识（前端生成）
     - parent_temp_id: 父节点的临时标识，None 表示挂载到 parent_id 指定的节点下
     
-    type 字段现在表示 storage_type: folder | json | file
+    type 字段: folder | json | markdown | file
     
     示例：上传文件夹 my-docs/
     ```json
@@ -237,7 +240,7 @@ async def bulk_create_nodes(
       "parent_id": null,
       "nodes": [
         {"temp_id": "t1", "name": "my-docs", "type": "folder", "parent_temp_id": null},
-        {"temp_id": "t2", "name": "readme.md", "type": "file", "parent_temp_id": "t1", "content": "# Hello"},
+        {"temp_id": "t2", "name": "readme.md", "type": "markdown", "parent_temp_id": "t1", "content": "# Hello"},
         {"temp_id": "t3", "name": "config.json", "type": "json", "parent_temp_id": "t1", "content": {"key": "value"}}
       ]
     }
@@ -254,11 +257,12 @@ async def bulk_create_nodes(
         for n in request.nodes
     ]
     
+    # TODO: 验证当前用户是否有权限访问该 project
     results = await service.bulk_create_nodes(
-        user_id=current_user.user_id,
         project_id=request.project_id,
         nodes=nodes_data,
         root_parent_id=request.parent_id,
+        created_by=current_user.user_id,
     )
     
     return ApiResponse.success(
@@ -285,12 +289,13 @@ async def prepare_upload(
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    # TODO: 验证当前用户是否有权限访问该 project
     node, upload_url = await service.prepare_file_upload(
-        user_id=current_user.user_id,
         project_id=project_id,
         name=name,
         content_type=content_type,
         parent_id=parent_id,
+        created_by=current_user.user_id,
     )
     return ApiResponse.success(
         data=UploadUrlResponse(
@@ -312,14 +317,16 @@ async def prepare_upload(
 def update_node(
     node_id: str,
     request: UpdateNodeRequest,
+    project_id: str = Query(..., description="项目 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    # TODO: 验证当前用户是否有权限访问该 project
     node = service.update_node(
         node_id=node_id,
-        user_id=current_user.user_id,
+        project_id=project_id,
         name=request.name,
-        content=request.content,
+        json_content=request.json_content,
     )
     return ApiResponse.success(data=_node_to_detail(node), message="节点更新成功")
 
@@ -332,12 +339,14 @@ def update_node(
 def move_node(
     node_id: str,
     request: MoveNodeRequest,
+    project_id: str = Query(..., description="项目 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    # TODO: 验证当前用户是否有权限访问该 project
     node = service.move_node(
         node_id=node_id,
-        user_id=current_user.user_id,
+        project_id=project_id,
         new_parent_id=request.new_parent_id,
     )
     return ApiResponse.success(data=_node_to_detail(node), message="节点移动成功")
@@ -353,10 +362,12 @@ def move_node(
 )
 async def delete_node(
     node_id: str,
+    project_id: str = Query(..., description="项目 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    await service.delete_node(node_id, current_user.user_id)
+    # TODO: 验证当前用户是否有权限访问该 project
+    await service.delete_node(node_id, project_id)
     return ApiResponse.success(message="节点删除成功")
 
 
@@ -370,10 +381,12 @@ async def delete_node(
 )
 async def get_download_url(
     node_id: str,
+    project_id: str = Query(..., description="项目 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    url = await service.get_download_url(node_id, current_user.user_id)
+    # TODO: 验证当前用户是否有权限访问该 project
+    url = await service.get_download_url(node_id, project_id)
     return ApiResponse.success(
         data=DownloadUrlResponse(download_url=url, expires_in=3600)
     )

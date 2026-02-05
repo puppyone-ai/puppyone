@@ -226,14 +226,15 @@ class NotionHandler(BaseHandler):
         
         # Create content node using create_synced_node
         content_node = await self.node_service.create_synced_node(
-            user_id=task.user_id,
             project_id=task.project_id,
+            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=title,
-            sync_type="notion_database",
+            source="notion",
             sync_url=task.source_url,
             content=data_content,
             sync_id=database_id,
             sync_config=sync_config,
+            created_by=task.user_id,
         )
 
         return ImportResult(
@@ -308,14 +309,15 @@ class NotionHandler(BaseHandler):
         
         # Create content node using create_synced_markdown_node
         content_node = await self.node_service.create_synced_markdown_node(
-            user_id=task.user_id,
             project_id=task.project_id,
+            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=title,
             content=markdown_content,
-            sync_type="notion_page",
+            source="notion",
             sync_url=task.source_url,
             sync_id=page_id,
             sync_config=sync_config,
+            created_by=task.user_id,
         )
 
         return ImportResult(
