@@ -12,6 +12,7 @@ import {
   removeAllPlaceholdersForTable,
 } from './BackgroundTaskNotifier';
 import { createTable } from '../lib/projectsApi';
+import { ImportConfigDialog, type ImportConfig } from './ImportConfigDialog';
 
 interface ImportMenuProps {
   projectId?: string;
@@ -207,6 +208,8 @@ export function ImportMenu({
   );
   const [urlInput, setUrlInput] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -298,23 +301,8 @@ export function ImportMenu({
     [onLog]
   );
 
-import { ImportConfigDialog, ImportConfig } from './ImportConfigDialog';
-
-// ... (other imports)
-
-export function ImportMenu({
-  projectId,
-  onProjectsRefresh,
-  onLog,
-  onCloseOtherMenus,
-}: ImportMenuProps) {
-  // ... (existing state)
-  const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
-
-  // ...
-
-  const handleFilesSelected = (files: FileList) => {
+  // Handler for file selection (opens config dialog)
+  const handleFilesSelected = useCallback((files: FileList) => {
     if (!projectId) {
       onLog?.('error', 'No project selected');
       return;
@@ -322,9 +310,73 @@ export function ImportMenu({
     // Store files and open dialog
     setPendingFiles(files);
     setConfigDialogOpen(true);
-  };
+  }, [projectId, onLog]);
 
-  const handleConfigConfirm = async (config: ImportConfig) => {
+  /**
+   * Parse folder structure
+   * - ETL files use null as placeholder
+   * - Text files are read directly
+   */
+  const parseFolderStructure = useCallback(async (
+    files: FileList,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<{ structure: Record<string, any>; etlFiles: File[] }> => {
+    const structure: Record<string, any> = {};
+    const etlFiles: File[] = [];
+    const fileArray = Array.from(files);
+    const totalFiles = fileArray.length;
+    let processedFiles = 0;
+
+    for (const file of fileArray) {
+      const pathParts = file.webkitRelativePath
+        ? file.webkitRelativePath.split('/').filter(Boolean).slice(1)
+        : [file.name];
+
+      if (pathParts.length === 0) {
+        processedFiles++;
+        onProgress?.(processedFiles, totalFiles);
+        continue;
+      }
+
+      let current = structure;
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const folderName = pathParts[i];
+        if (!current[folderName] || typeof current[folderName] !== 'object') {
+          current[folderName] = {};
+        }
+        current = current[folderName];
+      }
+
+      const fileName = pathParts[pathParts.length - 1];
+
+      try {
+        if (needsETL(file)) {
+          current[fileName] = null;
+          etlFiles.push(file);
+          onLog?.('info', `Found ${fileName} for processing...`);
+        } else {
+          const isTextFile = await isTextFileType(file);
+          if (isTextFile) {
+            let content = await file.text();
+            current[fileName] = sanitizeUnicodeContent(content);
+          } else {
+            current[fileName] = null;
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to process file ${fileName}:`, error);
+        current[fileName] = null;
+      }
+
+      processedFiles++;
+      onProgress?.(processedFiles, totalFiles);
+    }
+
+    return { structure, etlFiles };
+  }, [onLog]);
+
+  // Handler for config dialog confirmation
+  const handleConfigConfirm = useCallback(async (config: ImportConfig) => {
     setConfigDialogOpen(false);
     if (!pendingFiles || !projectId) return;
 
@@ -340,14 +392,9 @@ export function ImportMenu({
     try {
       onLog?.('info', 'Preparing files...');
 
-      // 1. Parse folder structure
-      // For RAW mode, we might want to treat everything as ETL files (direct upload), 
-      // but current parse logic splits text vs binary.
-      // To keep it simple, we reuse parse logic but override behavior later.
       const { structure: folderStructure, etlFiles } =
         await parseFolderStructure(files);
 
-      // 2. Create Table
       onLog?.('info', 'Creating table...');
       const newTable = await createTable(
         projectId,
@@ -356,7 +403,6 @@ export function ImportMenu({
       );
       const newTableId = newTable.id;
 
-      // 3. Add placeholders for ETL files
       if (etlFiles.length > 0) {
         const baseTimestamp = Date.now();
         const placeholderTasks = etlFiles.map((file, index) => ({
@@ -370,14 +416,12 @@ export function ImportMenu({
         addPendingTasks(placeholderTasks);
       }
 
-      // 4. Close menu & Refresh
       onLog?.('success', `Table "${finalTableName}" created!`);
       onProjectsRefresh?.();
       setTableName('');
       setIsOpen(false);
       setIsImporting(false);
 
-      // 5. Upload files in background with CONFIG
       if (etlFiles.length > 0 && session?.access_token && newTableId) {
         const filenameMap = new Map<string, string>();
         etlFiles.forEach(f => {
@@ -395,13 +439,12 @@ export function ImportMenu({
                 files: etlFiles,
                 nodeId: String(newTableId),
                 jsonPath: '',
-                mode: config.mode, // Pass the selected mode
+                mode: config.mode,
                 ruleId: config.ruleId,
               },
               session.access_token
             );
 
-            // Handle response (existing logic)
             const realTasks = response.items
               .filter(item => item.status !== 'failed')
               .map(item => ({
@@ -409,8 +452,7 @@ export function ImportMenu({
                 projectId: projectId,
                 tableId: String(newTableId),
                 tableName: finalTableName,
-                filename: filenameMap.get(item.filename) || item.filename,
-                // If raw mode, backend returns COMPLETED immediately
+                filename: filenameMap.get(item.filename!) || item.filename!,
                 status: (item.status === 'completed' ? 'completed' : 'pending') as any,
               }));
 
@@ -428,7 +470,7 @@ export function ImportMenu({
                 `${failedFiles.length} file(s) failed to upload`
               );
               const failedFileNames = failedFiles.map(
-                f => filenameMap.get(f.filename) || f.filename
+                f => filenameMap.get(f.filename!) || f.filename!
               );
               removeFailedPlaceholders(String(newTableId), failedFileNames);
             }
@@ -451,102 +493,7 @@ export function ImportMenu({
       );
       setIsImporting(false);
     }
-  };
-
-  // ... (render logic)
-
-  return (
-    <>
-      <div ref={menuRef} style={{ position: 'relative' }}>
-        {/* ... existing menu button ... */}
-      </div>
-      
-      {/* Configuration Dialog */}
-      <ImportConfigDialog
-        isOpen={configDialogOpen}
-        onClose={() => {
-          setConfigDialogOpen(false);
-          setPendingFiles(null);
-        }}
-        onConfirm={handleConfigConfirm}
-        files={pendingFiles ? Array.from(pendingFiles) : []}
-      />
-    </>
-  );
-}
-
-  /**
-   * 解析文件列表，构建文件夹结构
-   *
-   * 新架构：
-   * - ETL 文件使用 null 作为占位符（而非 { status: 'pending' }）
-   * - ETL 文件会收集起来，统一通过 upload_and_submit 提交
-   * - 文本文件直接读取内容
-   */
-  const parseFolderStructure = async (
-    files: FileList,
-    onProgress?: (current: number, total: number) => void
-  ): Promise<{ structure: Record<string, any>; etlFiles: File[] }> => {
-    const structure: Record<string, any> = {};
-    const etlFiles: File[] = [];
-    const fileArray = Array.from(files);
-    const totalFiles = fileArray.length;
-    let processedFiles = 0;
-
-    for (const file of fileArray) {
-      // 获取路径部分，跳过根文件夹名
-      const pathParts = file.webkitRelativePath
-        ? file.webkitRelativePath.split('/').filter(Boolean).slice(1) // 跳过根文件夹
-        : [file.name]; // 单文件直接用文件名
-
-      if (pathParts.length === 0) {
-        processedFiles++;
-        onProgress?.(processedFiles, totalFiles);
-        continue;
-      }
-
-      // 导航到正确的嵌套位置
-      let current = structure;
-      for (let i = 0; i < pathParts.length - 1; i++) {
-        const folderName = pathParts[i];
-        if (!current[folderName] || typeof current[folderName] !== 'object') {
-          current[folderName] = {};
-        }
-        current = current[folderName];
-      }
-
-      const fileName = pathParts[pathParts.length - 1];
-
-      try {
-        // 检查是否需要 ETL 处理
-        if (needsETL(file)) {
-          // 用 null 作为占位符，保持文件结构
-          // 配合 pending task 列表，在 JSON 编辑器中显示 loading 状态
-          current[fileName] = null;
-          etlFiles.push(file);
-          onLog?.('info', `Found ${fileName} for processing...`);
-        } else {
-          // 文本文件直接存内容
-          const isTextFile = await isTextFileType(file);
-          if (isTextFile) {
-            let content = await file.text();
-            current[fileName] = sanitizeUnicodeContent(content);
-          } else {
-            // 无法读取的二进制文件存 null
-            current[fileName] = null;
-          }
-        }
-      } catch (error) {
-        console.error(`Failed to process file ${fileName}:`, error);
-        current[fileName] = null;
-      }
-
-      processedFiles++;
-      onProgress?.(processedFiles, totalFiles);
-    }
-
-    return { structure, etlFiles };
-  };
+  }, [pendingFiles, projectId, tableName, session?.access_token, parseFolderStructure, onLog, onProjectsRefresh]);
 
   return (
     <div ref={menuRef} style={{ position: 'relative' }}>
@@ -877,6 +824,17 @@ export function ImportMenu({
           }}
         />
       )}
+
+      {/* Configuration Dialog */}
+      <ImportConfigDialog
+        isOpen={configDialogOpen}
+        onClose={() => {
+          setConfigDialogOpen(false);
+          setPendingFiles(null);
+        }}
+        onConfirm={handleConfigConfirm}
+        files={pendingFiles ? Array.from(pendingFiles) : []}
+      />
     </div>
   );
 }

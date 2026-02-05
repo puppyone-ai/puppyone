@@ -295,7 +295,7 @@ export function ImportModal({
         onSuccess({
           content_node_id: finalTask.content_node_id,
           items_count: finalTask.items_count,
-          import_type: finalTask.import_type,
+          import_type: finalTask.ingest_type,
         });
         onClose();
       } else {

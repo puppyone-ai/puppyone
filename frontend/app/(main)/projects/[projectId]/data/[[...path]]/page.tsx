@@ -359,7 +359,7 @@ export default function DataPage({ params }: DataPageProps) {
         }
 
         // Get info for each node in path
-        const pathNodes: Array<{ id: string; name: string; type: string }> = [];
+        const pathNodes: Array<{ id: string; name: string; type: string; storage_type: string }> = [];
         for (const nodeId of path) {
           try {
             const node = await getNode(nodeId);

@@ -647,11 +647,11 @@ export function TableManageDialog({
       
       try {
         if (needsETL(file)) {
-          // 需要 ETL 处理的文件，创建 pending 节点
+          // 需要 ETL 处理的文件，创建 file 节点（实际状态通过任务系统跟踪）
           nodes.push({
             temp_id: tempId,
             name: fileName,
-            type: 'pending',
+            type: 'file',
             parent_temp_id: parentTempId,
           });
           etlFiles.push({ file, tempId });
@@ -674,41 +674,41 @@ export function TableManageDialog({
                   content: jsonContent,
                 });
               } catch {
-                // JSON 解析失败，作为 markdown 处理
+                // JSON 解析失败，作为 file 处理
                 nodes.push({
                   temp_id: tempId,
                   name: fileName,
-                  type: 'markdown',
+                  type: 'file',
                   parent_temp_id: parentTempId,
                   content: content,
                 });
               }
             } else {
-              // 其他文本文件作为 markdown
+              // 其他文本文件作为 file
               nodes.push({
                 temp_id: tempId,
                 name: fileName,
-                type: 'markdown',
+                type: 'file',
                 parent_temp_id: parentTempId,
                 content: content,
               });
             }
           } else {
-            // 非文本文件，创建 pending 节点
+            // 非文本文件，创建 file 节点
             nodes.push({
               temp_id: tempId,
               name: fileName,
-              type: 'pending',
+              type: 'file',
               parent_temp_id: parentTempId,
             });
           }
         }
       } catch (err) {
-        // 出错时创建 pending 节点
+        // 出错时创建 file 节点
         nodes.push({
           temp_id: tempId,
           name: fileName,
-          type: 'pending',
+          type: 'file',
           parent_temp_id: parentTempId,
         });
       }

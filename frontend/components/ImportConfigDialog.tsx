@@ -53,7 +53,7 @@ export function ImportConfigDialog({
       setChecking(true);
       getETLHealth()
         .then(health => {
-          const isOnline = health.worker_count > 0;
+          const isOnline = health.file_worker.worker_count > 0;
           setWorkerOnline(isOnline);
           
           // Auto-downgrade if offline and has binary files

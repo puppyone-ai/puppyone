@@ -31,8 +31,7 @@ export interface PendingTask {
   taskType?: TaskType; // 任务类型：文件上传 or SaaS 导入
   status?:
     | 'pending'
-    | 'mineru_parsing'
-    | 'llm_processing'
+    | 'processing'  // Unified status (replaces mineru_parsing, llm_processing)
     | 'completed'
     | 'failed'
     | 'cancelled'
