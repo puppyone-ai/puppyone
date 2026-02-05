@@ -477,12 +477,13 @@ export default function ProjectAgentsPage({ params }: { params: Promise<{ projec
     return counts.length > 0 ? Math.max(...counts) : 0;
   }, [dashboardData?.agents]);
 
-  // Fetch dashboard data with single RPC call
+  // Fetch dashboard data for this project
   const fetchData = useCallback(async () => {
+    if (!projectId) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await getDashboardData(RANGE_HOURS);
+      const data = await getDashboardData(projectId, RANGE_HOURS);
       setDashboardData(data);
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
@@ -490,7 +491,7 @@ export default function ProjectAgentsPage({ params }: { params: Promise<{ projec
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

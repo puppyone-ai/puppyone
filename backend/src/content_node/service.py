@@ -54,24 +54,18 @@ class ContentNodeService:
         return self.repo.list_descendants(project_id, node.id_path)
 
     def list_indexable_descendants(
-        self, project_id: str, node_id: str, indexable_types: Optional[List[str]] = None
+        self, project_id: str, node_id: str
     ) -> List[ContentNode]:
         """
         列出某节点的所有可索引子孙节点（用于 folder search）
         
-        Args:
-            project_id: 项目 ID
-            node_id: 节点 ID（通常是 folder）
-            indexable_types: 可索引的节点类型，默认为 ['json', 'markdown']
-        
-        Returns:
-            List[ContentNode]: 可索引的子孙节点列表
+        可索引的节点：
+        - storage_type='json'
+        - storage_type='file' 且 mime_type='text/markdown'
+        - storage_type='sync' 且 mime_type='text/markdown'
         """
-        if indexable_types is None:
-            indexable_types = ["json", "markdown"]
-        
         all_descendants = self.list_descendants(project_id, node_id)
-        return [node for node in all_descendants if node.type in indexable_types]
+        return [node for node in all_descendants if node.is_indexable]
 
     # === 创建操作 ===
 
@@ -123,7 +117,8 @@ class ContentNodeService:
             user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            node_type="folder",
+            storage_type="folder",
+            node_type="folder",  # 旧字段兼容
             id_path=id_path,
             parent_id=parent_id,
         )
@@ -146,7 +141,8 @@ class ContentNodeService:
             user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            node_type="json",
+            storage_type="json",
+            node_type="json",  # 旧字段兼容
             id_path=id_path,
             parent_id=parent_id,
             content=content,
@@ -168,18 +164,22 @@ class ContentNodeService:
         用户点击后可以触发 OAuth 授权流程。
         
         Args:
-            placeholder_type: 平台类型，会映射到对应的 node_type
-                'gmail' -> 'gmail_inbox'
-                'sheets' -> 'google_sheets_sync'
-                'calendar' -> 'google_calendar_sync'
-                'docs' -> 'google_docs_sync'
-                'notion' -> 'notion_database'
-                'github' -> 'github_repo'
+            placeholder_type: 平台类型
         """
         import uuid
         
-        # 类型映射
-        TYPE_MAP = {
+        # source 和 resource_type 映射
+        SOURCE_MAP = {
+            'gmail': ('gmail', 'inbox'),
+            'sheets': ('google_sheets', 'sync'),
+            'calendar': ('google_calendar', 'sync'),
+            'docs': ('google_docs', 'sync'),
+            'notion': ('notion', 'database'),
+            'github': ('github', 'repo'),
+        }
+        
+        # 旧 type 映射（兼容）
+        OLD_TYPE_MAP = {
             'gmail': 'gmail_inbox',
             'sheets': 'google_sheets_sync',
             'calendar': 'google_calendar_sync',
@@ -188,13 +188,14 @@ class ContentNodeService:
             'github': 'github_repo',
         }
         
-        node_type = TYPE_MAP.get(placeholder_type, f'{placeholder_type}_placeholder')
+        source, resource_type = SOURCE_MAP.get(placeholder_type, (placeholder_type, 'placeholder'))
+        old_type = OLD_TYPE_MAP.get(placeholder_type, f'{placeholder_type}_placeholder')
         
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(user_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 占位符的默认内容：告诉用户如何连接
+        # 占位符的默认内容
         placeholder_content = {
             "_status": "not_connected",
             "_placeholder_type": placeholder_type,
@@ -205,12 +206,15 @@ class ContentNodeService:
             user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            node_type=node_type,
+            storage_type="sync",
+            source=source,
+            resource_type=resource_type,
+            node_type=old_type,  # 旧字段兼容
             id_path=id_path,
             parent_id=parent_id,
             content=placeholder_content,
             mime_type="application/json",
-            sync_status="not_connected",  # 关键：标记为占位符
+            sync_status="not_connected",
         )
 
     async def convert_placeholder_to_synced(
@@ -222,13 +226,7 @@ class ContentNodeService:
         sync_id: str,
         sync_config: Optional[dict] = None,
     ) -> ContentNode:
-        """
-        将占位符节点转换为已同步的节点
-        
-        在用户完成 OAuth 授权并同步数据后调用。
-        """
-        from datetime import datetime
-        
+        """将占位符节点转换为已同步的节点"""
         node = self.get_by_id(node_id, user_id)
         
         if node.sync_status != "not_connected":
@@ -241,7 +239,7 @@ class ContentNodeService:
             node_id=node_id,
             sync_url=sync_url,
             sync_id=sync_id,
-            sync_status="idle",  # 转换为已连接状态
+            sync_status="idle",
             sync_config=sync_config,
             last_synced_at=datetime.utcnow(),
             content=content,
@@ -252,7 +250,8 @@ class ContentNodeService:
         user_id: str,
         project_id: str,
         name: str,
-        sync_type: str,
+        source: str,
+        resource_type: str,
         sync_url: str,
         content: Any,
         parent_id: Optional[str] = None,
@@ -260,40 +259,35 @@ class ContentNodeService:
         sync_config: Optional[dict] = None,
     ) -> ContentNode:
         """
-        创建同步节点（从 SaaS 平台导入的数据）
+        创建同步节点（从 SaaS 平台导入的结构化数据）
         
-        JSON 数据直接存 JSONB（content 字段），不存 S3。
-        JSONB 适合存储结构化数据，查询方便。
-        
-        Args:
-            sync_type: 同步类型，如 github_repo, notion_database, airtable_base 等
-            sync_url: 来源 URL
-            content: 数据内容（存储到 JSONB）
-            sync_id: 外部平台的资源 ID（可选）
-            sync_config: 同步配置（如 recursive, max_depth 等）
+        JSON 数据直接存 JSONB（content 字段）。
         """
         import uuid
-        from datetime import datetime
         
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(user_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # JSON 数据直接存 JSONB，不存 S3
+        # 生成旧 type（兼容）
+        old_type = f"{source}_{resource_type}"
+        
         return self.repo.create(
             user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            node_type=sync_type,  # 如 notion_database, airtable_base 等
+            storage_type="sync",
+            source=source,
+            resource_type=resource_type,
+            node_type=old_type,
             id_path=id_path,
             parent_id=parent_id,
-            content=content,  # 直接存 JSONB
-            s3_key=None,  # 不用 S3
+            content=content,
             mime_type="application/json",
             sync_url=sync_url,
             sync_id=sync_id,
             sync_config=sync_config,
-            sync_status="idle",  # 已连接，空闲状态
+            sync_status="idle",
             last_synced_at=datetime.utcnow(),
         )
 
@@ -309,26 +303,8 @@ class ContentNodeService:
         parent_id: Optional[str] = None,
         sync_config: Optional[dict] = None,
     ) -> ContentNode:
-        """
-        创建 GitHub repo 节点（单节点模式）
-        
-        设计原则：
-        - 整个 repo 是一个节点，不创建子节点
-        - 所有文件存储在 S3 目录下（通过 s3_prefix 定位）
-        - content 字段存储 repo 元信息（文件列表、统计等）
-        - 用户只能看到 repo 的基本信息，不暴露内部文件结构
-        - Agent 使用时从 S3 下载整个目录到 sandbox
-        
-        Args:
-            name: repo 名称
-            sync_url: GitHub repo URL
-            sync_id: owner/repo 格式
-            s3_prefix: S3 目录前缀，如 users/xxx/repos/owner_repo
-            metadata: repo 元信息（包含文件列表、描述等）
-            sync_config: 同步配置（如 branch, include_issues 等）
-        """
+        """创建 GitHub repo 节点（单节点模式）"""
         import uuid
-        from datetime import datetime
         
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(user_id, parent_id, new_id)
@@ -338,12 +314,15 @@ class ContentNodeService:
             user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            node_type="github_repo",
+            storage_type="sync",
+            source="github",
+            resource_type="repo",
+            node_type="github_repo",  # 旧字段兼容
             id_path=id_path,
             parent_id=parent_id,
-            content=metadata,  # 存储 repo 元信息
-            s3_key=s3_prefix,  # 存储 S3 目录前缀（用于 Agent 下载）
-            mime_type="application/x-github-repo",  # 自定义 MIME 类型
+            content=metadata,
+            s3_key=s3_prefix,
+            mime_type="application/x-github-repo",
             sync_url=sync_url,
             sync_id=sync_id,
             sync_config=sync_config,
@@ -367,7 +346,8 @@ class ContentNodeService:
             user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            node_type="pending",
+            storage_type="file",
+            node_type="pending",  # 旧字段兼容
             id_path=id_path,
             parent_id=parent_id,
             mime_type="application/octet-stream",
@@ -400,7 +380,8 @@ class ContentNodeService:
             user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            node_type="markdown",
+            storage_type="file",
+            node_type="markdown",  # 旧字段兼容
             id_path=id_path,
             parent_id=parent_id,
             s3_key=s3_key,
@@ -414,24 +395,14 @@ class ContentNodeService:
         project_id: str,
         name: str, 
         content: str,
-        sync_type: str,
+        source: str,
+        resource_type: str,
         sync_url: str,
         sync_id: Optional[str] = None,
         sync_config: Optional[dict] = None,
         parent_id: Optional[str] = None,
     ) -> ContentNode:
-        """
-        创建同步的 Markdown 节点
-        
-        用于存储来自 SaaS 平台的 Markdown 内容（如 Notion Page），
-        同时保留同步元数据以支持刷新功能。
-        
-        Args:
-            sync_type: 同步类型，如 notion_page
-            sync_url: 来源 URL
-            sync_id: 外部平台的资源 ID
-            sync_config: 同步配置（如 recursive, max_depth 等）
-        """
+        """创建同步的 Markdown 节点（如 Notion Page）"""
         import uuid
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(user_id, parent_id, new_id)
@@ -446,11 +417,17 @@ class ContentNodeService:
             content_type="text/markdown",
         )
         
+        # 生成旧 type（兼容）
+        old_type = f"{source}_{resource_type}"
+        
         return self.repo.create(
             user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            node_type=sync_type,  # 使用 sync_type 作为节点类型（如 notion_page）
+            storage_type="sync",
+            source=source,
+            resource_type=resource_type,
+            node_type=old_type,
             id_path=id_path,
             parent_id=parent_id,
             s3_key=s3_key,
@@ -472,23 +449,12 @@ class ContentNodeService:
         """
         批量创建节点（用于文件夹上传）
         
-        Args:
-            user_id: 用户 ID
-            project_id: 项目 ID
-            nodes: 节点列表，每个包含 temp_id, name, type, parent_temp_id, content
-            root_parent_id: 整体挂载到哪个父节点下
-        
-        Returns:
-            创建结果列表，每个包含 temp_id, node_id, name, type
+        nodes 中每个节点的 type 字段现在对应 storage_type
         """
         import uuid
         
-        # 临时ID -> 真实ID 的映射
         temp_to_real: dict[str, str] = {}
         results: List[dict] = []
-        
-        # 按层级顺序处理（父节点必须先创建）
-        # 先处理根节点（parent_temp_id 为 None 的）
         pending_nodes = list(nodes)
         processed_temp_ids: set[str] = set()
         
@@ -499,41 +465,47 @@ class ContentNodeService:
             for node in pending_nodes:
                 parent_temp_id = node.get("parent_temp_id")
                 
-                # 如果父节点是 None，或者父节点已经被处理过，就可以创建这个节点
                 can_create = (
                     parent_temp_id is None or 
                     parent_temp_id in processed_temp_ids
                 )
                 
                 if can_create:
-                    # 确定真实的 parent_id
                     if parent_temp_id is None:
                         real_parent_id = root_parent_id
                     else:
                         real_parent_id = temp_to_real.get(parent_temp_id)
                     
-                    # 创建节点
                     new_id = str(uuid.uuid4())
                     id_path = self._build_id_path(user_id, real_parent_id, new_id)
                     
-                    node_type = node["type"]
+                    # node["type"] 现在是 storage_type: folder, json, file
+                    storage_type = node["type"]
                     content = node.get("content")
                     
-                    # 根据类型设置 mime_type
+                    # 确定 mime_type 和旧 node_type
                     mime_type = None
-                    if node_type == "folder":
-                        mime_type = None
-                    elif node_type == "json":
-                        mime_type = "application/json"
-                    elif node_type == "markdown":
-                        mime_type = "text/markdown"
-                    elif node_type == "pending":
-                        mime_type = "application/octet-stream"
+                    old_node_type = storage_type  # 默认相同
                     
-                    # 如果是 markdown 且有内容，上传到 S3
+                    if storage_type == "folder":
+                        mime_type = None
+                        old_node_type = "folder"
+                    elif storage_type == "json":
+                        mime_type = "application/json"
+                        old_node_type = "json"
+                    elif storage_type == "file":
+                        # 根据内容判断是 markdown 还是其他文件
+                        if content and isinstance(content, str):
+                            mime_type = "text/markdown"
+                            old_node_type = "markdown"
+                        else:
+                            mime_type = "application/octet-stream"
+                            old_node_type = "pending"
+                    
+                    # 如果是 markdown (file + text/markdown) 且有内容，上传到 S3
                     s3_key = None
                     size_bytes = 0
-                    if node_type == "markdown" and content:
+                    if storage_type == "file" and mime_type == "text/markdown" and content:
                         s3_key = f"users/{user_id}/content/{uuid.uuid4()}.md"
                         content_bytes = content.encode('utf-8')
                         size_bytes = len(content_bytes)
@@ -547,10 +519,11 @@ class ContentNodeService:
                         user_id=user_id,
                         project_id=project_id,
                         name=node["name"],
-                        node_type=node_type,
+                        storage_type=storage_type,
+                        node_type=old_node_type,
                         id_path=id_path,
                         parent_id=real_parent_id,
-                        content=content if node_type == "json" else None,
+                        content=content if storage_type == "json" else None,
                         s3_key=s3_key,
                         mime_type=mime_type,
                         size_bytes=size_bytes,
@@ -562,7 +535,7 @@ class ContentNodeService:
                         "temp_id": node["temp_id"],
                         "node_id": created.id,
                         "name": created.name,
-                        "type": created.type,
+                        "type": created.storage_type,  # 返回 storage_type
                     })
                     progress_made = True
                 else:
@@ -570,7 +543,6 @@ class ContentNodeService:
             
             pending_nodes = remaining
             
-            # 防止无限循环（如果有循环引用）
             if not progress_made and pending_nodes:
                 raise BusinessException(
                     "Invalid node hierarchy: circular reference or missing parent",
@@ -593,8 +565,8 @@ class ContentNodeService:
         id_path = self._build_id_path(user_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 确定文件类型
-        node_type = self._get_node_type_from_mime(content_type)
+        # 确定旧 node_type（用于兼容）
+        old_node_type = self._get_old_node_type_from_mime(content_type)
         
         # 生成 S3 key
         s3_key = f"users/{user_id}/content/{uuid.uuid4()}"
@@ -604,7 +576,8 @@ class ContentNodeService:
             user_id=user_id,
             project_id=project_id,
             name=unique_name,
-            node_type=node_type,
+            storage_type="file",
+            node_type=old_node_type,
             id_path=id_path,
             parent_id=parent_id,
             s3_key=s3_key,
@@ -620,8 +593,8 @@ class ContentNodeService:
         
         return node, upload_url
 
-    def _get_node_type_from_mime(self, mime_type: str) -> str:
-        """根据 MIME 类型确定节点类型"""
+    def _get_old_node_type_from_mime(self, mime_type: str) -> str:
+        """根据 MIME 类型确定旧 node_type（兼容期使用）"""
         if mime_type.startswith("image/"):
             return "image"
         elif mime_type == "application/pdf":
@@ -645,13 +618,14 @@ class ContentNodeService:
         """
         完成 pending 节点的处理（ETL 完成后调用）
         
-        将 pending 节点转换为 markdown 节点，更新内容，可选地更新名称（如 .pdf -> .md）
+        将 pending 节点转换为 markdown 文件
         """
         import uuid
         
         node = self.get_by_id(node_id, user_id)
         
-        if node.type not in ("pending", "file"):
+        # 检查是 pending 类型的文件
+        if not (node.storage_type == "file" and node.type in ("pending", "file")):
             raise BusinessException(
                 f"Node is not pending type: {node.type}", 
                 code=ErrorCode.BAD_REQUEST
@@ -667,18 +641,16 @@ class ContentNodeService:
             content_type="text/markdown",
         )
         
-        # 更新节点：type -> markdown, 可选地更新名称
-        update_data = {
-            "type": "markdown",
-            "s3_key": s3_key,
-            "mime_type": "text/markdown",
-            "size_bytes": len(content_bytes),
-        }
-        
-        if new_name:
-            update_data["name"] = new_name
-        
-        updated = self.repo.update_with_type(node_id, **update_data)
+        # 更新节点
+        updated = self.repo.update_with_type(
+            node_id,
+            storage_type="file",  # 保持 file
+            type="markdown",  # 旧字段更新
+            name=new_name,
+            s3_key=s3_key,
+            mime_type="text/markdown",
+            size_bytes=len(content_bytes),
+        )
         return updated
 
     def update_node(
@@ -688,13 +660,9 @@ class ContentNodeService:
         name: Optional[str] = None,
         content: Optional[Any] = None,
     ) -> ContentNode:
-        """更新节点（重命名只改 name，id_path 不变）
-        
-        注意：对于 markdown 类型，如果要更新内容，请使用 update_markdown_content
-        """
+        """更新节点（重命名只改 name，id_path 不变）"""
         node = self.get_by_id(node_id, user_id)
         
-        # 更新节点（id_path 不变，只改 name 或 content）
         updated = self.repo.update(
             node_id=node_id,
             name=name,
@@ -709,27 +677,23 @@ class ContentNodeService:
         user_id: str,
         content: str,
     ) -> ContentNode:
-        """
-        更新 markdown 节点的内容
-        优先尝试上传到 S3，如果失败则回退到保存在 content 字段
-        """
+        """更新 markdown 节点的内容"""
         import uuid
         import logging
         
         logger = logging.getLogger(__name__)
         node = self.get_by_id(node_id, user_id)
         
-        if node.type != "markdown":
+        # 检查是 markdown 文件
+        if not (node.storage_type == "file" and node.mime_type == "text/markdown"):
             raise BusinessException(
-                f"Node is not markdown type: {node.type}", 
+                f"Node is not markdown type: storage_type={node.storage_type}, mime_type={node.mime_type}", 
                 code=ErrorCode.BAD_REQUEST
             )
         
         content_bytes = content.encode('utf-8')
         
-        # 尝试上传到 S3
         try:
-            # 如果已有 S3 key，更新内容；否则创建新的
             if node.s3_key:
                 s3_key = node.s3_key
             else:
@@ -741,21 +705,19 @@ class ContentNodeService:
                 content_type="text/markdown",
             )
             
-            # S3 上传成功，更新数据库记录
             updated = self.repo.update(
                 node_id=node_id,
                 s3_key=s3_key,
                 size_bytes=len(content_bytes),
-                clear_content=True,  # 清除 content 字段
+                clear_content=True,
             )
             logger.info(f"[ContentNode] Markdown saved to S3: {node_id}")
             
         except Exception as e:
-            # S3 上传失败，回退到保存在 content 字段
             logger.warning(f"[ContentNode] S3 upload failed for {node_id}, fallback to DB: {e}")
             updated = self.repo.update(
                 node_id=node_id,
-                content=content,  # 直接存 string
+                content=content,
                 size_bytes=len(content_bytes),
             )
             logger.info(f"[ContentNode] Markdown saved to DB: {node_id}")
@@ -772,10 +734,8 @@ class ContentNodeService:
         node = self.get_by_id(node_id, user_id)
         old_id_path = node.id_path
         
-        # 构建新 id_path
         new_id_path = self._build_id_path(user_id, new_parent_id, node_id)
         
-        # 更新节点
         updated = self.repo.update(
             node_id=node_id,
             parent_id=new_parent_id if new_parent_id else None,
@@ -783,7 +743,7 @@ class ContentNodeService:
         )
         
         # 如果是文件夹，更新所有子节点的 id_path
-        if node.type == "folder":
+        if node.is_folder:
             self.repo.update_children_id_path_prefix(node.project_id, old_id_path, new_id_path)
         
         return updated
@@ -793,27 +753,21 @@ class ContentNodeService:
     async def delete_node(self, node_id: str, user_id: str) -> None:
         """删除节点（递归删除子节点和 S3 文件）"""
         node = self.get_by_id(node_id, user_id)
-        
-        # 递归删除子节点
         await self._delete_recursive(node_id)
 
     async def _delete_recursive(self, node_id: str) -> None:
         """递归删除节点"""
-        # 先删除所有子节点
         children_ids = self.repo.get_children_ids(node_id)
         for child_id in children_ids:
             await self._delete_recursive(child_id)
         
-        # 获取节点信息
         node = self.repo.get_by_id(node_id)
         if node and node.s3_key:
-            # 删除 S3 文件
             try:
                 await self.s3.delete_file(node.s3_key)
             except Exception:
-                pass  # S3 删除失败不阻塞数据库删除
+                pass
         
-        # 删除数据库记录
         self.repo.delete(node_id)
 
     # === 下载操作 ===
@@ -822,7 +776,7 @@ class ContentNodeService:
         """获取下载 URL"""
         node = self.get_by_id(node_id, user_id)
         
-        if node.type == "json":
+        if node.is_json:
             raise BusinessException("JSON nodes do not have download URL", code=ErrorCode.BAD_REQUEST)
         
         if not node.s3_key:
@@ -832,4 +786,3 @@ class ContentNodeService:
             key=node.s3_key,
             expires_in=3600,
         )
-

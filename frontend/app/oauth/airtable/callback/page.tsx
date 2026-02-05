@@ -52,12 +52,12 @@ function AirtableCallbackContent() {
 
   return (
     <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      background: '#0a0a0a',
-      color: '#CDCDCD',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#0a0a0a',
+        color: '#CDCDCD',
     }}>
       <div style={{ textAlign: 'center', maxWidth: 400, padding: 32 }}>
         {status === 'loading' && (
@@ -105,15 +105,15 @@ export default function AirtableCallbackPage() {
   return (
     <Suspense fallback={
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: '#0a0a0a',
-        color: '#CDCDCD',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '100vh',
+            background: '#0a0a0a',
+            color: '#CDCDCD',
       }}>
-        <div>Loading...</div>
-      </div>
+          <div>Loading...</div>
+        </div>
     }>
       <AirtableCallbackContent />
     </Suspense>

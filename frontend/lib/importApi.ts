@@ -1,11 +1,13 @@
 /**
- * Import API Client (Unified)
+ * Import API - Now forwards to unified Ingest API
  *
- * New unified API for all imports - replaces syncApi.ts and connectApi.ts
- * Backend: /api/v1/import/*
+ * This file is kept for backward compatibility.
+ * All new code should use ingestApi.ts directly.
  */
 
-import { apiRequest } from './apiClient';
+import { getAccessToken } from './apiClient';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // === Enums ===
 
@@ -14,9 +16,14 @@ export type ImportType =
   | 'notion'
   | 'airtable'
   | 'google_sheets'
+  | 'google_docs'
+  | 'google_drive'
+  | 'google_calendar'
+  | 'gmail'
   | 'linear'
   | 'url'
-  | 'file';
+  | 'file'
+  | 'web_page';
 
 export type ImportStatus =
   | 'pending'
@@ -30,11 +37,11 @@ export type ImportStatus =
 export interface ImportSubmitRequest {
   project_id: string;
   name?: string;
-  url?: string; // SaaS URL (GitHub, Notion, etc.) or generic URL
-  file_key?: string; // S3 key for uploaded file (ETL)
-  etl_rule_id?: number; // ETL rule ID for file processing
+  url?: string;
+  file_key?: string;
+  etl_rule_id?: number;
   crawl_options?: CrawlOptions;
-  sync_config?: Record<string, unknown>; // OAuth import config (labels, time range, etc.)
+  sync_config?: Record<string, unknown>;
 }
 
 export interface CrawlOptions {
@@ -64,23 +71,24 @@ export interface ImportSubmitResponse {
 
 export interface ImportTaskResponse {
   task_id: string;
+  source_type: 'saas' | 'url';
+  ingest_type: ImportType;
   status: ImportStatus;
-  import_type: ImportType;
   progress: number;
-  message: string | null;
-  content_node_id: string | null;
-  items_count: number | null;
-  error: string | null;
+  message?: string;
+  content_node_id?: string;
+  items_count?: number;
+  error?: string;
   created_at: string;
   updated_at: string;
-  completed_at: string | null;
+  completed_at?: string;
 }
 
 export interface ImportParseResponse {
   url: string;
   import_type: ImportType;
-  title: string | null;
-  description: string | null;
+  title?: string;
+  description?: string;
   fields: Array<{ name: string; type: string }>;
   sample_data: Record<string, any>[];
   total_items: number;
@@ -88,16 +96,10 @@ export interface ImportParseResponse {
 
 // === Utility Functions ===
 
-/**
- * Check if status is terminal (completed, failed, or cancelled)
- */
 export function isTerminalStatus(status: ImportStatus): boolean {
   return status === 'completed' || status === 'failed' || status === 'cancelled';
 }
 
-/**
- * Get display info for import status
- */
 export function getStatusInfo(status: ImportStatus): {
   label: string;
   color: string;
@@ -119,9 +121,6 @@ export function getStatusInfo(status: ImportStatus): {
   }
 }
 
-/**
- * Get display info for import type
- */
 export function getImportTypeInfo(importType: ImportType): {
   label: string;
   icon: string;
@@ -135,9 +134,18 @@ export function getImportTypeInfo(importType: ImportType): {
       return { label: 'Airtable', icon: '📊' };
     case 'google_sheets':
       return { label: 'Google Sheets', icon: '📗' };
+    case 'google_docs':
+      return { label: 'Google Docs', icon: '📘' };
+    case 'google_drive':
+      return { label: 'Google Drive', icon: '📁' };
+    case 'google_calendar':
+      return { label: 'Google Calendar', icon: '📅' };
+    case 'gmail':
+      return { label: 'Gmail', icon: '📧' };
     case 'linear':
       return { label: 'Linear', icon: '📐' };
     case 'url':
+    case 'web_page':
       return { label: 'Website', icon: '🌐' };
     case 'file':
       return { label: 'File', icon: '📄' };
@@ -146,9 +154,6 @@ export function getImportTypeInfo(importType: ImportType): {
   }
 }
 
-/**
- * Format bytes for display
- */
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -160,86 +165,148 @@ export function formatBytes(bytes: number): string {
 // === API Functions ===
 
 /**
- * Submit an import task
- *
- * @param request Import request with URL or file_key
- * @returns Task ID and initial status
+ * Submit an import task (via unified ingest endpoint)
  */
 export async function submitImport(
   request: ImportSubmitRequest
 ): Promise<ImportSubmitResponse> {
-  return apiRequest<ImportSubmitResponse>('/api/v1/import/submit', {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error('Not authenticated');
+  }
+
+  const formData = new FormData();
+  formData.append('project_id', request.project_id);
+  if (request.url) {
+    formData.append('url', request.url);
+  }
+  if (request.name) {
+    formData.append('name', request.name);
+  }
+
+  const response = await fetch(`${API_URL}/api/v1/ingest/submit/saas`, {
     method: 'POST',
-    body: JSON.stringify(request),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: formData,
   });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Import submit failed: ${errorText}`);
+  }
+
+  const data = await response.json();
+  // Convert unified response to legacy format
+  const item = data.items?.[0];
+  return {
+    task_id: item?.task_id || data.task_id,
+    status: item?.status || 'pending',
+    import_type: item?.ingest_type || 'url',
+  };
 }
 
 /**
- * Get import task status
- *
- * @param taskId Task ID returned from submitImport
- * @returns Current task status and progress
+ * Get import task status (via unified ingest endpoint)
  */
 export async function getImportTask(taskId: string): Promise<ImportTaskResponse> {
-  return apiRequest<ImportTaskResponse>(`/api/v1/import/tasks/${taskId}`);
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error('Not authenticated');
+  }
+
+  const response = await fetch(`${API_URL}/api/v1/ingest/tasks/${taskId}?source_type=saas`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Get task failed: ${errorText}`);
+  }
+
+  return await response.json();
 }
 
 /**
- * List import tasks for current user
- *
- * @param projectId Optional project ID filter
- * @param limit Max number of tasks to return
- * @returns List of import tasks
+ * List import tasks (not directly supported by new API)
+ * @deprecated Use batchGetIngestTasks with specific task IDs
  */
 export async function listImportTasks(
   projectId?: string,
   limit: number = 50
 ): Promise<ImportTaskResponse[]> {
-  const params = new URLSearchParams({ limit: String(limit) });
-  if (projectId) {
-    params.set('project_id', projectId);
-  }
-  return apiRequest<ImportTaskResponse[]>(`/api/v1/import/tasks?${params}`);
+  // This endpoint is not directly supported in the new unified API
+  // For now, return empty array - callers should migrate to task-specific queries
+  console.warn('listImportTasks is deprecated - use specific task queries');
+  return [];
 }
 
 /**
- * Cancel an import task
- *
- * @param taskId Task ID to cancel
+ * Cancel an import task (via unified ingest endpoint)
  */
 export async function cancelImportTask(taskId: string): Promise<void> {
-  await apiRequest(`/api/v1/import/tasks/${taskId}`, {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error('Not authenticated');
+  }
+
+  const response = await fetch(`${API_URL}/api/v1/ingest/tasks/${taskId}?source_type=saas`, {
     method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
   });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Cancel task failed: ${errorText}`);
+  }
 }
 
 /**
- * Parse URL for preview (without importing)
- *
- * @param url URL to parse
- * @param crawlOptions Optional crawl options
- * @returns Preview information
+ * Parse URL for preview
+ * Note: This endpoint may need to be added to the unified API
  */
 export async function parseImportUrl(
   url: string,
   crawlOptions?: CrawlOptions
 ): Promise<ImportParseResponse> {
-  return apiRequest<ImportParseResponse>('/api/v1/import/parse', {
-    method: 'POST',
-    body: JSON.stringify({ url, crawl_options: crawlOptions }),
-  });
+  // For now, return a stub response - actual implementation depends on backend
+  console.warn('parseImportUrl may need backend implementation');
+  return {
+    url,
+    import_type: detectImportType(url),
+    title: undefined,
+    description: undefined,
+    fields: [],
+    sample_data: [],
+    total_items: 0,
+  };
+}
+
+/**
+ * Detect import type from URL
+ */
+function detectImportType(url: string): ImportType {
+  const urlLower = url.toLowerCase();
+  if (urlLower.includes('github.com')) return 'github';
+  if (urlLower.includes('notion.so') || urlLower.includes('notion.site')) return 'notion';
+  if (urlLower.includes('airtable.com')) return 'airtable';
+  if (urlLower.includes('docs.google.com/spreadsheets')) return 'google_sheets';
+  if (urlLower.includes('docs.google.com/document')) return 'google_docs';
+  if (urlLower.includes('drive.google.com')) return 'google_drive';
+  if (urlLower.includes('calendar.google.com')) return 'google_calendar';
+  if (urlLower.includes('mail.google.com') || urlLower.includes('gmail.com')) return 'gmail';
+  if (urlLower.includes('linear.app')) return 'linear';
+  return 'web_page';
 }
 
 // === Polling Helper ===
 
-/**
- * Poll import task until completion
- *
- * @param taskId Task ID to poll
- * @param onProgress Callback for progress updates
- * @param intervalMs Polling interval in milliseconds (default: 1000)
- * @returns Final task response
- */
 export async function pollImportTask(
   taskId: string,
   onProgress?: (task: ImportTaskResponse) => void,
@@ -273,10 +340,6 @@ export async function pollImportTask(
 
 // === Convenience Functions ===
 
-/**
- * Import from URL (SaaS or generic)
- * Submits task and returns task ID
- */
 export async function importFromUrl(
   projectId: string,
   url: string,
@@ -294,10 +357,6 @@ export async function importFromUrl(
   return response.task_id;
 }
 
-/**
- * Import from uploaded file (ETL)
- * Submits task and returns task ID
- */
 export async function importFromFile(
   projectId: string,
   fileKey: string,
@@ -314,4 +373,3 @@ export async function importFromFile(
   });
   return response.task_id;
 }
-

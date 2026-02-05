@@ -39,10 +39,15 @@ def _node_to_info(node) -> NodeInfo:
     return NodeInfo(
         id=node.id,
         name=node.name,
-        type=node.type,
         project_id=node.project_id,
         id_path=node.id_path,
         parent_id=node.parent_id,
+        # 新类型系统
+        storage_type=node.storage_type,
+        source=node.source,
+        resource_type=node.resource_type,
+        # 旧字段（兼容）
+        type=node.type,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
         # 同步相关字段
@@ -62,10 +67,15 @@ def _node_to_detail(node) -> NodeDetail:
     return NodeDetail(
         id=node.id,
         name=node.name,
-        type=node.type,
         project_id=node.project_id,
         id_path=node.id_path,
         parent_id=node.parent_id,
+        # 新类型系统
+        storage_type=node.storage_type,
+        source=node.source,
+        resource_type=node.resource_type,
+        # 旧字段（兼容）
+        type=node.type,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
         content=node.content,
@@ -74,6 +84,7 @@ def _node_to_detail(node) -> NodeDetail:
         # 同步相关字段
         sync_url=node.sync_url,
         sync_id=node.sync_id,
+        sync_status=node.sync_status,
         last_synced_at=node.last_synced_at.isoformat() if node.last_synced_at else None,
         is_synced=node.is_synced,
         sync_source=node.sync_source,
@@ -217,6 +228,8 @@ async def bulk_create_nodes(
     - temp_id: 每个节点的临时标识（前端生成）
     - parent_temp_id: 父节点的临时标识，None 表示挂载到 parent_id 指定的节点下
     
+    type 字段现在表示 storage_type: folder | json | file
+    
     示例：上传文件夹 my-docs/
     ```json
     {
@@ -224,8 +237,8 @@ async def bulk_create_nodes(
       "parent_id": null,
       "nodes": [
         {"temp_id": "t1", "name": "my-docs", "type": "folder", "parent_temp_id": null},
-        {"temp_id": "t2", "name": "readme.md", "type": "markdown", "parent_temp_id": "t1", "content": "# Hello"},
-        {"temp_id": "t3", "name": "report.pdf", "type": "pending", "parent_temp_id": "t1"}
+        {"temp_id": "t2", "name": "readme.md", "type": "file", "parent_temp_id": "t1", "content": "# Hello"},
+        {"temp_id": "t3", "name": "config.json", "type": "json", "parent_temp_id": "t1", "content": {"key": "value"}}
       ]
     }
     ```
@@ -353,7 +366,7 @@ async def delete_node(
     "/{node_id}/download",
     response_model=ApiResponse[DownloadUrlResponse],
     summary="获取下载 URL",
-    description="获取预签名下载 URL（仅适用于非 JSON 类型）",
+    description="获取预签名下载 URL（仅适用于 file 和 sync 类型）",
 )
 async def get_download_url(
     node_id: str,
@@ -364,4 +377,3 @@ async def get_download_url(
     return ApiResponse.success(
         data=DownloadUrlResponse(download_url=url, expires_in=3600)
     )
-

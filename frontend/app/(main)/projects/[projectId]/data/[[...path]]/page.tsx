@@ -364,17 +364,17 @@ export default function DataPage({ params }: DataPageProps) {
           try {
             const node = await getNode(nodeId);
             if (node) {
-              pathNodes.push({ id: node.id, name: node.name, type: node.type });
+              pathNodes.push({ id: node.id, name: node.name, type: node.type, storage_type: node.storage_type });
             }
           } catch (err) {
             console.error(`Failed to get node ${nodeId}:`, err);
           }
         }
 
-        const folders = pathNodes.filter(n => n.type === 'folder');
+        const folders = pathNodes.filter(n => n.storage_type === 'folder');
         const lastNode = pathNodes[pathNodes.length - 1];
 
-        if (lastNode?.type === 'folder') {
+        if (lastNode?.storage_type === 'folder') {
           // Last is folder -> show folder contents
           setCurrentFolderId(lastNode.id);
           setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
@@ -691,7 +691,11 @@ export default function DataPage({ params }: DataPageProps) {
     id: node.id,
     name: node.name,
     type: node.type as ContentType,
-    description: node.type === 'folder' ? 'Folder' : node.type === 'markdown' ? 'Markdown' : 'JSON',
+    storage_type: node.storage_type,
+    description: node.storage_type === 'folder' ? 'Folder' : 
+                 node.storage_type === 'json' ? 'JSON' : 
+                 node.storage_type === 'file' ? (node.mime_type === 'text/markdown' ? 'Markdown' : 'File') :
+                 node.storage_type === 'sync' ? `Sync (${node.source})` : 'Unknown',
     is_synced: node.is_synced,
     sync_source: node.sync_source,
     sync_url: node.sync_url,

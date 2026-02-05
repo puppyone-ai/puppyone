@@ -129,7 +129,7 @@ export function TableManageDialog({
   // New state for config dialog
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [pendingConfigFiles, setPendingConfigFiles] = useState<File[]>([]);
-
+  
   const connectStatusMeta = (() => {
     if (connectImporting) return { label: 'Importing...', color: '#22c55e' };
     if (connectLoading) return { label: 'Connecting...', color: '#3b82f6' };

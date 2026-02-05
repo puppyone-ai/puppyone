@@ -488,19 +488,18 @@ export function ChatRuntimeView({
                   parts.push({ type: 'text', content: event.content });
                   break;
                 case 'text_delta': {
-                  let lastTextIdx = -1;
-                  for (let i = parts.length - 1; i >= 0; i--) {
-                    if (parts[i].type === 'text') {
-                      lastTextIdx = i;
-                      break;
-                    }
-                  }
-                  if (lastTextIdx !== -1) {
-                    parts[lastTextIdx] = {
-                      ...parts[lastTextIdx],
-                      content: (parts[lastTextIdx].content || '') + event.content,
+                  // 关键修复：只有当最后一个 part 是 text 类型时才追加
+                  // 如果最后一个是 tool 类型，则创建新的 text part
+                  // 这样可以保证 text 和 tool 按照正确的时间顺序交错显示
+                  const lastPart = parts[parts.length - 1];
+                  if (lastPart && lastPart.type === 'text') {
+                    // 最后一个是 text，追加到它
+                    parts[parts.length - 1] = {
+                      ...lastPart,
+                      content: (lastPart.content || '') + event.content,
                     };
                   } else {
+                    // 最后一个不是 text（是 tool 或 parts 为空），创建新的 text part
                     parts.push({ type: 'text', content: event.content });
                   }
                   break;

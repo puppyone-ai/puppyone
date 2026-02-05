@@ -121,6 +121,32 @@ class E2BSandbox(SandboxBase):
         created_dirs: set[str] = set()
         write_failures: list[dict] = []
         
+        # 首先确保 /workspace 目录存在
+        # E2B 沙盒以普通用户运行，需要 sudo 在根目录创建文件夹
+        try:
+            mkdir_result = await _call_maybe_async(
+                sandbox.commands.run, 
+                "sudo mkdir -p /workspace && sudo chmod 777 /workspace"
+            )
+            exit_code = getattr(mkdir_result, "exit_code", None)
+            if exit_code is not None and exit_code != 0:
+                stderr = getattr(mkdir_result, "stderr", "")
+                print(f"[E2BSandbox] Warning: Failed to create /workspace directory with sudo: exit_code={exit_code}, stderr={stderr}")
+                # 尝试使用用户目录作为备选
+                fallback_result = await _call_maybe_async(
+                    sandbox.commands.run,
+                    "mkdir -p ~/workspace && sudo ln -sf ~/workspace /workspace 2>/dev/null || true"
+                )
+                fallback_code = getattr(fallback_result, "exit_code", None)
+                if fallback_code == 0:
+                    print(f"[E2BSandbox] Created /workspace via symlink to ~/workspace")
+                else:
+                    print(f"[E2BSandbox] Fallback also failed, continuing anyway...")
+            else:
+                print(f"[E2BSandbox] Created /workspace directory with sudo")
+        except Exception as e:
+            print(f"[E2BSandbox] Error creating /workspace directory: {e}")
+        
         for f in prepared_files:
             path = f["path"]
             content = f["content"]
@@ -146,24 +172,49 @@ class E2BSandbox(SandboxBase):
             
             # 使用规范化后的路径
             path = normalized_path
+            print(f"[E2BSandbox] Writing file to: {path}")
             
             # Create parent directories (使用 shlex.quote 防止命令注入)
+            # 由于 /workspace 已经用 sudo 创建并设为 777，子目录应该不需要 sudo
+            # 但为保险起见，如果普通 mkdir 失败则尝试 sudo
             dir_path = os.path.dirname(path)
             if dir_path and dir_path not in created_dirs:
                 try:
                     safe_dir_path = shlex.quote(dir_path)
-                    await _call_maybe_async(sandbox.commands.run, f"mkdir -p {safe_dir_path}")
+                    mkdir_result = await _call_maybe_async(sandbox.commands.run, f"mkdir -p {safe_dir_path}")
+                    exit_code = getattr(mkdir_result, "exit_code", None)
+                    if exit_code is not None and exit_code != 0:
+                        # 尝试使用 sudo
+                        sudo_result = await _call_maybe_async(
+                            sandbox.commands.run, 
+                            f"sudo mkdir -p {safe_dir_path} && sudo chmod 777 {safe_dir_path}"
+                        )
+                        sudo_code = getattr(sudo_result, "exit_code", None)
+                        if sudo_code is not None and sudo_code != 0:
+                            stderr = getattr(sudo_result, "stderr", "")
+                            write_failures.append({"path": path, "error": f"Failed to create directory {dir_path}: exit_code={sudo_code}, stderr={stderr}"})
+                            print(f"[E2BSandbox] Failed to create directory {dir_path} even with sudo: exit_code={sudo_code}")
+                            continue
+                        print(f"[E2BSandbox] Created directory with sudo: {dir_path}")
+                    else:
+                        print(f"[E2BSandbox] Created directory: {dir_path}")
                     created_dirs.add(dir_path)
                 except Exception as e:
                     write_failures.append({"path": path, "error": f"Failed to create directory: {e}"})
+                    print(f"[E2BSandbox] Exception creating directory {dir_path}: {e}")
                     continue
             
             # Write file content
             try:
                 if isinstance(content, bytes):
                     await _call_maybe_async(sandbox.files.write, path, content)
+                    print(f"[E2BSandbox] Wrote {len(content)} bytes to {path}")
                 elif content is not None:
-                    await _call_maybe_async(sandbox.files.write, path, str(content))
+                    content_str = str(content)
+                    await _call_maybe_async(sandbox.files.write, path, content_str)
+                    print(f"[E2BSandbox] Wrote {len(content_str)} chars to {path}")
+                else:
+                    print(f"[E2BSandbox] Skipping {path}: content is None")
             except Exception as e:
                 write_failures.append({"path": path, "error": str(e)})
                 print(f"[E2BSandbox] Failed to write file {path}: {e}")

@@ -329,47 +329,61 @@ export interface DashboardData {
 }
 
 /**
- * 获取 Dashboard 聚合数据（并行请求，简单可靠）
+ * 获取 Dashboard 聚合数据（按 project_id 过滤）
+ * @param projectId 项目 ID（必填）
  * @param hours 时间范围（小时），默认 24
  */
-export async function getDashboardData(hours: number = 24): Promise<DashboardData> {
+export async function getDashboardData(projectId: string, hours: number = 24): Promise<DashboardData> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
+  if (!projectId) throw new Error('Project ID is required');
 
   const timeStart = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
-  // 并行请求所有数据
-  // 注意：chat_messages 没有 user_id 字段，但有 RLS 策略会自动过滤
+  // Step 1: 先获取该项目下的所有 agents
+  const agentsResult = await supabase
+    .from('agents')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+  
+  if (agentsResult.error) throw new Error(`Failed to fetch agents: ${agentsResult.error.message}`);
+  const agents = agentsResult.data || [];
+  const agentIds = agents.map(a => a.id);
+
+  // Step 2: 并行获取与这些 agents 相关的数据
   const [
-    agentsResult,
     sessionsResult,
     messagesResult,
     logsResult,
   ] = await Promise.all([
-    supabase.from('agents').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-    supabase.from('chat_sessions').select('*').eq('user_id', user.id),
-    supabase.from('chat_messages').select('id, session_id, created_at'),  // RLS 自动过滤
-    supabase.from('agent_logs').select('id, call_type, agent_id, created_at').eq('user_id', user.id),
+    // sessions: 只获取属于这个项目 agents 的 sessions
+    agentIds.length > 0 
+      ? supabase.from('chat_sessions').select('*').in('agent_id', agentIds)
+      : Promise.resolve({ data: [], error: null }),
+    // messages: RLS 自动过滤
+    supabase.from('chat_messages').select('id, session_id, created_at'),
+    // logs: 只获取属于这个项目 agents 的 logs
+    agentIds.length > 0
+      ? supabase.from('agent_logs').select('id, call_type, agent_id, created_at').in('agent_id', agentIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   // 检查错误
-  if (agentsResult.error) throw new Error(`Failed to fetch agents: ${agentsResult.error.message}`);
   if (sessionsResult.error) throw new Error(`Failed to fetch sessions: ${sessionsResult.error.message}`);
   if (messagesResult.error) throw new Error(`Failed to fetch messages: ${messagesResult.error.message}`);
   if (logsResult.error) throw new Error(`Failed to fetch logs: ${logsResult.error.message}`);
 
-  const agents = agentsResult.data || [];
   const sessions = sessionsResult.data || [];
   const allMessages = messagesResult.data || [];
   const logs = logsResult.data || [];
 
-  // 过滤有效 session（agent 存在的）
-  const agentIds = new Set(agents.map(a => a.id));
-  const validSessions = sessions.filter(s => s.agent_id && agentIds.has(s.agent_id));
+  // sessions 已经按 agent_id 过滤，都是有效的
+  const validSessions = sessions;
   
-  // 过滤有效 messages（属于用户 session 的）
+  // 过滤有效 messages（属于这个项目 sessions 的）
   const sessionIds = new Set(sessions.map(s => s.id));
   const messages = allMessages.filter(m => sessionIds.has(m.session_id));
 

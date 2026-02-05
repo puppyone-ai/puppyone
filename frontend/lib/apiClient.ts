@@ -29,6 +29,9 @@ export async function getApiAccessToken(): Promise<string | null> {
   return getAuthToken();
 }
 
+// Alias for backward compatibility
+export const getAccessToken = getApiAccessToken;
+
 interface ApiResponse<T> {
   code: number;
   message: string;

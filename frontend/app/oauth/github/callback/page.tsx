@@ -52,9 +52,9 @@ function GithubCallbackContent() {
 
   return (
     <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       minHeight: '100vh',
       background: '#0a0a0a',
       color: '#CDCDCD',
@@ -64,32 +64,32 @@ function GithubCallbackContent() {
           <>
             <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16 }}>
               Connecting to GitHub...
-            </div>
+        </div>
             <div style={{ fontSize: 13, color: '#8B8B8B' }}>
               Please wait while we complete the authorization
             </div>
           </>
-        )}
+          )}
 
-        {status === 'success' && (
+          {status === 'success' && (
           <>
             <div style={{ fontSize: 40, marginBottom: 16, color: '#22c55e' }}>✓</div>
             <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, color: '#22c55e' }}>
               Success!
-            </div>
+              </div>
             <div style={{ fontSize: 13, color: '#8B8B8B' }}>{message}</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 16 }}>
               This window will close automatically...
             </div>
           </>
-        )}
+          )}
 
-        {status === 'error' && (
+          {status === 'error' && (
           <>
             <div style={{ fontSize: 40, marginBottom: 16, color: '#ef4444' }}>✗</div>
             <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, color: '#ef4444' }}>
               Connection Failed
-            </div>
+              </div>
             <div style={{ fontSize: 13, color: '#8B8B8B' }}>{message}</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 16 }}>
               This window will close automatically...
@@ -105,15 +105,15 @@ export default function GithubCallbackPage() {
   return (
     <Suspense fallback={
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
         minHeight: '100vh',
         background: '#0a0a0a',
         color: '#CDCDCD',
       }}>
         <div>Loading...</div>
-      </div>
+        </div>
     }>
       <GithubCallbackContent />
     </Suspense>
