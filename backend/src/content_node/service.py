@@ -691,7 +691,7 @@ class ContentNodeService:
         # 直接更新数据库，不存 S3
         updated = self.repo.update(
             node_id=node_id,
-            preview_md=content,
+        preview_md=content,
             preview_type="markdown",
             size_bytes=len(content_bytes),
         )

@@ -441,28 +441,28 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
                 # ─────────────────────────────────────────────────────────────
                 existing_content = existing_node.preview_json or {}
             
-                # Merge data at the specified path
-                if mount_json_path:
-                    path_parts = [p for p in mount_json_path.split("/") if p]
-                    current = existing_content
-                    for part in path_parts[:-1]:
-                        if part not in current:
-                            current[part] = {}
-                        current = current[part]
-                    if path_parts:
-                        current[path_parts[-1]] = {mount_key: mount_value}
-                    else:
-                        existing_content[mount_key] = mount_value
+            # Merge data at the specified path
+            if mount_json_path:
+                path_parts = [p for p in mount_json_path.split("/") if p]
+                current = existing_content
+                for part in path_parts[:-1]:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                if path_parts:
+                    current[path_parts[-1]] = {mount_key: mount_value}
                 else:
                     existing_content[mount_key] = mount_value
-                
-                # Update node with merged content
-                await asyncio.to_thread(
-                    node_service.update_node,
-                    mount_node_id,
+            else:
+                existing_content[mount_key] = mount_value
+            
+            # Update node with merged content
+            await asyncio.to_thread(
+                node_service.update_node,
+                mount_node_id,
                     task.project_id,
                     preview_json=existing_content,
-                )
+            )
         except Exception as e:
             # Mount failure => task failed (output exists in S3, but contract is "completed means mounted")
             err = f"Mount failed: {e}"

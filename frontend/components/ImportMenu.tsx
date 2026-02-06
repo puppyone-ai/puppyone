@@ -363,64 +363,64 @@ export function ImportMenu({
       onLog?.('info', `Uploading ${importFiles.length} file(s)...`);
 
       // 添加占位任务到右下角进度面板
-      const baseTimestamp = Date.now();
+        const baseTimestamp = Date.now();
       const placeholderGroupId = `upload-${baseTimestamp}`;
       const placeholderTasks = importFiles.map((file, index) => ({
-        taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
-        projectId: projectId,
+          taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+          projectId: projectId,
         tableId: placeholderGroupId,
         tableName: file.name,
-        filename: file.name,
-        status: 'pending' as const,
+          filename: file.name,
+          status: 'pending' as const,
         taskType: 'file' as const,
-      }));
-      addPendingTasks(placeholderTasks);
+        }));
+        addPendingTasks(placeholderTasks);
 
       if (!session?.access_token) {
         throw new Error('Not authenticated');
-      }
+          }
 
       // 直接上传文件到后端，后端负责创建所有节点
       // 不再前端先创建 table/folder —— 这会导致重复记录
-      const response = await uploadAndSubmit(
-        {
+            const response = await uploadAndSubmit(
+              {
           projectId: projectId,
           files: importFiles,
           mode: mode,
           // parent_id 未指定，后端创建在根级别
-        },
-        session.access_token
-      );
+              },
+              session.access_token
+            );
 
       // 用真实任务替换占位任务
       const filenameMap = new Map<string, string>();
       importFiles.forEach(f => filenameMap.set(f.name, f.name));
 
-      const realTasks = response.items
-        .filter(item => item.status !== 'failed')
-        .map(item => ({
-          taskId: String(item.task_id),
-          projectId: projectId,
+            const realTasks = response.items
+              .filter(item => item.status !== 'failed')
+              .map(item => ({
+                taskId: String(item.task_id),
+                projectId: projectId,
           tableId: placeholderGroupId,
           tableName: filenameMap.get(item.filename!) || item.filename!,
-          filename: filenameMap.get(item.filename!) || item.filename!,
-          status: (item.status === 'completed' ? 'completed' : 'pending') as any,
+                filename: filenameMap.get(item.filename!) || item.filename!,
+                status: (item.status === 'completed' ? 'completed' : 'pending') as any,
           taskType: 'file' as const,
-        }));
+              }));
 
-      if (realTasks.length > 0) {
+            if (realTasks.length > 0) {
         replacePlaceholderTasks(placeholderGroupId, realTasks);
-      }
+            }
 
       const failedFiles = response.items.filter(item => item.status === 'failed');
-      if (failedFiles.length > 0) {
-        console.warn('Some files failed to upload:', failedFiles);
+            if (failedFiles.length > 0) {
+              console.warn('Some files failed to upload:', failedFiles);
         onLog?.('warning', `${failedFiles.length} file(s) failed to upload`);
-        const failedFileNames = failedFiles.map(
-          f => filenameMap.get(f.filename!) || f.filename!
-        );
+              const failedFileNames = failedFiles.map(
+                f => filenameMap.get(f.filename!) || f.filename!
+              );
         removeFailedPlaceholders(placeholderGroupId, failedFileNames);
-      }
+            }
 
       const successCount = response.items.filter(i => i.status !== 'failed').length;
       onLog?.('success', `${successCount} file(s) uploaded successfully!`);

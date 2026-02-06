@@ -99,62 +99,126 @@ const GridBase = ({ children }: { children?: React.ReactNode }) => (
   </svg>
 );
 
-// 5. Branded Doc - JSON 图标 + 右下角来源 Logo
-const BrandedIcon = ({ 
-  BadgeIcon,
+// 6. Unified Branded Icon - 统一图标组件
+// 设计理念：Corner Badge (长方形纸张版)
+// - 主体：App Logo 绝对居中 (带尺寸限制)
+// - 角标：28x36 长方形纸张，比例更像文档
+const UnifiedBrandedIcon = ({ 
+  BadgeIcon, 
   type,
-  badgeSize = 20,
+  badgeSize = 32,
   showWarning = false,
+  previewType = 'json',
 }: { 
   BadgeIcon?: React.ElementType;
   type: string;
   badgeSize?: number;
   showWarning?: boolean;
+  previewType?: string | null;
 }) => {
+
+  // 长方形纸张底座 (25x35) - 比例 5:7，与原图一致
+  // 背景色更浅，与深色 App 卡片形成对比
+  const RectDocBase = ({ children }: { children: React.ReactNode }) => (
+    <svg width="25" height="35" viewBox="0 0 25 35" fill="none" style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' }}>
+      {/* 纸张轮廓 - 中等亮度背景 */}
+      <path 
+        d="M2 1C0.89543 1 0 1.89543 0 3V32C0 33.1046 0.89543 34 2 34H23C24.1046 34 25 33.1046 25 32V8L18 1H2Z" 
+        fill="#3f3f46" 
+        stroke="#71717a" 
+        strokeWidth="1.5"
+      />
+      {/* 折角线条 */}
+      <path 
+        d="M18 1V8H25" 
+        stroke="#a1a1aa" 
+        strokeWidth="1.5" 
+        strokeLinejoin="round" 
+      />
+      {children}
+    </svg>
+  );
+
+  // JSON Badge (绿色网格 - 居中偏下)
+  // 纸张宽25, 内容宽14 -> x=(25-14)/2=5.5
+  // 纸张高35, 内容高11 -> y=35-11-6=18 (底部留 6px)
+  const JsonBadge = () => (
+    <RectDocBase>
+      <svg x="5.5" y="16" width="14" height="11" viewBox="0 0 24 20" fill="none">
+         <path d="M7 2L7 18" stroke="#34d399" strokeWidth="2.5"/>
+         <path d="M22 13L2 13" stroke="#34d399" strokeWidth="2.5"/>
+         <path d="M22 7L2 7" stroke="#34d399" strokeWidth="2.5"/>
+         <rect x="1" y="1" width="22" height="18" stroke="#34d399" strokeWidth="2.5"/>
+      </svg>
+    </RectDocBase>
+  );
+
+  // Markdown Badge (灰色横条 - 居中偏下)
+  // 纸张宽25, 内容宽14 -> x=5.5
+  // y=18 (底部留 6px)
+  const MarkdownBadge = () => (
+    <RectDocBase>
+      <svg x="5.5" y="18" width="14" height="9" viewBox="0 0 24 15" fill="none">
+         <rect width="24" height="3" fill="#d4d4d8"/>
+         <rect y="12" width="19" height="3" fill="#d4d4d8"/>
+         <rect y="6" width="13" height="3" fill="#d4d4d8"/>
+      </svg>
+    </RectDocBase>
+  );
+
   return (
     <div style={{ position: 'relative', width: 64, height: 64 }}>
-      {/* 
-        底板：使用 JSON 图标显示数据格式
-        如果是 placeholder，应用灰度，表示"文件未生成"
-      */}
-      <img 
-        src="/icons/json-doc.svg" 
-        alt="Data" 
-        width={64} 
-        height={64} 
-        style={{ 
-          display: 'block',
-          filter: showWarning ? 'grayscale(100%) opacity(0.5)' : 'none',
-          transition: 'all 0.3s ease'
-        }} 
-      />
-      
-      {/* 右下角来源 Logo - 保持原色，方便识别 */}
-      {BadgeIcon && (
+      {/* 卡片容器 */}
+      <div style={{
+        width: 56,
+        height: 56,
+        margin: '4px auto 0',
+        borderRadius: 14,
+        background: 'linear-gradient(145deg, #27272a 0%, #18181b 100%)',
+        border: '1px solid #3f3f46',
+        position: 'relative',
+        boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+      }}>
+        {/* App Logo - 绝对居中 + 尺寸限制 */}
         <div style={{
           position: 'absolute',
-          bottom: 0,
-          right: -2,
+          inset: 0,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#e4e4e7',
-          // 如果是 placeholder，稍微降低一点透明度，不那么"跳"，但保留颜色
-          opacity: showWarning ? 0.8 : 1,
-          filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))',
-          zIndex: 10,
-          transition: 'opacity 0.3s ease'
+          padding: 6,
         }}>
-          <BadgeIcon size={badgeSize} />
+          {BadgeIcon && (
+            <div style={{ 
+              maxWidth: 36, 
+              maxHeight: 36, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              overflow: 'hidden',
+            }}>
+              <BadgeIcon size={badgeSize} />
+            </div>
+          )}
         </div>
-      )}
 
-      {/* 警告徽章 - 独立于主体，鲜艳突出 */}
-      {showWarning && BadgeIcon && (
+        {/* 右下角悬浮徽章 - 长方形纸张 */}
         <div style={{
           position: 'absolute',
-          bottom: 12,
-          right: -4,
+          bottom: -10,
+          right: -8, 
+          zIndex: 10,
+        }}>
+          {previewType === 'markdown' ? <MarkdownBadge /> : <JsonBadge />}
+        </div>
+      </div>
+
+      {/* Warning */}
+      {showWarning && (
+        <div style={{
+          position: 'absolute',
+          top: -2,
+          right: -2,
           width: 16,
           height: 16,
           borderRadius: '50%',
@@ -164,25 +228,10 @@ const BrandedIcon = ({
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 20,
-          boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-          animation: 'pulse-badge 2s infinite'
         }}>
-          <span style={{ 
-            color: '#000', 
-            fontSize: 10, 
-            fontWeight: 800,
-            lineHeight: 1,
-            marginBottom: 1 
-          }}>!</span>
+          <span style={{ color: '#000', fontSize: 10, fontWeight: 800 }}>!</span>
         </div>
       )}
-      <style jsx>{`
-        @keyframes pulse-badge {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.1); }
-          100% { transform: scale(1); }
-        }
-      `}</style>
     </div>
   );
 };
@@ -283,13 +332,15 @@ function GridItem({
     const config = getNodeTypeConfig(item.type, item.preview_type);
     
     // 对于所有同步类型 (GitHub Repo, Notion Page/Database, Airtable, etc.)
-    // 使用拟物化的 "文档 + Logo"
+    // 使用统一的 "背景来源 + 前景内容" 图标体系
     if (isSynced) {
       return (
-        <BrandedIcon 
+        <UnifiedBrandedIcon 
           BadgeIcon={BadgeIcon}
-          type={item.type} // 传入类型以决定底板
-          showWarning={isPlaceholder} // 如果是占位符，显示警告
+          type={item.type}
+          badgeSize={32}
+          showWarning={isPlaceholder}
+          previewType={item.preview_type}
         />
       );
     }

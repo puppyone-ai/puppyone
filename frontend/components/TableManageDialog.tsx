@@ -176,7 +176,7 @@ export function TableManageDialog({
       }
     }
   }, [selectedFiles, startOption]);
-
+  
   const connectStatusMeta = (() => {
     if (connectImporting) return { label: 'Importing...', color: '#22c55e' };
     if (connectLoading) return { label: 'Connecting...', color: '#3b82f6' };
@@ -799,46 +799,46 @@ export function TableManageDialog({
         const files = Array.from(selectedFiles);
         
         // 添加占位任务到进度面板
-        const baseTimestamp = Date.now();
+          const baseTimestamp = Date.now();
         const placeholderGroupId = `upload-${baseTimestamp}`;
         const placeholderTasks = files.map((file, index) => ({
-          taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
-          projectId: projectId,
+            taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+            projectId: projectId,
           tableId: placeholderGroupId,
           tableName: file.name,
-          filename: file.name,
-          status: 'pending' as const,
-        }));
-        addPendingTasks(placeholderTasks);
+            filename: file.name,
+            status: 'pending' as const,
+          }));
+          addPendingTasks(placeholderTasks);
         
         await refreshProjects();
         onClose();
         
         // 上传文件
-        setTimeout(async () => {
-          try {
-            const response = await uploadAndSubmit(
-              {
+          setTimeout(async () => {
+                try {
+                  const response = await uploadAndSubmit(
+                    { 
                 projectId: projectId,
                 files: files,
                 mode: backendMode,
                 parentId: parentId || undefined,
-              },
+                    }, 
               session!.access_token
-            );
-            
+                  );
+                  
             const filenameMap = new Map<string, string>();
             files.forEach(f => filenameMap.set(f.name, f.name));
             
             const realTasks = response.items
               .filter(item => item.status !== 'failed')
               .map(item => ({
-                taskId: String(item.task_id),
-                projectId: projectId,
+                      taskId: String(item.task_id),
+                      projectId: projectId,
                 tableId: placeholderGroupId,
                 tableName: filenameMap.get(item.filename!) || item.filename!,
                 filename: filenameMap.get(item.filename!) || item.filename!,
-                status: (item.status === 'completed' ? 'completed' : 'pending') as any,
+                      status: (item.status === 'completed' ? 'completed' : 'pending') as any,
               }));
             
             if (realTasks.length > 0) {
@@ -850,12 +850,12 @@ export function TableManageDialog({
               console.warn('Some files failed:', failedFiles);
               const failedNames = failedFiles.map(f => f.filename!);
               removeFailedPlaceholders(placeholderGroupId, failedNames);
-            }
-          } catch (etlError) {
+              }
+            } catch (etlError) {
             console.error('File upload failed:', etlError);
             removeAllPlaceholdersForTable(placeholderGroupId);
-          }
-        }, 100);
+            }
+          }, 100);
         
         return;
       } else {
@@ -1055,7 +1055,7 @@ export function TableManageDialog({
                   {selectedFiles && selectedFiles.length > 0 && (
                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         {/* Name Input */}
-                        <div>
+                     <div>
                            <label style={{ ...labelStyle, marginBottom: 6 }}>Context Name</label>
                            <input 
                              type='text' 
