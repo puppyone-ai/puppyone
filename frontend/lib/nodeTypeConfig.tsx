@@ -120,7 +120,7 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
   // === 基础类型 ===
   'folder': {
     renderAs: 'folder',
-    color: '#a1a1aa',
+    color: '#3b82f6',  // 蓝色
     label: 'Folder',
     isReadOnly: false,
   },
@@ -132,7 +132,7 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
   },
   'markdown': {
     renderAs: 'markdown',
-    color: '#60a5fa',
+    color: '#a1a1aa',  // 灰色（不是蓝色）
     label: 'Markdown',
     isReadOnly: false,
   },
@@ -350,7 +350,7 @@ export function getNodeTypeConfig(type: string, previewType?: string | null): No
     if (previewType === 'markdown') {
       return {
         renderAs: 'markdown',
-        color: '#60a5fa',
+        color: '#a1a1aa',  // 灰色（不是蓝色）
         label: 'OCR Document',
         isReadOnly: false,
       };

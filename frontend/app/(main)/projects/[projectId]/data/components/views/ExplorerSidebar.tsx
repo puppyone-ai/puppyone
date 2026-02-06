@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import type { ContentType, AgentResource } from './GridView';
-import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
+import { getNodeTypeConfig, getSyncSourceIcon, getSyncSource } from '@/lib/nodeTypeConfig';
 
 // === Types ===
 export interface MillerColumnItem {
   id: string;
   name: string;
   type: ContentType;
+  preview_type?: string | null;
   is_synced?: boolean;
+  source?: string | null;       // 来源（用于获取 SaaS Logo）
   sync_source?: string | null;
   sync_url?: string | null;
   last_synced_at?: string | null;
@@ -44,39 +46,115 @@ const FolderIcon = () => (
   <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
     <path
       d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
-      fill='currentColor'
+      fill='#3b82f6'
       fillOpacity='0.15'
-      stroke='currentColor'
+      stroke='#3b82f6'
       strokeWidth='1.5'
     />
   </svg>
 );
 
-const FileIcon = ({ type, previewType }: { type: string; previewType?: string | null }) => {
+// JSON 图标 (绿色)
+const JsonIcon = () => (
+  <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
+    <rect x='3' y='3' width='18' height='18' rx='2' stroke='#34d399' strokeWidth='1.5' fill='#34d399' fillOpacity='0.08' />
+    <path d='M3 9H21' stroke='#34d399' strokeWidth='1.5' />
+    <path d='M9 3V21' stroke='#34d399' strokeWidth='1.5' />
+  </svg>
+);
+
+// Markdown 图标 (灰色)
+const MarkdownIcon = () => (
+  <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
+    <path
+      d='M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z'
+      stroke='#a1a1aa'
+      strokeWidth='1.5'
+      fill='#a1a1aa'
+      fillOpacity='0.08'
+    />
+    <path d='M14 2V8H20' stroke='#a1a1aa' strokeWidth='1.5' />
+    <path d='M8 13H16' stroke='#a1a1aa' strokeWidth='1.5' strokeLinecap='round' />
+    <path d='M8 17H12' stroke='#a1a1aa' strokeWidth='1.5' strokeLinecap='round' />
+  </svg>
+);
+
+// 普通文件图标 (灰色)
+const PlainFileIcon = () => (
+  <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
+    <path d='M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z' stroke='#71717a' strokeWidth='1.5' />
+    <path d='M14 2V8H20' stroke='#71717a' strokeWidth='1.5' />
+  </svg>
+);
+
+// 小号数据格式角标 - 放大到 10x10 更清晰
+const MiniJsonBadge = () => (
+  <svg width='10' height='10' viewBox='0 0 24 24' fill='none'>
+    <rect x='1' y='1' width='22' height='22' rx='3' stroke='#34d399' strokeWidth='2' fill='#18181b' />
+    <path d='M1 9H23' stroke='#34d399' strokeWidth='2' />
+    <path d='M9 1V23' stroke='#34d399' strokeWidth='2' />
+  </svg>
+);
+
+const MiniMarkdownBadge = () => (
+  <svg width='10' height='10' viewBox='0 0 24 24' fill='none'>
+    <rect x='1' y='1' width='22' height='22' rx='3' fill='#18181b' stroke='#a1a1aa' strokeWidth='2' />
+    <path d='M5 9H19' stroke='#a1a1aa' strokeWidth='2' strokeLinecap='round' />
+    <path d='M5 14H15' stroke='#a1a1aa' strokeWidth='2' strokeLinecap='round' />
+  </svg>
+);
+
+// 获取数据格式角标
+const getFormatBadge = (renderAs: string) => {
+  switch (renderAs) {
+    case 'markdown': return <MiniMarkdownBadge />;
+    case 'json': return <MiniJsonBadge />;
+    default: return null;
+  }
+};
+
+// 文件图标组件 - 支持 SaaS 类型
+const FileIcon = ({ type, previewType, source, syncSource }: { 
+  type: string; 
+  previewType?: string | null;
+  source?: string | null;
+  syncSource?: string | null;
+}) => {
   const config = getNodeTypeConfig(type, previewType);
-  if (config.renderAs === 'markdown') {
+  
+  // 获取 SaaS Logo - 与 GridView 相同的逻辑
+  const actualSource = source || syncSource || getSyncSource(type);
+  const BadgeIcon = getSyncSourceIcon(actualSource) || config.badgeIcon;
+  
+  // 直接用 previewType 字段判断格式，如果没有则用 config.renderAs
+  const isJson = previewType === 'json' || (!previewType && config.renderAs === 'json');
+  
+  // SaaS 类型：显示 Logo + 格式标签
+  if (BadgeIcon) {
     return (
-      <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
-        <path
-          d='M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z'
-          stroke='currentColor'
-          strokeWidth='1.5'
-          fill='currentColor'
-          fillOpacity='0.08'
-        />
-        <path d='M14 2V8H20' stroke='currentColor' strokeWidth='1.5' />
-        <path d='M8 13H16' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
-        <path d='M8 17H12' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
-      </svg>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <BadgeIcon size={14} />
+        <span style={{
+          fontSize: 9,
+          fontWeight: 600,
+          color: isJson ? '#34d399' : '#a1a1aa',
+          background: isJson ? 'rgba(52, 211, 153, 0.1)' : 'rgba(161, 161, 170, 0.1)',
+          padding: '0px 3px',
+          borderRadius: 2,
+          textTransform: 'uppercase',
+        }}>
+          {isJson ? 'JSON' : 'MD'}
+        </span>
+      </div>
     );
   }
-  return (
-    <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
-      <rect x='3' y='3' width='18' height='18' rx='2' stroke='currentColor' strokeWidth='1.5' fill='currentColor' fillOpacity='0.08' />
-      <path d='M3 9H21' stroke='currentColor' strokeWidth='1.5' />
-      <path d='M9 3V21' stroke='currentColor' strokeWidth='1.5' />
-    </svg>
-  );
+  
+  // 普通类型
+  switch (config.renderAs) {
+    case 'markdown': return <MarkdownIcon />;
+    case 'json': return <JsonIcon />;
+    default: return <PlainFileIcon />;
+  }
 };
 
 // === Tree Item Component ===
@@ -200,8 +278,8 @@ function TreeItem({
           {isFolder && <ChevronRightIcon expanded={expanded} />}
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', color: isFolder ? '#eab308' : '#60a5fa' }}>
-          {isFolder ? <FolderIcon /> : <FileIcon type={item.type} />}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {isFolder ? <FolderIcon /> : <FileIcon type={item.type} previewType={item.preview_type} source={item.source} syncSource={item.sync_source} />}
         </div>
         
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>

@@ -3,17 +3,19 @@
 import { useState } from 'react';
 import type { ContentType, AgentResource } from './GridView';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
-import { getNodeTypeConfig, isSyncedType, LockIcon } from '@/lib/nodeTypeConfig';
+import { getNodeTypeConfig, isSyncedType, LockIcon, getSyncSourceIcon, getSyncSource } from '@/lib/nodeTypeConfig';
 
 export interface ListViewItem {
   id: string;
   name: string;
   type: ContentType;
+  preview_type?: string | null;
   description?: string;
   rowCount?: number;
   onClick: (e: React.MouseEvent) => void;
   // 同步相关字段
   is_synced?: boolean;
+  source?: string | null;      // 来源（用于获取 SaaS Logo）
   sync_source?: string | null;
   sync_url?: string | null;
   sync_status?: 'not_connected' | 'idle' | 'syncing' | 'error';
@@ -36,31 +38,48 @@ export interface ListViewProps {
 // Icons
 const FolderIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#3b82f6" fillOpacity="0.15" stroke="#3b82f6" strokeWidth="1.5" />
   </svg>
 );
 
 const JsonIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.08" />
-    <path d="M3 9H21" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M9 3V21" stroke="currentColor" strokeWidth="1.5" />
+    <rect x="3" y="3" width="18" height="18" rx="2" stroke="#34d399" strokeWidth="1.5" fill="#34d399" fillOpacity="0.08" />
+    <path d="M3 9H21" stroke="#34d399" strokeWidth="1.5" />
+    <path d="M9 3V21" stroke="#34d399" strokeWidth="1.5" />
   </svg>
 );
 
 const MarkdownIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.08" />
-    <path d="M14 2V8H20" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M8 13H16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M8 17H12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke="#a1a1aa" strokeWidth="1.5" fill="#a1a1aa" fillOpacity="0.08" />
+    <path d="M14 2V8H20" stroke="#a1a1aa" strokeWidth="1.5" />
+    <path d="M8 13H16" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M8 17H12" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 );
 
 const FileIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M14 2V8H20" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke="#71717a" strokeWidth="1.5" />
+    <path d="M14 2V8H20" stroke="#71717a" strokeWidth="1.5" />
+  </svg>
+);
+
+// 小号数据格式角标 (用于 SaaS 类型) - 放大到 12x12 更清晰
+const MiniJsonBadge = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+    <rect x="1" y="1" width="22" height="22" rx="3" stroke="#34d399" strokeWidth="2" fill="#18181b" />
+    <path d="M1 9H23" stroke="#34d399" strokeWidth="2" />
+    <path d="M9 1V23" stroke="#34d399" strokeWidth="2" />
+  </svg>
+);
+
+const MiniMarkdownBadge = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+    <rect x="1" y="1" width="22" height="22" rx="3" fill="#18181b" stroke="#a1a1aa" strokeWidth="2" />
+    <path d="M5 9H19" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" />
+    <path d="M5 14H15" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" />
   </svg>
 );
 
@@ -100,6 +119,15 @@ function getIcon(type: string, previewType?: string | null) {
 function getIconColor(type: string, previewType?: string | null) {
   const config = getNodeTypeConfig(type, previewType);
   return config.color;
+}
+
+// 获取数据格式角标
+function getFormatBadge(renderAs: string) {
+  switch (renderAs) {
+    case 'markdown': return <MiniMarkdownBadge />;
+    case 'json': return <MiniJsonBadge />;
+    default: return null;
+  }
 }
 
 // Sync Status indicator (只显示 syncing/error，占位符不显示任何东西)
@@ -151,7 +179,11 @@ function ListItem({
   // Get type config - uses preview_type to decide rendering for OCR'd files
   const typeConfig = getNodeTypeConfig(item.type, item.preview_type);
   const isFolder = typeConfig.renderAs === 'folder';
-  const BadgeIcon = typeConfig.badgeIcon;
+  
+  // 获取 SaaS Logo - 与 GridView 相同的逻辑
+  const syncSource = item.source || item.sync_source || getSyncSource(item.type);
+  const BadgeIcon = getSyncSourceIcon(syncSource) || typeConfig.badgeIcon;
+  
   const isPlaceholder = item.sync_status === 'not_connected';
 
   // Check if this item has agent access
@@ -198,28 +230,38 @@ function ListItem({
         opacity: isPlaceholder ? (hovered ? 1 : 0.45) : 1,
       }}
     >
-      {/* Icon with Sync Badge */}
+      {/* Icon: SaaS 类型显示 Logo + 格式标签，其他类型显示普通图标 */}
       <div style={{ 
-        color: getIconColor(item.type), 
         display: 'flex', 
         alignItems: 'center',
-        position: 'relative',
+        gap: 6,
+        flexShrink: 0,
       }}>
-        {getIcon(item.type, item.preview_type)}
-        {/* Sync Badge (SaaS Logo) */}
-        {BadgeIcon && (
-          <div style={{
-            position: 'absolute',
-            bottom: -3,
-            right: -5,
-            background: '#18181b',
-            borderRadius: 4,
-            padding: 2,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <BadgeIcon size={12} />
+        {BadgeIcon ? (
+          // SaaS 类型：Logo + (格式) - 直接用 preview_type 字段
+          (() => {
+            const isJson = item.preview_type === 'json' || (!item.preview_type && typeConfig.renderAs === 'json');
+            return (
+              <>
+                <BadgeIcon size={16} />
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: isJson ? '#34d399' : '#a1a1aa',
+                  background: isJson ? 'rgba(52, 211, 153, 0.1)' : 'rgba(161, 161, 170, 0.1)',
+                  padding: '1px 4px',
+                  borderRadius: 3,
+                  textTransform: 'uppercase',
+                }}>
+                  {isJson ? 'JSON' : 'MD'}
+                </span>
+              </>
+            );
+          })()
+        ) : (
+          // 普通类型：直接显示图标
+          <div style={{ color: getIconColor(item.type, item.preview_type) }}>
+            {getIcon(item.type, item.preview_type)}
           </div>
         )}
       </div>

@@ -104,7 +104,7 @@ const GridBase = ({ children }: { children?: React.ReactNode }) => (
 // - 主体：App Logo 绝对居中 (带尺寸限制)
 // - 角标：28x36 长方形纸张，比例更像文档
 const UnifiedBrandedIcon = ({ 
-  BadgeIcon, 
+  BadgeIcon,
   type,
   badgeSize = 32,
   showWarning = false,

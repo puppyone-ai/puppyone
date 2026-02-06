@@ -728,6 +728,7 @@ export default function DataPage({ params }: DataPageProps) {
     id: node.id,
     name: node.name,
     type: node.type as ContentType,
+    preview_type: node.preview_type,  // 传递 preview_type 用于正确渲染
     description: node.type === 'folder' ? 'Folder' : 
                  node.type === 'json' ? 'JSON' : 
                  node.type === 'markdown' ? 'Markdown' :
@@ -782,7 +783,9 @@ export default function DataPage({ params }: DataPageProps) {
         id: node.id,
         name: node.name,
         type: node.type as ContentType,
+        preview_type: node.preview_type,  // 传递 preview_type 用于正确显示格式
         is_synced: node.is_synced,
+        source: node.source,              // 传递 source 用于获取 SaaS Logo
         sync_source: node.sync_source,
         last_synced_at: node.last_synced_at,
       }));
