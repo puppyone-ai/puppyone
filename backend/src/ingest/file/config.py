@@ -4,6 +4,7 @@ ETL Configuration
 Configuration settings for ETL service.
 """
 
+from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,6 +17,13 @@ class ETLConfig(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         env_ignore_empty=True,
+    )
+
+    # ========== OCR Provider Settings ==========
+    # Supported providers: 'mineru', 'reducto'
+    ocr_provider: str = Field(
+        default="mineru",
+        description="OCR provider to use: 'mineru' or 'reducto'",
     )
 
     # Queue settings

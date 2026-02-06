@@ -335,9 +335,36 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
 
 /**
  * 获取节点类型配置
- * 如果类型未知，返回默认配置
+ * 
+ * 渲染逻辑优先级:
+ * 1. 如果 preview_type 有值 → 按 preview 渲染（Agent 看到什么就渲染什么）
+ * 2. 否则按 type 本身渲染
+ * 
+ * 这样 type="file" + preview_type="markdown" 的 OCR 节点
+ * 会渲染为 Markdown Editor，而非 raw file 图标
  */
-export function getNodeTypeConfig(type: string): NodeTypeConfig {
+export function getNodeTypeConfig(type: string, previewType?: string | null): NodeTypeConfig {
+  // 优先：如果 preview_type 存在，用 preview_type 决定渲染方式
+  // 例：type="file" + preview_type="markdown" → 渲染为 markdown
+  if (type === 'file' && previewType) {
+    if (previewType === 'markdown') {
+      return {
+        renderAs: 'markdown',
+        color: '#60a5fa',
+        label: 'OCR Document',
+        isReadOnly: false,
+      };
+    }
+    if (previewType === 'json') {
+      return {
+        renderAs: 'json',
+        color: '#34d399',
+        label: 'Parsed Document',
+        isReadOnly: false,
+      };
+    }
+  }
+  
   if (NODE_TYPE_CONFIG[type]) {
     return NODE_TYPE_CONFIG[type];
   }

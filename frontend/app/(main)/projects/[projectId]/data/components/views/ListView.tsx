@@ -86,8 +86,8 @@ const AgentAccessTag = ({ mode }: { mode: 'read' | 'write' }) => (
   </div>
 );
 
-function getIcon(type: string) {
-  const config = getNodeTypeConfig(type);
+function getIcon(type: string, previewType?: string | null) {
+  const config = getNodeTypeConfig(type, previewType);
   switch (config.renderAs) {
     case 'folder': return <FolderIcon />;
     case 'markdown': return <MarkdownIcon />;
@@ -97,8 +97,8 @@ function getIcon(type: string) {
   }
 }
 
-function getIconColor(type: string) {
-  const config = getNodeTypeConfig(type);
+function getIconColor(type: string, previewType?: string | null) {
+  const config = getNodeTypeConfig(type, previewType);
   return config.color;
 }
 
@@ -148,8 +148,8 @@ function ListItem({
 }) {
   const [hovered, setHovered] = useState(false);
   
-  // Get type config for synced items
-  const typeConfig = getNodeTypeConfig(item.type);
+  // Get type config - uses preview_type to decide rendering for OCR'd files
+  const typeConfig = getNodeTypeConfig(item.type, item.preview_type);
   const isFolder = typeConfig.renderAs === 'folder';
   const BadgeIcon = typeConfig.badgeIcon;
   const isPlaceholder = item.sync_status === 'not_connected';
@@ -205,7 +205,7 @@ function ListItem({
         alignItems: 'center',
         position: 'relative',
       }}>
-        {getIcon(item.type)}
+        {getIcon(item.type, item.preview_type)}
         {/* Sync Badge (SaaS Logo) */}
         {BadgeIcon && (
           <div style={{

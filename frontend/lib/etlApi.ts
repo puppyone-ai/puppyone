@@ -69,6 +69,8 @@ export interface UploadAndSubmitParams {
   ruleId?: number;
   nodeId?: string;
   jsonPath?: string;
+  /** Parent node ID for organizing uploaded files */
+  parentId?: string;
   /** Processing mode: 'ocr_parse' (Smart Parse) or 'raw' (Raw Storage) */
   mode?: 'ocr_parse' | 'raw';
 }
@@ -153,6 +155,9 @@ export async function uploadAndSubmit(
   }
   if (params.jsonPath !== undefined) {
     formData.append('json_path', params.jsonPath);
+  }
+  if (params.parentId !== undefined) {
+    formData.append('parent_id', params.parentId);
   }
   if (params.mode) {
     formData.append('mode', params.mode);

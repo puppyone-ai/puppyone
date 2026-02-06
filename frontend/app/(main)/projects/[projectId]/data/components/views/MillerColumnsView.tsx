@@ -106,8 +106,8 @@ const PlusIcon = () => (
 
 // === Helper ===
 
-function getIcon(type: string) {
-  const config = getNodeTypeConfig(type);
+function getIcon(type: string, previewType?: string | null) {
+  const config = getNodeTypeConfig(type, previewType);
   switch (config.renderAs) {
     case 'folder':
       return <FolderIcon />;
@@ -118,8 +118,8 @@ function getIcon(type: string) {
   }
 }
 
-function getIconColor(type: string) {
-  const config = getNodeTypeConfig(type);
+function getIconColor(type: string, previewType?: string | null) {
+  const config = getNodeTypeConfig(type, previewType);
   return config.color;
 }
 
@@ -167,7 +167,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
             {items.map(item => {
               const isSelected = selectedId === item.id;
               const isHovered = hoveredId === item.id;
-              const typeConfig = getNodeTypeConfig(item.type);
+              const typeConfig = getNodeTypeConfig(item.type, item.preview_type);
               const isFolder = typeConfig.renderAs === 'folder';
               const agentResource = resourceMap.get(item.id);
               const hasAgentAccess = !!agentResource;

@@ -252,6 +252,7 @@ export default function DataPage({ params }: DataPageProps) {
   // Active node (for editor)
   const [activeNodeId, setActiveNodeId] = useState<string>('');
   const [activeNodeType, setActiveNodeType] = useState<string>('');
+  const [activePreviewType, setActivePreviewType] = useState<string | null>(null);
   
   // Markdown content state
   const [markdownContent, setMarkdownContent] = useState<string>('');
@@ -375,18 +376,19 @@ export default function DataPage({ params }: DataPageProps) {
           setFolderBreadcrumbs([]);
           setActiveNodeId('');
           setActiveNodeType('');
+          setActivePreviewType(null);
           setMarkdownContent('');
           await loadContentNodes(null);
           return;
         }
 
         // Get info for each node in path
-        const pathNodes: Array<{ id: string; name: string; type: string }> = [];
+        const pathNodes: Array<{ id: string; name: string; type: string; preview_type?: string | null }> = [];
         for (const nodeId of path) {
           try {
             const node = await getNode(nodeId, projectId);
             if (node) {
-              pathNodes.push({ id: node.id, name: node.name, type: node.type });
+              pathNodes.push({ id: node.id, name: node.name, type: node.type, preview_type: node.preview_type });
             }
           } catch (err) {
             console.error(`Failed to get node ${nodeId}:`, err);
@@ -402,15 +404,18 @@ export default function DataPage({ params }: DataPageProps) {
           setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
           setActiveNodeId('');
           setActiveNodeType('');
+          setActivePreviewType(null);
           setMarkdownContent('');
           await loadContentNodes(lastNode.id);
         } else if (lastNode) {
           // Last is node -> show editor
           setActiveNodeId(lastNode.id);
           setActiveNodeType(lastNode.type);
+          setActivePreviewType(lastNode.preview_type ?? null);
           
           // Check if this node type should render as markdown
-          const nodeConfig = getNodeTypeConfig(lastNode.type);
+          // Uses preview_type to decide: file+preview_md → render as markdown
+          const nodeConfig = getNodeTypeConfig(lastNode.type, lastNode.preview_type);
           const shouldLoadAsMarkdown = nodeConfig.renderAs === 'markdown';
           
           if (shouldLoadAsMarkdown) {
@@ -588,7 +593,7 @@ export default function DataPage({ params }: DataPageProps) {
 
       // Node segment
       if (activeNodeId && currentTableData) {
-        const renderAs = getNodeTypeConfig(activeNodeType).renderAs;
+        const renderAs = getNodeTypeConfig(activeNodeType, activePreviewType).renderAs;
         // markdown -> markdown icon, file/image -> file icon, others -> table icon
         const nodeIcon = renderAs === 'markdown' ? markdownIcon 
           : ['file', 'image'].includes(renderAs) ? fileIcon 
@@ -886,7 +891,7 @@ export default function DataPage({ params }: DataPageProps) {
           {isEditorView && activeProject && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
               {/* Markdown Editor (only for types with preview_md content) */}
-              {getNodeTypeConfig(activeNodeType).renderAs === 'markdown' ? (
+              {getNodeTypeConfig(activeNodeType, activePreviewType).renderAs === 'markdown' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                   {isLoadingMarkdown ? (
                   <div style={{ 
@@ -971,7 +976,7 @@ export default function DataPage({ params }: DataPageProps) {
                   content={currentTableData?.content}
                   syncUrl={currentTableData?.sync_url ?? undefined}
                 />
-              ) : ['file', 'image'].includes(getNodeTypeConfig(activeNodeType).renderAs) && !currentTableData?.data && !markdownContent ? (
+              ) : ['file', 'image'].includes(getNodeTypeConfig(activeNodeType, activePreviewType).renderAs) && !currentTableData?.data && !markdownContent ? (
                 /* File Preview - ONLY when node truly has no preview content (no preview_json, no preview_md) */
                 <FilePreview nodeName={currentTableData?.name || ''} />
               ) : (
@@ -1123,7 +1128,7 @@ export default function DataPage({ params }: DataPageProps) {
 
           {/* Unified View Toggle - Bottom Left (moved from right to avoid conflict with TaskStatusWidget) */}
           {/* Hide for markdown editor (including notion_page, github_file, etc.) */}
-          {getNodeTypeConfig(activeNodeType).renderAs !== 'markdown' && (
+          {getNodeTypeConfig(activeNodeType, activePreviewType).renderAs !== 'markdown' && (
           <div
             style={{
               position: 'absolute',

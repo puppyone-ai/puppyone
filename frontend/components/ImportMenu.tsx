@@ -11,7 +11,6 @@ import {
   removeFailedPlaceholders,
   removeAllPlaceholdersForTable,
 } from './BackgroundTaskNotifier';
-import { createTable } from '../lib/projectsApi';
 import { FileImportDialog } from './FileImportDialog';
 
 interface ImportMenuProps {
@@ -357,116 +356,77 @@ export function ImportMenu({
     setFileImportDialogOpen(false);
     if (!projectId || importFiles.length === 0) return;
 
-    const finalTableName = tableName.trim()
-      ? tableName.replace(/[^a-zA-Z0-9_-]/g, '_')
-      : `context_${Date.now()}`;
-
     setIsImporting(true);
     setIsOpen(false);
 
     try {
-      onLog?.('info', 'Preparing files...');
+      onLog?.('info', `Uploading ${importFiles.length} file(s)...`);
 
-      // 创建一个简单的 FileList-like 对象
-      const fileListLike = {
-        length: importFiles.length,
-        item: (i: number) => importFiles[i],
-        [Symbol.iterator]: function* () { yield* importFiles; }
-      } as unknown as FileList;
+      // 添加占位任务到右下角进度面板
+      const baseTimestamp = Date.now();
+      const placeholderGroupId = `upload-${baseTimestamp}`;
+      const placeholderTasks = importFiles.map((file, index) => ({
+        taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+        projectId: projectId,
+        tableId: placeholderGroupId,
+        tableName: file.name,
+        filename: file.name,
+        status: 'pending' as const,
+        taskType: 'file' as const,
+      }));
+      addPendingTasks(placeholderTasks);
 
-      const { structure: folderStructure } =
-        await parseFolderStructure(fileListLike);
-
-      onLog?.('info', 'Creating table...');
-      const newTable = await createTable(
-        projectId,
-        finalTableName,
-        folderStructure
-      );
-      const newTableId = newTable.id;
-
-      // 所有选中的文件都添加到任务列表
-      if (importFiles.length > 0) {
-        const baseTimestamp = Date.now();
-        const placeholderTasks = importFiles.map((file, index) => ({
-          taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
-          projectId: projectId,
-          tableId: String(newTableId),
-          tableName: finalTableName,
-          filename: file.name,
-          status: 'pending' as const,
-          taskType: 'file' as const,
-        }));
-        addPendingTasks(placeholderTasks);
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
       }
 
-      onLog?.('success', `Table "${finalTableName}" created!`);
+      // 直接上传文件到后端，后端负责创建所有节点
+      // 不再前端先创建 table/folder —— 这会导致重复记录
+      const response = await uploadAndSubmit(
+        {
+          projectId: projectId,
+          files: importFiles,
+          mode: mode,
+          // parent_id 未指定，后端创建在根级别
+        },
+        session.access_token
+      );
+
+      // 用真实任务替换占位任务
+      const filenameMap = new Map<string, string>();
+      importFiles.forEach(f => filenameMap.set(f.name, f.name));
+
+      const realTasks = response.items
+        .filter(item => item.status !== 'failed')
+        .map(item => ({
+          taskId: String(item.task_id),
+          projectId: projectId,
+          tableId: placeholderGroupId,
+          tableName: filenameMap.get(item.filename!) || item.filename!,
+          filename: filenameMap.get(item.filename!) || item.filename!,
+          status: (item.status === 'completed' ? 'completed' : 'pending') as any,
+          taskType: 'file' as const,
+        }));
+
+      if (realTasks.length > 0) {
+        replacePlaceholderTasks(placeholderGroupId, realTasks);
+      }
+
+      const failedFiles = response.items.filter(item => item.status === 'failed');
+      if (failedFiles.length > 0) {
+        console.warn('Some files failed to upload:', failedFiles);
+        onLog?.('warning', `${failedFiles.length} file(s) failed to upload`);
+        const failedFileNames = failedFiles.map(
+          f => filenameMap.get(f.filename!) || f.filename!
+        );
+        removeFailedPlaceholders(placeholderGroupId, failedFileNames);
+      }
+
+      const successCount = response.items.filter(i => i.status !== 'failed').length;
+      onLog?.('success', `${successCount} file(s) uploaded successfully!`);
       onProjectsRefresh?.();
       setTableName('');
       setIsImporting(false);
-
-      // 上传所有文件
-      if (importFiles.length > 0 && session?.access_token && newTableId) {
-        const filenameMap = new Map<string, string>();
-        importFiles.forEach(f => {
-          filenameMap.set(f.name, f.name);
-        });
-
-        setTimeout(async () => {
-          try {
-            const response = await uploadAndSubmit(
-              {
-                projectId: projectId, // 直接传字符串，不要转换为 Number
-                files: importFiles,
-                nodeId: String(newTableId),
-                jsonPath: '',
-                mode: mode,
-              },
-              session.access_token
-            );
-
-            const realTasks = response.items
-              .filter(item => item.status !== 'failed')
-              .map(item => ({
-                taskId: String(item.task_id),
-                projectId: projectId,
-                tableId: String(newTableId),
-                tableName: finalTableName,
-                filename: filenameMap.get(item.filename!) || item.filename!,
-                status: (item.status === 'completed' ? 'completed' : 'pending') as any,
-                taskType: 'file' as const,
-              }));
-
-            if (realTasks.length > 0) {
-              replacePlaceholderTasks(String(newTableId), realTasks);
-            }
-
-            const failedFiles = response.items.filter(
-              item => item.status === 'failed'
-            );
-            if (failedFiles.length > 0) {
-              console.warn('Some files failed to upload:', failedFiles);
-              onLog?.(
-                'warning',
-                `${failedFiles.length} file(s) failed to upload`
-              );
-              const failedFileNames = failedFiles.map(
-                f => filenameMap.get(f.filename!) || f.filename!
-              );
-              removeFailedPlaceholders(String(newTableId), failedFileNames);
-            }
-          } catch (etlError) {
-            console.error('File upload failed:', etlError);
-            onLog?.(
-              'warning',
-              `File upload failed: ${etlError instanceof Error ? etlError.message : 'Unknown error'}`
-            );
-            removeAllPlaceholdersForTable(String(newTableId));
-          }
-        }, 100);
-      }
-
-      return;
     } catch (error) {
       onLog?.(
         'error',
@@ -474,7 +434,7 @@ export function ImportMenu({
       );
       setIsImporting(false);
     }
-  }, [projectId, tableName, session?.access_token, parseFolderStructure, onLog, onProjectsRefresh]);
+  }, [projectId, session?.access_token, onLog, onProjectsRefresh]);
 
   return (
     <div ref={menuRef} style={{ position: 'relative' }}>

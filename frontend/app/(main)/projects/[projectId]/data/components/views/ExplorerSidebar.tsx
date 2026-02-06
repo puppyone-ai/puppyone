@@ -52,8 +52,8 @@ const FolderIcon = () => (
   </svg>
 );
 
-const FileIcon = ({ type }: { type: string }) => {
-  const config = getNodeTypeConfig(type);
+const FileIcon = ({ type, previewType }: { type: string; previewType?: string | null }) => {
+  const config = getNodeTypeConfig(type, previewType);
   if (config.renderAs === 'markdown') {
     return (
       <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
@@ -101,7 +101,7 @@ function TreeItem({
   ancestors,
   agentResourceMap
 }: TreeItemProps) {
-  const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
+  const isFolder = getNodeTypeConfig(item.type, item.preview_type).renderAs === 'folder';
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<MillerColumnItem[] | null>(null);
   const [loading, setLoading] = useState(false);

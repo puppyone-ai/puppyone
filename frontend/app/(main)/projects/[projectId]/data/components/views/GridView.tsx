@@ -37,23 +37,24 @@ const MarkdownIconLarge = () => (
 );
 
 // 4. File 图标 (纯 S3 存储的文件)
-// 设计逻辑：实线空心边框 = "文件实体"
-//          中心文字(后缀名) = "原始格式信息" (这是Raw文件唯一可确定的信息)
+// 设计逻辑：与 JSON/Markdown 图标相同的文档外框，中间显示后缀名
 const FileIconLarge = ({ ext }: { ext: string }) => (
   <div style={{ position: 'relative', width: 64, height: 64 }}>
-    {/* 文件主体 - 实线空心 */}
+    {/* 文档外框 - 与 json-doc.svg 相同的样式 */}
     <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      {/* 文档主体 */}
       <path 
-        d="M16 8H40L50 18V56H16V8Z" 
-        stroke="#52525b" 
-        strokeWidth="1.5" 
-        fill="none" 
+        d="M12 8C12 5.79086 13.7909 4 16 4H40L52 16V56C52 58.2091 50.2091 60 48 60H16C13.7909 60 12 58.2091 12 56V8Z" 
+        fill="#27272A" 
+        stroke="#3F3F46" 
+        strokeWidth="2"
       />
+      {/* 折角 */}
       <path 
-        d="M40 8V18H50" 
-        stroke="#52525b" 
-        strokeWidth="1.5"
-        fill="none"
+        d="M40 4V16H52" 
+        stroke="#3F3F46" 
+        strokeWidth="2" 
+        strokeLinejoin="round"
       />
     </svg>
     
@@ -64,12 +65,12 @@ const FileIconLarge = ({ ext }: { ext: string }) => (
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingTop: 8, // 稍微向下偏移一点，避开折角视觉重心
+      paddingTop: 6,
     }}>
       <span style={{
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 700,
-        color: '#71717a', // 中灰色，不抢眼
+        color: '#71717a',
         fontFamily: 'monospace',
         letterSpacing: 0.5,
         textTransform: 'uppercase',
@@ -251,7 +252,7 @@ function GridItem({
   const accessMode = agentResource?.terminalReadonly ? 'read' : 'write';
 
   // Get type config for synced items
-  const typeConfig = getNodeTypeConfig(item.type);
+  const typeConfig = getNodeTypeConfig(item.type, item.preview_type);
   // 判断是否为同步类型：新架构使用 type === 'sync' 或 is_synced 字段
   const isSynced = item.is_synced || item.type === 'sync' || isSyncedType(item.type);
   // 从 source 或 sync_source 获取来源，用于显示 Logo
@@ -279,7 +280,7 @@ function GridItem({
 
   // Get icon and color based on type
   const getTypeIcon = () => {
-    const config = getNodeTypeConfig(item.type);
+    const config = getNodeTypeConfig(item.type, item.preview_type);
     
     // 对于所有同步类型 (GitHub Repo, Notion Page/Database, Airtable, etc.)
     // 使用拟物化的 "文档 + Logo"

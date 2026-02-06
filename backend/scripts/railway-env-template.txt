@@ -41,8 +41,14 @@ PUBLIC_URL=https://your-api.railway.app
 # ==================== ETL Worker 专用 ====================
 # SERVICE_ROLE=etl_worker
 
+# OCR Provider 选择 (可选，默认: mineru)
+# OCR_PROVIDER=mineru  # 可选: mineru, reducto
+
 # MineRU API (文件 OCR)
 MINERU_API_KEY=your-mineru-api-key
+
+# Reducto API (可选，替代 MineRU)
+# REDUCTO_API_KEY=your-reducto-api-key
 
 # ETL 配置 (可选)
 # ETL_QUEUE_SIZE=30
