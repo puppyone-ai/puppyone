@@ -39,3 +39,4 @@ async def get_ingest_service(
 # Type alias for cleaner dependency injection
 IngestServiceDep = Annotated[IngestService, Depends(get_ingest_service)]
 
+

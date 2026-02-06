@@ -166,3 +166,4 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
             log_error(f"Failed to reset onboarding for user {user_id}: {e}")
             return None
 
+

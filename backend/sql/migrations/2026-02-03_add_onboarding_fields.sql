@@ -81,3 +81,4 @@ WHERE has_onboarded = false;
 -- Verification query (run this to check the new columns)
 -- SELECT user_id, email, has_onboarded, onboarded_at, demo_project_id FROM public.profiles LIMIT 10;
 
+

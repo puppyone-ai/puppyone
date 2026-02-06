@@ -239,3 +239,4 @@ class IngestService:
         }
         return mapping.get(task_type.value, IngestType.WEB_PAGE)
 
+

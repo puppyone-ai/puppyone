@@ -9,3 +9,4 @@ from src.profile.service import ProfileService
 
 __all__ = ["Profile", "ProfileService"]
 
+

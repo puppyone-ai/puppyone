@@ -45,3 +45,4 @@ class ProfileUpdate(BaseModel):
     onboarded_at: Optional[datetime] = None
     demo_project_id: Optional[int] = None
 
+
