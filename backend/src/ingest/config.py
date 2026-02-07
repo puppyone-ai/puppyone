@@ -32,3 +32,4 @@ class IngestConfig(BaseSettings):
 ingest_config = IngestConfig()
 
 
+

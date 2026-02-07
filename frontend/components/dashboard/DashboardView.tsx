@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ProjectCard } from './ProjectCard';
+import { ProjectCard, PROJECT_CARD_HEIGHT, PROJECT_CARD_WIDTH } from './ProjectCard';
 import type { ProjectInfo } from '@/lib/projectsApi';
 
 export interface DashboardViewProps {
@@ -64,8 +64,14 @@ export function DashboardView({
         </button>
       </div>
 
-      {/* Grid Section */}
-      <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4'>
+      {/* Grid: 每张卡片固定最大宽高，大屏时多行排列而非被拉宽 */}
+      <div
+        className='grid gap-4'
+        style={{
+          gridTemplateColumns: `repeat(auto-fill, minmax(${PROJECT_CARD_WIDTH}px, ${PROJECT_CARD_WIDTH}px))`,
+          gridAutoRows: PROJECT_CARD_HEIGHT,
+        }}
+      >
         {projects.map(project => (
           <ProjectCard
             key={project.id}

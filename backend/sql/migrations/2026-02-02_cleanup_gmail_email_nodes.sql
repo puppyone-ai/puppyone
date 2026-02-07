@@ -57,3 +57,4 @@ GROUP BY type;
 
 
 
+

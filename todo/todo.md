@@ -1,15 +1,12 @@
-- [x]  sidebar的加载的时候的样式很奇怪
-- [x]  json editor的添加元素该怎么设计比较好？
-- [x]  json editor的新样式
-- [x]  前端对接 turbopuffer 的搜索
-- [x]  table的新建和删除都搞定
-- [x]  chat history 的前后端的机制
-- [ ]  onboarding 过程的检查
-- [ ]  各个信息源的整合，以及 key 的申请
-- [ ]  前端重构与检查
-- [ ]  自动创建 sandbox作用范围、tools的范围等
-- [ ]  mineru api key 替换，解决etl的问题
-- [ ]  系统性的测试
+- [ ]  连接数据库，比如supabase
+- [ ]  更改 readme
+- [ ]  前端代码优化
+- [ ]  开源前代码清理
+- [ ]  organization 多席位
+- [ ]  更多登录手段
+- [ ]  更多信息源，比如discord、linear等
+
+
 - [ ]  用户反馈和用户沟通系统的搭建，综合linkedin、数据库、X等
 
 
