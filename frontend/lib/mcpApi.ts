@@ -758,6 +758,6 @@ export async function createToolsAndMcp(params: {
  * 生成 MCP Server URL
  */
 export function getMcpServerUrl(apiKey: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
   return `${baseUrl}/api/v1/mcp/server/${apiKey}`;
 }

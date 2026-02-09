@@ -94,7 +94,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
   // 使用 POST /api/v1/mcp 响应中的 url 字段
   // 如果 url 不存在（从列表获取的实例），则动态构建完整的 proxy URL
   const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
   const mcpUrl =
     instance.url || `${API_BASE_URL}/api/v1/mcp/server/${instance.api_key}`;
 
