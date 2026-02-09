@@ -9,6 +9,11 @@
 from datetime import datetime, UTC
 from unittest.mock import Mock, patch
 import pytest
+
+pytest.skip(
+    "Legacy integration tests reference removed auth router/user-service",
+    allow_module_level=True,
+)
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

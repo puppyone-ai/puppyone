@@ -138,7 +138,8 @@ def _service(
     return TurbopufferSearchService(config=cfg, client_factory=lambda _cfg: fake_client)
 
 
-def test_missing_config_raises_config_error() -> None:
+def test_missing_config_raises_config_error(monkeypatch) -> None:
+    monkeypatch.delenv("TURBOPUFFER_API_KEY", raising=False)
     svc = TurbopufferSearchService(config=TurbopufferConfig(api_key=None))
     with pytest.raises(TurbopufferConfigError):
         asyncio.run(svc.query("ns", rank_by=("content", "BM25", "hello")))

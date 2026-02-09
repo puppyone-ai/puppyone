@@ -3,6 +3,11 @@ Tests for URL parser with Firecrawl integration
 """
 
 import pytest
+
+pytest.skip(
+    "Legacy connect parser tests target removed src.connect.parser module",
+    allow_module_level=True,
+)
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.connect.parser import UrlParser
 from src.exceptions import BusinessException

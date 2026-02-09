@@ -44,7 +44,7 @@ class _InMemoryPublishRepo(ContextPublishRepositoryBase):
             created_at=now,
             updated_at=now,
             user_id=str(data.user_id or ""),
-            table_id=int(data.table_id or 0),
+            table_id=str(data.table_id or ""),
             json_path=str(data.json_path or ""),
             publish_key=str(data.publish_key or ""),
             status=bool(data.status),
@@ -143,7 +143,7 @@ def client(app: FastAPI):
 
 
 def test_create_publish_and_public_get_success(client: TestClient):
-    resp = client.post("/api/v1/publishes/", json={"table_id": 123, "json_path": "/users"})
+    resp = client.post("/api/v1/publishes/", json={"table_id": "123", "json_path": "/users"})
     assert resp.status_code == 201
     body = resp.json()
     assert body["code"] == 0
@@ -163,7 +163,7 @@ def test_create_publish_and_public_get_success(client: TestClient):
 
 
 def test_revoke_then_public_get_404_even_if_cached(client: TestClient):
-    resp = client.post("/api/v1/publishes/", json={"table_id": 123, "json_path": ""})
+    resp = client.post("/api/v1/publishes/", json={"table_id": "123", "json_path": ""})
     assert resp.status_code == 201
     publish_id = resp.json()["data"]["id"]
     publish_key = resp.json()["data"]["publish_key"]
