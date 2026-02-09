@@ -1,0 +1,211 @@
+# 路径权限
+
+通过路径限制，控制 Agent 只能访问特定的数据范围。
+
+---
+
+## 什么是路径权限
+
+即使 Agent 有 `query_data` 权限，你也可以限制它只能查询特定路径：
+
+```
+全部数据:
+{
+  "products": [...],      ← Agent 可访问
+  "categories": [...],    ← Agent 可访问
+  "internal": {...}       ← Agent 不可访问
+}
+```
+
+---
+
+## JSON Path 语法
+
+PuppyOne 使用 JSON Pointer 风格的路径：
+
+| 路径 | 含义 |
+|------|------|
+| `/` | 根路径（整个 Table） |
+| `/products` | products 字段 |
+| `/products/0` | products 数组的第一个元素 |
+| `/products/0/name` | 第一个产品的 name 字段 |
+| `/products/*` | products 数组的所有元素 |
+| `/products/*/price` | 所有产品的 price 字段 |
+
+---
+
+## 配置路径权限
+
+### 添加路径规则
+
+1. 打开 Table → **Access** 标签
+2. 在 **Path Rules** 区域点击 **Add Rule**
+3. 配置：
+   - **Path**: JSON 路径（如 `/products`）
+   - **Permission**: 允许 / 禁止
+
+### 规则示例
+
+```yaml
+Path Rules:
+  - path: /products
+    permission: allow
+  
+  - path: /faq
+    permission: allow
+  
+  - path: /internal
+    permission: deny
+  
+  - path: /users/*/password
+    permission: deny
+```
+
+---
+
+## 路径匹配规则
+
+### 精确匹配
+
+```yaml
+path: /products
+```
+
+只匹配 `/products`，不匹配 `/products/0` 或 `/products_archive`。
+
+### 通配符匹配
+
+```yaml
+path: /products/*
+```
+
+匹配 `/products/0`, `/products/1`, `/products/99` 等。
+
+### 深度通配符
+
+```yaml
+path: /products/**
+```
+
+匹配 `/products` 下的所有内容，包括嵌套路径。
+
+---
+
+## 优先级规则
+
+当多条规则可能匹配时，遵循以下优先级：
+
+1. **更具体的路径优先**
+   - `/products/0/price` 优先于 `/products/*`
+   
+2. **deny 优先于 allow**
+   - 如果同时匹配 allow 和 deny，结果是 deny
+
+### 示例
+
+```yaml
+Rules:
+  - path: /products/**    # 允许访问所有产品数据
+    permission: allow
+    
+  - path: /products/*/internal_notes  # 但禁止访问内部备注
+    permission: deny
+```
+
+结果：
+- `/products/0/name` → ✅ 允许
+- `/products/0/internal_notes` → ❌ 禁止
+
+---
+
+## 常见场景
+
+### 场景 1：隐藏敏感字段
+
+```yaml
+# 允许访问用户数据，但隐藏密码和邮箱
+Rules:
+  - path: /users/**
+    permission: allow
+  - path: /users/*/password
+    permission: deny
+  - path: /users/*/email
+    permission: deny
+```
+
+### 场景 2：分区数据
+
+```yaml
+# 客服 Agent 只能访问公开数据
+Rules:
+  - path: /public/**
+    permission: allow
+  - path: /internal/**
+    permission: deny
+```
+
+### 场景 3：只读某些路径
+
+结合 Tool 权限和路径权限：
+
+```yaml
+Tools: [query_data, get_all_data, update]
+
+Path Rules:
+  - path: /products/**
+    permission: allow  # 可读可写
+    
+  - path: /config/**
+    permission: allow
+    tools: [query_data]  # 只读
+```
+
+---
+
+## 测试路径权限
+
+配置后，测试 Agent 是否能正确访问：
+
+1. 点击 **Access** 标签中的 **Test** 按钮
+2. 输入测试路径
+3. 查看是否允许访问
+
+```
+测试: /products/0
+结果: ✅ 允许 (query_data, get_all_data, update)
+
+测试: /internal/secrets
+结果: ❌ 禁止
+```
+
+---
+
+## 注意事项
+
+### 路径不存在
+
+如果路径不存在，Agent 会收到空结果，不会报错。
+
+### 大范围路径
+
+```yaml
+# ⚠️ 注意：允许根路径意味着全部数据
+path: /
+permission: allow
+```
+
+### 路径大小写
+
+路径匹配是**大小写敏感**的：
+- `/Products` 和 `/products` 是不同的路径
+
+---
+
+## 下一步
+
+- [API Key 管理](/zh/access/api-keys)
+- [连接 Agent](/zh/agents)
+
+
+
+

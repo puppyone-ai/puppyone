@@ -1,0 +1,15 @@
+{
+  "project": "Alpha",
+  "budget": {
+    "total": 50000,
+    "currency": "USD",
+    "breakdown": {
+      "infrastructure": 15000,
+      "marketing": 20000,
+      "personnel": 15000
+    }
+  },
+  "team_size": 5,
+  "is_confidential": true
+}
+

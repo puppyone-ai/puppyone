@@ -1,0 +1,115 @@
+# Airtable
+
+从 Airtable 导入表格数据到 PuppyOne。
+
+---
+
+## 支持的内容
+
+| 类型 | 支持 | 说明 |
+|------|------|------|
+| 表格 (Table) | ✅ | 完整字段和记录 |
+| 视图 (View) | ✅ | 可选择特定视图 |
+| 附件 | ⚠️ | 保留为链接 |
+| 公式字段 | ✅ | 导入计算结果 |
+
+---
+
+## 设置步骤
+
+### Step 1: 开始导入
+
+1. 打开你的 Table
+2. 点击 **Import** → **Airtable**
+
+### Step 2: 授权 Airtable
+
+1. 点击 **Connect Airtable**
+2. 在 Airtable 页面登录并授权
+3. 选择要分享的 Base
+
+### Step 3: 选择要导入的表
+
+1. 选择 Base
+2. 选择要导入的 Table（可多选）
+3. （可选）选择特定 View
+4. 点击 **Import**
+
+---
+
+## 数据结构示例
+
+Airtable 表会转换为 JSON 数组：
+
+```json
+{
+  "table_name": "产品清单",
+  "records": [
+    {
+      "名称": "Widget Pro",
+      "价格": 99.99,
+      "分类": "电子产品",
+      "库存": 150,
+      "上架日期": "2024-01-15"
+    },
+    {
+      "名称": "Gadget X",
+      "价格": 149.99,
+      "分类": "配件",
+      "库存": 80,
+      "上架日期": "2024-02-01"
+    }
+  ]
+}
+```
+
+---
+
+## 字段类型映射
+
+| Airtable 类型 | PuppyOne JSON 类型 |
+|---------------|-------------------|
+| Single line text | string |
+| Long text | string |
+| Number | number |
+| Currency | number |
+| Checkbox | boolean |
+| Single select | string |
+| Multiple select | array |
+| Date | string (ISO 8601) |
+| Attachment | array (URLs) |
+| Link to another record | array (record IDs) |
+
+---
+
+## 使用场景
+
+### 场景：产品目录
+
+导入 Airtable 产品表，让客服 Agent 可以查询：
+
+- "价格低于 100 元的产品有哪些？"
+- "电子产品分类下有多少库存？"
+
+---
+
+## 常见问题
+
+### 能否只导入部分字段？
+
+目前导入全部字段。你可以在 PuppyOne 中编辑删除不需要的字段。
+
+### 关联字段怎么处理？
+
+关联字段会导入为 Record ID 数组。如果需要完整数据，建议同时导入关联的表。
+
+---
+
+## 下一步
+
+- [管理导入的数据](/zh/editor)
+- [设置访问权限](/zh/access)
+
+
+
+

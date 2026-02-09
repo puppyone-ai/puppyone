@@ -8,12 +8,17 @@
 - 删除任务
 """
 
+import os
 import pytest
 from datetime import datetime
 
-from src.etl.tasks.models import ETLTask, ETLTaskStatus, ETLTaskResult
-from src.etl.tasks.repository import ETLTaskRepositorySupabase
+from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus, ETLTaskResult
+from src.ingest.file.tasks.repository import ETLTaskRepositorySupabase
 
+
+# 需要真实 Supabase 环境变量；未配置时跳过，避免本地/CI 失败
+if not os.getenv("SUPABASE_URL") or not os.getenv("SUPABASE_KEY"):
+    pytest.skip("Skip Supabase-dependent tests (SUPABASE_URL/KEY not set)", allow_module_level=True)
 
 # ============= Fixtures =============
 

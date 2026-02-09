@@ -6,11 +6,12 @@ MCP 数据模型
 
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class McpBase(BaseModel):
     """MCP 基础模型"""
+
     api_key: Optional[str] = None
     user_id: Optional[str] = None
     project_id: Optional[int] = None
@@ -27,11 +28,13 @@ class McpBase(BaseModel):
 
 class McpCreate(McpBase):
     """创建 MCP 实例模型"""
+
     pass
 
 
 class McpUpdate(BaseModel):
     """更新 MCP 实例模型"""
+
     api_key: Optional[str] = None
     user_id: Optional[str] = None
     project_id: Optional[int] = None
@@ -48,8 +51,8 @@ class McpUpdate(BaseModel):
 
 class McpResponse(McpBase):
     """MCP 响应模型"""
+
     id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

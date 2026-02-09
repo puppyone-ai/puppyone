@@ -1,0 +1,260 @@
+# 结构化最佳实践
+
+如何组织 JSON 数据，让 Agent 更高效地使用。
+
+---
+
+## 核心原则
+
+### 1. 保持扁平
+
+Agent 更容易处理扁平结构：
+
+```json
+// ✅ 推荐
+{
+  "products": [...],
+  "categories": [...],
+  "pricing_rules": [...]
+}
+
+// ❌ 避免
+{
+  "data": {
+    "catalog": {
+      "items": {
+        "products": [...]
+      }
+    }
+  }
+}
+```
+
+### 2. 命名清晰
+
+字段名应该自解释：
+
+```json
+// ✅ 推荐
+{
+  "product_name": "Widget Pro",
+  "unit_price": 99.99,
+  "stock_quantity": 150
+}
+
+// ❌ 避免
+{
+  "pn": "Widget Pro",
+  "p": 99.99,
+  "qty": 150
+}
+```
+
+### 3. 类型一致
+
+同一字段在不同记录中应保持相同类型：
+
+```json
+// ✅ 推荐
+{
+  "products": [
+    { "price": 99.99 },
+    { "price": 149.99 },
+    { "price": 0 }  // 免费也用数字
+  ]
+}
+
+// ❌ 避免
+{
+  "products": [
+    { "price": 99.99 },
+    { "price": "149.99" },  // 字符串
+    { "price": "免费" }     // 文本
+  ]
+}
+```
+
+---
+
+## 常见数据模式
+
+### 产品目录
+
+```json
+{
+  "products": [
+    {
+      "id": "SKU-001",
+      "name": "Widget Pro",
+      "description": "专业级小部件，适合...",
+      "price": 99.99,
+      "currency": "CNY",
+      "category": "电子产品",
+      "tags": ["热销", "新品"],
+      "specs": {
+        "weight": "250g",
+        "dimensions": "10x5x3 cm"
+      },
+      "in_stock": true
+    }
+  ]
+}
+```
+
+**特点**：
+- ID 用于唯一标识
+- 价格和货币分开
+- 规格用嵌套对象（适度嵌套是可以的）
+
+### FAQ 知识库
+
+```json
+{
+  "faqs": [
+    {
+      "id": "faq-001",
+      "question": "如何退货？",
+      "answer": "您可以在收货后 7 天内申请退货...",
+      "category": "售后服务",
+      "keywords": ["退货", "退款", "售后"]
+    }
+  ]
+}
+```
+
+**特点**：
+- 问答对清晰分离
+- keywords 便于 Agent 搜索
+
+### 团队成员
+
+```json
+{
+  "team": [
+    {
+      "id": "emp-001",
+      "name": "张三",
+      "role": "产品经理",
+      "department": "产品部",
+      "email": "zhangsan@example.com",
+      "skills": ["需求分析", "原型设计"],
+      "manager_id": "emp-000"
+    }
+  ]
+}
+```
+
+**特点**：
+- 用 ID 引用关联（manager_id）
+- skills 用数组而非逗号分隔字符串
+
+---
+
+## Agent 友好设计
+
+### 添加元数据
+
+```json
+{
+  "_metadata": {
+    "source": "Notion",
+    "last_synced": "2024-01-20T10:00:00Z",
+    "version": 3
+  },
+  "products": [...]
+}
+```
+
+### 添加摘要
+
+对于大型数据集，提供摘要便于 Agent 快速了解：
+
+```json
+{
+  "_summary": {
+    "total_products": 150,
+    "categories": ["电子", "服装", "食品"],
+    "price_range": { "min": 9.9, "max": 9999 }
+  },
+  "products": [...]
+}
+```
+
+### 添加示例
+
+在数据开头提供示例，帮助 Agent 理解结构：
+
+```json
+{
+  "_example": {
+    "query": "价格低于100的产品",
+    "path": "/products",
+    "filter": { "price": { "$lt": 100 } }
+  },
+  "products": [...]
+}
+```
+
+---
+
+## 路径设计
+
+设计时考虑 Agent 如何查询：
+
+```
+/products              → 所有产品
+/products/0            → 第一个产品
+/products/*/price      → 所有产品的价格
+/categories            → 所有分类
+```
+
+**建议**：
+- 顶层字段用名词复数（`products` 而非 `product`）
+- 避免特殊字符（`/`, `.`, `[`, `]`）
+
+---
+
+## 数据规模建议
+
+| 规模 | 建议 |
+|------|------|
+| < 100 条 | 单个 Table 即可 |
+| 100 - 1000 条 | 考虑按类别拆分 Table |
+| > 1000 条 | 使用分页或摘要模式 |
+
+对于大数据量，考虑：
+
+```json
+{
+  "products_summary": {
+    "total": 5000,
+    "categories": {...}
+  },
+  "products_sample": [
+    // 前 100 条示例
+  ]
+}
+```
+
+---
+
+## 检查清单
+
+在发布给 Agent 使用前，检查：
+
+- [ ] 字段命名是否清晰？
+- [ ] 数据类型是否一致？
+- [ ] 嵌套层级是否超过 3 层？
+- [ ] 是否有空值或缺失字段？
+- [ ] 是否添加了必要的元数据？
+
+---
+
+## 下一步
+
+- [版本历史](/zh/editor/version)
+- [设置访问权限](/zh/access)
+
+
+
+

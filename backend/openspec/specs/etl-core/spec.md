@@ -128,266 +128,136 @@ TBD - created by archiving change add-etl-pipeline-module. Update Purpose after 
 - **AND** 包含 full.zip、auto/、metadata.json
 
 ### Requirement: ETL 规则定义和存储
+系统 SHALL 支持用户自定义 ETL 规则（JSON Schema + system_prompt + 后处理配置），使用整数类型的规则ID。
 
-系统 SHALL 支持用户自定义 ETL 规则(JSON Schema + system_prompt),使用整数类型的规则ID。
-
-#### Scenario: 规则数据模型
-
+#### Scenario: 规则数据模型（含后处理配置）
 - **WHEN** 定义 ETL 规则
 - **THEN** 应包含以下字段:
   - rule_id: 规则唯一标识(bigint,数据库自动生成)
   - name: 规则名称
   - description: 规则描述
-  - json_schema: JSON Schema 对象
+  - json_schema: JSON Schema 对象（在 `postprocess_mode="llm"` 时为必填）
   - system_prompt: 系统提示词(可选)
+  - postprocess_mode: 后处理模式（`llm|skip`，默认 `llm`）
+  - postprocess_strategy: 后处理策略（可选，例如 `direct-json|chunked-summarize`；在 `postprocess_mode="skip"` 时可忽略）
   - created_at: 创建时间
 
-#### Scenario: 创建规则
-
+#### Scenario: 创建规则（默认执行后处理）
 - **WHEN** 用户提交创建规则请求
-- **AND** 提供 name、description、json_schema、system_prompt
-- **THEN** 应验证 JSON Schema 格式正确
+- **AND** 未指定 postprocess_mode
+- **THEN** 系统应默认使用 `postprocess_mode="llm"`
+- **AND** 应验证 JSON Schema 格式正确
 - **AND** 数据库自动生成唯一 rule_id (bigint)
 - **AND** 保存规则到 `etl_rule` 表
 - **AND** 返回 rule_id
 
-#### Scenario: 规则验证
-
-- **WHEN** 验证规则定义
-- **THEN** 应检查:
-  - name 不为空
-  - json_schema 是有效的 JSON Schema
-  - json_schema 包含 "type": "object"
-- **AND** 如果验证失败,返回 400 错误和详细错误信息
-
-#### Scenario: 查询规则
-
-- **WHEN** 用户查询规则
-- **AND** 提供 rule_id (int)
-- **THEN** 应从 `etl_rule` 表读取规则
-- **AND** 返回完整规则对象
-- **AND** 如果规则不存在,返回 404 错误
-
-#### Scenario: 列出所有规则
-
-- **WHEN** 用户请求列出所有规则
-- **THEN** 应查询 `etl_rule` 表
-- **AND** 返回所有规则列表(rule_id、name、description)
-
-#### Scenario: 删除规则
-
-- **WHEN** 用户请求删除规则
-- **AND** 提供 rule_id (int)
-- **THEN** 应从 `etl_rule` 表删除记录
-- **AND** 返回 204 状态码
-- **AND** 如果规则不存在,返回 404 错误
+#### Scenario: 创建规则（跳过后处理）
+- **WHEN** 用户提交创建规则请求
+- **AND** 指定 `postprocess_mode="skip"`
+- **THEN** 系统应允许 `json_schema` 为空或被忽略
+- **AND** 保存规则到 `etl_rule` 表
 
 ### Requirement: ETL 规则引擎执行
+系统 SHALL 提供规则引擎/后处理组件负责将 OCR 产物（markdown）转换为结构化 JSON，且允许按规则跳过 LLM 或选择不同算法。
 
-系统 SHALL 提供规则引擎负责将 Markdown 转换为结构化 JSON。
-
-#### Scenario: 构造 LLM Prompt
-
+#### Scenario: postprocess_mode=llm 时的 LLM 转换
+- **GIVEN** `postprocess_mode="llm"`
 - **WHEN** 规则引擎应用规则
 - **THEN** 应构造完整 prompt:
   - 包含 JSON Schema
-  - 包含 Markdown 内容
+  - 包含 Markdown 内容（或分块后的聚合内容）
   - 添加明确的输出格式要求
-
-#### Scenario: 调用 LLM 转换
-
-- **WHEN** 构造好 prompt 后
-- **THEN** 应调用 LLM 服务的文本模型
+- **AND** 应调用 LLM 服务的文本模型
 - **AND** 使用规则的 system_prompt（如果有）
 - **AND** 指定 response_format="json_object"
-- **AND** 设置 temperature=0.3（更确定性）
 
-#### Scenario: 输出验证
-
-- **WHEN** LLM 返回转换结果
-- **THEN** 应验证输出为有效 JSON
-- **AND** 使用 jsonschema 库验证符合规则的 JSON Schema
-- **AND** 如果验证失败，记录错误
-
-#### Scenario: 验证失败重试
-
-- **WHEN** LLM 输出不符合 Schema
-- **THEN** 应在 prompt 中添加错误提示
-- **AND** 重新调用 LLM
-- **AND** 最多重试 2 次
-- **AND** 如果仍失败，抛出 ETLTransformationError
+#### Scenario: postprocess_mode=skip 时的直接 Markdown 输出
+- **GIVEN** `postprocess_mode="skip"`
+- **WHEN** 执行后处理阶段
+- **THEN** 系统应跳过 LLM 调用
+- **AND** 应产出一个用于直接挂载的稳定 JSON 结构:
+  - 顶层 key 为源文件 base name（去除扩展名）
+  - value 为对象，且仅包含：
+    - `filename`: 原始文件名（含扩展名）
+    - `content`: markdown 内容（string）
+- **AND** 该输出 JSON SHALL NOT 包含 task/user/project 标识或任何 S3 key 指针等元信息
 
 ### Requirement: 异步任务队列
-
-系统 SHALL 提供异步任务队列管理 ETL 任务的执行,集成持久化存储。
+系统 SHALL 提供异步任务队列管理 ETL 任务的执行，并使用 ARQ 作为队列/worker 实现，集成 Redis 运行态与 Supabase 持久化。
 
 #### Scenario: 任务队列初始化
-
-- **WHEN** 应用启动时
-- **THEN** 应初始化 asyncio.Queue 作为任务队列
-- **AND** 启动后台 worker 协程消费任务
-- **AND** worker 数量应可配置(默认 3 个)
-- **AND** 注入 `ETLTaskRepository` 依赖
+- **WHEN** 应用启动并启用 ETL
+- **THEN** 应初始化 ARQ 队列配置（Redis 连接、队列名、并发度等）
+- **AND** ARQ worker 应可独立于 API 进程运行（部署可选）
+- **AND** 系统应能够在 worker 执行期间更新 Redis 运行态
 
 #### Scenario: 提交 ETL 任务
-
 - **WHEN** 用户发送 POST 请求到 `/api/v1/etl/submit`
-- **THEN** 应先调用 `task_repository.create_task()` 在数据库中创建记录
-- **AND** 获取数据库生成的 task_id
-- **AND** 创建内存中的 ETLTask 对象
-- **AND** 将任务 ID 添加到队列
+- **THEN** 系统应确定本次任务使用的 rule：
+  - 若请求包含 rule_id，则使用该 rule_id
+  - 若请求未包含 rule_id，则使用全局默认规则
+- **AND** 应先调用 `task_repository.create_task()` 在数据库中创建记录
+- **AND** 获取数据库生成的 task_id (int)
+- **AND** 初始化 Redis 运行态（status=`pending`，progress=0，phase=ocr）
+- **AND** enqueue OCR Job 并记录 job_id（写入 Redis）
 - **AND** 立即返回 202 状态码和 task_id (int)
 
-#### Scenario: Worker 消费任务
-
-- **WHEN** Worker 从队列获取任务 ID
-- **THEN** 应更新任务状态为 "mineru_parsing"(仅内存)
-- **AND** 执行完整 ETL 流程
-- **AND** 更新任务进度(仅内存)
-- **AND** 完成后调用 `task_repository.update_task()` 更新数据库
-- **AND** 状态设置为 "completed" 或 "failed"
+#### Scenario: Worker 消费任务（链式执行）
+- **WHEN** ARQ worker 开始执行 OCR Job
+- **THEN** 应更新 Redis 运行态为 `mineru_parsing`
+- **AND** 成功完成后应写入阶段产物指针（如 `artifact_mineru_markdown_key`）
+- **AND** enqueue 后处理 Job 并更新 Redis 运行态进入 `llm_processing`
 
 #### Scenario: 任务状态持久化
-
-- **WHEN** 任务状态更新为 "completed" 或 "failed"
+- **WHEN** 任务状态更新为 `completed/failed/cancelled`
 - **THEN** 应调用 `task_repository.update_task()` 持久化到数据库
 - **AND** 包含: task_id、status、progress、result、error、metadata
 - **AND** 更新 updated_at 时间戳
 
-#### Scenario: 任务超时处理
-
-- **WHEN** 任务执行超过配置的超时时间(默认 600 秒)
-- **THEN** 应取消任务执行
-- **AND** 更新任务状态为 "failed"(内存和数据库)
-- **AND** 错误信息为 "Task timeout"
-
 ### Requirement: ETL 服务核心流程
+系统 SHALL 实现完整的 ETL 服务流程，从原始文件到结构化 JSON，并将 OCR 与后处理拆分为链式 ARQ Job 执行。
 
-系统 SHALL 实现完整的 ETL 服务流程,从原始文件到结构化 JSON,使用整数类型ID。
-
-#### Scenario: 完整 ETL 流程(MVP)
-
-- **WHEN** Worker 执行 ETL 任务
+#### Scenario: 完整 ETL 流程（OCR → 后处理）
+- **WHEN** OCR Job 执行 ETL 任务的 OCR 阶段
 - **THEN** 应按顺序执行以下步骤:
-  1. 从 S3 生成文件的预签名下载 URL(使用int类型的user_id和project_id)
-  2. 调用 MineRU 创建解析任务(传入预签名 URL)
-  3. 异步等待 MineRU 任务完成
-  4. 下载并缓存解析结果
-  5. 提取 Markdown 文件
-  6. 加载 ETL 规则(使用int类型的rule_id)
-  7. 应用规则进行数据转换
-  8. 上传结果 JSON 到 S3
-  9. 更新任务状态为 "completed"(数据库和内存)
+  1. 从 S3 生成文件的预签名下载 URL
+  2. 调用 OCRProvider（默认 MineRU）创建解析任务并等待完成
+  3. 将阶段产物（至少 markdown 或其指针）写入可重试存储（默认 S3），并将指针写入 Redis
+- **AND** 后处理 Job 执行时应：
+  4. 加载 ETL 规则（rule_id）
+  5. 调用 PostProcessor（默认 LLM+规则引擎）转换为结构化 JSON
+  6. 上传最终 JSON 到 S3
+  7. 将终态写入 Supabase
 
-#### Scenario: 步骤1 - 生成预签名 URL
-
-- **WHEN** 生成 S3 预签名 URL
-- **THEN** 应调用 S3Service.generate_presigned_url() 方法
-- **AND** 路径为 `/users/{user_id}/raw/{project_id}/{filename}` (user_id和project_id为int)
-- **AND** 设置过期时间(默认 3600 秒)
-
-#### Scenario: 步骤2 - 创建 MineRU 任务
-
-- **WHEN** 创建 MineRU 解析任务
-- **THEN** 应调用 MineRUClient.create_task()
-- **AND** 传入预签名 URL
-- **AND** 更新任务进度为 "mineru_parsing"(仅内存)
-
-#### Scenario: 步骤3 - 等待 MineRU 完成
-
-- **WHEN** 等待 MineRU 任务完成
-- **THEN** 应调用 MineRUClient.wait_for_completion()
-- **AND** 定期更新任务进度(显示已解析页数,仅内存)
-- **AND** 处理超时和失败情况
-
-#### Scenario: 步骤4-5 - 下载和提取
-
-- **WHEN** 下载并提取 Markdown
-- **THEN** 应调用 MineRUClient.download_result() 和 extract_markdown()
-- **AND** 缓存到 `.mineru_cache/{task_id}/`
-- **AND** 更新任务进度为 "llm_processing"(仅内存)
-
-#### Scenario: 步骤6-7 - 应用规则
-
-- **WHEN** 应用 ETL 规则
-- **THEN** 应从 repository 加载规则(使用int类型rule_id)
-- **AND** 调用规则引擎进行转换
-- **AND** 验证输出符合 Schema
-
-#### Scenario: 步骤8 - 上传结果
-
-- **WHEN** 上传结果到 S3
-- **THEN** 应调用 S3Service.upload_file() 方法
-- **AND** 路径为 `/users/{user_id}/processed/{project_id}/{filename}.json` (ID为int)
-- **AND** content_type 设置为 "application/json"
-
-#### Scenario: 错误处理
-
-- **WHEN** ETL 流程中任何步骤失败
+#### Scenario: 错误处理（阶段化）
+- **WHEN** OCR 或后处理任一阶段失败
 - **THEN** 应捕获异常并记录错误日志
-- **AND** 更新任务状态为 "failed"(数据库和内存)
-- **AND** 在任务对象中保存错误信息
-- **AND** 不影响其他任务执行
+- **AND** 在 Redis 中记录失败阶段与错误信息
+- **AND** 将任务终态更新为 `failed` 并持久化到数据库
+- **AND** 若 OCR 已完成，应保留可重试指针以支持“仅重试后处理”
 
 ### Requirement: 任务状态查询
+系统 SHALL 提供 API 接口查询 ETL 任务的状态和结果，查询时优先从 Redis 获取运行态，Redis 未命中时回退 Supabase。
 
-系统 SHALL 提供 API 接口查询 ETL 任务的状态和结果,使用整数类型任务ID。
-
-#### Scenario: 查询单个任务状态
-
-- **WHEN** 用户发送 GET 请求到 `/api/v1/etl/tasks/{task_id}` (task_id为int)
-- **THEN** 优先从内存查询任务详细信息
-- **AND** 如果内存中不存在,从数据库查询
-- **AND** 返回任务详细信息:
-  - task_id: 任务 ID (int)
-  - user_id: 用户 ID (int)
-  - project_id: 项目 ID (int)
-  - rule_id: 规则 ID (int)
-  - status: 任务状态(pending、mineru_parsing、llm_processing、completed、failed)
-  - progress: 当前进度描述
-  - created_at: 创建时间
-  - updated_at: 更新时间
-  - result: 处理结果(status=completed 时)
-  - error: 错误信息(status=failed 时)
+#### Scenario: 查询单个任务状态（Redis 优先）
+- **WHEN** 用户发送 GET 请求到 `/api/v1/etl/tasks/{task_id}`
+- **THEN** 系统应优先从 Redis 查询任务详细信息
+- **AND** 如果 Redis 中不存在，则从数据库查询
+- **AND** 返回任务详细信息（包含 status/progress/result/error/metadata 等）
 
 #### Scenario: 任务不存在
-
 - **WHEN** 查询不存在的任务 ID
 - **THEN** 应返回 404 错误
 - **AND** 错误信息为 "Task not found"
 
-#### Scenario: 任务结果包含
-
-- **WHEN** 任务状态为 "completed"
-- **THEN** result 应包含:
-  - output_path: S3 输出路径
-  - output_size: 输出文件大小(字节)
-  - processing_time: 处理耗时(秒)
-  - mineru_task_id: MineRU 任务 ID
-
 ### Requirement: 任务列表查询
+系统 SHALL 支持查询用户的所有 ETL 任务，列表查询应以 Supabase 的历史记录为基底，并用 Redis 的运行态覆盖最新状态。
 
-系统 SHALL 支持查询用户的所有 ETL 任务,使用整数类型过滤参数。
-
-#### Scenario: 列出用户任务
-
+#### Scenario: 列出用户任务（Redis 覆盖）
 - **WHEN** 用户发送 GET 请求到 `/api/v1/etl/tasks`
-- **AND** 提供 user_id 查询参数(int)
-- **THEN** 优先从内存中过滤任务列表
-- **AND** 如果需要历史数据,从数据库查询
-- **AND** 返回该用户的所有任务列表
-- **AND** 按创建时间倒序排列
-- **AND** 支持分页(limit、offset 参数)
-
-#### Scenario: 按状态过滤
-
-- **WHEN** 查询参数包含 status
-- **THEN** 应只返回指定状态的任务
-
-#### Scenario: 按项目过滤
-
-- **WHEN** 查询参数包含 project_id (int)
-- **THEN** 应只返回该项目的任务
+- **THEN** 系统应从数据库查询任务列表
+- **AND** 对于仍在运行的任务，应使用 Redis 的运行态覆盖数据库返回的 status/progress/metadata
+- **AND** 返回按创建时间倒序排列的任务列表，并支持分页
 
 ### Requirement: 统一错误处理
 
@@ -412,11 +282,9 @@ TBD - created by archiving change add-etl-pipeline-module. Update Purpose after 
   - 503: 服务不可用(MineRUTimeout)
 
 ### Requirement: 配置管理
+系统 SHALL 提供灵活的 ETL 配置管理，并新增 Redis/ARQ 相关配置项以支持新执行引擎。
 
-系统 SHALL 提供灵活的 ETL 配置管理。
-
-#### Scenario: 配置项
-
+#### Scenario: 配置项（含 Redis 与 ARQ）
 - **WHEN** 应用启动
 - **THEN** 应从配置中读取:
   - ETL_QUEUE_SIZE: 队列最大容量(默认 1000)
@@ -424,54 +292,40 @@ TBD - created by archiving change add-etl-pipeline-module. Update Purpose after 
   - ETL_TASK_TIMEOUT: 任务超时时间(默认 600 秒)
   - ETL_CACHE_DIR: 缓存目录(默认 .mineru_cache)
   - ETL_RULES_DIR: 规则目录(默认 .etl_rules)
+  - ETL_REDIS_URL: Redis 连接串（用于运行态与 ARQ）
+  - ETL_REDIS_PREFIX: Redis key 前缀（默认 `etl:`）
+  - ETL_STATE_TTL_SECONDS: 运行态 TTL（默认可配置）
+  - ETL_ARQ_QUEUE_NAME: ARQ 队列名（默认可配置）
+  - ETL_OCR_MAX_ATTEMPTS: OCR 阶段最大尝试次数（默认可配置）
+  - ETL_POSTPROCESS_MAX_ATTEMPTS: 后处理阶段最大尝试次数（默认可配置）
+  - ETL_RETRY_BACKOFF_BASE_SECONDS: 重试基础退避（默认可配置）
+  - ETL_RETRY_BACKOFF_MAX_SECONDS: 重试最大退避（默认可配置）
+  - ETL_POSTPROCESS_CHUNK_THRESHOLD_CHARS: 大文本阈值（默认可配置）
+  - ETL_POSTPROCESS_CHUNK_SIZE_CHARS: 分块大小（默认可配置）
+  - ETL_POSTPROCESS_MAX_CHUNKS: 分块数量上限（默认可配置）
+  - ETL_GLOBAL_RULE_ENABLED: 是否启用全局默认规则（默认 true）
+  - ETL_GLOBAL_RULE_ID: 全局默认规则 ID（可选；若未配置则使用内置规则实现）
 - **AND** 所有配置应可通过环境变量覆盖
 
 ### Requirement: ETL任务持久化存储
-
-系统 SHALL 将ETL任务状态持久化到Supabase数据库,提供可靠的任务历史记录。
+系统 SHALL 将 ETL 任务状态持久化到 Supabase 数据库，并将运行态（中间状态/阶段）存储在 Redis，以提供可靠的任务历史记录与高性能查询。
 
 #### Scenario: 任务创建时持久化
-
-- **WHEN** 用户提交ETL任务
-- **THEN** 应同时在内存队列和Supabase `etl_task` 表中创建任务记录
+- **WHEN** 用户提交 ETL 任务
+- **THEN** 应在 Supabase `etl_task` 表中创建任务记录
 - **AND** 数据库返回自动生成的 task_id (bigint)
 - **AND** 任务初始状态为 "pending"
+- **AND** 同步初始化 Redis 运行态
 
-#### Scenario: 任务完成时更新数据库
+#### Scenario: 任务完成/失败/取消时更新数据库
+- **WHEN** ETL 任务进入 `completed/failed/cancelled`
+- **THEN** 应立即更新 Supabase 中的任务记录
+- **AND** result/error/metadata 应包含用于审计与重试决策的必要信息
 
-- **WHEN** ETL任务处理成功完成
-- **THEN** 应更新Supabase中的任务记录
-- **AND** 状态设置为 "completed"
-- **AND** result字段存储输出路径、文件大小、处理时间等信息
-
-#### Scenario: 任务失败时更新数据库
-
-- **WHEN** ETL任务处理失败
-- **THEN** 应立即更新Supabase中的任务记录
-- **AND** 状态设置为 "failed"
-- **AND** error字段存储详细错误信息
-
-#### Scenario: 中间状态仅更新内存
-
+#### Scenario: 中间状态仅更新 Redis
 - **WHEN** 任务状态变为 "mineru_parsing" 或 "llm_processing"
-- **THEN** 仅更新内存中的任务对象
-- **AND** 不触发数据库写入操作(优化性能)
-
-#### Scenario: 持久化数据结构
-
-- **WHEN** 任务持久化到数据库
-- **THEN** 字段映射如下:
-  - `id` (bigint) ← task_id
-  - `user_id` (bigint) ← user_id
-  - `project_id` (bigint) ← project_id
-  - `rule_id` (bigint) ← rule_id
-  - `filename` (text) ← filename
-  - `status` (text) ← status
-  - `progress` (bigint) ← progress
-  - `result` (jsonb) ← result对象序列化
-  - `error` (text) ← error
-  - `metadata` (jsonb) ← metadata
-  - `created_at` / `updated_at` ← 时间戳
+- **THEN** 仅更新 Redis 中的运行态
+- **AND** 不触发数据库写入操作（优化性能）
 
 ### Requirement: ETL任务Repository接口
 
@@ -506,49 +360,15 @@ TBD - created by archiving change add-etl-pipeline-module. Update Purpose after 
 
 ### Requirement: ETL结果挂载到Table
 
-系统 SHALL 提供接口将成功完成的ETL任务结果挂载到Table的data字段。
+系统 SHALL 支持将成功完成的 ETL 任务结果挂载到 Table 的 data 字段中；该挂载能力应通过 `submit` 的可选挂载声明自动完成；前端不需要且不应依赖显式 mount 端点。
 
-#### Scenario: 挂载接口调用
+#### Scenario: 自动挂载（submit 声明挂载）
+- **WHEN** 用户在 `POST /api/v1/etl/submit` 中提供 `table_id` 与 `json_path`
+- **THEN** 系统应在任务完成后自动将输出 JSON 挂载到目标路径
 
-- **WHEN** 用户发送 POST 请求到 `/api/v1/etl/tasks/{task_id}/mount`
-- **AND** 请求体包含 `table_id` (int) 和 `json_path` (str)
-- **THEN** 验证任务存在且状态为 "completed"
-- **AND** 从S3下载任务的输出JSON文件
-- **AND** 调用 `TableService.create_context_data()` 将JSON挂载到指定路径
-
-#### Scenario: 挂载数据结构
-
-- **WHEN** 执行挂载操作
-- **THEN** 挂载的key为原始文件名(去除.json扩展名)
-- **AND** 挂载的value为完整的JSON内容(解析后的Python dict)
-- **AND** `json_path` 参数为JSON Pointer格式(如 "/documents/invoices")
-
-#### Scenario: 任务状态验证
-
-- **WHEN** 挂载请求的任务状态不是 "completed"
-- **THEN** 返回 400 错误
-- **AND** 错误信息为 "Task not completed yet"
-
-#### Scenario: Table存在性验证
-
-- **WHEN** 挂载请求的 table_id 不存在
-- **THEN** 返回 404 错误
-- **AND** 错误信息为 "Table not found"
-
-#### Scenario: 重复key处理
-
-- **WHEN** 挂载路径下已存在相同的key
-- **THEN** 依赖 `TableService.create_context_data()` 的现有逻辑
-- **AND** 抛出 `BusinessException` 并返回 400 错误
-
-#### Scenario: 挂载成功响应
-
-- **WHEN** 挂载操作成功完成
-- **THEN** 返回 200 状态码
-- **AND** 响应包含:
-  - `success`: true
-  - `message`: "ETL result mounted successfully"
-  - `mounted_path`: 实际挂载的完整路径(json_path + key)
+#### Scenario: mount 端点不再对外提供
+- **WHEN** 客户端调用 `POST /api/v1/etl/tasks/{task_id}/mount`
+- **THEN** 系统应返回 404
 
 ### Requirement: ETL文件上传接口
 
@@ -595,4 +415,189 @@ TBD - created by archiving change add-etl-pipeline-module. Update Purpose after 
 - **THEN** 应覆盖原有文件(S3默认行为)
 - **AND** 返回新文件的etag
 - **AND** 响应保持成功状态
+
+### Requirement: Redis 任务运行态存储
+系统 SHALL 使用 Redis 存储 ETL 任务的运行态（中间状态、阶段信息、进度与尝试次数），以支持快速查询与跨进程恢复。
+
+#### Scenario: 运行态写入与 TTL
+- **WHEN** 任务处于 `pending/mineru_parsing/llm_processing` 等运行态
+- **THEN** 系统应将运行态写入 Redis（例如 `etl:task:{task_id}`）
+- **AND** 应为 Redis 中的运行态设置可配置的 TTL
+- **AND** 运行态更新应是幂等的（重复写入不会导致状态倒退）
+
+#### Scenario: 运行态与终态并存
+- **WHEN** 任务进入终态（`completed/failed/cancelled`）
+- **THEN** 系统应将终态持久化到 Supabase
+- **AND** Redis 可保留短期缓存以加速查询（TTL 可更短）
+
+### Requirement: 链式 ARQ Job 与阶段重试
+系统 SHALL 使用 ARQ 将 ETL 执行拆分为链式 Job（至少包含 OCR 与后处理两个阶段），并支持从指定阶段重试。
+
+#### Scenario: OCR 与后处理拆分
+- **WHEN** 用户提交 ETL 任务
+- **THEN** 系统应 enqueue OCR Job（MineRU/其他 OCRProvider）
+- **AND** OCR Job 成功后应 enqueue 后处理 Job（LLM/其他 PostProcessor）
+- **AND** 阶段切换时应更新 Redis 中的阶段与进度
+
+#### Scenario: 从后处理阶段重试（不重复跑 OCR）
+- **GIVEN** OCR 阶段已成功完成
+- **AND** 系统已保存可重试的阶段产物指针（例如 MineRU markdown 的 S3 key）
+- **WHEN** 用户调用 `POST /api/v1/etl/tasks/{task_id}/retry`
+- **AND** 请求体指定 `from_stage="postprocess"`
+- **THEN** 系统应仅 enqueue 后处理 Job
+- **AND** 不应重新调用 OCRProvider/MineRU
+
+#### Scenario: 阶段重试策略可配置
+- **WHEN** 系统执行 OCR 或后处理阶段
+- **THEN** 应支持按阶段配置重试策略（最大次数、退避策略等）
+- **AND** 当达到最大次数仍失败时，应将任务标记为 `failed` 并保留失败阶段信息
+
+### Requirement: ETL 任务取消控制面
+系统 SHALL 提供取消 ETL 任务的控制面端点，并仅允许取消“已提交但尚未开始执行”的任务。
+
+#### Scenario: 成功取消排队中的任务
+- **WHEN** 用户调用 `POST /api/v1/etl/tasks/{task_id}/cancel`
+- **AND** 任务为 `status=pending` 且尚未开始执行
+- **THEN** 系统应将任务标记为 `cancelled`
+- **AND** 应阻止后续 ARQ worker 执行该任务（例如通过 job 取消或执行前状态检查）
+- **AND** 应将取消结果持久化到 Supabase
+
+#### Scenario: 取消运行中的任务被拒绝
+- **WHEN** 用户请求取消 `mineru_parsing/llm_processing` 等已进入执行阶段的任务
+- **THEN** 系统应拒绝取消请求
+- **AND** 返回明确错误（例如 409 Conflict 或 400 Bad Request）
+
+### Requirement: ETL 规则支持跳过后处理（Skip LLM）
+系统 SHALL 支持在用户自定义 ETL 规则中配置“跳过大模型后处理阶段”，使得任务仅产出 OCR 结果的稳定 JSON 包装，而不调用 LLM。
+
+#### Scenario: 规则声明跳过后处理
+- **WHEN** 用户创建/更新 ETL 规则
+- **THEN** 规则应支持配置 `postprocess_mode`
+- **AND** `postprocess_mode` 至少支持：
+  - `llm`（默认：执行后处理）
+  - `skip`（跳过后处理）
+
+#### Scenario: 跳过后处理时不调用 LLM 且输出可直接挂载
+- **GIVEN** 规则的 `postprocess_mode="skip"`
+- **WHEN** 后处理阶段执行
+- **THEN** 系统不应调用任何 LLM 模型
+- **AND** 应产出一个用于直接挂载的稳定 JSON 结构:
+  - 顶层 key 为源文件 base name（去除扩展名）
+  - value 为对象，且仅包含：
+    - `filename`: 原始文件名（含扩展名）
+    - `content`: markdown 内容（string）
+- **AND** 输出 JSON SHALL NOT 包含 markdown_s3_key、provider_task_id 或 metadata 等元信息字段
+- **AND** 系统 MAY 在任务 metadata 等内部字段中保留可重试所需的指针与元信息
+
+### Requirement: 全局默认 ETL 规则
+系统 SHALL 提供一个全局默认 ETL 规则，以降低用户门槛，避免用户必须先创建自定义规则才能提交任务。
+
+#### Scenario: 全局默认规则可被使用
+- **WHEN** 用户提交 ETL 任务但未提供 `rule_id`
+- **THEN** 系统应自动选择全局默认规则用于该任务
+- **AND** 全局默认规则应默认 `postprocess_mode="skip"`
+- **AND** 该任务的结果应为可直接挂载的稳定 JSON 结构（顶层 key 为文件 base name，value 为 `{filename, content}`），且不调用 LLM
+
+#### Scenario: 全局默认规则的可发现性
+- **WHEN** 用户调用 `GET /api/v1/etl/rules`
+- **THEN** 响应应包含全局默认规则（明确标识为 system/global）
+- **AND** 用户无需创建任何规则即可发现并理解默认行为
+
+### Requirement: 后处理策略可插拔与大文本策略
+系统 SHALL 支持为后处理阶段选择不同算法（例如直接结构化、分块总结、分块提取），以适配大 markdown 的处理场景。
+
+#### Scenario: 基于规则显式选择策略
+- **WHEN** 规则配置了 `postprocess_strategy`
+- **THEN** 系统应按该策略执行后处理
+- **AND** 至少支持：
+  - `direct-json`（直接结构化输出）
+  - `chunked-summarize`（分块总结后再结构化）
+
+#### Scenario: 基于 markdown 大小自动切换策略
+- **WHEN** markdown 超过可配置阈值（例如按字符数/字节数）
+- **THEN** 系统应自动选择一个“大文本友好”的策略（例如 `chunked-summarize`）
+- **AND** 自动选择的策略与阈值应可配置
+
+### Requirement: 可插拔 OCRProvider 与 PostProcessor 接口
+系统 SHALL 以面向接口编程方式定义 OCR 与后处理模块，使 MineRU/LLM 仅作为具体实现之一。
+
+#### Scenario: OCRProvider 接口最小契约
+- **WHEN** ETL 执行需要 OCR 阶段能力
+- **THEN** 系统应通过 OCRProvider 接口完成解析
+- **AND** OCRProvider 的输出应至少包含：
+  - 解析文本/markdown（或其可访问指针）
+  - 上游 provider 的任务标识（例如 mineru_task_id）
+  - 可追踪的元数据（如页数/耗时/版本）
+
+#### Scenario: PostProcessor 接口最小契约
+- **WHEN** ETL 执行需要后处理阶段能力
+- **THEN** 系统应通过 PostProcessor 接口将 OCR 结果转换为结构化 JSON
+- **AND** PostProcessor 应支持传入规则（JSON Schema + system_prompt）并输出符合 Schema 的 JSON
+
+### Requirement: 阶段产物持久化以支持用户决策式重试
+系统 SHALL 在“OCR 已完成但后处理失败”等场景下，持久化足够的阶段产物指针，使用户可在之后决定是否重试。
+
+#### Scenario: 后处理失败后保存可重试指针
+- **GIVEN** OCR 已完成且存在阶段产物指针（例如 markdown 的 S3 key）
+- **WHEN** 后处理阶段失败
+- **THEN** 系统应将可重试所需的最小指针写入 Supabase `etl_task.metadata`
+- **AND** 用户后续重试时应可复用该指针而无需重新 OCR
+
+### Requirement: Submit 支持声明挂载目标并在任务完成后自动挂载
+
+系统 SHALL 允许客户端在提交 ETL 任务时声明可选的挂载目标（`table_id` + `json_path`），并在任务完成后自动将任务输出挂载到目标 Table 的 data 字段中，从而使前端不需要显式调用 mount 端点。
+
+#### Scenario: Submit 未提供挂载目标则为每个文件自动创建 Table 并挂载
+- **WHEN** 用户发送 `POST /api/v1/etl/submit`
+- **AND** 请求未提供 `table_id` 与 `json_path`
+- **THEN** 系统应在 `project_id` 下为该文件创建一个新的 Table
+- **AND** Table 名称 SHOULD 使用短 hash（例如 8～12 位）以避免冲突
+- **AND** 将任务输出 JSON 挂载到该新 Table 的默认路径
+- **AND** 任务完成后，用户可通过 `GET /api/v1/etl/tasks/{task_id}` 获取任务状态与结果
+
+#### Scenario: Submit 提供挂载目标则完成后挂载到指定路径
+- **WHEN** 用户发送 `POST /api/v1/etl/submit`
+- **AND** 请求提供 `table_id` 与 `json_path`
+- **THEN** 系统应校验用户对该 Table 有访问权限
+- **AND** 当任务进入 `completed` 后，系统应将输出 JSON 挂载到 `table_id` 的 `json_path` 下
+- **AND** 挂载的 key 为原始文件名 + hash 后缀（用于避免多文件冲突）
+- **AND** 挂载的 value 为任务输出 JSON（dict）
+
+#### Scenario: Submit 声明挂载但目标 Table 不存在或无权限
+- **WHEN** 用户发送 `POST /api/v1/etl/submit`
+- **AND** 请求提供的 `table_id` 不存在，或用户无权限访问
+- **THEN** 系统应返回 404（或等价的“不可见”错误）
+
+### Requirement: 提供 upload_and_submit 一体化接口（文件/文件夹统一）
+
+系统 SHALL 提供新的 `POST /api/v1/etl/upload_and_submit` 接口，用于在一次调用中完成“上传原始文件到 S3”与“提交 ETL 任务”，并支持单文件与多文件（文件夹）两种形态。
+
+#### Scenario: 单文件 upload_and_submit 成功
+- **WHEN** 用户发送 `POST /api/v1/etl/upload_and_submit`（单文件）
+- **AND** 提供 `project_id`、文件内容，以及可选 `rule_id`、可选 `table_id/json_path`
+- **THEN** 系统应上传文件到用户的 raw 前缀
+- **AND** 系统应创建并返回一个 ETL `task_id`
+- **AND** 用户可使用 `GET /api/v1/etl/tasks/{task_id}` 轮询任务状态
+
+#### Scenario: 多文件（文件夹）upload_and_submit 成功并创建多个任务
+- **WHEN** 用户发送 `POST /api/v1/etl/upload_and_submit`（多文件/文件夹）
+- **AND** 提供 `project_id`、多份文件内容（可包含相对路径），以及可选 `rule_id`、可选 `table_id/json_path`
+- **THEN** 系统应为每个文件上传到 raw 前缀并创建对应的 ETL 任务
+- **AND** 响应应返回每个文件对应的 `task_id` 列表与必要的映射信息
+- **AND** 轮询机制不变：客户端按 task_id 查询状态
+
+#### Scenario: upload 失败则任务状态为 failed（待确认 task_id 语义）
+- **WHEN** 用户调用 `POST /api/v1/etl/upload_and_submit`
+- **AND** upload 阶段失败（例如文件大小超限、S3 不可用）
+- **THEN** 系统应创建并返回一个 ETL `task_id`
+- **AND** 该任务状态应为 `failed`
+- **AND** 客户端仍可用 `GET /api/v1/etl/tasks/{task_id}` 轮询（保持机制一致）
+
+### Requirement: 文件夹导入能力归并到 ETL 控制面
+
+系统 SHALL 将文件夹导入/多文件解析的对外入口收敛到 ETL 模块，并使用 `upload_and_submit` 作为唯一对外入口。
+
+#### Scenario: 不保留 project import-folder 旧入口
+- **WHEN** 客户端调用旧接口（例如 `/api/v1/projects/{project_id}/import-folder`）
+- **THEN** 系统应返回 404
 

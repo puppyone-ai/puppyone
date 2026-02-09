@@ -42,15 +42,15 @@ class ProjectRepository:
         """
         try:
             data = project_data.model_dump(exclude_none=True)
-            # 确保不包含 id 和 created_at（这些由数据库自动生成）
-            data.pop("id", None)
+            # 确保不包含 created_at（由数据库自动生成）
+            # 注意：id 现在由后端生成，所以需要包含在 insert 数据中
             data.pop("created_at", None)
             response = self._client.table("project").insert(data).execute()
             return ProjectResponse(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建项目")
 
-    def get_by_id(self, project_id: int) -> Optional[ProjectResponse]:
+    def get_by_id(self, project_id: str) -> Optional[ProjectResponse]:
         """
         根据 ID 获取项目
 
@@ -63,7 +63,7 @@ class ProjectRepository:
         response = (
             self._client.table("project")
             .select("*")
-            .eq("id", str(project_id))
+            .eq("id", project_id)
             .execute()
         )
         if response.data:
@@ -101,7 +101,7 @@ class ProjectRepository:
         return [ProjectResponse(**item) for item in response.data]
 
     def update(
-        self, project_id: int, project_data: ProjectUpdate
+        self, project_id: str, project_data: ProjectUpdate
     ) -> Optional[ProjectResponse]:
         """
         更新项目
@@ -128,7 +128,7 @@ class ProjectRepository:
             response = (
                 self._client.table("project")
                 .update(data)
-                .eq("id", str(project_id))
+                .eq("id", project_id)
                 .execute()
             )
             if response.data:
@@ -137,9 +137,14 @@ class ProjectRepository:
         except Exception as e:
             raise handle_supabase_error(e, "更新项目")
 
-    def delete(self, project_id: int) -> bool:
+    def delete(self, project_id: str) -> bool:
         """
         删除项目
+
+        注意：需要先在 Supabase 执行以下 SQL 去掉外键约束：
+        ALTER TABLE public.etl_task DROP CONSTRAINT etl_task_project_id_fkey;
+        
+        这样 etl_task 的历史记录会保留原始 project_id 值。
 
         Args:
             project_id: 项目 ID
@@ -147,10 +152,12 @@ class ProjectRepository:
         Returns:
             是否删除成功
         """
-        response = (
-            self._client.table("project")
-            .delete()
-            .eq("id", project_id)
-            .execute()
-        )
-        return len(response.data) > 0
+        try:
+            # 1. 删除关联的 content_nodes（数据跟随 project 删除）
+            self._client.table("content_nodes").delete().eq("project_id", project_id).execute()
+            
+            # 2. 删除 project（etl_task 历史记录保留，project_id 保持原值）
+            response = self._client.table("project").delete().eq("id", project_id).execute()
+            return len(response.data) > 0
+        except Exception as e:
+            raise handle_supabase_error(e, "删除项目")

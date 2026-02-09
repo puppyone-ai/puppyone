@@ -20,7 +20,9 @@ class NotionOAuthService:
         self.repository = OAuthRepository()
         self.client = httpx.AsyncClient()
 
-    async def get_authorization_url(self, state: Optional[str] = None) -> tuple[str, str]:
+    async def get_authorization_url(
+        self, state: Optional[str] = None
+    ) -> tuple[str, str]:
         """Generate Notion OAuth authorization URL.
 
         Returns:
@@ -46,11 +48,11 @@ class NotionOAuthService:
     async def exchange_code_for_token(self, code: str) -> dict:
         """Exchange authorization code for access token."""
         import base64
-        
+
         # Notion requires Basic Auth with client_id:client_secret
         credentials = f"{settings.NOTION_CLIENT_ID}:{settings.NOTION_CLIENT_SECRET}"
         encoded_credentials = base64.b64encode(credentials.encode()).decode()
-        
+
         data = {
             "grant_type": "authorization_code",
             "code": code,
@@ -62,14 +64,16 @@ class NotionOAuthService:
             data=data,
             headers={
                 "Authorization": f"Basic {encoded_credentials}",
-                "Content-Type": "application/x-www-form-urlencoded"
-            }
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
         )
         response.raise_for_status()
 
         return response.json()
 
-    async def handle_callback(self, user_id: str, code: str) -> tuple[bool, str, Optional[dict]]:
+    async def handle_callback(
+        self, user_id: str, code: str
+    ) -> tuple[bool, str, Optional[dict]]:
         """Handle OAuth callback and store connection.
 
         Returns:
@@ -96,16 +100,20 @@ class NotionOAuthService:
             # Calculate expiration time if provided
             expires_at = None
             if "expires_in" in token_data:
-                expires_at = datetime.utcnow() + timedelta(seconds=token_data["expires_in"])
+                expires_at = datetime.utcnow() + timedelta(
+                    seconds=token_data["expires_in"]
+                )
 
             # Create connection record
             # Store additional token data in metadata
             metadata = {}
             if "duplicated_template_id" in token_data:
-                metadata["duplicated_template_id"] = token_data["duplicated_template_id"]
+                metadata["duplicated_template_id"] = token_data[
+                    "duplicated_template_id"
+                ]
             if "owner" in token_data:
                 metadata["owner"] = token_data["owner"]
-            
+
             connection_create = OAuthConnectionCreate(
                 user_id=user_id,
                 provider="notion",
@@ -116,23 +124,26 @@ class NotionOAuthService:
                 workspace_id=workspace_id,
                 workspace_name=workspace_name,
                 bot_id=bot_id,
-                metadata=metadata
+                metadata=metadata,
             )
 
             connection = await self.repository.create(connection_create)
 
-            return True, "Successfully connected to Notion", {
-                "workspace_name": workspace_name,
-                "connection_id": connection.id
-            }
+            return (
+                True,
+                "Successfully connected to Notion",
+                {"workspace_name": workspace_name, "connection_id": connection.id},
+            )
 
         except httpx.HTTPStatusError as e:
-            error_message = f"Failed to exchange code for token: {e.response.status_code}"
+            error_message = (
+                f"Failed to exchange code for token: {e.response.status_code}"
+            )
             if e.response.text:
                 try:
                     error_data = e.response.json()
                     error_message = error_data.get("error_description", error_message)
-                except:
+                except Exception:
                     pass
             return False, error_message, None
 
@@ -166,11 +177,11 @@ class NotionOAuthService:
 
         try:
             import base64
-            
+
             # Notion requires Basic Auth with client_id:client_secret
             credentials = f"{settings.NOTION_CLIENT_ID}:{settings.NOTION_CLIENT_SECRET}"
             encoded_credentials = base64.b64encode(credentials.encode()).decode()
-            
+
             data = {
                 "grant_type": "refresh_token",
                 "refresh_token": connection.refresh_token,
@@ -181,8 +192,8 @@ class NotionOAuthService:
                 data=data,
                 headers={
                     "Authorization": f"Basic {encoded_credentials}",
-                    "Content-Type": "application/x-www-form-urlencoded"
-                }
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
             )
             response.raise_for_status()
 
@@ -191,8 +202,13 @@ class NotionOAuthService:
             # Update connection with new token
             update_data = {
                 "access_token": token_data["access_token"],
-                "refresh_token": token_data.get("refresh_token", connection.refresh_token),
-                "expires_at": datetime.utcnow() + timedelta(seconds=token_data["expires_in"]) if "expires_in" in token_data else None
+                "refresh_token": token_data.get(
+                    "refresh_token", connection.refresh_token
+                ),
+                "expires_at": datetime.utcnow()
+                + timedelta(seconds=token_data["expires_in"])
+                if "expires_in" in token_data
+                else None,
             }
 
             return await self.repository.update(connection.id, update_data)

@@ -18,7 +18,9 @@ class TableService:
     def __init__(self, repo: TableRepositoryBase):
         self.repo = repo
 
-    def get_projects_with_tables_by_user_id(self, user_id: str) -> List[ProjectWithTables]:
+    def get_projects_with_tables_by_user_id(
+        self, user_id: str
+    ) -> List[ProjectWithTables]:
         """
         获取用户的所有项目及其下的所有表格
 
@@ -30,22 +32,22 @@ class TableService:
         """
         return self.repo.get_projects_with_tables_by_user_id(user_id)
 
-    def get_by_id(self, table_id: int) -> Optional[Table]:
+    def get_by_id(self, table_id: str) -> Optional[Table]:
         return self.repo.get_by_id(table_id)
 
-    def get_by_id_with_access_check(self, table_id: int, user_id: str) -> Table:
+    def get_by_id_with_access_check(self, table_id: str, user_id: str) -> Table:
         """
         获取表格并验证用户权限
-        
+
         通过 table.project_id 关联到 project 表，检查 project.user_id 是否等于用户ID
-        
+
         Args:
             table_id: 表格ID
             user_id: 用户ID
-            
+
         Returns:
             已验证的 Table 对象
-            
+
         Raises:
             NotFoundException: 如果表格不存在、没有关联项目、项目不存在或用户无权限
         """
@@ -54,61 +56,63 @@ class TableService:
             raise NotFoundException(
                 f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
-        
+
         has_access = self.repo.verify_table_access(table_id, user_id)
         if not has_access:
             raise NotFoundException(
                 f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
-        
+
         return table
 
-    def verify_project_access(self, project_id: int, user_id: str) -> bool:
+    def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的项目
-        
+
         Args:
             project_id: 项目ID
             user_id: 用户ID
-            
+
         Returns:
             如果用户有权限返回True，否则返回False
         """
         return self.repo.verify_project_access(project_id, user_id)
 
-
-
     def create(
         self,
-        project_id: int,
+        user_id: str,
         name: str,
         description: str,
         data: dict,
+        project_id: Optional[str] = None,
     ) -> Table:
         return self.repo.create(
-            project_id,
-            name,
-            description,
-            data,
+            user_id=user_id,
+            name=name,
+            description=description,
+            data=data,
+            project_id=project_id,
         )
+
+    def get_orphan_tables_by_user_id(self, user_id: str) -> List[Table]:
+        """获取用户的所有裸 Table（不属于任何 Project）"""
+        return self.repo.get_orphan_tables_by_user_id(user_id)
 
     def update(
         self,
-        table_id: int,
+        table_id: str,
         name: Optional[str],
         description: Optional[str],
         data: Optional[dict],
     ) -> Table:
-        updated = self.repo.update(
-            table_id, name, description, data
-        )
+        updated = self.repo.update(table_id, name, description, data)
         if not updated:
             raise NotFoundException(
                 f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
         return updated
 
-    def delete(self, table_id: int) -> None:
+    def delete(self, table_id: str) -> None:
         success = self.repo.delete(table_id)
         if not success:
             raise NotFoundException(
@@ -116,7 +120,7 @@ class TableService:
             )
 
     def create_context_data(
-        self, table_id: int, mounted_json_pointer_path: str, elements: List[Dict]
+        self, table_id: str, mounted_json_pointer_path: str, elements: List[Dict]
     ) -> Any:
         """
         在 data 字段的指定路径下创建新数据
@@ -193,7 +197,8 @@ class TableService:
             for element in elements:
                 if "content" not in element:
                     raise BusinessException(
-                        "Element missing 'content' field", code=ErrorCode.VALIDATION_ERROR
+                        "Element missing 'content' field",
+                        code=ErrorCode.VALIDATION_ERROR,
                     )
                 parent.append(element["content"])
         else:
@@ -209,12 +214,10 @@ class TableService:
             )
 
         # 返回创建后的数据
-        result = resolve_pointer(
-            updated_table.data or {}, mounted_json_pointer_path
-        )
+        result = resolve_pointer(updated_table.data or {}, mounted_json_pointer_path)
         return result
 
-    def get_context_data(self, table_id: int, json_pointer_path: str) -> Any:
+    def get_context_data(self, table_id: str, json_pointer_path: str) -> Any:
         """
         获取 data 字段中指定路径的数据
         """
@@ -240,7 +243,7 @@ class TableService:
             )
 
     def update_context_data(
-        self, table_id: int, json_pointer_path: str, elements: List[Dict]
+        self, table_id: str, json_pointer_path: str, elements: List[Dict]
     ) -> Any:
         """
         更新 data 字段中指定路径的数据
@@ -332,7 +335,7 @@ class TableService:
         return result
 
     def delete_context_data(
-        self, table_id: int, json_pointer_path: str, keys: List[str]
+        self, table_id: str, json_pointer_path: str, keys: List[str]
     ) -> Any:
         """
         删除 data 字段中指定路径下的 keys
@@ -404,7 +407,7 @@ class TableService:
         return result
 
     def query_context_data_with_jmespath(
-        self, table_id: int, json_pointer_path: str, query: str
+        self, table_id: str, json_pointer_path: str, query: str
     ) -> Optional[Any]:
         """
         使用 JMESPath 查询 data 字段中指定路径的数据
@@ -441,7 +444,7 @@ class TableService:
                 f"Query failed: {str(e)}", code=ErrorCode.BAD_REQUEST
             )
 
-    def get_context_structure(self, table_id: int, json_pointer_path: str) -> Dict:
+    def get_context_structure(self, table_id: str, json_pointer_path: str) -> Dict:
         """
         获取 data 字段中指定路径的数据结构（不包含实际数据值）
         """

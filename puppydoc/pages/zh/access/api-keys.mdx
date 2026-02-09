@@ -1,0 +1,189 @@
+# API Key 管理
+
+API Key 是 Agent 访问 PuppyOne 的凭证，管理好 API Key 是安全的关键。
+
+---
+
+## 什么是 API Key
+
+API Key 是一个唯一的字符串，用于：
+
+1. **身份验证**：证明请求来自合法的 Agent
+2. **权限关联**：每个 API Key 关联特定的 Tool 和路径权限
+3. **访问追踪**：记录哪个 Agent 做了什么操作
+
+```
+API Key 示例: sk_live_abc123def456...
+```
+
+---
+
+## 创建 API Key
+
+### 在 Dashboard 中创建
+
+1. 打开 Table → **Access** 标签
+2. 点击 **Create API Key**
+3. 配置：
+   - **Name**：给 API Key 起个名字（如「客服 Agent」）
+   - **Tools**：选择允许的操作
+   - **Paths**：配置路径权限
+4. 点击 **Create**
+5. **立即复制** API Key（只显示一次！）
+
+### 通过 API 创建
+
+```bash
+curl -X POST https://api.puppyone.ai/api/v1/api-keys \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "name": "Support Agent",
+    "table_id": "tbl_xxx",
+    "tools": ["query_data", "get_all_data"]
+  }'
+```
+
+---
+
+## 管理 API Key
+
+### 查看 API Key 列表
+
+在 **Settings** → **API Keys** 中查看所有 API Key：
+
+| Name | Created | Last Used | Status |
+|------|---------|-----------|--------|
+| 客服 Agent | 2024-01-15 | 2024-01-20 | ✅ Active |
+| 研发 Agent | 2024-01-10 | 2024-01-19 | ✅ Active |
+| 测试用 | 2024-01-05 | Never | ⚠️ Unused |
+
+### 禁用 API Key
+
+1. 找到要禁用的 API Key
+2. 点击 **Disable**
+3. 确认禁用
+
+禁用后，使用该 API Key 的请求会被拒绝。
+
+### 删除 API Key
+
+1. 找到要删除的 API Key
+2. 点击 **Delete**
+3. 确认删除
+
+> ⚠️ 删除是不可逆的。如果 Agent 正在使用该 Key，会立即失效。
+
+---
+
+## 安全最佳实践
+
+### 1. 一个 Agent 一个 Key
+
+```yaml
+# ✅ 推荐
+客服 Agent → sk_live_support_xxx
+研发 Agent → sk_live_dev_yyy
+销售 Agent → sk_live_sales_zzz
+
+# ❌ 不推荐
+所有 Agent → sk_live_shared_key
+```
+
+### 2. 定期轮换
+
+每 90 天轮换一次 API Key：
+
+1. 创建新 Key
+2. 更新 Agent 配置
+3. 确认新 Key 正常工作
+4. 删除旧 Key
+
+### 3. 不要硬编码
+
+```python
+# ❌ 不推荐
+api_key = "sk_live_abc123..."
+
+# ✅ 推荐
+api_key = os.environ.get("PUPPYONE_API_KEY")
+```
+
+### 4. 监控使用情况
+
+定期检查：
+- 未使用的 Key（可能是遗留的）
+- 异常的请求量
+- 失败的请求
+
+---
+
+## API Key 格式
+
+PuppyOne API Key 的格式：
+
+```
+sk_live_[随机字符串]
+```
+
+| 前缀 | 含义 |
+|------|------|
+| `sk_live_` | 生产环境 Key |
+| `sk_test_` | 测试环境 Key（未来支持） |
+
+---
+
+## 权限变更
+
+修改 API Key 的权限：
+
+1. 找到要修改的 API Key
+2. 点击 **Edit**
+3. 修改 Tools 或 Paths
+4. 保存
+
+> 💡 权限变更**立即生效**，无需重新创建 Key。
+
+---
+
+## 故障排查
+
+### API Key 无效
+
+```
+Error: Invalid API Key
+```
+
+检查：
+- Key 是否正确复制（没有多余空格）
+- Key 是否已被禁用或删除
+- Key 是否对应正确的 Table
+
+### 权限不足
+
+```
+Error: Permission denied for path /internal
+```
+
+检查：
+- 该 Key 的路径权限配置
+- 是否有 deny 规则阻止访问
+
+### 请求被限流
+
+```
+Error: Rate limit exceeded
+```
+
+检查：
+- 是否有异常的请求量
+- 考虑升级计划或优化请求频率
+
+---
+
+## 下一步
+
+- [连接 Agent](/zh/agents) - 使用 API Key 配置 Agent
+
+
+
+

@@ -1,0 +1,95 @@
+# 云端版快速开始
+
+5 分钟内让 Agent 访问你的数据。
+
+---
+
+## Step 1: 创建账号
+
+访问 [puppyone.ai](https://puppyone.ai) 注册账号。
+
+---
+
+## Step 2: 创建 Project
+
+1. 登录后，点击 **New Project**
+2. 输入名称（如「产品知识库」）
+3. 点击 **Create**
+
+---
+
+## Step 3: 创建 Table
+
+1. 在 Project 内，点击 **New Table**
+2. 输入名称（如「products」）
+3. 点击 **Create**
+
+---
+
+## Step 4: 导入数据
+
+### 方式一：上传文件
+
+1. 点击 **Import** → **Upload Files**
+2. 拖拽或选择文件（PDF、Word、Excel 等）
+3. 等待处理完成
+
+### 方式二：连接 Notion
+
+1. 点击 **Import** → **Notion**
+2. 完成 OAuth 授权
+3. 选择要导入的页面
+4. 点击 **Import**
+
+### 方式三：手动输入
+
+1. 在编辑器中直接添加 JSON 数据
+2. 点击保存
+
+---
+
+## Step 5: 连接 Agent
+
+### Cursor 用户
+
+1. 点击 Table 右上角的 **Connect Agent**
+2. 选择 **Cursor**
+3. 复制生成的配置
+4. 粘贴到 Cursor Settings → MCP
+5. 重启 Cursor
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+### Claude Desktop 用户
+
+1. 点击 **Connect Agent** → **Claude Desktop**
+2. 复制配置
+3. 添加到 `~/Library/Application Support/Claude/claude_desktop_config.json`
+4. 重启 Claude Desktop
+
+---
+
+## Step 6: 测试
+
+在 Cursor 或 Claude Desktop 中问：
+
+> "帮我查询一下产品数据"
+
+如果配置正确，Agent 会调用 PuppyOne 获取数据。
+
+---
+
+## 下一步
+
+- [连接更多数据源](/zh/connect)
+- [设置访问权限](/zh/access)
+- [详细 Agent 配置](/zh/agents)

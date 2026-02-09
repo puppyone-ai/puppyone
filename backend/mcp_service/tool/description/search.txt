@@ -1,0 +1,12 @@
+在指定 scope（table_id + json_path）内对大段文本做混合检索（语义向量 ANN + 关键词 BM25），返回命中 chunk 的完整内容与精确定位信息。
+
+输入参数：
+- query: string（必填）检索查询文本
+- top_k: integer（可选，默认 5，上限 20）
+
+表格：{table_name}
+{table_description}
+
+输出：
+- results: 命中列表，每项包含 score、chunk（含 chunk_text 与 json_pointer/char_range 等定位字段）与 json_path（相对于 tool.json_path 的路径）
+

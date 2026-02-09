@@ -4,12 +4,11 @@
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 from datetime import datetime
 
 from src.mcp.repository import McpInstanceRepositorySupabase
-from src.mcp.models import McpInstance
-from src.supabase.schemas import McpResponse
+from src.supabase.mcps.schemas import McpResponse
 
 
 # ============= Fixtures =============
@@ -36,15 +35,20 @@ def sample_mcp_response():
         id=1,
         created_at=datetime.now(),
         api_key="test-api-key",
-        user_id=100,
+        user_id="100",
         project_id=200,
         table_id=300,
         json_path="/data/users",
         status=True,
         port=8080,
         docker_info={"container_id": "abc123"},
-        tools_definition={"get": {"name": "get_tool"}},
-        register_tools=["get", "create"],
+        tools_definition={
+            "query_data": {
+                "name": "query_tool",
+                "description": "query table rows",
+            }
+        },
+        register_tools=["query_data", "create"],
         preview_keys=["name", "email"],
     )
 
@@ -62,12 +66,13 @@ def test_mcp_response_to_instance_conversion(mcp_supabase_repo, sample_mcp_respo
     assert instance.user_id == "100"  # int → str
     assert instance.project_id == "200"  # int → str
     assert instance.table_id == "300"  # int → str
-    assert instance.json_pointer == "/data/users"  # json_path → json_pointer
+    assert instance.json_path == "/data/users"  # json_path → json_pointer
     assert instance.status == 1  # True → 1
     assert instance.port == 8080
     assert instance.docker_info == {"container_id": "abc123"}
-    assert instance.tools_definition == {"get": {"name": "get_tool"}}
-    assert instance.register_tools == ["get", "create"]
+    assert instance.tools_definition["query_data"].name == "query_tool"
+    assert instance.tools_definition["query_data"].description == "query table rows"
+    assert instance.register_tools == ["query_data", "create"]
     assert instance.preview_keys == ["name", "email"]
 
 
@@ -77,7 +82,7 @@ def test_mcp_response_to_instance_with_false_status(mcp_supabase_repo):
         id=2,
         created_at=datetime.now(),
         api_key="test-key",
-        user_id=1,
+        user_id="1",
         project_id=1,
         table_id=1,
         json_path="",
@@ -114,7 +119,7 @@ def test_mcp_response_to_instance_with_none_values(mcp_supabase_repo):
     assert instance.user_id == ""
     assert instance.project_id == ""
     assert instance.table_id == ""
-    assert instance.json_pointer == ""
+    assert instance.json_path == ""
     assert instance.status == 0  # None → False → 0
     assert instance.port == 0
     assert instance.docker_info == {}
@@ -168,10 +173,10 @@ def test_get_by_user_id_success(mcp_supabase_repo, mock_supabase_repo, sample_mc
     mock_supabase_repo.get_mcps.return_value = [sample_mcp_response]
     
     instances = mcp_supabase_repo.get_by_user_id("100")
-    
+
     assert len(instances) == 1
     assert instances[0].user_id == "100"
-    mock_supabase_repo.get_mcps.assert_called_once_with(user_id=100)
+    mock_supabase_repo.get_mcps.assert_called_once_with(user_id="100")
 
 
 def test_create_mcp_instance(mcp_supabase_repo, mock_supabase_repo, sample_mcp_response):
@@ -183,24 +188,32 @@ def test_create_mcp_instance(mcp_supabase_repo, mock_supabase_repo, sample_mcp_r
         user_id="100",
         project_id="200",
         table_id="300",
+        name="users-mcp",
         json_pointer="/data/users",
         status=1,
         port=8080,
         docker_info={"container_id": "abc123"},
-        tools_definition={"get": {"name": "get_tool"}},
-        register_tools=["get", "create"],
+        tools_definition={
+            "query_data": {
+                "name": "query_tool",
+                "description": "query table rows",
+            }
+        },
+        register_tools=["query_data", "create"],
     )
     
     assert instance is not None
     assert instance.mcp_instance_id == "1"
-    assert instance.json_pointer == "/data/users"
+    assert instance.json_path == "/data/users"
     assert instance.status == 1
     
     # 验证传递给 Supabase 的数据进行了正确的字段映射
     call_args = mock_supabase_repo.create_mcp.call_args[0][0]
     assert call_args.json_path == "/data/users"  # json_pointer → json_path
     assert call_args.status is True  # 1 → True
-    assert call_args.user_id == 100  # str → int
+    assert call_args.user_id == "100"
+    assert call_args.project_id == 200
+    assert call_args.table_id == 300
 
 
 def test_update_by_id_success(mcp_supabase_repo, mock_supabase_repo, sample_mcp_response):
@@ -213,6 +226,7 @@ def test_update_by_id_success(mcp_supabase_repo, mock_supabase_repo, sample_mcp_
         user_id="100",
         project_id="200",
         table_id="300",
+        name="users-mcp-updated",
         json_pointer="/updated/path",
         status=0,
         port=9090,
@@ -238,6 +252,7 @@ def test_update_by_api_key_success(mcp_supabase_repo, mock_supabase_repo, sample
         user_id="100",
         project_id="200",
         table_id="300",
+        name="users-mcp-updated",
         json_pointer="/updated/path",
         status=1,
         port=8080,

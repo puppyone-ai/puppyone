@@ -1,0 +1,115 @@
+# 管理数据
+
+在 PuppyOne 中编辑、组织你的结构化数据。
+
+---
+
+## 为什么需要管理数据
+
+导入的原始数据可能需要：
+
+- **清理**：删除无关字段、修正错误
+- **重组**：调整 JSON 结构，便于 Agent 查询
+- **补充**：添加元数据、标签
+
+---
+
+## PuppyOne 数据模型
+
+```
+Workspace（工作区）
+└── Project（项目）
+    └── Table（表）
+        └── JSON Data（结构化数据）
+```
+
+| 概念 | 说明 |
+|------|------|
+| **Project** | 顶层容器，一个业务场景对应一个 Project |
+| **Table** | Project 内的数据表，存储一份结构化 JSON |
+| **JSON Data** | 实际数据，可以是对象、数组、嵌套结构 |
+
+---
+
+## 核心功能
+
+### JSON 树编辑器
+
+可视化编辑 JSON 数据：
+
+- 📂 树形导航嵌套结构
+- ✏️ 点击即可编辑任意值
+- ➕ 添加新字段或数组项
+- 🗑️ 删除不需要的节点
+
+[详细指南 →](/zh/editor/json-tree)
+
+### 版本历史
+
+每次修改都会自动保存版本：
+
+- 查看修改历史
+- 对比不同版本
+- 一键回滚
+
+[了解更多 →](/zh/editor/version)
+
+---
+
+## 数据结构建议
+
+为了让 Agent 更高效地使用数据，建议：
+
+### ✅ 推荐的结构
+
+```json
+{
+  "products": [
+    {
+      "id": "SKU-001",
+      "name": "Widget Pro",
+      "price": 99.99,
+      "category": "电子产品"
+    }
+  ],
+  "categories": ["电子产品", "配件", "服务"]
+}
+```
+
+**特点**：扁平化、字段名清晰、类型一致
+
+### ❌ 不推荐的结构
+
+```json
+{
+  "data": {
+    "items": {
+      "group1": {
+        "subgroup": {
+          "products": [...]
+        }
+      }
+    }
+  }
+}
+```
+
+**问题**：嵌套过深，Agent 难以准确定位
+
+[更多最佳实践 →](/zh/editor/structure)
+
+---
+
+## 下一步
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="JSON 编辑器" href="/zh/editor/json-tree" />
+  <Card title="结构化最佳实践" href="/zh/editor/structure" />
+  <Card title="设置访问权限" href="/zh/access" />
+</Cards>
+
+
+
+

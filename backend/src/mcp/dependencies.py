@@ -5,7 +5,6 @@ from src.mcp.service import McpService
 from src.mcp.models import McpInstance
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
-from src.utils.logger import log_error, log_info
 
 
 # 使用全局变量存储单例，而不是 lru_cache
@@ -64,33 +63,33 @@ async def get_mcp_instance_by_api_key(
 ) -> McpInstance:
     """
     依赖注入函数：仅验证 API Key 是否有效，不检查用户权限
-    
+
     用于代理路由等不需要用户登录的场景
-    
+
     这个依赖只验证：
     1. MCP 实例是否存在
-    
+
     不验证：
     - 用户登录状态
     - 用户对实例的所有权
-    
+
     Args:
         api_key: MCP 实例的 API Key（从路径参数获取）
         mcp_instance_service: McpService 实例（通过依赖注入）
-    
+
     Returns:
         McpInstance 对象
-    
+
     Raises:
         NotFoundException: 如果实例不存在
     """
     from src.exceptions import NotFoundException, ErrorCode
-    
+
     instance = await mcp_instance_service.get_mcp_instance_by_api_key(api_key)
     if not instance:
         raise NotFoundException(
             f"MCP instance not found: api_key={api_key[:20]}...",
             code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
         )
-    
+
     return instance

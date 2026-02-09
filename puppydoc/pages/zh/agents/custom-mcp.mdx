@@ -1,0 +1,260 @@
+# 自定义 MCP 客户端
+
+为其他 MCP 兼容客户端配置 PuppyOne 连接。
+
+---
+
+## MCP 协议简介
+
+MCP (Model Context Protocol) 是一个开放协议，定义了 AI 模型如何与外部工具交互。
+
+PuppyOne 提供标准的 MCP Server，兼容所有支持 MCP 的客户端。
+
+---
+
+## 连接信息
+
+### Server URL
+
+```
+https://api.puppyone.ai/api/v1/mcp/server/{API_KEY}
+```
+
+### 传输方式
+
+PuppyOne MCP Server 支持 **SSE (Server-Sent Events)** 传输。
+
+### 使用 mcp-remote
+
+大多数 MCP 客户端使用 `mcp-remote` 连接远程 Server：
+
+```bash
+npx -y mcp-remote https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx
+```
+
+---
+
+## 通用配置格式
+
+大多数 MCP 客户端使用类似的 JSON 配置：
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/YOUR_API_KEY"]
+    }
+  }
+}
+```
+
+---
+
+## 可用的 Tools
+
+PuppyOne MCP Server 暴露以下 Tools：
+
+### query_data
+
+查询数据，支持过滤条件。
+
+**输入 Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "JSON 路径，如 /products"
+    },
+    "filter": {
+      "type": "object",
+      "description": "过滤条件"
+    }
+  },
+  "required": ["path"]
+}
+```
+
+### get_all_data
+
+获取指定路径的全部数据。
+
+**输入 Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "JSON 路径"
+    }
+  },
+  "required": ["path"]
+}
+```
+
+### create
+
+创建新条目。
+
+**输入 Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "目标路径"
+    },
+    "data": {
+      "type": "object",
+      "description": "要创建的数据"
+    }
+  },
+  "required": ["path", "data"]
+}
+```
+
+### update
+
+更新现有数据。
+
+**输入 Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "目标路径"
+    },
+    "value": {
+      "description": "新值"
+    }
+  },
+  "required": ["path", "value"]
+}
+```
+
+### delete
+
+删除数据。
+
+**输入 Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "要删除的路径"
+    }
+  },
+  "required": ["path"]
+}
+```
+
+---
+
+## 其他 MCP 客户端
+
+### Cline
+
+编辑 Cline 的 MCP 配置文件，添加：
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+### Continue
+
+在 Continue 配置中添加 MCP Server：
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "puppyone",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  ]
+}
+```
+
+---
+
+## 直接使用 MCP SDK
+
+如果你在开发自己的 MCP 客户端，可以使用 MCP SDK：
+
+### TypeScript
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+
+const transport = new SSEClientTransport(
+  new URL("https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx")
+);
+
+const client = new Client({
+  name: "my-client",
+  version: "1.0.0"
+}, {
+  capabilities: {}
+});
+
+await client.connect(transport);
+
+// 列出可用工具
+const tools = await client.listTools();
+
+// 调用工具
+const result = await client.callTool({
+  name: "query_data",
+  arguments: {
+    path: "/products",
+    filter: { price: { $lt: 100 } }
+  }
+});
+```
+
+### Python
+
+```python
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+
+async with sse_client("https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx") as (read, write):
+    async with ClientSession(read, write) as session:
+        await session.initialize()
+        
+        # 列出工具
+        tools = await session.list_tools()
+        
+        # 调用工具
+        result = await session.call_tool(
+            "query_data",
+            arguments={"path": "/products"}
+        )
+```
+
+---
+
+## 下一步
+
+- [REST API](/zh/agents/rest-api) - 不使用 MCP，直接调用 HTTP API
+
+
+
+

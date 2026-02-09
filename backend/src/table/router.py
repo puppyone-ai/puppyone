@@ -41,8 +41,28 @@ def list_tables(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     # 获取用户的所有项目及其下的表格
-    projects_with_tables = table_service.get_projects_with_tables_by_user_id(current_user.user_id)
-    return ApiResponse.success(data=projects_with_tables, message="项目及表格列表获取成功")
+    projects_with_tables = table_service.get_projects_with_tables_by_user_id(
+        current_user.user_id
+    )
+    return ApiResponse.success(
+        data=projects_with_tables, message="项目及表格列表获取成功"
+    )
+
+
+@router.get(
+    "/orphan",
+    response_model=ApiResponse[List[TableOut]],
+    summary="获取未分类的表格",
+    description="获取当前用户的所有裸 Table（不属于任何 Project）",
+    response_description="返回未分类的表格列表",
+    status_code=status.HTTP_200_OK,
+)
+def list_orphan_tables(
+    table_service: TableService = Depends(get_table_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    tables = table_service.get_orphan_tables_by_user_id(current_user.user_id)
+    return ApiResponse.success(data=tables, message="获取成功")
 
 
 @router.get(
@@ -63,7 +83,7 @@ def get_table(
     "/",
     response_model=ApiResponse[TableOut],
     summary="创建新的表格",
-    description="创建一个新的表格（Table）。需要提供项目ID、表格名称、描述和初始数据。创建前会验证项目是否存在且属于当前用户。",
+    description="创建一个新的表格（Table）。项目ID为可选，不传则创建裸Table。如果指定项目ID，会验证项目是否存在且属于当前用户。",
     response_description="返回创建成功的表格信息",
     status_code=status.HTTP_201_CREATED,
 )
@@ -72,18 +92,22 @@ def create_table(
     table_service: TableService = Depends(get_table_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # 验证项目是否属于当前用户
-    if not table_service.verify_project_access(payload.project_id, current_user.user_id):
-        raise NotFoundException(
-            f"Project not found: {payload.project_id}", code=ErrorCode.NOT_FOUND
-        )
-    
+    # 如果指定了 project_id，验证项目是否属于当前用户
+    if payload.project_id is not None:
+        if not table_service.verify_project_access(
+            payload.project_id, current_user.user_id
+        ):
+            raise NotFoundException(
+                f"Project not found: {payload.project_id}", code=ErrorCode.NOT_FOUND
+            )
+
     # 创建表格
     table = table_service.create(
-        project_id=payload.project_id,
+        user_id=current_user.user_id,
         name=payload.name,
         description=payload.description,
         data=payload.data or {},
+        project_id=payload.project_id,
     )
     return ApiResponse.success(data=table, message="表格创建成功")
 

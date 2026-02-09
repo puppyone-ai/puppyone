@@ -17,18 +17,61 @@ class TableToolImplementation:
             rpc_client: RPC客户端
         """
         self.rpc_client = rpc_client
+
+    def _summarize_schema(self, schema: Any, json_path: str) -> Dict[str, Any]:
+        """
+        给 get_data_schema 补充一份轻量 meta，帮助调用方快速判断根节点类型（object/array/scalar），
+        避免把 object 误当成 array 去写 `[?...]` 过滤而报错。
+        """
+        meta: Dict[str, Any] = {"json_path": json_path}
+
+        if isinstance(schema, dict):
+            keys = list(schema.keys())
+            meta.update(
+                {
+                    "root_type": "object",
+                    "object_key_count": len(keys),
+                    "object_keys_preview": keys[:20],
+                    "object_keys_truncated": len(keys) > 20,
+                }
+            )
+            return meta
+
+        if isinstance(schema, list):
+            meta.update(
+                {
+                    "root_type": "array",
+                    "array_length_in_schema": len(schema),
+                    # 约定：schema 用首元素作为模板（见 TableService._extract_structure），这里直接透出
+                    "array_item_schema": schema[0] if len(schema) > 0 else None,
+                }
+            )
+            return meta
+
+        # 基本类型（schema 会是 "<str>" / "<int>" 等字符串）
+        if isinstance(schema, str) and schema.startswith("<") and schema.endswith(">"):
+            meta.update({"root_type": "scalar", "scalar_type": schema.strip("<>")})
+        else:
+            meta.update({"root_type": "scalar", "scalar_type": type(schema).__name__})
+        return meta
     
-    async def get_data_schema(self, table_id: int, json_path: str = "") -> Dict[str, Any]:
+    async def get_data_schema(self, table_id: str, json_path: str = "") -> Dict[str, Any]:
         """获取挂载点数据结构（不含实际值）"""
         try:
             data = await self.rpc_client.get_context_schema(table_id=table_id, json_path=json_path)
             if data is None:
                 return {"error": "获取数据结构失败"}
-            return {"message": "获取数据结构成功", "data": data, "schema_only": True}
+            return {
+                "message": "获取数据结构成功",
+                "data": data,
+                "schema_only": True,
+                # 非破坏性增强：补充 meta 信息，便于调用方快速写出正确的 JMESPath
+                "meta": self._summarize_schema(data, json_path=json_path),
+            }
         except Exception as e:
-            return {"error": "获取数据结构失败", "detail": str(e)}
+            return {"error": "获取数据结构失败", "detail": str(e)[:200]}
 
-    async def get_all_data(self, table_id: int, json_path: str = "") -> Dict[str, Any]:
+    async def get_all_data(self, table_id: str, json_path: str = "") -> Dict[str, Any]:
         """获取挂载点全部数据"""
         try:
             data = await self.rpc_client.get_context_data(table_id=table_id, json_path=json_path)
@@ -36,9 +79,9 @@ class TableToolImplementation:
                 return {"error": "获取数据失败"}
             return {"message": "获取数据成功", "data": data or {}}
         except Exception as e:
-            return {"error": "获取数据失败", "detail": str(e)}
+            return {"error": "获取数据失败", "detail": str(e)[:200]}
 
-    async def query_data(self, table_id: int, json_path: str, query: str) -> Dict[str, Any]:
+    async def query_data(self, table_id: str, json_path: str, query: str) -> Dict[str, Any]:
         """对挂载点数据做 JMESPath 查询"""
         try:
             if not query:
@@ -50,11 +93,11 @@ class TableToolImplementation:
                 return {"error": "JMESPath 查询失败"}
             return {"message": "JMESPath 查询成功", "data": data, "query": query}
         except Exception as e:
-            return {"error": "JMESPath 查询失败", "detail": str(e)}
+            return {"error": "JMESPath 查询失败", "detail": str(e)[:200]}
     
     async def create_element(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         elements: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
@@ -112,11 +155,11 @@ class TableToolImplementation:
                 "total_failed": len(failed_keys)
             }
         except Exception as e:
-            return {"error": f"创建元素失败: {str(e)}"}
+            return {"error": f"创建元素失败: {str(e)[:200]}"}
     
     async def update_element(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         updates: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
@@ -174,11 +217,11 @@ class TableToolImplementation:
                 "total_failed": len(failed_keys)
             }
         except Exception as e:
-            return {"error": f"更新元素失败: {str(e)}"}
+            return {"error": f"更新元素失败: {str(e)[:200]}"}
     
     async def delete_element(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         keys: List[str]
     ) -> Dict[str, Any]:
@@ -223,21 +266,21 @@ class TableToolImplementation:
                 "total_invalid": len(invalid_keys)
             }
         except Exception as e:
-            return {"error": f"删除元素失败: {str(e)}"}
+            return {"error": f"删除元素失败: {str(e)[:200]}"}
     
     async def preview_data(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
-        preview_keys: Optional[List[str]] = None
+        keys: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
-        预览表格数据
+        预览表格数据（只返回指定字段，用于快速决策）
         
         Args:
             table_id: 表格ID
             json_path: 挂载点 JSON Pointer 路径
-            preview_keys: 预览字段列表
+            keys: 要保留的字段名列表（由调用方/大模型自主决定）
             
         Returns:
             预览结果
@@ -252,43 +295,42 @@ class TableToolImplementation:
             # 检查数据类型
             if not isinstance(data, list):
                 return {
-                    "message": "当前数据不是列表类型，无法使用预览功能。请使用 get_all_data 或 query_data 工具查询数据。",
+                    "message": "数据结构不符合 preview 要求：顶层必须是 List[Dict]（列表）。请使用 get_all_data 或 query_data。",
                     "data_type": str(type(data).__name__)
                 }
             
             # 检查列表元素类型
             if data and not all(isinstance(item, dict) for item in data):
                 return {
-                    "message": "当前数据不是 List[Dict] 类型，无法使用预览功能。请使用 get_all_data 或 query_data 工具查询数据。",
+                    "message": "数据结构不符合 preview 要求：顶层必须是 List[Dict]（列表中的每个元素必须是对象）。请使用 get_all_data 或 query_data。",
                     "data_type": "List[mixed]"
                 }
             
-            # 如果没有指定preview_keys，返回所有数据
-            if not preview_keys:
-                return {
-                    "message": "预览数据获取成功（显示所有字段）",
-                    "data": data,
-                    "preview_keys": "all"
-                }
+            # 必须传入 keys：否则无法达成“只挑选必要决策信息”的目的
+            if not keys or not isinstance(keys, list):
+                return {"error": "keys 参数必须是非空列表（List[str]）"}
+            normalized_keys: list[str] = [str(k).strip() for k in keys if str(k).strip()]
+            if not normalized_keys:
+                return {"error": "keys 参数不能为空（至少包含 1 个字段名）"}
             
             # 过滤数据
             filtered_data = []
             for item in data:
-                filtered_item = {key: item.get(key) for key in preview_keys if key in item}
+                filtered_item = {k: item.get(k) for k in normalized_keys if k in item}
                 filtered_data.append(filtered_item)
             
             return {
-                "message": "预览数据获取成功",
+                "message": "预览数据获取成功（仅包含 keys 指定字段）。如需获取完整记录，请使用 select 工具按字段值精确筛选。",
                 "data": filtered_data,
-                "preview_keys": preview_keys,
+                "keys": normalized_keys,
                 "total_count": len(filtered_data)
             }
         except Exception as e:
-            return {"error": f"预览数据失败: {str(e)}"}
+            return {"error": f"预览数据失败: {str(e)[:200]}"}
     
     async def select_tables(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         field: str,
         keys: List[str]
@@ -348,4 +390,4 @@ class TableToolImplementation:
                 "matched_count": len(selected_data)
             }
         except Exception as e:
-            return {"error": f"选择数据失败: {str(e)}"}
+            return {"error": f"选择数据失败: {str(e)[:200]}"}

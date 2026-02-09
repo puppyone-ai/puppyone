@@ -1,0 +1,40 @@
+# Cloud Quick Start
+
+Get started with PuppyOne Cloud in 2 minutes.
+
+## Step 1: Create Account
+
+Visit [puppyone.ai](https://puppyone.ai) and sign up.
+
+## Step 2: Create Project
+
+Click **New Project** and give it a name.
+
+## Step 3: Import Data
+
+Upload your first document or connect a data source.
+
+## Step 4: Connect Your Agent
+
+Copy the MCP endpoint and add it to your agent config:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx -y mcp-remote https://api.puppyone.ai/mcp?api_key=YOUR_KEY"
+    }
+  }
+}
+```
+
+Done! Your agent now has access to structured context.
+
+
+
+
+
+
+
+
+

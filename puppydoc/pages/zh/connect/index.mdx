@@ -1,0 +1,74 @@
+# 连接数据
+
+把你的数据导入 PuppyOne，变成 Agent 可用的结构化上下文。
+
+---
+
+## 支持的数据源
+
+| 来源 | 接入方式 | 同步方式 | 适用场景 |
+|------|----------|----------|----------|
+| [**Notion**](/zh/connect/notion) | OAuth 授权 | 增量同步 | 文档、知识库 |
+| [**GitHub**](/zh/connect/github) | OAuth 授权 | Repo / Issue / PR | 代码库、项目管理 |
+| [**Airtable**](/zh/connect/airtable) | OAuth 授权 | 全量同步 | 结构化表格数据 |
+| [**Google Sheets**](/zh/connect/google-sheets) | OAuth 授权 | 全量同步 | 表格数据 |
+| [**文件上传**](/zh/connect/files) | 直接上传 | 单次导入 | PDF、DOCX、图片 |
+| [**网页爬取**](/zh/connect/urls) | URL 输入 | 单次导入 | 任意公开网页 |
+
+---
+
+## 数据处理流程
+
+当你导入数据时，PuppyOne 会自动处理：
+
+```
+原始数据 → 解析 → 清洗 → 结构化 → 存储
+           │       │       │
+           │       │       └── 转换为 JSON
+           │       └────────── 去除噪音、格式化
+           └────────────────── OCR / Markdown 提取
+```
+
+**最终结果**：所有数据都变成结构化的 JSON，存储在你的 Table 中。
+
+---
+
+## 快速开始
+
+### 1. 创建 Project
+
+在 Dashboard 点击 **新建 Project**，给它起个名字（比如「产品知识库」）。
+
+### 2. 创建 Table
+
+在 Project 内点击 **新建 Table**，这是存放数据的容器。
+
+### 3. 导入数据
+
+点击 Table 中的 **Import** 按钮，选择数据来源：
+
+- **SaaS 服务**：选择 Notion / GitHub 等，完成 OAuth 授权
+- **文件**：直接拖拽上传
+- **URL**：粘贴网页链接
+
+### 4. 等待处理
+
+导入会在后台异步执行，处理完成后数据会出现在 Table 中。
+
+---
+
+## 下一步
+
+选择你要连接的数据源，查看详细配置指南：
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="Notion" href="/zh/connect/notion" />
+  <Card title="GitHub" href="/zh/connect/github" />
+  <Card title="文件上传" href="/zh/connect/files" />
+</Cards>
+
+
+
+

@@ -6,17 +6,16 @@ Project 数据模型
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Project(BaseModel):
     """项目领域模型"""
-    
-    id: int = Field(..., description="项目ID")
+
+    id: str = Field(..., description="项目ID (UUID)")
     name: str = Field(..., description="项目名称")
     description: Optional[str] = Field(None, description="项目描述")
     user_id: Optional[str] = Field(None, description="所属用户ID")
     created_at: datetime = Field(..., description="创建时间")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

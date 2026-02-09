@@ -5,3 +5,7 @@ logs/
 .test_data/
 .mineru_cache/
 .etl_rules/
+.pytest_cache/
+.uv_cache/
+.uv-cache/
+.cache/

@@ -5,7 +5,6 @@
 
 import jwt
 import httpx
-import os
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from src.config import settings
@@ -24,6 +23,7 @@ from src.utils.logger import log_info, log_error
 MCP_SERVER_URL = settings.MCP_SERVER_URL
 MCP_SERVER_HEALTHZ_URL = f"{MCP_SERVER_URL}/healthz"
 MCP_SERVER_CACHE_INVALIDATE_URL = f"{MCP_SERVER_URL}/cache/invalidate"
+
 
 class McpService:
     """
@@ -73,13 +73,12 @@ class McpService:
         client = self._get_http_client()
         return await client.request(method=method, url=url, timeout=timeout, **kwargs)
 
-
-# ============================================================
-# API_KEY生成和解析逻辑
-# ============================================================
+    # ============================================================
+    # API_KEY生成和解析逻辑
+    # ============================================================
 
     def generate_mcp_token(
-        self, user_id: str, project_id: int, table_id: int, json_pointer: str = ""
+        self, user_id: str, project_id: str, table_id: str, json_pointer: str = ""
     ) -> str:
         """
         根据用户ID、项目ID、表格ID、JSON路径 生成代表MCP实例的JWT token
@@ -132,15 +131,15 @@ class McpService:
                 f"Error decoding token: {e}", code=ErrorCode.INVALID_TOKEN
             )
 
-# ============================================================
-# 数据库中的mcp实例
-# ============================================================
+    # ============================================================
+    # 数据库中的mcp实例
+    # ============================================================
 
     async def create_mcp_instance(
         self,
         user_id: str,
-        project_id: int,
-        table_id: int,
+        project_id: str,
+        table_id: str,
         name: str,
         json_pointer: str = "",
         tools_definition: Optional[Dict[str, Any]] = None,
@@ -176,7 +175,7 @@ class McpService:
                 table_id=table_id,
                 name=name,
                 json_pointer=json_pointer,
-                status=1,   # 默认开启
+                status=1,  # 默认开启
                 # 工具配置
                 tools_definition=tools_definition,
                 register_tools=register_tools,
@@ -371,7 +370,7 @@ class McpService:
         return self.instance_repo.get_by_api_key(api_key)
 
     async def get_mcp_instance_by_id(
-        self, mcp_instance_id: int
+        self, mcp_instance_id: str
     ) -> Optional[McpInstance]:
         """根据实例ID获取 MCP 实例"""
         return self.instance_repo.get_by_id(mcp_instance_id)
@@ -418,7 +417,9 @@ class McpService:
             健康状态字典
         """
         try:
-            response = await self._http_request("GET", MCP_SERVER_HEALTHZ_URL, timeout=5.0)
+            response = await self._http_request(
+                "GET", MCP_SERVER_HEALTHZ_URL, timeout=5.0
+            )
             if response.status_code == 200:
                 return response.json()
             else:

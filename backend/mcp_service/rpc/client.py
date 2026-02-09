@@ -1,39 +1,20 @@
 """
 RPC客户端模块
 用于MCP Server调用主服务的Internal API
+
+整合后只保留 Agent 模式需要的端点：
+- /internal/agent-by-mcp-key/{mcp_api_key} - 获取 Agent 及其 bash 访问权限和 tools
+- /internal/tables/{table_id}/context-* - 数据操作端点
+- /internal/tools/{tool_id}/search - Search Tool 查询端点
 """
 import httpx
 from typing import Optional, Dict, Any, List
-from dataclasses import dataclass
-
-
-@dataclass
-class McpInstanceData:
-    """MCP实例数据"""
-    api_key: str
-    user_id: str
-    project_id: int
-    table_id: int
-    json_path: str
-    status: int
-    tools_definition: Optional[Dict[str, Any]]
-    register_tools: Optional[List[str]]
-    preview_keys: Optional[List[str]]
-
-
-@dataclass
-class TableMetadata:
-    """表格元数据"""
-    table_id: int
-    name: str
-    description: Optional[str]
-    project_id: int
 
 
 class InternalApiClient:
     """
     Internal API客户端
-    用于MCP Server调用主服务的内部API
+    用于MCP Server调用主服务的内部API（整合后只支持 Agent 模式）
     """
     
     def __init__(
@@ -69,93 +50,62 @@ class InternalApiClient:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
     
-    async def get_mcp_instance(self, api_key: str) -> Optional[McpInstanceData]:
+    # ============================================================
+    # Agent 模式端点（整合后唯一支持的模式）
+    # ============================================================
+    
+    async def get_agent_by_mcp_key(self, mcp_api_key: str) -> Optional[Dict[str, Any]]:
         """
-        获取MCP实例数据
+        根据 MCP API key 获取 Agent 及其访问权限
         
         Args:
-            api_key: API key
+            mcp_api_key: MCP API key（以 "mcp_" 开头）
             
         Returns:
-            MCP实例数据，如果不存在则返回None
+            Agent 数据字典，格式：
+            {
+                "agent": { "id", "name", "project_id", "type" },
+                "accesses": [
+                    {
+                        "node_id": "xxx",
+                        "bash_enabled": true,
+                        "bash_readonly": true,
+                        "tool_query": true,
+                        "tool_create": false,
+                        "tool_update": false,
+                        "tool_delete": false,
+                        "json_path": ""
+                    }
+                ]
+            }
+            如果不存在则返回 None
         """
         try:
-            url = f"{self.base_url}/internal/mcp-instance/{api_key}"
+            url = f"{self.base_url}/internal/agent-by-mcp-key/{mcp_api_key}"
             response = await self._client.get(url)
             
             if response.status_code == 404:
                 return None
             
             response.raise_for_status()
-            data = response.json()
-            
-            return McpInstanceData(
-                api_key=data["api_key"],
-                user_id=data["user_id"],
-                project_id=data["project_id"],
-                table_id=data["table_id"],
-                json_path=data.get("json_path") or data.get("json_pointer", "") or "",
-                status=data.get("status", 1),
-                tools_definition=data.get("tools_definition"),
-                register_tools=data.get("register_tools"),
-                preview_keys=data.get("preview_keys")
-            )
+            return response.json()
         except httpx.HTTPStatusError as e:
             body = (e.response.text or "").strip()
             print(
-                f"Error fetching MCP instance: status={e.response.status_code} url={e.request.url} body={body}"
+                f"Error fetching Agent by MCP key: status={e.response.status_code} url={e.request.url} body={body}"
             )
             raise RuntimeError(
-                f"获取 MCP 实例失败: HTTP {e.response.status_code} - {body}"
+                f"获取 Agent 失败: HTTP {e.response.status_code} - {body}"
             ) from e
         except httpx.RequestError as e:
-            print(f"Error fetching MCP instance: request_failed url={e.request.url} error={e}")
-            raise RuntimeError(f"获取 MCP 实例失败: {str(e)}") from e
-    
-    async def get_table_metadata(self, table_id: int) -> Optional[TableMetadata]:
-        """
-        获取表格元数据
-        
-        Args:
-            table_id: 表格ID
-            
-        Returns:
-            表格元数据，如果不存在则返回None
-        """
-        try:
-            url = f"{self.base_url}/internal/table/{table_id}"
-            response = await self._client.get(url)
-            
-            if response.status_code == 404:
-                return None
-            
-            response.raise_for_status()
-            data = response.json()
+            print(f"Error fetching Agent by MCP key: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"获取 Agent 失败: {str(e)}") from e
 
-            # 兼容不同返回字段：
-            # - 新版主服务返回 table_id
-            # - 旧版/其他实现可能返回 id
-            resolved_table_id = data.get("table_id", data.get("id", table_id))
+    # ============================================================
+    # 数据操作端点（Context Data CRUD）
+    # ============================================================
 
-            return TableMetadata(
-                table_id=resolved_table_id,
-                name=data["name"],
-                description=data.get("description"),
-                project_id=data["project_id"]
-            )
-        except httpx.HTTPStatusError as e:
-            body = (e.response.text or "").strip()
-            print(
-                f"Error fetching table metadata: status={e.response.status_code} url={e.request.url} body={body}"
-            )
-            raise RuntimeError(
-                f"获取表格元数据失败: HTTP {e.response.status_code} - {body}"
-            ) from e
-        except httpx.RequestError as e:
-            print(f"Error fetching table metadata: request_failed url={e.request.url} error={e}")
-            raise RuntimeError(f"获取表格元数据失败: {str(e)}") from e
-    
-    async def get_context_schema(self, table_id: int, json_path: str = "") -> Any:
+    async def get_context_schema(self, table_id: str, json_path: str = "") -> Any:
         """获取挂载点结构（不包含值）"""
         try:
             url = f"{self.base_url}/internal/tables/{table_id}/context-schema"
@@ -175,7 +125,7 @@ class InternalApiClient:
             print(f"Error fetching context schema: request_failed url={e.request.url} error={e}")
             raise RuntimeError(f"获取数据结构失败: {str(e)}") from e
 
-    async def get_context_data(self, table_id: int, json_path: str = "") -> Any:
+    async def get_context_data(self, table_id: str, json_path: str = "") -> Any:
         """获取挂载点全部数据"""
         try:
             url = f"{self.base_url}/internal/tables/{table_id}/context-data"
@@ -195,7 +145,7 @@ class InternalApiClient:
             print(f"Error fetching context data: request_failed url={e.request.url} error={e}")
             raise RuntimeError(f"获取数据失败: {str(e)}") from e
 
-    async def query_context_data(self, table_id: int, json_path: str, query: str) -> Any:
+    async def query_context_data(self, table_id: str, json_path: str, query: str) -> Any:
         """对挂载点数据做 JMESPath 查询"""
         try:
             url = f"{self.base_url}/internal/tables/{table_id}/context-data"
@@ -217,7 +167,7 @@ class InternalApiClient:
     
     async def create_table_data(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         elements: List[Dict[str, Any]]
     ) -> bool:
@@ -225,7 +175,7 @@ class InternalApiClient:
         创建表格数据
         
         Args:
-            table_id: 表格ID
+            table_id: 表格ID（node_id）
             json_path: 挂载点 JSON Pointer 路径
             elements: 要创建的元素列表
             
@@ -255,7 +205,7 @@ class InternalApiClient:
     
     async def update_table_data(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         elements: List[Dict[str, Any]]
     ) -> bool:
@@ -263,7 +213,7 @@ class InternalApiClient:
         更新表格数据
         
         Args:
-            table_id: 表格ID
+            table_id: 表格ID（node_id）
             json_path: 挂载点 JSON Pointer 路径
             elements: 要更新的元素列表
             
@@ -293,7 +243,7 @@ class InternalApiClient:
     
     async def delete_table_data(
         self,
-        table_id: int,
+        table_id: str,
         json_path: str,
         keys: List[str]
     ) -> bool:
@@ -301,7 +251,7 @@ class InternalApiClient:
         删除表格数据
         
         Args:
-            table_id: 表格ID
+            table_id: 表格ID（node_id）
             json_path: 挂载点 JSON Pointer 路径
             keys: 要删除的key列表
             
@@ -328,6 +278,48 @@ class InternalApiClient:
         except httpx.RequestError as e:
             print(f"Error deleting table data: request_failed url={e.request.url} error={e}")
             raise RuntimeError(f"删除元素失败: {str(e)}") from e
+
+    # ============================================================
+    # Search Tool 端点
+    # ============================================================
+
+    async def search_tool_query(
+        self,
+        tool_id: str,
+        query: str,
+        top_k: int = 5
+    ) -> Dict[str, Any]:
+        """
+        调用 Search Tool 执行语义向量检索
+        
+        Args:
+            tool_id: Tool ID
+            query: 搜索查询
+            top_k: 返回结果数量
+            
+        Returns:
+            搜索结果
+        """
+        try:
+            url = f"{self.base_url}/internal/tools/{tool_id}/search"
+            payload = {
+                "query": query,
+                "top_k": top_k
+            }
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            print(
+                f"Error executing search tool: status={e.response.status_code} url={e.request.url} body={body}"
+            )
+            raise RuntimeError(
+                f"搜索失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            print(f"Error executing search tool: request_failed url={e.request.url} error={e}")
+            raise RuntimeError(f"搜索失败: {str(e)}") from e
 
 
 # 创建全局客户端实例

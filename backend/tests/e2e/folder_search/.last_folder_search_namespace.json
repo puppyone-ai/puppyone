@@ -1,0 +1,28 @@
+{
+  "namespace": "e2e-folder-search-20260127-125742-6d936ea9",
+  "region": "gcp-us-central1",
+  "project_id": "proj-db2d46b0",
+  "folder_node_id": "folder-324d62d3",
+  "files": [
+    {
+      "file_node_id": "file-readme-c974d0",
+      "file_name": "readme.md",
+      "file_type": "markdown",
+      "chunks_count": 2
+    },
+    {
+      "file_node_id": "file-data-680836",
+      "file_name": "data.json",
+      "file_type": "json",
+      "chunks_count": 2
+    },
+    {
+      "file_node_id": "file-notes-7646fb",
+      "file_name": "notes.md",
+      "file_type": "markdown",
+      "chunks_count": 1
+    }
+  ],
+  "total_chunks": 5,
+  "created_at_utc": "2026-01-27T12:58:03.475853+00:00"
+}

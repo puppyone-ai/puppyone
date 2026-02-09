@@ -16,6 +16,10 @@ __pycache__/
 
 # dependencies
 /node_modules
+**/node_modules/
+**/.pnpm/
+**/.pnpm-store/
+**/pnpm-store/
 /.pnp
 .pnp.js
 .yarn/install-state.gz
@@ -118,5 +122,9 @@ json_received.json
 
 # Tree directories
 .tree/
+
+# LLM documentation files
+*llms.txt
+*llms-full.txt
 
 

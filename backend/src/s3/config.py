@@ -7,10 +7,7 @@ class S3Settings(BaseSettings):
     """S3 存储配置"""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        case_sensitive=True,
-        extra="ignore",
-        env_file_encoding="utf-8"
+        env_file=".env", case_sensitive=True, extra="ignore", env_file_encoding="utf-8"
     )
 
     # S3 服务端点 (LocalStack: http://localhost:4566, AWS: None)

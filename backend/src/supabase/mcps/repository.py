@@ -45,7 +45,7 @@ class McpRepository:
             # 确保不包含 id 和 created_at（这些由数据库自动生成）
             data.pop("id", None)
             data.pop("created_at", None)
-            response = self._client.table("mcp_instance").insert(data).execute()
+            response = self._client.table("mcp").insert(data).execute()
             return McpResponse(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建 MCP 实例")
@@ -61,10 +61,7 @@ class McpRepository:
             MCP 实例数据，如果不存在则返回 None
         """
         response = (
-            self._client.table("mcp_instance")
-            .select("*")
-            .eq("id", mcp_id)
-            .execute()
+            self._client.table("mcp").select("*").eq("id", mcp_id).execute()
         )
         if response.data:
             return McpResponse(**response.data[0])
@@ -81,7 +78,7 @@ class McpRepository:
             MCP 实例数据，如果不存在则返回 None
         """
         response = (
-            self._client.table("mcp_instance")
+            self._client.table("mcp")
             .select("*")
             .eq("api_key", api_key)
             .execute()
@@ -111,7 +108,7 @@ class McpRepository:
         Returns:
             MCP 实例列表
         """
-        query = self._client.table("mcp_instance").select("*")
+        query = self._client.table("mcp").select("*")
 
         if user_id is not None:
             query = query.eq("user_id", user_id)
@@ -125,9 +122,7 @@ class McpRepository:
         response = query.range(skip, skip + limit - 1).execute()
         return [McpResponse(**item) for item in response.data]
 
-    def update(
-        self, mcp_id: int, mcp_data: McpUpdate
-    ) -> Optional[McpResponse]:
+    def update(self, mcp_id: int, mcp_data: McpUpdate) -> Optional[McpResponse]:
         """
         更新 MCP 实例
 
@@ -151,7 +146,7 @@ class McpRepository:
             data.pop("created_at", None)
 
             response = (
-                self._client.table("mcp_instance")
+                self._client.table("mcp")
                 .update(data)
                 .eq("id", mcp_id)
                 .execute()
@@ -188,7 +183,7 @@ class McpRepository:
             data.pop("created_at", None)
 
             response = (
-                self._client.table("mcp_instance")
+                self._client.table("mcp")
                 .update(data)
                 .eq("api_key", api_key)
                 .execute()
@@ -210,10 +205,7 @@ class McpRepository:
             是否删除成功
         """
         response = (
-            self._client.table("mcp_instance")
-            .delete()
-            .eq("id", mcp_id)
-            .execute()
+            self._client.table("mcp").delete().eq("id", mcp_id).execute()
         )
         return len(response.data) > 0
 
@@ -228,9 +220,6 @@ class McpRepository:
             是否删除成功
         """
         response = (
-            self._client.table("mcp_instance")
-            .delete()
-            .eq("api_key", api_key)
-            .execute()
+            self._client.table("mcp").delete().eq("api_key", api_key).execute()
         )
         return len(response.data) > 0

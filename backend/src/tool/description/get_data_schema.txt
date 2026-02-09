@@ -1,0 +1,10 @@
+获取数据结构（Schema），只返回结构信息，不包含实际数据值。
+
+表格：{table_name}
+{table_description}
+
+使用场景：
+- 首次接触数据时，先用此工具了解结构
+- 在执行 create/update/delete 操作前，确认数据结构
+
+返回值：JSON 结构描述，展示键名和值类型，不含实际数据

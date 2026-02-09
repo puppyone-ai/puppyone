@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 class OAuthAuthorizeRequest(BaseModel):
     """Request for OAuth authorization."""
+
     pass
 
 
@@ -29,6 +30,7 @@ class OAuthCallbackResponse(BaseModel):
     success: bool
     message: str
     workspace_name: Optional[str] = None
+    username: Optional[str] = None
 
 
 class OAuthStatusResponse(BaseModel):
@@ -36,6 +38,7 @@ class OAuthStatusResponse(BaseModel):
 
     connected: bool
     workspace_name: Optional[str] = None
+    username: Optional[str] = None
     connected_at: Optional[datetime] = None
 
 

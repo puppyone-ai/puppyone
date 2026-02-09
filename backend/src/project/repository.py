@@ -14,7 +14,7 @@ class ProjectRepositoryBase(ABC):
     """抽象 Project 仓库接口"""
 
     @abstractmethod
-    def get_by_id(self, project_id: int) -> Optional[Project]:
+    def get_by_id(self, project_id: str) -> Optional[Project]:
         """根据ID获取项目"""
         pass
 
@@ -36,7 +36,7 @@ class ProjectRepositoryBase(ABC):
     @abstractmethod
     def update(
         self,
-        project_id: int,
+        project_id: str,
         name: Optional[str],
         description: Optional[str],
     ) -> Optional[Project]:
@@ -44,12 +44,12 @@ class ProjectRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def delete(self, project_id: int) -> bool:
+    def delete(self, project_id: str) -> bool:
         """删除项目"""
         pass
 
     @abstractmethod
-    def verify_project_access(self, project_id: int, user_id: str) -> bool:
+    def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """验证用户是否有权限访问指定的项目"""
         pass
 
@@ -66,11 +66,12 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         """
         if supabase_repo is None:
             from src.supabase.dependencies import get_supabase_repository
+
             self._supabase_repo = get_supabase_repository()
         else:
             self._supabase_repo = supabase_repo
 
-    def get_by_id(self, project_id: int) -> Optional[Project]:
+    def get_by_id(self, project_id: str) -> Optional[Project]:
         """
         根据ID获取项目
 
@@ -116,8 +117,10 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             创建的Project对象
         """
         from src.supabase.projects.schemas import ProjectCreate
+        from src.utils.id_generator import generate_uuid_v7
 
         project_data = ProjectCreate(
+            id=generate_uuid_v7(),
             name=name,
             description=description,
             user_id=user_id,
@@ -127,7 +130,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
 
     def update(
         self,
-        project_id: int,
+        project_id: str,
         name: Optional[str],
         description: Optional[str],
     ) -> Optional[Project]:
@@ -153,7 +156,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             return self._project_response_to_project(project_response)
         return None
 
-    def delete(self, project_id: int) -> bool:
+    def delete(self, project_id: str) -> bool:
         """
         删除项目
 
@@ -165,23 +168,23 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         """
         return self._supabase_repo.delete_project(project_id)
 
-    def verify_project_access(self, project_id: int, user_id: str) -> bool:
+    def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的项目
-        
+
         检查 project.user_id 是否等于用户ID
-        
+
         Args:
             project_id: 项目ID
             user_id: 用户ID
-            
+
         Returns:
             如果用户有权限返回True，否则返回False
         """
         project = self.get_by_id(project_id)
         if not project:
             return False
-        
+
         # 检查项目是否属于当前用户
         return project.user_id == user_id
 
