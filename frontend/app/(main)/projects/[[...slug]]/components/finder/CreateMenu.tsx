@@ -31,12 +31,11 @@ interface MenuItemProps {
   label: string;
   sublabel?: string;
   onClick?: () => void;
-  hasSubmenu?: boolean;
   onMouseEnter?: () => void;
   isActive?: boolean;
 }
 
-function MenuItem({ icon, label, sublabel, onClick, hasSubmenu, onMouseEnter, isActive }: MenuItemProps) {
+function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive }: MenuItemProps) {
   return (
     <div
       onClick={onClick}
@@ -70,120 +69,12 @@ function MenuItem({ icon, label, sublabel, onClick, hasSubmenu, onMouseEnter, is
       {sublabel && (
         <span style={{ fontSize: 11, color: '#71717a', marginLeft: 8 }}>{sublabel}</span>
       )}
-      {hasSubmenu && (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 'auto', opacity: 0.5 }}>
-          <path d="M9 18l6-6-6-6" />
-        </svg>
-      )}
     </div>
   );
 }
 
 function Divider() {
   return <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 8px' }} />;
-}
-
-// Submenu component to handle positioning
-function Submenu({ 
-  children, 
-  parentRect 
-}: { 
-  children: React.ReactNode; 
-  parentRect: DOMRect | null 
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [adjustedStyle, setAdjustedStyle] = useState<React.CSSProperties>({
-    left: '100%',
-    top: -4,
-    marginLeft: 8,
-  });
-
-  useEffect(() => {
-    if (!ref.current || !parentRect) return;
-    
-    // Use requestAnimationFrame to ensure the element is rendered
-    requestAnimationFrame(() => {
-      if (!ref.current) return;
-      
-      const rect = ref.current.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      const padding = 12;
-      
-      // Horizontal positioning - check if submenu overflows right edge
-      const spaceRight = viewportWidth - parentRect.right;
-      const spaceLeft = parentRect.left;
-      const openToLeft = spaceRight < 250 && spaceLeft > spaceRight;
-      
-      // Vertical positioning - check actual position and adjust if needed
-      let topOffset = -4; // Default offset from parent menu item
-      
-      // Check if submenu bottom would overflow viewport
-      if (rect.bottom > viewportHeight - padding) {
-        // Calculate how much we need to move up
-        const overflow = rect.bottom - (viewportHeight - padding);
-        topOffset = -4 - overflow;
-        
-        // Make sure we don't go above the viewport top
-        const newTop = rect.top - overflow;
-        if (newTop < padding) {
-          topOffset = -4 - (rect.top - padding);
-        }
-      }
-      
-      // Check if submenu top would overflow viewport (in case of very tall submenu)
-      const newRect = {
-        top: rect.top + (topOffset - (-4)),
-        bottom: rect.bottom + (topOffset - (-4)),
-      };
-      
-      if (newRect.top < padding) {
-        topOffset = -4 + (padding - rect.top);
-      }
-      
-      setAdjustedStyle({
-        left: openToLeft ? undefined : '100%',
-        right: openToLeft ? '100%' : undefined,
-        top: topOffset,
-        marginLeft: openToLeft ? 0 : 8,
-        marginRight: openToLeft ? 8 : 0,
-      });
-    });
-  }, [parentRect, children]); // Re-run when children change (affects height)
-
-  return (
-    <div
-      ref={ref}
-      style={{
-        position: 'absolute',
-        ...adjustedStyle,
-        background: 'rgba(28, 28, 30, 0.98)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 8,
-        padding: '4px 0',
-        minWidth: 240,
-        maxHeight: 'calc(100vh - 24px)',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-        zIndex: 1001,
-      }}
-    >
-      {/* Invisible bridge to prevent mouseleave when crossing gap */}
-      <div 
-        style={{
-          position: 'absolute',
-          top: 0,
-          bottom: 0,
-          width: 20,
-          [adjustedStyle.left ? 'right' : 'left']: '100%',
-          background: 'transparent',
-        }} 
-      />
-      {children}
-    </div>
-  );
 }
 
 // Unified icon color
@@ -253,10 +144,8 @@ export function CreateMenu({
   // onImportAirtable, // Airtable temporarily disabled
   // onImportLinear, // Linear temporarily disabled
 }: CreateMenuProps) {
-  const [activeSubmenu, setActiveSubmenu] = useState<'context' | 'import' | null>(null);
   const [adjustedPosition, setAdjustedPosition] = useState<{ top: number; left: number }>({ top: y, left: x });
   const menuRef = useRef<HTMLDivElement>(null);
-  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Adjust menu position to prevent overflow
   useEffect(() => {
@@ -296,29 +185,6 @@ export function CreateMenu({
     }
   }, [x, y]); // Only run when initial position changes
 
-  const handleMouseEnterItem = (submenu: 'context' | 'import' | null) => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-    setActiveSubmenu(submenu);
-  };
-
-  const handleMouseLeaveMenu = () => {
-    closeTimeoutRef.current = setTimeout(() => {
-      setActiveSubmenu(null);
-    }, 150); // Small delay to allow crossing the gap
-  };
-
-  const handleMouseEnterMenu = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-  };
-
-  const getParentRect = () => menuRef.current?.getBoundingClientRect() ?? null;
-
   return (
     <div
       ref={menuRef}
@@ -332,12 +198,16 @@ export function CreateMenu({
         border: '1px solid rgba(255,255,255,0.1)',
         borderRadius: 8,
         padding: '4px 0',
-        minWidth: 180,
+        minWidth: 240,
+        maxHeight: 400, // Limit height for scrolling
+        overflowY: 'auto', // Enable scrolling
         boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
       }}
-      onMouseLeave={handleMouseLeaveMenu}
-      onMouseEnter={handleMouseEnterMenu}
     >
+      <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 600, color: '#71717a', letterSpacing: '0.05em' }}>
+        Create
+      </div>
+
       {/* Create Folder */}
       <MenuItem
         icon={
@@ -353,182 +223,127 @@ export function CreateMenu({
         }
         label="Create Folder"
         onClick={() => { onCreateFolder(); onClose(); }}
-        onMouseEnter={() => handleMouseEnterItem(null)}
       />
 
-      {/* Create Context */}
-      <div style={{ position: 'relative' }}>
-        <MenuItem
-          icon={
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="3" width="18" height="18" rx="2" stroke={iconColor} strokeWidth="1.5" />
-              <path d="M12 8v8M8 12h8" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          }
-          label="Create Context"
-          hasSubmenu
-          isActive={activeSubmenu === 'context'}
-          onMouseEnter={() => handleMouseEnterItem('context')}
-        />
-        {activeSubmenu === 'context' && (
-          <Submenu parentRect={getParentRect()}>
-            <MenuItem
-              icon={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
-                  <path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              }
-              label="JSON"
-              onClick={() => { onCreateBlankJson(); onClose(); }}
-            />
-            <MenuItem
-              icon={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <rect x="3" y="3" width="18" height="18" rx="2" stroke={iconColor} strokeWidth="1.5" />
-                  <path d="M7 15V9l2.5 3 2.5-3v6" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M17 12l-2 3h4l-2-3v-3" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              }
-              label="Markdown"
-              onClick={() => { onCreateBlankMarkdown(); onClose(); }}
-            />
-          </Submenu>
-        )}
-      </div>
+      <MenuItem
+        icon={
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        }
+        label="Create Blank JSON"
+        onClick={() => { onCreateBlankJson(); onClose(); }}
+      />
+      
+      <MenuItem
+        icon={
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke={iconColor} strokeWidth="1.5" />
+            <path d="M7 15V9l2.5 3 2.5-3v6" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M17 12l-2 3h4l-2-3v-3" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        }
+        label="Create Blank Markdown"
+        onClick={() => { onCreateBlankMarkdown(); onClose(); }}
+      />
 
       <Divider />
 
-      {/* Import */}
-      <div style={{ position: 'relative' }}>
-        <MenuItem
-          icon={
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path d="M12 3v12" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M8 11l4 4 4-4" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M19 17v4H5v-4" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          }
-          label="Import"
-          hasSubmenu
-          isActive={activeSubmenu === 'import'}
-          onMouseEnter={() => handleMouseEnterItem('import')}
-        />
-        {activeSubmenu === 'import' && (
-          <Submenu parentRect={getParentRect()}>
-            <MenuItem
-              icon={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={iconColor} strokeWidth="1.5" />
-                  <polyline points="14,2 14,8 20,8" stroke={iconColor} strokeWidth="1.5" />
-                </svg>
-              }
-              label="Files"
-              sublabel="PDF, MD, CSV"
-              onClick={() => { onImportFromFiles(); onClose(); }}
-            />
-            <MenuItem
-              icon={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke={iconColor} strokeWidth="1.5" />
-                  <path d="M2 12h20" stroke={iconColor} strokeWidth="1.5" />
-                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke={iconColor} strokeWidth="1.5" />
-                </svg>
-              }
-              label="URL"
-              sublabel="Web page"
-              onClick={() => { onImportFromUrl(); onClose(); }}
-            />
-            <Divider />
-            {/* Quick SaaS shortcuts */}
-            {/* Notion temporarily hidden - still in development */}
-            {/* {onImportNotion && (
-              <MenuItem
-                icon={<NotionIcon />}
-                label="Notion"
-                sublabel="Page or Database"
-                onClick={() => { onImportNotion(); onClose(); }}
-              />
-            )} */}
-            {onImportGitHub && (
-              <MenuItem
-                icon={<GitHubIcon />}
-                label="GitHub"
-                sublabel="Repository"
-                onClick={() => { onImportGitHub(); onClose(); }}
-              />
-            )}
-            {onImportGmail && (
-              <MenuItem
-                icon={<GmailIcon />}
-                label="Gmail"
-                sublabel="Emails"
-                onClick={() => { onImportGmail(); onClose(); }}
-              />
-            )}
-            {/* Google Drive temporarily disabled */}
-            {/* {onImportDrive && (
-              <MenuItem
-                icon={<DriveIcon />}
-                label="Google Drive"
-                sublabel="Files"
-                onClick={() => { onImportDrive(); onClose(); }}
-              />
-            )} */}
-            {onImportDocs && (
-              <MenuItem
-                icon={<DocsIcon />}
-                label="Google Docs"
-                sublabel="Document"
-                onClick={() => { onImportDocs(); onClose(); }}
-              />
-            )}
-            {onImportCalendar && (
-              <MenuItem
-                icon={<CalendarIcon />}
-                label="Google Calendar"
-                sublabel="Events"
-                onClick={() => { onImportCalendar(); onClose(); }}
-              />
-            )}
-            {onImportSheets && (
-              <MenuItem
-                icon={<SheetsIcon />}
-                label="Google Sheets"
-                sublabel="Spreadsheet"
-                onClick={() => { onImportSheets(); onClose(); }}
-              />
-            )}
-            {/* Airtable and Linear temporarily disabled - not yet integrated */}
-            {/* {onImportAirtable && (
-              <MenuItem
-                icon={<AirtableIcon />}
-                label="Airtable"
-                sublabel="Base"
-                onClick={() => { onImportAirtable(); onClose(); }}
-              />
-            )}
-            {onImportLinear && (
-              <MenuItem
-                icon={<LinearIcon />}
-                label="Linear"
-                sublabel="Issues"
-                onClick={() => { onImportLinear(); onClose(); }}
-              />
-            )}
-            <MenuItem
-              icon={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke={iconColor} strokeWidth="1.5" />
-                  <path d="M12 8v8M8 12h8" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              }
-              label="More Sources..."
-              onClick={() => { onImportFromSaas(); onClose(); }}
-            /> */}
-          </Submenu>
-        )}
+      <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 600, color: '#71717a', letterSpacing: '0.05em' }}>
+        Import from
       </div>
+
+      <MenuItem
+        icon={
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={iconColor} strokeWidth="1.5" />
+            <polyline points="14,2 14,8 20,8" stroke={iconColor} strokeWidth="1.5" />
+          </svg>
+        }
+        label="Files"
+        sublabel="PDF, MD, CSV"
+        onClick={() => { onImportFromFiles(); onClose(); }}
+      />
+      
+      <MenuItem
+        icon={
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke={iconColor} strokeWidth="1.5" />
+            <path d="M2 12h20" stroke={iconColor} strokeWidth="1.5" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke={iconColor} strokeWidth="1.5" />
+          </svg>
+        }
+        label="URL"
+        sublabel="Web page"
+        onClick={() => { onImportFromUrl(); onClose(); }}
+      />
+
+      {/* Quick SaaS shortcuts */}
+      {/* Notion temporarily hidden - still in development */}
+      {/* {onImportNotion && (
+        <MenuItem
+          icon={<NotionIcon />}
+          label="Notion"
+          sublabel="Page or Database"
+          onClick={() => { onImportNotion(); onClose(); }}
+        />
+      )} */}
+      
+      {onImportGitHub && (
+        <MenuItem
+          icon={<GitHubIcon />}
+          label="GitHub"
+          sublabel="Repository"
+          onClick={() => { onImportGitHub(); onClose(); }}
+        />
+      )}
+      
+      {onImportGmail && (
+        <MenuItem
+          icon={<GmailIcon />}
+          label="Gmail"
+          sublabel="Emails"
+          onClick={() => { onImportGmail(); onClose(); }}
+        />
+      )}
+      
+      {/* Google Drive temporarily disabled */}
+      {/* {onImportDrive && (
+        <MenuItem
+          icon={<DriveIcon />}
+          label="Google Drive"
+          sublabel="Files"
+          onClick={() => { onImportDrive(); onClose(); }}
+        />
+      )} */}
+      
+      {onImportDocs && (
+        <MenuItem
+          icon={<DocsIcon />}
+          label="Google Docs"
+          sublabel="Document"
+          onClick={() => { onImportDocs(); onClose(); }}
+        />
+      )}
+      
+      {onImportCalendar && (
+        <MenuItem
+          icon={<CalendarIcon />}
+          label="Google Calendar"
+          sublabel="Events"
+          onClick={() => { onImportCalendar(); onClose(); }}
+        />
+      )}
+      
+      {onImportSheets && (
+        <MenuItem
+          icon={<SheetsIcon />}
+          label="Google Sheets"
+          sublabel="Spreadsheet"
+          onClick={() => { onImportSheets(); onClose(); }}
+        />
+      )}
     </div>
   );
 }

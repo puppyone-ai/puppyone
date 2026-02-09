@@ -617,10 +617,14 @@ class ContentNodeService:
         new_name: Optional[str] = None,
     ) -> ContentNode:
         """
-        完成 pending 节点的处理（ETL 完成后调用）
+        完成 pending 节点的处理（ETL/OCR 完成后调用）
         
-        将 file 节点转换为 markdown（更新 type, preview_md, preview_type）
-        Markdown 内容直接存数据库，不存 S3
+        type 保持 "file" 不变（它的本质就是一个文件）
+        只更新 preview_type 和 preview_md，让 Agent 能看到 OCR 结果
+        
+        语义分离:
+        - type = 节点的本质（file/markdown/json/folder/sync）
+        - preview_type = Agent 看到的内容格式（markdown/json/NULL）
         """
         node = self.get_by_id(node_id, project_id)
         
@@ -633,15 +637,15 @@ class ContentNodeService:
         
         content_bytes = content.encode('utf-8')
         
-        # 更新节点：file -> markdown（不存 S3）
+        # type 保持 "file"，只填充 preview
         updated = self.repo.update_with_type(
             node_id,
-            node_type="markdown",
+            # node_type 不传 → type 保持 "file"
             name=new_name,
-            preview_md=content,  # 直接存数据库
+            preview_md=content,
             preview_type="markdown",
-            mime_type="text/markdown",
             size_bytes=len(content_bytes),
+            # mime_type 保持原始文件的 MIME（如 image/png），不改成 text/markdown
         )
         return updated
 
@@ -698,7 +702,7 @@ class ContentNodeService:
         # 直接更新数据库，不存 S3
         updated = self.repo.update(
             node_id=node_id,
-            preview_md=content,
+        preview_md=content,
             preview_type="markdown",
             size_bytes=len(content_bytes),
         )

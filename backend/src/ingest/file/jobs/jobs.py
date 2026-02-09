@@ -16,16 +16,17 @@ from typing import Any
 
 from src.ingest.file.config import etl_config
 from src.ingest.file.exceptions import ETLTransformationError
-from src.ingest.file.mineru.schemas import MineRUModelVersion
+from src.ingest.file.ocr.base import OCRProvider, OCRProviderError
 from src.ingest.file.rules.engine import RuleEngine
 from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.ingest.file.state.models import ETLPhase, ETLRuntimeState
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTaskResult, ETLTaskStatus
 from src.exceptions import BusinessException, ErrorCode
-from src.content_node.dependencies import get_content_node_service
+from src.content_node.repository import ContentNodeRepository
 from src.content_node.service import ContentNodeService
-from src.supabase.dependencies import get_supabase_client
+from src.s3.service import S3Service
+from src.supabase.client import SupabaseClient
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +53,13 @@ def _chunk_text(text: str, chunk_size: int, max_chunks: int) -> list[str]:
 
 async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
     """
-    OCR stage: MineRU parse -> upload markdown artifact -> enqueue postprocess job.
+    OCR stage: Parse document -> upload markdown artifact -> enqueue postprocess job.
+    
+    Supports multiple OCR providers (MineRU, Reducto, etc.) via pluggable OCRProvider interface.
     """
     repo = ctx["task_repository"]
     s3 = ctx["s3_service"]
-    mineru = ctx["mineru_client"]
+    ocr_provider: OCRProvider = ctx["ocr_provider"]
     state_repo: ETLStateRepositoryRedis = ctx["state_repo"]
     queue_name: str = ctx["arq_queue_name"]
 
@@ -104,9 +107,9 @@ async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
             source_key, expires_in=3600
         )
 
-        parsed = await mineru.parse_document(
+        # Use pluggable OCR provider (MineRU, Reducto, etc.)
+        parsed = await ocr_provider.parse_document(
             file_url=presigned_url,
-            model_version=MineRUModelVersion.VLM,
             data_id=str(task_id),
         )
 
@@ -175,19 +178,39 @@ async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
         logger.error(f"etl_ocr_job timeout task_id={task_id}")
         return {"ok": False, "stage": "ocr", "error": state.error_message}
 
-    except Exception as e:
+    except OCRProviderError as e:
+        # Handle OCR provider-specific errors
         state.status = ETLTaskStatus.FAILED
-        state.error_stage = "mineru"
+        state.error_stage = f"ocr_{e.provider}"
         state.error_message = str(e)
         state.progress = 0
         await state_repo.set_terminal(state)
 
-        # Persist terminal state to DB
         task.status = ETLTaskStatus.FAILED
         task.error = str(e)
         task.metadata.update(
             {
-                "error_stage": "mineru",
+                "error_stage": f"ocr_{e.provider}",
+                "provider_task_id": state.provider_task_id,
+            }
+        )
+        repo.update_task(task)
+        logger.error(f"etl_ocr_job failed task_id={task_id}: {e}")
+        return {"ok": False, "stage": "ocr", "error": str(e)}
+
+    except Exception as e:
+        # Handle unexpected errors
+        state.status = ETLTaskStatus.FAILED
+        state.error_stage = f"ocr_{ocr_provider.name}"
+        state.error_message = str(e)
+        state.progress = 0
+        await state_repo.set_terminal(state)
+
+        task.status = ETLTaskStatus.FAILED
+        task.error = str(e)
+        task.metadata.update(
+            {
+                "error_stage": f"ocr_{ocr_provider.name}",
                 "provider_task_id": state.provider_task_id,
             }
         )
@@ -252,7 +275,10 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
         markdown = markdown_bytes.decode("utf-8")
 
         # Load rule (per-user)
-        supabase_client = get_supabase_client()
+        # NOTE: We manually create instances here instead of using FastAPI Depends()
+        # because Worker runs outside the FastAPI request context.
+        # RuleRepositorySupabase expects supabase.Client (with .table()), not our wrapper class.
+        supabase_client = SupabaseClient().client
         rule_repo = RuleRepositorySupabase(
             supabase_client=supabase_client, user_id=task.user_id
         )
@@ -343,7 +369,11 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
         mount_json_path = task.metadata.get("mount_json_path") or ""
         mount_key = task.metadata.get("mount_key") or Path(task.filename).name
 
-        node_service = get_content_node_service()
+        # Create ContentNodeService manually (Worker has no FastAPI Depends context)
+        _supabase = SupabaseClient()
+        _repo = ContentNodeRepository(_supabase)
+        _s3 = S3Service()
+        node_service = ContentNodeService(_repo, _s3)
 
         if not mount_node_id:
             # Auto-create a JSON node per file when mount target is not provided
@@ -384,7 +414,8 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
             is_pending = existing_node.type == "file" and existing_node.preview_type is None
             if is_pending:
                 # ─────────────────────────────────────────────────────────────
-                # Pending 节点处理：直接更新为 markdown 节点，不走 JSON 挂载逻辑
+                # Pending 节点处理：填充 preview_md，type 保持 "file" 不变
+                # 语义：type=原始本质, preview_type=Agent看到什么
                 # ─────────────────────────────────────────────────────────────
                 # 提取 markdown 内容
                 if isinstance(mount_value, dict) and "content" in mount_value:
@@ -394,23 +425,15 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
                 else:
                     markdown_content = markdown  # 使用原始 markdown
                 
-                # 生成新名称（.pdf -> .md）
-                original_name = existing_node.name
-                new_name = original_name
-                for ext in ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.webp']:
-                    if original_name.lower().endswith(ext):
-                        new_name = original_name[:-len(ext)] + '.md'
-                        break
-                
-                # 更新节点：将 pending file 节点转换为 markdown 节点
-                # 内容存入 preview_md，不再存 S3
+                # type 保持 "file"，文件名也保持原始（IMG_4561.PNG 就是 IMG_4561.PNG）
+                # 只更新 preview_type 和 preview_md
                 await node_service.finalize_pending_node(
                     node_id=mount_node_id,
                     project_id=task.project_id,
                     content=markdown_content,
-                    new_name=new_name if new_name != original_name else None,
+                    # new_name=None → 不改名
                 )
-                logger.info(f"ETL: Updated pending node {mount_node_id} to markdown: {new_name}")
+                logger.info(f"ETL: Filled preview for pending node {mount_node_id}")
                 # Pending 节点处理完成，跳过后面的 JSON 挂载逻辑
             else:
                 # ─────────────────────────────────────────────────────────────
@@ -420,7 +443,6 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
             
             # Merge data at the specified path
             if mount_json_path:
-                # Navigate to the path and set the value
                 path_parts = [p for p in mount_json_path.split("/") if p]
                 current = existing_content
                 for part in path_parts[:-1]:
@@ -432,15 +454,14 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
                 else:
                     existing_content[mount_key] = mount_value
             else:
-                # Mount at root level
                 existing_content[mount_key] = mount_value
             
             # Update node with merged content
             await asyncio.to_thread(
                 node_service.update_node,
                 mount_node_id,
-                    task.project_id,  # project_id, not user_id!
-                    preview_json=existing_content,  # 使用正确的参数名
+                    task.project_id,
+                    preview_json=existing_content,
             )
         except Exception as e:
             # Mount failure => task failed (output exists in S3, but contract is "completed means mounted")

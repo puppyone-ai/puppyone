@@ -31,7 +31,7 @@ from arq.connections import RedisSettings
 
 from src.ingest.file.config import etl_config
 from src.ingest.file.jobs.jobs import etl_ocr_job, etl_postprocess_job
-from src.ingest.file.mineru.client import MineRUClient
+from src.ingest.file.ocr import get_ocr_provider
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.repository import ETLTaskRepositorySupabase
 from src.llm.service import LLMService
@@ -50,14 +50,21 @@ async def startup(ctx: dict) -> None:
     # ========== ETL Services ==========
     ctx["s3_service"] = S3Service()
     ctx["llm_service"] = LLMService()
-    ctx["mineru_client"] = MineRUClient()
+    
+    # Use pluggable OCR provider (configured via OCR_PROVIDER env var)
+    # Supports: 'mineru', 'reducto'
+    ocr_provider = get_ocr_provider()
+    ctx["ocr_provider"] = ocr_provider
+    # Keep legacy key for backward compatibility
+    ctx["mineru_client"] = ocr_provider
+    
     ctx["task_repository"] = ETLTaskRepositorySupabase()
 
     # ETL Redis runtime state repo (shares same Redis as ARQ)
     ctx["state_repo"] = ETLStateRepositoryRedis(ctx["redis"])
     ctx["arq_queue_name"] = etl_config.etl_arq_queue_name
     
-    logger.info("ETL ARQ worker startup complete")
+    logger.info(f"ETL ARQ worker startup complete (OCR provider: {ocr_provider.name})")
 
 
 async def shutdown(ctx: dict) -> None:

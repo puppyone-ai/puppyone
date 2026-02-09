@@ -6,7 +6,7 @@ import { createTable, updateTable, deleteTable } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import { ImportModal } from './editors/tree/components/ImportModal';
-import { uploadAndSubmit } from '../lib/etlApi';
+import { uploadAndSubmit, getETLHealth } from '../lib/etlApi';
 import {
   bulkCreateNodes,
   createFolder,
@@ -129,6 +129,53 @@ export function TableManageDialog({
   // New state for config dialog
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [pendingConfigFiles, setPendingConfigFiles] = useState<File[]>([]);
+  
+  // Import Config State (merged from ImportConfigDialog)
+  const [importMode, setImportMode] = useState<'smart' | 'raw' | 'structured'>('smart');
+  const [workerOnline, setWorkerOnline] = useState<boolean | null>(null);
+  const [checkingWorker, setCheckingWorker] = useState(false);
+
+  // File stats for smart mode detection
+  const fileStats = useRef({ textCount: 0, binaryCount: 0 });
+
+  useEffect(() => {
+    if (startOption === 'documents' && selectedFiles && selectedFiles.length > 0) {
+      let textCount = 0;
+      let binaryCount = 0;
+      const textExts = new Set([
+        'txt', 'md', 'json', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'html', 'css', 'xml', 'yaml', 'yml', 'csv'
+      ]);
+
+      Array.from(selectedFiles).forEach(f => {
+        const ext = f.name.split('.').pop()?.toLowerCase() || '';
+        if (textExts.has(ext)) {
+          textCount++;
+        } else {
+          binaryCount++;
+        }
+      });
+      
+      fileStats.current = { textCount, binaryCount };
+
+      // Check worker health if binary files exist
+      if (binaryCount > 0) {
+        setCheckingWorker(true);
+        getETLHealth()
+          .then(health => {
+            const isOnline = health.file_worker.worker_count > 0;
+            setWorkerOnline(isOnline);
+            if (!isOnline) setImportMode('raw');
+          })
+          .catch(() => {
+            setWorkerOnline(false);
+            setImportMode('raw');
+          })
+          .finally(() => setCheckingWorker(false));
+      } else {
+        setWorkerOnline(true); // Assuming ok if only text files
+      }
+    }
+  }, [selectedFiles, startOption]);
   
   const connectStatusMeta = (() => {
     if (connectImporting) return { label: 'Importing...', color: '#22c55e' };
@@ -724,118 +771,92 @@ export function TableManageDialog({
     e.preventDefault();
     if (!name.trim()) return;
     
-    // If documents mode, intercept submit to show config dialog
-    if (startOption === 'documents' && selectedFiles && selectedFiles.length > 0) {
-      setPendingConfigFiles(Array.from(selectedFiles));
-      setConfigDialogOpen(true);
-      return;
-    }
-
-    // Otherwise proceed with standard submit
+    // Direct submit with current config
     await handleFinalSubmit();
   };
 
-  const handleFinalSubmit = async (config?: ImportConfig) => {
+  const handleFinalSubmit = async (overrideMode?: 'smart' | 'raw' | 'structured') => {
     try {
       setLoading(true);
+      const effectiveMode = overrideMode || importMode;
+      
       if (mode === 'edit' && tableId) {
         await updateTable(projectId || '', tableId, name.trim());
         await refreshProjects();
         onClose();
       } else if (startOption === 'documents' && selectedFiles && selectedFiles.length > 0) {
-        setImportMessage('Preparing files...');
-        const finalName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
-        
-        // 方案 B：使用批量创建 API，创建真正的节点层级
-        const { nodes, etlFiles } = await parseFolderStructure(selectedFiles);
-        
-        setImportMessage('Creating folder structure...');
-        
-        // 先创建根文件夹
-        const rootFolder = await createFolder(finalName, projectId || '', parentId);
-        const rootFolderId = rootFolder.id;
-        
-        // 然后批量创建子节点（如果有的话）
-        let tempIdToRealId = new Map<string, string>();
-        if (nodes.length > 0) {
-          const bulkResult = await bulkCreateNodes(projectId || '', nodes, rootFolderId);
-          // 建立 temp_id -> real_id 的映射
-          for (const item of bulkResult.created) {
-            tempIdToRealId.set(item.temp_id, item.node_id);
-          }
+        if (!projectId || !session?.access_token) {
+          throw new Error('Missing project ID or auth');
         }
         
-        // 处理 ETL 文件
-        if (etlFiles.length > 0 && projectId) {
+        setImportMessage('Uploading files...');
+        
+        // 映射前端 mode 到后端 mode
+        const backendMode = effectiveMode === 'smart' ? 'ocr_parse' : 'raw';
+        
+        // 直接上传所有文件到后端，后端负责创建所有节点
+        // 不再前端预创建 folder/child nodes，避免重复记录
+        const files = Array.from(selectedFiles);
+        
+        // 添加占位任务到进度面板
           const baseTimestamp = Date.now();
-          const placeholderTasks = etlFiles.map(({ file }, index) => ({
+        const placeholderGroupId = `upload-${baseTimestamp}`;
+        const placeholderTasks = files.map((file, index) => ({
             taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
             projectId: projectId,
-            tableId: rootFolderId,
-            tableName: finalName,
+          tableId: placeholderGroupId,
+          tableName: file.name,
             filename: file.name,
             status: 'pending' as const,
           }));
           addPendingTasks(placeholderTasks);
-        }
         
         await refreshProjects();
         onClose();
         
-        // 上传 ETL 文件（每个文件单独上传，指定目标节点 ID）
-        if (etlFiles.length > 0 && projectId && session?.access_token) {
+        // 上传文件
           setTimeout(async () => {
-            try {
-              // 每个 ETL 文件单独上传，指定目标节点 ID
-              for (const { file, tempId } of etlFiles) {
-                const targetNodeId = tempIdToRealId.get(tempId);
-                if (!targetNodeId) {
-                  console.warn(`No target node for ETL file: ${file.name}`);
-                  continue;
-                }
-                
                 try {
-                  // 映射前端 mode 到后端 mode
-                  // frontend: 'smart' | 'raw' | 'structured'
-                  // backend: 'ocr_parse' | 'raw'
-                  const backendMode = config?.mode === 'smart' ? 'ocr_parse' : 'raw';
-                  
                   const response = await uploadAndSubmit(
                     { 
-                      projectId: projectId, // 直接传字符串，不要转换为 Number
-                      files: [file], 
-                      nodeId: targetNodeId, // 直接更新这个 pending 节点
-                      mode: backendMode,
-                      ruleId: config?.ruleId,
+                projectId: projectId,
+                files: files,
+                mode: backendMode,
+                parentId: parentId || undefined,
                     }, 
-                    session.access_token
+              session!.access_token
                   );
                   
-                  const item = response.items[0];
-                  if (item && item.status !== 'failed') {
-                    replacePlaceholderTasks(rootFolderId, [{
+            const filenameMap = new Map<string, string>();
+            files.forEach(f => filenameMap.set(f.name, f.name));
+            
+            const realTasks = response.items
+              .filter(item => item.status !== 'failed')
+              .map(item => ({
                       taskId: String(item.task_id),
                       projectId: projectId,
-                      tableId: rootFolderId,
-                      tableName: finalName,
-                      filename: file.name,
-                      // If raw mode, backend returns COMPLETED immediately
+                tableId: placeholderGroupId,
+                tableName: filenameMap.get(item.filename!) || item.filename!,
+                filename: filenameMap.get(item.filename!) || item.filename!,
                       status: (item.status === 'completed' ? 'completed' : 'pending') as any,
-                    }]);
-                  } else if (item?.status === 'failed') {
-                    removeFailedPlaceholders(rootFolderId, [file.name]);
-                  }
-                } catch (err) {
-                  console.error(`Failed to upload ETL file ${file.name}:`, err);
-                  removeFailedPlaceholders(rootFolderId, [file.name]);
-                }
+              }));
+            
+            if (realTasks.length > 0) {
+              replacePlaceholderTasks(placeholderGroupId, realTasks);
+            }
+            
+            const failedFiles = response.items.filter(item => item.status === 'failed');
+            if (failedFiles.length > 0) {
+              console.warn('Some files failed:', failedFiles);
+              const failedNames = failedFiles.map(f => f.filename!);
+              removeFailedPlaceholders(placeholderGroupId, failedNames);
               }
             } catch (etlError) {
-              console.error('ETL upload failed:', etlError);
-              removeAllPlaceholdersForTable(rootFolderId);
+            console.error('File upload failed:', etlError);
+            removeAllPlaceholdersForTable(placeholderGroupId);
             }
           }, 100);
-        }
+        
         return;
       } else {
         await createTable(projectId, name.trim(), [], parentId);
@@ -1032,9 +1053,157 @@ export function TableManageDialog({
                   )}
 
                   {selectedFiles && selectedFiles.length > 0 && (
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {/* Name Input */}
                      <div>
-                        <label style={labelStyle}>Name</label>
-                        <input type='text' value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
+                           <label style={{ ...labelStyle, marginBottom: 6 }}>Context Name</label>
+                           <input 
+                             type='text' 
+                             value={name} 
+                             onChange={e => setName(e.target.value)} 
+                             style={{ ...inputStyle, height: 36 }} 
+                             placeholder="Enter a name for this context..."
+                           />
+                        </div>
+
+                        {/* Mode Selection UI - Action Buttons Grid */}
+                        <div>
+                          <label style={{ ...labelStyle, marginBottom: 8 }}>Import Method</label>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            
+                            {/* Raw Storage Action */}
+                            <button
+                              type="button"
+                              onClick={() => setImportMode('raw')}
+                              disabled={loading || isImporting || !name.trim()}
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '16px 12px',
+                                borderRadius: 8,
+                                border: importMode === 'raw' ? '1px solid #E4E4E7' : '1px solid #3F3F46',
+                                background: importMode === 'raw' ? 'rgba(255,255,255,0.05)' : '#27272A',
+                                cursor: (loading || isImporting || !name.trim()) ? 'not-allowed' : 'pointer',
+                                opacity: (loading || isImporting || !name.trim()) ? 0.5 : 1,
+                                transition: 'all 0.15s',
+                                textAlign: 'center',
+                                height: 'auto',
+                                minHeight: 90
+                              }}
+                              onMouseEnter={e => {
+                                if (!(loading || isImporting || !name.trim())) {
+                                  if (importMode !== 'raw') {
+                                    e.currentTarget.style.background = '#3F3F46';
+                                    e.currentTarget.style.borderColor = '#52525B';
+                                  }
+                                }
+                              }}
+                              onMouseLeave={e => {
+                                if (importMode !== 'raw') {
+                                  e.currentTarget.style.background = '#27272A';
+                                  e.currentTarget.style.borderColor = '#3F3F46';
+                                }
+                              }}
+                            >
+                              <div style={{ color: importMode === 'raw' ? '#E4E4E7' : '#A1A1AA', marginBottom: 8 }}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                  <polyline points="17 8 12 3 7 8"></polyline>
+                                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                              </div>
+                              <div style={{ fontWeight: 600, fontSize: 13, color: '#E4E4E7', marginBottom: 4 }}>Raw Storage</div>
+                              <div style={{ fontSize: 11, color: '#71717A', lineHeight: 1.3 }}>
+                                Store as-is. Faster, no OCR.
+                              </div>
+                            </button>
+
+                            {/* Smart Parse Action */}
+                            <button
+                              type="button"
+                              onClick={() => workerOnline !== false && setImportMode('smart')}
+                              disabled={loading || isImporting || workerOnline === false || !name.trim()}
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '16px 12px',
+                                borderRadius: 8,
+                                border: importMode === 'smart' ? '1px solid #3B82F6' : '1px solid #3F3F46',
+                                background: importMode === 'smart' ? 'rgba(59, 130, 246, 0.15)' : '#27272A',
+                                cursor: (loading || isImporting || workerOnline === false || !name.trim()) ? 'not-allowed' : 'pointer',
+                                opacity: (loading || isImporting || workerOnline === false || !name.trim()) ? 0.5 : 1,
+                                transition: 'all 0.15s',
+                                textAlign: 'center',
+                                height: 'auto',
+                                minHeight: 90,
+                                position: 'relative'
+                              }}
+                              onMouseEnter={e => {
+                                if (!(loading || isImporting || workerOnline === false || !name.trim())) {
+                                  if (importMode !== 'smart') {
+                                    e.currentTarget.style.background = '#3F3F46';
+                                    e.currentTarget.style.borderColor = '#52525B';
+                                  }
+                                }
+                              }}
+                              onMouseLeave={e => {
+                                if (importMode !== 'smart') {
+                                  e.currentTarget.style.background = '#27272A';
+                                  e.currentTarget.style.borderColor = '#3F3F46';
+                                }
+                              }}
+                            >
+                              {/* Recommended Badge */}
+                              <div style={{
+                                position: 'absolute',
+                                top: -8,
+                                background: '#3B82F6',
+                                color: 'white',
+                                fontSize: 9,
+                                fontWeight: 700,
+                                padding: '2px 6px',
+                                borderRadius: 10,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                              }}>
+                                Recommended
+                              </div>
+
+                              <div style={{ color: importMode === 'smart' ? '#60A5FA' : '#A1A1AA', marginBottom: 8 }}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                  <polyline points="14 2 14 8 20 8"></polyline>
+                                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                                  <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                <span style={{ fontWeight: 600, fontSize: 13, color: '#E4E4E7' }}>Smart Parse</span>
+                                {workerOnline === false && (
+                                  <span style={{ fontSize: 9, color: '#F87171', background: 'rgba(239,68,68,0.1)', padding: '1px 4px', borderRadius: 2 }}>
+                                    Offline
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: 11, color: importMode === 'smart' ? '#93C5FD' : '#71717A', lineHeight: 1.3 }}>
+                                OCR & AI structure. Best for chat.
+                              </div>
+                            </button>
+                          </div>
+                          
+                          {/* Worker Status */}
+                          {checkingWorker && (
+                             <div style={{ marginTop: 8, fontSize: 11, color: '#71717A', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                               <div style={{ width: 8, height: 8, borderRadius: '50%', border: '2px solid #71717A', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }}></div>
+                               Checking service availability...
+                             </div>
+                          )}
+                        </div>
                      </div>
                   )}
                 </>
@@ -1539,7 +1708,7 @@ export function TableManageDialog({
                 }
                 style={buttonStyle(true)}
               >
-                {mode === 'edit' ? 'Save Changes' : 'Create'}
+                {mode === 'edit' ? 'Save Changes' : startOption === 'documents' ? (importMode === 'smart' ? 'Start Parse' : 'Start Import') : 'Create'}
               </button>
               )}
             </div>

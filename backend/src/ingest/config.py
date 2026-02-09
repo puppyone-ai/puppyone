@@ -31,3 +31,4 @@ class IngestConfig(BaseSettings):
 # Global config instance
 ingest_config = IngestConfig()
 
+
