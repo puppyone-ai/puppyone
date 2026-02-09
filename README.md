@@ -28,6 +28,16 @@ Puppyone is the file-based context infrastructure for AI agents. Connect fragmen
 
 <img src="assert/puppy-filesystem-demo.png" alt="PuppyOne Context Filesystem" width="100%" />
 
+In 2026, with the rise of agents such as OpenClaw and Claude Code, "Bash and Files" has become the new standard. Yet, today's context infrastructure is still built for humans, creating a bottleneck for agents:
+
+1. SaaS Silos: Deep context is locked away in fragmented softwares, making it inaccessible for agents.
+
+2. Collaboration Friction: Traditional file systems weren't built for the demands of multi-agent teamwork.
+
+3. The Auth Gap: Production-ready agents require security, but legacy protocols like SSH are too stupid for agents management.
+
+Therefore, puppyone (Born Feb 2026) is reimagining context infrastructure for the agentic age. We provide a virtual file system engineered specifically for the next generation of intelligence.
+
 
 ## Connect. Convert. File.
 
