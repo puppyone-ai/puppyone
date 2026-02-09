@@ -351,6 +351,7 @@ def update_node(
         project_id=project_id,
         name=request.name,
         preview_json=request.preview_json,
+        preview_md=request.preview_md,
     )
     return ApiResponse.success(data=_node_to_detail(node), message="节点更新成功")
 

@@ -302,7 +302,7 @@ export async function prepareUpload(
 export async function updateNode(
   nodeId: string,
   projectId: string,
-  updates: { name?: string; preview_json?: any }
+  updates: { name?: string; preview_json?: any; preview_md?: string }
 ): Promise<NodeDetail> {
   const params = new URLSearchParams({ project_id: projectId });
   return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}?${params.toString()}`, {
