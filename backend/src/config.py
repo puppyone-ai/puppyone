@@ -1,6 +1,8 @@
+import json
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 
 class Settings(BaseSettings):
@@ -29,7 +31,11 @@ class Settings(BaseSettings):
 
     # 服务配置
     APP_NAME: str = "ContextBase"
-    DEBUG: bool = True
+    APP_ENV: Literal["development", "test", "staging", "production"] = Field(
+        default="development",
+        validation_alias=AliasChoices("APP_ENV", "ENVIRONMENT"),
+    )
+    DEBUG: bool | None = None
     VERSION: str = "1.0.0"
 
     # 本地存储配置，现在基本都用Supabase
@@ -37,7 +43,63 @@ class Settings(BaseSettings):
     STORAGE_TYPE: Literal["json", "db", "supabase"] = "supabase"
 
     # CORS配置
-    ALLOWED_HOSTS: list[str] = ["*"]
+    ALLOWED_HOSTS: list[str] | None = None
+
+    @field_validator("ALLOWED_HOSTS", mode="before")
+    @classmethod
+    def normalize_allowed_hosts(cls, value: Any) -> Any:
+        """支持 JSON 数组、单值字符串或逗号分隔字符串。"""
+        if value is None:
+            return None
+
+        hosts: list[str]
+
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return []
+
+            if raw.startswith("["):
+                try:
+                    parsed = json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        "ALLOWED_HOSTS must be a JSON array or comma-separated string"
+                    ) from exc
+                if not isinstance(parsed, list):
+                    raise ValueError("ALLOWED_HOSTS JSON value must be an array")
+                hosts = [str(item) for item in parsed]
+            else:
+                hosts = [item.strip() for item in raw.split(",")]
+        elif isinstance(value, list):
+            hosts = [str(item).strip() for item in value]
+        else:
+            return value
+
+        normalized_hosts: list[str] = []
+        for host in hosts:
+            if not host:
+                continue
+            normalized_hosts.append(host if host == "*" else host.rstrip("/"))
+
+        return normalized_hosts
+
+    @model_validator(mode="after")
+    def apply_runtime_defaults(self):
+        """按环境补齐默认配置，降低生产误配风险。"""
+        if self.DEBUG is None:
+            self.DEBUG = self.APP_ENV in {"development", "test"}
+
+        if self.ALLOWED_HOSTS is None:
+            if self.APP_ENV in {"development", "test"}:
+                self.ALLOWED_HOSTS = [
+                    "http://localhost:3000",
+                    "http://127.0.0.1:3000",
+                ]
+            else:
+                self.ALLOWED_HOSTS = ["*"] if self.DEBUG else []
+
+        return self
 
     # JWT配置
     JWT_SECRET: str = "ContextBase-256-bit-secret"

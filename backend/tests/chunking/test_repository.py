@@ -21,8 +21,6 @@ def test_ensure_chunks_idempotent_when_hash_exists():
     table = Mock()
     client.table.return_value = table
 
-    # Chain for select:
-    # table.select().eq().eq().eq().order().execute()
     table.select.return_value = table
     table.eq.return_value = table
     table.order.return_value = table
@@ -32,7 +30,7 @@ def test_ensure_chunks_idempotent_when_hash_exists():
                 "id": 1,
                 "created_at": "2026-01-11T00:00:00Z",
                 "updated_at": "2026-01-11T00:00:00Z",
-                "table_id": 123,
+                "node_id": "node-123",
                 "json_pointer": "/a",
                 "chunk_index": 0,
                 "total_chunks": 1,
@@ -48,7 +46,10 @@ def test_ensure_chunks_idempotent_when_hash_exists():
 
     repo = ChunkRepository(client)
     res = ensure_chunks_for_pointer(
-        repo=repo, table_id=123, json_pointer="/a", content="hello"
+        repo=repo,
+        node_id="node-123",
+        json_pointer="/a",
+        content="hello",
     )
 
     assert res.created is False
@@ -61,13 +62,11 @@ def test_ensure_chunks_creates_when_missing():
     table = Mock()
     client.table.return_value = table
 
-    # First: select returns empty
     table.select.return_value = table
     table.eq.return_value = table
     table.order.return_value = table
     select_empty = _mock_supabase_select_response([])
 
-    # Insert call returns two rows (note: timestamps as ISO strings are accepted by pydantic datetime)
     def insert_side_effect(payload):
         assert isinstance(payload, list)
         assert payload[0]["chunk_index"] == 0
@@ -81,7 +80,7 @@ def test_ensure_chunks_creates_when_missing():
             "id": 10,
             "created_at": "2026-01-11T00:00:00Z",
             "updated_at": "2026-01-11T00:00:00Z",
-            "table_id": 1,
+            "node_id": "node-1",
             "json_pointer": "/p",
             "chunk_index": 0,
             "total_chunks": 2,
@@ -96,7 +95,7 @@ def test_ensure_chunks_creates_when_missing():
             "id": 11,
             "created_at": "2026-01-11T00:00:00Z",
             "updated_at": "2026-01-11T00:00:00Z",
-            "table_id": 1,
+            "node_id": "node-1",
             "json_pointer": "/p",
             "chunk_index": 1,
             "total_chunks": 2,
@@ -112,13 +111,20 @@ def test_ensure_chunks_creates_when_missing():
     table.execute.side_effect = [select_empty, insert_resp]
 
     repo = ChunkRepository(client)
-    cfg = ChunkingConfig(chunk_size_chars=10, chunk_overlap_chars=1, max_content_size_chars=1000)
+    cfg = ChunkingConfig(
+        chunk_size_chars=10,
+        chunk_overlap_chars=1,
+        max_content_size_chars=1000,
+    )
     res = ensure_chunks_for_pointer(
-        repo=repo, table_id=1, json_pointer="/p", content="A" * 10 + "B" * 9, config=cfg
+        repo=repo,
+        node_id="node-1",
+        json_pointer="/p",
+        content="A" * 10 + "B" * 9,
+        config=cfg,
     )
 
     assert res.created is True
     assert len(res.chunks) == 2
     assert res.chunks[0].chunk_index == 0
     assert res.chunks[1].chunk_index == 1
-

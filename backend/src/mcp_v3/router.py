@@ -3,7 +3,7 @@ MCP V3 路由
 
 基于 Agent 架构的 MCP API 端点：
 1. /mcp/agents/{agent_id}/... - Agent 的 MCP 配置管理
-2. /mcp/proxy/{api_key}/... - 代理到 MCP Server
+2. /mcp/proxy/... - 代理到 MCP Server（推荐 Header: X-MCP-API-Key，兼容 legacy path key）
 """
 
 from __future__ import annotations
@@ -167,15 +167,29 @@ def unbind_tool(
 @router.api_route(
     "/proxy/{api_key}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    summary="MCP Server 代理路由（根路径）",
-    description="将请求转发到 MCP Server。此接口不需要用户登录，只需提供有效的 mcp_api_key。",
+    summary="MCP Server 代理路由（Legacy）",
+    description="Legacy 路由：通过 URL path 传 mcp_api_key（仅兼容迁移期）。",
     include_in_schema=False,
 )
 @router.api_route(
     "/proxy/{api_key}/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    summary="MCP Server 代理路由",
-    description="将请求转发到 MCP Server。此接口不需要用户登录，只需提供有效的 mcp_api_key。",
+    summary="MCP Server 代理路由（Legacy）",
+    description="Legacy 路由：通过 URL path 传 mcp_api_key（仅兼容迁移期）。",
+    include_in_schema=False,
+)
+@router.api_route(
+    "/proxy",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+    summary="MCP Server 代理路由（推荐）",
+    description="将请求转发到 MCP Server。请通过 `X-MCP-API-Key` Header 提供密钥。",
+    include_in_schema=True,
+)
+@router.api_route(
+    "/proxy/{path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+    summary="MCP Server 代理路由（推荐）",
+    description="将请求转发到 MCP Server。请通过 `X-MCP-API-Key` Header 提供密钥。",
     include_in_schema=True,
 )
 async def proxy_mcp_server(
@@ -184,11 +198,10 @@ async def proxy_mcp_server(
     agent: Agent = Depends(get_agent_by_mcp_api_key),
 ):
     """
-    代理请求到 MCP Server
-    
-    - 验证 mcp_api_key 对应的 Agent 存在
-    - 将请求转发到 MCP Server
-    - 在请求头中附加 X-API-KEY
+    代理请求到 MCP Server。
+
+    推荐方式：通过 Header `X-MCP-API-Key` 传递密钥。
+    同时兼容 Legacy 路由 `/mcp/proxy/{api_key}`（迁移期）。
     """
     # 1. 拼接 MCP Server 地址
     mcp_server_url = (settings.MCP_SERVER_URL or "").rstrip("/")
@@ -196,6 +209,16 @@ async def proxy_mcp_server(
         raise ValueError("MCP_SERVER_URL should not be empty.")
 
     normalized_path = (path or "").lstrip("/")
+    legacy_api_key = request.path_params.get("api_key")
+    # 当请求匹配到 legacy 路由但同时使用了 Header key（推荐方式）时，
+    # 需要把 legacy 的 api_key path segment 还原为真实下游路径的一部分。
+    if legacy_api_key and request.headers.get("X-MCP-API-Key"):
+        normalized_path = (
+            f"{legacy_api_key}/{normalized_path}"
+            if normalized_path
+            else str(legacy_api_key)
+        )
+
     if normalized_path in ("", "mcp"):
         downstream_path = "/mcp/"
     elif normalized_path.startswith("mcp/"):
@@ -217,6 +240,8 @@ async def proxy_mcp_server(
     headers = dict(request.headers)
     headers.pop("host", None)
     headers.pop("content-length", None)
+    headers.pop("x-mcp-api-key", None)
+    headers.pop("X-MCP-API-Key", None)
     headers["X-API-KEY"] = agent.mcp_api_key  # 使用 Agent 的 mcp_api_key
 
     # 4. 查询参数

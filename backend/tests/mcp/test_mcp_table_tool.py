@@ -9,6 +9,11 @@ from datetime import datetime, UTC
 from unittest.mock import Mock, patch
 import pytest
 
+pytest.skip(
+    "Legacy MCP table tool tests target removed src.mcp.server tool path",
+    allow_module_level=True,
+)
+
 from src.mcp.server.tools.table_tool import TableTool
 from src.table.models import Table
 from src.exceptions import NotFoundException, BusinessException

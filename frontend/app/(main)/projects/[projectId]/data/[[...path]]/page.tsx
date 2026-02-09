@@ -205,7 +205,7 @@ export default function DataPage({ params }: DataPageProps) {
       setMarkdownSaveStatus('saving');
 
       try {
-        await updateNode(activeNodeId, projectId, { preview_json: newContent });
+        await updateNode(activeNodeId, projectId, { preview_md: newContent });
         console.log('[Markdown AutoSave] Saved successfully');
         setMarkdownSaveStatus('saved');
         
@@ -425,7 +425,7 @@ export default function DataPage({ params }: DataPageProps) {
               const fullNode = await getNode(lastNode.id, projectId);
               
               // First check if content is stored in the preview_md field
-              if (fullNode.preview_md && typeof fullNode.preview_md === 'string') {
+              if (typeof fullNode.preview_md === 'string') {
                 setMarkdownContent(fullNode.preview_md);
               } else if (fullNode.s3_key) {
                 // Content is in S3, download it
@@ -1457,4 +1457,3 @@ export default function DataPage({ params }: DataPageProps) {
     </>
   );
 }
-

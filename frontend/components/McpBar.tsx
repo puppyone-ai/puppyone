@@ -263,7 +263,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
         const fetchProjects = async () => {
           try {
             const response = await fetch(
-              `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects`,
+              `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/projects`,
               {
                 headers: {
                   Authorization: `Bearer ${session?.access_token}`,
@@ -491,7 +491,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
         }
 
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/mcp/`,
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}/api/v1/mcp/`,
           {
             method: 'POST',
             headers: {

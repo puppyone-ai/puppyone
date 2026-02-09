@@ -9,6 +9,7 @@ from src.s3.service import S3Service
 from src.search.service import SearchService
 from src.supabase.client import SupabaseClient
 from src.turbopuffer.service import TurbopufferSearchService
+from src.project.dependencies import get_project_service
 
 _search_service: SearchService | None = None
 
@@ -28,6 +29,7 @@ def get_search_service() -> SearchService:
         _search_service = SearchService(
             node_service=node_service,
             chunk_repo=chunk_repo,
+            project_service=get_project_service(),
             chunking_service=ChunkingService(),
             embedding_service=EmbeddingService(),
             turbopuffer_service=TurbopufferSearchService(),

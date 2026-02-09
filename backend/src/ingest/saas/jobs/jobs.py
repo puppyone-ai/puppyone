@@ -10,7 +10,6 @@ from src.ingest.saas.handlers.base import ProgressCallback
 from src.ingest.saas.handlers.github_handler import GithubHandler
 from src.ingest.saas.handlers.notion_handler import NotionHandler
 from src.ingest.saas.handlers.url_handler import UrlHandler
-from src.ingest.saas.handlers.file_handler import FileHandler
 from src.ingest.saas.handlers.gmail_handler import GmailHandler
 from src.ingest.saas.handlers.google_drive_handler import GoogleDriveHandler
 from src.ingest.saas.handlers.google_calendar_handler import GoogleCalendarHandler
@@ -69,6 +68,20 @@ async def import_job(ctx: dict[str, Any], task_id: str) -> dict[str, Any]:
     if task.status.is_terminal():
         log_info(f"Import job: task already terminal: {task_id} ({task.status})")
         return {"ok": True, "skipped": task.status.value}
+
+    if task.task_type == ImportTaskType.FILE:
+        error_msg = (
+            "ImportTaskType.FILE is not supported in SaaS import worker. "
+            "Use /api/v1/ingest/submit/file for file ingestion."
+        )
+        log_error(f"Import job failed: {task_id} - {error_msg}")
+        await task_manager.mark_failed(task_id, error_msg)
+        return {
+            "ok": False,
+            "task_id": task_id,
+            "error": error_msg,
+            "error_code": "unsupported_task_type",
+        }
 
     # Mark as processing
     await task_manager.mark_processing(task_id, "Starting import...")
@@ -207,12 +220,6 @@ def _get_handler(
     if task_type == ImportTaskType.URL:
         return UrlHandler(
             node_service=node_service,
-        )
-    
-    if task_type == ImportTaskType.FILE:
-        return FileHandler(
-            node_service=node_service,
-            s3_service=s3_service,
         )
     
     return None

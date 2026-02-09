@@ -1,7 +1,7 @@
 """Tool API 端点测试
 
 覆盖：
-- GET /tools/by-table/{table_id}
+- GET /tools/by-node/{node_id}
 """
 
 from datetime import UTC, datetime
@@ -9,8 +9,8 @@ from unittest.mock import Mock
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 from fastapi.exceptions import RequestValidationError
+from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.auth.dependencies import get_current_user
@@ -30,7 +30,6 @@ from src.tool.router import router
 @pytest.fixture
 def app():
     test_app = FastAPI()
-    # 与生产环境对齐：注册全局异常处理器（否则 AppException 会直接冒泡导致测试失败）
     test_app.add_exception_handler(AppException, app_exception_handler)  # type: ignore
     test_app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore
     test_app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore
@@ -43,7 +42,7 @@ def app():
 def mock_tool_service():
     service = Mock()
     service.list_user_tools = Mock()
-    service.list_user_tools_by_table_id = Mock()
+    service.list_user_tools_by_node_id = Mock()
     service.create = Mock()
     service.get_by_id_with_access_check = Mock()
     service.update = Mock()
@@ -74,15 +73,17 @@ def client(app, mock_tool_service, current_user):
 
 @pytest.fixture
 def sample_tools(current_user):
+    now = datetime.now(UTC)
     return [
         Tool(
-            id=1,
-            created_at=datetime.now(UTC),
+            id="tool_1",
+            created_at=now,
             user_id=current_user.user_id,
-            table_id=10,
+            project_id="project_1",
+            node_id="node_10",
             json_path="",
-            type="query_data",
-            name="query_1",
+            type="search",
+            name="tool_1",
             alias=None,
             description=None,
             input_schema=None,
@@ -90,13 +91,14 @@ def sample_tools(current_user):
             metadata=None,
         ),
         Tool(
-            id=2,
-            created_at=datetime.now(UTC),
+            id="tool_2",
+            created_at=now,
             user_id=current_user.user_id,
-            table_id=10,
+            project_id="project_1",
+            node_id="node_10",
             json_path="/a",
-            type="get_all_data",
-            name="get_1",
+            type="search",
+            name="tool_2",
             alias="Get",
             description="desc",
             input_schema=None,
@@ -106,31 +108,31 @@ def sample_tools(current_user):
     ]
 
 
-def test_list_tools_by_table_id_success(client, mock_tool_service, sample_tools, current_user):
-    mock_tool_service.list_user_tools_by_table_id.return_value = sample_tools
+def test_list_tools_by_node_id_success(client, mock_tool_service, sample_tools, current_user):
+    mock_tool_service.list_user_tools_by_node_id.return_value = sample_tools
 
-    resp = client.get("/tools/by-table/10?skip=0&limit=1000")
+    resp = client.get("/tools/by-node/node_10?skip=0&limit=1000")
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["code"] == 0
     assert body["message"] == "获取 Tool 列表成功"
     assert len(body["data"]) == 2
-    mock_tool_service.list_user_tools_by_table_id.assert_called_once_with(
+    mock_tool_service.list_user_tools_by_node_id.assert_called_once_with(
         current_user.user_id,
-        table_id=10,
+        node_id="node_10",
         skip=0,
         limit=1000,
     )
 
 
-def test_list_tools_by_table_id_not_found(client, mock_tool_service):
+def test_list_tools_by_node_id_not_found(client, mock_tool_service):
     from src.exceptions import NotFoundException
 
-    mock_tool_service.list_user_tools_by_table_id.side_effect = NotFoundException("Table not found: 999")
+    mock_tool_service.list_user_tools_by_node_id.side_effect = NotFoundException(
+        "Node not found: node_999"
+    )
 
-    resp = client.get("/tools/by-table/999")
+    resp = client.get("/tools/by-node/node_999")
 
     assert resp.status_code == 404
-
-

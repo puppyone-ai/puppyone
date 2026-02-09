@@ -1,25 +1,33 @@
 import datetime as dt
+from types import SimpleNamespace
 
-import pytest
-
+import src.tool.router as tool_router
 from src.auth.models import CurrentUser
-from src.search.service import SearchIndexStats
 from src.tool.models import Tool
-from src.tool.router import create_tool
+from src.tool.router import create_search_tool_async
 from src.tool.schemas import ToolCreate
+
+
+class _FakeBackgroundTasks:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def add_task(self, fn, *args, **kwargs):
+        self.calls.append({"fn": fn, "args": args, "kwargs": kwargs})
 
 
 class _FakeToolService:
     def __init__(self) -> None:
         self.created_payload = None
-        self.updated_patches: list[dict] = []
+        self.node_check_calls: list[tuple[str, str]] = []
 
         now = dt.datetime(2026, 1, 11, tzinfo=dt.timezone.utc)
         self._tool = Tool(
-            id=1,
+            id="tool_1",
             created_at=now,
             user_id="u1",
-            table_id=123,
+            project_id="project_1",
+            node_id="node_123",
             json_path="/scope",
             type="search",
             name="my_search",
@@ -30,56 +38,49 @@ class _FakeToolService:
             metadata={},
         )
 
+    def get_node_with_access_check(self, user_id: str, node_id: str):
+        self.node_check_calls.append((user_id, node_id))
+        return SimpleNamespace(project_id="project_1", type="json")
+
     def create(self, **kwargs):
         self.created_payload = dict(kwargs)
-        # 模拟 DB 回写：metadata 按创建入参返回
-        self._tool.metadata = kwargs.get("metadata")
         return self._tool
-
-    def update(self, *, tool_id: int, user_id: str, patch: dict):
-        assert tool_id == self._tool.id
-        assert user_id == self._tool.user_id
-        self.updated_patches.append(dict(patch))
-        if "metadata" in patch:
-            self._tool.metadata = patch["metadata"]
-        return self._tool
-
-
-class _FakeTable:
-    def __init__(self, project_id: int):
-        self.project_id = project_id
-
-
-class _FakeTableService:
-    def __init__(self) -> None:
-        self.called = False
-
-    def get_by_id_with_access_check(self, table_id: int, user_id: str):
-        self.called = True
-        assert table_id == 123
-        assert user_id == "u1"
-        return _FakeTable(project_id=999)
 
 
 class _FakeSearchService:
-    def __init__(self) -> None:
-        self.calls: list[dict] = []
-
-    async def index_scope(self, *, project_id: int, table_id: int, json_path: str):
-        self.calls.append(
-            {"project_id": project_id, "table_id": table_id, "json_path": json_path}
-        )
-        return SearchIndexStats(nodes_count=1, chunks_count=2, indexed_chunks_count=2)
+    async def index_scope(self, **kwargs):
+        raise AssertionError("index_scope should run in background task")
 
 
-@pytest.mark.asyncio
-async def test_create_search_tool_triggers_indexing_and_updates_metadata():
+class _FakeSupabaseClient:
+    def get_client(self):
+        return object()
+
+
+class _FakeSearchIndexTaskRepository:
+    last_instance = None
+
+    def __init__(self, client) -> None:
+        self.client = client
+        self.upsert_calls = []
+        _FakeSearchIndexTaskRepository.last_instance = self
+
+    def upsert(self, task):
+        self.upsert_calls.append(task)
+
+
+def test_create_search_tool_triggers_pending_task_and_background_indexing(monkeypatch):
+    monkeypatch.setattr(tool_router, "SupabaseClient", _FakeSupabaseClient)
+    monkeypatch.setattr(
+        tool_router, "SearchIndexTaskRepository", _FakeSearchIndexTaskRepository
+    )
+
     tool_service = _FakeToolService()
-    table_service = _FakeTableService()
     search_service = _FakeSearchService()
+    background_tasks = _FakeBackgroundTasks()
 
     payload = ToolCreate(
-        table_id=123,
+        node_id="node_123",
         json_path="/scope",
         type="search",
         name="my_search",
@@ -89,28 +90,36 @@ async def test_create_search_tool_triggers_indexing_and_updates_metadata():
         output_schema=None,
         metadata={},
     )
-    current_user = CurrentUser(user_id="u1", role="user")
+    current_user = CurrentUser(user_id="u1", role="authenticated")
 
-    resp = await create_tool(
+    resp = create_search_tool_async(
         payload=payload,
+        background_tasks=background_tasks,  # type: ignore[arg-type]
         tool_service=tool_service,  # type: ignore[arg-type]
-        table_service=table_service,  # type: ignore[arg-type]
         search_service=search_service,  # type: ignore[arg-type]
         current_user=current_user,
     )
 
     assert resp.code == 0
-    assert table_service.called is True
-    assert len(search_service.calls) == 1
-    assert search_service.calls[0]["project_id"] == 999
+    assert tool_service.node_check_calls == [("u1", "node_123")]
+    assert tool_service.created_payload is not None
+    assert tool_service.created_payload["node_id"] == "node_123"
 
-    # 创建时应写入 search_index（至少 configured_at/status）
-    created_meta = tool_service.created_payload["metadata"]
-    assert "search_index" in created_meta
-    assert created_meta["search_index"]["status"] in {"pending", "indexing", "ready"}
+    repo = _FakeSearchIndexTaskRepository.last_instance
+    assert repo is not None
+    assert len(repo.upsert_calls) == 1
 
-    # 成功 indexing 后应更新为 ready 并写入计数
-    final_meta = resp.data.metadata  # type: ignore[union-attr]
-    assert final_meta["search_index"]["status"] == "ready"
-    assert final_meta["search_index"]["indexed_chunks_count"] == 2
+    pending_task = repo.upsert_calls[0]
+    assert pending_task.status == "pending"
+    assert pending_task.project_id == "project_1"
+    assert pending_task.node_id == "node_123"
+    assert pending_task.json_path == "/scope"
 
+    assert len(background_tasks.calls) == 1
+    call = background_tasks.calls[0]
+    assert call["fn"] is tool_router._run_search_indexing_background
+    assert call["kwargs"]["tool_id"] == "tool_1"
+    assert call["kwargs"]["user_id"] == "u1"
+    assert call["kwargs"]["project_id"] == "project_1"
+    assert call["kwargs"]["node_id"] == "node_123"
+    assert call["kwargs"]["json_path"] == "/scope"

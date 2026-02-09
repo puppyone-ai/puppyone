@@ -6,7 +6,7 @@ ContextBase Backend Server Entrypoint.
 
 import time
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -120,6 +120,26 @@ from src.scheduler.service import get_scheduler_service
 from src.scheduler.config import scheduler_settings
 
 scheduler_import_duration = time.time() - scheduler_start
+
+
+
+def _validate_security_baseline() -> None:
+    """在非开发环境校验关键安全配置。"""
+    if settings.DEBUG:
+        return
+
+    if not (settings.INTERNAL_API_SECRET or "").strip():
+        raise RuntimeError(
+            "INTERNAL_API_SECRET must be configured when DEBUG is False"
+        )
+
+    if "*" in (settings.ALLOWED_HOSTS or []):
+        raise RuntimeError(
+            "ALLOWED_HOSTS cannot contain '*' when DEBUG is False"
+        )
+
+
+_validate_security_baseline()
 
 routers_duration = (
     table_router_duration
@@ -351,12 +371,9 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-@app.get("/health")
-async def health_check(mcp_service=Depends(get_mcp_instance_service)):
-    """健康检查接口"""
+async def _build_readiness_report(mcp_service) -> dict:
     import os
 
-    # 检查关键环境变量
     env_status = {
         "supabase_configured": bool(
             os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY")
@@ -365,17 +382,78 @@ async def health_check(mcp_service=Depends(get_mcp_instance_service)):
         "mineru_configured": bool(os.getenv("MINERU_API_KEY")),
         "anthropic_configured": bool(os.getenv("ANTHROPIC_API_KEY")),
         "e2b_configured": bool(os.getenv("E2B_API_KEY")),
+        "internal_api_secret_configured": bool(
+            (settings.INTERNAL_API_SECRET or "").strip()
+        ),
     }
 
-    health_result = await mcp_service.check_mcp_server_health()
+    config_errors: list[str] = []
+    dependency_errors: list[str] = []
+
+    if not settings.DEBUG and not env_status["internal_api_secret_configured"]:
+        config_errors.append("INTERNAL_API_SECRET is empty while DEBUG is False")
+
+    try:
+        mcp_status = await mcp_service.check_mcp_server_health()
+    except Exception as e:
+        mcp_status = {"status": "unhealthy", "error": str(e)}
+
+    mcp_state = str(mcp_status.get("status", "")).strip().lower()
+    if mcp_state in {"", "unhealthy", "error", "down", "unavailable"}:
+        dependency_errors.append("MCP server is unhealthy")
+
+    if config_errors:
+        status = "unhealthy"
+    elif dependency_errors:
+        status = "degraded"
+    else:
+        status = "ready"
 
     return {
-        "status": "healthy",
+        "status": status,
         "service": "ContextBase API",
         "version": settings.VERSION,
         "environment": env_status,
-        "mcp_status": health_result,
+        "mcp_status": mcp_status,
+        "errors": {
+            "config": config_errors,
+            "dependencies": dependency_errors,
+        },
     }
+
+
+@app.get("/live")
+async def live_check():
+    """Liveness: 仅表示进程存活。"""
+    return {
+        "status": "alive",
+        "service": "ContextBase API",
+        "version": settings.VERSION,
+    }
+
+
+@app.get("/ready")
+async def ready_check(
+    response: Response,
+    mcp_service=Depends(get_mcp_instance_service),
+):
+    """Readiness: 表示服务是否可接收流量。"""
+    report = await _build_readiness_report(mcp_service)
+    if report["status"] != "ready":
+        response.status_code = 503
+    return report
+
+
+@app.get("/health")
+async def health_check(
+    response: Response,
+    mcp_service=Depends(get_mcp_instance_service),
+):
+    """兼容入口：返回 readiness 结果。"""
+    report = await _build_readiness_report(mcp_service)
+    if report["status"] != "ready":
+        response.status_code = 503
+    return report
 
 
 # 启动命令示例:
