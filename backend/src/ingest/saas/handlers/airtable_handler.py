@@ -128,12 +128,12 @@ class AirtableHandler(BaseHandler):
             project_id=task.project_id,
             sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=base_name[:100],
-            source="airtable",
+            node_type="airtable",
             sync_url=source_url,
             content=content,
             parent_id=parent_id,
             sync_id=base_id,
-            sync_config={"base_id": base_id},
+            sync_config={"import_type": "base", "base_id": base_id},
             created_by=task.user_id,
         )
 

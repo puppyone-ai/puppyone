@@ -597,9 +597,9 @@ class SearchService:
         """
         t0 = time.perf_counter()
 
-        # 1) Read file content based on type
-        is_markdown = file_node.type == "markdown" or file_node.preview_type == "markdown"
-        is_json = file_node.type == "json" or file_node.preview_type == "json"
+        # 1) Read file content based on type (check for preview content)
+        is_markdown = file_node.type == "markdown" or file_node.preview_md is not None
+        is_json = file_node.type == "json" or file_node.preview_json is not None
         
         if is_json:
             # JSON content is stored in node.preview_json
@@ -625,7 +625,7 @@ class SearchService:
                 return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
         else:
             # Unsupported type
-            log_info(f"[_index_file_node] skip: unsupported type={file_node.type} preview_type={file_node.preview_type}")
+            log_info(f"[_index_file_node] skip: unsupported type={file_node.type} (no preview content)")
             return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
 
         # 2) Extract large string nodes or use content directly

@@ -83,23 +83,23 @@ class NodeInfo(BaseModel):
     id_path: str
     parent_id: Optional[str] = None
     
-    # 类型字段
-    type: str  # folder | json | markdown | file | sync
-    source: Optional[str] = None  # 仅 sync 类型: github | notion | gmail | google_calendar | ...
-    preview_type: Optional[str] = None  # json | markdown | NULL
+    # 类型字段（直接决定前端渲染方式）
+    # 原生类型: folder | json | markdown | file
+    # 同步类型: github_repo | notion_page | gmail_thread | google_calendar_event | google_sheets | airtable_base | ...
+    type: str
     
     mime_type: Optional[str] = None
     size_bytes: int = 0
     
-    # 同步相关字段（仅 type=sync 时有值）
+    # 同步相关字段（仅非原生类型时有值）
     sync_url: Optional[str] = None
     sync_id: Optional[str] = None
     sync_status: str = "idle"
     last_synced_at: Optional[str] = None
     
     # 计算属性
-    is_synced: bool = False  # type == 'sync'
-    sync_source: Optional[str] = None  # 等同于 source（仅 sync 时有值）
+    is_synced: bool = False  # type 不在原生类型中
+    sync_source: Optional[str] = None  # 从 type 提取来源，如 github_repo → github
     
     created_at: str
     updated_at: str

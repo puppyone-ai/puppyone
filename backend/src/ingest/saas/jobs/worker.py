@@ -22,6 +22,7 @@ from arq.connections import RedisSettings
 
 from src.ingest.saas.config import import_config
 from src.ingest.saas.jobs.jobs import import_job
+from src.db_connector.jobs import db_sync_job
 from src.ingest.saas.task.manager import ImportTaskManager
 from src.ingest.saas.task.repository import ImportTaskRepository
 from src.content_node.repository import ContentNodeRepository
@@ -37,6 +38,7 @@ from src.oauth.google_docs_service import GoogleDocsOAuthService
 from src.oauth.airtable_service import AirtableOAuthService
 from src.oauth.linear_service import LinearOAuthService
 from src.s3.service import S3Service
+from src.db_connector.repository import DBConnectionRepository
 from src.utils.logger import log_info
 
 
@@ -69,7 +71,10 @@ async def startup(ctx: dict[str, Any]) -> None:
     ctx["airtable_service"] = AirtableOAuthService()
     ctx["linear_service"] = LinearOAuthService()
     
-    log_info("Import worker initialized with all OAuth services")
+    # DB Connector (for db_sync_job)
+    ctx["db_repo"] = DBConnectionRepository(supabase_client)
+    
+    log_info("Import worker initialized with all OAuth services + DB connector")
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
@@ -80,8 +85,8 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 class WorkerSettings:
     """ARQ Worker configuration."""
     
-    # Import job for all imports
-    functions = [import_job]
+    # Import job for all imports + DB sync job
+    functions = [import_job, db_sync_job]
     on_startup = startup
     on_shutdown = shutdown
     

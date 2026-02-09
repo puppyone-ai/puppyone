@@ -410,12 +410,12 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
                 node_service.get_by_id, mount_node_id, task.project_id
             )
             
-            # Check if it's a pending file (type='file' with no preview_type)
-            is_pending = existing_node.type == "file" and existing_node.preview_type is None
+            # Check if it's a pending file (type='file' with no preview content)
+            is_pending = existing_node.type == "file" and not existing_node.has_preview
             if is_pending:
                 # ─────────────────────────────────────────────────────────────
                 # Pending 节点处理：填充 preview_md，type 保持 "file" 不变
-                # 语义：type=原始本质, preview_type=Agent看到什么
+                # 语义：type=原始本质, preview_md/preview_json=Agent看到什么
                 # ─────────────────────────────────────────────────────────────
                 # 提取 markdown 内容
                 if isinstance(mount_value, dict) and "content" in mount_value:
@@ -426,7 +426,7 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
                     markdown_content = markdown  # 使用原始 markdown
                 
                 # type 保持 "file"，文件名也保持原始（IMG_4561.PNG 就是 IMG_4561.PNG）
-                # 只更新 preview_type 和 preview_md
+                # 只更新 preview_md（填充 OCR 结果）
                 await node_service.finalize_pending_node(
                     node_id=mount_node_id,
                     project_id=task.project_id,

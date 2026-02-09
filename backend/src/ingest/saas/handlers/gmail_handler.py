@@ -90,12 +90,12 @@ class GmailHandler(BaseHandler):
                 project_id=task.project_id,
                 sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
                 name=f"Gmail - {user_email}",
-                source="gmail",
+                node_type="gmail",
                 sync_url="oauth://gmail",
                 content=content,
                 parent_id=parent_id,
                 sync_id=user_email,
-                sync_config={"max_results": max_results, "query": query},
+                sync_config={"import_type": "inbox", "max_results": max_results, "query": query},
                 created_by=task.user_id,
             )
             return ImportResult(content_node_id=node.id, items_count=0)
@@ -134,12 +134,12 @@ class GmailHandler(BaseHandler):
             project_id=task.project_id,
             sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=config.get("name") or f"Gmail - {user_email}",
-            source="gmail",
+            node_type="gmail",
             sync_url="oauth://gmail",
             content=content,
             parent_id=parent_id,
             sync_id=user_email,
-            sync_config={"max_results": max_results, "query": query},
+            sync_config={"import_type": "inbox", "max_results": max_results, "query": query},
             created_by=task.user_id,
         )
 

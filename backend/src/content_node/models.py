@@ -1,7 +1,7 @@
 """Content Node 数据模型"""
 
 from datetime import datetime
-from typing import Optional, Any
+from typing import Optional, Any, ClassVar, Set
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -9,35 +9,49 @@ class ContentNode(BaseModel):
     """
     内容节点模型
     
-    type 字段（5种）:
-      - folder: 文件夹
-      - json: JSON 内容（存在 preview_json）
-      - markdown: Markdown 内容（存在 preview_md）
-      - file: 文件（存在 s3_key）
-      - sync: 外部同步（source 字段有值）
+    type 字段（可扩展，不限制值）:
+      原生类型:
+        - folder: 文件夹
+        - json: JSON 内容
+        - markdown: Markdown 内容
+        - file: 文件
+      同步类型（从外部平台导入）:
+        - github: GitHub
+        - notion: Notion
+        - gmail: Gmail
+        - google_calendar: Google Calendar
+        - google_sheets: Google Sheets
+        - google_drive: Google Drive
+        - airtable: Airtable
+        - linear: Linear
+        - ... (可无限扩展)
     
-    preview_type 字段:
-      - json: 有 preview_json 可预览
-      - markdown: 有 preview_md 可预览
-      - NULL: 无预览内容
+    type 直接决定前端如何渲染和展示编辑器。
+    具体的导入类型（如 issue/project/repo）存储在 sync_config.import_type 中。
+    
+    存储位置（由字段是否有值决定，可同时存在多个）:
+      - preview_json IS NOT NULL → 有 JSON 数据
+      - preview_md IS NOT NULL → 有 Markdown 数据
+      - s3_key IS NOT NULL → 有 S3 文件
     
     所有权字段：
       - project_id: 所属项目（核心字段）
-      - created_by: 创建者用户 ID（仅记录，不用于权限控制）
-      - sync_oauth_user_id: 同步绑定的 OAuth 用户（仅 sync 类型）
+      - created_by: 创建者用户 ID（仅记录）
+      - sync_oauth_user_id: 同步绑定的 OAuth 用户（非原生类型必填）
     """
+    
+    # 原生类型列表（用于判断是否为同步类型）
+    NATIVE_TYPES: ClassVar[Set[str]] = {'folder', 'json', 'markdown', 'file'}
 
     id: str = Field(..., description="节点 ID (UUID)")
     project_id: str = Field(..., description="所属项目 ID")
     created_by: Optional[str] = Field(None, description="创建者用户 ID（仅记录）")
-    sync_oauth_user_id: Optional[str] = Field(None, description="同步绑定的 OAuth 用户 ID（仅 sync 类型必填）")
+    sync_oauth_user_id: Optional[str] = Field(None, description="同步绑定的 OAuth 用户 ID（非原生类型必填）")
     parent_id: Optional[str] = Field(None, description="父节点 ID，None 表示根节点")
     name: str = Field(..., description="节点名称")
     
     # === 类型字段 ===
-    type: str = Field(..., description="节点类型: folder | json | markdown | file | sync")
-    source: Optional[str] = Field(None, description="数据来源（仅 sync 类型）: github | notion | gmail | google_calendar | ...")
-    preview_type: Optional[str] = Field(None, description="可预览内容类型: json | markdown | NULL")
+    type: str = Field(..., description="节点类型: folder | json | markdown | file | github_repo | notion_page | ...")
     
     id_path: str = Field(..., description="ID 物化路径，如 /uuid1/uuid2/uuid3")
     
@@ -66,13 +80,16 @@ class ContentNode(BaseModel):
 
     @property
     def is_synced(self) -> bool:
-        """判断是否为同步类型"""
-        return self.type == "sync"
+        """判断是否为同步类型（非原生类型都是同步类型）"""
+        return self.type not in self.NATIVE_TYPES
 
     @property
     def sync_source(self) -> Optional[str]:
-        """获取同步来源（如 github, notion）"""
-        return self.source if self.type == "sync" else None
+        """获取同步来源（简化后 type 本身就是来源）"""
+        if not self.is_synced:
+            return None
+        # 简化后的架构：type 直接就是来源（github, notion, google_calendar 等）
+        return self.type
 
     @property
     def is_folder(self) -> bool:
@@ -96,11 +113,11 @@ class ContentNode(BaseModel):
 
     @property
     def has_preview(self) -> bool:
-        """判断是否有预览内容"""
-        return self.preview_type is not None
+        """判断是否有预览内容（检查 preview_json 或 preview_md 是否有值）"""
+        return self.preview_json is not None or self.preview_md is not None
 
     @property
     def is_indexable(self) -> bool:
         """判断是否可索引（用于搜索）"""
-        # JSON 和 Markdown 可索引
-        return self.type in ("json", "markdown") or self.preview_type in ("json", "markdown")
+        # JSON 和 Markdown 可索引（检查字段是否有值）
+        return self.type in ("json", "markdown") or self.preview_json is not None or self.preview_md is not None

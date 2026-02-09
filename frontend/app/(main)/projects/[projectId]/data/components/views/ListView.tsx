@@ -8,15 +8,13 @@ import { getNodeTypeConfig, isSyncedType, LockIcon, getSyncSourceIcon, getSyncSo
 export interface ListViewItem {
   id: string;
   name: string;
-  type: ContentType;
-  preview_type?: string | null;
+  type: ContentType;  // type 直接决定渲染方式
   description?: string;
   rowCount?: number;
   onClick: (e: React.MouseEvent) => void;
   // 同步相关字段
   is_synced?: boolean;
-  source?: string | null;      // 来源（用于获取 SaaS Logo）
-  sync_source?: string | null;
+  sync_source?: string | null;  // 从 type 提取，如 github_repo → github
   sync_url?: string | null;
   sync_status?: 'not_connected' | 'idle' | 'syncing' | 'error';
   last_synced_at?: string | null;
@@ -105,8 +103,8 @@ const AgentAccessTag = ({ mode }: { mode: 'read' | 'write' }) => (
   </div>
 );
 
-function getIcon(type: string, previewType?: string | null) {
-  const config = getNodeTypeConfig(type, previewType);
+function getIcon(type: string) {
+  const config = getNodeTypeConfig(type);
   switch (config.renderAs) {
     case 'folder': return <FolderIcon />;
     case 'markdown': return <MarkdownIcon />;
@@ -116,8 +114,8 @@ function getIcon(type: string, previewType?: string | null) {
   }
 }
 
-function getIconColor(type: string, previewType?: string | null) {
-  const config = getNodeTypeConfig(type, previewType);
+function getIconColor(type: string) {
+  const config = getNodeTypeConfig(type);
   return config.color;
 }
 
@@ -176,12 +174,12 @@ function ListItem({
 }) {
   const [hovered, setHovered] = useState(false);
   
-  // Get type config - uses preview_type to decide rendering for OCR'd files
-  const typeConfig = getNodeTypeConfig(item.type, item.preview_type);
+  // Get type config - type directly determines rendering method
+  const typeConfig = getNodeTypeConfig(item.type);
   const isFolder = typeConfig.renderAs === 'folder';
   
-  // 获取 SaaS Logo - 与 GridView 相同的逻辑
-  const syncSource = item.source || item.sync_source || getSyncSource(item.type);
+  // 获取 SaaS Logo - 从 type 或 sync_source 获取
+  const syncSource = item.sync_source || getSyncSource(item.type);
   const BadgeIcon = getSyncSourceIcon(syncSource) || typeConfig.badgeIcon;
   
   const isPlaceholder = item.sync_status === 'not_connected';
@@ -238,9 +236,9 @@ function ListItem({
         flexShrink: 0,
       }}>
         {BadgeIcon ? (
-          // SaaS 类型：Logo + (格式) - 直接用 preview_type 字段
+          // SaaS 类型：Logo + (格式) - type 决定渲染方式
           (() => {
-            const isJson = item.preview_type === 'json' || (!item.preview_type && typeConfig.renderAs === 'json');
+            const isJson = typeConfig.renderAs === 'json';
             return (
               <>
                 <BadgeIcon size={16} />
@@ -260,8 +258,8 @@ function ListItem({
           })()
         ) : (
           // 普通类型：直接显示图标
-          <div style={{ color: getIconColor(item.type, item.preview_type) }}>
-            {getIcon(item.type, item.preview_type)}
+          <div style={{ color: getIconColor(item.type) }}>
+            {getIcon(item.type)}
           </div>
         )}
       </div>

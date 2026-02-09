@@ -229,11 +229,11 @@ class NotionHandler(BaseHandler):
             project_id=task.project_id,
             sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=title,
-            source="notion",
+            node_type="notion",
             sync_url=task.source_url,
             content=data_content,
             sync_id=database_id,
-            sync_config=sync_config,
+            sync_config={**sync_config, "import_type": "database"} if sync_config else {"import_type": "database"},
             created_by=task.user_id,
         )
 
@@ -313,10 +313,10 @@ class NotionHandler(BaseHandler):
             sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=title,
             content=markdown_content,
-            source="notion",
+            node_type="notion",
             sync_url=task.source_url,
             sync_id=page_id,
-            sync_config=sync_config,
+            sync_config={**sync_config, "import_type": "page"} if sync_config else {"import_type": "page"},
             created_by=task.user_id,
         )
 

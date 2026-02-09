@@ -245,10 +245,10 @@ class GoogleDriveHandler(BaseHandler):
             sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=file_name[:100],
             content=markdown_content,
-            source="google_drive",
+            node_type="google_drive",
             sync_url=file_info.get("webViewLink", f"https://drive.google.com/file/d/{file_id}"),
             sync_id=file_id,
-            sync_config=sync_config,
+            sync_config={**sync_config, "import_type": "file"} if sync_config else {"import_type": "file"},
             parent_id=parent_id,
             created_by=task.user_id,
         )

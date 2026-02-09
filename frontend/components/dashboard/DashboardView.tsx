@@ -66,7 +66,7 @@ export function DashboardView({
 
       {/* Grid: 每张卡片固定最大宽高，大屏时多行排列而非被拉宽 */}
       <div
-        className='grid gap-4'
+        className='grid gap-6'
         style={{
           gridTemplateColumns: `repeat(auto-fill, minmax(${PROJECT_CARD_WIDTH}px, ${PROJECT_CARD_WIDTH}px))`,
           gridAutoRows: PROJECT_CARD_HEIGHT,

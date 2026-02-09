@@ -25,8 +25,6 @@ class ContentNodeRepository:
             name=row["name"],
             # 类型字段
             type=row["type"],
-            source=row.get("source"),
-            preview_type=row.get("preview_type"),
             id_path=row["id_path"],
             # 内容字段
             preview_json=row.get("preview_json"),
@@ -141,10 +139,10 @@ class ContentNodeRepository:
             self.client.table(self.TABLE_NAME)
             .select("*")
             .eq("sync_oauth_user_id", sync_oauth_user_id)
-            .eq("type", "sync")
         )
         if node_type:
-            query = query.eq("source", node_type)
+            # 按具体类型过滤，如 'github_repo', 'notion_page'
+            query = query.eq("type", node_type)
         
         response = query.order("id_path").execute()
         return [self._row_to_model(row) for row in response.data]
@@ -153,13 +151,11 @@ class ContentNodeRepository:
         self,
         project_id: str,
         name: str,
-        node_type: str,  # folder | json | markdown | file | sync
+        node_type: str,  # folder | json | markdown | file | github_repo | notion_page | ...
         id_path: str,
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
-        sync_oauth_user_id: Optional[str] = None,  # 仅 sync 类型必填
-        source: Optional[str] = None,
-        preview_type: Optional[str] = None,  # json | markdown | NULL
+        sync_oauth_user_id: Optional[str] = None,  # 非原生类型必填
         preview_json: Optional[dict] = None,
         preview_md: Optional[str] = None,
         s3_key: Optional[str] = None,
@@ -177,8 +173,6 @@ class ContentNodeRepository:
             "parent_id": parent_id,
             "name": name,
             "type": node_type,
-            "source": source,
-            "preview_type": preview_type,
             "id_path": id_path,
             "preview_json": preview_json,
             "preview_md": preview_md,
@@ -211,7 +205,6 @@ class ContentNodeRepository:
         name: Optional[str] = None,
         preview_json: Optional[dict] = None,
         preview_md: Optional[str] = None,
-        preview_type: Optional[str] = None,
         id_path: Optional[str] = None,
         parent_id: Optional[str] = None,
         s3_key: Optional[str] = None,
@@ -236,8 +229,6 @@ class ContentNodeRepository:
             data["preview_md"] = preview_md
         elif clear_preview_md:
             data["preview_md"] = None
-        if preview_type is not None:
-            data["preview_type"] = preview_type
         if id_path is not None:
             data["id_path"] = id_path
         if parent_id is not None:
@@ -269,8 +260,8 @@ class ContentNodeRepository:
         sync_config: Optional[dict] = None,
         last_synced_at: Optional[datetime] = None,
         preview_json: Optional[dict] = None,
-        preview_type: Optional[str] = None,
-        sync_oauth_user_id: Optional[str] = None,  # 新增：同步绑定的 OAuth 用户
+        sync_oauth_user_id: Optional[str] = None,  # 同步绑定的 OAuth 用户
+        node_type: Optional[str] = None,  # 更新节点类型（用于占位符转换）
     ) -> Optional[ContentNode]:
         """更新节点的同步信息
         
@@ -291,10 +282,10 @@ class ContentNodeRepository:
             data["last_synced_at"] = last_synced_at.isoformat()
         if preview_json is not None:
             data["preview_json"] = preview_json
-        if preview_type is not None:
-            data["preview_type"] = preview_type
         if sync_oauth_user_id is not None:
             data["sync_oauth_user_id"] = sync_oauth_user_id
+        if node_type is not None:
+            data["type"] = node_type
 
         if not data:
             return self.get_by_id(node_id)
@@ -312,16 +303,15 @@ class ContentNodeRepository:
     def update_with_type(
         self,
         node_id: str,
-        node_type: Optional[str] = None,  # folder | json | markdown | file | sync
+        node_type: Optional[str] = None,  # folder | json | markdown | file | github_repo | ...
         name: Optional[str] = None,
         preview_json: Optional[dict] = None,
         preview_md: Optional[str] = None,
-        preview_type: Optional[str] = None,
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
         size_bytes: Optional[int] = None,
     ) -> Optional[ContentNode]:
-        """更新节点（包括类型变更，用于 ETL 完成后将 file 转为 markdown）"""
+        """更新节点（包括类型变更）"""
         data = {}
         if node_type is not None:
             data["type"] = node_type
@@ -331,8 +321,6 @@ class ContentNodeRepository:
             data["preview_json"] = preview_json
         if preview_md is not None:
             data["preview_md"] = preview_md
-        if preview_type is not None:
-            data["preview_type"] = preview_type
         if s3_key is not None:
             data["s3_key"] = s3_key
         if mime_type is not None:

@@ -114,6 +114,11 @@ from src.profile.router import router as profile_router
 
 profile_router_duration = time.time() - profile_router_start
 
+db_connector_router_start = time.time()
+from src.db_connector.router import router as db_connector_router
+
+db_connector_router_duration = time.time() - db_connector_router_start
+
 # Scheduler service import
 scheduler_start = time.time()
 from src.scheduler.service import get_scheduler_service
@@ -154,6 +159,7 @@ routers_duration = (
     + content_node_router_duration
     + analytics_router_duration
     + profile_router_duration
+    + db_connector_router_duration
 )
 
 
@@ -343,6 +349,7 @@ def create_app() -> FastAPI:
     app.include_router(content_node_router, prefix="/api/v1", tags=["content-nodes"])
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
+    app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     router_register_duration = time.time() - router_register_start
 
     # 注册异常处理器

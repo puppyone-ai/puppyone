@@ -56,6 +56,10 @@ import { GithubRepoView } from '@/components/views/GithubRepoView';
 // Node Type Config
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 
+// Supabase DB Connector
+import { SupabaseConnectDialog } from '@/components/SupabaseConnectDialog';
+import { SupabaseSQLEditorDialog } from '@/components/SupabaseSQLEditorDialog';
+
 // Finder View Components
 import { GridView, ListView, ExplorerSidebar, type MillerColumnItem, type AgentResource, type ContentType } from '../components/views';
 import { CreateMenu } from '../../../[[...slug]]/components/finder';
@@ -280,6 +284,11 @@ export default function DataPage({ params }: DataPageProps) {
   const [defaultStartOption, setDefaultStartOption] = useState<'empty' | 'documents' | 'url' | 'connect'>('empty');
   const [defaultSelectedSaas, setDefaultSelectedSaas] = useState<'notion' | 'github' | 'airtable' | 'linear' | 'google_sheets' | 'gmail' | 'calendar' | 'drive' | 'docs' | 'sheets' | undefined>(undefined);
 
+  // Supabase connector states
+  const [supabaseConnectOpen, setSupabaseConnectOpen] = useState(false);
+  const [supabaseSQLEditorOpen, setSupabaseSQLEditorOpen] = useState(false);
+  const [supabaseConnectionId, setSupabaseConnectionId] = useState<string | null>(null);
+
   // Create menu state
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [createMenuPosition, setCreateMenuPosition] = useState<{ x: number; y: number } | null>(null);
@@ -383,12 +392,12 @@ export default function DataPage({ params }: DataPageProps) {
         }
 
         // Get info for each node in path
-        const pathNodes: Array<{ id: string; name: string; type: string; preview_type?: string | null }> = [];
+        const pathNodes: Array<{ id: string; name: string; type: string }> = [];
         for (const nodeId of path) {
           try {
             const node = await getNode(nodeId, projectId);
             if (node) {
-              pathNodes.push({ id: node.id, name: node.name, type: node.type, preview_type: node.preview_type });
+              pathNodes.push({ id: node.id, name: node.name, type: node.type });
             }
           } catch (err) {
             console.error(`Failed to get node ${nodeId}:`, err);
@@ -411,11 +420,11 @@ export default function DataPage({ params }: DataPageProps) {
           // Last is node -> show editor
           setActiveNodeId(lastNode.id);
           setActiveNodeType(lastNode.type);
-          setActivePreviewType(lastNode.preview_type ?? null);
+          setActivePreviewType(null);  // Deprecated, type directly determines rendering
           
           // Check if this node type should render as markdown
-          // Uses preview_type to decide: file+preview_md → render as markdown
-          const nodeConfig = getNodeTypeConfig(lastNode.type, lastNode.preview_type);
+          // type directly determines rendering method
+          const nodeConfig = getNodeTypeConfig(lastNode.type);
           const shouldLoadAsMarkdown = nodeConfig.renderAs === 'markdown';
           
           if (shouldLoadAsMarkdown) {
@@ -593,7 +602,7 @@ export default function DataPage({ params }: DataPageProps) {
 
       // Node segment
       if (activeNodeId && currentTableData) {
-        const renderAs = getNodeTypeConfig(activeNodeType, activePreviewType).renderAs;
+        const renderAs = getNodeTypeConfig(activeNodeType).renderAs;
         // markdown -> markdown icon, file/image -> file icon, others -> table icon
         const nodeIcon = renderAs === 'markdown' ? markdownIcon 
           : ['file', 'image'].includes(renderAs) ? fileIcon 
@@ -712,8 +721,19 @@ export default function DataPage({ params }: DataPageProps) {
   // === View Helpers (Hoisted) ===
   
   // Helper: Map node type to SaasId for placeholder nodes
+  // 简化后的 type 直接就是 saas 来源
   const getPlaceholderSaasId = (nodeType: string): string | null => {
     const mapping: Record<string, string> = {
+      // 简化后的类型（新格式）
+      'gmail': 'gmail',
+      'google_sheets': 'sheets',
+      'google_calendar': 'calendar',
+      'google_drive': 'drive',
+      'notion': 'notion',
+      'github': 'github',
+      'airtable': 'airtable',
+      'linear': 'linear',
+      // 旧格式兼容（可能还有历史数据）
       'gmail_inbox': 'gmail',
       'google_sheets_sync': 'sheets',
       'google_calendar_sync': 'calendar',
@@ -728,15 +748,13 @@ export default function DataPage({ params }: DataPageProps) {
     id: node.id,
     name: node.name,
     type: node.type as ContentType,
-    preview_type: node.preview_type,  // 传递 preview_type 用于正确渲染
     description: node.type === 'folder' ? 'Folder' : 
                  node.type === 'json' ? 'JSON' : 
                  node.type === 'markdown' ? 'Markdown' :
                  node.type === 'file' ? 'File' :
-                 node.type === 'sync' ? `Sync (${node.source})` : 'Unknown',
+                 node.is_synced ? `Sync (${node.sync_source})` : 'Unknown',
     is_synced: node.is_synced,
     sync_source: node.sync_source,
-    source: node.source,  // 新增：传递 source 字段用于显示 Logo
     sync_url: node.sync_url,
     sync_status: node.sync_status,
     last_synced_at: node.last_synced_at,
@@ -783,9 +801,7 @@ export default function DataPage({ params }: DataPageProps) {
         id: node.id,
         name: node.name,
         type: node.type as ContentType,
-        preview_type: node.preview_type,  // 传递 preview_type 用于正确显示格式
         is_synced: node.is_synced,
-        source: node.source,              // 传递 source 用于获取 SaaS Logo
         sync_source: node.sync_source,
         last_synced_at: node.last_synced_at,
       }));
@@ -894,7 +910,7 @@ export default function DataPage({ params }: DataPageProps) {
           {isEditorView && activeProject && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
               {/* Markdown Editor (only for types with preview_md content) */}
-              {getNodeTypeConfig(activeNodeType, activePreviewType).renderAs === 'markdown' ? (
+              {getNodeTypeConfig(activeNodeType).renderAs === 'markdown' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                   {isLoadingMarkdown ? (
                   <div style={{ 
@@ -971,7 +987,7 @@ export default function DataPage({ params }: DataPageProps) {
                     </div>
                   )}
                 </div>
-              ) : activeNodeType === 'github_repo' ? (
+              ) : activeNodeType === 'github' ? (
                 /* GitHub Repository View */
                 <GithubRepoView
                   nodeId={activeNodeId}
@@ -979,7 +995,7 @@ export default function DataPage({ params }: DataPageProps) {
                   content={currentTableData?.content}
                   syncUrl={currentTableData?.sync_url ?? undefined}
                 />
-              ) : ['file', 'image'].includes(getNodeTypeConfig(activeNodeType, activePreviewType).renderAs) && !currentTableData?.data && !markdownContent ? (
+              ) : ['file', 'image'].includes(getNodeTypeConfig(activeNodeType).renderAs) && !currentTableData?.data && !markdownContent ? (
                 /* File Preview - ONLY when node truly has no preview content (no preview_json, no preview_md) */
                 <FilePreview nodeName={currentTableData?.name || ''} />
               ) : (
@@ -1131,7 +1147,7 @@ export default function DataPage({ params }: DataPageProps) {
 
           {/* Unified View Toggle - Bottom Left (moved from right to avoid conflict with TaskStatusWidget) */}
           {/* Hide for markdown editor (including notion_page, github_file, etc.) */}
-          {getNodeTypeConfig(activeNodeType, activePreviewType).renderAs !== 'markdown' && (
+          {getNodeTypeConfig(activeNodeType).renderAs !== 'markdown' && (
           <div
             style={{
               position: 'absolute',
@@ -1389,6 +1405,9 @@ export default function DataPage({ params }: DataPageProps) {
                 setDefaultSelectedSaas('sheets');
                 setCreateTableOpen(true);
               }}
+              onConnectSupabase={() => {
+                setSupabaseConnectOpen(true);
+              }}
           />
         </div>
       )}
@@ -1418,6 +1437,35 @@ export default function DataPage({ params }: DataPageProps) {
           parentPath={activeProject?.name || ''}
           onClose={() => setCreateFolderOpen(false)}
           onSuccess={() => loadContentNodes(currentFolderId)}
+        />
+      )}
+
+      {/* Supabase Connect Dialog */}
+      {supabaseConnectOpen && (
+        <SupabaseConnectDialog
+          projectId={projectId}
+          onClose={() => setSupabaseConnectOpen(false)}
+          onConnected={(connectionId) => {
+            setSupabaseConnectOpen(false);
+            setSupabaseConnectionId(connectionId);
+            setSupabaseSQLEditorOpen(true);
+          }}
+        />
+      )}
+
+      {/* Supabase SQL Editor Dialog */}
+      {supabaseSQLEditorOpen && supabaseConnectionId && (
+        <SupabaseSQLEditorDialog
+          projectId={projectId}
+          connectionId={supabaseConnectionId}
+          onClose={() => {
+            setSupabaseSQLEditorOpen(false);
+            setSupabaseConnectionId(null);
+          }}
+          onSaved={() => {
+            // Refresh content nodes after saving
+            loadContentNodes(currentFolderId);
+          }}
         />
       )}
 
