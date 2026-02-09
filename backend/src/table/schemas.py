@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Any, Optional
 
 
@@ -37,8 +37,7 @@ class TableOut(BaseModel):
     )
     created_at: datetime = Field(..., description="创建时间")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Context Data 相关的 Schema（保持命名不变以兼容API）
@@ -103,5 +102,4 @@ class ProjectWithTables(BaseModel):
         default_factory=list, description="该项目下的所有表格列表"
     )
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

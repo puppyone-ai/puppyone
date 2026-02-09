@@ -125,9 +125,17 @@ scheduler_import_duration = time.time() - scheduler_start
 
 def _validate_security_baseline() -> None:
     """在非开发环境校验关键安全配置。"""
-    if not settings.DEBUG and not (settings.INTERNAL_API_SECRET or "").strip():
+    if settings.DEBUG:
+        return
+
+    if not (settings.INTERNAL_API_SECRET or "").strip():
         raise RuntimeError(
             "INTERNAL_API_SECRET must be configured when DEBUG is False"
+        )
+
+    if "*" in (settings.ALLOWED_HOSTS or []):
+        raise RuntimeError(
+            "ALLOWED_HOSTS cannot contain '*' when DEBUG is False"
         )
 
 

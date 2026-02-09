@@ -6,7 +6,7 @@ Agent Config 数据模型
 
 from datetime import datetime
 from typing import Optional, List, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 AgentType = Literal["chat", "devbox", "webhook", "schedule"]
@@ -23,8 +23,7 @@ class AgentBash(BaseModel):
     readonly: bool = Field(default=True, description="是否只读")
     created_at: datetime = Field(..., description="创建时间")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # 为了向后兼容，保留 AgentAccess 别名
@@ -41,8 +40,7 @@ class AgentTool(BaseModel):
     mcp_exposed: bool = Field(default=False, description="是否通过 MCP 对外暴露")
     created_at: datetime = Field(..., description="创建时间")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Agent(BaseModel):
@@ -87,6 +85,5 @@ class Agent(BaseModel):
     def accesses(self, value: List[AgentBash]):
         self.bash_accesses = value
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 

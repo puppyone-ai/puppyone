@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, Field, model_validator
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -29,7 +30,11 @@ class Settings(BaseSettings):
 
     # 服务配置
     APP_NAME: str = "ContextBase"
-    DEBUG: bool = True
+    APP_ENV: Literal["development", "test", "staging", "production"] = Field(
+        default="development",
+        validation_alias=AliasChoices("APP_ENV", "ENVIRONMENT"),
+    )
+    DEBUG: bool | None = None
     VERSION: str = "1.0.0"
 
     # 本地存储配置，现在基本都用Supabase
@@ -37,7 +42,18 @@ class Settings(BaseSettings):
     STORAGE_TYPE: Literal["json", "db", "supabase"] = "supabase"
 
     # CORS配置
-    ALLOWED_HOSTS: list[str] = ["*"]
+    ALLOWED_HOSTS: list[str] | None = None
+
+    @model_validator(mode="after")
+    def apply_runtime_defaults(self):
+        """按环境补齐默认配置，降低生产误配风险。"""
+        if self.DEBUG is None:
+            self.DEBUG = self.APP_ENV in {"development", "test"}
+
+        if self.ALLOWED_HOSTS is None:
+            self.ALLOWED_HOSTS = ["*"] if self.DEBUG else []
+
+        return self
 
     # JWT配置
     JWT_SECRET: str = "ContextBase-256-bit-secret"

@@ -6,7 +6,7 @@ Profile 数据模型
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Profile(BaseModel):
@@ -31,8 +31,7 @@ class Profile(BaseModel):
         None, description="自动创建的 Demo Project ID"
     )
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProfileUpdate(BaseModel):
