@@ -1738,7 +1738,7 @@ export function TableManageDialog({
         }}
         onConfirm={(config) => {
           setConfigDialogOpen(false);
-          handleFinalSubmit(config);
+          handleFinalSubmit(config.mode);
         }}
         files={pendingConfigFiles}
       />

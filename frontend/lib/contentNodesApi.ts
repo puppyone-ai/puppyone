@@ -9,25 +9,19 @@ import { apiRequest } from './apiClient';
 
 // === Types ===
 
-// 节点类型（5种）
-export type NodeType = 'folder' | 'json' | 'markdown' | 'file' | 'sync';
+// 节点类型（直接决定前端渲染方式）
+// 原生类型: folder, json, markdown, file
+// 同步类型: github, notion, airtable, linear, gmail, google_sheets, google_calendar, google_drive
+// 同步类型的细节在 sync_config.import_type 中
+export type NodeType = string;
 
-// 数据来源（仅 sync 类型有值）
-export type SyncSource = 
-  | 'github' 
-  | 'notion' 
-  | 'gmail' 
-  | 'google_sheets' 
-  | 'google_calendar' 
-  | 'google_docs' 
-  | 'google_drive' 
-  | 'airtable' 
-  | 'linear' 
-  | 'slack'
-  | string; // 允许未来扩展
+// 原生类型常量
+export const NATIVE_TYPES = ['folder', 'json', 'markdown', 'file'] as const;
+export type NativeType = typeof NATIVE_TYPES[number];
 
-// 预览类型
-export type PreviewType = 'json' | 'markdown' | null;
+// 同步类型常量
+export const SYNC_TYPES = ['github', 'notion', 'airtable', 'linear', 'gmail', 'google_sheets', 'google_calendar', 'google_drive'] as const;
+export type SyncType = typeof SYNC_TYPES[number];
 
 // 同步状态
 export type SyncStatus = 'not_connected' | 'idle' | 'syncing' | 'error';
@@ -39,15 +33,15 @@ export interface NodeInfo {
   id_path: string;
   parent_id: string | null;
   
-  // 类型字段
-  type: NodeType;              // folder | json | markdown | file | sync
-  source: SyncSource | null;   // 仅 sync 类型有值
-  preview_type: PreviewType;   // json | markdown | null
+  // 类型字段（直接决定前端渲染方式）
+  // 原生类型: folder | json | markdown | file
+  // 同步类型: github | notion | airtable | linear | gmail | google_sheets | google_calendar | google_drive
+  type: NodeType;
   
   mime_type: string | null;
   size_bytes: number;
   
-  // 同步相关字段（仅 type=sync 时有值）
+  // 同步相关字段（仅非原生类型时有值）
   sync_url: string | null;
   sync_id: string | null;
   sync_status: SyncStatus;
@@ -61,8 +55,8 @@ export interface NodeInfo {
   last_synced_at: string | null;
   
   // 计算属性
-  is_synced: boolean;          // type === 'sync'
-  sync_source: SyncSource | null;  // 等同于 source（仅 sync 时有值）
+  is_synced: boolean;          // type 不在 NATIVE_TYPES 中
+  sync_source: string | null;  // 从 type 提取来源，如 github_repo → github
   
   created_at: string;
   updated_at: string;
@@ -127,24 +121,27 @@ export function isFile(node: NodeInfo): boolean {
 }
 
 /**
- * 判断节点是否为同步类型
+ * 判断节点是否为同步类型（非原生类型都是同步类型）
  */
 export function isSynced(node: NodeInfo): boolean {
-  return node.type === 'sync';
+  return !NATIVE_TYPES.includes(node.type as NativeType);
 }
 
 /**
  * 判断节点是否有预览内容
+ * 需要 NodeDetail 以检查 preview_json 和 preview_md 字段
  */
-export function hasPreview(node: NodeInfo): boolean {
-  return node.preview_type !== null;
+export function hasPreview(node: NodeDetail): boolean {
+  return node.preview_json !== null || node.preview_md !== null;
 }
 
 /**
  * 判断节点是否可索引（用于搜索）
+ * 需要 NodeDetail 以检查 preview_json 和 preview_md 字段
  */
-export function isIndexable(node: NodeInfo): boolean {
-  return node.type === 'json' || node.type === 'markdown' || node.preview_type !== null;
+export function isIndexable(node: NodeDetail): boolean {
+  return node.type === 'json' || node.type === 'markdown' || 
+         node.preview_json !== null || node.preview_md !== null;
 }
 
 // === API Functions ===

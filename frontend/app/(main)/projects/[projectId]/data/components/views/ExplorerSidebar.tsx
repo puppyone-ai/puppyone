@@ -8,11 +8,9 @@ import { getNodeTypeConfig, getSyncSourceIcon, getSyncSource } from '@/lib/nodeT
 export interface MillerColumnItem {
   id: string;
   name: string;
-  type: ContentType;
-  preview_type?: string | null;
+  type: ContentType;  // type 直接决定渲染方式
   is_synced?: boolean;
-  source?: string | null;       // 来源（用于获取 SaaS Logo）
-  sync_source?: string | null;
+  sync_source?: string | null;  // 从 type 提取，如 github_repo → github
   sync_url?: string | null;
   last_synced_at?: string | null;
 }
@@ -114,20 +112,18 @@ const getFormatBadge = (renderAs: string) => {
 };
 
 // 文件图标组件 - 支持 SaaS 类型
-const FileIcon = ({ type, previewType, source, syncSource }: { 
+const FileIcon = ({ type, syncSource }: { 
   type: string; 
-  previewType?: string | null;
-  source?: string | null;
   syncSource?: string | null;
 }) => {
-  const config = getNodeTypeConfig(type, previewType);
+  const config = getNodeTypeConfig(type);
   
-  // 获取 SaaS Logo - 与 GridView 相同的逻辑
-  const actualSource = source || syncSource || getSyncSource(type);
+  // 获取 SaaS Logo - 从 syncSource 或 type 提取
+  const actualSource = syncSource || getSyncSource(type);
   const BadgeIcon = getSyncSourceIcon(actualSource) || config.badgeIcon;
   
-  // 直接用 previewType 字段判断格式，如果没有则用 config.renderAs
-  const isJson = previewType === 'json' || (!previewType && config.renderAs === 'json');
+  // 用 config.renderAs 判断格式
+  const isJson = config.renderAs === 'json';
   
   // SaaS 类型：显示 Logo + 格式标签
   if (BadgeIcon) {
@@ -179,7 +175,7 @@ function TreeItem({
   ancestors,
   agentResourceMap
 }: TreeItemProps) {
-  const isFolder = getNodeTypeConfig(item.type, item.preview_type).renderAs === 'folder';
+  const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<MillerColumnItem[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -279,7 +275,7 @@ function TreeItem({
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          {isFolder ? <FolderIcon /> : <FileIcon type={item.type} previewType={item.preview_type} source={item.source} syncSource={item.sync_source} />}
+          {isFolder ? <FolderIcon /> : <FileIcon type={item.type} syncSource={item.sync_source} />}
         </div>
         
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>

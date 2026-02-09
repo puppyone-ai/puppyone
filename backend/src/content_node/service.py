@@ -151,7 +151,6 @@ class ContentNodeService:
             parent_id=parent_id,
             created_by=created_by,
             preview_json=content,
-            preview_type="json",
             mime_type="application/json",
         )
 
@@ -170,23 +169,25 @@ class ContentNodeService:
         用户点击后可以触发 OAuth 授权流程。
         
         Args:
-            placeholder_type: 平台类型
+            placeholder_type: 平台类型（gmail, sheets, calendar, notion, github 等）
         
         注意：占位符节点的 sync_oauth_user_id 为 None，授权后才会填充。
         """
         import uuid
         
-        # source 映射
-        SOURCE_MAP = {
-            'gmail': 'gmail',
-            'sheets': 'google_sheets',
-            'calendar': 'google_calendar',
-            'docs': 'google_docs',
-            'notion': 'notion',
-            'github': 'github',
+        # placeholder_type → (node_type, import_type) 映射
+        TYPE_MAP = {
+            'gmail': ('gmail', 'inbox'),
+            'sheets': ('google_sheets', 'spreadsheet'),
+            'calendar': ('google_calendar', 'events'),
+            'docs': ('google_drive', 'file'),
+            'notion': ('notion', 'page'),
+            'github': ('github', 'repo'),
+            'airtable': ('airtable', 'base'),
+            'linear': ('linear', 'assigned_issues'),
         }
         
-        source = SOURCE_MAP.get(placeholder_type, placeholder_type)
+        node_type, import_type = TYPE_MAP.get(placeholder_type, (placeholder_type, 'default'))
         
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
@@ -204,15 +205,14 @@ class ContentNodeService:
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type="sync",
-            source=source,
+            node_type=node_type,
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
             preview_json=placeholder_content,
-            preview_type="json",
             mime_type="application/json",
             sync_status="not_connected",
+            sync_config={"import_type": import_type},
         )
 
     async def convert_placeholder_to_synced(
@@ -243,7 +243,6 @@ class ContentNodeService:
             sync_config=sync_config,
             last_synced_at=datetime.utcnow(),
             preview_json=content,
-            preview_type="json",
             sync_oauth_user_id=sync_oauth_user_id,
         )
 
@@ -252,7 +251,7 @@ class ContentNodeService:
         project_id: str,
         sync_oauth_user_id: str,  # 同步节点必须提供
         name: str,
-        source: str,
+        node_type: str,  # 如 github_repo, notion_page, gmail_thread 等
         sync_url: str,
         content: Any,
         parent_id: Optional[str] = None,
@@ -275,14 +274,12 @@ class ContentNodeService:
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type="sync",
-            source=source,
+            node_type=node_type,
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
             sync_oauth_user_id=sync_oauth_user_id,
             preview_json=content,
-            preview_type="json",
             mime_type="application/json",
             sync_url=sync_url,
             sync_id=sync_id,
@@ -311,22 +308,23 @@ class ContentNodeService:
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
+        # 合并 sync_config，添加 import_type
+        merged_config = {"import_type": "repo", **(sync_config or {})}
+        
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type="sync",
-            source="github",
+            node_type="github",
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
             sync_oauth_user_id=sync_oauth_user_id,
             preview_json=metadata,
-            preview_type="json",
             s3_key=s3_prefix,
             mime_type="application/x-github-repo",
             sync_url=sync_url,
             sync_id=sync_id,
-            sync_config=sync_config,
+            sync_config=merged_config,
             last_synced_at=datetime.utcnow(),
         )
 
@@ -411,7 +409,6 @@ class ContentNodeService:
             parent_id=parent_id,
             created_by=created_by,
             preview_md=content,  # 直接存数据库
-            preview_type="markdown",
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
         )
@@ -422,7 +419,7 @@ class ContentNodeService:
         sync_oauth_user_id: str,  # 同步 Markdown 节点必须提供
         name: str, 
         content: str,
-        source: str,
+        node_type: str,  # 如 notion_page
         sync_url: str,
         sync_id: Optional[str] = None,
         sync_config: Optional[dict] = None,
@@ -440,14 +437,12 @@ class ContentNodeService:
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type="sync",
-            source=source,
+            node_type=node_type,
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
             sync_oauth_user_id=sync_oauth_user_id,
             preview_md=content,  # 直接存数据库
-            preview_type="markdown",
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
             sync_url=sync_url,
@@ -500,9 +495,8 @@ class ContentNodeService:
                     node_type = node["type"]
                     content = node.get("content")
                     
-                    # 确定 mime_type, preview_type, preview_json, preview_md
+                    # 确定 mime_type, preview_json, preview_md
                     mime_type = None
-                    preview_type = None
                     preview_json = None
                     preview_md = None
                     size_bytes = 0
@@ -511,11 +505,9 @@ class ContentNodeService:
                         mime_type = None
                     elif node_type == "json":
                         mime_type = "application/json"
-                        preview_type = "json"
                         preview_json = content
                     elif node_type == "markdown":
                         mime_type = "text/markdown"
-                        preview_type = "markdown"
                         preview_md = content if isinstance(content, str) else ""
                         # Markdown 直接存数据库，不存 S3
                         if preview_md:
@@ -532,7 +524,6 @@ class ContentNodeService:
                         created_by=created_by,
                         preview_json=preview_json,
                         preview_md=preview_md,
-                        preview_type=preview_type,
                         mime_type=mime_type,
                         size_bytes=size_bytes,
                     )
@@ -620,11 +611,11 @@ class ContentNodeService:
         完成 pending 节点的处理（ETL/OCR 完成后调用）
         
         type 保持 "file" 不变（它的本质就是一个文件）
-        只更新 preview_type 和 preview_md，让 Agent 能看到 OCR 结果
+        填充 preview_md，让 Agent 能看到 OCR 结果
         
-        语义分离:
-        - type = 节点的本质（file/markdown/json/folder/sync）
-        - preview_type = Agent 看到的内容格式（markdown/json/NULL）
+        语义:
+        - type = 节点类型（file/markdown/json/folder/github_repo 等）
+        - preview_md/preview_json = 预览内容（可同时存在多个）
         """
         node = self.get_by_id(node_id, project_id)
         
@@ -643,7 +634,6 @@ class ContentNodeService:
             # node_type 不传 → type 保持 "file"
             name=new_name,
             preview_md=content,
-            preview_type="markdown",
             size_bytes=len(content_bytes),
             # mime_type 保持原始文件的 MIME（如 image/png），不改成 text/markdown
         )
@@ -678,6 +668,21 @@ class ContentNodeService:
         
         return updated
 
+    def update_sync_content(self, node_id: str, content: Any) -> ContentNode:
+        """
+        更新同步节点的 preview_json 数据（用于定时重跑 SQL 等场景）。
+        
+        同时更新 last_synced_at 时间戳。
+        """
+        updated = self.repo.update_sync_info(
+            node_id=node_id,
+            preview_json=content,
+            last_synced_at=datetime.utcnow(),
+        )
+        if not updated:
+            raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)
+        return updated
+
     async def update_markdown_content(
         self,
         node_id: str,
@@ -702,8 +707,7 @@ class ContentNodeService:
         # 直接更新数据库，不存 S3
         updated = self.repo.update(
             node_id=node_id,
-        preview_md=content,
-            preview_type="markdown",
+            preview_md=content,
             size_bytes=len(content_bytes),
         )
         logger.info(f"[ContentNode] Markdown saved to DB: {node_id}")

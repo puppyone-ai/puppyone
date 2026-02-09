@@ -133,17 +133,19 @@ async def submit_file_ingest(
     
     存储规则:
       ┌──────────┬────────────┬─────────────┬────────────┬────────────┬─────────┐
-      │  mode    │ file_type  │    type     │preview_type│preview_json│  s3_key │
+      │  mode    │ file_type  │    type     │preview_json│ preview_md │  s3_key │
       ├──────────┼────────────┼─────────────┼────────────┼────────────┼─────────┤
-      │ raw      │ json       │ json        │ json       │ ✓          │ -       │
-      │ raw      │ text       │ markdown    │ markdown   │ -          │ -       │
-      │ raw      │ ocr_needed │ file        │ NULL       │ -          │ ✓       │
-      │ raw      │ binary     │ file        │ NULL       │ -          │ ✓       │
-      │ ocr_parse│ json       │ json        │ json       │ ✓          │ -       │
-      │ ocr_parse│ text       │ markdown    │ markdown   │ -          │ -       │
-      │ ocr_parse│ ocr_needed │ file→md     │ NULL→md    │ -          │ ✓       │
-      │ ocr_parse│ binary     │ file        │ NULL       │ -          │ ✓       │
+      │ raw      │ json       │ json        │ ✓          │ -          │ -       │
+      │ raw      │ text       │ markdown    │ -          │ ✓          │ -       │
+      │ raw      │ ocr_needed │ file        │ -          │ -          │ ✓       │
+      │ raw      │ binary     │ file        │ -          │ -          │ ✓       │
+      │ ocr_parse│ json       │ json        │ ✓          │ -          │ -       │
+      │ ocr_parse│ text       │ markdown    │ -          │ ✓          │ -       │
+      │ ocr_parse│ ocr_needed │ file        │ -          │ ✓ (OCR后)  │ ✓       │
+      │ ocr_parse│ binary     │ file        │ -          │ -          │ ✓       │
       └──────────┴────────────┴─────────────┴────────────┴────────────┴─────────┘
+      
+      type 直接决定前端渲染方式（folder/json/markdown/file/github_repo/...）
     """
     # Access checks
     if not project_service.verify_project_access(project_id, current_user.user_id):

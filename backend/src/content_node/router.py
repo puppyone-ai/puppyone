@@ -47,8 +47,6 @@ def _node_to_info(node) -> NodeInfo:
         parent_id=node.parent_id,
         # 类型字段
         type=node.type,
-        source=node.source,
-        preview_type=node.preview_type,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
         # 同步相关字段
@@ -73,8 +71,6 @@ def _node_to_detail(node) -> NodeDetail:
         parent_id=node.parent_id,
         # 类型字段
         type=node.type,
-        source=node.source,
-        preview_type=node.preview_type,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
         preview_json=node.preview_json,

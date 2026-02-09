@@ -100,70 +100,90 @@ const GridBase = ({ children }: { children?: React.ReactNode }) => (
 );
 
 // 6. Unified Branded Icon - 统一图标组件
-// 设计理念：Corner Badge (长方形纸张版)
+// 设计理念：Corner Badge (简洁圆角矩形托盘版)
 // - 主体：App Logo 绝对居中 (带尺寸限制)
-// - 角标：28x36 长方形纸张，比例更像文档
+// - 角标：简洁圆角矩形托盘，无折角干扰
 const UnifiedBrandedIcon = ({ 
   BadgeIcon,
   type,
   badgeSize = 32,
   showWarning = false,
-  previewType = 'json',
 }: { 
   BadgeIcon?: React.ElementType;
   type: string;
   badgeSize?: number;
   showWarning?: boolean;
-  previewType?: string | null;
 }) => {
+  // 从 type 获取 config，决定显示 JSON 还是 Markdown badge
+  const typeConfig = getNodeTypeConfig(type);
 
-  // 长方形纸张底座 (25x35) - 比例 5:7，与原图一致
-  // 背景色更浅，与深色 App 卡片形成对比
-  const RectDocBase = ({ children }: { children: React.ReactNode }) => (
-    <svg width="25" height="35" viewBox="0 0 25 35" fill="none" style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' }}>
-      {/* 纸张轮廓 - 中等亮度背景 */}
+  // JSON Badge - 带折角的小纸张 + 绿色表格 (与 json-doc.svg 风格一致)
+  // 尺寸调整：从 25x28 放大到 30x34
+  const JsonBadge = () => (
+    <svg width="30" height="34" viewBox="0 0 25 28" fill="none" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>
+      {/* 纸张主体 - 带折角 */}
       <path 
-        d="M2 1C0.89543 1 0 1.89543 0 3V32C0 33.1046 0.89543 34 2 34H23C24.1046 34 25 33.1046 25 32V8L18 1H2Z" 
+        d="M2 3C2 1.89543 2.89543 1 4 1H16L23 8V25C23 26.1046 22.1046 27 21 27H4C2.89543 27 2 26.1046 2 25V3Z" 
         fill="#3f3f46" 
-        stroke="#71717a" 
+        stroke="#52525b" 
         strokeWidth="1.5"
       />
-      {/* 折角线条 */}
+      {/* 折角 */}
       <path 
-        d="M18 1V8H25" 
-        stroke="#a1a1aa" 
+        d="M16 1V8H23" 
+        stroke="#71717a" 
         strokeWidth="1.5" 
-        strokeLinejoin="round" 
+        strokeLinejoin="round"
       />
-      {children}
+      {/* 绿色表格 - 居中偏下 */}
+      <g transform="translate(5.5, 12)">
+        <path d="M3 1V9" stroke="#4ABB91" strokeWidth="1.2"/>
+        <path d="M12 6.5H1" stroke="#4ABB91" strokeWidth="1.2"/>
+        <path d="M12 3.5H1" stroke="#4ABB91" strokeWidth="1.2"/>
+        <rect x="0.5" y="0.5" width="12" height="9" stroke="#4ABB91" strokeWidth="1.2"/>
+      </g>
     </svg>
   );
 
-  // JSON Badge (绿色网格 - 居中偏下)
-  // 纸张宽25, 内容宽14 -> x=(25-14)/2=5.5
-  // 纸张高35, 内容高11 -> y=35-11-6=18 (底部留 6px)
-  const JsonBadge = () => (
-    <RectDocBase>
-      <svg x="5.5" y="16" width="14" height="11" viewBox="0 0 24 20" fill="none">
-         <path d="M7 2L7 18" stroke="#34d399" strokeWidth="2.5"/>
-         <path d="M22 13L2 13" stroke="#34d399" strokeWidth="2.5"/>
-         <path d="M22 7L2 7" stroke="#34d399" strokeWidth="2.5"/>
-         <rect x="1" y="1" width="22" height="18" stroke="#34d399" strokeWidth="2.5"/>
-      </svg>
-    </RectDocBase>
+  // Markdown Badge - 带折角的小纸张 + 灰色横线 (与 markdown-doc.svg 风格一致)
+  // 尺寸调整：从 25x28 放大到 30x34
+  const MarkdownBadge = () => (
+    <svg width="30" height="34" viewBox="0 0 25 28" fill="none" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>
+      {/* 纸张主体 - 带折角 */}
+      <path 
+        d="M2 3C2 1.89543 2.89543 1 4 1H16L23 8V25C23 26.1046 22.1046 27 21 27H4C2.89543 27 2 26.1046 2 25V3Z" 
+        fill="#3f3f46" 
+        stroke="#52525b" 
+        strokeWidth="1.5"
+      />
+      {/* 折角 */}
+      <path 
+        d="M16 1V8H23" 
+        stroke="#71717a" 
+        strokeWidth="1.5" 
+        strokeLinejoin="round"
+      />
+      {/* 灰色横线 - 居中偏下 */}
+      <g transform="translate(5.5, 12)">
+        <rect width="13" height="1.5" fill="#a1a1aa"/>
+        <rect y="6" width="10" height="1.5" fill="#a1a1aa"/>
+        <rect y="3" width="7" height="1.5" fill="#a1a1aa"/>
+      </g>
+    </svg>
   );
 
-  // Markdown Badge (灰色横条 - 居中偏下)
-  // 纸张宽25, 内容宽14 -> x=5.5
-  // y=18 (底部留 6px)
-  const MarkdownBadge = () => (
-    <RectDocBase>
-      <svg x="5.5" y="18" width="14" height="9" viewBox="0 0 24 15" fill="none">
-         <rect width="24" height="3" fill="#d4d4d8"/>
-         <rect y="12" width="19" height="3" fill="#d4d4d8"/>
-         <rect y="6" width="13" height="3" fill="#d4d4d8"/>
-      </svg>
-    </RectDocBase>
+  // Folder Badge - 使用主文件夹图标的缩略版
+  const FolderBadge = () => (
+    <img 
+      src="/icons/folder.svg" 
+      alt="Folder" 
+      width={28} 
+      height={28} 
+      style={{ 
+        display: 'block',
+        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))'
+      }} 
+    />
   );
 
   return (
@@ -202,14 +222,15 @@ const UnifiedBrandedIcon = ({
           )}
         </div>
 
-        {/* 右下角悬浮徽章 - 长方形纸张 */}
+        {/* 右下角悬浮徽章 - 圆角托盘 */}
         <div style={{
           position: 'absolute',
-          bottom: -10,
+          bottom: -8,
           right: -8, 
           zIndex: 10,
         }}>
-          {previewType === 'markdown' ? <MarkdownBadge /> : <JsonBadge />}
+          {typeConfig.renderAs === 'folder' ? <FolderBadge /> : 
+           typeConfig.renderAs === 'markdown' ? <MarkdownBadge /> : <JsonBadge />}
         </div>
       </div>
 
@@ -251,7 +272,7 @@ export interface AgentResource {
 export interface GridViewItem {
   id: string;
   name: string;
-  type: ContentType;
+  type: ContentType;  // type 直接决定渲染方式
   description?: string;
   rowCount?: number;
   sync_url?: string | null;
@@ -259,8 +280,7 @@ export interface GridViewItem {
   onClick: (e: React.MouseEvent) => void;
   // 同步相关字段
   is_synced?: boolean;
-  sync_source?: string | null;  // 来源（github, notion, gmail 等）
-  source?: string | null;        // 数据库 source 字段
+  sync_source?: string | null;  // 从 type 提取，如 github_repo → github
   sync_status?: 'not_connected' | 'idle' | 'syncing' | 'error';
   last_synced_at?: string | null;
 }
@@ -300,12 +320,12 @@ function GridItem({
   const hasAgentAccess = !!agentResource;
   const accessMode = agentResource?.terminalReadonly ? 'read' : 'write';
 
-  // Get type config for synced items
-  const typeConfig = getNodeTypeConfig(item.type, item.preview_type);
-  // 判断是否为同步类型：新架构使用 type === 'sync' 或 is_synced 字段
-  const isSynced = item.is_synced || item.type === 'sync' || isSyncedType(item.type);
-  // 从 source 或 sync_source 获取来源，用于显示 Logo
-  const syncSource = item.source || item.sync_source || getSyncSource(item.type);
+  // Get type config - type directly determines rendering method
+  const typeConfig = getNodeTypeConfig(item.type);
+  // 判断是否为同步类型
+  const isSynced = item.is_synced || isSyncedType(item.type);
+  // 从 sync_source 或 type 获取来源，用于显示 Logo
+  const syncSource = item.sync_source || getSyncSource(item.type);
   // 根据 source 获取对应的 Logo 图标
   const BadgeIcon = getSyncSourceIcon(syncSource) || typeConfig.badgeIcon;
   const isPlaceholder = item.sync_status === 'not_connected';
@@ -329,8 +349,6 @@ function GridItem({
 
   // Get icon and color based on type
   const getTypeIcon = () => {
-    const config = getNodeTypeConfig(item.type, item.preview_type);
-    
     // 对于所有同步类型 (GitHub Repo, Notion Page/Database, Airtable, etc.)
     // 使用统一的 "背景来源 + 前景内容" 图标体系
     if (isSynced) {
@@ -340,13 +358,12 @@ function GridItem({
           type={item.type}
           badgeSize={32}
           showWarning={isPlaceholder}
-          previewType={item.preview_type}
         />
       );
     }
     
     // 普通类型（非同步）使用拟物化图标
-    switch (config.renderAs) {
+    switch (typeConfig.renderAs) {
       case 'folder': return <FolderIconLarge />;
       case 'markdown': return <MarkdownIconLarge />;
       case 'file':
