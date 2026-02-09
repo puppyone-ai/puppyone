@@ -662,7 +662,6 @@ class ContentNodeService:
                 node_id=node_id,
                 name=name,
                 preview_md=preview_md,
-                preview_type="markdown",
                 size_bytes=len(content_bytes),
                 clear_preview_json=True,
             )
