@@ -36,6 +36,9 @@ class FileHandler(BaseHandler):
         # 3. Apply ETL rule (LLM) → JSON
         # 4. Create content node
         
-        raise NotImplementedError("File handler not yet implemented")
+        raise ValueError(
+            "ImportTaskType.FILE is not supported in SaaS import handler. "
+            "Use /api/v1/ingest/submit/file for file ingestion."
+        )
 
 

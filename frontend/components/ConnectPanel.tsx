@@ -53,7 +53,7 @@ export function ConnectPanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
   const mcpEndpoint = `mcp://${apiBaseUrl.replace(/^https?:\/\//, '')}/mcp`;
   const restEndpoint = tableId
     ? `${apiBaseUrl}/api/v1/projects/${projectId}/tables/${tableId}`

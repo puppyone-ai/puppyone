@@ -6,6 +6,13 @@ internal /internal/mcp-v2/{api_key} 契约测试（轻量）
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "Legacy internal /internal/mcp-v2 contract removed from backend",
+    allow_module_level=True,
+)
+
 from datetime import datetime, UTC
 from fastapi import FastAPI
 from fastapi.testclient import TestClient

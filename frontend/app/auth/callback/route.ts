@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const next = searchParams.get('next') ?? '/home';
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
   if (code) {
     const cookieStore = await cookies();

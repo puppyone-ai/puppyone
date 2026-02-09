@@ -5,7 +5,7 @@ import { createBrowserClient } from '@supabase/ssr';
  * 自动附加 Authorization header
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
 // 创建一个独立的 Supabase 客户端用于获取 Token
 // 它会自动读取 Cookie，无需等待 AuthProvider

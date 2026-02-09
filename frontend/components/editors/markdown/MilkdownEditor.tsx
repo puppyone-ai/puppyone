@@ -87,12 +87,14 @@ const darkThemeStyles = `
     padding-left: 24px;
   }
 
-  .milkdown-editor li {
+  .milkdown-editor .ProseMirror li {
     margin: 4px 0;
+    color: #d4d4d4;
   }
 
-  .milkdown-editor li::marker {
-    color: #737373;
+  .milkdown-editor .ProseMirror ul > li::marker,
+  .milkdown-editor .ProseMirror ol > li::marker {
+    color: #9ca3af !important;
   }
 
   /* Blockquote */
@@ -422,4 +424,3 @@ export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>
 );
 
 export default MilkdownEditor;
-

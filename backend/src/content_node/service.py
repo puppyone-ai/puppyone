@@ -651,15 +651,26 @@ class ContentNodeService:
         project_id: str,
         name: Optional[str] = None,
         preview_json: Optional[Any] = None,
+        preview_md: Optional[str] = None,
     ) -> ContentNode:
         """更新节点（重命名只改 name，id_path 不变）"""
-        node = self.get_by_id(node_id, project_id)
-        
-        updated = self.repo.update(
-            node_id=node_id,
-            name=name,
-            preview_json=preview_json,
-        )
+        self.get_by_id(node_id, project_id)
+
+        if preview_md is not None:
+            content_bytes = preview_md.encode("utf-8")
+            updated = self.repo.update(
+                node_id=node_id,
+                name=name,
+                preview_md=preview_md,
+                size_bytes=len(content_bytes),
+                clear_preview_json=True,
+            )
+        else:
+            updated = self.repo.update(
+                node_id=node_id,
+                name=name,
+                preview_json=preview_json,
+            )
         
         return updated
 

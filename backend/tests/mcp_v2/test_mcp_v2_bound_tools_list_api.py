@@ -83,14 +83,14 @@ def test_list_bound_tools_by_api_key_success(client):
 
     svc.list_bound_tools_by_mcp_id.return_value = [
         BoundToolOut(
-            tool_id=100,
+            tool_id="100",
             binding_id=10,
             binding_status=True,
             created_at=datetime.now(UTC),
             user_id="u_test",
             name="t1",
             type="query_data",
-            table_id=1,
+            node_id="node_1",
             json_path="",
             description="desc",
             input_schema={"type": "object"},

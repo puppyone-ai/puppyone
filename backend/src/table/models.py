@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Project(BaseModel):
@@ -14,8 +14,7 @@ class Project(BaseModel):
     description: Optional[str] = Field(None, description="项目描述")
     created_at: datetime = Field(..., description="创建时间")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Table(BaseModel):
@@ -42,5 +41,4 @@ class Table(BaseModel):
     )
     created_at: datetime = Field(..., description="创建时间")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

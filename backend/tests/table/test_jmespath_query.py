@@ -32,9 +32,9 @@ def table_service(mock_repository):
 def sample_table_with_data():
     """示例表格，包含复杂的嵌套数据"""
     return Table(
-        id=1,
+        id="1",
         name="测试表格",
-        project_id=1,
+        project_id="1",
         description="测试用表格",
         data={
             "users": [
@@ -64,7 +64,7 @@ def test_query_simple_field(table_service, mock_repository, sample_table_with_da
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="metadata.version"
     )
@@ -77,7 +77,7 @@ def test_query_array_length(table_service, mock_repository, sample_table_with_da
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="length(users)"
     )
@@ -90,7 +90,7 @@ def test_query_array_filter(table_service, mock_repository, sample_table_with_da
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="users[?age > `28`]"
     )
@@ -105,7 +105,7 @@ def test_query_array_projection(table_service, mock_repository, sample_table_wit
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="users[*].name"
     )
@@ -118,7 +118,7 @@ def test_query_with_multiple_filters(table_service, mock_repository, sample_tabl
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="users[?age > `25` && city == 'Beijing']"
     )
@@ -132,7 +132,7 @@ def test_query_sort_by(table_service, mock_repository, sample_table_with_data):
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="sort_by(users, &age)[*].name"
     )
@@ -145,7 +145,7 @@ def test_query_with_pipe(table_service, mock_repository, sample_table_with_data)
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="users[?age > `25`] | [*].name"
     )
@@ -158,14 +158,14 @@ def test_query_max_min_functions(table_service, mock_repository, sample_table_wi
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     max_age = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="max_by(users, &age).name"
     )
     assert max_age == "Charlie"
     
     min_age = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="min_by(users, &age).name"
     )
@@ -177,7 +177,7 @@ def test_query_sum_function(table_service, mock_repository, sample_table_with_da
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="sum(products[*].stock)"
     )
@@ -193,7 +193,7 @@ def test_query_at_nested_path(table_service, mock_repository, sample_table_with_
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="/users",
         query="[?city == 'Beijing']"
     )
@@ -206,7 +206,7 @@ def test_query_products_at_nested_path(table_service, mock_repository, sample_ta
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="/products",
         query="[?price < `500`] | [*].name"
     )
@@ -222,7 +222,7 @@ def test_query_returns_none(table_service, mock_repository, sample_table_with_da
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="users[?age > `100`]"
     )
@@ -235,7 +235,7 @@ def test_query_nonexistent_field(table_service, mock_repository, sample_table_wi
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="nonexistent_field"
     )
@@ -252,7 +252,7 @@ def test_query_table_not_found(table_service, mock_repository):
     
     with pytest.raises(NotFoundException) as exc_info:
         table_service.query_context_data_with_jmespath(
-            table_id=999,
+            table_id="999",
             json_pointer_path="",
             query="users"
         )
@@ -266,7 +266,7 @@ def test_query_invalid_json_pointer_path(table_service, mock_repository, sample_
     
     with pytest.raises(NotFoundException):
         table_service.query_context_data_with_jmespath(
-            table_id=1,
+            table_id="1",
             json_pointer_path="/nonexistent",
             query="users"
         )
@@ -278,7 +278,7 @@ def test_query_invalid_jmespath_syntax(table_service, mock_repository, sample_ta
     
     with pytest.raises(BusinessException) as exc_info:
         table_service.query_context_data_with_jmespath(
-            table_id=1,
+            table_id="1",
             json_pointer_path="",
             query="users[?age >"  # 语法错误
         )
@@ -295,7 +295,7 @@ def test_complex_query_multiline(table_service, mock_repository, sample_table_wi
     
     # 过滤产品，然后计算总价值
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="products[?stock > `20`].{name: name, total_value: price}"
     )
@@ -310,7 +310,7 @@ def test_query_with_object_projection(table_service, mock_repository, sample_tab
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="users[*].{username: name, user_age: age}"
     )
@@ -323,9 +323,9 @@ def test_query_with_object_projection(table_service, mock_repository, sample_tab
 def test_query_nested_objects(table_service, mock_repository):
     """测试查询嵌套对象"""
     nested_table = Table(
-        id=1,
+        id="1",
         name="嵌套数据",
-        project_id=1,
+        project_id="1",
         description="测试嵌套对象",
         data={
             "company": {
@@ -350,7 +350,7 @@ def test_query_nested_objects(table_service, mock_repository):
     mock_repository.get_by_id.return_value = nested_table
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="company.departments.engineering.employees[?role == 'Engineer'].name"
     )
@@ -363,7 +363,7 @@ def test_query_with_contains(table_service, mock_repository, sample_table_with_d
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="users[?contains(name, 'li')].name"
     )
@@ -376,7 +376,7 @@ def test_query_with_starts_with(table_service, mock_repository, sample_table_wit
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="products[?starts_with(name, 'K')].name"
     )
@@ -390,9 +390,9 @@ def test_query_with_starts_with(table_service, mock_repository, sample_table_wit
 def test_query_empty_array(table_service, mock_repository):
     """测试查询空数组"""
     empty_table = Table(
-        id=1,
+        id="1",
         name="空表格",
-        project_id=1,
+        project_id="1",
         description="空数据",
         data={"users": []},
         created_at=datetime.now(UTC)
@@ -401,7 +401,7 @@ def test_query_empty_array(table_service, mock_repository):
     mock_repository.get_by_id.return_value = empty_table
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="users[*].name"
     )
@@ -412,9 +412,9 @@ def test_query_empty_array(table_service, mock_repository):
 def test_query_null_values(table_service, mock_repository):
     """测试查询包含null值的数据"""
     null_table = Table(
-        id=1,
+        id="1",
         name="包含null",
-        project_id=1,
+        project_id="1",
         description="测试null",
         data={
             "users": [
@@ -429,7 +429,7 @@ def test_query_null_values(table_service, mock_repository):
     mock_repository.get_by_id.return_value = null_table
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",
         query="users[?age != null].name"
     )
@@ -443,7 +443,7 @@ def test_query_root_path_empty_string(table_service, mock_repository, sample_tab
     mock_repository.get_by_id.return_value = sample_table_with_data
     
     result = table_service.query_context_data_with_jmespath(
-        table_id=1,
+        table_id="1",
         json_pointer_path="",  # 根路径
         query="metadata"
     )

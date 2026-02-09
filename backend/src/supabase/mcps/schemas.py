@@ -6,7 +6,7 @@ MCP 数据模型
 
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class McpBase(BaseModel):
@@ -55,5 +55,4 @@ class McpResponse(McpBase):
     id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

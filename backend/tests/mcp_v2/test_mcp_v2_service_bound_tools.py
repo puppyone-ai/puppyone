@@ -14,10 +14,10 @@ from src.tool.models import Tool
 
 
 class _FakeToolRepo:
-    def __init__(self, tools: dict[int, Tool]):
+    def __init__(self, tools: dict[str, Tool]):
         self._tools = tools
 
-    def get_by_id(self, tool_id: int):
+    def get_by_id(self, tool_id: str):
         return self._tools.get(tool_id)
 
 
@@ -29,7 +29,7 @@ class _FakeRepo:
         return self._bindings
 
 
-def _binding(*, binding_id: int, tool_id: int, status: bool):
+def _binding(*, binding_id: int, tool_id: str, status: bool):
     B = type("B", (), {})
     b = B()
     b.id = binding_id
@@ -42,26 +42,26 @@ def test_list_bound_tools_by_mcp_id_filters_disabled_by_default():
     svc = McpV2Service.__new__(McpV2Service)
     svc._repo = _FakeRepo(  # type: ignore[attr-defined]
         bindings=[
-            _binding(binding_id=10, tool_id=100, status=True),
-            _binding(binding_id=11, tool_id=101, status=False),
+            _binding(binding_id=10, tool_id="100", status=True),
+            _binding(binding_id=11, tool_id="101", status=False),
         ]
     )
     svc._tool_repo = _FakeToolRepo(  # type: ignore[attr-defined]
         tools={
-            100: Tool(
-                id=100,
+            "100": Tool(
+                id="100",
                 created_at=datetime.now(UTC),
                 user_id="u",
-                table_id=1,
+                node_id="node-1",
                 json_path="",
                 type="query_data",
                 name="t1",
             ),
-            101: Tool(
-                id=101,
+            "101": Tool(
+                id="101",
                 created_at=datetime.now(UTC),
                 user_id="u",
-                table_id=1,
+                node_id="node-1",
                 json_path="",
                 type="query_data",
                 name="t2",
@@ -71,7 +71,7 @@ def test_list_bound_tools_by_mcp_id_filters_disabled_by_default():
 
     out = svc.list_bound_tools_by_mcp_id(1)
     assert len(out) == 1
-    assert out[0].tool_id == 100
+    assert out[0].tool_id == "100"
     assert out[0].binding_status is True
 
 
@@ -79,26 +79,26 @@ def test_list_bound_tools_by_mcp_id_include_disabled_true():
     svc = McpV2Service.__new__(McpV2Service)
     svc._repo = _FakeRepo(  # type: ignore[attr-defined]
         bindings=[
-            _binding(binding_id=10, tool_id=100, status=True),
-            _binding(binding_id=11, tool_id=101, status=False),
+            _binding(binding_id=10, tool_id="100", status=True),
+            _binding(binding_id=11, tool_id="101", status=False),
         ]
     )
     svc._tool_repo = _FakeToolRepo(  # type: ignore[attr-defined]
         tools={
-            100: Tool(
-                id=100,
+            "100": Tool(
+                id="100",
                 created_at=datetime.now(UTC),
                 user_id="u",
-                table_id=1,
+                node_id="node-1",
                 json_path="",
                 type="query_data",
                 name="t1",
             ),
-            101: Tool(
-                id=101,
+            "101": Tool(
+                id="101",
                 created_at=datetime.now(UTC),
                 user_id="u",
-                table_id=1,
+                node_id="node-1",
                 json_path="",
                 type="query_data",
                 name="t2",
@@ -108,7 +108,5 @@ def test_list_bound_tools_by_mcp_id_include_disabled_true():
 
     out = svc.list_bound_tools_by_mcp_id(1, include_disabled=True)
     assert len(out) == 2
-    assert {t.tool_id for t in out} == {100, 101}
+    assert {t.tool_id for t in out} == {"100", "101"}
     assert {t.binding_id for t in out} == {10, 11}
-
-

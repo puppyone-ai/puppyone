@@ -33,6 +33,7 @@ class UpdateNodeRequest(BaseModel):
     """更新节点请求"""
     name: Optional[str] = Field(None, description="新名称")
     preview_json: Optional[Any] = Field(None, description="新内容（仅 JSON 类型）")
+    preview_md: Optional[str] = Field(None, description="新内容（仅 Markdown 类型）")
 
 
 class MoveNodeRequest(BaseModel):

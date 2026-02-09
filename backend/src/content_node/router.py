@@ -23,6 +23,9 @@ from src.content_node.schemas import (
 from src.common_schemas import ApiResponse
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
+from src.project.dependencies import get_project_service
+from src.project.service import ProjectService
+from src.exceptions import NotFoundException, ErrorCode
 
 router = APIRouter(
     prefix="/nodes",
@@ -90,6 +93,17 @@ def _node_to_detail(node) -> NodeDetail:
     )
 
 
+def _ensure_project_access(
+    project_service: ProjectService,
+    current_user: CurrentUser,
+    project_id: str,
+) -> None:
+    if not project_service.verify_project_access(project_id, current_user.user_id):
+        raise NotFoundException(
+            f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
+        )
+
+
 # === 查询 API ===
 
 @router.get(
@@ -102,9 +116,10 @@ def list_nodes(
     project_id: str = Query(..., description="项目 ID"),
     parent_id: Optional[str] = Query(None, description="父节点 ID，不传则列出项目根节点"),
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, project_id)
     nodes = service.list_children(project_id, parent_id)
     return ApiResponse.success(
         data=NodeListResponse(
@@ -123,9 +138,10 @@ def get_node(
     node_id: str,
     project_id: str = Query(..., description="项目 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, project_id)
     node = service.get_by_id(node_id, project_id)
     return ApiResponse.success(data=_node_to_detail(node))
 
@@ -139,8 +155,10 @@ def get_node_by_id_path(
     project_id: str = Query(..., description="项目 ID"),
     id_path: str = Query(..., description="节点 id_path，如 /uuid1/uuid2/uuid3"),
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    _ensure_project_access(project_service, current_user, project_id)
     node = service.get_by_id_path(project_id, id_path)
     return ApiResponse.success(data=_node_to_detail(node))
 
@@ -156,9 +174,10 @@ def get_node_by_id_path(
 def create_folder(
     request: CreateFolderRequest,
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, request.project_id)
     node = service.create_folder(
         project_id=request.project_id,
         name=request.name,
@@ -177,9 +196,10 @@ def create_folder(
 def create_json_node(
     request: CreateJsonNodeRequest,
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, request.project_id)
     node = service.create_json_node(
         project_id=request.project_id,
         name=request.name,
@@ -199,9 +219,10 @@ def create_json_node(
 async def create_markdown_node(
     request: CreateMarkdownNodeRequest,
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, request.project_id)
     node = await service.create_markdown_node(
         project_id=request.project_id,
         name=request.name,
@@ -222,6 +243,7 @@ async def create_markdown_node(
 async def bulk_create_nodes(
     request: BulkCreateRequest,
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
@@ -257,7 +279,7 @@ async def bulk_create_nodes(
         for n in request.nodes
     ]
     
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, request.project_id)
     results = await service.bulk_create_nodes(
         project_id=request.project_id,
         nodes=nodes_data,
@@ -287,9 +309,10 @@ async def prepare_upload(
     content_type: str = Query(..., description="文件 MIME 类型"),
     parent_id: Optional[str] = Query(None, description="父节点 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, project_id)
     node, upload_url = await service.prepare_file_upload(
         project_id=project_id,
         name=name,
@@ -319,14 +342,16 @@ def update_node(
     request: UpdateNodeRequest,
     project_id: str = Query(..., description="项目 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, project_id)
     node = service.update_node(
         node_id=node_id,
         project_id=project_id,
         name=request.name,
         preview_json=request.preview_json,
+        preview_md=request.preview_md,
     )
     return ApiResponse.success(data=_node_to_detail(node), message="节点更新成功")
 
@@ -341,9 +366,10 @@ def move_node(
     request: MoveNodeRequest,
     project_id: str = Query(..., description="项目 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, project_id)
     node = service.move_node(
         node_id=node_id,
         project_id=project_id,
@@ -364,9 +390,10 @@ async def delete_node(
     node_id: str,
     project_id: str = Query(..., description="项目 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, project_id)
     await service.delete_node(node_id, project_id)
     return ApiResponse.success(message="节点删除成功")
 
@@ -383,9 +410,10 @@ async def get_download_url(
     node_id: str,
     project_id: str = Query(..., description="项目 ID"),
     service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # TODO: 验证当前用户是否有权限访问该 project
+    _ensure_project_access(project_service, current_user, project_id)
     url = await service.get_download_url(node_id, project_id)
     return ApiResponse.success(
         data=DownloadUrlResponse(download_url=url, expires_in=3600)

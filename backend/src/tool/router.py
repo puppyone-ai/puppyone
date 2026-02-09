@@ -101,8 +101,6 @@ def list_tools_by_project_id(
 def create_tool(
     payload: ToolCreate,
     tool_service: ToolService = Depends(get_tool_service),
-    node_service: ContentNodeService = Depends(get_content_node_service),
-    search_service: SearchService = Depends(get_search_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     metadata = (
@@ -427,7 +425,6 @@ def create_search_tool_async(
     payload: ToolCreate,
     background_tasks: BackgroundTasks,
     tool_service: ToolService = Depends(get_tool_service),
-    node_service: ContentNodeService = Depends(get_content_node_service),
     search_service: SearchService = Depends(get_search_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -438,9 +435,8 @@ def create_search_tool_async(
     if not payload.node_id:
         return ApiResponse.error(code=400, message="node_id is required for search tool")
 
-    # 获取节点信息，判断是 folder search 还是 json search
-    # TODO: 添加 project 成员关系验证
-    node = node_service.get_by_id_unsafe(payload.node_id)
+    # 获取节点信息并做用户访问校验，判断是 folder search 还是 json search
+    node = tool_service.get_node_with_access_check(current_user.user_id, payload.node_id)
     project_id = node.project_id
     is_folder_search = node.type == "folder"
 

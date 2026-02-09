@@ -37,7 +37,6 @@ def get_auth_service() -> AuthService:
 
 def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    auth_service: AuthService = Depends(get_auth_service),
 ) -> CurrentUser:
     """
     从请求头中提取并验证 JWT token，返回当前用户信息
@@ -81,6 +80,7 @@ def get_current_user(
 
     try:
         # 验证 token 并获取用户信息
+        auth_service = get_auth_service()
         current_user = auth_service.get_current_user(token)
         return current_user
     except AuthException as e:
@@ -99,7 +99,6 @@ def get_current_user(
 
 def get_current_user_optional(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    auth_service: AuthService = Depends(get_auth_service),
 ) -> Optional[CurrentUser]:
     """
     可选的用户认证依赖，如果没有提供 token 则返回 None
@@ -135,6 +134,7 @@ def get_current_user_optional(
     token = credentials.credentials
 
     try:
+        auth_service = get_auth_service()
         current_user = auth_service.get_current_user(token)
         return current_user
     except Exception:

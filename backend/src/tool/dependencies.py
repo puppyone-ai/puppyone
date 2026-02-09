@@ -7,6 +7,7 @@ from src.tool.service import ToolService
 from src.content_node.repository import ContentNodeRepository
 from src.content_node.service import ContentNodeService
 from src.s3.dependencies import get_s3_service
+from src.project.dependencies import get_project_service
 
 
 _tool_service: ToolService | None = None
@@ -21,5 +22,10 @@ def get_tool_service() -> ToolService:
         node_repo = ContentNodeRepository(sb_client)
         s3_service = get_s3_service()
         node_service = ContentNodeService(node_repo, s3_service)
-        _tool_service = ToolService(repo=repo, node_service=node_service)
+        project_service = get_project_service()
+        _tool_service = ToolService(
+            repo=repo,
+            node_service=node_service,
+            project_service=project_service,
+        )
     return _tool_service

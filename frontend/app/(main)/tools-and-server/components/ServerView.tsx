@@ -94,7 +94,7 @@ export function ServerView({
   );
 
   const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
   const mcpUrl = `${API_BASE_URL}/api/v1/mcp/server/${server.api_key}`;
   const serverName = nameValue || server.name || 'unnamed-server';
 
