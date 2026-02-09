@@ -3,6 +3,8 @@ Internal API路由
 供内部服务（如MCP Server）调用，使用SECRET鉴权
 """
 
+import hmac
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from typing import Optional, Dict, Any, List
 from src.table.dependencies import get_table_service
@@ -30,7 +32,14 @@ async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
     Raises:
         HTTPException: 如果SECRET无效
     """
-    if x_internal_secret != settings.INTERNAL_API_SECRET:
+    configured_secret = (settings.INTERNAL_API_SECRET or "").strip()
+    if not configured_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="Internal API secret is not configured",
+        )
+
+    if not hmac.compare_digest(x_internal_secret, configured_secret):
         raise HTTPException(status_code=403, detail="Invalid internal secret")
 
 

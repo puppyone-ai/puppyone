@@ -20,7 +20,7 @@ import uuid
 from pathlib import Path
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
@@ -516,23 +516,43 @@ async def cancel_ingest_task(
 
 @router.get("/health")
 async def get_ingest_health(
+    response: Response,
     etl_service: ETLService = Depends(get_etl_service),
 ):
     """
-    Get ingest service health status.
+    Get ingest service readiness status.
     """
     from src.ingest.file.config import etl_config
-    
+
+    errors: list[str] = []
+    file_worker = {
+        "status": "ready",
+        "queue_size": 0,
+        "task_count": 0,
+        "worker_count": etl_config.etl_worker_count,
+    }
+
+    try:
+        file_worker["queue_size"] = etl_service.get_queue_size()
+        file_worker["task_count"] = etl_service.get_task_count()
+    except Exception as e:
+        file_worker["status"] = "unhealthy"
+        errors.append(f"file_worker_check_failed: {e}")
+
+    # 当前尚无统一的 SaaS worker 健康探针，先显式标记 unknown，避免误报 healthy。
+    saas_worker = {
+        "status": "unknown",
+    }
+
+    status = "ready" if file_worker["status"] == "ready" else "degraded"
+    if status != "ready":
+        response.status_code = 503
+
     return {
-        "status": "healthy",
-        "file_worker": {
-            "queue_size": etl_service.get_queue_size(),
-            "task_count": etl_service.get_task_count(),
-            "worker_count": etl_config.etl_worker_count,
-        },
-        "saas_worker": {
-            "status": "healthy",  # TODO: Add actual health check
-        }
+        "status": status,
+        "file_worker": file_worker,
+        "saas_worker": saas_worker,
+        "errors": errors,
     }
 
 
