@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="frontend/public/puppyonetitle.png" alt="PuppyOne"  />
+</p>
 
 # puppyone
 
@@ -17,36 +20,16 @@
   <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat&logo=discord&logoColor=white" alt="Discord" height="22" />
 </a>
 
-> **The File System for Agent Context.**
+
+The File System for Agent Context.
+
+Puppyone is the file-based context infrastructure for AI agents. Connect fragmented context, transform raw data into a unified file system, and enable Agents to access all context via Bash and MCP.
+
 
 <img src="assert/puppy-filesystem-demo.png" alt="PuppyOne Context Filesystem" width="100%" />
 
-**PuppyOne is the file-based context infrastructure for AI agents. Connect fragmented context, transform raw data into a unified file system, and enable Agents to access all context via Bash and MCP.**
 
----
-
-## The Magic
-
-Imagine your AI Agent could do this:
-
-```bash
-# List your Notion workspace as if it were a directory
-$ ls /mnt/context/notion/product-specs
-v1-launch-plan.md    user-research.csv    meeting-notes/
-
-# Read a GitHub issue directly as a file
-$ cat /mnt/context/github/issues/102.json
-{
-  "title": "Bug in login flow",
-  "status": "open",
-  "body": "..."
-}
-
-# Search across EVERYTHING with standard grep/find tools
-$ grep -r "API Key" /mnt/context/
-```
-
-## Supported Sources
+## Connect. Convert. File.
 
 **Connect Notion, GitHub, Airtable, Google Drive, and local files.** We turn your scattered SaaS silos into a unified file tree.
 
