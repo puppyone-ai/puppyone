@@ -14,6 +14,7 @@ from src.supabase.tools.schemas import (
 )
 from src.supabase.dependencies import get_supabase_repository
 from src.mcp.cache_invalidator import invalidate_mcp_cache
+from src.project.service import ProjectService
 
 
 @lru_cache(maxsize=64)
@@ -33,10 +34,30 @@ def _get_default_tool_description(tool_type: str) -> Optional[str]:
 
 
 class ToolService:
-    def __init__(self, repo: ToolRepositoryBase, node_service: ContentNodeService):
+    def __init__(
+        self,
+        repo: ToolRepositoryBase,
+        node_service: ContentNodeService,
+        project_service: ProjectService,
+        supabase_repository: Optional[Any] = None,
+    ):
         self.repo = repo
         self.node_service = node_service
-        self._sb = get_supabase_repository()
+        self.project_service = project_service
+        self._sb = supabase_repository
+
+    def _get_supabase_repository(self):
+        if self._sb is None:
+            self._sb = get_supabase_repository()
+        return self._sb
+
+    def get_node_with_access_check(self, user_id: str, node_id: str):
+        node = self.node_service.get_by_id_unsafe(node_id)
+        if not self.project_service.verify_project_access(node.project_id, user_id):
+            raise NotFoundException(
+                f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND
+            )
+        return node
 
     def _invalidate_bound_agents_mcp(self, tool_id: str) -> None:
         """
@@ -51,7 +72,7 @@ class ToolService:
         
         try:
             # 查询 agent_tool 表中绑定了该 tool 的记录
-            response = self._sb._client.table("agent_tool").select("agent_id").eq("tool_id", tool_id).execute()
+            response = self._get_supabase_repository()._client.table("agent_tool").select("agent_id").eq("tool_id", tool_id).execute()
             if not response.data:
                 return
             
@@ -86,7 +107,7 @@ class ToolService:
         
         try:
             # 查询 agent_tool 表中绑定了该 tool 的 Agent
-            response = self._sb._client.table("agent_tool").select("agent_id").eq("tool_id", tool_id).execute()
+            response = self._get_supabase_repository()._client.table("agent_tool").select("agent_id").eq("tool_id", tool_id).execute()
             if not response.data:
                 return
             
@@ -131,9 +152,7 @@ class ToolService:
         skip: int = 0,
         limit: int = 1000,
     ) -> List[Tool]:
-        # 校验节点存在
-        # TODO: 添加 project 成员关系验证
-        self.node_service.get_by_id_unsafe(node_id)
+        self.get_node_with_access_check(user_id, node_id)
         return self.repo.get_by_user_id(
             user_id, skip=skip, limit=limit, node_id=node_id
         )
@@ -167,11 +186,13 @@ class ToolService:
         script_content: Optional[str] = None,
         project_id: Optional[str] = None,  # 新增：允许直接传入 project_id
     ) -> Tool:
-        # 对于内置工具，校验节点存在
-        # 同时自动获取 project_id（如果未传入）
-        # TODO: 添加 project 成员关系验证
-        if node_id and category == "builtin":
-            node = self.node_service.get_by_id_unsafe(node_id)
+        if node_id:
+            node = self.get_node_with_access_check(user_id, node_id)
+            if project_id and project_id != node.project_id:
+                raise BusinessException(
+                    "node_id does not belong to project_id",
+                    code=ErrorCode.VALIDATION_ERROR,
+                )
             if not project_id:
                 project_id = node.project_id
 
@@ -209,8 +230,12 @@ class ToolService:
 
         node_id = patch.get("node_id")
         if node_id is not None:
-            # TODO: 添加 project 成员关系验证
-            self.node_service.get_by_id_unsafe(node_id)
+            node = self.get_node_with_access_check(user_id, node_id)
+            if existing.project_id and node.project_id != existing.project_id:
+                raise BusinessException(
+                    "cannot move tool across projects via node_id update",
+                    code=ErrorCode.VALIDATION_ERROR,
+                )
 
         updated = self.repo.update(
             tool_id,
