@@ -24,6 +24,16 @@ class ProfileRepositoryBase(ABC):
         pass
 
     @abstractmethod
+    def create(self, user_id: str, email: str) -> Optional[Profile]:
+        """创建新的 Profile 记录"""
+        pass
+
+    @abstractmethod
+    def get_or_create(self, user_id: str, email: str) -> Optional[Profile]:
+        """获取 Profile，如果不存在则自动创建"""
+        pass
+
+    @abstractmethod
     def update(self, user_id: str, data: ProfileUpdate) -> Optional[Profile]:
         """更新 Profile"""
         pass
@@ -51,6 +61,54 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
             self._client = SupabaseClient().get_client()
         else:
             self._client = client
+
+    def create(self, user_id: str, email: str) -> Optional[Profile]:
+        """
+        创建新的 Profile 记录
+        
+        如果 Profile 已存在，返回现有记录（upsert 行为）
+        """
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            insert_data = {
+                "user_id": user_id,
+                "email": email,
+                "role": "user",
+                "plan": "free",
+                "has_onboarded": False,
+                "created_at": now,
+                "updated_at": now,
+            }
+
+            # 使用 upsert 避免重复插入错误
+            response = (
+                self._client.table(self.TABLE_NAME)
+                .upsert(insert_data, on_conflict="user_id")
+                .execute()
+            )
+
+            if response.data and len(response.data) > 0:
+                log_info(f"Profile created/retrieved for user {user_id}")
+                return self._row_to_model(response.data[0])
+            return None
+
+        except Exception as e:
+            log_error(f"Failed to create profile for user {user_id}: {e}")
+            return None
+
+    def get_or_create(self, user_id: str, email: str) -> Optional[Profile]:
+        """
+        获取 Profile，如果不存在则自动创建
+        
+        这是首选的获取方法，确保 Profile 始终存在
+        """
+        profile = self.get_by_user_id(user_id)
+        if profile is not None:
+            return profile
+        
+        # Profile 不存在，创建新的
+        log_info(f"Profile not found for user {user_id}, creating new one")
+        return self.create(user_id, email)
 
     def _row_to_model(self, row: dict) -> Profile:
         """将数据库行转换为 Profile 模型"""
