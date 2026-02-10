@@ -36,19 +36,37 @@ function DashboardPageContent() {
     onboardingCheckedRef.current = true;
 
     const checkOnboarding = async () => {
+      let enteredOnboarding = false;
+      
       try {
         const status = await checkOnboardingStatus();
+        
         if (!status.has_onboarded) {
           // 未完成 onboarding，进入 onboarding 流程
+          enteredOnboarding = true;
           setIsOnboarding(true);
-          const result = await completeOnboarding();
-          if (result.redirect_to) {
-            setRedirectUrl(result.redirect_to);
+          
+          try {
+            const result = await completeOnboarding();
+            setRedirectUrl(result.redirect_to || '/home');
+            setOnboardingReady(true);
+          } catch (completeError) {
+            // completeOnboarding 失败时，也允许进入工作区
+            console.error('Complete onboarding failed:', completeError);
+            setRedirectUrl('/home');
             setOnboardingReady(true);
           }
         }
       } catch (e) {
         console.error('Onboarding check failed:', e);
+        
+        // API 调用失败时的 fallback：
+        // 如果已经进入了 onboarding 流程（显示了 cooking 界面），让用户能够进入工作区
+        if (enteredOnboarding) {
+          setRedirectUrl('/home');
+          setOnboardingReady(true);
+        }
+        // 如果还没进入 onboarding 流程，用户会看到正常的 dashboard（可能是已注册用户）
       }
     };
 
