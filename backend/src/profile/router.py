@@ -76,9 +76,12 @@ def check_onboarding_status(
     前端登录成功后应该调用此接口，根据返回结果决定跳转目标：
     - 如果 is_new_user=true，跳转到 redirect_to 并显示欢迎弹窗
     - 如果 is_new_user=false，跳转到 redirect_to
+    
+    注意：如果 Profile 不存在，会自动创建（确保新用户能正常使用）
     """
     has_onboarded, demo_project_id, redirect_to = profile_service.check_onboarding_status(
-        current_user.user_id
+        user_id=current_user.user_id,
+        email=current_user.email,  # 传递 email 以便自动创建 Profile
     )
 
     return ApiResponse.success(
@@ -108,12 +111,14 @@ async def complete_onboarding(
     完成 Onboarding
 
     此接口会：
-    1. 如果用户未 onboarded，创建 Demo Project（如果没有提供 demo_project_id）
-    2. 标记用户为已 onboarded
-    3. 返回重定向路径（带 ?welcome=true 用于显示欢迎弹窗）
+    1. 如果 Profile 不存在，自动创建
+    2. 如果用户未 onboarded，创建 Demo Project（如果没有提供 demo_project_id）
+    3. 标记用户为已 onboarded
+    4. 返回重定向路径（带 ?welcome=true 用于显示欢迎弹窗）
     """
     success, redirect_to, demo_project_id = await profile_service.complete_onboarding(
         user_id=current_user.user_id,
+        email=current_user.email,  # 传递 email 以便自动创建 Profile
         demo_project_id=request.demo_project_id,
     )
 

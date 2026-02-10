@@ -12,14 +12,14 @@ import { checkOnboardingStatus, completeOnboarding } from '@/lib/profileApi';
 /**
  * Dashboard Page
  * 
- * Onboarding 主要在 /auth/callback/route.ts（服务端）处理。
- * 这里有一个 fallback 检查，以防用户绕过 callback 直接访问。
+ * Onboarding 主入口是 /auth/callback/route.ts（服务端处理，不受 React StrictMode 影响）。
+ * 这里是 fallback：如果 callback 中 onboarding 处理失败，在客户端重试一次。
  */
 function DashboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session } = useAuth();
-  const { projects, isLoading: projectsLoading } = useProjects();
+  const { projects, isLoading: projectsLoading, refresh: refreshProjects } = useProjects();
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   
   // Onboarding fallback state
@@ -28,49 +28,45 @@ function DashboardPageContent() {
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const onboardingCheckedRef = useRef(false);
 
-  const userName = session?.user?.email?.split('@')[0] || undefined;
+  const userName = session?.user?.email?.split('@')[0] 
+    || session?.user?.user_metadata?.name
+    || session?.user?.user_metadata?.full_name
+    || undefined;
 
-  // Fallback: 检查 onboarding 状态（以防用户绕过 auth callback）
+  // Fallback: 检查 onboarding 状态（以防 /auth/callback 中的处理失败）
   useEffect(() => {
     if (onboardingCheckedRef.current || projectsLoading) return;
     onboardingCheckedRef.current = true;
 
-    const checkOnboarding = async () => {
-      let enteredOnboarding = false;
-      
+    const doOnboarding = async () => {
       try {
         const status = await checkOnboardingStatus();
         
         if (!status.has_onboarded) {
-          // 未完成 onboarding，进入 onboarding 流程
-          enteredOnboarding = true;
+          // 新用户：显示 cooking 界面，执行 onboarding
           setIsOnboarding(true);
           
           try {
             const result = await completeOnboarding();
-            setRedirectUrl(result.redirect_to || '/home');
+            // 成功：设置跳转到 demo project
+            setRedirectUrl(result.redirect_to || null);
             setOnboardingReady(true);
           } catch (completeError) {
-            // completeOnboarding 失败时，也允许进入工作区
             console.error('Complete onboarding failed:', completeError);
-            setRedirectUrl('/home');
+            // 失败：redirectUrl 留空，点击按钮时直接退出 cooking 界面显示 dashboard
+            // 不设 redirectUrl = '/home'，否则 window.location.href = '/home' 会刷新页面死循环
+            setRedirectUrl(null);
             setOnboardingReady(true);
           }
         }
       } catch (e) {
         console.error('Onboarding check failed:', e);
-        
-        // API 调用失败时的 fallback：
-        // 如果已经进入了 onboarding 流程（显示了 cooking 界面），让用户能够进入工作区
-        if (enteredOnboarding) {
-          setRedirectUrl('/home');
-          setOnboardingReady(true);
-        }
-        // 如果还没进入 onboarding 流程，用户会看到正常的 dashboard（可能是已注册用户）
+        // checkOnboardingStatus 本身就失败了（网络不通等）
+        // 不进入 onboarding 流程，让用户看到 dashboard（可能为空）
       }
     };
 
-    checkOnboarding();
+    doOnboarding();
   }, [projectsLoading]);
 
   // Handle ?create=true query param
@@ -81,13 +77,26 @@ function DashboardPageContent() {
     }
   }, [searchParams, projectsLoading, router]);
 
+  // 处理 "Enter Workspace" 点击
+  const handleEnterWorkspace = () => {
+    if (redirectUrl) {
+      // 正常情况：跳转到 demo project 页面
+      window.location.href = redirectUrl;
+    } else {
+      // 异常情况：onboarding 失败，退出 cooking 界面，显示 dashboard
+      setIsOnboarding(false);
+      // 刷新项目列表（可能 onboarding 创建了部分数据）
+      refreshProjects();
+    }
+  };
+
   // Onboarding flow
   if (isOnboarding) {
     return (
       <PreparingScreen
         userName={userName}
         isReady={onboardingReady}
-        onReady={() => redirectUrl && (window.location.href = redirectUrl)}
+        onReady={handleEnterWorkspace}
       />
     );
   }
