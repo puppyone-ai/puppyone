@@ -16,6 +16,9 @@ type AuthContextValue = {
   userId: string | null;
   isAuthReady: boolean;
   signInWithProvider: (provider: 'google' | 'github') => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>;
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
 };
@@ -94,6 +97,61 @@ export function SupabaseAuthProvider({
     }
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured');
+    }
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      throw error;
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured');
+    }
+    
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${siteUrl}/auth/callback`,
+      },
+    });
+    
+    if (error) {
+      throw error;
+    }
+    
+    // 检查是否需要邮箱验证
+    // 如果 session 为 null 且 user 存在，说明需要验证邮箱
+    const needsEmailConfirmation = !data.session && !!data.user;
+    
+    return { needsEmailConfirmation };
+  };
+
+  const resetPassword = async (email: string) => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured');
+    }
+    
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${siteUrl}/auth/callback?type=recovery`,
+    });
+    
+    if (error) {
+      throw error;
+    }
+  };
+
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
@@ -112,6 +170,9 @@ export function SupabaseAuthProvider({
       userId: session?.user?.id ?? null,
       isAuthReady,
       signInWithProvider,
+      signInWithEmail,
+      signUpWithEmail,
+      resetPassword,
       signOut,
       getAccessToken,
     }),
