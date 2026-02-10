@@ -7,8 +7,8 @@ import {
 import { useServerOperations } from '@/app/components/hooks/useServerManagement';
 import { useWorkspaces } from '@/app/components/states/UserWorkspacesContext';
 import { useAppSettings } from '@/app/components/states/AppSettingsContext';
-import { useEdgeNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/hookhistory/useEdgeNodeBackEndJsonBuilder';
-import { useBlockNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/hookhistory/useBlockNodeBackEndJsonBuilder';
+import { useEdgeNodeBackEndJsonBuilder } from '../../edgesNode/edgeNodesNew/hook/hookhistory/useEdgeNodeBackEndJsonBuilder';
+import { useBlockNodeBackEndJsonBuilder } from '../../edgesNode/edgeNodesNew/hook/hookhistory/useBlockNodeBackEndJsonBuilder';
 import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget';
 import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils';
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext';

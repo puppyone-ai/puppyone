@@ -5,7 +5,7 @@ import { Transition } from '@headlessui/react';
 import { nanoid } from 'nanoid';
 import { useReactFlow } from '@xyflow/react';
 import AdvancedPathEditor from './TreePathEditorMini';
-import { useDataPathProcessor } from './../blockNode/hooks/useDataPathProcessor';
+import { useDataPathProcessor } from '../blockNode/hooks/useDataPathProcessor';
 
 // 在文件顶部添加 PathSegment 接口定义
 interface PathSegment {

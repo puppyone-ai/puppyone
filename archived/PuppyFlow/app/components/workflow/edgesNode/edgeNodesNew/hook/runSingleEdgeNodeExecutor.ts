@@ -20,8 +20,8 @@ import { SYSTEM_URLS } from '@/config/urls';
 import {
   syncBlockContent,
   setExternalChunkSize,
-} from '../../../../../components/workflow/utils/externalStorage';
-import { setStorageChunkSize } from '../../../../../components/workflow/utils/dynamicStorageStrategy';
+} from '../../../utils/externalStorage';
+import { setStorageChunkSize } from '../../../utils/dynamicStorageStrategy';
 import {
   applyBlockUpdate,
   finalizeExternal,

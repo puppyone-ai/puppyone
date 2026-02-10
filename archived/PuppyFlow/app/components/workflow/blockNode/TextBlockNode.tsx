@@ -27,12 +27,12 @@ import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement';
 import {
   forceSyncDirtyNodes,
   syncBlockContent,
-} from '../../workflow/utils/externalStorage';
+} from '../utils/externalStorage';
 import {
   handleDynamicStorageSwitch,
   getStorageInfo,
   CONTENT_LENGTH_THRESHOLD,
-} from '../../workflow/utils/dynamicStorageStrategy';
+} from '../utils/dynamicStorageStrategy';
 
 // 定义节点数据类型
 export type TextBlockNodeData = {

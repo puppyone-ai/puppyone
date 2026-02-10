@@ -21,12 +21,12 @@ import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon';
 import useGetSourceTarget from '../../hooks/useGetSourceTarget';
 import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement';
 import { useAppSettings } from '../../states/AppSettingsContext';
-import { syncBlockContent } from '../../workflow/utils/externalStorage';
+import { syncBlockContent } from '../utils/externalStorage';
 import {
   handleDynamicStorageSwitch,
   getStorageInfo,
   CONTENT_LENGTH_THRESHOLD,
-} from '../../workflow/utils/dynamicStorageStrategy';
+} from '../utils/dynamicStorageStrategy';
 import { useWorkspaces } from '../../states/UserWorkspacesContext';
 import TreePathEditor, { PathNode } from '../components/TreePathEditor';
 import RichJSONForm from '../../tableComponent/RichJSONFormTableStyle/RichJSONForm';
