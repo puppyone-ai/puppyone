@@ -235,7 +235,7 @@ async def delete_table_context_data(
         "根据 tool_id 执行语义向量检索（ANN），返回结构化结果。\n\n"
         "给前端/调用方的关键点：\n"
         "- 该端点为 Internal API，需要 `X-Internal-Secret` 鉴权；\n"
-        "- tool 必须是 `type=search`，且必须绑定 `table_id/json_path`；\n"
+        "- tool 必须是 `type=search`，且必须绑定 `node_id`；\n"
         "- 返回的 `results[*].json_path` 为 **相对于 tool.json_path 的 RFC6901 路径**，便于前端在 scope 内定位。"
     ),
     dependencies=[Depends(verify_internal_secret)],
@@ -244,7 +244,6 @@ async def search_tool(
     tool_id: str,
     payload: SearchToolQueryInput,
     supabase_repo=Depends(get_supabase_repository),
-    table_service=Depends(get_table_service),
     search_service=Depends(get_search_service),
 ):
     tool = supabase_repo.get_tool(tool_id)
@@ -254,41 +253,52 @@ async def search_tool(
     if (tool.type or "").strip() != "search":
         raise HTTPException(status_code=400, detail="Tool is not a search tool")
 
-    # TODO: 迁移 search_service 到 content_nodes 后，此处需要重构
-    # 目前 search_service 仍依赖旧的 table_service，但 tool 表已迁移到 node_id
     node_id = tool.node_id or ""
     if not node_id:
         raise HTTPException(status_code=400, detail="tool.node_id is missing")
 
-    # 警告：这里需要 node_id 对应的 content_nodes 数据，
-    # 但 search_service 目前仍使用 table_service（旧的 context_table）
-    # 暂时返回错误，直到 search 功能迁移完成
-    raise HTTPException(
-        status_code=501,
-        detail="Search tool is temporarily disabled during database migration. "
-               "Please wait for search_service migration to content_nodes."
-    )
+    project_id = tool.project_id or ""
+    if not project_id:
+        raise HTTPException(status_code=400, detail="tool.project_id is missing")
 
-    # 以下代码待迁移后重新启用：
-    # table = node_service.get_by_id(node_id, user_id)  # 需要添加 node_service
-    # if not table:
-    #     raise HTTPException(status_code=404, detail="Node not found")
-    #
-    # try:
-    #     results = await search_service.search_scope(
-    #         project_id=...,
-    #         node_id=node_id,
-    #         tool_json_path=tool.json_path or "",
-    #         query=payload.query,
-    #         top_k=payload.top_k,
-    #     )
-    #     return {"query": payload.query, "results": results}
-    # except ValueError as e:
-    #     raise HTTPException(status_code=400, detail=str(e)) from e
-    # except AppException as e:
-    #     raise HTTPException(status_code=e.status_code, detail=e.message) from e
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=str(e)) from e
+    # 根据节点类型选择搜索方式：
+    # - 如果 search_index_task 有 folder_node_id，说明是 folder search
+    # - 否则是 scope (JSON) search
+    try:
+        from src.search.index_task_repository import SearchIndexTaskRepository
+        from src.supabase.client import SupabaseClient
+        
+        sb_client = SupabaseClient().get_client()
+        task_repo = SearchIndexTaskRepository(sb_client)
+        task = task_repo.get_by_tool_id(str(tool_id))
+        
+        is_folder_search = bool(task and task.folder_node_id)
+    except Exception:
+        is_folder_search = False
+
+    try:
+        if is_folder_search:
+            results = await search_service.search_folder(
+                project_id=project_id,
+                folder_node_id=node_id,
+                query=payload.query,
+                top_k=payload.top_k,
+            )
+        else:
+            results = await search_service.search_scope(
+                project_id=project_id,
+                node_id=node_id,
+                tool_json_path=tool.json_path or "",
+                query=payload.query,
+                top_k=payload.top_k,
+            )
+        return {"query": payload.query, "results": results}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # @router.post(
