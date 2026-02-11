@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env"
 print(f"[DEBUG] Loading .env from: {_env_path}")
 print(f"[DEBUG] .env exists: {_env_path.exists()}")
-load_dotenv(_env_path)
+load_dotenv(_env_path, override=True)
 
 import os
 print(f"[DEBUG] ETL_REDIS_URL from env: {os.environ.get('ETL_REDIS_URL', 'NOT SET')}")

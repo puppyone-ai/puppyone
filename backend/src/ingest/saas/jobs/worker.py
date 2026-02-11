@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 # Find .env relative to this file (backend/.env)
 # worker.py -> jobs/ -> saas/ -> ingest/ -> src/ -> backend/
 _env_path = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env"
-load_dotenv(_env_path)
+load_dotenv(_env_path, override=True)
 
 from typing import Any
 
