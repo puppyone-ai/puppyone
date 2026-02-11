@@ -34,7 +34,11 @@ from .core.config_loader import load_mcp_config
 from .core.session_registry import SessionRegistry
 from .event_store import InMemoryEventStore
 from .rpc.client import create_client
+from .tool.fs_tool import FsToolImplementation
 from .tool.table_tool import TableToolImplementation
+
+# POSIX 工具名集合（用于 call_tool 路由判断）
+_POSIX_TOOL_NAMES = frozenset({"ls", "cat", "write", "mkdir", "rm"})
 
 
 def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
@@ -74,25 +78,25 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_get_schema",
-                    description=f"获取数据结构（node: {node_id}）",
+                    description=f"[Legacy] Get JSON data schema (node: {node_id}). Prefer using 'cat' instead.",
                     inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
                 )
             )
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_get_all_data",
-                    description=f"获取所有数据（node: {node_id}）",
+                    description=f"[Legacy] Get all JSON data (node: {node_id}). Prefer using 'cat' instead.",
                     inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
                 )
             )
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_query_data",
-                    description=f"使用 JMESPath 查询数据（node: {node_id}）",
+                    description=f"[Legacy] Query JSON data with JMESPath (node: {node_id}). Useful for fine-grained JSON queries.",
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "query": {"type": "string", "description": "JMESPath 查询表达式"},
+                            "query": {"type": "string", "description": "JMESPath query expression"},
                         },
                         "required": ["query"],
                         "additionalProperties": False,
@@ -105,7 +109,7 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_create",
-                    description=f"创建数据元素（node: {node_id}）",
+                    description=f"[Legacy] Create JSON data elements (node: {node_id}). Prefer using 'write' instead.",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -129,7 +133,7 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_update",
-                    description=f"更新数据元素（node: {node_id}）",
+                    description=f"[Legacy] Update JSON data elements (node: {node_id}). Prefer using 'write' instead.",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -153,7 +157,7 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_delete",
-                    description=f"删除数据元素（node: {node_id}）",
+                    description=f"[Legacy] Delete JSON data elements (node: {node_id}). Prefer using 'rm' instead.",
                     inputSchema={
                         "type": "object",
                         "properties": {"keys": {"type": "array", "items": {"type": "string"}}},
@@ -210,6 +214,123 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
                 )
             )
     
+    # ==========================================
+    # Part 3: POSIX 文件系统工具（基于 node_type 判断）
+    # ==========================================
+    has_folder = any(a.get("node_type") == "folder" for a in accesses)
+    if has_folder:
+        tools.extend(_build_fs_tools_list(accesses))
+
+    return tools
+
+
+def _build_fs_tools_list(accesses: list[dict[str, Any]]) -> list[mcp_types.Tool]:
+    """
+    生成 POSIX 文件系统工具列表。
+    - 始终注册: ls, cat
+    - 非 readonly 时注册: write, mkdir, rm
+    """
+    has_write = any(not a.get("bash_readonly") for a in accesses)
+
+    tools: list[mcp_types.Tool] = [
+        mcp_types.Tool(
+            name="ls",
+            description=(
+                "List directory contents. Returns entries with full paths. "
+                "Use without path argument to list root directory."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": 'Absolute path to list, e.g. "/docs". Defaults to "/".',
+                    },
+                },
+                "additionalProperties": False,
+            },
+        ),
+        mcp_types.Tool(
+            name="cat",
+            description=(
+                "Read file content. Returns JSON content, Markdown text, "
+                "or file metadata depending on type. "
+                "For folders, returns directory listing (same as ls)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": 'Absolute path to read, e.g. "/docs/readme.md".',
+                    },
+                },
+                "required": ["path"],
+                "additionalProperties": False,
+            },
+        ),
+    ]
+
+    if has_write:
+        tools.extend([
+            mcp_types.Tool(
+                name="write",
+                description=(
+                    "Write or create a file. If the file exists, updates its content. "
+                    "If not, creates a new file (type inferred from extension: "
+                    ".md -> Markdown, .json -> JSON). "
+                    "Content should be a string for Markdown or an object for JSON."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": 'Absolute path, e.g. "/docs/new-doc.md".',
+                        },
+                        "content": {
+                            "description": "File content: string for Markdown, object/array for JSON.",
+                        },
+                    },
+                    "required": ["path", "content"],
+                    "additionalProperties": False,
+                },
+            ),
+            mcp_types.Tool(
+                name="mkdir",
+                description="Create a new folder at the specified path.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": 'Absolute path for new folder, e.g. "/docs/drafts".',
+                        },
+                    },
+                    "required": ["path"],
+                    "additionalProperties": False,
+                },
+            ),
+            mcp_types.Tool(
+                name="rm",
+                description=(
+                    "Remove a file or folder (moves to trash, recoverable). "
+                    "Does NOT permanently delete."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": 'Absolute path to remove, e.g. "/docs/old-doc.md".',
+                        },
+                    },
+                    "required": ["path"],
+                    "additionalProperties": False,
+                },
+            ),
+        ])
+
     return tools
 
 
@@ -334,70 +455,103 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             if config.get("mode") != "agent":
                 return [mcp_types.TextContent(type="text", text="错误: 只支持 Agent 模式")]
 
-            tool_config, tool_type, tool_category = _find_access_and_tool_type(config, name)
-            if not tool_config or not tool_type:
-                return [mcp_types.TextContent(type="text", text=f"错误: 未知的工具名称: {name}")]
-            
             result: Any = None
-            
+
             # ==========================================
-            # 自定义工具执行
+            # POSIX 文件系统工具（ls, cat, write, mkdir, rm）
             # ==========================================
-            if tool_category == "custom":
-                tool_id = tool_config.get("tool_id", "")
-                node_id = tool_config.get("node_id", "")
-                json_path = tool_config.get("json_path", "")
-                
-                if tool_type == "search":
-                    # Search 工具：调用内部搜索 API
-                    query = arguments.get("query", "")
-                    top_k = arguments.get("top_k", 5)
-                    result = await rpc_client.search_tool_query(tool_id, query, top_k)
-                else:
-                    # 其他自定义工具：暂不支持
-                    return [mcp_types.TextContent(type="text", text=f"错误: 暂不支持的自定义工具类型: {tool_type}")]
-            
-            # ==========================================
-            # 内置工具执行 (基于 agent_bash)
-            # ==========================================
+            if name in _POSIX_TOOL_NAMES:
+                fs_tool = FsToolImplementation(rpc_client)
+                project_id = config.get("agent", {}).get("project_id", "")
+                fs_accesses = config.get("accesses", [])
+
+                # 运行时权限检查：write/mkdir/rm 需要至少一个非 readonly access
+                if name in ("write", "mkdir", "rm"):
+                    has_write = any(not a.get("bash_readonly") for a in fs_accesses)
+                    if not has_write:
+                        return [mcp_types.TextContent(
+                            type="text",
+                            text=f"错误: 没有写入权限，所有数据源均为只读模式"
+                        )]
+
+                if name == "ls":
+                    result = await fs_tool.ls(project_id, fs_accesses, arguments.get("path", "/"))
+                elif name == "cat":
+                    result = await fs_tool.cat(project_id, fs_accesses, arguments.get("path", "/"))
+                elif name == "write":
+                    result = await fs_tool.write(
+                        project_id, fs_accesses,
+                        arguments.get("path", ""),
+                        arguments.get("content"),
+                    )
+                elif name == "mkdir":
+                    result = await fs_tool.mkdir(project_id, fs_accesses, arguments.get("path", ""))
+                elif name == "rm":
+                    # 使用 agent_id 作为 user_id（用于 trash folder ownership）
+                    agent_id = config.get("agent", {}).get("id", "system")
+                    result = await fs_tool.rm(
+                        project_id, fs_accesses,
+                        arguments.get("path", ""),
+                        user_id=agent_id,
+                    )
             else:
-                access = tool_config
-                node_id = access.get("node_id", "")
-                json_path = access.get("json_path", "")
-                
-                if not node_id:
-                    return [mcp_types.TextContent(type="text", text="错误: node_id 缺失")]
-                
-                if tool_type == "get_schema":
-                    if not access.get("tool_query"):
-                        return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
-                    result = await table_tool.get_data_schema(table_id=node_id, json_path=json_path)
-                elif tool_type == "get_all_data":
-                    if not access.get("tool_query"):
-                        return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
-                    result = await table_tool.get_all_data(table_id=node_id, json_path=json_path)
-                elif tool_type == "query_data":
-                    if not access.get("tool_query"):
-                        return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
-                    query = arguments.get("query")
-                    result = await table_tool.query_data(table_id=node_id, json_path=json_path, query=query)
-                elif tool_type == "create":
-                    if not access.get("tool_create"):
-                        return [mcp_types.TextContent(type="text", text="错误: 没有创建权限")]
-                    elements = arguments.get("elements", [])
-                    result = await table_tool.create_element(table_id=node_id, json_path=json_path, elements=elements)
-                elif tool_type == "update":
-                    if not access.get("tool_update"):
-                        return [mcp_types.TextContent(type="text", text="错误: 没有更新权限")]
-                    updates = arguments.get("updates", [])
-                    result = await table_tool.update_element(table_id=node_id, json_path=json_path, updates=updates)
-                elif tool_type == "delete":
-                    if not access.get("tool_delete"):
-                        return [mcp_types.TextContent(type="text", text="错误: 没有删除权限")]
-                    keys = arguments.get("keys", [])
-                    result = await table_tool.delete_element(table_id=node_id, json_path=json_path, keys=keys)
+                # ==========================================
+                # Legacy 工具路由（node_{idx}_* 和 tool_* ）
+                # ==========================================
+                tool_config, tool_type, tool_category = _find_access_and_tool_type(config, name)
+                if not tool_config or not tool_type:
+                    return [mcp_types.TextContent(type="text", text=f"错误: 未知的工具名称: {name}")]
+
+                # 自定义工具执行
+                if tool_category == "custom":
+                    tool_id = tool_config.get("tool_id", "")
+
+                    if tool_type == "search":
+                        query = arguments.get("query", "")
+                        top_k = arguments.get("top_k", 5)
+                        result = await rpc_client.search_tool_query(tool_id, query, top_k)
+                    else:
+                        return [mcp_types.TextContent(type="text", text=f"错误: 暂不支持的自定义工具类型: {tool_type}")]
+
+                # 内置 JSON CRUD 工具执行 (基于 agent_bash)
                 else:
-                    return [mcp_types.TextContent(type="text", text=f"错误: 未支持的工具类型: {tool_type}")]
+                    access = tool_config
+                    node_id = access.get("node_id", "")
+                    json_path = access.get("json_path", "")
+
+                    if not node_id:
+                        return [mcp_types.TextContent(type="text", text="错误: node_id 缺失")]
+
+                    if tool_type == "get_schema":
+                        if not access.get("tool_query"):
+                            return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
+                        result = await table_tool.get_data_schema(table_id=node_id, json_path=json_path)
+                    elif tool_type == "get_all_data":
+                        if not access.get("tool_query"):
+                            return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
+                        result = await table_tool.get_all_data(table_id=node_id, json_path=json_path)
+                    elif tool_type == "query_data":
+                        if not access.get("tool_query"):
+                            return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
+                        query = arguments.get("query")
+                        result = await table_tool.query_data(table_id=node_id, json_path=json_path, query=query)
+                    elif tool_type == "create":
+                        if not access.get("tool_create"):
+                            return [mcp_types.TextContent(type="text", text="错误: 没有创建权限")]
+                        elements = arguments.get("elements", [])
+                        result = await table_tool.create_element(table_id=node_id, json_path=json_path, elements=elements)
+                    elif tool_type == "update":
+                        if not access.get("tool_update"):
+                            return [mcp_types.TextContent(type="text", text="错误: 没有更新权限")]
+                        updates = arguments.get("updates", [])
+                        result = await table_tool.update_element(table_id=node_id, json_path=json_path, updates=updates)
+                    elif tool_type == "delete":
+                        if not access.get("tool_delete"):
+                            return [mcp_types.TextContent(type="text", text="错误: 没有删除权限")]
+                        keys = arguments.get("keys", [])
+                        result = await table_tool.delete_element(table_id=node_id, json_path=json_path, keys=keys)
+                    else:
+                        return [mcp_types.TextContent(type="text", text=f"错误: 未支持的工具类型: {tool_type}")]
             
             return [
                 mcp_types.TextContent(

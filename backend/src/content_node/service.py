@@ -133,6 +133,203 @@ class ContentNodeService:
         all_descendants = self.list_descendants(project_id, node_id)
         return [node for node in all_descendants if node.is_indexable]
 
+    # === 路径解析（POSIX 风格） ===
+
+    TRASH_FOLDER_NAME = ".trash"
+
+    def get_child_by_name(
+        self, project_id: str, parent_id: Optional[str], name: str
+    ) -> Optional[ContentNode]:
+        """根据名称在指定目录下查找子节点"""
+        return self.repo.get_child_by_name(project_id, parent_id, name)
+
+    def resolve_path(
+        self,
+        project_id: str,
+        root_accesses: List[dict],
+        path: str,
+    ) -> ContentNode:
+        """
+        解析人类可读路径到节点。
+        
+        Args:
+            project_id: 项目 ID
+            root_accesses: Agent 的 bash 访问列表，每项包含 node_id, node_name, node_type
+            path: 人类可读路径（如 "/docs/readme.md"）
+            
+        路径规则:
+        - "/" 返回虚拟根（多根模式）或根文件夹节点（单根模式）
+        - 绝对路径以 "/" 开头
+        - 每个段按 name 匹配子节点
+        
+        挂载规则:
+        - 单根模式（1 个 folder access）: 该节点就是 /
+        - 多根模式（多个 access）: 各 access 以名称挂载在 / 下
+        """
+        # 规范化路径
+        path = path.strip()
+        if not path or path == "/":
+            # 根目录请求 — 在 ls 中处理虚拟根
+            # 对于单根模式，返回该根节点
+            if len(root_accesses) == 1 and root_accesses[0].get("node_type") == "folder":
+                return self.get_by_id_unsafe(root_accesses[0]["node_id"])
+            # 多根模式下 "/" 没有对应的真实节点，抛出特定错误
+            raise BusinessException(
+                "VIRTUAL_ROOT",
+                code=ErrorCode.BAD_REQUEST,
+            )
+
+        # 去掉开头的 /，拆分路径段
+        segments = [s for s in path.strip("/").split("/") if s]
+        if not segments:
+            return self.resolve_path(project_id, root_accesses, "/")
+
+        is_single_root = (
+            len(root_accesses) == 1
+            and root_accesses[0].get("node_type") == "folder"
+        )
+
+        if is_single_root:
+            # 单根模式：从唯一的根文件夹开始逐层解析
+            current_node = self.get_by_id_unsafe(root_accesses[0]["node_id"])
+            for segment in segments:
+                if not current_node.is_folder:
+                    raise NotFoundException(
+                        f"Not a directory: {current_node.name}",
+                        code=ErrorCode.NOT_FOUND,
+                    )
+                child = self.repo.get_child_by_name(
+                    project_id, current_node.id, segment
+                )
+                if not child:
+                    raise NotFoundException(
+                        f"No such file or directory: {segment}",
+                        code=ErrorCode.NOT_FOUND,
+                    )
+                current_node = child
+            return current_node
+        else:
+            # 多根模式：第一段在 root_accesses 中按名称匹配
+            first_segment = segments[0]
+            matched_access = None
+            for access in root_accesses:
+                if access.get("node_name") == first_segment:
+                    matched_access = access
+                    break
+            if not matched_access:
+                raise NotFoundException(
+                    f"No such file or directory: {first_segment}",
+                    code=ErrorCode.NOT_FOUND,
+                )
+
+            current_node = self.get_by_id_unsafe(matched_access["node_id"])
+            # 后续段逐层解析
+            for segment in segments[1:]:
+                if not current_node.is_folder:
+                    raise NotFoundException(
+                        f"Not a directory: {current_node.name}",
+                        code=ErrorCode.NOT_FOUND,
+                    )
+                child = self.repo.get_child_by_name(
+                    project_id, current_node.id, segment
+                )
+                if not child:
+                    raise NotFoundException(
+                        f"No such file or directory: {segment}",
+                        code=ErrorCode.NOT_FOUND,
+                    )
+                current_node = child
+            return current_node
+
+    def resolve_parent_and_name(
+        self,
+        project_id: str,
+        root_accesses: List[dict],
+        path: str,
+    ) -> tuple[Optional[str], str]:
+        """
+        解析路径的父节点 ID 和文件名。
+        
+        用于 write/mkdir/create 场景：目标文件可能不存在，
+        但其父目录必须存在。
+        
+        Returns:
+            (parent_node_id, file_name)
+        """
+        path = path.strip().rstrip("/")
+        segments = [s for s in path.strip("/").split("/") if s]
+        if not segments:
+            raise BusinessException(
+                "Path cannot be empty",
+                code=ErrorCode.VALIDATION_ERROR,
+            )
+
+        file_name = segments[-1]
+        parent_segments = segments[:-1]
+
+        if not parent_segments:
+            # 直接在根目录下创建
+            is_single_root = (
+                len(root_accesses) == 1
+                and root_accesses[0].get("node_type") == "folder"
+            )
+            if is_single_root:
+                return root_accesses[0]["node_id"], file_name
+            else:
+                raise BusinessException(
+                    "Cannot create files at virtual root in multi-root mode",
+                    code=ErrorCode.BAD_REQUEST,
+                )
+        else:
+            # 解析父路径
+            parent_path = "/" + "/".join(parent_segments)
+            parent_node = self.resolve_path(project_id, root_accesses, parent_path)
+            if not parent_node.is_folder:
+                raise BusinessException(
+                    f"Not a directory: {parent_node.name}",
+                    code=ErrorCode.BAD_REQUEST,
+                )
+            return parent_node.id, file_name
+
+    def build_display_path(
+        self,
+        node: ContentNode,
+        root_accesses: List[dict],
+    ) -> str:
+        """
+        从节点向上回溯构建人类可读路径。
+        
+        例: node.name="readme.md", parent.name="docs" -> "/docs/readme.md"
+        
+        终止条件: 遇到 root_accesses 中的节点时停止回溯。
+        """
+        root_node_ids = {a["node_id"] for a in root_accesses}
+        is_single_root = (
+            len(root_accesses) == 1
+            and root_accesses[0].get("node_type") == "folder"
+        )
+
+        parts: list[str] = []
+        current = node
+
+        while current is not None:
+            if current.id in root_node_ids:
+                if is_single_root:
+                    # 单根模式：根节点不出现在路径中
+                    break
+                else:
+                    # 多根模式：根节点名作为第一段
+                    parts.append(current.name)
+                    break
+            parts.append(current.name)
+            if current.parent_id:
+                current = self.repo.get_by_id(current.parent_id)
+            else:
+                break
+
+        parts.reverse()
+        return "/" + "/".join(parts)
+
     # === 创建操作 ===
 
     def _build_id_path(self, project_id: str, parent_id: Optional[str], new_node_id: str) -> str:
@@ -821,7 +1018,61 @@ class ContentNodeService:
         
         return updated
 
-    # === 删除操作 ===
+    # === 废纸篓（软删除） ===
+
+    def _create_system_folder(
+        self, project_id: str, name: str, created_by: str
+    ) -> ContentNode:
+        """
+        创建系统级隐藏文件夹（如 .trash），绕过 _validate_name 限制。
+        """
+        import uuid
+
+        new_id = str(uuid.uuid4())
+        id_path = self._build_id_path(project_id, None, new_id)
+        # 系统文件夹不走 _validate_name（允许 . 开头），也不走 _generate_unique_name
+        return self.repo.create(
+            project_id=project_id,
+            name=name,
+            node_type="folder",
+            id_path=id_path,
+            parent_id=None,
+            created_by=created_by,
+        )
+
+    def get_or_create_trash_folder(
+        self, project_id: str, created_by: str
+    ) -> ContentNode:
+        """获取或惰性创建项目的废纸篓文件夹（根级隐藏文件夹 .trash）"""
+        children = self.repo.list_children(project_id, parent_id=None)
+        for child in children:
+            if child.name == self.TRASH_FOLDER_NAME:
+                return child
+        return self._create_system_folder(project_id, self.TRASH_FOLDER_NAME, created_by)
+
+    def soft_delete_node(
+        self, node_id: str, project_id: str, user_id: str
+    ) -> ContentNode:
+        """
+        软删除：将节点移入 .trash 文件夹。
+        
+        为避免 .trash 内名称冲突，移入时追加时间戳 + UUID 短后缀。
+        使用微秒精度 + 8 位 UUID 确保即使同一微秒内删除同名文件也不碰撞。
+        """
+        import uuid as uuid_mod
+
+        trash = self.get_or_create_trash_folder(project_id, user_id)
+        node = self.get_by_id(node_id, project_id)
+
+        # 追加时间戳(微秒) + UUID 短后缀，完全消除碰撞
+        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S_%f")
+        short_uuid = uuid_mod.uuid4().hex[:8]
+        new_name = f"{node.name}_{timestamp}_{short_uuid}"
+        self.repo.update(node_id=node_id, name=new_name)
+
+        return self.move_node(node_id, project_id, trash.id)
+
+    # === 删除操作（硬删除） ===
 
     async def delete_node(self, node_id: str, project_id: str) -> None:
         """删除节点（递归删除子节点和 S3 文件）"""
