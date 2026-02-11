@@ -43,18 +43,28 @@ class ProfileService:
         """更新用户 Profile"""
         return self._profile_repo.update(user_id, data)
 
-    def check_onboarding_status(self, user_id: str) -> Tuple[bool, Optional[int], str]:
+    def check_onboarding_status(
+        self, user_id: str, email: Optional[str] = None
+    ) -> Tuple[bool, Optional[int], str]:
         """
         检查用户 Onboarding 状态
+
+        Args:
+            user_id: 用户ID
+            email: 用户邮箱（用于自动创建 Profile）
 
         Returns:
             Tuple[has_onboarded, demo_project_id, redirect_to]
         """
-        profile = self._profile_repo.get_by_user_id(user_id)
+        # 如果提供了 email，使用 get_or_create 确保 Profile 存在
+        if email:
+            profile = self._profile_repo.get_or_create(user_id, email)
+        else:
+            profile = self._profile_repo.get_by_user_id(user_id)
 
         if profile is None:
-            # Profile 不存在，应该由 Supabase Auth Trigger 创建
-            log_error(f"Profile not found for user {user_id}")
+            # Profile 仍然不存在（创建失败或未提供 email）
+            log_error(f"Profile not found for user {user_id}, and unable to create")
             return False, None, "/home"
 
         if profile.has_onboarded:
@@ -65,20 +75,29 @@ class ProfileService:
             return False, None, "/home"
 
     async def complete_onboarding(
-        self, user_id: str, demo_project_id: Optional[int] = None
+        self, user_id: str, email: Optional[str] = None, demo_project_id: Optional[int] = None
     ) -> Tuple[bool, str, Optional[int]]:
         """
         完成 Onboarding 流程
 
         如果没有提供 demo_project_id，会自动创建 Demo Project
 
+        Args:
+            user_id: 用户ID
+            email: 用户邮箱（用于自动创建 Profile）
+            demo_project_id: 可选的 Demo Project ID
+
         Returns:
             Tuple[success, redirect_to, demo_project_id]
         """
-        profile = self._profile_repo.get_by_user_id(user_id)
+        # 如果提供了 email，使用 get_or_create 确保 Profile 存在
+        if email:
+            profile = self._profile_repo.get_or_create(user_id, email)
+        else:
+            profile = self._profile_repo.get_by_user_id(user_id)
 
         if profile is None:
-            log_error(f"Profile not found for user {user_id}")
+            log_error(f"Profile not found for user {user_id}, and unable to create")
             return False, "/home", None
 
         if profile.has_onboarded:

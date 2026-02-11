@@ -71,7 +71,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // 3. 未登录用户访问受保护页面 → 重定向到 /login
-  const protectedRoutes = ['/projects', '/tools', '/connect', '/mcp', '/etl'];
+  const protectedRoutes = ['/projects', '/tools', '/connect', '/mcp', '/etl', '/home', '/settings', '/billing', '/team', '/tools-and-server'];
   const isProtectedRoute = protectedRoutes.some(
     route => pathname === route || pathname.startsWith(route + '/')
   );
