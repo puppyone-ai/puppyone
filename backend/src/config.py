@@ -94,7 +94,9 @@ class Settings(BaseSettings):
             if self.APP_ENV in {"development", "test"}:
                 self.ALLOWED_HOSTS = [
                     "http://localhost:3000",
+                    "http://localhost:3001",
                     "http://127.0.0.1:3000",
+                    "http://127.0.0.1:3001",
                 ]
             else:
                 self.ALLOWED_HOSTS = ["*"] if self.DEBUG else []
