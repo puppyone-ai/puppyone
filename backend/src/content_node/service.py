@@ -1,11 +1,17 @@
 """Content Node Service - 业务逻辑层"""
 
+import re
 from datetime import datetime
 from typing import Optional, List, Any
 from src.content_node.models import ContentNode
 from src.content_node.repository import ContentNodeRepository
 from src.s3.service import S3Service
-from src.exceptions import NotFoundException, BusinessException, ErrorCode
+from src.exceptions import NotFoundException, BusinessException, NameConflictException, ErrorCode
+
+# === POSIX 名称校验常量 ===
+MAX_NAME_LENGTH = 255
+FORBIDDEN_CHARS_RE = re.compile(r'[/\x00-\x1f]')  # 斜杠 + 控制字符
+RESERVED_NAMES = {'.', '..'}
 
 
 class ContentNodeService:
@@ -14,6 +20,59 @@ class ContentNodeService:
     def __init__(self, repo: ContentNodeRepository, s3_service: S3Service):
         self.repo = repo
         self.s3 = s3_service
+
+    # === 名称校验 ===
+
+    @staticmethod
+    def _validate_name(name: str) -> str:
+        """
+        校验并清理节点名称（POSIX 语义），返回 strip 后的名称。
+        
+        规则：
+        - 不能为空
+        - 不能超过 255 字符
+        - 不能是保留名 '.' 或 '..'
+        - 不能包含 '/' 或控制字符 (0x00-0x1f)
+        """
+        name = name.strip()
+        if not name:
+            raise BusinessException(
+                "Name cannot be empty",
+                code=ErrorCode.VALIDATION_ERROR
+            )
+        if len(name) > MAX_NAME_LENGTH:
+            raise BusinessException(
+                f"Name exceeds maximum length of {MAX_NAME_LENGTH} characters",
+                code=ErrorCode.VALIDATION_ERROR
+            )
+        if name in RESERVED_NAMES:
+            raise BusinessException(
+                f"'{name}' is a reserved name",
+                code=ErrorCode.VALIDATION_ERROR
+            )
+        if FORBIDDEN_CHARS_RE.search(name):
+            raise BusinessException(
+                "Name contains forbidden characters (/ or control characters)",
+                code=ErrorCode.VALIDATION_ERROR
+            )
+        return name
+
+    def _check_name_conflict(
+        self,
+        project_id: str,
+        parent_id: Optional[str],
+        name: str,
+        exclude_node_id: Optional[str] = None,
+    ) -> None:
+        """
+        检查同目录下是否已存在同名节点，存在则抛出 NameConflictException。
+        
+        用于 rename / move 场景（创建时使用 _generate_unique_name 自动追加序号）。
+        """
+        if self.repo.name_exists_in_parent(project_id, parent_id, name, exclude_node_id):
+            raise NameConflictException(
+                f"A node with name '{name}' already exists in this folder"
+            )
 
     # === 查询操作 ===
 
@@ -116,6 +175,7 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建文件夹"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
@@ -139,6 +199,7 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建 JSON 节点"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
@@ -174,6 +235,7 @@ class ContentNodeService:
         注意：占位符节点的 sync_oauth_user_id 为 None，授权后才会填充。
         """
         import uuid
+        name = self._validate_name(name)
         
         # placeholder_type → (node_type, import_type) 映射
         TYPE_MAP = {
@@ -266,6 +328,7 @@ class ContentNodeService:
         sync_oauth_user_id 用于标识使用哪个用户的 OAuth 凭证进行同步。
         """
         import uuid
+        name = self._validate_name(name)
         
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
@@ -303,6 +366,7 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建 GitHub repo 节点（单节点模式）"""
         import uuid
+        name = self._validate_name(name)
         
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
@@ -340,6 +404,7 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建待处理节点（ETL 处理前的占位符）"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
@@ -368,6 +433,7 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建文件节点（二进制文件，存 S3，无预览）"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
@@ -395,6 +461,7 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建 Markdown 节点（内容直接存 preview_md，不存 S3）"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
@@ -428,6 +495,7 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建同步的 Markdown 节点（如 Notion Page），内容直接存 preview_md，不存 S3"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
@@ -488,6 +556,10 @@ class ContentNodeService:
                     else:
                         real_parent_id = temp_to_real.get(parent_temp_id)
                     
+                    # 名称校验 + 唯一名称生成
+                    validated_name = self._validate_name(node["name"])
+                    unique_name = self._generate_unique_name(project_id, real_parent_id, validated_name)
+                    
                     new_id = str(uuid.uuid4())
                     id_path = self._build_id_path(project_id, real_parent_id, new_id)
                     
@@ -517,7 +589,7 @@ class ContentNodeService:
                     
                     created = self.repo.create(
                         project_id=project_id,
-                        name=node["name"],
+                        name=unique_name,
                         node_type=node_type,
                         id_path=id_path,
                         parent_id=real_parent_id,
@@ -560,6 +632,7 @@ class ContentNodeService:
     ) -> tuple[ContentNode, str]:
         """准备文件上传（返回节点和预签名 URL）"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
@@ -648,7 +721,14 @@ class ContentNodeService:
         preview_md: Optional[str] = None,
     ) -> ContentNode:
         """更新节点（重命名只改 name，id_path 不变）"""
-        self.get_by_id(node_id, project_id)
+        node = self.get_by_id(node_id, project_id)
+
+        # 重命名时进行名称校验和冲突检查
+        if name is not None:
+            name = self._validate_name(name)
+            # 只有名字真正改变时才检查冲突
+            if name != node.name:
+                self._check_name_conflict(project_id, node.parent_id, name, exclude_node_id=node_id)
 
         if preview_md is not None:
             content_bytes = preview_md.encode("utf-8")
@@ -723,6 +803,9 @@ class ContentNodeService:
         """移动节点"""
         node = self.get_by_id(node_id, project_id)
         old_id_path = node.id_path
+        
+        # 移动时检查目标目录是否有同名节点
+        self._check_name_conflict(project_id, new_parent_id, node.name, exclude_node_id=node_id)
         
         new_id_path = self._build_id_path(project_id, new_parent_id, node_id)
         

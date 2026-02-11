@@ -269,6 +269,7 @@ export default function DataPage({ params }: DataPageProps) {
   // Rename dialog state
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
 
   // Tools for current node
   const { tools: tableTools, isLoading: toolsLoading } = useTableTools(activeNodeId);
@@ -818,17 +819,25 @@ export default function DataPage({ params }: DataPageProps) {
 
   const handleRename = (id: string, currentName: string) => {
     setRenameTarget({ id, name: currentName });
+    setRenameError(null);
     setRenameDialogOpen(true);
   };
 
   const handleRenameConfirm = async (newName: string) => {
     if (!renameTarget) return;
-      try {
+    setRenameError(null);
+    try {
       await updateNode(renameTarget.id, projectId, { name: newName });
-        loadContentNodes(currentFolderId);
-      } catch (err) {
-        console.error('Failed to rename:', err);
-        alert('Failed to rename item');
+      loadContentNodes(currentFolderId);
+      setRenameDialogOpen(false);
+      setRenameTarget(null);
+    } catch (err: unknown) {
+      console.error('Failed to rename:', err);
+      // apiClient 抛出的 Error 带有 .message, .code, .response 属性
+      const errorObj = err as { message?: string; code?: number; response?: Response };
+      const message = errorObj?.message || 'Failed to rename item';
+      setRenameError(message);
+      throw err; // re-throw so dialog knows submission failed
     }
   };
 
@@ -876,8 +885,10 @@ export default function DataPage({ params }: DataPageProps) {
         onClose={() => {
           setRenameDialogOpen(false);
           setRenameTarget(null);
+          setRenameError(null);
         }}
         onConfirm={handleRenameConfirm}
+        error={renameError}
       />
       
       {/* Header (Full Width) */}
