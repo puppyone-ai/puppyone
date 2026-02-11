@@ -4,12 +4,13 @@ Internal API路由
 """
 
 import hmac
+import json as json_lib
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 from typing import Optional, Dict, Any, List
 from src.table.dependencies import get_table_service
 from src.config import settings
-from src.exceptions import AppException
+from src.exceptions import AppException, NotFoundException, BusinessException
 from src.supabase.dependencies import get_supabase_repository
 from src.turbopuffer.internal_router import router as turbopuffer_internal_router
 from src.search.dependencies import get_search_service
@@ -18,6 +19,8 @@ from src.agent.config.service import AgentConfigService
 from src.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
 from src.tool.models import Tool
+from src.content_node.dependencies import get_content_node_service
+from src.content_node.service import ContentNodeService
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -235,7 +238,7 @@ async def delete_table_context_data(
         "根据 tool_id 执行语义向量检索（ANN），返回结构化结果。\n\n"
         "给前端/调用方的关键点：\n"
         "- 该端点为 Internal API，需要 `X-Internal-Secret` 鉴权；\n"
-        "- tool 必须是 `type=search`，且必须绑定 `table_id/json_path`；\n"
+        "- tool 必须是 `type=search`，且必须绑定 `node_id`；\n"
         "- 返回的 `results[*].json_path` 为 **相对于 tool.json_path 的 RFC6901 路径**，便于前端在 scope 内定位。"
     ),
     dependencies=[Depends(verify_internal_secret)],
@@ -244,7 +247,6 @@ async def search_tool(
     tool_id: str,
     payload: SearchToolQueryInput,
     supabase_repo=Depends(get_supabase_repository),
-    table_service=Depends(get_table_service),
     search_service=Depends(get_search_service),
 ):
     tool = supabase_repo.get_tool(tool_id)
@@ -254,41 +256,52 @@ async def search_tool(
     if (tool.type or "").strip() != "search":
         raise HTTPException(status_code=400, detail="Tool is not a search tool")
 
-    # TODO: 迁移 search_service 到 content_nodes 后，此处需要重构
-    # 目前 search_service 仍依赖旧的 table_service，但 tool 表已迁移到 node_id
     node_id = tool.node_id or ""
     if not node_id:
         raise HTTPException(status_code=400, detail="tool.node_id is missing")
 
-    # 警告：这里需要 node_id 对应的 content_nodes 数据，
-    # 但 search_service 目前仍使用 table_service（旧的 context_table）
-    # 暂时返回错误，直到 search 功能迁移完成
-    raise HTTPException(
-        status_code=501,
-        detail="Search tool is temporarily disabled during database migration. "
-               "Please wait for search_service migration to content_nodes."
-    )
+    project_id = tool.project_id or ""
+    if not project_id:
+        raise HTTPException(status_code=400, detail="tool.project_id is missing")
 
-    # 以下代码待迁移后重新启用：
-    # table = node_service.get_by_id(node_id, user_id)  # 需要添加 node_service
-    # if not table:
-    #     raise HTTPException(status_code=404, detail="Node not found")
-    #
-    # try:
-    #     results = await search_service.search_scope(
-    #         project_id=...,
-    #         node_id=node_id,
-    #         tool_json_path=tool.json_path or "",
-    #         query=payload.query,
-    #         top_k=payload.top_k,
-    #     )
-    #     return {"query": payload.query, "results": results}
-    # except ValueError as e:
-    #     raise HTTPException(status_code=400, detail=str(e)) from e
-    # except AppException as e:
-    #     raise HTTPException(status_code=e.status_code, detail=e.message) from e
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=str(e)) from e
+    # 根据节点类型选择搜索方式：
+    # - 如果 search_index_task 有 folder_node_id，说明是 folder search
+    # - 否则是 scope (JSON) search
+    try:
+        from src.search.index_task_repository import SearchIndexTaskRepository
+        from src.supabase.client import SupabaseClient
+        
+        sb_client = SupabaseClient().get_client()
+        task_repo = SearchIndexTaskRepository(sb_client)
+        task = task_repo.get_by_tool_id(str(tool_id))
+        
+        is_folder_search = bool(task and task.folder_node_id)
+    except Exception:
+        is_folder_search = False
+
+    try:
+        if is_folder_search:
+            results = await search_service.search_folder(
+                project_id=project_id,
+                folder_node_id=node_id,
+                query=payload.query,
+                top_k=payload.top_k,
+            )
+        else:
+            results = await search_service.search_scope(
+                project_id=project_id,
+                node_id=node_id,
+                tool_json_path=tool.json_path or "",
+                query=payload.query,
+                top_k=payload.top_k,
+            )
+        return {"query": payload.query, "results": results}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # @router.post(
@@ -400,6 +413,298 @@ async def search_tool(
 
 
 # ============================================================
+# ContentNode POSIX endpoints（供 mcp_service POSIX 工具调用）
+# ============================================================
+
+
+@router.post(
+    "/nodes/resolve-path",
+    summary="解析人类可读路径到节点",
+    description="根据 project_id + root_accesses + path 解析到具体节点",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def resolve_node_path(
+    payload: Dict[str, Any],
+    node_service: ContentNodeService = Depends(get_content_node_service),
+):
+    """
+    路径解析：人类可读路径 -> node_id + 元信息
+    
+    payload:
+        project_id: str
+        root_accesses: list[{node_id, node_name, node_type}]
+        path: str (如 "/docs/readme.md")
+    """
+    try:
+        project_id = payload.get("project_id", "")
+        root_accesses = payload.get("root_accesses", [])
+        path = payload.get("path", "/")
+
+        node = node_service.resolve_path(project_id, root_accesses, path)
+        display_path = node_service.build_display_path(node, root_accesses)
+
+        return {
+            "node_id": node.id,
+            "name": node.name,
+            "type": node.type,
+            "path": display_path,
+            "parent_id": node.parent_id,
+            "size_bytes": node.size_bytes,
+            "mime_type": node.mime_type,
+            "updated_at": node.updated_at.isoformat() if node.updated_at else None,
+        }
+    except BusinessException as e:
+        if e.message == "VIRTUAL_ROOT":
+            # 虚拟根标记 — 告知调用方这是虚拟根目录
+            return {"virtual_root": True, "path": "/"}
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get(
+    "/nodes/{node_id}/children",
+    summary="列出子节点",
+    description="列出指定节点的子节点（含 display_path 等元信息）",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def list_node_children(
+    node_id: str,
+    project_id: str = Query(..., description="项目 ID"),
+    node_service: ContentNodeService = Depends(get_content_node_service),
+):
+    """列出子节点，过滤 .trash"""
+    try:
+        children = node_service.list_children(project_id, node_id)
+        # 过滤掉 .trash 文件夹
+        children = [c for c in children if c.name != ContentNodeService.TRASH_FOLDER_NAME]
+
+        return {
+            "parent_id": node_id,
+            "children": [
+                {
+                    "node_id": c.id,
+                    "name": c.name,
+                    "type": c.type,
+                    "size_bytes": c.size_bytes,
+                    "mime_type": c.mime_type,
+                    "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+                    "parent_id": c.parent_id,
+                }
+                for c in children
+            ],
+        }
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get(
+    "/nodes/{node_id}/content",
+    summary="读取节点内容",
+    description="根据节点类型返回 JSON 内容 / Markdown 文本 / 文件元信息",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def read_node_content(
+    node_id: str,
+    project_id: str = Query(..., description="项目 ID"),
+    node_service: ContentNodeService = Depends(get_content_node_service),
+):
+    """读取节点内容（按类型分发）"""
+    try:
+        node = node_service.get_by_id(node_id, project_id)
+
+        base = {
+            "node_id": node.id,
+            "name": node.name,
+            "type": node.type,
+            "size_bytes": node.size_bytes,
+            "updated_at": node.updated_at.isoformat() if node.updated_at else None,
+        }
+
+        if node.is_json or (node.preview_json is not None and not node.is_folder):
+            base["content"] = node.preview_json
+            return base
+
+        if node.is_markdown or node.preview_md is not None:
+            base["content"] = node.preview_md
+            return base
+
+        if node.s3_key:
+            # 二进制文件 — 返回元信息 + presigned download URL
+            download_url = await node_service.get_download_url(node_id, project_id)
+            base["mime_type"] = node.mime_type
+            base["download_url"] = download_url
+            return base
+
+        if node.is_folder:
+            # 文件夹 — 返回子节点列表
+            children = node_service.list_children(project_id, node_id)
+            children = [c for c in children if c.name != ContentNodeService.TRASH_FOLDER_NAME]
+            base["children"] = [
+                {
+                    "node_id": c.id,
+                    "name": c.name,
+                    "type": c.type,
+                    "size_bytes": c.size_bytes,
+                }
+                for c in children
+            ]
+            return base
+
+        # 同步节点等 — 返回 preview_json 如果有
+        if node.preview_json is not None:
+            base["content"] = node.preview_json
+        return base
+
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.put(
+    "/nodes/{node_id}/content",
+    summary="更新节点内容",
+    description="更新 JSON 或 Markdown 节点的内容",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def write_node_content(
+    node_id: str,
+    payload: Dict[str, Any],
+    node_service: ContentNodeService = Depends(get_content_node_service),
+):
+    """
+    更新节点内容。
+    
+    payload:
+        project_id: str
+        content: Any (JSON 对象或 Markdown 字符串)
+    """
+    try:
+        project_id = payload.get("project_id", "")
+        content = payload.get("content")
+        node = node_service.get_by_id(node_id, project_id)
+
+        if node.is_markdown or node.type == "markdown":
+            if not isinstance(content, str):
+                raise HTTPException(status_code=400, detail="Markdown content must be a string")
+            updated = await node_service.update_markdown_content(node_id, project_id, content)
+        elif node.is_json or node.type == "json":
+            updated = node_service.update_node(node_id, project_id, preview_json=content)
+        elif node.preview_json is not None:
+            # 同步节点等带 preview_json 的节点
+            updated = node_service.update_node(node_id, project_id, preview_json=content)
+        elif node.preview_md is not None:
+            if not isinstance(content, str):
+                raise HTTPException(status_code=400, detail="Markdown content must be a string")
+            updated = await node_service.update_markdown_content(node_id, project_id, content)
+        else:
+            raise HTTPException(status_code=400, detail=f"Cannot write to node type: {node.type}")
+
+        return {
+            "node_id": updated.id,
+            "name": updated.name,
+            "type": updated.type,
+            "updated": True,
+            "updated_at": updated.updated_at.isoformat() if updated.updated_at else None,
+        }
+    except HTTPException:
+        raise
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post(
+    "/nodes/create",
+    summary="创建节点",
+    description="在指定父目录下创建新节点（JSON / Markdown / Folder）",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def create_node(
+    payload: Dict[str, Any],
+    node_service: ContentNodeService = Depends(get_content_node_service),
+):
+    """
+    创建节点。
+    
+    payload:
+        project_id: str
+        parent_id: str
+        name: str
+        node_type: str (json | markdown | folder)
+        content: Any (可选, JSON 对象或 Markdown 字符串)
+        created_by: str (可选)
+    """
+    try:
+        project_id = payload.get("project_id", "")
+        parent_id = payload.get("parent_id")
+        name = payload.get("name", "")
+        node_type = payload.get("node_type", "")
+        content = payload.get("content")
+        created_by = payload.get("created_by")
+
+        if node_type == "folder":
+            node = node_service.create_folder(project_id, name, parent_id, created_by)
+        elif node_type == "json":
+            node = node_service.create_json_node(project_id, name, content or {}, parent_id, created_by)
+        elif node_type == "markdown":
+            content_str = content if isinstance(content, str) else ""
+            node = await node_service.create_markdown_node(project_id, name, content_str, parent_id, created_by)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported node type for creation: {node_type}")
+
+        return {
+            "node_id": node.id,
+            "name": node.name,
+            "type": node.type,
+            "created": True,
+            "parent_id": node.parent_id,
+        }
+    except HTTPException:
+        raise
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post(
+    "/nodes/{node_id}/trash",
+    summary="软删除节点（移入废纸篓）",
+    description="将节点移入 .trash 文件夹（可恢复的软删除）",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def trash_node(
+    node_id: str,
+    payload: Dict[str, Any],
+    node_service: ContentNodeService = Depends(get_content_node_service),
+):
+    """
+    软删除：移入 .trash
+    
+    payload:
+        project_id: str
+        user_id: str
+    """
+    try:
+        project_id = payload.get("project_id", "")
+        user_id = payload.get("user_id", "system")
+
+        node_service.soft_delete_node(node_id, project_id, user_id)
+        return {"node_id": node_id, "removed": True, "message": "Moved to trash"}
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ============================================================
 # Agent internal endpoints（供 mcp_service 调用，新架构）
 # ============================================================
 
@@ -476,27 +781,39 @@ async def get_agent_by_mcp_key(
                 "mcp_exposed": agent_tool.mcp_exposed,
             })
     
+    # 构建 accesses（包含 node_name 和 node_type）
+    from src.content_node.dependencies import get_content_node_repository
+    from src.supabase.client import SupabaseClient
+
+    node_repo = get_content_node_repository(SupabaseClient())
+    accesses_data = []
+    for bash in agent.bash_accesses:
+        access_entry = {
+            "node_id": bash.node_id,
+            "bash_enabled": True,
+            "bash_readonly": bash.readonly,
+            "tool_query": True,
+            "tool_create": not bash.readonly,
+            "tool_update": not bash.readonly,
+            "tool_delete": not bash.readonly,
+            "json_path": bash.json_path or "",
+            "node_name": "",   # 默认值
+            "node_type": "",   # 默认值
+        }
+        # 查询节点获取 name 和 type
+        node = node_repo.get_by_id(bash.node_id)
+        if node:
+            access_entry["node_name"] = node.name
+            access_entry["node_type"] = node.type
+        accesses_data.append(access_entry)
+
     return {
         "agent": {
             "id": agent.id,
             "name": agent.name,
-            "project_id": agent.project_id,  # Agent 绑定到 Project，不是 User
+            "project_id": agent.project_id,
             "type": agent.type,
         },
-        # Bash 访问权限（用于数据 CRUD 操作）
-        "accesses": [
-            {
-                "node_id": bash.node_id,
-                "bash_enabled": True,  # 所有 bash_accesses 都是启用的
-                "bash_readonly": bash.readonly,
-                "tool_query": True,  # 允许查询
-                "tool_create": not bash.readonly,  # 非只读时允许创建
-                "tool_update": not bash.readonly,  # 非只读时允许更新
-                "tool_delete": not bash.readonly,  # 非只读时允许删除
-                "json_path": bash.json_path or "",
-            }
-            for bash in agent.bash_accesses
-        ],
-        # 关联的 Tools（mcp_exposed=True 的 tools）
+        "accesses": accesses_data,
         "tools": tools_data,
     }

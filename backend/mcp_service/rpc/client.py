@@ -8,7 +8,7 @@ RPC客户端模块
 - /internal/tools/{tool_id}/search - Search Tool 查询端点
 """
 import httpx
-from typing import Optional, Dict, Any, List
+from typing import Any, Optional, Dict, List
 
 
 class InternalApiClient:
@@ -278,6 +278,154 @@ class InternalApiClient:
         except httpx.RequestError as e:
             print(f"Error deleting table data: request_failed url={e.request.url} error={e}")
             raise RuntimeError(f"删除元素失败: {str(e)}") from e
+
+    # ============================================================
+    # ContentNode POSIX 端点
+    # ============================================================
+
+    async def resolve_path(
+        self,
+        project_id: str,
+        root_accesses: List[Dict[str, Any]],
+        path: str,
+    ) -> Dict[str, Any]:
+        """
+        解析人类可读路径到节点信息。
+        
+        Returns:
+            {"node_id": "...", "name": "...", "type": "...", "path": "...", ...}
+            或 {"virtual_root": True, "path": "/"} 表示虚拟根
+        """
+        try:
+            url = f"{self.base_url}/internal/nodes/resolve-path"
+            payload = {
+                "project_id": project_id,
+                "root_accesses": root_accesses,
+                "path": path,
+            }
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"路径解析失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"路径解析失败: {str(e)}") from e
+
+    async def list_children(
+        self,
+        node_id: str,
+        project_id: str,
+    ) -> Dict[str, Any]:
+        """列出子节点"""
+        try:
+            url = f"{self.base_url}/internal/nodes/{node_id}/children"
+            params = {"project_id": project_id}
+            response = await self._client.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"列出子节点失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"列出子节点失败: {str(e)}") from e
+
+    async def read_node_content(
+        self,
+        node_id: str,
+        project_id: str,
+    ) -> Dict[str, Any]:
+        """读取节点内容"""
+        try:
+            url = f"{self.base_url}/internal/nodes/{node_id}/content"
+            params = {"project_id": project_id}
+            response = await self._client.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"读取节点失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"读取节点失败: {str(e)}") from e
+
+    async def write_node_content(
+        self,
+        node_id: str,
+        project_id: str,
+        content: Any,
+    ) -> Dict[str, Any]:
+        """更新节点内容"""
+        try:
+            url = f"{self.base_url}/internal/nodes/{node_id}/content"
+            payload = {"project_id": project_id, "content": content}
+            response = await self._client.put(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"写入节点失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"写入节点失败: {str(e)}") from e
+
+    async def create_node(
+        self,
+        project_id: str,
+        parent_id: str,
+        name: str,
+        node_type: str,
+        content: Any = None,
+        created_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """创建节点"""
+        try:
+            url = f"{self.base_url}/internal/nodes/create"
+            payload = {
+                "project_id": project_id,
+                "parent_id": parent_id,
+                "name": name,
+                "node_type": node_type,
+                "content": content,
+                "created_by": created_by,
+            }
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"创建节点失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"创建节点失败: {str(e)}") from e
+
+    async def trash_node(
+        self,
+        node_id: str,
+        project_id: str,
+        user_id: str,
+    ) -> Dict[str, Any]:
+        """软删除节点（移入废纸篓）"""
+        try:
+            url = f"{self.base_url}/internal/nodes/{node_id}/trash"
+            payload = {"project_id": project_id, "user_id": user_id}
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"删除节点失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"删除节点失败: {str(e)}") from e
 
     # ============================================================
     # Search Tool 端点

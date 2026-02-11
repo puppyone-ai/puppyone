@@ -20,7 +20,7 @@ APP_START_TIME = time.time()
 from dotenv import load_dotenv
 
 dotenv_start = time.time()
-load_dotenv()
+load_dotenv(override=True)
 dotenv_duration = time.time() - dotenv_start
 
 # 初始化 Loguru + 拦截标准 logging（含 uvicorn.*）

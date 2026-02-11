@@ -61,6 +61,11 @@ CREATE INDEX IF NOT EXISTS idx_content_nodes_parent_id ON content_nodes(parent_i
 CREATE INDEX IF NOT EXISTS idx_content_nodes_type ON content_nodes(type);
 CREATE INDEX IF NOT EXISTS idx_content_nodes_id_path ON content_nodes(id_path);
 
+-- POSIX 语义: 同目录下名称唯一约束
+-- COALESCE(parent_id, '__root__') 将根节点的 NULL parent_id 映射为固定值
+CREATE UNIQUE INDEX IF NOT EXISTS idx_content_nodes_unique_name
+ON content_nodes (project_id, COALESCE(parent_id, '__root__'), name);
+
 -- 4. tool — 工具注册表
 CREATE TABLE IF NOT EXISTS tool (
     id              TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::TEXT,
