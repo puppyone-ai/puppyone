@@ -4,14 +4,20 @@ Agent Service - 简化版
 前端只需要传 active_tool_ids，后端自动处理一切：
 1. 根据 tool_id 查库获取 tool 配置
 2. 如果是 bash tool，自动查表数据、启动沙盒
-3. 构建 Claude 请求
+3. 如果是 search tool，注册到 Claude 并直接调用 SearchService
+4. 构建 Claude 请求
 
 支持的节点类型：
 - folder: 递归获取子文件，在沙盒中重建目录结构
 - json: 导出 content 为 data.json（可选 json_path 提取子数据）
 - file/pdf/image/etc: 下载单个文件
+
+支持的工具类型：
+- bash (sandbox): 通过 agent_bash 配置，数据沙盒执行
+- search: 通过 agent_tool 关联，向量检索（Turbopuffer）
 """
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Iterable, Optional
@@ -25,8 +31,64 @@ from src.agent.config.service import AgentConfigService
 from src.analytics.service import log_context_access, log_bash_execution
 import time as time_module  # For latency tracking
 
-# Anthropic 官方 bash 工具
-BASH_TOOL = {"type": "bash_20250124", "name": "bash"}
+# Anthropic 官方 bash 工具（Computer Use 格式，仅官方 API 支持）
+BASH_TOOL_NATIVE = {"type": "bash_20250124", "name": "bash"}
+
+# 通用 bash 工具定义（兼容第三方代理网关）
+BASH_TOOL_COMPAT = {
+    "name": "bash",
+    "description": (
+        "Execute a bash command in the sandbox environment. "
+        "Use this to run shell commands, view files, manipulate data, etc. "
+        "Returns the command output (stdout and stderr combined)."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "command": {
+                "type": "string",
+                "description": "The bash command to execute",
+            }
+        },
+        "required": ["command"],
+    },
+}
+
+
+def _use_native_anthropic() -> bool:
+    """判断是否使用 Anthropic 官方 API（非第三方代理）"""
+    base_url = settings.ANTHROPIC_BASE_URL
+    if not base_url:
+        return True
+    return "api.anthropic.com" in base_url
+
+
+def _get_bash_tool() -> dict:
+    """根据 API 端点选择合适的 bash tool 定义"""
+    if _use_native_anthropic():
+        return BASH_TOOL_NATIVE
+    return BASH_TOOL_COMPAT
+
+
+def _sanitize_tool_name(name: str) -> str:
+    """将工具名称转换为 Claude 兼容的格式 (仅 a-zA-Z0-9_-)"""
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+    # 去掉首尾的下划线并去重连续下划线
+    sanitized = re.sub(r"_+", "_", sanitized).strip("_")
+    return sanitized or "unnamed"
+
+
+@dataclass
+class SearchToolConfig:
+    """Agent 关联的 Search Tool 配置"""
+    tool_id: str           # tool 表的 ID
+    node_id: str           # 绑定的 content_node ID
+    json_path: str         # JSON 路径
+    project_id: str        # 项目 ID
+    node_type: str         # 节点类型（folder / json / markdown 等）
+    name: str              # 工具原始名称
+    description: str       # 工具描述
+    claude_tool_name: str  # 注册到 Claude 的工具名称
 
 
 @dataclass
@@ -199,7 +261,7 @@ class AgentService:
                 logger.info(f"[ScheduleAgent] Sandbox started: {sandbox_session_id}")
             
             # ========== 5. 构建 Claude 请求 ==========
-            tools = [BASH_TOOL] if use_bash else []
+            tools: list[dict[str, Any]] = [_get_bash_tool()] if use_bash else []
             
             if use_bash and sandbox_data:
                 node_type = sandbox_data.node_type
@@ -238,13 +300,17 @@ class AgentService:
                 logger.info(f"[ScheduleAgent] Claude iteration {iterations}")
                 
                 try:
-                    response = await self._anthropic.messages.create(
-                        model=settings.ANTHROPIC_MODEL,
-                        max_tokens=4096,
-                        system=system_prompt,
-                        tools=tools,
-                        messages=messages,
-                    )
+                    # 构建 API 调用参数（tools 为空时不传递，避免代理网关兼容问题）
+                    create_kwargs: dict[str, Any] = {
+                        "model": settings.ANTHROPIC_MODEL,
+                        "max_tokens": 4096,
+                        "system": system_prompt,
+                        "messages": messages,
+                    }
+                    if tools:
+                        create_kwargs["tools"] = tools
+                    
+                    response = await self._anthropic.messages.create(**create_kwargs)
                     
                     stop_reason = response.stop_reason
                     content_blocks = response.content
@@ -430,14 +496,15 @@ class AgentService:
         chat_service: Optional[ChatService] = None,
         s3_service=None,  # S3Service，用于下载文件
         agent_config_service: Optional[AgentConfigService] = None,  # 新版 agent 配置服务
+        search_service=None,  # SearchService，用于 search tool 执行
         max_iterations: int = 15,
     ) -> AsyncGenerator[dict, None]:
         """
         处理 Agent 请求的主入口
         
-        优先级：
-        1. 如果有 agent_id，从 agent_access 表读取配置（新版）
-        2. 否则，从 active_tool_ids 查 tool 表（旧版兼容）
+        支持的工具类型：
+        1. bash (sandbox) — 通过 agent_bash 配置
+        2. search — 通过 agent_tool 关联的 search 类型工具
         """
         
         # ========== 1. 解析配置，优先使用新版 agent_access ==========
@@ -477,6 +544,56 @@ class AgentService:
         # NOTE: Legacy fallback to tool table for shell_access has been removed.
         # Shell/bash access is now managed exclusively via agent_bash table.
         # See architecture: agents → agent_bash (data access) + agent_tool (tool bindings)
+        
+        # ========== 1b. 收集 Search Tools（从 agent_tool 绑定） ==========
+        search_tools_map: dict[str, SearchToolConfig] = {}  # {claude_tool_name: SearchToolConfig}
+        
+        if request.agent_id and current_user and agent_config_service and tool_service and search_service:
+            try:
+                agent_for_tools = agent_config_service.get_agent(request.agent_id)
+                
+                if agent_for_tools and agent_for_tools.tools:
+                    used_names: set[str] = set()
+                    for agent_tool_binding in agent_for_tools.tools:
+                        if not agent_tool_binding.enabled:
+                            continue
+                        
+                        # 从 tool 表加载完整信息
+                        tool_info = tool_service.get_by_id(agent_tool_binding.tool_id)
+                        if not tool_info or tool_info.type != "search":
+                            continue
+                        
+                        # 获取节点信息以确定搜索类型
+                        try:
+                            node = node_service.get_by_id_unsafe(tool_info.node_id)
+                            if not node:
+                                continue
+                        except Exception:
+                            continue
+                        
+                        # 生成 Claude 兼容的工具名称（避免冲突）
+                        base_name = _sanitize_tool_name(tool_info.name)
+                        claude_name = f"search_{base_name}"
+                        if claude_name in used_names:
+                            claude_name = f"search_{base_name}_{tool_info.id[:8]}"
+                        used_names.add(claude_name)
+                        
+                        search_tools_map[claude_name] = SearchToolConfig(
+                            tool_id=tool_info.id,
+                            node_id=tool_info.node_id,
+                            json_path=tool_info.json_path or "",
+                            project_id=tool_info.project_id or node.project_id,
+                            node_type=node.type or "json",
+                            name=tool_info.name,
+                            description=tool_info.description or f"Search in {tool_info.name}",
+                            claude_tool_name=claude_name,
+                        )
+                        logger.info(f"[Agent] Loaded search tool: {claude_name} (tool_id={tool_info.id}, node_type={node.type})")
+                    
+                    if search_tools_map:
+                        logger.info(f"[Agent] Total search tools: {len(search_tools_map)}")
+            except Exception as e:
+                logger.warning(f"[Agent] Failed to load search tools: {e}", exc_info=True)
         
         # ========== 2. Chat persistence (best-effort) ==========
         persisted_session_id: str | None = None
@@ -654,7 +771,31 @@ class AgentService:
             yield {"type": "status", "message": "Sandbox ready"}
 
         # ========== 4. 构建 Claude 请求 ==========
-        tools = [BASH_TOOL] if use_bash else []
+        tools: list[dict[str, Any]] = [_get_bash_tool()] if use_bash else []
+        
+        # 注册 Search Tools 到 Claude
+        for claude_name, stc in search_tools_map.items():
+            tools.append({
+                "name": claude_name,
+                "description": stc.description,
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search query text",
+                        },
+                        "top_k": {
+                            "type": "integer",
+                            "description": "Number of results to return (default 5, max 20)",
+                            "default": 5,
+                        },
+                    },
+                    "required": ["query"],
+                },
+            })
+        
+        use_search = len(search_tools_map) > 0
         
         # 根据节点类型构建系统提示
         if use_bash and sandbox_data:
@@ -669,6 +810,22 @@ class AgentService:
                 system_prompt = f"You are an AI agent with access to a {node_type} file. Use the bash tool to analyze the file in /workspace/."
         else:
             system_prompt = "You are an AI agent, a helpful assistant."
+
+        # 如果有 search tools，在系统提示中补充说明
+        if use_search:
+            search_tool_descriptions = []
+            for claude_name, stc in search_tools_map.items():
+                search_tool_descriptions.append(
+                    f"  - {claude_name}: {stc.description} (data source: {stc.name})"
+                )
+            search_prompt_suffix = (
+                "\n\n[Available Search Tools]\n"
+                "You have access to the following search tools for semantic retrieval:\n"
+                + "\n".join(search_tool_descriptions) +
+                "\nUse these tools when the user asks questions about the data. "
+                "Pass a natural language query to search for relevant information."
+            )
+            system_prompt += search_prompt_suffix
 
         # 构建用户消息：如果使用 bash，添加数据上下文
         user_content = request.prompt
@@ -763,13 +920,17 @@ class AgentService:
                 stop_reason = None
                 response_content: list[Any] = []
                 
-                async with self._anthropic.messages.stream(
-                    model=settings.ANTHROPIC_MODEL,
-                    max_tokens=4096,
-                    system=system_prompt,
-                    tools=tools,
-                    messages=messages,
-                ) as stream:
+                # 构建 API 调用参数（tools 为空时不传递，避免代理网关兼容问题）
+                stream_kwargs: dict[str, Any] = {
+                    "model": settings.ANTHROPIC_MODEL,
+                    "max_tokens": 4096,
+                    "system": system_prompt,
+                    "messages": messages,
+                }
+                if tools:
+                    stream_kwargs["tools"] = tools
+                
+                async with self._anthropic.messages.stream(**stream_kwargs) as stream:
                     async for event in stream:
                         event_type = getattr(event, "type", None)
                         
@@ -919,6 +1080,41 @@ class AgentService:
                             error_message=output,
                             latency_ms=exec_latency,
                         )
+                elif tool_name in search_tools_map and search_service:
+                    # ===== Search Tool 执行 =====
+                    stc = search_tools_map[tool_name]
+                    query = tool_input.get("query", "")
+                    top_k = tool_input.get("top_k", 5)
+                    
+                    exec_start = time_module.time()
+                    try:
+                        if stc.node_type == "folder":
+                            results = await search_service.search_folder(
+                                project_id=stc.project_id,
+                                folder_node_id=stc.node_id,
+                                query=query,
+                                top_k=top_k,
+                            )
+                        else:
+                            results = await search_service.search_scope(
+                                project_id=stc.project_id,
+                                node_id=stc.node_id,
+                                tool_json_path=stc.json_path,
+                                query=query,
+                                top_k=top_k,
+                            )
+                        exec_latency = int((time_module.time() - exec_start) * 1000)
+                        output = json.dumps(results, ensure_ascii=False, indent=2)
+                        success = True
+                        logger.info(
+                            f"[Agent] Search tool executed: {tool_name}, query='{query}', "
+                            f"results={len(results)}, latency={exec_latency}ms"
+                        )
+                    except Exception as e:
+                        exec_latency = int((time_module.time() - exec_start) * 1000)
+                        output = f"Search error: {str(e)}"
+                        success = False
+                        logger.error(f"[Agent] Search tool failed: {tool_name}, error={e}, latency={exec_latency}ms")
                 else:
                     output = f"Unknown tool: {tool_name}"
                     success = False

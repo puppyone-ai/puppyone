@@ -9,6 +9,7 @@ from src.content_node.dependencies import get_content_node_service
 from src.tool.dependencies import get_tool_service
 from src.s3.dependencies import get_s3_service
 from src.agent.config.dependencies import get_agent_config_service
+from src.search.dependencies import get_search_service
 from fastapi.responses import StreamingResponse
 
 
@@ -37,6 +38,7 @@ async def create_agent_session(
     tool_service=Depends(get_tool_service),
     s3_service=Depends(get_s3_service),
     agent_config_service=Depends(get_agent_config_service),
+    search_service=Depends(get_search_service),
 ):
     async def event_stream():
         try:
@@ -49,6 +51,7 @@ async def create_agent_session(
                 chat_service=chat_service,
                 s3_service=s3_service,
                 agent_config_service=agent_config_service,
+                search_service=search_service,
             ):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except Exception as exc:
