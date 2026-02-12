@@ -428,6 +428,103 @@ class InternalApiClient:
             raise RuntimeError(f"删除节点失败: {str(e)}") from e
 
     # ============================================================
+    # Node rename / move / prepare-upload 端点
+    # ============================================================
+
+    async def rename_node(
+        self,
+        node_id: str,
+        project_id: str,
+        new_name: str,
+    ) -> Dict[str, Any]:
+        """重命名节点"""
+        try:
+            url = f"{self.base_url}/internal/nodes/{node_id}/rename"
+            payload = {"project_id": project_id, "new_name": new_name}
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"重命名节点失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"重命名节点失败: {str(e)}") from e
+
+    async def move_node(
+        self,
+        node_id: str,
+        project_id: str,
+        new_parent_id: str | None,
+    ) -> Dict[str, Any]:
+        """移动节点到新父目录"""
+        try:
+            url = f"{self.base_url}/internal/nodes/{node_id}/move"
+            payload = {"project_id": project_id, "new_parent_id": new_parent_id}
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"移动节点失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"移动节点失败: {str(e)}") from e
+
+    async def prepare_upload(
+        self,
+        project_id: str,
+        name: str,
+        content_type: str = "application/octet-stream",
+        parent_id: str | None = None,
+    ) -> Dict[str, Any]:
+        """准备文件上传，返回 presigned URL"""
+        try:
+            url = f"{self.base_url}/internal/nodes/prepare-upload"
+            payload = {
+                "project_id": project_id,
+                "name": name,
+                "content_type": content_type,
+                "parent_id": parent_id,
+            }
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"准备上传失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"准备上传失败: {str(e)}") from e
+
+    async def get_reupload_url(
+        self,
+        node_id: str,
+        project_id: str,
+        content_type: str = "application/octet-stream",
+    ) -> Dict[str, Any]:
+        """获取已有 S3 文件节点的重新上传 URL"""
+        try:
+            url = f"{self.base_url}/internal/nodes/{node_id}/reupload-url"
+            payload = {
+                "project_id": project_id,
+                "content_type": content_type,
+            }
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"获取重新上传URL失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"获取重新上传URL失败: {str(e)}") from e
+
+    # ============================================================
     # Search Tool 端点
     # ============================================================
 

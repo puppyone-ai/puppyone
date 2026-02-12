@@ -401,6 +401,12 @@ class ContentNodeService:
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
+        # 计算 JSON 内容的字节大小
+        size_bytes = None
+        if content is not None:
+            import json as _json
+            size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8"))
+
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
@@ -410,6 +416,7 @@ class ContentNodeService:
             created_by=created_by,
             preview_json=content,
             mime_type="application/json",
+            size_bytes=size_bytes,
         )
 
     def create_placeholder_node(
@@ -937,10 +944,15 @@ class ContentNodeService:
                 clear_preview_json=True,
             )
         else:
+            size_bytes = None
+            if preview_json is not None:
+                import json as _json
+                size_bytes = len(_json.dumps(preview_json, ensure_ascii=False).encode("utf-8"))
             updated = self.repo.update(
                 node_id=node_id,
                 name=name,
                 preview_json=preview_json,
+                size_bytes=size_bytes,
             )
         
         return updated

@@ -63,10 +63,12 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
             "project_id": agent_info.get("project_id"),  # Agent 绑定到 Project
             "type": agent_info.get("type"),
         },
-        # Bash 访问权限（用于内置数据 CRUD 工具）
+        # Bash 访问权限（用于内置数据 CRUD 工具 + POSIX 文件系统工具）
         "accesses": [
             {
                 "node_id": a.get("node_id"),
+                "node_name": a.get("node_name", ""),
+                "node_type": a.get("node_type", ""),
                 "bash_enabled": a.get("bash_enabled", True),
                 "bash_readonly": a.get("bash_readonly", True),
                 "tool_query": a.get("tool_query", True),
