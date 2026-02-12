@@ -705,6 +705,165 @@ async def trash_node(
 
 
 # ============================================================
+# Node rename / move / prepare-upload（供 AGFS puppyonefs 等调用）
+# ============================================================
+
+@router.post(
+    "/nodes/{node_id}/rename",
+    summary="重命名节点",
+    description="修改节点名称（不影响 id_path）",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def rename_node(
+    node_id: str,
+    payload: Dict[str, Any],
+    node_service: ContentNodeService = Depends(get_content_node_service),
+):
+    """
+    重命名节点
+
+    payload:
+        project_id: str
+        new_name: str
+    """
+    try:
+        project_id = payload.get("project_id", "")
+        new_name = payload.get("new_name", "")
+        if not new_name:
+            raise HTTPException(status_code=400, detail="new_name is required")
+        updated = node_service.update_node(node_id, project_id, name=new_name)
+        return {"node_id": updated.id, "name": updated.name, "renamed": True}
+    except HTTPException:
+        raise
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post(
+    "/nodes/{node_id}/move",
+    summary="移动节点到新父目录",
+    description="将节点移动到另一个文件夹下（递归更新子节点 id_path）",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def move_node_internal(
+    node_id: str,
+    payload: Dict[str, Any],
+    node_service: ContentNodeService = Depends(get_content_node_service),
+):
+    """
+    移动节点
+
+    payload:
+        project_id: str
+        new_parent_id: str | None  (None 表示移动到项目根)
+    """
+    try:
+        project_id = payload.get("project_id", "")
+        new_parent_id = payload.get("new_parent_id")
+        updated = node_service.move_node(node_id, project_id, new_parent_id)
+        return {"node_id": updated.id, "parent_id": updated.parent_id, "moved": True}
+    except HTTPException:
+        raise
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post(
+    "/nodes/prepare-upload",
+    summary="准备文件上传（获取 presigned URL）",
+    description="创建 file 类型节点并返回 S3 presigned upload URL",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def prepare_upload(
+    payload: Dict[str, Any],
+    node_service: ContentNodeService = Depends(get_content_node_service),
+):
+    """
+    准备上传
+
+    payload:
+        project_id: str
+        name: str
+        content_type: str (可选，默认 application/octet-stream)
+        parent_id: str | None (可选)
+    """
+    try:
+        project_id = payload.get("project_id", "")
+        name = payload.get("name", "")
+        content_type = payload.get("content_type", "application/octet-stream")
+        parent_id = payload.get("parent_id")
+
+        if not name:
+            raise HTTPException(status_code=400, detail="name is required")
+
+        node, upload_url = await node_service.prepare_file_upload(
+            project_id=project_id,
+            name=name,
+            content_type=content_type,
+            parent_id=parent_id,
+        )
+        return {
+            "node_id": node.id,
+            "upload_url": upload_url,
+            "s3_key": node.s3_key,
+        }
+    except HTTPException:
+        raise
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post(
+    "/nodes/{node_id}/reupload-url",
+    summary="获取已有 S3 文件节点的重新上传 URL",
+    description="为已有的 file 类型节点生成新的 presigned upload URL（覆盖原有 S3 对象）",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def get_reupload_url(
+    node_id: str,
+    payload: Dict[str, Any],
+    node_service: ContentNodeService = Depends(get_content_node_service),
+):
+    """
+    获取已有文件节点的 presigned upload URL，用于覆盖更新文件内容。
+
+    payload:
+        project_id: str
+        content_type: str (可选，默认 application/octet-stream)
+    """
+    try:
+        project_id = payload.get("project_id", "")
+        content_type = payload.get("content_type", "application/octet-stream")
+
+        node = node_service.get_by_id(node_id, project_id)
+        if not node.s3_key:
+            raise HTTPException(status_code=400, detail="Node has no S3 file key")
+
+        upload_url = await node_service.s3.generate_presigned_upload_url(
+            key=node.s3_key,
+            expires_in=3600,
+            content_type=content_type,
+        )
+        return {
+            "node_id": node.id,
+            "upload_url": upload_url,
+            "s3_key": node.s3_key,
+        }
+    except HTTPException:
+        raise
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ============================================================
 # Agent internal endpoints（供 mcp_service 调用，新架构）
 # ============================================================
 
