@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createConnection } from '../lib/dbConnectorApi';
+import { createConnection, type ConnectionErrorDetail, type KeyType } from '../lib/dbConnectorApi';
 
 type SupabaseConnectDialogProps = {
   projectId: string;
@@ -11,11 +11,13 @@ type SupabaseConnectDialogProps = {
 
 export function SupabaseConnectDialog({ projectId, onClose, onConnected }: SupabaseConnectDialogProps) {
   const [projectUrl, setProjectUrl] = useState('');
-  const [serviceRoleKey, setServiceRoleKey] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [keyType, setKeyType] = useState<KeyType>('anon'); // Default to anon
   const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ConnectionErrorDetail | null>(null);
+  const [showRLSGuide, setShowRLSGuide] = useState(false);
 
-  const canSubmit = projectUrl.trim().length > 0 && serviceRoleKey.trim().length > 0;
+  const canSubmit = projectUrl.trim().length > 0 && apiKey.trim().length > 0;
 
   const handleConnect = async () => {
     if (!canSubmit) return;
@@ -31,13 +33,26 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
         name,
         provider: 'supabase',
         project_url: projectUrl.trim(),
-        service_role_key: serviceRoleKey.trim(),
+        api_key: apiKey.trim(),
+        key_type: keyType,
       });
 
       onConnected(connection.id);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg || 'Connection failed. Please check your credentials.');
+      const errorDetail: ConnectionErrorDetail = err instanceof Error
+        ? {
+            error_code: null,
+            message: err.message,
+            suggested_actions: [],
+          }
+        : (err as ConnectionErrorDetail);
+
+      if (errorDetail.error_code === 'RLS_BLOCKED') {
+        // Show RLS guidance
+        setShowRLSGuide(true);
+      } else {
+        setError(errorDetail);
+      }
     } finally {
       setIsConnecting(false);
     }
@@ -57,7 +72,7 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
           background: '#1C1C1E',
           border: '1px solid rgba(255,255,255,0.08)',
           borderRadius: 12,
-          width: 480,
+          width: 520,
           maxWidth: '90vw',
           boxShadow: '0 24px 48px rgba(0,0,0,0.4)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -92,12 +107,72 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
 
         {/* Body */}
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Key Type Selector */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 13, color: '#a1a1aa', fontWeight: 500, marginBottom: 8 }}>
+              Select API Key Type
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {/* Anon Key Option */}
+              <label
+                style={{
+                  display: 'flex',
+                  flex: 1,
+                  padding: '12px',
+                  border: `2px solid ${keyType === 'anon' ? 'rgba(62, 207, 142, 0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onClick={() => setKeyType('anon')}
+              >
+                <input
+                  type="radio"
+                  name="keyType"
+                  checked={keyType === 'anon'}
+                  onChange={() => setKeyType('anon')}
+                  style={{ margin: 0 }}
+                />
+                <div style={{ marginLeft: 8 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#e4e4e7' }}>Anon Key</div>
+                  <div style={{ fontSize: 12, color: '#a1a1aa' }}>Recommended - Secure, public access</div>
+                </div>
+              </label>
+
+              {/* Service Role Key Option */}
+              <label
+                style={{
+                  display: 'flex',
+                  flex: 1,
+                  padding: '12px',
+                  border: `2px solid ${keyType === 'service_role' ? 'rgba(62, 207, 142, 0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onClick={() => setKeyType('service_role')}
+              >
+                <input
+                  type="radio"
+                  name="keyType"
+                  checked={keyType === 'service_role'}
+                  onChange={() => setKeyType('service_role')}
+                  style={{ margin: 0 }}
+                />
+                <div style={{ marginLeft: 8 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#e4e4e7' }}>Service Role Key</div>
+                  <div style={{ fontSize: 12, color: '#a1a1aa' }}>⚠️ Full database access - Use with caution</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* Project URL */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 13, color: '#a1a1aa', fontWeight: 500 }}>Project URL</label>
             <input
               type="text"
-              placeholder="https://abcdefg.supabase.co"
+              placeholder="https://your-project.supabase.co"
               value={projectUrl}
               onChange={e => { setProjectUrl(e.target.value); setError(null); }}
               style={{
@@ -111,14 +186,14 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
             <span style={{ fontSize: 12, color: '#525252' }}>Settings → API → Project URL</span>
           </div>
 
-          {/* Service Role Key */}
+          {/* API Key Input */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, color: '#a1a1aa', fontWeight: 500 }}>Service Role Key</label>
+            <label style={{ fontSize: 13, color: '#a1a1aa', fontWeight: 500 }}>API Key</label>
             <input
               type="password"
               placeholder="eyJhbGciOiJIUzI1NiIs..."
-              value={serviceRoleKey}
-              onChange={e => { setServiceRoleKey(e.target.value); setError(null); }}
+              value={apiKey}
+              onChange={e => { setApiKey(e.target.value); setError(null); }}
               onKeyDown={e => { if (e.key === 'Enter' && canSubmit) handleConnect(); }}
               style={{
                 background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
@@ -128,36 +203,146 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
               onFocus={e => e.target.style.borderColor = 'rgba(62, 207, 142, 0.5)'}
               onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
             />
-            <span style={{ fontSize: 12, color: '#525252' }}>Settings → API → Project API keys → service_role</span>
+            <span style={{ fontSize: 12, color: '#525252' }}>
+              {keyType === 'anon'
+                ? 'Settings → API → Project API keys → anon public'
+                : 'Settings → API → Project API keys → service_role'}
+            </span>
           </div>
 
-          {/* Info */}
-          <div style={{ padding: '10px 12px', background: 'rgba(62, 207, 142, 0.06)', border: '1px solid rgba(62, 207, 142, 0.1)', borderRadius: 8, color: '#6ee7b7', fontSize: 12, lineHeight: 1.5 }}>
-            Service Role Key is read-only in our system. We only fetch data, never modify your database.
-          </div>
+          {/* Security Warning for service_role */}
+          {keyType === 'service_role' && (
+            <div style={{
+              padding: '12px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: 8,
+              display: 'flex',
+              gap: 8,
+              alignItems: 'flex-start',
+            }}>
+              <span style={{ fontSize: 20 }}>⚠️</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#fca5a5', marginBottom: 4 }}>
+                  Security Warning
+                </div>
+                <div style={{ fontSize: 12, color: '#e4e4e7', lineHeight: 1.5 }}>
+                  The <strong>Service Role Key</strong> has full permissions to read, write, and delete data in your database.
+                  Only use this for data sources you trust.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Info Box for anon */}
+          {keyType === 'anon' && (
+            <div style={{
+              padding: '12px',
+              background: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+              borderRadius: 8,
+              display: 'flex',
+              gap: 8,
+              alignItems: 'flex-start',
+            }}>
+              <span style={{ fontSize: 20 }}>ℹ️</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: '#3b82f6', marginBottom: 4 }}>
+                  Row Level Security (RLS)
+                </div>
+                <div style={{ fontSize: 12, color: '#a1a1aa', lineHeight: 1.5 }}>
+                  Your Supabase may have Row Level Security (RLS) enabled.
+                  If you get a "403 Access Denied" error, we'll guide you through RLS configuration.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Error */}
           {error && (
-            <div style={{ padding: '10px 12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 8, color: '#fca5a5', fontSize: 13 }}>
-              {error}
+            <div style={{
+              padding: '12px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: error.error_code === 'RLS_BLOCKED' ? 12 : 0 }}>
+                <span style={{ fontSize: 16, color: '#fca5a5' }}>
+                  {error.error_code === 'RLS_BLOCKED' ? '⚠️' : '⚠️'}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#fca5a5', marginBottom: 4 }}>
+                    {error.error_code === 'RLS_BLOCKED' ? 'Row Level Security Detected' : 'Connection Failed'}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#e4e4e7', lineHeight: 1.5 }}>
+                    {error.message}
+                  </div>
+                  {error.suggested_actions && error.suggested_actions.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: '#a1a1aa', marginBottom: 8 }}>
+                        You can try:
+                      </div>
+                      <ol style={{ margin: 0, paddingLeft: 20 }}>
+                        {error.suggested_actions.map((action, i) => (
+                          <li key={i} style={{ marginBottom: 4, color: '#e4e4e7' }}>
+                            {action}
+                          </li>
+                        ))}
+                      </ol>
+                      {error.error_code === 'RLS_BLOCKED' && (
+                        <button
+                          onClick={() => setShowRLSGuide(true)}
+                          style={{
+                            marginTop: 12,
+                            padding: '8px 16px',
+                            borderRadius: 6,
+                            border: '1px solid rgba(59, 130, 246, 0.5)',
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            color: '#fafafa',
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            fontWeight: 500,
+                          }}
+                        >
+                          Configure RLS
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#a1a1aa', cursor: 'pointer', fontSize: 14 }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'transparent',
+              color: '#a1a1aa',
+              cursor: 'pointer',
+              fontSize: 14,
+            }}
+          >
             Cancel
           </button>
           <button
             onClick={handleConnect}
             disabled={!canSubmit || isConnecting}
             style={{
-              padding: '8px 20px', borderRadius: 8, border: 'none',
+              padding: '8px 20px',
+              borderRadius: 8,
+              border: 'none',
               background: canSubmit && !isConnecting ? '#3ECF8E' : 'rgba(62, 207, 142, 0.3)',
               color: canSubmit && !isConnecting ? '#000' : 'rgba(0,0,0,0.4)',
               cursor: canSubmit && !isConnecting ? 'pointer' : 'not-allowed',
-              fontSize: 14, fontWeight: 600,
+              fontSize: 14,
+              fontWeight: 600,
             }}
           >
             {isConnecting ? 'Connecting...' : 'Connect'}
@@ -166,4 +351,125 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
       </div>
     </div>
   );
+
+  // RLS Guide Modal (simplified placeholder)
+  if (showRLSGuide) {
+    return (
+      <div
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }}
+        onClick={() => setShowRLSGuide(false)}
+      >
+        <div
+          style={{
+            background: '#1C1C1E',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 12,
+            width: 600,
+            maxWidth: '90vw',
+            padding: 24,
+          }}
+        >
+          <h2 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#e4e4e7' }}>
+            Configure Row Level Security
+          </h2>
+          <p style={{ fontSize: 13, color: '#a1a1aa', lineHeight: 1.6, marginBottom: 20 }}>
+            Your Supabase database has Row Level Security (RLS) enabled. Follow these steps to allow anon access:
+          </p>
+          <ol style={{ margin: 0, paddingLeft: 20 }}>
+            <li style={{ marginBottom: 16, color: '#e4e4e7' }}>
+              <strong>1. Open Supabase SQL Editor</strong>
+              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>
+                In your Supabase Dashboard, go to{' '}
+                <a
+                  href="https://supabase.com/dashboard/project/_/sql"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#3b82f6', textDecoration: 'underline' }}
+                >
+                  SQL Editor
+                </a>
+              </div>
+            </li>
+            <li style={{ marginBottom: 16, color: '#e4e4e7' }}>
+              <strong>2. Enable RLS on your table</strong>
+              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>
+                Run this SQL command for each table you want to share:
+              </div>
+              <pre
+                style={{
+                  background: 'rgba(0,0,0,0.8)',
+                  padding: 12,
+                  borderRadius: 6,
+                  fontSize: 11,
+                  overflow: 'auto',
+                  marginTop: 8,
+                }}
+              >{`ALTER TABLE your_table_name ENABLE ROW LEVEL SECURITY;`}</pre>
+            </li>
+            <li style={{ marginBottom: 16, color: '#e4e4e7' }}>
+              <strong>3. Create access policy</strong>
+              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>
+                Create a policy that allows anon users to read:
+              </div>
+              <pre
+                style={{
+                  background: 'rgba(0,0,0,0.8)',
+                  padding: 12,
+                  borderRadius: 6,
+                  fontSize: 11,
+                  overflow: 'auto',
+                  marginTop: 8,
+                }}
+              >{`CREATE POLICY "Allow anon read" ON your_table_name
+  FOR SELECT
+  TO anon
+  USING (true);`}</pre>
+            </li>
+            <li style={{ marginBottom: 16, color: '#e4e4e7' }}>
+              <strong>4. Verify the policy</strong>
+              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>
+                Test that the policy works:
+              </div>
+              <pre
+                style={{
+                  background: 'rgba(0,0,0,0.8)',
+                  padding: 12,
+                  borderRadius: 6,
+                  fontSize: 11,
+                  overflow: 'auto',
+                  marginTop: 8,
+                }}
+              >{`SELECT * FROM your_table_name LIMIT 1;`}</pre>
+            </li>
+            <li style={{ marginBottom: 8, color: '#e4e4e7' }}>
+              <strong>5. Return and try connecting</strong>
+              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>
+                Come back to this dialog and click Connect again.
+              </div>
+            </li>
+          </ol>
+          <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <button
+              onClick={() => setShowRLSGuide(false)}
+              style={{
+                padding: '10px 24px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#3ECF8E',
+                color: '#000',
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }
