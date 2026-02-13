@@ -139,7 +139,7 @@ class DBConnectorService:
             project_id=project_id,
             sync_oauth_user_id=user_id,
             name=name,
-            source=conn.provider,
+            node_type=conn.provider,
             sync_url=f"supabase://{conn.id}/{table}",
             content=content_data,
             sync_id=conn.id,
