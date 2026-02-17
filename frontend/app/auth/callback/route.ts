@@ -8,11 +8,9 @@ import { cookies } from 'next/headers';
  * 处理流程：
  * 1. 从 URL 获取 code 参数
  * 2. 在服务端用 code 交换 session
- * 3. 检查用户 onboarding 状态，如果未完成则完成 onboarding
- * 4. 设置 cookie 后重定向到正确的页面
- *
- * 注意：Onboarding 在这里处理，而不是在 React 组件中，
- * 因为这是服务端代码，只会执行一次，不受 React StrictMode 影响。
+ * 3. 检查用户 onboarding 状态
+ * 4. 新用户 → 跳 /home（客户端 PreparingScreen 展示动画 + 完成 onboarding）
+ *    老用户 → 跳 /home 或 next 参数指定的路径
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -46,39 +44,24 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.session) {
-      // ✅ 在服务端处理 Onboarding（只执行一次，不受 React StrictMode 影响）
+      // 检查 onboarding 状态，新用户跳 /home 显示 PreparingScreen
       try {
         const token = data.session.access_token;
         
-        // 1. 检查 onboarding 状态
         const statusRes = await fetch(`${apiUrl}/api/v1/profile/onboarding/status`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const statusData = await statusRes.json();
 
         if (statusData.code === 0 && !statusData.data.has_onboarded) {
-          // 2. 新用户 - 完成 onboarding（创建 demo project）
-          const completeRes = await fetch(`${apiUrl}/api/v1/profile/onboarding/complete`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({}),
-          });
-          const completeData = await completeRes.json();
-
-          if (completeData.code === 0 && completeData.data.redirect_to) {
-            // 重定向到 demo project（带 welcome 参数显示引导）
-            return NextResponse.redirect(`${siteUrl}${completeData.data.redirect_to}`);
-          }
+          // 新用户：跳转到 /home，由客户端 PreparingScreen 展示动画并完成 onboarding
+          return NextResponse.redirect(`${siteUrl}/home`);
         }
       } catch (e) {
         console.error('Onboarding check failed:', e);
-        // 即使 onboarding 检查失败，也继续正常流程
       }
 
-      // 老用户或 onboarding 检查失败，重定向到 home
+      // 老用户或检查失败，正常跳转
       return NextResponse.redirect(`${siteUrl}${next}`);
     }
 

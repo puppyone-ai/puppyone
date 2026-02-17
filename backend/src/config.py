@@ -120,6 +120,14 @@ class Settings(BaseSettings):
     # 大文件流式处理阈值（字节），超过此大小使用流式传输
     SANDBOX_LARGE_FILE_THRESHOLD: int = 50 * 1024 * 1024  # 50MB
 
+    # Workspace Provider 配置
+    # - "auto": 自动检测平台（macOS → APFS Clone, Linux → OverlayFS, 其他 → 全量复制）
+    # - "apfs": 强制使用 APFS Clone（macOS only）
+    # - "overlayfs": 强制使用 OverlayFS（Linux only）
+    # - "fallback": 强制使用全量复制
+    WORKSPACE_PROVIDER: str = "auto"
+    WORKSPACE_BASE_DIR: str = "/tmp/contextbase"
+
     # 测试配置
     SKIP_AUTH: bool = False  # 是否跳过鉴权（仅用于测试环境）
 

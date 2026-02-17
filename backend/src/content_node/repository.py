@@ -211,12 +211,19 @@ class ContentNodeRepository:
         size_bytes: Optional[int] = None,
         clear_preview_json: bool = False,
         clear_preview_md: bool = False,
+        current_version: Optional[int] = None,
+        content_hash: Optional[str] = None,
+        expected_version: Optional[int] = None,
     ) -> Optional[ContentNode]:
         """更新节点
         
         Args:
             clear_preview_json: 如果为 True，将 preview_json 字段设为 null
             clear_preview_md: 如果为 True，将 preview_md 字段设为 null
+            current_version: 版本号（版本管理用）
+            content_hash: 内容哈希（版本管理用）
+            expected_version: 乐观锁 — 如果指定，只在数据库中 current_version 
+                             等于此值时才更新。返回 None 表示版本冲突。
         """
         data = {}
         if name is not None:
@@ -237,16 +244,25 @@ class ContentNodeRepository:
             data["s3_key"] = s3_key
         if size_bytes is not None:
             data["size_bytes"] = size_bytes
+        if current_version is not None:
+            data["current_version"] = current_version
+        if content_hash is not None:
+            data["content_hash"] = content_hash
 
         if not data:
             return self.get_by_id(node_id)
 
-        response = (
+        query = (
             self.client.table(self.TABLE_NAME)
             .update(data)
             .eq("id", node_id)
-            .execute()
         )
+        
+        # 乐观锁：额外检查 current_version
+        if expected_version is not None:
+            query = query.eq("current_version", expected_version)
+        
+        response = query.execute()
         if response.data:
             return self._row_to_model(response.data[0])
         return None

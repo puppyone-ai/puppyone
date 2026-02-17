@@ -64,6 +64,10 @@ class ContentNode(BaseModel):
     size_bytes: int = Field(0, description="文件大小（字节）")
     permissions: dict = Field(default_factory=lambda: {"inherit": True}, description="权限配置")
     
+    # === 版本管理字段 ===
+    current_version: int = Field(0, description="当前版本号（乐观锁）")
+    content_hash: Optional[str] = Field(None, description="当前内容 SHA-256 哈希")
+    
     # 同步相关字段（仅 type=sync 时有值）
     sync_url: Optional[str] = Field(None, description="同步来源 URL")
     sync_id: Optional[str] = Field(None, description="外部平台资源 ID")

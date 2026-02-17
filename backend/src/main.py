@@ -347,6 +347,12 @@ def create_app() -> FastAPI:
         internal_router, tags=["internal"]
     )  # Internal API不加/api/v1前缀
     app.include_router(content_node_router, prefix="/api/v1", tags=["content-nodes"])
+    from src.content_node.version_router import router as version_router
+    app.include_router(version_router, prefix="/api/v1", tags=["content-node-versions"])
+    from src.collaboration.router import router as collab_router
+    app.include_router(collab_router, prefix="/api/v1", tags=["collaboration"])
+    from src.workspace.router import router as workspace_router
+    app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])

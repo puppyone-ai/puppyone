@@ -1,10 +1,11 @@
 """
-Agent Service - 简化版
+Agent Service — 编排器
 
 前端只需要传 active_tool_ids，后端自动处理一切：
 1. 根据 tool_id 查库获取 tool 配置
 2. 如果是 bash tool，自动查表数据、启动沙盒
 3. 构建 Claude 请求
+4. 沙盒回写通过 CollaborationService (L2)
 
 支持的节点类型：
 - folder: 递归获取子文件，在沙盒中重建目录结构
@@ -13,7 +14,6 @@ Agent Service - 简化版
 """
 import json
 import time
-from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Iterable, Optional
 
 from loguru import logger
@@ -22,31 +22,15 @@ from src.agent.schemas import AgentRequest
 from src.config import settings
 from src.agent.chat.service import ChatService
 from src.agent.config.service import AgentConfigService
+from src.agent.sandbox_data import (
+    SandboxFile, SandboxData,
+    prepare_sandbox_data, extract_data_by_path, merge_data_by_path,
+)
 from src.analytics.service import log_context_access, log_bash_execution
 import time as time_module  # For latency tracking
 
 # Anthropic 官方 bash 工具
 BASH_TOOL = {"type": "bash_20250124", "name": "bash"}
-
-
-@dataclass
-class SandboxFile:
-    """沙盒中的文件"""
-    path: str               # 沙盒中的路径，如 /workspace/data.json
-    content: str | None = None      # 文本内容（JSON/文本文件）
-    s3_key: str | None = None       # S3 key（二进制文件需要下载）
-    content_type: str = "application/octet-stream"
-
-
-@dataclass
-class SandboxData:
-    """沙盒数据"""
-    files: list[SandboxFile] = field(default_factory=list)
-    node_type: str = "json"
-    root_node_id: str = ""
-    root_node_name: str = ""
-    # 用于多文件回写：node_id -> {sandbox_path, node_type}
-    node_path_map: dict = field(default_factory=dict)
 
 
 class AgentService:
@@ -388,12 +372,16 @@ class AgentService:
                                     node_id=node_id,
                                     project_id=node.project_id,
                                     preview_json=updated_data,
+                                    operator_type="agent",
+                                    operator_id=agent_config.id if agent_config else None,
                                 )
                             elif node_type == "markdown":
                                 await node_service.update_markdown_content(
                                     node_id=node_id,
                                     project_id=node.project_id,
                                     content=sandbox_content,
+                                    operator_type="agent",
+                                    operator_id=agent_config.id if agent_config else None,
                                 )
                             
                             result["updated_nodes"].append({
@@ -575,14 +563,36 @@ class AgentService:
                     )
                     
                     # 记录路径映射（用于回写和显示）
-                    if data.files:
-                        # 对于 JSON 和单文件，记录主文件路径
-                        main_path = data.files[0].path
+                    if data.node_type == "folder" and data.files:
+                        # 文件夹类型：为每个子文件建立独立的回写映射
+                        for f in data.files:
+                            if f.node_id and f.node_type in ("json", "markdown"):
+                                node_path_map[f.node_id] = {
+                                    "path": f.path,
+                                    "node_type": f.node_type,
+                                    "json_path": "",  # 子文件没有 json_path
+                                    "readonly": tool["readonly"],
+                                    "base_version": f.base_version,
+                                    "base_content": f.content,  # 记录 Agent 读取时的原始内容
+                                }
+                        # 同时记录文件夹本身（用于显示）
                         node_path_map[tool["node_id"]] = {
-                            "path": main_path,
+                            "path": f"/workspace/{data.root_node_name}" if data.root_node_name else "/workspace",
+                            "node_type": "folder",
+                            "json_path": tool["json_path"],
+                            "readonly": tool["readonly"],
+                            "is_folder_parent": True,
+                        }
+                    elif data.files:
+                        # 非文件夹类型（JSON、单文件等）：记录主文件路径
+                        main_file = data.files[0]
+                        node_path_map[tool["node_id"]] = {
+                            "path": main_file.path,
                             "node_type": data.node_type,
                             "json_path": tool["json_path"],
                             "readonly": tool["readonly"],
+                            "base_version": main_file.base_version,
+                            "base_content": main_file.content,
                         }
                     else:
                         # 空文件夹也记录，使用文件夹名作为路径
@@ -611,31 +621,95 @@ class AgentService:
             )
             logger.info(f"[Agent] Total sandbox files: {len(all_files)} from {len(bash_tools)} accesses, path_map={list(node_path_map.keys())}")
 
+        # ========== Workspace Provider 初始化 ==========
+        workspace_provider = None
+        workspace_info = None
+        try:
+            from src.workspace.provider import get_workspace_provider
+            workspace_provider = get_workspace_provider()
+        except Exception as e:
+            logger.warning(f"[Agent] WorkspaceProvider init failed, using traditional sandbox: {e}")
+
         if use_bash and sandbox_service:
             sandbox_session_id = f"agent-{int(time.time() * 1000)}"
             
-            # 根据节点类型选择启动方式
-            if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
-                # 单个 JSON 节点：使用现有的 data 参数
-                json_content = {}
-                if sandbox_data.files:
-                    try:
-                        json_content = json.loads(sandbox_data.files[0].content or "{}")
-                    except:
-                        json_content = {}
-                start_result = await sandbox_service.start(
-                    session_id=sandbox_session_id,
-                    data=json_content,
-                    readonly=sandbox_readonly,
-                )
-            else:
-                # Folder/File/多个节点：使用 files 参数
-                start_result = await sandbox_service.start_with_files(
-                    session_id=sandbox_session_id,
-                    files=sandbox_data.files if sandbox_data else [],
-                    readonly=sandbox_readonly,
-                    s3_service=s3_service,
-                )
+            # 尝试使用 WorkspaceProvider（APFS Clone / OverlayFS / Fallback）
+            use_workspace = (
+                workspace_provider is not None
+                and sandbox_data is not None
+                and sandbox_data.node_type in ("folder", "multi")
+                and node_service is not None
+            )
+            
+            if use_workspace:
+                try:
+                    # 获取 project_id
+                    _first_node = node_service.get_by_id_unsafe(bash_tools[0]["node_id"]) if bash_tools else None
+                    _ws_project_id = _first_node.project_id if _first_node else ""
+                    
+                    if _ws_project_id:
+                        # 同步数据到 Lower（后台，供 MergeDaemon 使用）
+                        from src.workspace.sync_worker import SyncWorker
+                        sync_worker = SyncWorker(
+                            node_repo=node_service.repo,
+                            s3_service=s3_service,
+                            base_dir=workspace_provider._base_dir if hasattr(workspace_provider, '_base_dir') else "/tmp/contextbase",
+                        )
+                        await sync_worker.sync_project(_ws_project_id)
+                        
+                        # 获取当前 folder_snapshot（作为 base）
+                        _base_snapshot_id = None
+                        if hasattr(node_service, 'version_service') and node_service.version_service:
+                            latest_snapshot = node_service.version_service.snapshot_repo.get_latest_by_folder(
+                                bash_tools[0]["node_id"]
+                            )
+                            if latest_snapshot:
+                                _base_snapshot_id = latest_snapshot.id
+                        
+                        # 创建 Agent 工作区（APFS Clone，后台保留用于 MergeDaemon）
+                        workspace_info = await workspace_provider.create_workspace(
+                            agent_id=sandbox_session_id,
+                            project_id=_ws_project_id,
+                            base_snapshot_id=_base_snapshot_id,
+                        )
+                        
+                        # 使用 prepare_sandbox_data 已准备好的文件启动沙盒
+                        # sandbox_data.files 已按 agent 配置的文件夹正确过滤，
+                        # 且使用人类可读的文件名和文件夹层级结构
+                        start_result = await sandbox_service.start_with_files(
+                            session_id=sandbox_session_id,
+                            files=sandbox_data.files if sandbox_data else [],
+                            readonly=sandbox_readonly,
+                            s3_service=s3_service,
+                        )
+                        logger.info(f"[Agent/Workspace] Started with workspace: {workspace_info.path}, "
+                                   f"sandbox files={len(sandbox_data.files) if sandbox_data else 0}")
+                except Exception as e:
+                    logger.warning(f"[Agent/Workspace] Failed, falling back to traditional: {e}")
+                    use_workspace = False
+                    workspace_info = None
+            
+            if not use_workspace:
+                # 传统模式（和之前一样）
+                if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
+                    json_content = {}
+                    if sandbox_data.files:
+                        try:
+                            json_content = json.loads(sandbox_data.files[0].content or "{}")
+                        except:
+                            json_content = {}
+                    start_result = await sandbox_service.start(
+                        session_id=sandbox_session_id,
+                        data=json_content,
+                        readonly=sandbox_readonly,
+                    )
+                else:
+                    start_result = await sandbox_service.start_with_files(
+                        session_id=sandbox_session_id,
+                        files=sandbox_data.files if sandbox_data else [],
+                        readonly=sandbox_readonly,
+                        s3_service=s3_service,
+                    )
             
             if not start_result.get("success"):
                 err_msg = start_result.get("error", "Failed to start sandbox")
@@ -973,76 +1047,115 @@ class AgentService:
             logger.warning(f"[Chat Persist] Skipping assistant message save: should_persist={should_persist}, session_id={persisted_session_id}")
 
         if use_bash and sandbox_service and sandbox_session_id:
-            # 回写修改的数据到数据库
+            # 回写修改的数据到数据库（通过 CollaborationService: 乐观锁 + 三方合并 + 版本记录）
             updated_nodes = []
             
+            # 初始化 CollaborationService
+            collab_service = None
+            try:
+                from src.collaboration.conflict_service import ConflictService
+                from src.collaboration.lock_service import LockService
+                from src.collaboration.version_service import VersionService as CollabVersionService
+                from src.collaboration.version_repository import FileVersionRepository as CollabFileVersionRepo, FolderSnapshotRepository as CollabFolderSnapshotRepo
+                from src.collaboration.audit_service import AuditService
+                from src.collaboration.service import CollaborationService
+                from src.supabase.client import SupabaseClient
+                from src.s3.service import S3Service
+
+                _sb = SupabaseClient()
+                _node_repo = node_service.repo if node_service else None
+                if _node_repo:
+                    collab_service = CollaborationService(
+                        node_repo=_node_repo,
+                        lock_service=LockService(_node_repo),
+                        conflict_service=ConflictService(),
+                        version_service=CollabVersionService(
+                            node_repo=_node_repo,
+                            version_repo=CollabFileVersionRepo(_sb),
+                            snapshot_repo=CollabFolderSnapshotRepo(_sb),
+                            s3_service=S3Service(),
+                        ),
+                        audit_service=AuditService(),
+                    )
+            except Exception as e:
+                logger.warning(f"[Agent] CollaborationService init failed, falling back to direct write: {e}")
+            
             if sandbox_data and sandbox_data.node_path_map and node_service and current_user:
-                # 遍历所有非只读的 access，回写数据
                 for node_id, info in sandbox_data.node_path_map.items():
                     if info.get("readonly"):
-                        continue  # 跳过只读的
-                    
+                        continue
+
                     node_type = info.get("node_type", "")
                     sandbox_path = info.get("path", "")
                     json_path = info.get("json_path", "")
-                    
-                    # 支持回写的节点类型：json, markdown
+                    base_version = info.get("base_version", 0)
+                    base_content = info.get("base_content")
+
                     if node_type not in ("json", "markdown"):
                         logger.info(f"[Agent] Skipping write-back for unsupported node type: {node_id} (type={node_type})")
                         continue
-                    
+
                     try:
-                        # 从沙盒读取文件
-                        # JSON 文件需要解析，markdown 文件保持原样
                         parse_json = (node_type == "json")
                         read_result = await sandbox_service.read_file(
-                            sandbox_session_id, 
-                            sandbox_path, 
+                            sandbox_session_id,
+                            sandbox_path,
                             parse_json=parse_json
                         )
-                        
+
                         if not read_result.get("success"):
                             logger.warning(f"[Agent] Failed to read file from sandbox: {sandbox_path}")
                             continue
-                        
+
                         sandbox_content = read_result.get("content")
-                        
-                        # 获取原节点数据（内部操作，权限已通过 access points 验证）
-                        node = node_service.get_by_id_unsafe(node_id)
-                        if not node:
-                            continue
-                        
-                        # 根据节点类型选择不同的更新方式
-                        if node_type == "json":
-                            # JSON 类型：合并数据（如果有 json_path）
-                            if json_path:
-                                updated_data = merge_data_by_path(
-                                    node.preview_json or {}, json_path, sandbox_content
-                                )
-                            else:
-                                updated_data = sandbox_content
-                            
-                            # 写回数据库（preview_json 字段）
-                            node_service.update_node(
-                                node_id=node_id,
-                                project_id=node.project_id,
-                                preview_json=updated_data,
+
+                        if node_type == "json" and json_path:
+                            node = node_service.get_by_id_unsafe(node_id)
+                            if not node:
+                                continue
+                            sandbox_content = merge_data_by_path(
+                                node.preview_json or {}, json_path, sandbox_content
                             )
-                        elif node_type == "markdown":
-                            # markdown 类型：上传到 S3
-                            await node_service.update_markdown_content(
+
+                        # 使用 CollaborationService.commit() 统一处理
+                        merge_strategy = "direct"
+                        if collab_service:
+                            commit_result = collab_service.commit(
                                 node_id=node_id,
-                                project_id=node.project_id,
-                                content=sandbox_content,
+                                new_content=sandbox_content,
+                                base_version=base_version,
+                                node_type=node_type,
+                                base_content=base_content,
+                                operator_type="agent",
+                                operator_id=request.agent_id,
+                                session_id=request.session_id,
+                                summary=f"Agent write-back via sandbox",
                             )
-                        
+                            merge_strategy = commit_result.strategy or "direct"
+                            logger.info(
+                                f"[Agent] Commit result for {node_id}: "
+                                f"status={commit_result.status}, strategy={merge_strategy}, v={commit_result.version}"
+                            )
+                        else:
+                            # 降级：直接写入（无冲突解决）
+                            if node_type == "json":
+                                parsed = sandbox_content if isinstance(sandbox_content, dict) else json.loads(json.dumps(sandbox_content))
+                                node_service.repo.update(node_id=node_id, preview_json=parsed)
+                            elif node_type == "markdown":
+                                md = sandbox_content if isinstance(sandbox_content, str) else str(sandbox_content)
+                                node_service.repo.update(node_id=node_id, preview_md=md)
+                            merge_strategy = "direct_fallback"
+                            logger.warning(f"[Agent] Direct write (no CollaborationService) for {node_id}")
+
+                        _node_for_name = node_service.get_by_id_unsafe(node_id)
                         updated_nodes.append({
                             "nodeId": node_id,
-                            "nodeName": node.name,
+                            "nodeName": _node_for_name.name if _node_for_name else node_id,
                             "modifiedPath": json_path,
+                            "mergeStrategy": merge_strategy,
                         })
-                        logger.info(f"[Agent] Successfully wrote back data to node: {node_id}")
-                        
+                        logger.info(f"[Agent] Write-back completed for {node_id}: strategy={merge_strategy}")
+
                     except Exception as e:
                         logger.warning(f"[Agent] Failed to write back data for node {node_id}: {e}")
             
@@ -1057,197 +1170,20 @@ class AgentService:
                 yield {"type": "result", "success": True}
             
             await sandbox_service.stop(sandbox_session_id)
+            
+            # 清理工作区
+            if workspace_provider and workspace_info:
+                try:
+                    await workspace_provider.cleanup(sandbox_session_id)
+                except Exception as e:
+                    logger.warning(f"[Agent/Workspace] Cleanup failed: {e}")
         else:
             yield {"type": "result", "success": True}
 
 
 # ========== 工具函数 ==========
-
-async def prepare_sandbox_data(
-    node_service,
-    node_id: str,
-    json_path: str | None,
-    user_id: str,
-) -> SandboxData:
-    """
-    统一的沙盒数据准备函数
-    
-    根据节点类型返回不同的沙盒数据：
-    - json: 导出 content 为 data.json（可选 json_path 提取子数据）
-    - folder: 递归获取子文件列表
-    - github_repo: 从 S3 目录下载所有文件（单节点模式）
-    - file/pdf/image/etc: 单个文件信息
-    """
-    # 内部操作，权限已通过 access points 验证
-    node = node_service.get_by_id_unsafe(node_id)
-    if not node:
-        raise ValueError(f"Node not found: {node_id}")
-    
-    logger.info(f"[prepare_sandbox_data] node.id={node.id}, type={node.type}, name={node.name}")
-    
-    files: list[SandboxFile] = []
-    node_type = node.type or "json"
-    
-    if node_type == "github_repo":
-        # GitHub Repo 节点（单节点模式）：从 preview_json.files 读取文件列表
-        # 每个文件都有 s3_key，用于从 S3 下载
-        content = node.preview_json or {}
-        file_list = content.get("files", [])
-        repo_name = content.get("repo", node.name or "repo")
-        
-        logger.info(f"[prepare_sandbox_data] GitHub repo node, file_count={len(file_list)}")
-        
-        for file_info in file_list:
-            file_path = file_info.get("path", "")
-            s3_key = file_info.get("s3_key", "")
-            
-            if not file_path or not s3_key:
-                continue
-            
-            # 保持 repo 内的目录结构
-            files.append(SandboxFile(
-                path=f"/workspace/{repo_name}/{file_path}",
-                s3_key=s3_key,
-                content_type="text/plain",  # GitHub 文件都是文本
-            ))
-    
-    elif node_type == "json":
-        # JSON 节点：导出 preview_json 为 data.json
-        content = node.preview_json or {}
-        if json_path:
-            content = extract_data_by_path(content, json_path)
-        
-        files.append(SandboxFile(
-            path="/workspace/data.json",
-            content=json.dumps(content, ensure_ascii=False, indent=2),
-            content_type="application/json",
-        ))
-        logger.info(f"[prepare_sandbox_data] JSON node, content size={len(str(content))}")
-        
-    elif node_type == "folder":
-        # Folder 节点：递归获取所有子文件
-        # 使用 list_descendants 获取所有子孙节点
-        children = node_service.list_descendants(node.project_id, node_id)
-        logger.info(f"[prepare_sandbox_data] Folder node, children count={len(children)}")
-        
-        # 构建 id -> node 映射，用于计算名称路径
-        # 包含根节点和所有子孙节点
-        id_to_node: dict[str, Any] = {node.id: node}
-        for child in children:
-            id_to_node[child.id] = child
-        
-        def build_name_path(target_node) -> str:
-            """根据 parent_id 链构建名称路径（从根文件夹下一级开始）"""
-            path_parts = []
-            current = target_node
-            while current and current.id != node.id:
-                path_parts.append(current.name)
-                if current.parent_id and current.parent_id in id_to_node:
-                    current = id_to_node[current.parent_id]
-                else:
-                    break
-            path_parts.reverse()
-            return "/".join(path_parts)
-        
-        for child in children:
-            if child.type == "folder":
-                continue  # 跳过子文件夹本身，只处理文件
-            
-            # 使用文件名构建相对路径（而非 UUID）
-            relative_path = build_name_path(child)
-            if not relative_path:
-                relative_path = child.name
-            
-            if child.type == "json":
-                # JSON 子节点：导出为 .json 文件
-                files.append(SandboxFile(
-                    path=f"/workspace/{relative_path}.json",
-                    content=json.dumps(child.preview_json or {}, ensure_ascii=False, indent=2),
-                    content_type="application/json",
-                ))
-            elif child.s3_key:
-                # 其他文件类型：记录 S3 key，由沙盒服务下载
-                files.append(SandboxFile(
-                    path=f"/workspace/{relative_path}",
-                    s3_key=child.s3_key,
-                    content_type=child.mime_type or "application/octet-stream",
-                ))
-    else:
-        # 其他文件类型（pdf, image, file, markdown, sync 等）
-        file_name = node.name or "file"
-        
-        if node.preview_json and isinstance(node.preview_json, (dict, list)):
-            # 如果有 JSON content，导出为 JSON
-            files.append(SandboxFile(
-                path=f"/workspace/{file_name}.json",
-                content=json.dumps(node.preview_json, ensure_ascii=False, indent=2),
-                content_type="application/json",
-            ))
-        elif node.s3_key:
-            # S3 文件（markdown, image, pdf 等）
-            files.append(SandboxFile(
-                path=f"/workspace/{file_name}",
-                s3_key=node.s3_key,
-                content_type=node.mime_type or "application/octet-stream",
-            ))
-        else:
-            logger.warning(f"[prepare_sandbox_data] Node has no content or s3_key: {node_id}")
-    
-    return SandboxData(
-        files=files,
-        node_type=node_type,
-        root_node_id=node.id,
-        root_node_name=node.name or "",
-    )
-
-
-def extract_data_by_path(data, json_path: str):
-    """从 JSON 数据中提取指定路径的节点"""
-    if not json_path or json_path == "/" or json_path == "":
-        return data
-
-    segments = [segment for segment in json_path.split("/") if segment]
-    current = data
-    for segment in segments:
-        if current is None:
-            return None
-        if isinstance(current, list):
-            try:
-                index = int(segment)
-            except (TypeError, ValueError):
-                return None
-            if index < 0 or index >= len(current):
-                return None
-            current = current[index]
-        elif isinstance(current, dict):
-            current = current.get(segment)
-        else:
-            return None
-    return current
-
-
-def merge_data_by_path(original_data, json_path: str, new_node_data):
-    """将新数据合并回原数据的指定路径"""
-    if not json_path or json_path == "/" or json_path == "":
-        return new_node_data
-
-    result = json.loads(json.dumps(original_data))
-    segments = [segment for segment in json_path.split("/") if segment]
-
-    current = result
-    for segment in segments[:-1]:
-        if isinstance(current, list):
-            current = current[int(segment)]
-        elif isinstance(current, dict):
-            current = current[segment]
-
-    last_segment = segments[-1]
-    if isinstance(current, list):
-        current[int(last_segment)] = new_node_data
-    elif isinstance(current, dict):
-        current[last_segment] = new_node_data
-
-    return result
+# prepare_sandbox_data, extract_data_by_path, merge_data_by_path
+# 已迁移到 src.agent.sandbox_data 模块，通过顶部 import 引入
 
 
 def _default_anthropic_client():

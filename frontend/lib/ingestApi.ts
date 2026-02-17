@@ -11,7 +11,6 @@
 
 import { apiRequest, getAccessToken } from './apiClient';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
 // === Enums ===
 
@@ -252,7 +251,8 @@ export async function submitFileIngest(
     formData.append('files', file);
   }
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/submit/file`, {
+  // Route through same-origin Next.js proxy to avoid CORS / system-proxy issues
+  const response = await fetch('/api/ingest?path=submit/file', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -286,7 +286,8 @@ export async function submitSaaSIngest(
     formData.append('name', params.name);
   }
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/submit/saas`, {
+  // Route through same-origin Next.js proxy to avoid CORS / system-proxy issues
+  const response = await fetch('/api/ingest?path=submit/saas', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,

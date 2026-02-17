@@ -7,7 +7,6 @@
 
 import { getAccessToken } from './apiClient';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
 // === Enums ===
 
@@ -184,7 +183,8 @@ export async function submitImport(
     formData.append('name', request.name);
   }
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/submit/saas`, {
+  // Route through same-origin Next.js proxy to avoid CORS / system-proxy issues
+  const response = await fetch('/api/ingest?path=submit/saas', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -216,7 +216,7 @@ export async function getImportTask(taskId: string): Promise<ImportTaskResponse>
     throw new Error('Not authenticated');
   }
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/tasks/${taskId}?source_type=saas`, {
+  const response = await fetch(`/api/ingest?path=tasks/${taskId}&source_type=saas`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -254,7 +254,7 @@ export async function cancelImportTask(taskId: string): Promise<void> {
     throw new Error('Not authenticated');
   }
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/tasks/${taskId}?source_type=saas`, {
+  const response = await fetch(`/api/ingest?path=tasks/${taskId}&source_type=saas`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${accessToken}`,

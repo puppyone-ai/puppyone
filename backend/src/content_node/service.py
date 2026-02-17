@@ -1,19 +1,65 @@
 """Content Node Service - 业务逻辑层"""
 
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional, List, Any, TYPE_CHECKING
 from src.content_node.models import ContentNode
 from src.content_node.repository import ContentNodeRepository
 from src.s3.service import S3Service
 from src.exceptions import NotFoundException, BusinessException, ErrorCode
 
+if TYPE_CHECKING:
+    from src.content_node.version_service import VersionService
+
 
 class ContentNodeService:
     """Content Node 业务逻辑"""
 
-    def __init__(self, repo: ContentNodeRepository, s3_service: S3Service):
+    def __init__(
+        self,
+        repo: ContentNodeRepository,
+        s3_service: S3Service,
+        version_service: Optional["VersionService"] = None,
+    ):
         self.repo = repo
         self.s3 = s3_service
+        self.version_service = version_service
+
+    def _track_version(
+        self,
+        node_id: str,
+        operation: str,
+        content_json: Optional[Any] = None,
+        content_text: Optional[str] = None,
+        s3_key: Optional[str] = None,
+        size_bytes: int = 0,
+        operator_type: str = "user",
+        operator_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        summary: Optional[str] = None,
+    ) -> None:
+        """
+        内部方法：为写操作创建版本记录。
+        
+        如果 version_service 未注入，静默跳过（向后兼容）。
+        失败不阻塞主流程。
+        """
+        if not self.version_service:
+            return
+        try:
+            self.version_service.create_version(
+                node_id=node_id,
+                operator_type=operator_type,
+                operation=operation,
+                content_json=content_json,
+                content_text=content_text,
+                s3_key=s3_key,
+                size_bytes=size_bytes,
+                operator_id=operator_id,
+                session_id=session_id,
+                summary=summary,
+            )
+        except Exception:
+            pass  # 版本记录失败不阻塞主流程
 
     # === 查询操作 ===
 
@@ -143,7 +189,7 @@ class ContentNodeService:
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        return self.repo.create(
+        node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="json",
@@ -153,6 +199,8 @@ class ContentNodeService:
             preview_json=content,
             mime_type="application/json",
         )
+        self._track_version(node.id, "create", content_json=content, operator_id=created_by)
+        return node
 
     def create_placeholder_node(
         self,
@@ -271,7 +319,7 @@ class ContentNodeService:
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        return self.repo.create(
+        node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type=node_type,
@@ -287,6 +335,8 @@ class ContentNodeService:
             sync_status="idle",
             last_synced_at=datetime.utcnow(),
         )
+        self._track_version(node.id, "create", content_json=content, operator_type="sync", operator_id=created_by)
+        return node
 
     async def create_github_repo_node(
         self,
@@ -372,7 +422,7 @@ class ContentNodeService:
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        return self.repo.create(
+        node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="file",
@@ -382,8 +432,9 @@ class ContentNodeService:
             s3_key=s3_key,
             mime_type=mime_type or "application/octet-stream",
             size_bytes=size_bytes,
-            # preview_type=NULL, 无预览
         )
+        self._track_version(node.id, "create", s3_key=s3_key, size_bytes=size_bytes, operator_id=created_by)
+        return node
 
     async def create_markdown_node(
         self, 
@@ -401,7 +452,7 @@ class ContentNodeService:
         
         content_bytes = content.encode('utf-8')
         
-        return self.repo.create(
+        node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="markdown",
@@ -412,6 +463,8 @@ class ContentNodeService:
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
         )
+        self._track_version(node.id, "create", content_text=content, size_bytes=len(content_bytes), operator_id=created_by)
+        return node
 
     async def create_synced_markdown_node(
         self, 
@@ -434,7 +487,7 @@ class ContentNodeService:
         
         content_bytes = content.encode('utf-8')
         
-        return self.repo.create(
+        node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type=node_type,
@@ -450,6 +503,8 @@ class ContentNodeService:
             sync_config=sync_config,
             last_synced_at=datetime.utcnow(),
         )
+        self._track_version(node.id, "create", content_text=content, size_bytes=len(content_bytes), operator_type="sync", operator_id=created_by)
+        return node
 
     async def bulk_create_nodes(
         self,
@@ -637,6 +692,7 @@ class ContentNodeService:
             size_bytes=len(content_bytes),
             # mime_type 保持原始文件的 MIME（如 image/png），不改成 text/markdown
         )
+        self._track_version(node_id, "update", content_text=content, size_bytes=len(content_bytes), operator_type="system")
         return updated
 
     def update_node(
@@ -646,6 +702,9 @@ class ContentNodeService:
         name: Optional[str] = None,
         preview_json: Optional[Any] = None,
         preview_md: Optional[str] = None,
+        operator_type: str = "user",
+        operator_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> ContentNode:
         """更新节点（重命名只改 name，id_path 不变）"""
         self.get_by_id(node_id, project_id)
@@ -659,12 +718,22 @@ class ContentNodeService:
                 size_bytes=len(content_bytes),
                 clear_preview_json=True,
             )
+            self._track_version(
+                node_id, "update", content_text=preview_md,
+                size_bytes=len(content_bytes),
+                operator_type=operator_type, operator_id=operator_id, session_id=session_id,
+            )
         else:
             updated = self.repo.update(
                 node_id=node_id,
                 name=name,
                 preview_json=preview_json,
             )
+            if preview_json is not None:
+                self._track_version(
+                    node_id, "update", content_json=preview_json,
+                    operator_type=operator_type, operator_id=operator_id, session_id=session_id,
+                )
         
         return updated
 
@@ -681,6 +750,7 @@ class ContentNodeService:
         )
         if not updated:
             raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)
+        self._track_version(node_id, "update", content_json=content, operator_type="sync")
         return updated
 
     async def update_markdown_content(
@@ -688,6 +758,9 @@ class ContentNodeService:
         node_id: str,
         project_id: str,
         content: str,
+        operator_type: str = "user",
+        operator_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> ContentNode:
         """更新 markdown 节点的内容（直接存数据库，不存 S3）"""
         import logging
@@ -711,6 +784,12 @@ class ContentNodeService:
             size_bytes=len(content_bytes),
         )
         logger.info(f"[ContentNode] Markdown saved to DB: {node_id}")
+        
+        self._track_version(
+            node_id, "update", content_text=content,
+            size_bytes=len(content_bytes),
+            operator_type=operator_type, operator_id=operator_id, session_id=session_id,
+        )
         
         return updated
 

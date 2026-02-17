@@ -206,9 +206,12 @@ class DockerSandbox(SandboxBase):
         Returns:
             (success, container_id, error_message)
         """
+        # 资源限制：防止单个容器耗尽宿主机资源
+        resource_args = ["--memory=128m", "--cpus=0.5", "--pids-limit=100"]
+        
         if use_custom_image:
             # 尝试使用自定义 json-sandbox 镜像
-            args = ["run", "-d", "--rm"] + mount_args + ["json-sandbox"]
+            args = ["run", "-d", "--rm"] + resource_args + mount_args + ["json-sandbox"]
             returncode, stdout, stderr = await self._run_docker_command(*args, timeout=30.0)
             
             if returncode == 0:
@@ -225,7 +228,7 @@ class DockerSandbox(SandboxBase):
             print(f"[DockerSandbox] json-sandbox image not found, falling back to alpine:3.19")
         
         # 使用 alpine:3.19 并安装 jq 和 bash
-        args = ["run", "-d", "--rm"] + mount_args + [
+        args = ["run", "-d", "--rm"] + resource_args + mount_args + [
             "alpine:3.19",
             "sh", "-c",
             "apk add --no-cache jq bash >/dev/null 2>&1 && tail -f /dev/null"
