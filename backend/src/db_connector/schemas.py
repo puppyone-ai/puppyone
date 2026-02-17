@@ -1,6 +1,6 @@
 """DB Connector API Schemas"""
 
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Literal
 from pydantic import BaseModel, Field
 
 
@@ -8,15 +8,20 @@ from pydantic import BaseModel, Field
 
 class CreateConnectionRequest(BaseModel):
     """创建连接请求"""
-    name: str = Field(..., description="连接名称", examples=["My Supabase"])
-    provider: str = Field("supabase", description="数据库类型", examples=["supabase"])
+    name: str = Field(..., description="Connection name", examples=["My Supabase"])
+    provider: str = Field("supabase", description="Database type", examples=["supabase"])
     project_url: str = Field(..., description="Supabase Project URL", examples=["https://abcdefg.supabase.co"])
-    service_role_key: str = Field(..., description="Supabase Service Role Key")
+    api_key: str = Field(..., description="Supabase API Key (anon or service_role)")
+    key_type: Literal["anon", "service_role"] = Field(
+        default="anon",
+        description="Key type for security tracking (anon recommended, service_role has full permissions)"
+    )
 
     def to_config(self) -> dict:
         return {
             "project_url": self.project_url,
-            "service_role_key": self.service_role_key,
+            "api_key": self.api_key,
+            "key_type": self.key_type,
         }
 
 
@@ -61,3 +66,16 @@ class TablePreviewResponse(BaseModel):
 class SaveResultResponse(BaseModel):
     content_node_id: str
     row_count: int
+
+
+class ConnectionErrorDetail(BaseModel):
+    """Structured error detail for frontend display"""
+    error_code: str | None = Field(None, description="Error code for programmatic handling")
+    message: str = Field(..., description="User-friendly error message")
+    suggested_actions: List[str] = Field(default_factory=list, description="Suggested fixes user can try")
+
+
+class ConnectionErrorResponse(BaseModel):
+    """Error response with structured guidance"""
+    success: bool = False
+    error: ConnectionErrorDetail

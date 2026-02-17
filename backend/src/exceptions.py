@@ -23,6 +23,9 @@ class ErrorCode(int, Enum):
     TOKEN_EXPIRED = 2004
     INVALID_TOKEN = 2005
 
+    # 内容节点相关 (4000-4999)
+    NAME_CONFLICT = 4001  # 同目录下存在同名节点
+
     # MCP 相关 (3000-3999)
     MCP_INSTANCE_NOT_FOUND = 3001
     MCP_INSTANCE_CREATION_FAILED = 3002
@@ -87,3 +90,14 @@ class BusinessException(AppException):
 
     def __init__(self, message: str, code: ErrorCode = ErrorCode.BAD_REQUEST):
         super().__init__(code=code, message=message, status_code=400)
+
+
+class NameConflictException(AppException):
+    """同目录下存在同名节点"""
+
+    def __init__(self, message: str = "A node with this name already exists in the folder"):
+        super().__init__(
+            code=ErrorCode.NAME_CONFLICT,
+            message=message,
+            status_code=409,
+        )

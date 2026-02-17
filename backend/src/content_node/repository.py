@@ -421,3 +421,61 @@ class ContentNodeRepository:
         
         response = query.execute()
         return [row["name"] for row in response.data]
+
+    def get_child_by_name(
+        self,
+        project_id: str,
+        parent_id: Optional[str],
+        name: str,
+    ) -> Optional[ContentNode]:
+        """
+        按名称精确查找子节点（大小写敏感）。
+        
+        由于 POSIX 唯一名约束 (project_id, parent_id, name)，
+        同一目录下最多一个匹配结果。
+        """
+        query = (
+            self.client.table(self.TABLE_NAME)
+            .select("*")
+            .eq("project_id", project_id)
+            .eq("name", name)
+        )
+        if parent_id is None:
+            query = query.is_("parent_id", "null")
+        else:
+            query = query.eq("parent_id", parent_id)
+        
+        response = query.limit(1).execute()
+        if response.data:
+            return self._row_to_model(response.data[0])
+        return None
+
+    def name_exists_in_parent(
+        self,
+        project_id: str,
+        parent_id: Optional[str],
+        name: str,
+        exclude_node_id: Optional[str] = None,
+    ) -> bool:
+        """
+        检查同目录下是否已存在同名节点（精确匹配，大小写敏感）。
+        
+        Args:
+            exclude_node_id: 排除的节点 ID（用于 rename 场景，排除自身）
+        """
+        query = (
+            self.client.table(self.TABLE_NAME)
+            .select("id")
+            .eq("project_id", project_id)
+            .eq("name", name)
+        )
+        if parent_id is None:
+            query = query.is_("parent_id", "null")
+        else:
+            query = query.eq("parent_id", parent_id)
+        
+        if exclude_node_id is not None:
+            query = query.neq("id", exclude_node_id)
+        
+        response = query.limit(1).execute()
+        return len(response.data) > 0
