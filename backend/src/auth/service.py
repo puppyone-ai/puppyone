@@ -49,7 +49,7 @@ class AuthService:
         if not jwt_secret or jwt_secret == "ContextBase-256-bit-secret":
             log_error("JWT_SECRET not configured for local token verification")
             raise AuthException(
-                message="JWT_SECRET 未配置，无法验证 token",
+                message="JWT_SECRET not configured for token verification",
                 code=ErrorCode.INVALID_TOKEN,
             )
 
@@ -65,13 +65,13 @@ class AuthService:
             return claims
         except pyjwt.ExpiredSignatureError:
             raise AuthException(
-                message="Token 已过期",
+                message="Token expired",
                 code=ErrorCode.TOKEN_EXPIRED,
             )
         except pyjwt.InvalidTokenError as e:
             log_error(f"Local JWT verification failed: {e}")
             raise AuthException(
-                message=f"Token 验证失败: {str(e)}",
+                message=f"Token verification failed: {str(e)}",
                 code=ErrorCode.INVALID_TOKEN,
             )
 
@@ -117,7 +117,7 @@ class AuthService:
         except Exception as e:
             log_error(f"Failed to parse claims: {e}")
             raise AuthException(
-                message=f"Token 格式错误: {str(e)}",
+                message=f"Invalid token format: {str(e)}",
                 code=ErrorCode.INVALID_TOKEN,
             )
 
@@ -125,15 +125,14 @@ class AuthService:
         if self._is_token_expired(claims):
             log_debug(f"Token expired for user {claims.user_id}")
             raise AuthException(
-                message="Token 已过期",
+                message="Token expired",
                 code=ErrorCode.TOKEN_EXPIRED,
             )
 
-        # 检查受众
         if claims.aud not in ["authenticated", "anon"]:
             log_error(f"Invalid audience: {claims.aud}")
             raise AuthException(
-                message="Token 受众无效",
+                message="Invalid token audience",
                 code=ErrorCode.INVALID_TOKEN,
             )
 
@@ -191,14 +190,14 @@ class AuthService:
         # 检查是否为匿名用户
         if user.is_anonymous:
             raise AuthException(
-                message="匿名用户无权访问",
+                message="Anonymous users are not allowed",
                 code=ErrorCode.FORBIDDEN,
             )
 
         # 检查角色（如果需要）
         if required_role and user.role != required_role:
             raise AuthException(
-                message=f"需要角色: {required_role}",
+                message=f"Required role: {required_role}",
                 code=ErrorCode.FORBIDDEN,
             )
 

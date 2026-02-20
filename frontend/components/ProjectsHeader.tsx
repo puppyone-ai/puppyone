@@ -12,7 +12,7 @@ export type BreadcrumbSegment = {
   icon?: React.ReactNode;
 };
 
-// Agent controls are now in AgentRailVertical
+// Agent controls are now in AccessDock
 
 type ProjectsHeaderProps = {
   pathSegments: BreadcrumbSegment[];
@@ -26,7 +26,7 @@ export function ProjectsHeader({
   pathSegments,
   onBack,
 }: ProjectsHeaderProps) {
-  // Agent controls have moved to AgentRailVertical
+  // Agent controls have moved to AccessDock
 
   return (
     <header style={headerStyle}>
@@ -158,7 +158,7 @@ export function ProjectsHeader({
         </div>
       </div>
 
-      {/* Agent controls moved to AgentRailVertical */}
+      {/* Agent controls moved to AccessDock */}
     </header>
   );
 }

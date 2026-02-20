@@ -17,7 +17,7 @@ L2 Collaboration — API 路由
 """
 
 from typing import List
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
 from src.collaboration.service import CollaborationService
@@ -30,6 +30,8 @@ from src.collaboration.schemas import (
     FolderSnapshotHistoryResponse,
     DiffResponse,
 )
+from src.sync.service import SyncService
+from src.sync.dependencies import get_sync_service
 from src.common_schemas import ApiResponse
 
 
@@ -65,13 +67,16 @@ def checkout(
 @router.post("/commit", response_model=ApiResponse[CommitResult])
 def commit(
     body: CommitRequest,
+    background_tasks: BackgroundTasks,
     collab: CollaborationService = Depends(get_collaboration_service),
+    sync_svc: SyncService = Depends(get_sync_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
     commit 单个文件的修改
 
     自动处理乐观锁 + 三方合并 + 版本记录。
+    commit 成功后在后台推送到关联的外部系统 (L2.5 PUSH)。
     """
     result = collab.commit(
         node_id=body.node_id,
@@ -81,6 +86,15 @@ def commit(
         operator_type="user",
         operator_id=body.operator or current_user.user_id,
     )
+
+    background_tasks.add_task(
+        sync_svc.push_node,
+        node_id=body.node_id,
+        version=result.version,
+        content=result.final_content,
+        node_type=body.node_type,
+    )
+
     return ApiResponse.success(data=result)
 
 

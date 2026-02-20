@@ -1,0 +1,29 @@
+{
+  "name": "puppyone",
+  "version": "0.1.0",
+  "description": "PuppyOne CLI — sync local folders with PuppyOne cloud projects",
+  "type": "module",
+  "bin": {
+    "puppyone": "./bin/puppyone.js"
+  },
+  "files": [
+    "bin/",
+    "src/"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "puppyone",
+    "contextbase",
+    "sync",
+    "agent",
+    "mcp"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.97.0",
+    "chokidar": "^5.0.0",
+    "commander": "^13.1.0"
+  }
+}

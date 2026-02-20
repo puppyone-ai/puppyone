@@ -15,6 +15,7 @@ from src.s3.dependencies import get_s3_service
 from src.content_node.repository import ContentNodeRepository
 
 from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
+from src.collaboration.audit_repository import AuditRepository
 from src.collaboration.version_service import VersionService
 from src.collaboration.conflict_service import ConflictService
 from src.collaboration.lock_service import LockService
@@ -66,9 +67,17 @@ def get_lock_service(
     return LockService(node_repo)
 
 
-def get_audit_service() -> AuditService:
-    """获取 AuditService"""
-    return AuditService()
+def _get_audit_repository(
+    supabase: SupabaseClient = Depends(_get_supabase_client),
+) -> AuditRepository:
+    return AuditRepository(supabase)
+
+
+def get_audit_service(
+    audit_repo: AuditRepository = Depends(_get_audit_repository),
+) -> AuditService:
+    """获取 AuditService（含数据库持久化）"""
+    return AuditService(audit_repo=audit_repo)
 
 
 def get_collaboration_service(

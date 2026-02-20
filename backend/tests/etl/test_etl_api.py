@@ -29,12 +29,12 @@ from src.exception_handler import (
     http_exception_handler,
     validation_exception_handler,
 )
-from src.ingest.file.dependencies import get_etl_service
-from src.ingest.file.rules.dependencies import get_rule_repository
-from src.ingest.file.exceptions import RuleNotFoundError
-from src.ingest.router import router
-from src.ingest.file.rules.schemas import ETLRule
-from src.ingest.file.tasks.models import ETLTask, ETLTaskResult, ETLTaskStatus
+from src.upload.file.dependencies import get_etl_service
+from src.upload.file.rules.dependencies import get_rule_repository
+from src.upload.file.exceptions import RuleNotFoundError
+from src.upload.router import router
+from src.upload.file.rules.schemas import ETLRule
+from src.upload.file.tasks.models import ETLTask, ETLTaskResult, ETLTaskStatus
 from src.exceptions import AppException
 from src.exceptions import NotFoundException
 from fastapi.exceptions import RequestValidationError

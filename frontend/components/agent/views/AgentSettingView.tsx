@@ -122,9 +122,9 @@ const AGENT_TYPE_CONFIG: Record<AgentType, { label: string; desc: string; icon: 
     icon: <AgentIcon src="/icons/n8n.svg" fallback="⚡" alt="N8N" />
   },
   devbox: { 
-    label: 'Claude / Cursor', 
-    desc: 'External coding agents.', 
-    icon: <AgentIcon src="/icons/claude.svg" fallback="🤖" alt="Claude" />
+    label: 'OpenClaw', 
+    desc: 'Sync data to OpenClaw agent workspace.', 
+    icon: <AgentIcon src="/icons/openclaw.svg" fallback="🐾" alt="OpenClaw" />
   },
 };
 
@@ -1406,7 +1406,7 @@ export function AgentSettingView({ projectTools, tableNameById, currentTableId }
             overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', zIndex: 100,
           }}>
             {(Object.keys(AGENT_TYPE_CONFIG) as AgentType[])
-              .filter(type => type !== 'webhook' && type !== 'devbox')  // TODO: 暂时隐藏未完成的类型
+              .filter(type => type !== 'webhook')  // webhook 暂时隐藏
               .map((type) => (
               <button
                 key={type}
@@ -1445,6 +1445,7 @@ export function AgentSettingView({ projectTools, tableNameById, currentTableId }
           setDraftTaskContent={setDraftTaskContent}
         />
       )}
+
 
       {/* Agent's bash access - 必填 */}
       <div>

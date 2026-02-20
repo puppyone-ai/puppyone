@@ -72,7 +72,7 @@ def get_current_user(
     if not credentials:
         raise HTTPException(
             status_code=401,
-            detail="缺少 Authorization 请求头",
+            detail="Missing Authorization header",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -92,7 +92,7 @@ def get_current_user(
     except Exception as e:
         raise HTTPException(
             status_code=401,
-            detail=f"认证失败: {str(e)}",
+            detail=f"Authentication failed: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

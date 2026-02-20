@@ -5,6 +5,7 @@ import { useAgent } from '@/contexts/AgentContext';
 import { AgentSettingView } from './views/AgentSettingView';
 import { ChatRuntimeView } from './views/ChatRuntimeView';
 import { McpConnectionView } from './views/McpConnectionView';
+import { OpenClawSetupView } from './views/OpenClawSetupView';
 import { AgentDetailView } from './views/AgentDetailView';
 import { type McpToolPermissions, type Tool as DbTool } from '@/lib/mcpApi';
 import type { AccessOption } from '../chat/ChatInputArea';
@@ -179,8 +180,9 @@ export function AgentViewport({
             />
           )}
           {currentType === 'devbox' && currentAgent && (
-            <McpConnectionView 
-              agent={currentAgent} 
+            <OpenClawSetupView
+              agent={currentAgent}
+              projectId={projectId}
               onEdit={() => editAgent(currentAgent.id)}
               onDelete={() => {
                 if (confirm(`Delete "${currentAgent.name}"? This cannot be undone.`)) {

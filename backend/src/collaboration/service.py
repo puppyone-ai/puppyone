@@ -180,14 +180,23 @@ class CollaborationService:
         if node_type == "json":
             try:
                 content_json = json.loads(final_content) if isinstance(final_content, str) else final_content
-            except (json.JSONDecodeError, TypeError):
-                content_json = final_content
-            self.node_repo.update(node_id=node_id, preview_json=content_json)
+            except (json.JSONDecodeError, TypeError) as e:
+                log_error(
+                    f"[Collab] commit: invalid JSON for node {node_id}, "
+                    f"storing as markdown fallback. Error: {e}"
+                )
+                content_text = final_content if isinstance(final_content, str) else str(final_content)
+                self.node_repo.update(node_id=node_id, preview_md=content_text)
+                node_type = "markdown"
+            if content_json is not None:
+                self.node_repo.update(node_id=node_id, preview_json=content_json)
         elif node_type == "markdown":
             content_text = final_content if isinstance(final_content, str) else str(final_content)
             self.node_repo.update(node_id=node_id, preview_md=content_text)
 
         # Step 4: 创建版本记录
+        # create_version 可能返回 None（内容哈希未变化时跳过）
+        # 或者抛出 VersionConflictException（并发写入时）
         version = self.version_svc.create_version(
             node_id=node_id,
             operator_type=operator_type,
@@ -200,7 +209,11 @@ class CollaborationService:
             summary=summary,
         )
 
-        new_version_num = version.version if version else self.lock_svc.get_current_version(node_id)
+        if version:
+            new_version_num = version.version
+        else:
+            # 内容未变化，版本号不变
+            new_version_num = self.lock_svc.get_current_version(node_id)
 
         # Step 5: 审计日志
         self.audit_svc.log_commit(

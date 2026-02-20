@@ -25,7 +25,7 @@ from src.collaboration.schemas import (
     RollbackResponse, FolderRollbackResponse, DiffItem, DiffResponse,
 )
 from src.s3.service import S3Service
-from src.exceptions import NotFoundException, BusinessException, ErrorCode
+from src.exceptions import NotFoundException, BusinessException, VersionConflictException, ErrorCode
 from src.utils.logger import log_info, log_debug, log_error
 
 
@@ -90,8 +90,10 @@ class VersionService:
                 log_debug(f"[Version] Content unchanged for {node_id}, skipping")
                 return None
 
-            latest = self.version_repo.get_latest_by_node(node_id)
-            new_version = (latest.version if latest else 0) + 1
+            # 原子递增版本号：基于 content_nodes.current_version 而非 file_versions 表查询
+            # 避免并发 commit 拿到相同版本号的竞态条件
+            current_ver = node.current_version or 0
+            new_version = current_ver + 1
 
             actual_s3_key = s3_key
             if s3_key and new_hash:
@@ -122,11 +124,24 @@ class VersionService:
                 summary=summary,
             )
 
-            self.node_repo.update(
+            updated_node = self.node_repo.update(
                 node_id=node_id,
                 current_version=new_version,
                 content_hash=new_hash,
+                expected_version=current_ver,
             )
+
+            if updated_node is None:
+                # 乐观锁冲突：另一个并发写入已更新了 current_version
+                # 版本记录已插入但 content_node 未更新 → 需调用方重试
+                log_error(
+                    f"[Version] Optimistic lock conflict for {node_id}: "
+                    f"expected v{current_ver}, likely updated by concurrent write"
+                )
+                raise VersionConflictException(
+                    f"Version conflict for node {node_id}: expected v{current_ver}, "
+                    f"concurrent update detected"
+                )
 
             log_info(
                 f"[Version] Created v{new_version} for {node_id} "
@@ -134,9 +149,11 @@ class VersionService:
             )
             return version
 
+        except (VersionConflictException, BusinessException):
+            raise
         except Exception as e:
             log_error(f"[Version] Failed to create version for {node_id}: {e}")
-            return None
+            raise
 
     # ============================================================
     # 回滚：单文件

@@ -538,7 +538,8 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
       // Switch to this agent
       setCurrentAgentId(agentId);
       setSelectedCapabilities(new Set(draftResources.map(r => `resource:${r.nodeId}`)));
-      setSidebarMode('deployed');
+      const isInteractive = ['chat', 'schedule'].includes(draftType);
+      setSidebarMode(isInteractive ? 'deployed' : 'closed');
       setEditingAgentId(null);
     } catch (error) {
       console.error('Failed to save agent:', error);

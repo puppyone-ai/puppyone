@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { AgentProvider, useAgent } from '@/contexts/AgentContext';
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
 import { AgentViewport } from '@/components/agent/AgentViewport';
-import { AgentRailVertical } from '@/components/agent/AgentRailVertical';
+import { AccessDock } from '@/components/agent/AccessDock';
 import { useProjectTools } from '@/lib/hooks/useData';
 
 const MIN_CHAT_WIDTH = 400;
@@ -99,8 +99,7 @@ function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
     if (!isResizing) return;
     const handleMouseMove = (e: MouseEvent) => {
       const windowWidth = window.innerWidth;
-      const railWidth = 52 + 8; // Rail width + margin
-      const newWidth = windowWidth - e.clientX - railWidth;
+      const newWidth = windowWidth - e.clientX;
       const clampedWidth = Math.min(Math.max(newWidth, MIN_CHAT_WIDTH), MAX_CHAT_WIDTH);
       setChatWidth(clampedWidth);
     };
@@ -141,23 +140,19 @@ function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
           position: 'relative',
         }}
       >
-        {/* Page Content (children) - this is what changes on navigation */}
+        {/* Access Dock - horizontal bar above content (only on data pages) */}
+        {!hideAgentSidebar && <AccessDock />}
+
+        {/* Page Content row */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, overflow: 'hidden' }}>
-          {/* Main content area that changes on navigation */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             {children}
           </div>
           
-          {/* Agent Sidebar - hidden on monitoring pages */}
+          {/* Chat Sidebar - only visible when a chat agent is selected */}
           {!hideAgentSidebar && (
             <>
-              {/* Resize Handle - 在 Rail 左侧 */}
               <ResizeHandle isResizing={isResizing} onMouseDown={handleMouseDown} />
-              
-              {/* Agent Rail - persists across navigation */}
-              <AgentRailVertical />
-              
-              {/* Chat Sidebar - persists across navigation */}
               <AgentViewportWrapper chatWidth={chatWidth} />
             </>
           )}

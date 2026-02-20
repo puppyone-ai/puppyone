@@ -37,6 +37,7 @@ dependencies = [
     "e2b-code-interpreter>=2.4.1",
     "rich>=14.2.0",
     "apscheduler>=3.10.4",
+    "watchdog>=6.0.0",
 ]
 
 [tool.pytest.ini_options]

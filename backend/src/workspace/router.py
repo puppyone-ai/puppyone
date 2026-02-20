@@ -122,9 +122,12 @@ async def complete_workspace(
     外部 Agent 完成后调用此接口
 
     1. detect_changes: 对比 workspace vs lower
-    2. 逐文件 CollaborationService.commit(): 乐观锁 + 三方合并 + 版本记录
-    3. cleanup workspace
+    2. 构建 file_path → node_id 映射（从 SyncWorker 的 .metadata.json）
+    3. 逐文件 CollaborationService.commit(): 乐观锁 + 三方合并 + 版本记录
+    4. 处理新建文件 / 删除文件
+    5. cleanup workspace
     """
+    import json as json_mod
     from src.workspace.provider import get_workspace_provider
     from src.collaboration.service import CollaborationService
     from src.collaboration.conflict_service import ConflictService
@@ -132,9 +135,12 @@ async def complete_workspace(
     from src.collaboration.version_service import VersionService as CollabVersionService
     from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
     from src.collaboration.audit_service import AuditService
+    from src.collaboration.audit_repository import AuditRepository
     from src.content_node.repository import ContentNodeRepository
+    from src.content_node.service import ContentNodeService
     from src.s3.service import S3Service
     from src.supabase.client import SupabaseClient
+    from src.sync.cache_manager import CacheManager
 
     supabase = SupabaseClient()
     node_repo = ContentNodeRepository(supabase)
@@ -152,12 +158,12 @@ async def complete_workspace(
             snapshot_repo=snapshot_repo,
             s3_service=s3_service,
         ),
-        audit_service=AuditService(),
+        audit_service=AuditService(audit_repo=AuditRepository(supabase)),
     )
 
     provider = get_workspace_provider()
 
-    # 1. 检测改动
+    # 1. 检测改动 (返回 {rel_path: content} 和 [rel_path])
     changes = await provider.detect_changes(agent_id)
 
     if not changes.modified and not changes.deleted:
@@ -166,46 +172,166 @@ async def complete_workspace(
             agent_id=agent_id, total_files=0, committed=0, conflict_count=0,
         ), message="No changes detected")
 
-    # 2. 逐文件通过 CollaborationService 提交
+    # 2. 从 .metadata.json 构建 file_path → (node_id, version) 映射
+    #    SyncWorker 同步时已经记录了 {node_id: {file_path, version, ...}}
+    base_dir = provider._base_dir if hasattr(provider, '_base_dir') else "/tmp/contextbase"
+    cache = CacheManager(base_dir=base_dir)
+    sync_metadata = cache.read_metadata(project_id)
+
+    path_to_node: dict[str, dict] = {}
+    for node_id, meta in sync_metadata.items():
+        fp = meta.get("file_path", "")
+        if fp:
+            path_to_node[fp] = {
+                "node_id": node_id,
+                "version": meta.get("version", 0),
+                "type": meta.get("type", "json"),
+            }
+
+    # 3. 逐文件提交修改（并收集成功提交的项用于 L2.5 PUSH）
     committed = 0
     conflict_count = 0
-    strategies = []
+    strategies: list[str] = []
+    created_nodes: list[str] = []
+    committed_items: list[dict] = []
 
-    for filename, content in changes.modified.items():
-        base_name = os.path.splitext(filename)[0]
-        node_id = base_name
-
-        node_type = "json" if filename.endswith(".json") else "markdown"
+    for rel_path, content in changes.modified.items():
+        node_type = "json" if rel_path.endswith(".json") else "markdown"
 
         try:
-            import json
-            new_content = json.loads(content) if node_type == "json" else content
+            new_content = json_mod.loads(content) if node_type == "json" else content
+        except (json_mod.JSONDecodeError, TypeError):
+            new_content = content
+            node_type = "markdown"
 
-            result = collab_service.commit(
-                node_id=node_id,
-                new_content=new_content,
-                base_version=0,
-                node_type=node_type,
-                base_content=None,
-                operator_type="external_agent",
-                operator_id=agent_id,
-                summary=f"External agent write-back: {filename}",
-            )
-            committed += 1
-            if result.strategy:
-                strategies.append(result.strategy)
-            log_info(f"[Workspace API] Committed {filename}: strategy={result.strategy}")
+        mapping = path_to_node.get(rel_path)
+
+        if mapping:
+            # --- 已有节点：通过 L2 commit ---
+            node_id = mapping["node_id"]
+            base_version = mapping["version"]
+
+            # 获取 base_content 用于三方合并
+            base_content = None
+            if base_version > 0:
+                try:
+                    ver_detail = collab_service.get_version_content(node_id, base_version)
+                    if ver_detail.content_text:
+                        base_content = ver_detail.content_text
+                    elif ver_detail.content_json is not None:
+                        base_content = json_mod.dumps(ver_detail.content_json, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
+
+            try:
+                result = collab_service.commit(
+                    node_id=node_id,
+                    new_content=new_content,
+                    base_version=base_version,
+                    node_type=node_type,
+                    base_content=base_content,
+                    operator_type="external_agent",
+                    operator_id=agent_id,
+                    summary=f"Agent write-back: {rel_path}",
+                )
+                committed += 1
+                committed_items.append({
+                    "node_id": node_id,
+                    "version": result.version,
+                    "content": result.final_content,
+                    "node_type": node_type,
+                })
+                if result.strategy and result.strategy != "direct":
+                    strategies.append(result.strategy)
+                log_info(
+                    f"[Workspace API] Committed {rel_path} → node {node_id} "
+                    f"v{base_version}→v{result.version} ({result.status})"
+                )
+            except Exception as e:
+                conflict_count += 1
+                log_error(f"[Workspace API] Commit failed for {rel_path} (node {node_id}): {e}")
+
+        else:
+            # --- 新建文件：Agent 在沙盒中创建了一个 lower 中没有的文件 ---
+            node_name = os.path.basename(rel_path)
+            # 去掉扩展名作为节点名
+            base_name = os.path.splitext(node_name)[0] if "." in node_name else node_name
+
+            try:
+                node_svc = ContentNodeService(
+                    repo=node_repo,
+                    s3_service=s3_service,
+                    version_service=collab_service.version_svc,
+                )
+                if node_type == "json":
+                    new_node = node_svc.create_json_node(
+                        project_id=project_id,
+                        name=base_name,
+                        content=new_content,
+                        created_by=current_user.user_id,
+                    )
+                else:
+                    new_node = await node_svc.create_markdown_node(
+                        project_id=project_id,
+                        name=base_name,
+                        content=new_content if isinstance(new_content, str) else str(new_content),
+                        created_by=current_user.user_id,
+                    )
+                committed += 1
+                created_nodes.append(rel_path)
+                log_info(
+                    f"[Workspace API] Created new node {new_node.id} "
+                    f"for {rel_path} (type={node_type})"
+                )
+            except Exception as e:
+                conflict_count += 1
+                log_error(f"[Workspace API] Failed to create node for {rel_path}: {e}")
+
+    # 4. 处理删除（先创建 delete 版本记录，再删除节点）
+    deleted_count = 0
+    for rel_path in changes.deleted:
+        mapping = path_to_node.get(rel_path)
+        if mapping:
+            node_id = mapping["node_id"]
+            try:
+                collab_service.version_svc.create_version(
+                    node_id=node_id,
+                    operator_type="external_agent",
+                    operator_id=agent_id,
+                    operation="delete",
+                    summary=f"Agent deleted: {rel_path}",
+                )
+                node_repo.delete(node_id)
+                deleted_count += 1
+                log_info(f"[Workspace API] Deleted node {node_id} ({rel_path})")
+            except Exception as e:
+                log_error(f"[Workspace API] Delete failed for {rel_path} (node {node_id}): {e}")
+
+    # 5. PUSH: 将已提交的变更推送到关联的 folder access 工作区
+    if committed_items:
+        try:
+            from src.access.openclaw.folder_access import FolderAccessService
+            fa = FolderAccessService.get_instance()
+            if fa:
+                for item in committed_items:
+                    await fa.push_node_to_workspace(
+                        source_id=item.get("source_id", 0),
+                        node_id=item["node_id"],
+                        version=item["version"],
+                        content=item["content"],
+                        node_type=item["node_type"],
+                    )
         except Exception as e:
-            conflict_count += 1
-            log_error(f"[Workspace API] Failed to commit {filename}: {e}")
+            log_error(f"[Workspace API] Folder Access PUSH failed: {e}")
 
-    # 3. 清理工作区
+    # 6. 清理工作区
     await provider.cleanup(agent_id)
 
     total_files = len(changes.modified) + len(changes.deleted)
     log_info(
         f"[Workspace API] Completed: agent={agent_id}, "
-        f"committed={committed}, conflicts={conflict_count}"
+        f"committed={committed}, conflicts={conflict_count}, "
+        f"deleted={deleted_count}, new_files={len(created_nodes)}"
     )
 
     return ApiResponse.success(data=CompleteWorkspaceResponse(
