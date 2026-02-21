@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
 import { AgentSettingView } from './views/AgentSettingView';
+import { AgentEditView } from './views/AgentEditView';
 import { ChatRuntimeView } from './views/ChatRuntimeView';
 import { McpConnectionView } from './views/McpConnectionView';
 import { OpenClawSetupView } from './views/OpenClawSetupView';
@@ -10,20 +11,6 @@ import { AgentDetailView } from './views/AgentDetailView';
 import { type McpToolPermissions, type Tool as DbTool } from '@/lib/mcpApi';
 import type { AccessOption } from '../chat/ChatInputArea';
 import type { SavedAgent } from '@/components/AgentRail';
-
-// Access Point 图标 - 动物 emoji（和 ProjectsHeader 保持一致）
-const ACCESS_ICONS = [
-  '🐶', '🐱', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁',
-  '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🦉',
-  '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌',
-  '🐙', '🦑', '🦐', '🦀', '🐠', '🐬', '🦈', '🐳',
-];
-const parseAgentIcon = (icon?: string): string => {
-  if (!icon) return '💬';
-  const idx = parseInt(icon);
-  if (isNaN(idx)) return icon;
-  return ACCESS_ICONS[idx % ACCESS_ICONS.length] || '💬';
-};
 
 const DEFAULT_CHAT_WIDTH = 400;
 
@@ -140,20 +127,14 @@ export function AgentViewport({
   return (
     <aside
       style={{
-        // Layout: In-flow, width controlled by sidebarMode
         position: 'relative',
-        width: sidebarMode !== 'closed' ? chatWidth : 0,
-        minWidth: sidebarMode !== 'closed' ? chatWidth : 0,
-        flexShrink: 0,
+        flex: 1,
+        minWidth: 0,
         overflow: 'hidden',
-
-        // Visuals
         background: '#0d0d0d',
         borderLeft: sidebarMode !== 'closed' ? '1px solid #222' : 'none',
-
         display: 'flex',
         flexDirection: 'column',
-        transition: 'width 0.2s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
 
@@ -165,6 +146,10 @@ export function AgentViewport({
           tableNameById={tableNameById}
           currentTableId={tableId ? String(tableId) : undefined} 
         />
+      )}
+
+      {sidebarMode === 'editing' && (
+        <AgentEditView projectTools={projectTools} />
       )}
 
       {sidebarMode === 'deployed' && (

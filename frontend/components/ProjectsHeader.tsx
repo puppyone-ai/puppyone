@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
+import { AccessDock } from '@/components/agent/AccessDock';
 
 export type EditorType = 'treeline-virtual' | 'monaco' | 'table';
 export type ViewType = 'grid' | 'list' | 'explorer';
@@ -158,7 +159,8 @@ export function ProjectsHeader({
         </div>
       </div>
 
-      {/* Agent controls moved to AccessDock */}
+      {/* RIGHT SIDE: Access Dock (agent icons + add button) */}
+      <AccessDock />
     </header>
   );
 }
@@ -171,8 +173,8 @@ const headerStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  borderBottom: '1px solid rgba(255,255,255,0.06)',
-  background: '#141414',
+  borderBottom: '1px solid rgba(255,255,255,0.1)',
+  background: '#1a1a1a',
   position: 'relative',
   zIndex: 10,
 };

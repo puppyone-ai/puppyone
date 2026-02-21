@@ -19,6 +19,7 @@ import {
   getToolsByNodeId,
   type Tool,
 } from '../mcpApi';
+import { listNodes, type NodeInfo } from '../contentNodesApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
 const defaultConfig = {
@@ -72,6 +73,7 @@ export function useTable(projectId: string, tableId: string | undefined) {
     {
       ...defaultConfig,
       dedupingInterval: 10000, // 表数据 10 秒去重
+      keepPreviousData: true,  // 切换节点时保留旧数据直到新数据到达
     }
   );
 
@@ -133,6 +135,59 @@ export function updateTableCache(
   newData: TableData
 ) {
   return mutate(['table', projectId, tableId], newData, { revalidate: false });
+}
+
+/**
+ * 获取指定文件夹下的子节点列表（SWR 缓存）
+ *
+ * - 全局缓存：ExplorerSidebar / GridView / ListView 共享同一份数据
+ * - 组件重挂后瞬间返回缓存，不显示 Loading
+ * - keepPreviousData: 切换文件夹时保留旧列表直到新数据到达
+ */
+export function useContentNodes(projectId: string, parentId: string | null | undefined) {
+  const key = projectId ? ['nodes', projectId, parentId ?? '__root__'] : null;
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: revalidate,
+  } = useSWR<NodeInfo[]>(
+    key,
+    () => listNodes(projectId, parentId ?? undefined).then(r => r.nodes),
+    {
+      ...defaultConfig,
+      dedupingInterval: 10000,
+      keepPreviousData: true,
+      revalidateOnFocus: true,
+    }
+  );
+
+  return {
+    nodes: data ?? [],
+    isLoading,
+    error,
+    refresh: revalidate,
+  };
+}
+
+/**
+ * 手动刷新指定文件夹下的节点列表
+ * parentId = null 表示项目根目录
+ */
+export function refreshContentNodes(projectId: string, parentId: string | null) {
+  return mutate(['nodes', projectId, parentId ?? '__root__']);
+}
+
+/**
+ * 刷新整个项目的所有文件夹缓存（用于外部变更：MCP/Bot/Sync）
+ * 使用 SWR 的 key matcher 匹配所有 ['nodes', projectId, *] 的缓存
+ */
+export function refreshAllContentNodes(projectId: string) {
+  return mutate(
+    key => Array.isArray(key) && key[0] === 'nodes' && key[1] === projectId,
+    undefined,
+    { revalidate: true }
+  );
 }
 
 /**

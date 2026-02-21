@@ -1,55 +1,138 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useAgent, type SavedAgent } from '@/contexts/AgentContext';
-import { SetupDialog } from '@/components/agent/views/OpenClawSetupView';
+import React, { useState, useCallback } from 'react';
+import { useAgent, type SavedAgent, type AccessResource } from '@/contexts/AgentContext';
 
 const CHAT_TYPES = new Set(['chat', 'schedule']);
 
-const ACCESS_ICONS = [
-  '🐶', '🐱', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁',
-  '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🦉',
-];
-
-const parseAgentIcon = (icon?: string): string => {
-  if (!icon) return '🤖';
-  const idx = parseInt(icon);
-  if (isNaN(idx)) return icon;
-  return ACCESS_ICONS[idx % ACCESS_ICONS.length] || '🤖';
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  chat: 'Chat',
-  schedule: 'Scheduled',
-  devbox: 'OpenClaw',
-  webhook: 'Webhook',
-};
-
-// ────────────────────────────────────────────
-// Tooltip (appears below icon on hover)
-// ────────────────────────────────────────────
-
-function DockTooltip({ agent, visible }: { agent: SavedAgent; visible: boolean }) {
-  if (!visible) return null;
+function ChatIcon() {
   return (
-    <div style={{
-      position: 'absolute', top: 'calc(100% + 6px)', left: '50%',
-      transform: 'translateX(-50%)',
-      background: '#1f1f1f', border: '1px solid #333', borderRadius: 6,
-      padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 6,
-      boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 1000,
-      pointerEvents: 'none', whiteSpace: 'nowrap',
-    }}>
-      <span style={{ fontSize: 12, fontWeight: 500, color: '#e5e5e5' }}>{agent.name}</span>
-      <span style={{ fontSize: 10, color: '#525252' }}>·</span>
-      <span style={{ fontSize: 10, color: '#737373' }}>{TYPE_LABELS[agent.type] || 'Agent'}</span>
-    </div>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
   );
 }
 
-// ────────────────────────────────────────────
-// Main component
-// ────────────────────────────────────────────
+function ScheduleIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function WebhookIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
+function DevboxIcon() {
+  return <span style={{ fontSize: 11, lineHeight: 1 }}>🦞</span>;
+}
+
+function getTypeIcon(type: string): React.ReactNode {
+  switch (type) {
+    case 'chat':     return <ChatIcon />;
+    case 'schedule': return <ScheduleIcon />;
+    case 'webhook':  return <WebhookIcon />;
+    case 'devbox':   return <DevboxIcon />;
+    default:         return <ChatIcon />;
+  }
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) + '…' : s;
+}
+
+function mapNodeType(backendType: string): 'folder' | 'json' | 'file' {
+  if (backendType === 'folder') return 'folder';
+  if (backendType === 'json') return 'json';
+  return 'file';
+}
+
+const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
+
+function AgentChip({ agent, isActive, isHovered, onChipClick, onMouseEnter, onMouseLeave, onNodeDrop }: {
+  agent: SavedAgent;
+  isActive: boolean;
+  isHovered: boolean;
+  onChipClick: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onNodeDrop: (agent: SavedAgent, nodeData: { id: string; name: string; type: string }) => void;
+}) {
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/x-puppyone-node')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const raw = e.dataTransfer.getData('application/x-puppyone-node');
+    if (!raw) return;
+    try {
+      const nodeData = JSON.parse(raw);
+      onNodeDrop(agent, nodeData);
+    } catch { /* ignore */ }
+  }, [agent, onNodeDrop]);
+
+  const bg = isDragOver
+    ? 'rgba(249, 115, 22, 0.25)'
+    : isActive
+      ? 'rgba(255,255,255,0.12)'
+      : isHovered ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)';
+
+  const borderStyle = isDragOver
+    ? '1px solid rgba(249, 115, 22, 0.6)'
+    : 'none';
+
+  return (
+    <button
+      onClick={onChipClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        height: 26, padding: '0 8px',
+        borderRadius: 5,
+        background: bg,
+        border: borderStyle,
+        color: isDragOver ? '#f97316' : isActive ? '#fff' : isHovered ? '#ccc' : '#999',
+        fontSize: 11, fontWeight: 500, fontFamily: FONT,
+        cursor: 'pointer',
+        transition: 'background 0.15s, color 0.15s, border 0.15s',
+        whiteSpace: 'nowrap', flexShrink: 0,
+      }}
+    >
+      <span style={{ display: 'flex', opacity: isActive || isDragOver ? 1 : 0.65 }}>
+        {getTypeIcon(agent.type)}
+      </span>
+      {isDragOver ? 'Drop here' : truncate(agent.name, 5)}
+      <span style={{
+        width: 5, height: 5, borderRadius: '50%',
+        background: isDragOver ? '#f97316' : '#22c55e', flexShrink: 0,
+        opacity: isActive || isDragOver ? 1 : 0.5,
+      }} />
+    </button>
+  );
+}
 
 export function AccessDock() {
   const {
@@ -61,137 +144,117 @@ export function AccessDock() {
     closeSidebar,
     hoveredAgentId,
     setHoveredAgentId,
+    updateAgentResources,
   } = useAgent();
 
-  const [dialogAgent, setDialogAgent] = useState<SavedAgent | null>(null);
+  const handleChipClick = (agent: SavedAgent) => {
+    const isThisAgentShown = currentAgentId === agent.id
+      && (sidebarMode === 'deployed' || sidebarMode === 'editing');
+
+    if (isThisAgentShown && sidebarMode === 'deployed') {
+      closeSidebar();
+    } else {
+      selectAgent(agent.id);
+    }
+  };
+
+  const handleAddClick = () => {
+    if (sidebarMode === 'setting') {
+      closeSidebar();
+    } else {
+      openSetting();
+    }
+  };
+
+  const handleNodeDrop = useCallback(async (agent: SavedAgent, nodeData: { id: string; name: string; type: string }) => {
+    const existing = agent.resources || [];
+    if (existing.some(r => r.nodeId === nodeData.id)) return;
+
+    const newResource: AccessResource = {
+      nodeId: nodeData.id,
+      nodeName: nodeData.name,
+      nodeType: mapNodeType(nodeData.type),
+      readonly: true,
+    };
+
+    try {
+      await updateAgentResources(agent.id, [...existing, newResource]);
+    } catch (err) {
+      console.error('Failed to add resource to agent:', err);
+    }
+  }, [updateAgentResources]);
 
   const chatAgents = savedAgents.filter(a => CHAT_TYPES.has(a.type));
   const channelAgents = savedAgents.filter(a => !CHAT_TYPES.has(a.type));
 
-  const handleClick = (agent: SavedAgent) => {
-    if (CHAT_TYPES.has(agent.type)) {
-      if (currentAgentId === agent.id && sidebarMode === 'deployed') {
-        closeSidebar();
-      } else {
-        selectAgent(agent.id);
-      }
-    } else {
-      setDialogAgent(agent);
-    }
-  };
-
-  const renderIcon = (agent: SavedAgent) => {
-    const isChat = CHAT_TYPES.has(agent.type);
-    const isActive = isChat
-      ? (currentAgentId === agent.id && sidebarMode === 'deployed')
-      : (dialogAgent?.id === agent.id);
+  const renderChip = (agent: SavedAgent) => {
+    const isActive = currentAgentId === agent.id
+      && (sidebarMode === 'deployed' || sidebarMode === 'editing');
     const isHovered = hoveredAgentId === agent.id;
-    const emoji = parseAgentIcon(agent.icon);
 
     return (
-      <div
+      <AgentChip
         key={agent.id}
-        style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+        agent={agent}
+        isActive={isActive}
+        isHovered={isHovered}
+        onChipClick={() => handleChipClick(agent)}
         onMouseEnter={() => setHoveredAgentId(agent.id)}
         onMouseLeave={() => setHoveredAgentId(null)}
-      >
-        <button
-          onClick={() => handleClick(agent)}
-          style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: isHovered ? '#3a3a3a' : '#2a2a2a',
-            border: isActive
-              ? '2px solid #f97316'
-              : isHovered ? '2px solid #4a4a4a' : '2px solid transparent',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
-          }}
-        >
-          {emoji}
-        </button>
-        <DockTooltip agent={agent} visible={isHovered && !isActive} />
-      </div>
+        onNodeDrop={handleNodeDrop}
+      />
     );
   };
 
-  const hasBothGroups = chatAgents.length > 0 && channelAgents.length > 0;
+  const isAddActive = sidebarMode === 'setting';
+  const hasAgents = savedAgents.length > 0;
 
   return (
-    <>
-      <div style={{
-        height: 48, background: '#141414',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', alignItems: 'center',
-        padding: '0 16px', gap: 8, flexShrink: 0,
-      }}>
-        {/* Agents group */}
-        {chatAgents.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {chatAgents.map(renderIcon)}
-          </div>
-        )}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+      {channelAgents.map(renderChip)}
 
-        {/* Divider */}
-        {hasBothGroups && (
-          <div style={{ width: 1, height: 20, background: '#333', flexShrink: 0 }} />
-        )}
-
-        {/* Channels group */}
-        {channelAgents.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {channelAgents.map(renderIcon)}
-          </div>
-        )}
-
-        {/* Add button */}
-        <button
-          onClick={() => {
-            if (sidebarMode === 'setting') closeSidebar();
-            else openSetting();
-          }}
-          style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: sidebarMode === 'setting' ? '#2a2a2a' : 'transparent',
-            border: sidebarMode === 'setting'
-              ? '2px solid #f97316'
-              : '1px dashed #525252',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: sidebarMode === 'setting' ? '#fff' : '#606060',
-            cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
-            marginLeft: (savedAgents.length === 0) ? 0 : 4,
-          }}
-          onMouseEnter={e => {
-            if (sidebarMode !== 'setting') {
-              e.currentTarget.style.borderColor = '#737373';
-              e.currentTarget.style.color = '#a3a3a3';
-              e.currentTarget.style.background = '#1f1f1f';
-            }
-          }}
-          onMouseLeave={e => {
-            if (sidebarMode !== 'setting') {
-              e.currentTarget.style.borderColor = '#525252';
-              e.currentTarget.style.color = '#606060';
-              e.currentTarget.style.background = 'transparent';
-            }
-          }}
-          title="Add access point"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Channel setup dialog */}
-      {dialogAgent && dialogAgent.type === 'devbox' && (
-        <SetupDialog
-          open={true}
-          onClose={() => setDialogAgent(null)}
-          accessKey={dialogAgent.mcp_api_key || '<access-key>'}
-          apiUrl={process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'}
-        />
+      {channelAgents.length > 0 && chatAgents.length > 0 && (
+        <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.08)', flexShrink: 0, margin: '0 4px' }} />
       )}
-    </>
+
+      {chatAgents.map(renderChip)}
+
+      <button
+        onClick={handleAddClick}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          height: 26, padding: '0 8px',
+          borderRadius: 5,
+          background: isAddActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+          border: isAddActive ? '1px solid rgba(255,255,255,0.15)' : '1px dashed rgba(255,255,255,0.15)',
+          color: isAddActive ? '#fff' : '#555',
+          fontSize: 11, fontWeight: 500, fontFamily: FONT,
+          cursor: 'pointer',
+          transition: 'background 0.1s, color 0.1s, border-color 0.1s',
+          whiteSpace: 'nowrap', flexShrink: 0,
+          marginLeft: hasAgents ? 6 : 0,
+        }}
+        onMouseEnter={e => {
+          if (!isAddActive) {
+            e.currentTarget.style.color = '#999';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)';
+            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+          }
+        }}
+        onMouseLeave={e => {
+          if (!isAddActive) {
+            e.currentTarget.style.color = '#555';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
+            e.currentTarget.style.background = 'transparent';
+          }
+        }}
+      >
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        Access
+      </button>
+    </div>
   );
 }

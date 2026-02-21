@@ -101,6 +101,10 @@ class NodeInfo(BaseModel):
     is_synced: bool = False  # type 不在原生类型中
     sync_source: Optional[str] = None  # 从 type 提取来源，如 github_repo → github
     
+    # 预览摘要（Finder 风格图标预览用）
+    preview_snippet: Optional[str] = None  # 前 ~120 字符的内容摘要
+    children_count: Optional[int] = None   # 文件夹的直接子节点数
+    
     created_at: str
     updated_at: str
 

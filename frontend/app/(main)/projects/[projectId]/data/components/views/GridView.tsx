@@ -7,188 +7,219 @@ import { getNodeTypeConfig, isSyncedType, getSyncSource, getSyncSourceIcon, Lock
 // Content type definition
 export type ContentType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'sync' | 'github_repo' | 'notion_page' | 'notion_database' | 'airtable_base' | 'linear_project' | 'google_sheets';
 
-// --- Rich Icons (拟物化图标) ---
+// --- Finder-style Preview Icons ---
 
-// 1. 文件夹 (使用外部 SVG)
-const FolderIconLarge = () => (
-  <img src="/icons/folder.svg" alt="Folder" width={64} height={64} style={{ display: 'block' }} />
-);
-
-// 通用文档背景 (Paper Base)
-const DocBase = ({ children }: { children?: React.ReactNode }) => (
-  <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-    {/* 纸张阴影 */}
-    <rect x="12" y="6" width="40" height="52" rx="3" fill="black" fillOpacity="0.3" transform="translate(2, 2)" />
-    {/* 纸张主体 */}
-    <rect x="12" y="6" width="40" height="52" rx="3" fill="#27272a" stroke="#3f3f46" strokeWidth="1" />
-    {/* 内容区 */}
-    {children}
-  </svg>
-);
-
-// 2. JSON 文档图标 (使用外部 SVG)
-const JsonIconLarge = () => (
-  <img src="/icons/json-doc.svg" alt="JSON" width={64} height={64} style={{ display: 'block' }} />
-);
-
-// 3. Markdown 文档图标 (使用外部 SVG)
-const MarkdownIconLarge = () => (
-  <img src="/icons/markdown-doc.svg" alt="Markdown" width={64} height={64} style={{ display: 'block' }} />
-);
-
-// 4. File 图标 (纯 S3 存储的文件)
-// 设计逻辑：与 JSON/Markdown 图标相同的文档外框，中间显示后缀名
-const FileIconLarge = ({ ext }: { ext: string }) => (
-  <div style={{ position: 'relative', width: 64, height: 64 }}>
-    {/* 文档外框 - 与 json-doc.svg 相同的样式 */}
-    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-      {/* 文档主体 */}
-      <path 
-        d="M12 8C12 5.79086 13.7909 4 16 4H40L52 16V56C52 58.2091 50.2091 60 48 60H16C13.7909 60 12 58.2091 12 56V8Z" 
-        fill="#27272A" 
-        stroke="#3F3F46" 
-        strokeWidth="2"
+// Document shell: paper shape with fold corner, content area for preview
+const DocShell = ({ children }: { children?: React.ReactNode }) => (
+  <div style={{ position: 'relative', width: 64, height: 72 }}>
+    <svg width="64" height="72" viewBox="0 0 64 72" fill="none" style={{ position: 'absolute', top: 0, left: 0 }}>
+      {/* Shadow */}
+      <path
+        d="M10 6C10 4.89543 10.8954 4 12 4H43L57 18V69C57 70.1046 56.1046 71 55 71H12C10.8954 71 10 70.1046 10 69V6Z"
+        fill="black" fillOpacity="0.25"
       />
-      {/* 折角 */}
-      <path 
-        d="M40 4V16H52" 
-        stroke="#3F3F46" 
-        strokeWidth="2" 
-        strokeLinejoin="round"
+      {/* Paper body */}
+      <path
+        d="M8 4C8 2.89543 8.89543 2 10 2H42L56 16V68C56 69.1046 55.1046 70 54 70H10C8.89543 70 8 69.1046 8 68V4Z"
+        fill="#222225"
+        stroke="#3a3a3d"
+        strokeWidth="1"
       />
+      {/* Fold corner */}
+      <path d="M42 2V16H56" stroke="#3a3a3d" strokeWidth="1" strokeLinejoin="round" />
+      <path d="M42 2V16H56L42 2Z" fill="#2a2a2d" />
     </svg>
-    
-    {/* 中心显示后缀名 */}
     <div style={{
       position: 'absolute',
-      inset: 0,
+      top: 18,
+      left: 12,
+      right: 10,
+      bottom: 6,
+      overflow: 'hidden',
+    }}>
+      {children}
+    </div>
+  </div>
+);
+
+// Folder icon with children count badge
+const FolderIconLarge = ({ childrenCount }: { childrenCount?: number | null }) => (
+  <div style={{ position: 'relative', width: 64, height: 64 }}>
+    <img src="/icons/folder.svg" alt="Folder" width={64} height={64} style={{ display: 'block' }} />
+    {childrenCount != null && childrenCount > 0 && (
+      <div style={{
+        position: 'absolute',
+        bottom: 2,
+        right: 0,
+        background: '#3f3f46',
+        border: '1px solid #52525b',
+        borderRadius: 8,
+        padding: '1px 5px',
+        fontSize: 10,
+        fontWeight: 600,
+        color: '#a1a1aa',
+        lineHeight: '14px',
+        minWidth: 18,
+        textAlign: 'center',
+      }}>
+        {childrenCount}
+      </div>
+    )}
+  </div>
+);
+
+// Markdown preview: actual text content at tiny size
+const MarkdownPreviewIcon = ({ snippet }: { snippet?: string | null }) => (
+  <DocShell>
+    {snippet ? (
+      <div style={{
+        fontSize: 5,
+        lineHeight: 1.45,
+        color: '#8a8a8e',
+        fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        overflow: 'hidden',
+        height: '100%',
+      }}>
+        {snippet}
+      </div>
+    ) : (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3.5, paddingTop: 1 }}>
+        {[92, 58, 78, 48, 85, 62, 72, 52].map((w, i) => (
+          <div key={i} style={{ height: 2, background: '#52525b', borderRadius: 1, width: `${w}%` }} />
+        ))}
+      </div>
+    )}
+  </DocShell>
+);
+
+// JSON preview: render actual content text (like Markdown), green monospace
+const JsonPreviewIcon = ({ snippet }: { snippet?: string | null }) => (
+  <DocShell>
+    {snippet ? (
+      <div style={{
+        fontSize: 5,
+        lineHeight: 1.5,
+        color: '#6ee7b7',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        overflow: 'hidden',
+        height: '100%',
+      }}>
+        {snippet}
+      </div>
+    ) : (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3.5, paddingTop: 1 }}>
+        {[88, 52, 74, 44, 82, 56, 68, 48].map((w, i) => (
+          <div key={i} style={{ height: 2, background: '#3f6b56', borderRadius: 1, width: `${w}%` }} />
+        ))}
+      </div>
+    )}
+  </DocShell>
+);
+
+// File icon: document shell with extension in center
+const FileIconLarge = ({ ext }: { ext: string }) => (
+  <DocShell>
+    <div style={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingTop: 6,
+      height: '100%',
     }}>
       <span style={{
-        fontSize: 11,
-        fontWeight: 700,
+        fontSize: 12,
+        fontWeight: 800,
         color: '#71717a',
-        fontFamily: 'monospace',
+        fontFamily: 'ui-monospace, monospace',
         letterSpacing: 0.5,
         textTransform: 'uppercase',
       }}>
         {ext}
       </span>
     </div>
-  </div>
+  </DocShell>
 );
 
-// 5. 网格背景 (Grid Base) - 用于 Sheets
-const GridBase = ({ children }: { children?: React.ReactNode }) => (
-  <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-    {/* 纸张阴影 */}
-    <rect x="12" y="6" width="40" height="52" rx="3" fill="black" fillOpacity="0.3" transform="translate(2, 2)" />
-    {/* 纸张主体 */}
-    <rect x="12" y="6" width="40" height="52" rx="3" fill="#27272a" stroke="#3f3f46" strokeWidth="1" />
-    
-    {/* 极简网格线 - 降低透明度，减少视觉噪音 */}
-    <path d="M12 22H52" stroke="#3f3f46" strokeWidth="1" strokeOpacity="0.4" />
-    <path d="M12 36H52" stroke="#3f3f46" strokeWidth="1" strokeOpacity="0.4" />
-    <path d="M12 50H52" stroke="#3f3f46" strokeWidth="1" strokeOpacity="0.4" />
-    <path d="M32 6V58" stroke="#3f3f46" strokeWidth="1" strokeOpacity="0.4" />
-
-    {children}
-  </svg>
-);
-
-// 6. Unified Branded Icon - 统一图标组件
-// 设计理念：Corner Badge (简洁圆角矩形托盘版)
-// - 主体：App Logo 绝对居中 (带尺寸限制)
-// - 角标：简洁圆角矩形托盘，无折角干扰
-const UnifiedBrandedIcon = ({ 
+// Branded icon for synced sources (Notion, GitHub, etc.)
+// Design principle: App logo centered + type badge (JSON/MD/folder) bottom-right
+const UnifiedBrandedIcon = ({
   BadgeIcon,
   type,
   badgeSize = 32,
   showWarning = false,
-}: { 
+  snippet,
+}: {
   BadgeIcon?: React.ElementType;
   type: string;
   badgeSize?: number;
   showWarning?: boolean;
+  snippet?: string | null;
 }) => {
-  // 从 type 获取 config，决定显示 JSON 还是 Markdown badge
   const typeConfig = getNodeTypeConfig(type);
 
-  // JSON Badge - 带折角的小纸张 + 绿色表格 (与 json-doc.svg 风格一致)
-  // 尺寸调整：从 25x28 放大到 30x34
+  const badgeLines = (snippet || '').split('\n').slice(0, 5);
+  const truncated = (s: string, max: number) => s.length > max ? s.slice(0, max) : s;
+
   const JsonBadge = () => (
-    <svg width="30" height="34" viewBox="0 0 25 28" fill="none" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>
-      {/* 纸张主体 - 带折角 */}
-      <path 
-        d="M2 3C2 1.89543 2.89543 1 4 1H16L23 8V25C23 26.1046 22.1046 27 21 27H4C2.89543 27 2 26.1046 2 25V3Z" 
-        fill="#3f3f46" 
-        stroke="#52525b" 
-        strokeWidth="1.5"
-      />
-      {/* 折角 */}
-      <path 
-        d="M16 1V8H23" 
-        stroke="#71717a" 
-        strokeWidth="1.5" 
-        strokeLinejoin="round"
-      />
-      {/* 绿色表格 - 居中偏下 */}
-      <g transform="translate(5.5, 12)">
-        <path d="M3 1V9" stroke="#4ABB91" strokeWidth="1.2"/>
-        <path d="M12 6.5H1" stroke="#4ABB91" strokeWidth="1.2"/>
-        <path d="M12 3.5H1" stroke="#4ABB91" strokeWidth="1.2"/>
-        <rect x="0.5" y="0.5" width="12" height="9" stroke="#4ABB91" strokeWidth="1.2"/>
-      </g>
+    <svg width="30" height="36" viewBox="0 0 30 36" fill="none" style={{ filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.6))' }}>
+      <path d="M2 3C2 1.895 2.895 1 4 1H19L28 10V33C28 34.105 27.105 35 26 35H4C2.895 35 2 34.105 2 33V3Z" fill="#222225" stroke="#3a3a3d" strokeWidth="1" />
+      <path d="M19 1V10H28" stroke="#3a3a3d" strokeWidth="1" strokeLinejoin="round" />
+      <path d="M19 1V10H28L19 1Z" fill="#2a2a2d" />
+      {badgeLines.length > 0 ? (
+        <text x="4" y="15" fontSize="3.5" fill="#6ee7b7" fontFamily="ui-monospace, monospace">
+          {badgeLines.map((line, i) => (
+            <tspan key={i} x="4" dy={i === 0 ? 0 : 4}>{truncated(line, 10)}</tspan>
+          ))}
+        </text>
+      ) : (
+        <g transform="translate(5, 13)">
+          {[10, 17, 12, 15, 8].map((w, i) => (
+            <rect key={i} y={i * 3.5} width={w} height="1.2" rx="0.4" fill="#6ee7b7" opacity={0.9 - i * 0.1} />
+          ))}
+        </g>
+      )}
     </svg>
   );
 
-  // Markdown Badge - 带折角的小纸张 + 灰色横线 (与 markdown-doc.svg 风格一致)
-  // 尺寸调整：从 25x28 放大到 30x34
   const MarkdownBadge = () => (
-    <svg width="30" height="34" viewBox="0 0 25 28" fill="none" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>
-      {/* 纸张主体 - 带折角 */}
-      <path 
-        d="M2 3C2 1.89543 2.89543 1 4 1H16L23 8V25C23 26.1046 22.1046 27 21 27H4C2.89543 27 2 26.1046 2 25V3Z" 
-        fill="#3f3f46" 
-        stroke="#52525b" 
-        strokeWidth="1.5"
-      />
-      {/* 折角 */}
-      <path 
-        d="M16 1V8H23" 
-        stroke="#71717a" 
-        strokeWidth="1.5" 
-        strokeLinejoin="round"
-      />
-      {/* 灰色横线 - 居中偏下 */}
-      <g transform="translate(5.5, 12)">
-        <rect width="13" height="1.5" fill="#a1a1aa"/>
-        <rect y="6" width="10" height="1.5" fill="#a1a1aa"/>
-        <rect y="3" width="7" height="1.5" fill="#a1a1aa"/>
-      </g>
+    <svg width="30" height="36" viewBox="0 0 30 36" fill="none" style={{ filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.6))' }}>
+      <path d="M2 3C2 1.895 2.895 1 4 1H19L28 10V33C28 34.105 27.105 35 26 35H4C2.895 35 2 34.105 2 33V3Z" fill="#222225" stroke="#3a3a3d" strokeWidth="1" />
+      <path d="M19 1V10H28" stroke="#3a3a3d" strokeWidth="1" strokeLinejoin="round" />
+      <path d="M19 1V10H28L19 1Z" fill="#2a2a2d" />
+      {snippet ? (
+        <text x="4" y="15" fontSize="3.5" fill="#8a8a8e" fontFamily="-apple-system, sans-serif">
+          {snippet.split(/\s+/).reduce<string[]>((lines, word) => {
+            const last = lines[lines.length - 1] || '';
+            if (lines.length === 0 || last.length + word.length > 9) {
+              lines.push(word);
+            } else {
+              lines[lines.length - 1] = last + ' ' + word;
+            }
+            return lines;
+          }, []).slice(0, 5).map((line, i) => (
+            <tspan key={i} x="4" dy={i === 0 ? 0 : 4}>{truncated(line, 10)}</tspan>
+          ))}
+        </text>
+      ) : (
+        <g transform="translate(5, 13)">
+          {[12, 8, 14, 9, 11].map((w, i) => (
+            <rect key={i} y={i * 3.5} width={w} height="1.2" rx="0.4" fill="#8a8a8e" opacity={0.9 - i * 0.1} />
+          ))}
+        </g>
+      )}
     </svg>
   );
 
-  // Folder Badge - 使用主文件夹图标的缩略版
   const FolderBadge = () => (
-    <img 
-      src="/icons/folder.svg" 
-      alt="Folder" 
-      width={28} 
-      height={28} 
-      style={{ 
-        display: 'block',
-        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))'
-      }} 
-    />
+    <img src="/icons/folder.svg" alt="Folder" width={22} height={22} style={{ display: 'block', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }} />
   );
 
   return (
     <div style={{ position: 'relative', width: 64, height: 64 }}>
-      {/* 卡片容器 */}
+      {/* Card container */}
       <div style={{
         width: 56,
         height: 56,
@@ -199,7 +230,7 @@ const UnifiedBrandedIcon = ({
         position: 'relative',
         boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
       }}>
-        {/* App Logo - 绝对居中 + 尺寸限制 */}
+        {/* App Logo - centered */}
         <div style={{
           position: 'absolute',
           inset: 0,
@@ -209,32 +240,25 @@ const UnifiedBrandedIcon = ({
           padding: 6,
         }}>
           {BadgeIcon && (
-            <div style={{ 
-              maxWidth: 36, 
-              maxHeight: 36, 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              overflow: 'hidden',
-            }}>
+            <div style={{ maxWidth: 36, maxHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
               <BadgeIcon size={badgeSize} />
             </div>
           )}
         </div>
 
-        {/* 右下角悬浮徽章 - 圆角托盘 */}
+        {/* Type badge - bottom-right corner */}
         <div style={{
           position: 'absolute',
           bottom: -8,
-          right: -8, 
+          right: -8,
           zIndex: 10,
         }}>
-          {typeConfig.renderAs === 'folder' ? <FolderBadge /> : 
+          {typeConfig.renderAs === 'folder' ? <FolderBadge /> :
            typeConfig.renderAs === 'markdown' ? <MarkdownBadge /> : <JsonBadge />}
         </div>
       </div>
 
-      {/* Warning */}
+      {/* Warning indicator */}
       {showWarning && (
         <div style={{
           position: 'absolute',
@@ -283,6 +307,9 @@ export interface GridViewItem {
   sync_source?: string | null;  // 从 type 提取，如 github_repo → github
   sync_status?: 'not_connected' | 'idle' | 'syncing' | 'error';
   last_synced_at?: string | null;
+  // Finder-style preview data
+  preview_snippet?: string | null;
+  children_count?: number | null;
 }
 
 export interface GridViewProps {
@@ -347,31 +374,31 @@ function GridItem({
     return names[source] || source;
   };
 
-  // Get icon and color based on type
   const getTypeIcon = () => {
-    // 对于所有同步类型 (GitHub Repo, Notion Page/Database, Airtable, etc.)
-    // 使用统一的 "背景来源 + 前景内容" 图标体系
     if (isSynced) {
       return (
-        <UnifiedBrandedIcon 
+        <UnifiedBrandedIcon
           BadgeIcon={BadgeIcon}
           type={item.type}
           badgeSize={32}
           showWarning={isPlaceholder}
+          snippet={item.preview_snippet}
         />
       );
     }
-    
-    // 普通类型（非同步）使用拟物化图标
+
     switch (typeConfig.renderAs) {
-      case 'folder': return <FolderIconLarge />;
-      case 'markdown': return <MarkdownIconLarge />;
+      case 'folder':
+        return <FolderIconLarge childrenCount={item.children_count} />;
+      case 'markdown':
+        return <MarkdownPreviewIcon snippet={item.preview_snippet} />;
       case 'file':
-      case 'image': 
-        // 提取文件后缀名 (最多显示4个字符)
+      case 'image': {
         const ext = item.name.split('.').pop()?.slice(0, 4) || 'FILE';
         return <FileIconLarge ext={ext} />;
-      default: return <JsonIconLarge />;
+      }
+      default:
+        return <JsonPreviewIcon snippet={item.preview_snippet} />;
     }
   };
 
@@ -380,9 +407,9 @@ function GridItem({
       onClick={item.onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      draggable={!typeConfig.isReadOnly && !isPlaceholder}
+      draggable={!isPlaceholder}
       onDragStart={(e) => {
-        if (typeConfig.isReadOnly || isPlaceholder) {
+        if (isPlaceholder) {
           e.preventDefault();
           return;
         }
@@ -396,23 +423,22 @@ function GridItem({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center', // 整体水平居中
-        justifyContent: 'center', // 整体垂直居中 (Finder 风格)
-        width: 120,
-        height: 120,
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        width: 112,
+        height: 128,
         borderRadius: 8,
         cursor: 'pointer',
         background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
         transition: 'all 0.15s',
         position: 'relative',
-        outline: hasAgentAccess 
-            ? '2px solid rgba(249, 115, 22, 0.5)' 
+        outline: hasAgentAccess
+            ? '2px solid rgba(249, 115, 22, 0.5)'
             : 'none',
         outlineOffset: -2,
-        // 移除 opacity 控制，由 BrandedIcon 内部处理视觉状态
-        opacity: 1, 
-        gap: 8, // 图标和文字的间距
-        padding: 8,
+        opacity: 1,
+        gap: 4,
+        padding: '6px 6px 8px',
       }}
     >
       {/* 图标区域 */}
@@ -471,14 +497,14 @@ function GridItem({
         </div>
       )}
 
-      {/* Name - 紧贴图标下方 */}
+      {/* Name */}
       <div
         style={{
-          fontSize: 13,
-          color: hovered ? '#fff' : '#a1a1aa',
+          fontSize: 11,
+          color: hovered ? '#e5e5e5' : '#a1a1aa',
           wordBreak: 'break-word',
           lineHeight: 1.3,
-          maxHeight: 34, // 限制高度，最多两行
+          maxHeight: 30,
           overflow: 'hidden',
           display: '-webkit-box',
           WebkitLineClamp: 2,
@@ -486,13 +512,12 @@ function GridItem({
           textAlign: 'center',
           transition: 'color 0.15s',
           width: '100%',
-          padding: '0 4px',
+          padding: '0 2px',
         }}
       >
         {item.name}
-        {/* 来源标签 - 紧跟在名字后面 */}
         {isSynced && syncSource && !isPlaceholder && (
-          <span style={{ color: '#52525b', fontSize: 11 }}> · {formatSourceName(syncSource)}</span>
+          <span style={{ color: '#52525b', fontSize: 10 }}> · {formatSourceName(syncSource)}</span>
         )}
       </div>
     </div>
@@ -516,8 +541,8 @@ function CreateButton({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 120,
-        height: 120,
+        width: 112,
+        height: 128,
         cursor: 'pointer',
       }}
     >

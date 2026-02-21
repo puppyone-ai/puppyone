@@ -37,7 +37,47 @@ router = APIRouter(
 )
 
 
-def _node_to_info(node) -> NodeInfo:
+def _compute_preview_snippet(node, max_len: int = 200) -> str | None:
+    """从 preview_md / preview_json 提取可读的摘要文本"""
+    if node.preview_md:
+        lines = node.preview_md.strip().splitlines()
+        text = " ".join(l.strip().lstrip("#").strip() for l in lines if l.strip())
+        return text[:max_len] if text else None
+    if node.preview_json is not None:
+        pj = node.preview_json
+        if isinstance(pj, list):
+            row_count = len(pj)
+            if row_count > 0 and isinstance(pj[0], dict):
+                # 取第一行的 key: value 作为预览
+                first = pj[0]
+                parts = []
+                for k, v in list(first.items())[:5]:
+                    val = str(v) if v is not None else "–"
+                    if len(val) > 12:
+                        val = val[:12] + "…"
+                    parts.append(f"{k}: {val}")
+                text = "\n".join(parts)
+                text += f"\n… {row_count} rows"
+                return text[:max_len]
+            return f"{row_count} items"
+        if isinstance(pj, dict):
+            parts = []
+            for k, v in list(pj.items())[:6]:
+                val = str(v) if v is not None else "–"
+                if len(val) > 14:
+                    val = val[:14] + "…"
+                parts.append(f"{k}: {val}")
+            if len(pj) > 6:
+                parts.append("…")
+            return "\n".join(parts)[:max_len]
+        return str(pj)[:max_len]
+    return None
+
+
+def _node_to_info(
+    node,
+    children_count: int | None = None,
+) -> NodeInfo:
     """转换节点为 NodeInfo"""
     return NodeInfo(
         id=node.id,
@@ -45,17 +85,17 @@ def _node_to_info(node) -> NodeInfo:
         project_id=node.project_id,
         id_path=node.id_path,
         parent_id=node.parent_id,
-        # 类型字段
         type=node.type,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
-        # 同步相关字段
         sync_url=node.sync_url,
         sync_id=node.sync_id,
         sync_status=node.sync_status,
         last_synced_at=node.last_synced_at.isoformat() if node.last_synced_at else None,
         is_synced=node.is_synced,
         sync_source=node.sync_source,
+        preview_snippet=_compute_preview_snippet(node),
+        children_count=children_count,
         created_at=node.created_at.isoformat(),
         updated_at=node.updated_at.isoformat(),
     )
@@ -117,11 +157,16 @@ def list_nodes(
 ):
     _ensure_project_access(project_service, current_user, project_id)
     nodes = service.list_children(project_id, parent_id)
+
+    folder_ids = [n.id for n in nodes if n.type == "folder"]
+    children_counts = service.repo.count_children_batch(folder_ids) if folder_ids else {}
+
+    node_infos = [
+        _node_to_info(n, children_count=children_counts.get(n.id))
+        for n in nodes
+    ]
     return ApiResponse.success(
-        data=NodeListResponse(
-            nodes=[_node_to_info(n) for n in nodes],
-            total=len(nodes),
-        )
+        data=NodeListResponse(nodes=node_infos, total=len(node_infos))
     )
 
 

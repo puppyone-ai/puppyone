@@ -10,7 +10,7 @@ OpenClaw CLI 接入路由
 认证方式：Header X-Access-Key (cli_xxxx)
 """
 
-from typing import Optional, List, Any
+from typing import Optional, Any
 from fastapi import APIRouter, Header, HTTPException
 
 from pydantic import BaseModel, Field
@@ -29,7 +29,8 @@ class ConnectRequest(BaseModel):
 
 
 class PushRequest(BaseModel):
-    node_id: str
+    node_id: Optional[str] = Field(default=None, description="目标节点 ID (None = 创建新节点)")
+    filename: Optional[str] = Field(default=None, description="文件名 (创建新节点时必填)")
     content: Any
     base_version: int = Field(default=0, description="乐观锁基准版本")
     node_type: str = Field(default="json")
@@ -97,7 +98,12 @@ async def push(
     request: PushRequest,
     x_access_key: str = Header(..., alias="X-Access-Key"),
 ):
-    """推送单个节点变更（经 CollaborationService 版本管理）。"""
+    """
+    推送单个节点变更（经 CollaborationService 版本管理）。
+
+    node_id=None + filename → 创建新节点
+    node_id=xxx → 更新现有节点 (乐观锁)
+    """
     agent, svc = _auth(x_access_key)
     result = svc.push(
         agent=agent,
@@ -105,10 +111,24 @@ async def push(
         content=request.content,
         base_version=request.base_version,
         node_type=request.node_type,
+        filename=request.filename,
     )
     if not result.get("ok"):
+        error = result.get("error", "")
+        if error == "version_conflict":
+            raise HTTPException(status_code=409, detail=result.get("message", "Version conflict"))
         raise HTTPException(status_code=403, detail=result.get("message", "Push failed"))
     return ApiResponse.success(data=result)
+
+
+@router.get("/status", response_model=ApiResponse)
+async def status(
+    x_access_key: str = Header(..., alias="X-Access-Key"),
+):
+    """查询 CLI 连接状态（前端轮询用）。"""
+    agent, svc = _auth(x_access_key)
+    data = svc.status(agent)
+    return ApiResponse.success(data=data)
 
 
 @router.delete("/disconnect", response_model=ApiResponse)

@@ -1,253 +1,264 @@
 # PuppyOne CLI — Interface Specification
 
-> Version: 0.3.0 | 2026-02-19
+> Version: 0.4.0 | 2026-02-21
 
-## Design Principles
+## Quick Start (OpenClaw)
 
-- **Deployment agnostic**: Works the same whether PuppyOne is cloud-hosted, self-hosted, or local
-- **User controls data**: `connect` only creates a binding; `sync` / `watch` transfer data — CLI never reads files without explicit action
-- **Separation of concerns**: Binding, syncing, and watching are three independent actions
-
-## Install
+The fastest way to sync PuppyOne data with an OpenClaw agent workspace:
 
 ```bash
 npm install -g puppyone
+puppyone connect --key <access-key> ~/openclaw-workspace -u <api-url>
+puppyone watch --key <access-key>
 ```
 
-## Global Flags
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--api-url <url>` | `-u` | PuppyOne API URL (overrides config) |
-| `--api-key <key>` | `-k` | API Key (overrides config) |
-| `--json` | | JSON output for AI / scripts |
-| `--verbose` | `-v` | Verbose output |
-| `--version` | `-V` | Print version |
-| `--help` | `-h` | Print help |
+That's it. Three commands: install, connect, watch.
 
 ---
 
-## Commands
+## Two Modes
 
-### `puppyone login`
+The CLI supports two independent operating modes:
 
-Sign in to PuppyOne with email and password.
+| Mode | Auth | Use Case | Endpoints |
+|------|------|----------|-----------|
+| **OpenClaw mode** (`--key`) | Access Key (`X-Access-Key`) | Distribute PuppyOne data to agent workspaces | `/api/v1/access/openclaw/*` |
+| **Sync mode** (login) | JWT Bearer | Connect local folders as information sources | `/api/v1/sync/sources/*` |
 
-```
-puppyone login [-e <email>] [-p <password>] [-u <api-url>]
-```
-
-| Flag | Required | Default | Description |
-|------|----------|---------|-------------|
-| `-e, --email` | No* | Interactive prompt | Email address |
-| `-p, --password` | No* | Interactive prompt | Password |
-| `-u, --api-url` | No | `http://localhost:9090` | API URL |
-| `-k, --api-key` | No | | Provide token directly (skip login, for CI/scripts) |
-
-\* Prompts interactively if not provided.
-
-**What happens behind the scenes:**
-1. `POST /api/v1/auth/login { email, password }` → backend calls Supabase Auth → returns access_token
-2. Saves `access_token`, `refresh_token`, `user_email`, `api_url` to `~/.puppyone/config.json`
+OpenClaw mode is for **distribution** (PuppyOne → agent). Sync mode is for **collection** (local files → PuppyOne).
 
 ---
 
-### `puppyone logout`
+## OpenClaw Mode Commands
 
-Clear saved credentials from `~/.puppyone/config.json`.
+### `puppyone connect --key`
 
-```
-puppyone logout
-```
+First-time connection: merge-sync the workspace folder with PuppyOne, then save the connection locally.
 
-**What happens behind the scenes:**
-1. Resets `api_key` to null in config
-
----
-
-### `puppyone whoami`
-
-Show current login status and check server connectivity.
-
-```
-puppyone whoami
-```
-
-**What happens behind the scenes:**
-1. Reads `~/.puppyone/config.json`
-2. `GET /health` to check if server is reachable
-
----
-
-### `puppyone connect`
-
-Bind a local folder to a PuppyOne project. **Only creates the link — does NOT read or upload any files.**
-
-```
-puppyone connect <folder> -p <project-id> [flags]
+```bash
+puppyone connect --key <access-key> <folder> [-u <api-url>] [--dir <subdir>]
 ```
 
 | Arg/Flag | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `<folder>` | Yes | | Local folder path |
-| `-p, --project` | Yes | | Project ID |
-| `-f, --folder-id` | No | Project root | Target folder node ID inside the project |
-| `-m, --mode` | No | `bidirectional` | `bidirectional` \| `pull` \| `push` |
-| `-c, --conflict` | No | `merge` | `merge` \| `external` \| `puppyone` \| `manual` |
-| `-n, --name` | No | Folder name | Connection name |
+| `--key` | Yes | | Access key (`cli_` prefix, from PuppyOne UI) |
+| `<folder>` | Yes | | OpenClaw workspace folder path |
+| `-u, --api-url` | First time only | `http://localhost:9090` | PuppyOne API URL (saved for reuse) |
 
-Use `--folder-id` to bind to a specific folder inside the project tree. Omit to bind to the project root.
+#### Sync Strategy: Merge
+
+On first connect, the CLI merges both sides so they end up identical:
+
+| Cloud | Local | Action |
+|-------|-------|--------|
+| Has file | Missing | Cloud → write to local |
+| Missing | Has file | Local → push to cloud (create new node) |
+| Has file | Has file, same content | Skip |
+| Has file | Has file, different content | **Cloud wins** → overwrite local, backup old local to `.puppyone/backups/` |
+
+After merge, both sides have exactly the same files.
 
 **What happens behind the scenes:**
-1. Validates local folder path exists and is a directory
-2. `POST /api/v1/sync/sources` creates a source record on server with `config: { path, target_folder_id }`
-3. Appends connection info to `~/.puppyone/config.json` `connections[]`
+1. `POST /api/v1/access/openclaw/connect { workspace_path }` — registers connection, returns cloud node list
+2. Scans local folder recursively (excluding `.puppyone/`, `.git/`, `node_modules/`, etc.)
+3. Compares cloud nodes vs local files by filename
+4. Executes merge: pulls missing files from cloud, pushes missing files to cloud
+5. For conflicts (same filename, different content): cloud wins, local backed up
+6. Saves connection to `~/.puppyone/config.json` under `openclaw_connections[]`
 
-**What it does NOT do:** No folder scanning, no file reading, no data upload
+**Example output:**
+```
+Connecting to PuppyOne...  ✓
+  Agent:   My OpenClaw Bot
+  Project: Marketing Context
+
+Merging ~/openclaw-workspace ↔ PuppyOne...
+
+  ↓ product_info.json        cloud → local (new)
+  ↓ pricing.json             cloud → local (new)
+  ↑ agent.md                 local → cloud (new node created)
+  ↑ soul.md                  local → cloud (new node created)
+  = faq.md                   identical, skip
+  ↓ config.json              conflict → cloud wins, local backed up
+
+✅ Synced. 2 pulled, 2 pushed, 1 conflict, 1 skipped.
+```
 
 ---
+
+### `puppyone pull --key`
+
+One-time pull: download latest cloud data to local folder.
+
+```bash
+puppyone pull --key <access-key>
+```
+
+Pulls all nodes from cloud. Writes new files, overwrites changed files, skips unchanged. Does NOT push local changes.
+
+---
+
+### `puppyone watch --key`
+
+Continuous bidirectional sync. Runs in foreground.
+
+```bash
+puppyone watch --key <access-key> [-i <interval>]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-i, --interval` | `30` | Remote poll interval in seconds (min 5) |
+
+#### How watch works
+
+Two sync directions run simultaneously:
+
+**Local → Cloud (file watcher):**
+- chokidar monitors the workspace folder
+- File modified → push to cloud (update existing node)
+- File created → push to cloud (create new node)
+- File deleted → notify cloud (archive/delete node)
+- Debounced 500ms to avoid rapid-fire syncs
+
+**Cloud → Local (polling):**
+- Every `interval` seconds, pull latest node versions
+- Node content changed → overwrite local file
+- New node created → write new local file
+- Node deleted → delete local file
+
+**Conflict resolution (both sides changed same file):**
+- Cloud wins → overwrite local
+- Local version backed up to `.puppyone/backups/<filename>.<timestamp>`
+
+**Startup reconciliation:**
+- On every `watch` start, a full merge runs first (same logic as `connect`)
+- Ensures nothing was missed while watch was not running
+
+**Example output:**
+```
+Watching ~/openclaw-workspace ↔ PuppyOne
+  API: https://api.puppyone.com
+  Poll: 30s
+
+  ↑ soul.md → v4
+  ↓ product_info.json v3 → v4
+  ↑ new_report.md → v1 (created)
+  ↓ config.json v5 → v6 (conflict, cloud wins, backed up)
+
+Ctrl+C to stop.
+```
+
+---
+
+### `puppyone disconnect --key`
+
+Remove the connection. Deletes server-side sync source + local config. Does NOT delete local files.
+
+```bash
+puppyone disconnect --key <access-key>
+```
+
+---
+
+## Sync Mode Commands
+
+These commands use JWT authentication (from `puppyone login`) and the `/api/v1/sync/sources/*` endpoints. Used for **collecting** data from local folders into PuppyOne — a different use case from OpenClaw distribution.
+
+### `puppyone login`
+
+```bash
+puppyone login [-e <email>] [-p <password>] [-u <api-url>]
+```
+
+Signs in via email/password. Saves JWT to `~/.puppyone/config.json`.
+
+For CI/scripts, provide token directly: `puppyone login -k <token>`
+
+### `puppyone logout`
+
+```bash
+puppyone logout
+```
+
+Clears saved credentials.
+
+### `puppyone whoami`
+
+```bash
+puppyone whoami
+```
+
+Shows login status and checks server connectivity.
 
 ### `puppyone sync`
 
-Manually trigger a one-time sync. CLI reads local files and pushes to the cloud, or downloads cloud content and writes locally.
-
-```
+```bash
 puppyone sync [-s <source-id>] [-d <direction>]
 ```
 
-| Flag | Required | Default | Description |
-|------|----------|---------|-------------|
-| `-s, --source` | No | All connections | Specify source ID |
-| `-d, --direction` | No | `both` | `pull` \| `push` \| `both` |
-
-**Direction:**
-- **push**: Local → Cloud (CLI reads local files → uploads to PuppyOne nodes)
-- **pull**: Cloud → Local (CLI downloads from PuppyOne → writes to local files)
-
-**Supported file types:** `.json`, `.md`, `.markdown`, `.txt`, `.yaml`, `.yml`
-
-**What happens behind the scenes (push):**
-1. Reads connection info from `~/.puppyone/config.json` to get source_id and folder path
-2. CLI scans local folder recursively (ignoring dotfiles, `node_modules`, `__pycache__`, `.git`)
-3. For each supported file:
-   - Computes local file SHA-256
-   - `POST /api/v1/sync/sources/{id}/push-file` with content + hash
-   - Backend handles create-or-update and sync point tracking
-   - Response: `{ action: "created" | "updated" | "skipped", node_id, version }`
-
-**What happens behind the scenes (pull):**
-1. `GET /api/v1/sync/sources/{id}/pull-files` — returns files whose server version > last sync version
-2. CLI writes each file to the local folder (creates directories as needed)
-3. `POST /api/v1/sync/sources/{id}/ack-pull` — acknowledges written files with version + hash
-
-**What happens behind the scenes (both):**
-1. Push first, then pull
-
-**Example output:**
-```
-Syncing source #1: /Users/me/workspace
-  PUSH: 5 local files found
-    created: config.json → node abc123 v1
-    updated: README.md → node def456 v3
-  PULL: 1 files to download
-    pulled: notes.md v2
-
-Done: 2 pushed, 1 pulled, 3 skipped, 0 errors
-```
-
----
-
-### `puppyone watch`
-
-Start a local file watcher that continuously monitors for changes and syncs automatically. Runs in foreground, Ctrl+C to stop.
-
-```
-puppyone watch [-s <source-id>] [-i <interval>]
-```
-
-| Flag | Required | Default | Description |
-|------|----------|---------|-------------|
-| `-s, --source` | No | All connections | Specify source ID |
-| `-i, --interval` | No | `30` | Remote change check interval (seconds, min 5) |
-
-**What happens behind the scenes:**
-1. Reads connection info, starts chokidar watcher on local folder(s)
-2. **Local file change** (chokidar event, debounced 500ms):
-   - Reads changed file, computes SHA-256
-   - `POST /api/v1/sync/sources/{id}/push-file` with content + hash
-   - Backend skips if hash matches (no change)
-3. **Periodic remote change check** (every `interval` seconds):
-   - `GET /api/v1/sync/sources/{id}/pull-files` to get changed files
-   - Writes changed files to local folder
-   - `POST /api/v1/sync/sources/{id}/ack-pull` to acknowledge
-4. Ctrl+C stops all watchers and exits gracefully
-
-**Example output:**
-```
-Watching source #1: /Users/me/workspace
-
-Watching for changes (remote poll every 30s). Press Ctrl+C to stop.
-
-  ↑ updated: config.json → v4
-  ↓ pulled: notes.md v5
-  ↑ created: new-file.md → v1
-```
-
----
-
-### `puppyone disconnect`
-
-Remove a connection binding. Deletes server-side source record + removes local config entry. Does NOT delete any files.
-
-```
-puppyone disconnect [source-id] [-f]
-```
-
-| Arg/Flag | Required | Description |
-|----------|----------|-------------|
-| `[source-id]` | No | If omitted, lists all connections for selection |
-| `-f, --force` | No | Skip confirmation |
-
-**What happens behind the scenes:**
-1. `DELETE /api/v1/sync/sources/{id}` deletes server-side source and unbinds all nodes
-2. Removes connection from `~/.puppyone/config.json` `connections[]`
-
----
+One-time sync for JWT-based connections. Direction: `push` | `pull` | `both` (default: `both`).
 
 ### `puppyone status`
 
-Show status of all connected bindings.
-
-```
+```bash
 puppyone status [-s <source-id>]
 ```
 
-**What happens behind the scenes:**
-1. Reads `~/.puppyone/config.json` `connections[]`
-2. For each connection, `GET /api/v1/sync/sources/{id}` to get server-side status
-3. Displays summary
+Shows status of all connections.
 
 ---
 
-### Advanced: Resource Management
+## Ignored Files
 
-For AI agents and power users.
-
-#### `puppyone source`
+The CLI never syncs these:
 
 ```
-puppyone source list [-p <project-id>]     # GET /api/v1/sync/sources?project_id=
-puppyone source get <source-id>            # GET /api/v1/sync/sources/{id}  (TODO)
-puppyone source pause <source-id>          # POST /api/v1/sync/sources/{id}/pause
-puppyone source resume <source-id>         # POST /api/v1/sync/sources/{id}/resume
-puppyone source delete <source-id> [-f]    # DELETE /api/v1/sync/sources/{id}
+.puppyone/          CLI working directory
+.git/
+node_modules/
+__pycache__/
+.DS_Store
+.env
+*.log
 ```
 
-#### `puppyone project`
+Supported file types: `.json`, `.md`, `.markdown`, `.txt`, `.yaml`, `.yml`
+
+---
+
+## Local Working Directory
+
+The CLI creates a `.puppyone/` directory inside the workspace:
 
 ```
-puppyone project list                      # GET /api/v1/projects
-puppyone project get <project-id>          # GET /api/v1/projects/{id}
+~/openclaw-workspace/
+├── .puppyone/                  ← CLI internal (add to .gitignore)
+│   ├── state.json              ← filename ↔ node_id mapping + versions
+│   └── backups/                ← conflict backups
+│       └── config.json.1708412345
+├── agent.md                    ← synced
+├── soul.md                     ← synced
+├── product_info.json           ← synced
+└── ...
+```
+
+`state.json` tracks which local files map to which cloud nodes:
+
+```json
+{
+  "files": {
+    "agent.md": { "node_id": "abc-123", "version": 4, "hash": "sha256..." },
+    "product_info.json": { "node_id": "def-456", "version": 3, "hash": "sha256..." }
+  },
+  "connection": {
+    "access_key": "cli_xxxxx",
+    "api_url": "https://api.puppyone.com",
+    "source_id": "...",
+    "agent_id": "...",
+    "project_id": "..."
+  }
+}
 ```
 
 ---
@@ -262,7 +273,13 @@ Path: `~/.puppyone/config.json`
   "api_key": "eyJhbGciOi...",
   "refresh_token": "...",
   "user_email": "user@example.com",
-  "default_project": "abc-123",
+  "openclaw_connections": [
+    {
+      "access_key": "cli_xxxxx",
+      "api_url": "https://api.puppyone.com",
+      "folder": "/home/user/openclaw-workspace"
+    }
+  ],
   "connections": [
     {
       "source_id": 1,
@@ -276,6 +293,100 @@ Path: `~/.puppyone/config.json`
 
 ---
 
+## Backend API Dependencies
+
+### OpenClaw Mode Endpoints
+
+| CLI Command | HTTP Method | Endpoint | Auth | Status |
+|-------------|-------------|----------|------|--------|
+| `connect --key` | POST | `/api/v1/access/openclaw/connect` | X-Access-Key | ✅ Done |
+| `pull --key` | GET | `/api/v1/access/openclaw/pull` | X-Access-Key | ✅ Done |
+| `watch --key` (push) | POST | `/api/v1/access/openclaw/push` | X-Access-Key | ✅ Done |
+| `watch --key` (push new) | POST | `/api/v1/access/openclaw/push` | X-Access-Key | 🔧 Needs: create-node support |
+| `watch --key` (pull) | GET | `/api/v1/access/openclaw/pull` | X-Access-Key | ✅ Done |
+| `disconnect --key` | DELETE | `/api/v1/access/openclaw/disconnect` | X-Access-Key | ✅ Done |
+| `connect --key` (status) | GET | `/api/v1/access/openclaw/status` | X-Access-Key | ✅ Done |
+
+### Sync Mode Endpoints
+
+| CLI Command | HTTP Method | Endpoint | Auth | Status |
+|-------------|-------------|----------|------|--------|
+| `login` | POST | `/api/v1/auth/login` | None | ✅ Done |
+| `whoami` | GET | `/health` | Bearer | ✅ Done |
+| `connect` | POST | `/api/v1/sync/sources` | Bearer | ✅ Done |
+| `disconnect` | DELETE | `/api/v1/sync/sources/{id}` | Bearer | ✅ Done |
+| `sync` (push) | POST | `/api/v1/sync/sources/{id}/push-file` | Bearer | ✅ Done |
+| `sync` (pull) | GET | `/api/v1/sync/sources/{id}/pull-files` | Bearer | ✅ Done |
+| `sync` (ack) | POST | `/api/v1/sync/sources/{id}/ack-pull` | Bearer | ✅ Done |
+| `status` | GET | `/api/v1/sync/sources` | Bearer | ✅ Done |
+
+### Backend Changes Needed for Full OpenClaw Merge
+
+1. **`POST /access/openclaw/push`**: Support `node_id: null` to create new content nodes from local files
+2. **`GET /access/openclaw/pull`**: Return ALL nodes (including those created via push), not just agent_bash pre-bound ones
+3. **`DELETE /access/openclaw/push`** or flag: Support marking nodes as deleted when local file is removed
+
+---
+
+## Sync Mechanism Detail
+
+### Core Principle
+
+**Cloud is the source of truth.** When both sides change the same file, cloud wins.
+
+### First Connect (Merge)
+
+```
+┌─────────────┐         ┌─────────────┐
+│  PuppyOne   │         │   Local     │
+│  Cloud      │         │   Folder    │
+│             │         │             │
+│  A.json v3  │───↓────▶│  A.json     │  Cloud → Local (new)
+│  B.md   v1  │───↓────▶│  B.md       │  Cloud → Local (new)
+│             │◀──↑─────│  agent.md   │  Local → Cloud (new node)
+│             │◀──↑─────│  soul.md    │  Local → Cloud (new node)
+│  C.json v2  │──=══════│  C.json     │  Same content, skip
+│  D.md   v5  │───↓────▶│  D.md       │  Conflict: cloud wins, backup local
+└─────────────┘         └─────────────┘
+
+Result: Both sides identical.
+```
+
+### Watch (Continuous Sync)
+
+```
+Local file changed
+  → read file, compute hash
+  → compare with state.json hash
+  → if different: POST /access/openclaw/push { node_id, content, base_version }
+  → update state.json with new version
+
+Cloud poll (every 30s)
+  → GET /access/openclaw/pull
+  → for each node: compare version with state.json
+  → if cloud version > local version: overwrite file, update state.json
+  → if cloud version == local version: skip
+```
+
+### Conflict Resolution
+
+```
+Local changes file X (base_version = 5)
+Cloud also changed file X (now version = 6)
+
+CLI tries to push:
+  POST /push { node_id: X, content: ..., base_version: 5 }
+  Backend returns: 409 Conflict (current version is 6)
+
+CLI handles conflict:
+  1. Backup local file → .puppyone/backups/X.1708412345
+  2. Pull cloud version 6 → overwrite local file
+  3. Update state.json with version 6
+  4. Log: "⚠ X: conflict, cloud wins, local backed up"
+```
+
+---
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -284,10 +395,8 @@ Path: `~/.puppyone/config.json`
 | 1 | General error |
 | 2 | Invalid arguments |
 | 3 | Authentication failed |
-| 4 | Network error (API unreachable) |
+| 4 | Network error |
 | 5 | Resource not found |
-
----
 
 ## Error Format
 
@@ -305,38 +414,3 @@ Hint: <suggestion>
   "hint": "..."
 }
 ```
-
-| Code | Meaning |
-|------|---------|
-| `NOT_AUTHENTICATED` | Not logged in |
-| `FOLDER_NOT_FOUND` | Folder does not exist |
-| `PROJECT_NOT_FOUND` | Project does not exist |
-| `SOURCE_NOT_FOUND` | Source does not exist |
-| `ALREADY_CONNECTED` | Folder is already connected (not an error, returns existing connection) |
-| `API_UNREACHABLE` | Cannot reach API server |
-| `SYNC_FAILED` | Sync operation failed |
-| `PERMISSION_DENIED` | Insufficient permissions |
-
----
-
-## Backend API Dependencies
-
-All backend endpoints the CLI calls:
-
-| CLI Command | HTTP Method | Endpoint | Status |
-|-------------|-------------|----------|--------|
-| `login` | POST | `/api/v1/auth/login` | ✅ Done |
-| `whoami` | GET | `/health` | ✅ Done |
-| `connect` | POST | `/api/v1/sync/sources` | ✅ Done |
-| `disconnect` | DELETE | `/api/v1/sync/sources/{id}` | ✅ Done |
-| `sync` (push) | POST | `/api/v1/sync/sources/{id}/push-file` | ✅ Done |
-| `sync` (pull) | GET | `/api/v1/sync/sources/{id}/pull-files` | ✅ Done |
-| `sync` (ack) | POST | `/api/v1/sync/sources/{id}/ack-pull` | ✅ Done |
-| `watch` | POST | `/api/v1/sync/sources/{id}/push-file` | ✅ Done (same as sync) |
-| `watch` | GET | `/api/v1/sync/sources/{id}/pull-files` | ✅ Done (same as sync) |
-| `status` | GET | `/api/v1/sync/sources` | ✅ Done |
-| `source list` | GET | `/api/v1/sync/sources` | ✅ Done |
-| `source pause` | POST | `/api/v1/sync/sources/{id}/pause` | ✅ Done |
-| `source resume` | POST | `/api/v1/sync/sources/{id}/resume` | ✅ Done |
-| `project list` | GET | `/api/v1/projects` | ✅ Done |
-| `project get` | GET | `/api/v1/projects/{id}` | ✅ Done |

@@ -633,3 +633,32 @@ def sync_accesses(
         message="访问权限同步成功",
     )
 
+
+# ============================================================
+# OpenClaw Connection Status (for frontend polling)
+# ============================================================
+
+@router.get(
+    "/{agent_id}/openclaw-status",
+    response_model=ApiResponse,
+    summary="获取 OpenClaw 连接状态",
+)
+def get_openclaw_status(
+    agent_id: str,
+    agent: Agent = Depends(get_verified_agent),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    from src.supabase.client import SupabaseClient
+    from src.access.config.repository import AgentRepository
+    from src.sync.repository import SyncSourceRepository, NodeSyncRepository
+    from src.access.openclaw.service import OpenClawService
+
+    supabase = SupabaseClient()
+    svc = OpenClawService(
+        agent_repo=AgentRepository(supabase),
+        source_repo=SyncSourceRepository(supabase),
+        node_sync_repo=NodeSyncRepository(supabase),
+    )
+    data = svc.status(agent)
+    return ApiResponse.success(data=data)
+

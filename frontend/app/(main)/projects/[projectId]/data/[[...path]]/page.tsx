@@ -9,7 +9,7 @@
  *   /projects/{projectId}/data/{folderId}/{nodeId} -> Node editor
  */
 
-import { useEffect, useMemo, useState, useRef, use } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import {
@@ -19,6 +19,8 @@ import {
   refreshProjectTools,
   useTable,
   useProjectTools,
+  useContentNodes,
+  refreshAllContentNodes,
 } from '@/lib/hooks/useData';
 import { ProjectWorkspaceView } from '@/components/ProjectWorkspaceView';
 import {
@@ -43,7 +45,14 @@ import {
 
 import { TableManageDialog } from '@/components/TableManageDialog';
 import { FolderManageDialog } from '@/components/FolderManageDialog';
-import { listNodes, getNode, createFolder, createMarkdownNode, getDownloadUrl, updateNode, deleteNode, type NodeInfo } from '@/lib/contentNodesApi';
+import { FileImportDialog } from '@/components/FileImportDialog';
+import { uploadAndSubmit } from '@/lib/etlApi';
+import {
+  addPendingTasks,
+  replacePlaceholderTasks,
+  removeFailedPlaceholders,
+} from '@/components/BackgroundTaskNotifier';
+import { getNode, createFolder, createMarkdownNode, getDownloadUrl, updateNode, deleteNode, type NodeInfo } from '@/lib/contentNodesApi';
 import { createTable } from '@/lib/projectsApi';
 import { refreshProjects } from '@/lib/hooks/useData';
 
@@ -61,7 +70,7 @@ import { SupabaseConnectDialog } from '@/components/SupabaseConnectDialog';
 import { SupabaseSQLEditorDialog } from '@/components/SupabaseSQLEditorDialog';
 
 // Finder View Components
-import { GridView, ListView, ExplorerSidebar, type MillerColumnItem, type AgentResource, type ContentType } from '../components/views';
+import { GridView, ListView, ExplorerSidebar, ensureExpanded, type MillerColumnItem, type AgentResource, type ContentType } from '../components/views';
 import { CreateMenu } from '../../../[[...slug]]/components/finder';
 
 // Agent Context
@@ -78,6 +87,18 @@ import { OnboardingGuide } from '@/components/onboarding/OnboardingGuide';
 
 // Rename Dialog
 import { NodeRenameDialog } from '@/components/NodeRenameDialog';
+
+// Simple in-memory node metadata cache (avoids redundant getNode calls during path resolution)
+const nodeCache = new Map<string, { data: any; ts: number }>();
+const NODE_CACHE_TTL = 60_000; // 60s
+async function getCachedNode(nodeId: string, projectId: string) {
+  const key = `${projectId}:${nodeId}`;
+  const cached = nodeCache.get(key);
+  if (cached && Date.now() - cached.ts < NODE_CACHE_TTL) return cached.data;
+  const node = await getNode(nodeId, projectId);
+  nodeCache.set(key, { data: node, ts: Date.now() });
+  return node;
+}
 
 // Panel content types
 type RightPanelContent = 'NONE' | 'EDITOR';
@@ -136,25 +157,21 @@ export default function DataPage({ params }: DataPageProps) {
   const { projects, isLoading: projectsLoading } = useProjects();
   const { tools: projectTools } = useProjectTools(projectId);
 
-  // State - viewType persisted in localStorage
-  // 使用默认值初始化，避免 hydration mismatch
-  const [viewType, setViewTypeState] = useState<ViewType>('grid');
-  
-  // editorType persisted in localStorage
-  const [editorType, setEditorTypeState] = useState<EditorType>('table');
-  
-  // 客户端 mount 后从 localStorage 读取
-  useEffect(() => {
-    const savedViewType = localStorage.getItem('puppyone-view-type');
-    if (savedViewType === 'grid' || savedViewType === 'list' || savedViewType === 'explorer') {
-      setViewTypeState(savedViewType as ViewType);
-    }
-    
-    const savedEditorType = localStorage.getItem('puppyone-editor-type');
-    if (savedEditorType === 'table' || savedEditorType === 'treeline-virtual' || savedEditorType === 'monaco') {
-      setEditorTypeState(savedEditorType);
-    }
-  }, []);
+  // State - viewType & editorType persisted in localStorage
+  // Sync init from localStorage to avoid flash of wrong view on re-mount
+  const [viewType, setViewTypeState] = useState<ViewType>(() => {
+    if (typeof window === 'undefined') return 'grid';
+    const saved = localStorage.getItem('puppyone-view-type');
+    if (saved === 'grid' || saved === 'explorer') return saved;
+    return 'grid';
+  });
+
+  const [editorType, setEditorTypeState] = useState<EditorType>(() => {
+    if (typeof window === 'undefined') return 'table';
+    const saved = localStorage.getItem('puppyone-editor-type');
+    if (saved === 'table' || saved === 'treeline-virtual' || saved === 'monaco') return saved;
+    return 'table';
+  });
   
   // Check for welcome parameter (new user onboarding)
   useEffect(() => {
@@ -249,9 +266,10 @@ export default function DataPage({ params }: DataPageProps) {
   // Folder navigation state
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderBreadcrumbs, setFolderBreadcrumbs] = useState<Array<{ id: string; name: string }>>([]);
-  const [contentNodes, setContentNodes] = useState<NodeInfo[]>([]);
-  const [contentNodesLoading, setContentNodesLoading] = useState(false);
-  const [isResolvingPath, setIsResolvingPath] = useState(false);
+  const [isResolvingPath, setIsResolvingPath] = useState(path.length > 0);
+
+  // SWR-cached content nodes for the current folder
+  const { nodes: contentNodes, isLoading: contentNodesLoading, refresh: refreshCurrentNodes } = useContentNodes(projectId, currentFolderId);
 
   // Active node (for editor)
   const [activeNodeId, setActiveNodeId] = useState<string>('');
@@ -299,6 +317,99 @@ export default function DataPage({ params }: DataPageProps) {
   // Tool creation panel state
   const [toolPanelTarget, setToolPanelTarget] = useState<{ id: string; name: string; type: string; jsonPath?: string } | null>(null);
 
+  // File drop import state
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [fileImportDialogOpen, setFileImportDialogOpen] = useState(false);
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
+  const dragCounterRef = useRef(0);
+
+  const handleGlobalDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDraggingFiles(true);
+    }
+  }, []);
+
+  const handleGlobalDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDraggingFiles(false);
+    }
+  }, []);
+
+  const handleGlobalDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleGlobalDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDraggingFiles(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      setDroppedFiles(files);
+      setFileImportDialogOpen(true);
+    }
+  }, []);
+
+  const handleFileImportConfirm = useCallback(async (importFiles: File[], mode: 'ocr_parse' | 'raw') => {
+    setFileImportDialogOpen(false);
+    setDroppedFiles([]);
+    if (importFiles.length === 0) return;
+
+    const baseTimestamp = Date.now();
+    const placeholderGroupId = `upload-${baseTimestamp}`;
+    const placeholderTasks = importFiles.map((file, index) => ({
+      taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+      projectId,
+      tableId: placeholderGroupId,
+      tableName: file.name,
+      filename: file.name,
+      status: 'pending' as const,
+      taskType: 'file' as const,
+    }));
+    addPendingTasks(placeholderTasks);
+
+    try {
+      if (!session?.access_token) throw new Error('Not authenticated');
+      const response = await uploadAndSubmit(
+        { projectId, files: importFiles, mode, parentId: currentFolderId ?? undefined },
+        session.access_token
+      );
+
+      const filenameMap = new Map(importFiles.map(f => [f.name, f.name]));
+      const realTasks = response.items
+        .filter((item: any) => item.status !== 'failed')
+        .map((item: any) => ({
+          taskId: String(item.task_id),
+          projectId,
+          tableId: placeholderGroupId,
+          tableName: filenameMap.get(item.filename!) || item.filename!,
+          filename: filenameMap.get(item.filename!) || item.filename!,
+          status: (item.status === 'completed' ? 'completed' : 'pending') as any,
+          taskType: 'file' as const,
+        }));
+      if (realTasks.length > 0) replacePlaceholderTasks(placeholderGroupId, realTasks);
+
+      const failedFiles = response.items.filter((item: any) => item.status === 'failed');
+      if (failedFiles.length > 0) {
+        const failedNames = failedFiles.map((f: any) => filenameMap.get(f.filename!) || f.filename!);
+        removeFailedPlaceholders(placeholderGroupId, failedNames);
+      }
+
+      refreshAllContentNodes(projectId);
+    } catch (err) {
+      console.error('File import failed:', err);
+    }
+  }, [projectId, session?.access_token]);
+
   // Agent Context - get draft resources for highlighting
   const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId } = useAgent();
   
@@ -321,11 +432,11 @@ export default function DataPage({ params }: DataPageProps) {
       }
     }
 
-    // 2. Setting Mode - show draft resources
-    if (sidebarMode === 'setting') {
+    // 2. Setting / Editing Mode - show draft resources
+    if (sidebarMode === 'setting' || sidebarMode === 'editing') {
       return draftResources.map(toAgentResource);
     }
-    
+
     // 3. Deployed Mode - show current agent's resources
     if (sidebarMode === 'deployed' && currentAgentId) {
       const agent = savedAgents.find(a => a.id === currentAgentId);
@@ -344,35 +455,22 @@ export default function DataPage({ params }: DataPageProps) {
   );
   
 
-  // Load content nodes
-  const loadContentNodes = async (parentId: string | null) => {
-    try {
-      setContentNodesLoading(true);
-      const result = await listNodes(projectId, parentId);
-      setContentNodes(result.nodes);
-    } catch (error) {
-      console.error('Failed to load content nodes:', error);
-      setContentNodes([]);
-    } finally {
-      setContentNodesLoading(false);
-    }
-  };
-
-  // Listen for SaaS task completion events to refresh the view
+  // Listen for external change events (SaaS sync, ETL, MCP tools, etc.)
+  // Refresh ALL folder caches for this project since we don't know which folder was affected
   useEffect(() => {
-    const handleSaasTaskComplete = () => {
-      loadContentNodes(currentFolderId);
+    const handleExternalChange = () => {
+      refreshAllContentNodes(projectId);
       refreshProjects();
     };
     
-    window.addEventListener('saas-task-completed', handleSaasTaskComplete);
-    window.addEventListener('etl-task-completed', handleSaasTaskComplete);
+    window.addEventListener('saas-task-completed', handleExternalChange);
+    window.addEventListener('etl-task-completed', handleExternalChange);
     
     return () => {
-      window.removeEventListener('saas-task-completed', handleSaasTaskComplete);
-      window.removeEventListener('etl-task-completed', handleSaasTaskComplete);
+      window.removeEventListener('saas-task-completed', handleExternalChange);
+      window.removeEventListener('etl-task-completed', handleExternalChange);
     };
-  }, [currentFolderId]);
+  }, [projectId]);
 
   // Resolve path segments
   useEffect(() => {
@@ -381,70 +479,68 @@ export default function DataPage({ params }: DataPageProps) {
 
       try {
         if (path.length === 0) {
-          // Project root
+          // Project root — SWR auto-fetches when currentFolderId = null
           setCurrentFolderId(null);
           setFolderBreadcrumbs([]);
           setActiveNodeId('');
           setActiveNodeType('');
           setActivePreviewType(null);
           setMarkdownContent('');
-          await loadContentNodes(null);
           return;
         }
 
-        // Get info for each node in path
-        const pathNodes: Array<{ id: string; name: string; type: string }> = [];
-        for (const nodeId of path) {
-          try {
-            const node = await getNode(nodeId, projectId);
-            if (node) {
-              pathNodes.push({ id: node.id, name: node.name, type: node.type });
-            }
-          } catch (err) {
-            console.error(`Failed to get node ${nodeId}:`, err);
-          }
-        }
+        // Get info for all nodes in path in parallel (with cache)
+        const results = await Promise.all(
+          path.map(nodeId =>
+            getCachedNode(nodeId, projectId).catch(err => {
+              console.error(`Failed to get node ${nodeId}:`, err);
+              return null;
+            })
+          )
+        );
+        const pathNodes = results
+          .filter((n): n is NonNullable<typeof n> => n != null)
+          .map(n => ({ id: n.id, name: n.name, type: n.type }));
 
         const folders = pathNodes.filter(n => n.type === 'folder');
         const lastNode = pathNodes[pathNodes.length - 1];
 
         if (lastNode?.type === 'folder') {
-          // Last is folder -> show folder contents
+          // Last is folder — SWR auto-fetches when currentFolderId changes
           setCurrentFolderId(lastNode.id);
           setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
           setActiveNodeId('');
           setActiveNodeType('');
           setActivePreviewType(null);
           setMarkdownContent('');
-          await loadContentNodes(lastNode.id);
         } else if (lastNode) {
-          // Last is node -> show editor
+          // Set node identity immediately so UI can start transitioning
           setActiveNodeId(lastNode.id);
           setActiveNodeType(lastNode.type);
-          setActivePreviewType(null);  // Deprecated, type directly determines rendering
+          setActivePreviewType(null);
           
-          // Check if this node type should render as markdown
-          // type directly determines rendering method
+          // Set breadcrumbs immediately (no async needed)
+          if (folders.length > 0) {
+            const lastFolder = folders[folders.length - 1];
+            setCurrentFolderId(lastFolder.id);
+            setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
+          } else {
+            setCurrentFolderId(null);
+            setFolderBreadcrumbs([]);
+          }
+
           const nodeConfig = getNodeTypeConfig(lastNode.type);
-          const shouldLoadAsMarkdown = nodeConfig.renderAs === 'markdown';
-          
-          if (shouldLoadAsMarkdown) {
+          if (nodeConfig.renderAs === 'markdown') {
             setIsLoadingMarkdown(true);
             try {
-              // Get full node detail to check content field
-              const fullNode = await getNode(lastNode.id, projectId);
-              
-              // First check if content is stored in the preview_md field
+              const fullNode = await getCachedNode(lastNode.id, projectId);
               if (typeof fullNode.preview_md === 'string') {
                 setMarkdownContent(fullNode.preview_md);
               } else if (fullNode.s3_key) {
-                // Content is in S3, download it
                 const { download_url } = await getDownloadUrl(lastNode.id, projectId);
                 const response = await fetch(download_url);
-                const content = await response.text();
-                setMarkdownContent(content);
+                setMarkdownContent(await response.text());
               } else {
-                // No content available
                 setMarkdownContent('');
               }
             } catch (err) {
@@ -455,15 +551,6 @@ export default function DataPage({ params }: DataPageProps) {
             }
           } else {
             setMarkdownContent('');
-          }
-          
-          if (folders.length > 0) {
-            const lastFolder = folders[folders.length - 1];
-            setCurrentFolderId(lastFolder.id);
-            setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
-          } else {
-            setCurrentFolderId(null);
-            setFolderBreadcrumbs([]);
           }
         }
       } finally {
@@ -759,6 +846,8 @@ export default function DataPage({ params }: DataPageProps) {
     sync_url: node.sync_url,
     sync_status: node.sync_status,
     last_synced_at: node.last_synced_at,
+    preview_snippet: node.preview_snippet,
+    children_count: node.children_count,
     onClick: () => {
       // Handle placeholder nodes: open configuration dialog instead of navigating
       if (node.sync_status === 'not_connected') {
@@ -795,23 +884,6 @@ export default function DataPage({ params }: DataPageProps) {
     setCreateMenuOpen(true);
   };
 
-  const loadChildren = async (folderId: string | null): Promise<MillerColumnItem[]> => {
-    try {
-      const response = await listNodes(projectId, folderId ?? undefined);
-      return response.nodes.map(node => ({
-        id: node.id,
-        name: node.name,
-        type: node.type as ContentType,
-        is_synced: node.is_synced,
-        sync_source: node.sync_source,
-        last_synced_at: node.last_synced_at,
-      }));
-    } catch (err) {
-      console.error('Failed to load folder children:', err);
-      return [];
-    }
-  };
-
   const handleMillerNavigate = (item: MillerColumnItem, pathToItem: string[]) => {
     const newPath = pathToItem.join('/');
     router.push(`/projects/${projectId}/data/${newPath}`);
@@ -828,16 +900,15 @@ export default function DataPage({ params }: DataPageProps) {
     setRenameError(null);
     try {
       await updateNode(renameTarget.id, projectId, { name: newName });
-      loadContentNodes(currentFolderId);
+      refreshAllContentNodes(projectId);
       setRenameDialogOpen(false);
       setRenameTarget(null);
     } catch (err: unknown) {
       console.error('Failed to rename:', err);
-      // apiClient 抛出的 Error 带有 .message, .code, .response 属性
       const errorObj = err as { message?: string; code?: number; response?: Response };
       const message = errorObj?.message || 'Failed to rename item';
       setRenameError(message);
-      throw err; // re-throw so dialog knows submission failed
+      throw err;
     }
   };
 
@@ -846,7 +917,7 @@ export default function DataPage({ params }: DataPageProps) {
     if (confirmed) {
       try {
         await deleteNode(id, projectId);
-        loadContentNodes(currentFolderId);
+        refreshAllContentNodes(projectId);
       } catch (err) {
         console.error('Failed to delete:', err);
         alert('Failed to delete item');
@@ -901,22 +972,70 @@ export default function DataPage({ params }: DataPageProps) {
         />
       </div>
 
-      {/* Main Content */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+      {/* Main Content — paddingRight offsets the absolutely positioned sidebar */}
+      <div
+        onDragEnter={handleGlobalDragEnter}
+        onDragLeave={handleGlobalDragLeave}
+        onDragOver={handleGlobalDragOver}
+        onDrop={handleGlobalDrop}
+        style={{
+          flex: 1, display: 'flex', minHeight: 0, position: 'relative', overflow: 'hidden',
+          paddingRight: 'var(--sidebar-offset, 0px)',
+          transition: 'padding-right 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+        } as React.CSSProperties}
+      >
+        {/* File drop overlay */}
+        {isDraggingFiles && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 50,
+            background: 'rgba(59, 130, 246, 0.08)',
+            border: '2px dashed #3b82f6',
+            borderRadius: 8,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12,
+            pointerEvents: 'none',
+          }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" opacity="0.8">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+              <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
+              <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
+            </svg>
+            <div style={{ fontSize: 16, fontWeight: 500, color: '#3b82f6' }}>Drop files to import</div>
+          </div>
+        )}
           {viewType === 'explorer' && (
             <ExplorerSidebar
+              projectId={projectId}
               currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
-              onLoadChildren={loadChildren}
+              activeNodeId={activeNodeId || undefined}
               onNavigate={handleMillerNavigate}
+              onCreate={handleMillerCreateClick}
+              onRename={handleRename}
+              onDelete={handleDelete}
               agentResources={agentResources}
               style={{
                 width: 250,
-                borderRight: '1px solid rgba(255,255,255,0.08)',
-                background: '#141414',
+                borderRight: '1px solid rgba(255,255,255,0.1)',
+                background: '#1a1a1a',
                 flexShrink: 0
               }}
             />
           )}
+          {/* Explorer loading state while resolving path */}
+          {viewType === 'explorer' && isResolvingPath && !isEditorView && (
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#525252',
+              background: '#0a0a0a',
+            }}>
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="8" />
+              </svg>
+            </div>
+          )}
+
           {/* Editor View */}
           {isEditorView && activeProject && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
@@ -1107,16 +1226,6 @@ export default function DataPage({ params }: DataPageProps) {
                   <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
                 </div>
               ) : (
-                viewType === 'list' ? (
-                  <ListView
-                    items={items}
-                    onRename={handleRename}
-                    onDelete={handleDelete}
-                    onRefresh={handleRefresh}
-                    onCreateTool={handleCreateTool}
-                    agentResources={agentResources}
-                  />
-                ) : (
                   <GridView
                     items={items}
                     onCreateClick={handleCreateClick}
@@ -1131,8 +1240,8 @@ export default function DataPage({ params }: DataPageProps) {
             </div>
           )}
 
-          {/* Explorer View - Empty State (when no file selected) */}
-          {viewType === 'explorer' && isFolderView && (
+          {/* Explorer View - Empty State (when no file selected and not resolving) */}
+          {viewType === 'explorer' && isFolderView && !isResolvingPath && (
             <div style={{ 
               flex: 1, 
               display: 'flex', 
@@ -1156,9 +1265,7 @@ export default function DataPage({ params }: DataPageProps) {
           {/* Task Status Widget - positioned above view toggle */}
           <TaskStatusWidget inline />
 
-          {/* Unified View Toggle - Bottom Left (moved from right to avoid conflict with TaskStatusWidget) */}
-          {/* Hide for markdown editor (including notion_page, github_file, etc.) */}
-          {getNodeTypeConfig(activeNodeType).renderAs !== 'markdown' && (
+          {/* Folder View Toggle - Bottom Left (always visible) */}
           <div
             style={{
               position: 'absolute',
@@ -1174,148 +1281,117 @@ export default function DataPage({ params }: DataPageProps) {
               zIndex: 20,
             }}
           >
-            {isEditorView ? (
-              <>
-                <button
-                  onClick={() => setEditorType('table')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 24,
-                    height: 24,
-                    borderRadius: 4,
-                    border: 'none',
-                    background: editorType === 'table' ? '#2a2a2a' : 'transparent',
-                    color: editorType === 'table' ? '#fff' : '#737373',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                  title="Table view"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setEditorType('treeline-virtual')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 24,
-                    height: 24,
-                    borderRadius: 4,
-                    border: 'none',
-                    background: editorType === 'treeline-virtual' ? '#2a2a2a' : 'transparent',
-                    color: editorType === 'treeline-virtual' ? '#fff' : '#737373',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                  title="Tree view"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M22 11V3h-7v3H9V3H2v8h7v-3h2v10h4v3h7v-8h-7v3h-2V8h2v3z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setEditorType('monaco')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 24,
-                    height: 24,
-                    borderRadius: 4,
-                    border: 'none',
-                    background: editorType === 'monaco' ? '#2a2a2a' : 'transparent',
-                    color: editorType === 'monaco' ? '#fff' : '#737373',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    fontSize: 10,
-                    fontWeight: 600,
-                  }}
-                  title="Raw JSON"
-                >
-                  { }
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setViewType('grid')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 24,
-                    height: 24,
-                    borderRadius: 4,
-                    border: 'none',
-                    background: viewType === 'grid' ? '#2a2a2a' : 'transparent',
-                    color: viewType === 'grid' ? '#fff' : '#737373',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                  title="Grid view"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="7" height="7" />
-                    <rect x="14" y="3" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" />
-                    <rect x="14" y="14" width="7" height="7" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setViewType('list')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 24,
-                    height: 24,
-                    borderRadius: 4,
-                    border: 'none',
-                    background: viewType === 'list' ? '#2a2a2a' : 'transparent',
-                    color: viewType === 'list' ? '#fff' : '#737373',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                  title="List view"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="8" y1="6" x2="21" y2="6" />
-                    <line x1="8" y1="12" x2="21" y2="12" />
-                    <line x1="8" y1="18" x2="21" y2="18" />
-                    <line x1="3" y1="6" x2="3.01" y2="6" />
-                    <line x1="3" y1="12" x2="3.01" y2="12" />
-                    <line x1="3" y1="18" x2="3.01" y2="18" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setViewType('explorer')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 24,
-                    height: 24,
-                    borderRadius: 4,
-                    border: 'none',
-                    background: viewType === 'explorer' ? '#2a2a2a' : 'transparent',
-                    color: viewType === 'explorer' ? '#fff' : '#737373',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                  title="Explorer view"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <line x1="9" y1="3" x2="9" y2="21" />
-                  </svg>
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => setViewType('grid')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 24,
+                height: 24,
+                borderRadius: 4,
+                border: 'none',
+                background: viewType === 'grid' ? '#2a2a2a' : 'transparent',
+                color: viewType === 'grid' ? '#fff' : '#737373',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Grid view"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewType('explorer')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 24,
+                height: 24,
+                borderRadius: 4,
+                border: 'none',
+                background: viewType === 'explorer' ? '#2a2a2a' : 'transparent',
+                color: viewType === 'explorer' ? '#fff' : '#737373',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Explorer view"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Editor View Toggle - Bottom Right (only when viewing JSON content) */}
+          {isEditorView && getNodeTypeConfig(activeNodeType).renderAs !== 'markdown' && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 12,
+              right: 12,
+              display: 'flex',
+              background: '#1a1a1a',
+              borderRadius: 6,
+              padding: 2,
+              gap: 1,
+              border: '1px solid #2a2a2a',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              zIndex: 20,
+            }}
+          >
+            <button
+              onClick={() => setEditorType('table')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 24,
+                height: 24,
+                borderRadius: 4,
+                border: 'none',
+                background: editorType === 'table' ? '#2a2a2a' : 'transparent',
+                color: editorType === 'table' ? '#fff' : '#737373',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Table view"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="3" y1="9" x2="21" y2="9" />
+                <line x1="3" y1="15" x2="21" y2="15" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setEditorType('monaco')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 24,
+                height: 24,
+                borderRadius: 4,
+                border: 'none',
+                background: editorType === 'monaco' ? '#2a2a2a' : 'transparent',
+                color: editorType === 'monaco' ? '#fff' : '#737373',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Raw JSON"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M7 4C5.5 4 4 5 4 7s1.5 2.5 1.5 5S4 17 4 17c0 2 1.5 3 3 3" strokeLinecap="round" />
+                <path d="M17 4c1.5 0 3 1 3 3s-1.5 2.5-1.5 5 1.5 5 1.5 5c0 2-1.5 3-3 3" strokeLinecap="round" />
+              </svg>
+            </button>
           </div>
           )}
 
@@ -1353,8 +1429,8 @@ export default function DataPage({ params }: DataPageProps) {
                 const targetFolderId = createInFolderId === undefined ? currentFolderId : createInFolderId;
                 try {
                   await createFolder('New Folder', projectId, targetFolderId);
-                  await refreshProjects();
-                  await loadContentNodes(currentFolderId); // Refresh current view
+                  if (targetFolderId) ensureExpanded(targetFolderId);
+                  refreshAllContentNodes(projectId);
                 } catch (err) {
                   console.error('Failed to create folder:', err);
                 }
@@ -1363,8 +1439,8 @@ export default function DataPage({ params }: DataPageProps) {
                 const targetFolderId = createInFolderId === undefined ? currentFolderId : createInFolderId;
                 try {
                   await createTable(projectId, 'Untitled', {}, targetFolderId);
-                  await refreshProjects();
-                  await loadContentNodes(currentFolderId);
+                  if (targetFolderId) ensureExpanded(targetFolderId);
+                  refreshAllContentNodes(projectId);
                 } catch (err) {
                   console.error('Failed to create JSON:', err);
                 }
@@ -1373,8 +1449,8 @@ export default function DataPage({ params }: DataPageProps) {
                 const targetFolderId = createInFolderId === undefined ? currentFolderId : createInFolderId;
                 try {
                   await createMarkdownNode('Untitled Note', projectId, '', targetFolderId);
-                  await refreshProjects();
-                  await loadContentNodes(currentFolderId);
+                  if (targetFolderId) ensureExpanded(targetFolderId);
+                  refreshAllContentNodes(projectId);
                 } catch (err) {
                   console.error('Failed to create markdown:', err);
                 }
@@ -1447,7 +1523,7 @@ export default function DataPage({ params }: DataPageProps) {
           parentId={currentFolderId}
           parentPath={activeProject?.name || ''}
           onClose={() => setCreateFolderOpen(false)}
-          onSuccess={() => loadContentNodes(currentFolderId)}
+          onSuccess={() => refreshAllContentNodes(projectId)}
         />
       )}
 
@@ -1474,11 +1550,18 @@ export default function DataPage({ params }: DataPageProps) {
             setSupabaseConnectionId(null);
           }}
           onSaved={() => {
-            // Refresh content nodes after saving
-            loadContentNodes(currentFolderId);
+            refreshAllContentNodes(projectId);
           }}
         />
       )}
+
+      {/* File Import Dialog (from drag-and-drop) */}
+      <FileImportDialog
+        isOpen={fileImportDialogOpen}
+        onClose={() => { setFileImportDialogOpen(false); setDroppedFiles([]); }}
+        onConfirm={handleFileImportConfirm}
+        initialFiles={droppedFiles.length > 0 ? droppedFiles : undefined}
+      />
 
       {/* Tool Creation Panel */}
       {toolPanelTarget && (

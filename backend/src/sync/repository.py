@@ -78,6 +78,11 @@ class SyncSourceRepository:
             query = query.eq("adapter_type", adapter_type)
         return [self._to_model(r) for r in query.execute().data]
 
+    def update_config(self, source_id: int, config: dict) -> None:
+        self.client.table(self.TABLE).update({
+            "config": config, "updated_at": self._now(),
+        }).eq("id", source_id).execute()
+
     def update_status(self, source_id: int, status: str) -> None:
         self.client.table(self.TABLE).update({
             "status": status, "updated_at": self._now(),

@@ -5,6 +5,8 @@ import { registerLogin, registerLogout, registerWhoami } from "../src/commands/l
 import { registerConnect } from "../src/commands/connect.js";
 import { registerSync } from "../src/commands/sync.js";
 import { registerWatch } from "../src/commands/watch.js";
+import { registerPull } from "../src/commands/pull.js";
+import { registerDisconnect } from "../src/commands/disconnect.js";
 
 program
   .name("puppyone")
@@ -23,5 +25,7 @@ registerWhoami(program);
 registerConnect(program);
 registerSync(program);
 registerWatch(program);
+registerPull(program);
+registerDisconnect(program);
 
 program.parse();

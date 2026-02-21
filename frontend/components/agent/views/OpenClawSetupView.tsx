@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { get } from '@/lib/apiClient';
 import type { SavedAgent } from '@/components/AgentRail';
 
 interface OpenClawSetupViewProps {
@@ -85,7 +86,7 @@ export function SetupDialog({
 
   if (!open) return null;
 
-  const connectCmd = `puppyone connect --key ${accessKey} --workspace ~/openclaw-workspace`;
+  const connectCmd = `puppyone connect --key ${accessKey} ~/openclaw-workspace -u ${apiUrl}`;
   const pullCmd = `puppyone pull --key ${accessKey}`;
   const watchCmd = `puppyone watch --key ${accessKey}`;
 
@@ -230,6 +231,30 @@ export function SetupDialog({
 export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenClawSetupViewProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<{
+    connected: boolean;
+    workspace_path?: string;
+  }>({ connected: false });
+
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
+
+  useEffect(() => {
+    let active = true;
+    async function checkStatus() {
+      try {
+        const resp = await get(`/api/v1/agent-config/${agent.id}/openclaw-status`) as { data?: { connected: boolean; workspace_path?: string } };
+        if (active && resp?.data) {
+          setConnectionStatus(resp.data);
+        }
+      } catch {}
+    }
+    checkStatus();
+    pollRef.current = setInterval(checkStatus, 10_000);
+    return () => {
+      active = false;
+      clearInterval(pollRef.current);
+    };
+  }, [agent.id]);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
   const accessKey = agent.mcp_api_key || '<access-key>';
@@ -243,7 +268,7 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
     setTimeout(() => setCopiedField(null), 2000);
   }, []);
 
-  const resourceCount = agent.resources?.length ?? 0;
+  const resources = agent.resources ?? [];
 
   return (
     <>
@@ -259,7 +284,7 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16 }}>🐾</span>
+            <span style={{ fontSize: 16 }}>🦞</span>
             <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}>
               {agent.name}
             </span>
@@ -326,15 +351,52 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: '#737373' }}>Data nodes</span>
-              <span style={{ fontSize: 12, color: '#e5e5e5' }}>{resourceCount}</span>
+              <span style={{ fontSize: 12, color: '#737373' }}>Synced folders</span>
+              <span style={{ fontSize: 12, color: '#e5e5e5' }}>{resources.length}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, color: '#737373' }}>Status</span>
-              <span style={{ fontSize: 12, color: '#f59e0b' }}>Waiting for CLI connection</span>
+              {connectionStatus.connected ? (
+                <span style={{ fontSize: 12, color: '#22c55e', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                  Connected
+                </span>
+              ) : (
+                <span style={{ fontSize: 12, color: '#f59e0b' }}>Waiting for CLI connection</span>
+              )}
             </div>
+            {connectionStatus.connected && connectionStatus.workspace_path && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, color: '#737373' }}>Workspace</span>
+                <code style={{ fontSize: 11, color: '#a3a3a3', fontFamily: 'monospace', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {connectionStatus.workspace_path}
+                </code>
+              </div>
+            )}
 
-            {/* CTA inside status card, right below status row */}
+            {/* Folder list */}
+            {resources.length > 0 && (
+              <div style={{ borderTop: '1px solid #1f1f1f', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {resources.map((r) => (
+                  <div key={r.nodeId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {/* Folder icon */}
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#a1a1aa' }}>
+                      <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z"
+                        fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="1.5" />
+                    </svg>
+                    <span style={{ fontSize: 12, color: '#d4d4d4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {r.nodeName}
+                    </span>
+                    {/* Sync direction badge */}
+                    <span style={{ fontSize: 10, color: '#525252', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>
+                      sync →
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+          {/* CTA inside status card, right below status row */}
             <button
               onClick={() => setShowSetup(true)}
               style={{

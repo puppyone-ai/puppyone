@@ -367,6 +367,22 @@ class ContentNodeRepository:
         )
         return len(response.data) > 0
 
+    def count_children_batch(self, parent_ids: List[str]) -> dict[str, int]:
+        """批量统计多个父节点的直接子节点数量"""
+        if not parent_ids:
+            return {}
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("parent_id")
+            .in_("parent_id", parent_ids)
+            .execute()
+        )
+        counts: dict[str, int] = {}
+        for row in response.data:
+            pid = row["parent_id"]
+            counts[pid] = counts.get(pid, 0) + 1
+        return counts
+
     def get_children_ids(self, node_id: str) -> List[str]:
         """获取所有子节点 ID（用于递归删除）"""
         response = (

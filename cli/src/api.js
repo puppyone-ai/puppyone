@@ -1,4 +1,4 @@
-import { resolveAuth } from "./config.js";
+import { resolveAuth, loadConfig } from "./config.js";
 
 export class ApiError extends Error {
   constructor(status, code, message, hint) {
@@ -10,7 +10,7 @@ export class ApiError extends Error {
 }
 
 /**
- * Create a pre-configured API client bound to the current CLI context.
+ * Create a pre-configured API client using JWT Bearer auth (sync mode).
  */
 export function createClient(cmd) {
   const { apiUrl, apiKey } = resolveAuth(cmd);
@@ -19,12 +19,38 @@ export function createClient(cmd) {
     throw new ApiError(0, "NOT_AUTHENTICATED", "Not logged in.", 'Run `puppyone login` first.');
   }
 
+  return _makeClient(apiUrl, { Authorization: `Bearer ${apiKey}` });
+}
+
+/**
+ * Create a pre-configured API client using X-Access-Key auth (OpenClaw mode).
+ *
+ * API URL resolution order:
+ *   1. Explicit `apiUrlOverride` (from saved connection config)
+ *   2. CLI global flag `-u / --api-url`
+ *   3. Config file `api_url`
+ *   4. Default `http://localhost:9090`
+ */
+export function createOpenClawClient(accessKey, cmd, apiUrlOverride) {
+  const root = cmd?.parent ?? cmd;
+  const opts = root?.opts?.() ?? root ?? {};
+  const config = loadConfig();
+  const apiUrl = apiUrlOverride ?? opts.apiUrl ?? config.api_url ?? "http://localhost:9090";
+
+  if (!accessKey) {
+    throw new ApiError(0, "MISSING_KEY", "Access key is required.", "Provide --key <access-key>.");
+  }
+
+  return _makeClient(apiUrl, { "X-Access-Key": accessKey });
+}
+
+function _makeClient(apiUrl, authHeaders) {
   const baseUrl = apiUrl.replace(/\/+$/, "");
 
   async function request(method, path, body) {
     const url = `${baseUrl}/api/v1${path}`;
     const headers = {
-      Authorization: `Bearer ${apiKey}`,
+      ...authHeaders,
       "Content-Type": "application/json",
     };
 
@@ -43,7 +69,7 @@ export function createClient(cmd) {
       } catch {}
 
       const hint = res.status === 401
-        ? "Your token may be expired. Run `puppyone login` again."
+        ? "Invalid or expired access key."
         : res.status === 404
         ? "Check the resource ID exists."
         : undefined;

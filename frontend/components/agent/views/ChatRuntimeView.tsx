@@ -19,20 +19,6 @@ import { API_BASE_URL } from '../../../config/api';
 import { getApiAccessToken } from '../../../lib/apiClient';
 import { useAgent } from '@/contexts/AgentContext';
 
-// Access Point 图标 - 动物 emoji（和 ProjectsHeader 保持一致）
-const ACCESS_ICONS = [
-  '🐶', '🐱', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁',
-  '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🦉',
-  '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌',
-  '🐙', '🦑', '🦐', '🦀', '🐠', '🐬', '🦈', '🐳',
-];
-const parseAgentIcon = (icon?: string): string => {
-  if (!icon) return '💬';
-  const idx = parseInt(icon);
-  if (isNaN(idx)) return icon; // 如果不是数字，可能是直接存的 emoji
-  return ACCESS_ICONS[idx % ACCESS_ICONS.length] || '💬';
-};
-
 // 时间格式化
 const getTimeAgo = (date: Date): string => {
   const now = new Date();
@@ -69,6 +55,21 @@ interface ChatRuntimeViewProps {
   projectTools?: DbTool[];
 }
 
+function getAgentTypeIcon(type?: string): React.ReactNode {
+  switch (type) {
+    case 'chat':
+      return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
+    case 'schedule':
+      return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>;
+    case 'webhook':
+      return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>;
+    case 'devbox':
+      return <span style={{ fontSize: 14 }}>🦞</span>;
+    default:
+      return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
+  }
+}
+
 // Sub-component for agent name button with hover state
 function AgentNameButton({ 
   agentIcon, 
@@ -77,7 +78,7 @@ function AgentNameButton({
   canEdit, 
   onClick 
 }: { 
-  agentIcon: string; 
+  agentIcon: React.ReactNode; 
   agentName: string; 
   isEditing: boolean; 
   canEdit: boolean; 
@@ -105,7 +106,7 @@ function AgentNameButton({
       }}
     >
       {/* Agent icon */}
-      <span style={{ fontSize: 14 }}>{agentIcon}</span>
+      <span style={{ fontSize: 14, display: 'flex', alignItems: 'center', color: '#999' }}>{agentIcon}</span>
       {/* Agent name */}
       <span style={{ fontSize: 13, fontWeight: 500, color: '#a1a1aa' }}>{agentName}</span>
       {/* Edit pencil icon - only show on hover */}
@@ -169,7 +170,7 @@ export function ChatRuntimeView({
 
   // 编辑 agent 信息
   const [editingName, setEditingName] = useState('');
-  const [editingIconIdx, setEditingIconIdx] = useState(0);
+  
   const [isEditingInfo, setIsEditingInfo] = useState(false);
 
   // Chat history 菜单
@@ -197,18 +198,16 @@ export function ChatRuntimeView({
   useEffect(() => {
     if (isEditingInfo && currentAgent) {
       setEditingName(currentAgent.name);
-      const iconIdx = parseInt(currentAgent.icon || '0');
-      setEditingIconIdx(isNaN(iconIdx) ? ACCESS_ICONS.indexOf(currentAgent.icon || '') : iconIdx);
     }
   }, [isEditingInfo, currentAgent]);
 
   // 保存 agent 信息
   const handleSaveAgentInfo = useCallback(() => {
     if (currentAgentId && editingName.trim()) {
-      updateAgentInfo(currentAgentId, editingName.trim(), String(editingIconIdx));
+      updateAgentInfo(currentAgentId, editingName.trim(), currentAgent?.icon || '');
       setIsEditingInfo(false);
     }
-  }, [currentAgentId, editingName, editingIconIdx, updateAgentInfo]);
+  }, [currentAgentId, editingName, currentAgent, updateAgentInfo]);
 
   // 保存资源配置的状态
   const [isSavingResources, setIsSavingResources] = useState(false);
@@ -242,8 +241,6 @@ export function ChatRuntimeView({
   useEffect(() => {
     if (isSettingsExpanded && currentAgent) {
       setEditingName(currentAgent.name);
-      const iconIdx = parseInt(currentAgent.icon || '0');
-      setEditingIconIdx(isNaN(iconIdx) ? ACCESS_ICONS.indexOf(currentAgent.icon || '') : iconIdx);
       // 同步资源数据到 draftResources，以便编辑
       if (currentAgent.resources) {
         setDraftResources([...currentAgent.resources]);
@@ -635,7 +632,7 @@ export function ChatRuntimeView({
         {/* Left: Agent name with edit button */}
         <div style={{ position: 'relative' }} ref={editPopoverRef}>
           <AgentNameButton
-            agentIcon={currentAgent ? parseAgentIcon(currentAgent.icon) : '💬'}
+            agentIcon={getAgentTypeIcon(currentAgent?.type)}
             agentName={agentName}
             isEditing={isEditingInfo}
             canEdit={!!currentAgentId}
@@ -655,37 +652,22 @@ export function ChatRuntimeView({
               zIndex: 100,
               overflow: 'hidden',
             }}>
-              {/* Input row with icon selector */}
+              {/* Input row with type icon + name */}
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center',
                 padding: 8,
                 gap: 8,
-                borderBottom: '1px solid #222',
               }}>
-                {/* Current icon button - click to show picker */}
-                <button
-                  onClick={() => {
-                    const next = (editingIconIdx + 1) % ACCESS_ICONS.length;
-                    setEditingIconIdx(next);
-                  }}
-                  title="Click to change icon"
-                  style={{
-                    width: 32,
-                    height: 32,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#1f1f1f',
-                    border: '1px solid #333',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    fontSize: 16,
-                    flexShrink: 0,
-                  }}
-                >
-                  {ACCESS_ICONS[editingIconIdx]}
-                </button>
+                {/* Type icon — fixed */}
+                <span style={{
+                  width: 32, height: 32,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: '#1f1f1f', border: '1px solid #333', borderRadius: 6,
+                  flexShrink: 0, color: '#999',
+                }}>
+                  {getAgentTypeIcon(currentAgent?.type)}
+                </span>
                 
                 {/* Name input */}
                 <input
@@ -731,44 +713,6 @@ export function ChatRuntimeView({
                 >
                   Save
                 </button>
-              </div>
-
-              {/* Icon grid - compact */}
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(8, 1fr)', 
-                gap: 2,
-                padding: 6,
-                maxHeight: 96,
-                overflowY: 'auto',
-              }}>
-                {ACCESS_ICONS.map((icon, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setEditingIconIdx(idx)}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: editingIconIdx === idx ? '#333' : 'transparent',
-                      border: 'none',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      fontSize: 14,
-                      opacity: editingIconIdx === idx ? 1 : 0.6,
-                      transition: 'all 0.1s',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = '#2a2a2a'; }}
-                    onMouseLeave={e => { 
-                      e.currentTarget.style.opacity = editingIconIdx === idx ? '1' : '0.6'; 
-                      e.currentTarget.style.background = editingIconIdx === idx ? '#333' : 'transparent'; 
-                    }}
-                  >
-                    {icon}
-                  </button>
-                ))}
               </div>
             </div>
           )}
@@ -939,29 +883,15 @@ export function ChatRuntimeView({
         }}>
           {/* 编辑名字和图标 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* 图标按钮 - 点击切换 */}
-            <button
-              onClick={() => setEditingIconIdx((editingIconIdx + 1) % ACCESS_ICONS.length)}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: '#1a1a1a',
-                border: '1px solid #2a2a2a',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 16,
-                transition: 'all 0.15s',
-                flexShrink: 0,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#252525'; e.currentTarget.style.borderColor = '#3a3a3a'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.borderColor = '#2a2a2a'; }}
-              title="Click to change icon"
-            >
-              {ACCESS_ICONS[editingIconIdx] || parseAgentIcon(currentAgent.icon)}
-            </button>
+            {/* Type icon — fixed, non-editable */}
+            <span style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: '#161616', border: '1px solid #2a2a2a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, color: '#999',
+            }}>
+              {getAgentTypeIcon(currentAgent.type)}
+            </span>
             
             {/* 名字输入 */}
             <input
@@ -987,18 +917,18 @@ export function ChatRuntimeView({
             <button
               onClick={async () => {
                 if (currentAgentId && editingName.trim()) {
-                  await updateAgentInfo(currentAgentId, editingName.trim(), ACCESS_ICONS[editingIconIdx]);
+                  await updateAgentInfo(currentAgentId, editingName.trim(), currentAgent.icon || '');
                 }
               }}
-              disabled={!editingName.trim() || (editingName === currentAgent.name && ACCESS_ICONS[editingIconIdx] === parseAgentIcon(currentAgent.icon))}
+              disabled={!editingName.trim() || editingName === currentAgent.name}
               style={{
                 height: 32,
                 padding: '0 12px',
-                background: editingName.trim() && (editingName !== currentAgent.name || ACCESS_ICONS[editingIconIdx] !== parseAgentIcon(currentAgent.icon)) ? '#4ade80' : '#262626',
-                color: editingName.trim() && (editingName !== currentAgent.name || ACCESS_ICONS[editingIconIdx] !== parseAgentIcon(currentAgent.icon)) ? '#000' : '#525252',
+                background: editingName.trim() && editingName !== currentAgent.name ? '#4ade80' : '#262626',
+                color: editingName.trim() && editingName !== currentAgent.name ? '#000' : '#525252',
                 border: 'none',
                 borderRadius: 4,
-                cursor: editingName.trim() && (editingName !== currentAgent.name || ACCESS_ICONS[editingIconIdx] !== parseAgentIcon(currentAgent.icon)) ? 'pointer' : 'not-allowed',
+                cursor: editingName.trim() && editingName !== currentAgent.name ? 'pointer' : 'not-allowed',
                 fontSize: 13,
                 fontWeight: 500,
                 transition: 'all 0.15s',
