@@ -1235,7 +1235,6 @@ export default function DataPage({ params }: DataPageProps) {
                     onCreateTool={handleCreateTool}
                     agentResources={agentResources}
                   />
-                )
               )}
             </div>
           )}
