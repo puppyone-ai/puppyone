@@ -648,17 +648,8 @@ def get_openclaw_status(
     agent: Agent = Depends(get_verified_agent),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    from src.supabase.client import SupabaseClient
-    from src.access.config.repository import AgentRepository
-    from src.sync.repository import SyncSourceRepository, NodeSyncRepository
-    from src.access.openclaw.service import OpenClawService
-
-    supabase = SupabaseClient()
-    svc = OpenClawService(
-        agent_repo=AgentRepository(supabase),
-        source_repo=SyncSourceRepository(supabase),
-        node_sync_repo=NodeSyncRepository(supabase),
-    )
+    from src.access.openclaw.router import _get_service
+    svc = _get_service()
     data = svc.status(agent)
     return ApiResponse.success(data=data)
 

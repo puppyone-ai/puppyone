@@ -33,6 +33,9 @@ class ContentNodeRepository:
             mime_type=row.get("mime_type"),
             size_bytes=row.get("size_bytes", 0),
             permissions=row.get("permissions", {"inherit": True}),
+            # 版本管理字段
+            current_version=row.get("current_version", 0),
+            content_hash=row.get("content_hash"),
             # 同步相关字段
             sync_url=row.get("sync_url"),
             sync_id=row.get("sync_id"),
@@ -54,6 +57,18 @@ class ContentNodeRepository:
         if response.data:
             return self._row_to_model(response.data[0])
         return None
+
+    def get_by_ids(self, node_ids: List[str]) -> List[ContentNode]:
+        """Batch fetch nodes by a list of IDs (single round-trip)."""
+        if not node_ids:
+            return []
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("*")
+            .in_("id", node_ids)
+            .execute()
+        )
+        return [self._row_to_model(row) for row in response.data]
 
     def get_by_id_path(self, project_id: str, id_path: str) -> Optional[ContentNode]:
         """根据 id_path 获取节点"""
@@ -180,6 +195,7 @@ class ContentNodeRepository:
             "mime_type": mime_type,
             "size_bytes": size_bytes,
             "sync_status": sync_status,
+            "current_version": 0,
         }
         # 添加可选字段
         if created_by is not None:

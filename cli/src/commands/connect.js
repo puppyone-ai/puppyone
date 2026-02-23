@@ -7,15 +7,32 @@ import { createOutput } from "../output.js";
 import { saveConfig, loadConfig, resolveAuth } from "../config.js";
 import { loadState, saveState, backupFile, ensurePuppyOneDir } from "../state.js";
 
-const SUPPORTED_EXTS = new Set([".json", ".md", ".markdown", ".txt", ".yaml", ".yml"]);
+const INLINE_EXTS = new Set([".json", ".md", ".markdown"]);
 const IGNORED_DIRS = new Set([".puppyone", ".git", "node_modules", "__pycache__"]);
 const IGNORED_FILES = new Set([".DS_Store", ".env"]);
+
+function isInlineExt(ext) { return INLINE_EXTS.has(ext); }
+function isFileNode(node) { return node.type !== "json" && node.type !== "markdown" && node.type !== "folder"; }
+function hashBuffer(buf) { return createHash("sha256").update(buf).digest("hex"); }
+
+function guessMimeType(filename) {
+  const ext = extname(filename).toLowerCase();
+  const map = {
+    ".pdf": "application/pdf",
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
+    ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
+    ".txt": "text/plain", ".yaml": "text/yaml", ".yml": "text/yaml",
+    ".csv": "text/csv", ".xml": "application/xml", ".html": "text/html",
+  };
+  return map[ext] || "application/octet-stream";
+}
 
 export function registerConnect(program) {
   program
     .command("connect")
     .description("Link a local folder to a PuppyOne project")
-    .argument("<folder>", "local folder path")
+    .argument("<folder>", "absolute or relative path to the local folder")
     .option("--key <access-key>", "OpenClaw access key (uses /access/openclaw endpoints)")
     .option("-p, --project <id>", "PuppyOne project ID (sync mode only)")
     .option("-f, --folder-id <id>", "target folder node ID inside the project (omit for project root)")
@@ -26,17 +43,29 @@ export function registerConnect(program) {
       const out = createOutput(cmd);
 
       const absPath = resolve(folder);
-      if (!existsSync(absPath)) {
-        mkdirSync(absPath, { recursive: true });
-        out.info(`Created workspace folder: ${absPath}`);
-      } else if (!statSync(absPath).isDirectory()) {
-        out.error("FOLDER_NOT_FOUND", `Not a directory: ${absPath}`, "Provide a folder path, not a file.");
-        return;
-      }
 
       if (opts.key) {
+        if (!existsSync(absPath) || !statSync(absPath).isDirectory()) {
+          out.error(
+            "FOLDER_NOT_FOUND",
+            `Not a directory: ${absPath}`,
+            "Provide a valid folder path: puppyone connect <folder> --key <key>",
+          );
+          return;
+        }
         await connectOpenClaw(absPath, folder, opts, cmd, out);
       } else {
+        if (!folder) {
+          out.error("MISSING_FOLDER", "Folder path is required for sync mode.", "Usage: puppyone connect <folder> -p <project-id>");
+          return;
+        }
+        if (!existsSync(absPath)) {
+          mkdirSync(absPath, { recursive: true });
+          out.info(`Created folder: ${absPath}`);
+        } else if (!statSync(absPath).isDirectory()) {
+          out.error("FOLDER_NOT_FOUND", `Not a directory: ${absPath}`, "Provide a folder path, not a file.");
+          return;
+        }
         await connectSync(absPath, folder, opts, cmd, out);
       }
     });
@@ -138,6 +167,7 @@ async function executeMerge(api, folder, cloudNodes, localFiles, out) {
 
   const cloudByName = new Map();
   for (const node of cloudNodes) {
+    if (node.type === "folder") continue;
     const fileName = nodeToFilename(node);
     cloudByName.set(fileName, node);
   }
@@ -147,94 +177,96 @@ async function executeMerge(api, folder, cloudNodes, localFiles, out) {
     localByName.set(file.relPath, file);
   }
 
-  // 1) Process cloud nodes
   for (const [fileName, node] of cloudByName) {
     const localFile = localByName.get(fileName);
 
     if (!localFile) {
-      // Cloud only → write to local
       const filePath = join(folder, fileName);
       mkdirSync(dirname(filePath), { recursive: true });
-      const content = serializeNodeContent(node);
-      writeFileSync(filePath, content, "utf-8");
-      const hash = hashString(content);
 
-      fileMap[fileName] = {
-        node_id: node.node_id,
-        version: node.version ?? 0,
-        hash,
-      };
-      pulled++;
-      out.info(`  ↓ ${fileName}  cloud → local (new)`);
-    } else {
-      // Both exist → compare
-      const cloudContent = serializeNodeContent(node);
-      const cloudHash = hashString(cloudContent);
-      const localHash = localFile.hash;
-
-      if (cloudHash === localHash) {
-        fileMap[fileName] = {
-          node_id: node.node_id,
-          version: node.version ?? 0,
-          hash: localHash,
-        };
-        skipped++;
-        out.info(`  = ${fileName}  identical, skip`);
+      if (isFileNode(node)) {
+        if (node.download_url) {
+          try {
+            const res = await fetch(node.download_url);
+            if (res.ok) {
+              const buf = Buffer.from(await res.arrayBuffer());
+              writeFileSync(filePath, buf);
+              fileMap[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: hashBuffer(buf), s3: true };
+              pulled++;
+              out.info(`  ↓ ${fileName}  cloud → local (file via S3)`);
+            }
+          } catch { /* skip */ }
+        }
       } else {
-        // Conflict → cloud wins, backup local
-        backupFile(folder, fileName);
-        const filePath = join(folder, fileName);
-        writeFileSync(filePath, cloudContent, "utf-8");
+        const content = serializeNodeContent(node);
+        writeFileSync(filePath, content, "utf-8");
+        fileMap[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: hashString(content) };
+        pulled++;
+        out.info(`  ↓ ${fileName}  cloud → local (new)`);
+      }
+    } else {
+      if (isFileNode(node)) {
+        fileMap[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: localFile.hash, s3: true };
+        skipped++;
+        out.info(`  = ${fileName}  file node, keep local`);
+      } else {
+        const cloudContent = serializeNodeContent(node);
+        const cloudHash = hashString(cloudContent);
+        const localHash = localFile.hash;
 
-        fileMap[fileName] = {
-          node_id: node.node_id,
-          version: node.version ?? 0,
-          hash: cloudHash,
-        };
-        conflicts++;
-        out.info(`  ↓ ${fileName}  conflict → cloud wins, local backed up`);
+        if (cloudHash === localHash) {
+          fileMap[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: localHash };
+          skipped++;
+          out.info(`  = ${fileName}  identical, skip`);
+        } else {
+          backupFile(folder, fileName);
+          writeFileSync(join(folder, fileName), cloudContent, "utf-8");
+          fileMap[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: cloudHash };
+          conflicts++;
+          out.info(`  ↓ ${fileName}  conflict → cloud wins, local backed up`);
+        }
       }
       localByName.delete(fileName);
     }
   }
 
-  // 2) Local-only files → push to cloud (create new node)
   for (const [relPath, file] of localByName) {
     try {
-      const contentStr = readFileSync(join(folder, relPath), "utf-8");
-      const ext = extname(relPath).toLowerCase();
-      let content;
-      let nodeType = "markdown";
+      if (file.inline) {
+        const contentStr = readFileSync(join(folder, relPath), "utf-8");
+        const ext = extname(relPath).toLowerCase();
+        let content, nodeType = "markdown";
+        if (ext === ".json") {
+          try { content = JSON.parse(contentStr); nodeType = "json"; } catch { content = contentStr; }
+        } else { content = contentStr; }
 
-      if (ext === ".json") {
-        try {
-          content = JSON.parse(contentStr);
-          nodeType = "json";
-        } catch {
-          content = contentStr;
+        const resp = await api.post("/access/openclaw/push", {
+          node_id: null, filename: relPath, content, base_version: 0, node_type: nodeType,
+        });
+        if (resp.ok) {
+          fileMap[relPath] = { node_id: resp.node_id, version: resp.version ?? 1, hash: file.hash };
+          pushed++;
+          out.info(`  ↑ ${relPath}  local → cloud (new node created)`);
         }
       } else {
-        content = contentStr;
-      }
-
-      const resp = await api.post("/access/openclaw/push", {
-        node_id: null,
-        filename: relPath,
-        content,
-        base_version: 0,
-        node_type: nodeType,
-      });
-
-      if (resp.ok) {
-        fileMap[relPath] = {
-          node_id: resp.node_id,
-          version: resp.version ?? 1,
-          hash: file.hash,
-        };
-        pushed++;
-        out.info(`  ↑ ${relPath}  local → cloud (new node created)`);
-      } else {
-        out.info(`  ✗ ${relPath}  push failed: ${resp.message ?? "unknown"}`);
+        const fileBuf = readFileSync(join(folder, relPath));
+        const mimeType = guessMimeType(relPath);
+        const urlResp = await api.post("/access/openclaw/upload-url", {
+          filename: relPath, content_type: mimeType, size_bytes: fileBuf.length, node_id: null,
+        });
+        if (!urlResp.ok) continue;
+        const putRes = await fetch(urlResp.upload_url, {
+          method: "PUT", headers: { "Content-Type": mimeType }, body: fileBuf,
+        });
+        if (!putRes.ok) continue;
+        const confirmResp = await api.post("/access/openclaw/confirm-upload", {
+          node_id: urlResp.node_id, size_bytes: fileBuf.length, content_hash: hashBuffer(fileBuf),
+        });
+        if (confirmResp.ok) {
+          fileMap[relPath] = { node_id: urlResp.node_id, version: confirmResp.version ?? 1, hash: file.hash, s3: true };
+          pushed++;
+          out.info(`  ↑ ${relPath}  local → cloud (file via S3)`);
+        }
       }
     } catch (e) {
       out.info(`  ✗ ${relPath}  push failed: ${e.message}`);
@@ -372,11 +404,14 @@ export function scanLocalFiles(folder) {
         walk(abs);
       } else if (stat.isFile()) {
         const ext = extname(entry).toLowerCase();
-        if (SUPPORTED_EXTS.has(ext)) {
-          const relPath = relative(folder, abs);
+        if (!ext) continue;
+        const relPath = relative(folder, abs);
+        if (isInlineExt(ext)) {
           const content = readFileSync(abs, "utf-8");
-          const hash = hashString(content);
-          files.push({ relPath, absPath: abs, ext, hash });
+          files.push({ relPath, absPath: abs, ext, hash: hashString(content), inline: true });
+        } else {
+          const buf = readFileSync(abs);
+          files.push({ relPath, absPath: abs, ext, hash: hashBuffer(buf), inline: false, size: buf.length });
         }
       }
     }

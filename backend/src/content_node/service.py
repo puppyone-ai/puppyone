@@ -1166,9 +1166,40 @@ class ContentNodeService:
     # === 删除操作（硬删除） ===
 
     async def delete_node(self, node_id: str, project_id: str) -> None:
-        """删除节点（递归删除子节点和 S3 文件）"""
+        """删除节点（递归删除子节点和 S3 文件），并通知 sync changelog"""
         node = self.get_by_id(node_id, project_id)
+
+        node_info_list: list[dict] = []
+        self._collect_node_info(node_id, node_info_list)
+
         await self._delete_recursive(node_id)
+
+        if self.version_service and node_info_list:
+            for info in node_info_list:
+                try:
+                    self.version_service._emit_changelog(
+                        project_id=project_id,
+                        node_id=info["id"],
+                        action="delete",
+                        node_type=info["type"],
+                        content_hash=info["filename"],
+                    )
+                except Exception:
+                    pass
+
+    def _collect_node_info(self, node_id: str, result: list) -> None:
+        """Collect id/name/type for a node and its descendants BEFORE deletion."""
+        children_ids = self.repo.get_children_ids(node_id)
+        for child_id in children_ids:
+            self._collect_node_info(child_id, result)
+        node = self.repo.get_by_id(node_id)
+        if node and node.type != "folder":
+            name = node.name
+            if node.type == "json" and not name.endswith(".json"):
+                name = f"{name}.json"
+            elif node.type == "markdown" and not name.endswith(".md"):
+                name = f"{name}.md"
+            result.append({"id": node.id, "type": node.type, "filename": name})
 
     async def _delete_recursive(self, node_id: str) -> None:
         """递归删除节点"""

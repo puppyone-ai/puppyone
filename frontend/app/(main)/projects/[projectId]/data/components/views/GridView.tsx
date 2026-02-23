@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, getSyncSource, getSyncSourceIcon, LockIcon } from '@/lib/nodeTypeConfig';
 
@@ -44,7 +44,7 @@ const DocShell = ({ children }: { children?: React.ReactNode }) => (
 
 // Folder icon with children count badge
 const FolderIconLarge = ({ childrenCount }: { childrenCount?: number | null }) => (
-  <div style={{ position: 'relative', width: 64, height: 64 }}>
+  <div style={{ position: 'relative', width: 64, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <img src="/icons/folder.svg" alt="Folder" width={64} height={64} style={{ display: 'block' }} />
     {childrenCount != null && childrenCount > 0 && (
       <div style={{
@@ -151,62 +151,43 @@ const UnifiedBrandedIcon = ({
   badgeSize = 32,
   showWarning = false,
   snippet,
+  direction = 'inbound' as 'inbound' | 'outbound' | 'bidirectional',
 }: {
   BadgeIcon?: React.ElementType;
   type: string;
   badgeSize?: number;
   showWarning?: boolean;
   snippet?: string | null;
+  direction?: 'inbound' | 'outbound' | 'bidirectional';
 }) => {
   const typeConfig = getNodeTypeConfig(type);
 
   const badgeLines = (snippet || '').split('\n').slice(0, 5);
   const truncated = (s: string, max: number) => s.length > max ? s.slice(0, max) : s;
 
-  const JsonBadge = () => (
-    <svg width="30" height="36" viewBox="0 0 30 36" fill="none" style={{ filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.6))' }}>
-      <path d="M2 3C2 1.895 2.895 1 4 1H19L28 10V33C28 34.105 27.105 35 26 35H4C2.895 35 2 34.105 2 33V3Z" fill="#222225" stroke="#3a3a3d" strokeWidth="1" />
-      <path d="M19 1V10H28" stroke="#3a3a3d" strokeWidth="1" strokeLinejoin="round" />
+  const isJson = typeConfig.renderAs !== 'markdown' && typeConfig.renderAs !== 'folder';
+  const badgeColor = isJson ? '#6ee7b7' : '#8a8a8e';
+
+  const DataBadge = () => (
+    <svg width="30" height="36" viewBox="0 0 30 36" fill="none">
+      <path d="M2 3C2 1.895 2.895 1 4 1H19L28 10V33C28 34.105 27.105 35 26 35H4C2.895 35 2 34.105 2 33V3Z" fill="#222225" stroke="#52525b" strokeWidth="1" />
+      <path d="M19 1V10H28" stroke="#52525b" strokeWidth="1" strokeLinejoin="round" />
       <path d="M19 1V10H28L19 1Z" fill="#2a2a2d" />
       {badgeLines.length > 0 ? (
-        <text x="4" y="15" fontSize="3.5" fill="#6ee7b7" fontFamily="ui-monospace, monospace">
-          {badgeLines.map((line, i) => (
-            <tspan key={i} x="4" dy={i === 0 ? 0 : 4}>{truncated(line, 10)}</tspan>
-          ))}
-        </text>
-      ) : (
-        <g transform="translate(5, 13)">
-          {[10, 17, 12, 15, 8].map((w, i) => (
-            <rect key={i} y={i * 3.5} width={w} height="1.2" rx="0.4" fill="#6ee7b7" opacity={0.9 - i * 0.1} />
-          ))}
-        </g>
-      )}
-    </svg>
-  );
-
-  const MarkdownBadge = () => (
-    <svg width="30" height="36" viewBox="0 0 30 36" fill="none" style={{ filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.6))' }}>
-      <path d="M2 3C2 1.895 2.895 1 4 1H19L28 10V33C28 34.105 27.105 35 26 35H4C2.895 35 2 34.105 2 33V3Z" fill="#222225" stroke="#3a3a3d" strokeWidth="1" />
-      <path d="M19 1V10H28" stroke="#3a3a3d" strokeWidth="1" strokeLinejoin="round" />
-      <path d="M19 1V10H28L19 1Z" fill="#2a2a2d" />
-      {snippet ? (
-        <text x="4" y="15" fontSize="3.5" fill="#8a8a8e" fontFamily="-apple-system, sans-serif">
-          {snippet.split(/\s+/).reduce<string[]>((lines, word) => {
+        <text x="4" y="14" fontSize="3.4" fill={badgeColor} fontFamily={isJson ? 'ui-monospace, monospace' : '-apple-system, sans-serif'}>
+          {(isJson ? badgeLines : (snippet || '').split(/\s+/).reduce<string[]>((lines, word) => {
             const last = lines[lines.length - 1] || '';
-            if (lines.length === 0 || last.length + word.length > 9) {
-              lines.push(word);
-            } else {
-              lines[lines.length - 1] = last + ' ' + word;
-            }
+            if (lines.length === 0 || last.length + word.length > 9) lines.push(word);
+            else lines[lines.length - 1] = last + ' ' + word;
             return lines;
-          }, []).slice(0, 5).map((line, i) => (
+          }, [])).slice(0, 5).map((line, i) => (
             <tspan key={i} x="4" dy={i === 0 ? 0 : 4}>{truncated(line, 10)}</tspan>
           ))}
         </text>
       ) : (
-        <g transform="translate(5, 13)">
-          {[12, 8, 14, 9, 11].map((w, i) => (
-            <rect key={i} y={i * 3.5} width={w} height="1.2" rx="0.4" fill="#8a8a8e" opacity={0.9 - i * 0.1} />
+        <g transform="translate(4, 13)">
+          {[10, 17, 12, 15, 8].map((w, i) => (
+            <rect key={i} y={i * 3.5} width={w} height="1.2" rx="0.4" fill={badgeColor} opacity={0.9 - i * 0.1} />
           ))}
         </g>
       )}
@@ -214,57 +195,85 @@ const UnifiedBrandedIcon = ({
   );
 
   const FolderBadge = () => (
-    <img src="/icons/folder.svg" alt="Folder" width={22} height={22} style={{ display: 'block', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }} />
+    <img src="/icons/folder.svg" alt="Folder" width={24} height={24} style={{ display: 'block', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }} />
   );
 
+  const ConnectorArrow = () => {
+    const color = '#71717a';
+    const elbowPath = 'M 16 30 L 16 42 Q 16 46, 20 46 L 32 46';
+    const elbowPathReversed = 'M 32 46 L 20 46 Q 16 46, 16 42 L 16 30';
+    return (
+      <svg
+        width="64" height="64" viewBox="0 0 64 64" fill="none"
+        style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5 }}
+      >
+        <defs>
+          <marker id="arr-r" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+            <path d="M0,0 L0,5 L5,2.5 z" fill={color} />
+          </marker>
+          <marker id="arr-u" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+            <path d="M0,0 L0,5 L5,2.5 z" fill={color} />
+          </marker>
+        </defs>
+
+        {direction === 'inbound' && (
+          <path d={elbowPath} stroke={color} strokeWidth="1.3" fill="none" markerEnd="url(#arr-r)" />
+        )}
+
+        {direction === 'outbound' && (
+          <path d={elbowPathReversed} stroke={color} strokeWidth="1.3" fill="none" markerEnd="url(#arr-u)" />
+        )}
+
+        {direction === 'bidirectional' && (
+          <>
+            <path d={elbowPath} stroke={color} strokeWidth="1.3" fill="none" markerEnd="url(#arr-r)" />
+            <path d={elbowPathReversed} stroke={color} strokeWidth="1.3" fill="none" markerEnd="url(#arr-u)" />
+          </>
+        )}
+      </svg>
+    );
+  };
+
   return (
-    <div style={{ position: 'relative', width: 64, height: 64 }}>
-      {/* Card container */}
-      <div style={{
-        width: 56,
-        height: 56,
-        margin: '4px auto 0',
-        borderRadius: 14,
-        background: 'linear-gradient(145deg, #27272a 0%, #18181b 100%)',
-        border: '1px solid #3f3f46',
-        position: 'relative',
-        boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
-      }}>
-        {/* App Logo - centered */}
+    <div style={{ position: 'relative', width: 64, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* 64x64 square content, vertically centered in 64x72 wrapper */}
+      <div style={{ position: 'relative', width: 64, height: 64 }}>
+        {/* App Logo - top-left, max 28x28 */}
         <div style={{
           position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 6,
+          top: 2,
+          left: 2,
+          zIndex: 10,
+          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
         }}>
           {BadgeIcon && (
-            <div style={{ maxWidth: 36, maxHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              <BadgeIcon size={badgeSize} />
+            <div style={{ maxWidth: 28, maxHeight: 28 }}>
+              <BadgeIcon size={28} />
             </div>
           )}
         </div>
 
-        {/* Type badge - bottom-right corner */}
-        <div style={{
-          position: 'absolute',
-          bottom: -8,
-          right: -8,
-          zIndex: 10,
-        }}>
-          {typeConfig.renderAs === 'folder' ? <FolderBadge /> :
-           typeConfig.renderAs === 'markdown' ? <MarkdownBadge /> : <JsonBadge />}
-        </div>
-      </div>
+        {/* Directional connector */}
+        <ConnectorArrow />
 
-      {/* Warning indicator */}
-      {showWarning && (
+        {/* Data badge - bottom-right, full size */}
         <div style={{
           position: 'absolute',
-          top: -2,
-          right: -2,
-          width: 16,
+          bottom: 0,
+          right: 0,
+          zIndex: 10,
+          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+        }}>
+          {typeConfig.renderAs === 'folder' ? <FolderBadge /> : <DataBadge />}
+        </div>
+
+        {/* Warning indicator */}
+        {showWarning && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: 16,
           height: 16,
           borderRadius: '50%',
           background: '#f59e0b',
@@ -277,6 +286,7 @@ const UnifiedBrandedIcon = ({
           <span style={{ color: '#000', fontSize: 10, fontWeight: 800 }}>!</span>
         </div>
       )}
+      </div>
     </div>
   );
 };
@@ -322,6 +332,7 @@ export interface GridViewProps {
   onCreateTool?: (id: string, name: string, type: string) => void;
   loading?: boolean;
   agentResources?: AgentResource[];
+  highlightNodeId?: string | null;
 }
 
 function GridItem({
@@ -332,6 +343,7 @@ function GridItem({
   onDuplicate,
   onRefresh,
   onCreateTool,
+  isHighlighted,
 }: {
   item: GridViewItem;
   agentResource?: AgentResource;
@@ -340,8 +352,16 @@ function GridItem({
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
   onCreateTool?: (id: string, name: string, type: string) => void;
+  isHighlighted?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
+  const itemRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isHighlighted && itemRef.current) {
+      itemRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [isHighlighted]);
 
   // Check if this item has agent access
   const hasAgentAccess = !!agentResource;
@@ -404,6 +424,7 @@ function GridItem({
 
   return (
     <div
+      ref={itemRef}
       onClick={item.onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -429,16 +450,19 @@ function GridItem({
         height: 128,
         borderRadius: 8,
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+        background: isHighlighted ? 'rgba(59, 130, 246, 0.12)' : hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
         transition: 'all 0.15s',
         position: 'relative',
-        outline: hasAgentAccess
+        outline: isHighlighted
+            ? '2px solid rgba(59, 130, 246, 0.5)'
+            : hasAgentAccess
             ? '2px solid rgba(249, 115, 22, 0.5)'
             : 'none',
         outlineOffset: -2,
         opacity: 1,
         gap: 4,
         padding: '6px 6px 8px',
+        animation: isHighlighted ? 'gridItemHighlight 2s ease-out' : undefined,
       }}
     >
       {/* 图标区域 */}
@@ -585,39 +609,48 @@ export function GridView({
   onCreateTool,
   loading,
   agentResources,
+  highlightNodeId,
 }: GridViewProps) {
   if (loading) {
     return <div style={{ color: '#666', padding: 16 }}>Loading...</div>;
   }
 
-  // Create a map for quick lookup
   const resourceMap = new Map(agentResources?.map(r => [r.nodeId, r]) ?? []);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 16,
-        alignContent: 'flex-start',
-      }}
-    >
-      {items.map(item => (
-        <GridItem
-          key={item.id}
-          item={item}
-          agentResource={resourceMap.get(item.id)}
-          onRename={onRename}
-          onDelete={onDelete}
-          onDuplicate={onDuplicate}
-          onRefresh={onRefresh}
-          onCreateTool={onCreateTool}
-        />
-      ))}
+    <>
+      <style>{`
+        @keyframes gridItemHighlight {
+          0% { background: rgba(59, 130, 246, 0.2); outline-color: rgba(59, 130, 246, 0.6); }
+          100% { background: transparent; outline-color: transparent; }
+        }
+      `}</style>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 16,
+          alignContent: 'flex-start',
+        }}
+      >
+        {items.map(item => (
+          <GridItem
+            key={item.id}
+            item={item}
+            agentResource={resourceMap.get(item.id)}
+            onRename={onRename}
+            onDelete={onDelete}
+            onDuplicate={onDuplicate}
+            onRefresh={onRefresh}
+            onCreateTool={onCreateTool}
+            isHighlighted={highlightNodeId === item.id}
+          />
+        ))}
 
-      {onCreateClick && (
-        <CreateButton onClick={onCreateClick} />
-      )}
-    </div>
+        {onCreateClick && (
+          <CreateButton onClick={onCreateClick} />
+        )}
+      </div>
+    </>
   );
 }

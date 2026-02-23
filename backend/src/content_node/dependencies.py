@@ -14,6 +14,7 @@ from src.content_node.service import ContentNodeService
 # 向后兼容：从 collaboration 模块导入
 from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
 from src.collaboration.version_service import VersionService
+from src.sync.changelog import SyncChangelogRepository
 
 
 def get_supabase_client() -> SupabaseClient:
@@ -42,14 +43,21 @@ def get_folder_snapshot_repository(
     return FolderSnapshotRepository(supabase)
 
 
+def _get_changelog_repository(
+    supabase: SupabaseClient = Depends(get_supabase_client),
+) -> SyncChangelogRepository:
+    return SyncChangelogRepository(supabase)
+
+
 def get_version_service(
     node_repo: ContentNodeRepository = Depends(get_content_node_repository),
     version_repo: FileVersionRepository = Depends(get_file_version_repository),
     snapshot_repo: FolderSnapshotRepository = Depends(get_folder_snapshot_repository),
     s3_service: S3Service = Depends(get_s3_service),
+    changelog_repo: SyncChangelogRepository = Depends(_get_changelog_repository),
 ) -> VersionService:
     """获取 Version Service（已迁移到 collaboration）"""
-    return VersionService(node_repo, version_repo, snapshot_repo, s3_service)
+    return VersionService(node_repo, version_repo, snapshot_repo, s3_service, changelog_repo)
 
 
 def get_content_node_service(

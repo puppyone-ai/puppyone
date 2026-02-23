@@ -1,7 +1,7 @@
 {
   "name": "puppyone",
-  "version": "0.1.0",
-  "description": "PuppyOne CLI — sync local folders with PuppyOne cloud projects",
+  "version": "0.8.0",
+  "description": "PuppyOne CLI — cloud file system for LLM agents",
   "type": "module",
   "bin": {
     "puppyone": "./bin/puppyone.js"

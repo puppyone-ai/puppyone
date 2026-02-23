@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useRef, useEffect } from 'react';
 import type { ContentType, AgentResource } from './GridView';
-import { getNodeTypeConfig, getSyncSourceIcon, getSyncSource } from '@/lib/nodeTypeConfig';
+import { getNodeTypeConfig, getSyncSourceIcon, getSyncSource, isSyncedType } from '@/lib/nodeTypeConfig';
 import { useContentNodes } from '@/lib/hooks/useData';
 import { useSyncExternalStore } from 'react';
 
@@ -60,6 +60,7 @@ export interface ExplorerSidebarProps {
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   agentResources?: AgentResource[];
+  highlightNodeId?: string | null;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -117,14 +118,13 @@ const PlainFileIcon = () => (
   </svg>
 );
 
-const FileIcon = ({ type, syncSource }: { type: string; syncSource?: string | null }) => {
+const FileIcon = ({ type, syncSource, iconSize }: { type: string; syncSource?: string | null; iconSize?: number }) => {
   const config = getNodeTypeConfig(type);
   const actualSource = syncSource || getSyncSource(type);
   const BadgeIcon = getSyncSourceIcon(actualSource) || config.badgeIcon;
+  const sz = iconSize ?? 16;
 
-  if (BadgeIcon) {
-    return <BadgeIcon size={14} />;
-  }
+  if (BadgeIcon) return <BadgeIcon size={sz} />;
 
   switch (config.renderAs) {
     case 'markdown': return <MarkdownIcon />;
@@ -132,6 +132,13 @@ const FileIcon = ({ type, syncSource }: { type: string; syncSource?: string | nu
     default: return <PlainFileIcon />;
   }
 };
+
+function getSyncDirectionArrow(type: string, direction: 'inbound' | 'outbound' | 'bidirectional' = 'inbound'): string | null {
+  if (!isSyncedType(type)) return null;
+  if (direction === 'bidirectional') return ' ⇄';
+  if (direction === 'outbound') return ' ←';
+  return ' →';
+}
 
 function getTypeExtension(type: string): string | null {
   const config = getNodeTypeConfig(type);
@@ -147,29 +154,53 @@ function hasFileExtension(name: string): boolean {
 }
 
 // === Context Menu (three dots) ===
-function ItemContextMenu({ itemId, itemName, isSynced, onRename, onDelete }: {
+function ItemContextMenu({ itemId, itemName, isSynced, onRename, onDelete, onOpenChange }: {
   itemId: string;
   itemName: string;
   isSynced?: boolean;
   onRename?: (id: string, name: string) => void;
   onDelete?: (id: string, name: string) => void;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpenRaw] = useState(false);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const setOpen = useCallback((v: boolean) => {
+    setOpenRaw(v);
+    onOpenChange?.(v);
+  }, [onOpenChange]);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (
+        btnRef.current?.contains(e.target as Node) ||
+        menuRef.current?.contains(e.target as Node)
+      ) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+  }, [open, setOpen]);
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (open) {
+      setOpen(false);
+    } else {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setPos({ x: rect.right, y: rect.bottom + 4 });
+      setOpen(true);
+    }
+  };
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <>
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        ref={btnRef}
+        onClick={handleToggle}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 18, height: 18, borderRadius: 3,
@@ -184,13 +215,17 @@ function ItemContextMenu({ itemId, itemName, isSynced, onRename, onDelete }: {
           <circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" />
         </svg>
       </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 20, right: 0, zIndex: 100,
-          background: '#222', border: '1px solid #333', borderRadius: 6,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: 120,
-          padding: '4px 0', fontSize: 12,
-        }}>
+      {open && pos && (
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed', top: pos.y, left: pos.x, zIndex: 9999,
+            transform: 'translateX(-100%)',
+            background: '#222', border: '1px solid #333', borderRadius: 6,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: 120,
+            padding: '4px 0', fontSize: 12,
+          }}
+        >
           {onRename && !isSynced && (
             <button
               onClick={(e) => { e.stopPropagation(); setOpen(false); onRename(itemId, itemName); }}
@@ -227,7 +262,7 @@ function ItemContextMenu({ itemId, itemName, isSynced, onRename, onDelete }: {
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -243,14 +278,24 @@ interface TreeItemProps {
   onDelete?: (id: string, name: string) => void;
   ancestors: string[];
   agentResourceMap?: Map<string, AgentResource>;
+  highlightNodeId?: string | null;
 }
 
-function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, ancestors, agentResourceMap }: TreeItemProps) {
+function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, ancestors, agentResourceMap, highlightNodeId }: TreeItemProps) {
   const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
   const isSynced = item.is_synced;
   const { isExpanded } = useExpandedFolders();
   const expanded = isFolder && isExpanded(item.id);
   const [hovered, setHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const isHighlighted = highlightNodeId === item.id;
+
+  useEffect(() => {
+    if (isHighlighted && rowRef.current) {
+      rowRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [isHighlighted]);
 
   const agentResource = agentResourceMap?.get(item.id);
   const hasAgentAccess = !!agentResource;
@@ -274,6 +319,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
   const paddingLeft = 12 + (depth * 16);
 
   const getBackground = (h: boolean) => {
+    if (isHighlighted) return 'rgba(59, 130, 246, 0.15)';
     if (isActive) return hasAgentAccess ? 'rgba(249, 115, 22, 0.15)' : '#2a2a2a';
     if (hasAgentAccess) return h ? 'rgba(249, 115, 22, 0.08)' : 'rgba(249, 115, 22, 0.04)';
     return h ? 'rgba(255,255,255,0.04)' : 'transparent';
@@ -284,11 +330,12 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
     is_synced: n.is_synced, sync_source: n.sync_source, last_synced_at: n.last_synced_at,
   }));
 
-  const showActions = hovered && (onCreate || onRename || onDelete);
+  const showActions = (hovered || menuOpen) && (onCreate || onRename || onDelete);
 
   return (
     <div>
       <div
+        ref={rowRef}
         onClick={handleClick}
         draggable
         onDragStart={(e) => {
@@ -315,8 +362,19 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
         <div style={{ display: 'flex', alignItems: 'center', width: 16, height: 16, flexShrink: 0, color: '#666' }}>
           {isFolder && <ChevronRightIcon expanded={expanded} />}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          {isFolder ? <FolderIcon /> : <FileIcon type={item.type} syncSource={item.sync_source} />}
+        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, width: 16, height: 16, justifyContent: 'center' }}>
+          {isFolder ? <FolderIcon /> : (() => {
+            const arrow = getSyncDirectionArrow(item.type);
+            if (arrow) {
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                  <FileIcon type={item.type} syncSource={item.sync_source} iconSize={10} />
+                  <span style={{ color: '#71717a', fontSize: 7, lineHeight: 1 }}>{arrow}</span>
+                </div>
+              );
+            }
+            return <FileIcon type={item.type} syncSource={item.sync_source} />;
+          })()}
         </div>
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
           {item.name}
@@ -354,6 +412,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
                 isSynced={isSynced}
                 onRename={onRename}
                 onDelete={onDelete}
+                onOpenChange={setMenuOpen}
               />
             )}
           </div>
@@ -384,7 +443,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
             childItems.map(child => (
               <TreeItem key={child.id} item={child} depth={depth + 1} projectId={projectId}
                 activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete}
-                ancestors={[...ancestors, item.id]} agentResourceMap={agentResourceMap} />
+                ancestors={[...ancestors, item.id]} agentResourceMap={agentResourceMap} highlightNodeId={highlightNodeId} />
             ))
           ) : !loading ? (
             <div style={{ paddingLeft: paddingLeft + 22, paddingTop: 4, paddingBottom: 4, color: '#666', fontSize: 12, fontStyle: 'italic' }}>Empty</div>
@@ -396,7 +455,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 }
 
 // === Main Component ===
-export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, agentResources, className, style }: ExplorerSidebarProps) {
+export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, agentResources, highlightNodeId, className, style }: ExplorerSidebarProps) {
   const { nodes: rootNodes, isLoading: loading } = useContentNodes(projectId, null);
 
   if (currentPath.length > 0) {
@@ -457,7 +516,7 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
           rootItems.map(item => (
             <TreeItem key={item.id} item={item} depth={0} projectId={projectId}
               activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete}
-              ancestors={[]} agentResourceMap={agentResourceMap} />
+              ancestors={[]} agentResourceMap={agentResourceMap} highlightNodeId={highlightNodeId} />
           ))
         )}
       </div>

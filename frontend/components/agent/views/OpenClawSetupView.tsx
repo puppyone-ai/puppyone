@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { get } from '@/lib/apiClient';
 import type { SavedAgent } from '@/components/AgentRail';
+import { FolderIcon } from './_icons';
 
 interface OpenClawSetupViewProps {
   agent: SavedAgent;
@@ -68,6 +69,7 @@ export function SetupDialog({
   apiUrl: string;
 }) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [workspacePath, setWorkspacePath] = useState('~/.openclaw/workspace');
 
   const handleCopy = useCallback(async (text: string, field: string) => {
     await navigator.clipboard.writeText(text);
@@ -86,9 +88,7 @@ export function SetupDialog({
 
   if (!open) return null;
 
-  const connectCmd = `puppyone connect --key ${accessKey} ~/openclaw-workspace -u ${apiUrl}`;
-  const pullCmd = `puppyone pull --key ${accessKey}`;
-  const watchCmd = `puppyone watch --key ${accessKey}`;
+  const upCmd = `puppyone access up --key ${accessKey} -u ${apiUrl} --path <${workspacePath}>`;
 
   return (
     <div
@@ -120,10 +120,10 @@ export function SetupDialog({
         }}>
           <div>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#e5e5e5' }}>
-              Connect OpenClaw
+              Connect Agent
             </h3>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#525252' }}>
-              Run these commands on the machine where OpenClaw is running.
+              Run these commands to sync a local folder with PuppyOne.
             </p>
           </div>
           <button
@@ -149,75 +149,95 @@ export function SetupDialog({
               fieldKey="d-install"
             />
 
-            <StepBlock
-              step="2"
-              label="Connect workspace to this access point"
-              hint="Replace ~/openclaw-workspace with your actual path"
-              command={connectCmd}
-              copiedField={copiedField}
-              onCopy={handleCopy}
-              fieldKey="d-connect"
-            />
-
-            <StepBlock
-              step="3"
-              label="Pull latest data"
-              command={pullCmd}
-              copiedField={copiedField}
-              onCopy={handleCopy}
-              fieldKey="d-pull"
-            />
-
-            <StepBlock
-              step="4"
-              label="Start watching for changes"
-              hint="Keep this running in background"
-              command={watchCmd}
-              copiedField={copiedField}
-              onCopy={handleCopy}
-              fieldKey="d-watch"
-            />
-          </div>
-
-          {/* OpenClaw config hint */}
-          <div style={{ marginTop: 24 }}>
-            <div style={{
-              fontSize: 11, fontWeight: 600, color: '#525252',
-              textTransform: 'uppercase' as const, letterSpacing: '0.5px',
-              marginBottom: 8,
-            }}>
-              OpenClaw Config (optional)
+            {/* Step 2: Choose workspace path */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: '#1a1a1a', border: '1px solid #333',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, color: '#737373', fontWeight: 600, flexShrink: 0,
+                }}>
+                  2
+                </span>
+                <span style={{ fontSize: 13, color: '#a3a3a3', fontWeight: 500 }}>Choose a local folder</span>
+              </div>
+              <div style={{ marginLeft: 28 }}>
+                <p style={{ fontSize: 12, color: '#a3a3a3', margin: '0 0 12px', lineHeight: 1.7 }}>
+                  Pick a folder on your machine to sync with this project.
+                  It's usually located at:
+                </p>
+                <p style={{ fontSize: 13, color: '#e5e5e5', margin: '0 0 12px', lineHeight: 1.5 }}>
+                  /Users/<span style={{ color: '#f59e0b' }}>{'<your-username>'}</span>/.openclaw/workspace
+                </p>
+                <p style={{ fontSize: 11, color: '#525252', margin: '0 0 12px', lineHeight: 1.5 }}>
+                  Replace the path below, then copy the command in Step 3.
+                  The folder will be created automatically if it doesn't exist.
+                </p>
+                <input
+                  type="text"
+                  value={workspacePath}
+                  onChange={e => setWorkspacePath(e.target.value)}
+                  placeholder="/Users/your-username/.openclaw/workspace"
+                  spellCheck={false}
+                  style={{
+                    width: '100%', boxSizing: 'border-box' as const,
+                    fontSize: 13, color: '#e5e5e5',
+                    background: 'transparent',
+                    border: 'none', borderBottom: '1px solid #333',
+                    padding: '6px 0', outline: 'none',
+                    fontFamily: 'inherit',
+                    transition: 'border-color 0.15s',
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#f59e0b'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#333'}
+                />
+              </div>
             </div>
-            <div style={{
-              background: '#0a0a0a', border: '1px solid #2a2a2a',
-              borderRadius: 6, padding: '10px 12px', position: 'relative',
-            }}>
-              <pre style={{
-                fontSize: 12, color: '#a3a3a3', fontFamily: 'monospace',
-                whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, lineHeight: 1.6,
+
+            {/* Step 3: Run command */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: '#1a1a1a', border: '1px solid #333',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, color: '#737373', fontWeight: 600, flexShrink: 0,
+                }}>
+                  3
+                </span>
+                <span style={{ fontSize: 13, color: '#a3a3a3', fontWeight: 500 }}>Run in terminal</span>
+              </div>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: '#0a0a0a', border: '1px solid #2a2a2a',
+                borderRadius: 6, padding: '8px 12px', marginLeft: 28,
               }}>
-                {JSON.stringify({
-                  agents: { defaults: { workspace: '~/openclaw-workspace' } },
-                }, null, 2)}
-              </pre>
-              <button
-                onClick={() => handleCopy(JSON.stringify({
-                  agents: { defaults: { workspace: '~/openclaw-workspace' } },
-                }, null, 2), 'd-occonfig')}
-                style={{
-                  position: 'absolute', top: 6, right: 6,
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center',
-                  color: copiedField === 'd-occonfig' ? '#4ade80' : '#666',
-                }}
-              >
-                {copiedField === 'd-occonfig' ? <CheckIcon /> : <CopyIcon />}
-              </button>
+                <code style={{
+                  flex: 1, fontSize: 12, color: '#a3a3a3',
+                  fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.5,
+                }}>
+                  {upCmd}
+                </code>
+                <button
+                  onClick={() => handleCopy(upCmd, 'd-up')}
+                  style={{
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    color: copiedField === 'd-up' ? '#4ade80' : '#525252',
+                    padding: 4, borderRadius: 4, display: 'flex',
+                    alignItems: 'center', flexShrink: 0,
+                  }}
+                >
+                  {copiedField === 'd-up' ? <CheckIcon /> : <CopyIcon />}
+                </button>
+              </div>
             </div>
-            <p style={{ fontSize: 11, color: '#525252', marginTop: 6 }}>
-              Add to ~/.config/openclaw/config.json — use the same path as Step 2.
-            </p>
           </div>
+
+          {/* Footer hint */}
+          <p style={{ fontSize: 11, color: '#404040', marginTop: 20, lineHeight: 1.5, textAlign: 'center' }}>
+            The sync daemon runs in the background — you can close the terminal.
+          </p>
         </div>
       </div>
     </div>
@@ -234,27 +254,35 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
   const [connectionStatus, setConnectionStatus] = useState<{
     connected: boolean;
     workspace_path?: string;
+    last_seen_at?: string;
   }>({ connected: false });
 
   const pollRef = useRef<ReturnType<typeof setInterval>>();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const checkStatus = useCallback(async () => {
+    try {
+      const resp = await get<{ connected: boolean; workspace_path?: string; last_seen_at?: string }>(`/api/v1/agent-config/${agent.id}/openclaw-status`);
+      if (resp) {
+        setConnectionStatus(resp);
+      }
+    } catch {}
+  }, [agent.id]);
 
   useEffect(() => {
-    let active = true;
-    async function checkStatus() {
-      try {
-        const resp = await get(`/api/v1/agent-config/${agent.id}/openclaw-status`) as { data?: { connected: boolean; workspace_path?: string } };
-        if (active && resp?.data) {
-          setConnectionStatus(resp.data);
-        }
-      } catch {}
-    }
     checkStatus();
-    pollRef.current = setInterval(checkStatus, 10_000);
+    const POLL_INTERVAL = 60_000;
+    pollRef.current = setInterval(checkStatus, POLL_INTERVAL);
     return () => {
-      active = false;
-      clearInterval(pollRef.current);
+      if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [agent.id]);
+  }, [checkStatus]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await checkStatus();
+    setTimeout(() => setRefreshing(false), 600);
+  }, [checkStatus]);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
   const accessKey = agent.mcp_api_key || '<access-key>';
@@ -269,9 +297,30 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
   }, []);
 
   const resources = agent.resources ?? [];
+  const isConnected = connectionStatus.connected;
+  const hasEverConnected = !!connectionStatus.last_seen_at;
+
+  const statusLabel = isConnected
+    ? 'Sync active'
+    : hasEverConnected
+      ? 'Daemon offline'
+      : 'Waiting for CLI';
+  const statusColor = isConnected ? '#22c55e' : hasEverConnected ? '#ef4444' : '#f59e0b';
+  const statusTextColor = isConnected ? '#e5e5e5' : hasEverConnected ? '#fca5a5' : '#a3a3a3';
+
+  const lastSeenText = useMemo(() => {
+    if (!connectionStatus.last_seen_at) return null;
+    const ms = Date.now() - new Date(connectionStatus.last_seen_at).getTime();
+    if (ms < 0) return 'just now';
+    if (ms < 60_000) return `${Math.floor(ms / 1000)}s ago`;
+    if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+    if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+    return `${Math.floor(ms / 86_400_000)}d ago`;
+  }, [connectionStatus.last_seen_at]);
 
   return (
     <>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Header */}
         <div style={{
@@ -285,7 +334,7 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 16 }}>🦞</span>
-            <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: '#ededed' }}>
               {agent.name}
             </span>
           </div>
@@ -296,9 +345,10 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
               style={{
                 background: 'transparent', border: 'none', cursor: 'pointer',
                 color: '#666', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', padding: 4, borderRadius: 4,
+                justifyContent: 'center', padding: 6, borderRadius: 4,
+                transition: 'color 0.15s'
               }}
-              onMouseEnter={e => e.currentTarget.style.color = '#aaa'}
+              onMouseEnter={e => e.currentTarget.style.color = '#ededed'}
               onMouseLeave={e => e.currentTarget.style.color = '#666'}
             >
               <SettingsIcon />
@@ -309,7 +359,8 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
               style={{
                 background: 'transparent', border: 'none', cursor: 'pointer',
                 color: '#666', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', padding: 4, borderRadius: 4,
+                justifyContent: 'center', padding: 6, borderRadius: 4,
+                transition: 'color 0.15s'
               }}
               onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
               onMouseLeave={e => e.currentTarget.style.color = '#666'}
@@ -320,105 +371,225 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-          {/* Status card */}
+          {/* Sync Status Card (Hero) */}
           <div style={{
-            background: '#111',
+            background: 'linear-gradient(180deg, #161616 0%, #0d0d0d 100%)',
             border: '1px solid #2a2a2a',
-            borderRadius: 8,
-            padding: 14,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
+            borderRadius: 12,
+            overflow: 'hidden',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: '#737373' }}>Access Key</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <code style={{ fontSize: 11, color: '#a3a3a3', fontFamily: 'monospace' }}>
-                  {maskedKey}
-                </code>
+            {/* Visual Area */}
+            <div style={{ padding: '36px 32px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              
+              {/* Row 1: Icons & Line (Perfectly Aligned) */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                
+                {/* Local Icon */}
+                <div style={{
+                  width: 52, height: 52, borderRadius: 12,
+                  background: '#1a1a1a',
+                  border: `1px solid ${hasEverConnected && !isConnected ? '#7f1d1d' : '#333'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  color: isConnected ? '#e5e5e5' : '#525252',
+                  flexShrink: 0,
+                  zIndex: 2,
+                }}>
+                  <FolderIcon />
+                </div>
+
+                {/* Connection Line */}
+                <div style={{ flex: 1, position: 'relative', height: 2, margin: '0 12px' }}>
+                  <div style={{
+                    position: 'absolute', inset: 0,
+                    borderTop: isConnected
+                      ? '2px dashed #4ade80'
+                      : hasEverConnected
+                        ? '2px dashed #ef4444'
+                        : '2px dashed #333',
+                    opacity: isConnected ? 0.4 : hasEverConnected ? 0.6 : 1,
+                    top: -1,
+                  }} />
+
+                  <div style={{
+                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                    background: '#161616',
+                    padding: '0 4px',
+                  }}>
+                    {isConnected ? (
+                      <div style={{
+                        width: 24, height: 24, borderRadius: '50%',
+                        background: '#22c55e',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#000',
+                        boxShadow: '0 0 12px rgba(34, 197, 94, 0.4)'
+                      }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                    ) : hasEverConnected ? (
+                      <div style={{
+                        width: 24, height: 24, borderRadius: '50%',
+                        background: '#ef4444',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff',
+                        boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)'
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div style={{
+                        width: 16, height: 16, borderRadius: '50%',
+                        background: '#1a1a1a', border: '2px solid #333',
+                      }} />
+                    )}
+                  </div>
+                </div>
+
+                {/* Remote Icon */}
+                <div style={{
+                  width: 52, height: 52, borderRadius: 12,
+                  background: '#1a1a1a',
+                  border: `1px solid ${hasEverConnected && !isConnected ? '#7f1d1d' : '#333'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  color: isConnected ? '#e5e5e5' : '#525252',
+                  flexShrink: 0,
+                  zIndex: 2,
+                }}>
+                  <FolderIcon />
+                </div>
+              </div>
+
+              {/* Row 2: Text Labels */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ width: 120, textAlign: 'left' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#ededed' }}>OpenClaw</div>
+                  <div style={{ 
+                    fontSize: 11, color: '#737373', marginTop: 4, fontFamily: 'monospace',
+                    wordBreak: 'break-all', lineHeight: 1.4 
+                  }} title={connectionStatus.workspace_path}>
+                    {isConnected && connectionStatus.workspace_path
+                      ? connectionStatus.workspace_path.replace(/^\/Users\/[^/]+/, '~')
+                      : '~/.openclaw/workspace'}
+                  </div>
+                </div>
+
+                <div style={{ width: 120, textAlign: 'right' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#ededed' }}>PuppyOne</div>
+                  <div style={{ 
+                    fontSize: 11, color: '#737373', marginTop: 4,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                  }}>
+                    {resources.length > 0 ? resources[0].nodeName : agent.name}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Action Footer */}
+            <div style={{
+              background: '#0a0a0a',
+              borderTop: '1px solid #222',
+              padding: '12px 20px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: statusColor,
+                  boxShadow: isConnected ? '0 0 8px rgba(34,197,94,0.4)' : 'none',
+                  display: 'inline-block'
+                }} />
+                <span style={{ fontSize: 12, fontWeight: 500, color: statusTextColor }}>
+                  {statusLabel}
+                  {lastSeenText && (
+                    <span style={{ fontWeight: 400, color: '#525252', marginLeft: 4 }}>
+                      · {lastSeenText}
+                    </span>
+                  )}
+                </span>
                 <button
-                  onClick={() => handleCopy(accessKey, 'key')}
+                  onClick={handleRefresh}
+                  title="Refresh status"
                   style={{
                     background: 'transparent', border: 'none', cursor: 'pointer',
-                    color: copiedField === 'key' ? '#4ade80' : '#666',
-                    padding: 2, display: 'flex', alignItems: 'center',
+                    color: '#525252', padding: 4, borderRadius: 4, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    transition: 'color 0.15s',
                   }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#a3a3a3'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#525252'}
                 >
-                  {copiedField === 'key' ? <CheckIcon /> : <CopyIcon />}
+                  <svg
+                    width="13" height="13" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" strokeWidth="2.5"
+                    strokeLinecap="round" strokeLinejoin="round"
+                    style={{
+                      animation: refreshing ? 'spin 0.6s linear' : 'none',
+                    }}
+                  >
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
                 </button>
               </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: '#737373' }}>Synced folders</span>
-              <span style={{ fontSize: 12, color: '#e5e5e5' }}>{resources.length}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: '#737373' }}>Status</span>
-              {connectionStatus.connected ? (
-                <span style={{ fontSize: 12, color: '#22c55e', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-                  Connected
-                </span>
-              ) : (
-                <span style={{ fontSize: 12, color: '#f59e0b' }}>Waiting for CLI connection</span>
-              )}
-            </div>
-            {connectionStatus.connected && connectionStatus.workspace_path && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, color: '#737373' }}>Workspace</span>
-                <code style={{ fontSize: 11, color: '#a3a3a3', fontFamily: 'monospace', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {connectionStatus.workspace_path}
-                </code>
-              </div>
-            )}
 
-            {/* Folder list */}
-            {resources.length > 0 && (
-              <div style={{ borderTop: '1px solid #1f1f1f', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {resources.map((r) => (
-                  <div key={r.nodeId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {/* Folder icon */}
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#a1a1aa' }}>
-                      <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z"
-                        fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="1.5" />
-                    </svg>
-                    <span style={{ fontSize: 12, color: '#d4d4d4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                      {r.nodeName}
-                    </span>
-                    {/* Sync direction badge */}
-                    <span style={{ fontSize: 10, color: '#525252', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>
-                      sync →
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+              <button
+                onClick={() => setShowSetup(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 16px', background: '#ededed',
+                  border: 'none', borderRadius: 6,
+                  fontSize: 12, fontWeight: 600, color: '#000',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >
+                {isConnected ? 'Manage' : 'Connect'}
+                <ArrowRightIcon />
+              </button>
+            </div>
+          </div>
 
-          {/* CTA inside status card, right below status row */}
-            <button
-              onClick={() => setShowSetup(true)}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                width: '100%', padding: '8px 12px', marginTop: 4,
-                background: '#1a1a1a', border: '1px solid #333',
-                borderRadius: 6, cursor: 'pointer',
-                fontSize: 12, fontWeight: 500, color: '#e5e5e5',
-                transition: 'all 150ms',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = '#222';
-                e.currentTarget.style.borderColor = '#444';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = '#1a1a1a';
-                e.currentTarget.style.borderColor = '#333';
-              }}
-            >
-              How to connect
-              <ArrowRightIcon />
-            </button>
+          {/* Access Key Section (Subtle) */}
+          <div style={{ padding: '0 4px' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
+              Credentials
+            </div>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: '#111', border: '1px solid #2a2a2a', borderRadius: 8,
+              padding: '10px 12px',
+            }}>
+              <div style={{ fontSize: 12, color: '#525252', fontWeight: 500 }}>Access Key</div>
+              <div style={{ width: 1, height: 16, background: '#2a2a2a' }} />
+              <code style={{
+                flex: 1, fontSize: 12, color: '#a3a3a3', fontFamily: 'monospace',
+                background: 'transparent', border: 'none'
+              }}>
+                {maskedKey}
+              </code>
+              <button
+                onClick={() => handleCopy(accessKey, 'key')}
+                style={{
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: copiedField === 'key' ? '#4ade80' : '#525252',
+                  padding: 4, display: 'flex', alignItems: 'center',
+                }}
+              >
+                {copiedField === 'key' ? <CheckIcon /> : <CopyIcon />}
+              </button>
+            </div>
           </div>
 
         </div>

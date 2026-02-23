@@ -78,6 +78,21 @@ class SyncSourceRepository:
             query = query.eq("adapter_type", adapter_type)
         return [self._to_model(r) for r in query.execute().data]
 
+    def find_active_by_config_key(
+        self, adapter_type: str, key: str, value: str,
+    ) -> Optional[SyncSource]:
+        """Find a single active source whose config->>key matches value."""
+        response = (
+            self.client.table(self.TABLE)
+            .select("*")
+            .eq("adapter_type", adapter_type)
+            .eq("status", "active")
+            .eq("config->>"+key, value)
+            .limit(1)
+            .execute()
+        )
+        return self._to_model(response.data[0]) if response.data else None
+
     def update_config(self, source_id: int, config: dict) -> None:
         self.client.table(self.TABLE).update({
             "config": config, "updated_at": self._now(),
@@ -86,6 +101,12 @@ class SyncSourceRepository:
     def update_status(self, source_id: int, status: str) -> None:
         self.client.table(self.TABLE).update({
             "status": status, "updated_at": self._now(),
+        }).eq("id", source_id).execute()
+
+    def touch_heartbeat(self, source_id: int) -> None:
+        """Update updated_at as daemon heartbeat."""
+        self.client.table(self.TABLE).update({
+            "updated_at": self._now(),
         }).eq("id", source_id).execute()
 
     def update_error(self, source_id: int, error: str) -> None:

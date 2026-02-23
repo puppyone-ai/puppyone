@@ -279,14 +279,18 @@ async def app_lifespan(app: FastAPI):
         from src.s3.service import S3Service
         from src.supabase.client import SupabaseClient
 
+        from src.sync.changelog import SyncChangelogRepository
+
         supabase = SupabaseClient()
         node_repo = ContentNodeRepository(supabase)
         s3_service = S3Service()
+        changelog_repo = SyncChangelogRepository(supabase)
         version_svc = CollabVersionService(
             node_repo=node_repo,
             version_repo=FileVersionRepository(supabase),
             snapshot_repo=FolderSnapshotRepository(supabase),
             s3_service=s3_service,
+            changelog_repo=changelog_repo,
         )
         node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service, version_service=version_svc)
 
@@ -431,6 +435,8 @@ def create_app() -> FastAPI:
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
     from src.sync.router import router as sync_router
     app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
+    from src.sync.folder_router import router as folder_sync_router
+    app.include_router(folder_sync_router, tags=["folder-sync"])
     from src.access.openclaw.router import router as openclaw_router
     app.include_router(openclaw_router, tags=["access-openclaw"])
     from src.auth.router import router as auth_router

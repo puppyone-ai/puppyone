@@ -36,6 +36,15 @@ from src.access.chat.sandbox_data import (
 from src.analytics.service import log_context_access, log_bash_execution
 import time as time_module  # For latency tracking
 
+def _get_changelog_repo(supabase_client):
+    """Lazy import to avoid circular dependency."""
+    try:
+        from src.sync.changelog import SyncChangelogRepository
+        return SyncChangelogRepository(supabase_client)
+    except Exception:
+        return None
+
+
 # Anthropic 官方 bash 工具（Computer Use 格式，仅官方 API 支持）
 BASH_TOOL_NATIVE = {"type": "bash_20250124", "name": "bash"}
 
@@ -1273,6 +1282,7 @@ class AgentService:
                             version_repo=CollabFileVersionRepo(_sb),
                             snapshot_repo=CollabFolderSnapshotRepo(_sb),
                             s3_service=S3Service(),
+                            changelog_repo=_get_changelog_repo(_sb),
                         ),
                         audit_service=AuditService(audit_repo=AuditRepository(_sb)),
                     )

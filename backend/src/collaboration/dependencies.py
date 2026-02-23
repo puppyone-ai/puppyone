@@ -21,6 +21,7 @@ from src.collaboration.conflict_service import ConflictService
 from src.collaboration.lock_service import LockService
 from src.collaboration.audit_service import AuditService
 from src.collaboration.service import CollaborationService
+from src.sync.changelog import SyncChangelogRepository
 
 
 def _get_supabase_client() -> SupabaseClient:
@@ -45,14 +46,21 @@ def _get_folder_snapshot_repository(
     return FolderSnapshotRepository(supabase)
 
 
+def _get_changelog_repository(
+    supabase: SupabaseClient = Depends(_get_supabase_client),
+) -> SyncChangelogRepository:
+    return SyncChangelogRepository(supabase)
+
+
 def get_version_service(
     node_repo: ContentNodeRepository = Depends(_get_content_node_repository),
     version_repo: FileVersionRepository = Depends(_get_file_version_repository),
     snapshot_repo: FolderSnapshotRepository = Depends(_get_folder_snapshot_repository),
     s3_service: S3Service = Depends(get_s3_service),
+    changelog_repo: SyncChangelogRepository = Depends(_get_changelog_repository),
 ) -> VersionService:
     """获取 VersionService（向后兼容 + 内部使用）"""
-    return VersionService(node_repo, version_repo, snapshot_repo, s3_service)
+    return VersionService(node_repo, version_repo, snapshot_repo, s3_service, changelog_repo)
 
 
 def get_conflict_service() -> ConflictService:

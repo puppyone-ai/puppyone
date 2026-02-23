@@ -52,7 +52,7 @@ import {
   replacePlaceholderTasks,
   removeFailedPlaceholders,
 } from '@/components/BackgroundTaskNotifier';
-import { getNode, createFolder, createMarkdownNode, getDownloadUrl, updateNode, deleteNode, type NodeInfo } from '@/lib/contentNodesApi';
+import { getNode, createFolder, createJsonNode, createMarkdownNode, getDownloadUrl, updateNode, deleteNode, type NodeInfo } from '@/lib/contentNodesApi';
 import { createTable } from '@/lib/projectsApi';
 import { refreshProjects } from '@/lib/hooks/useData';
 
@@ -310,9 +310,18 @@ export default function DataPage({ params }: DataPageProps) {
 
   // Create menu state
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const [createMenuPosition, setCreateMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [createMenuPosition, setCreateMenuPosition] = useState<{ x: number; y: number; anchorLeft: number } | null>(null);
   const [createInFolderId, setCreateInFolderId] = useState<string | null | undefined>(undefined); // undefined = use currentFolderId
   const createMenuRef = useRef<HTMLDivElement>(null);
+
+  // Highlight newly created node (auto-clears after animation)
+  const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const highlightCreatedNode = useCallback((nodeId: string) => {
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    setHighlightNodeId(nodeId);
+    highlightTimerRef.current = setTimeout(() => setHighlightNodeId(null), 2500);
+  }, []);
 
   // Tool creation panel state
   const [toolPanelTarget, setToolPanelTarget] = useState<{ id: string; name: string; type: string; jsonPath?: string } | null>(null);
@@ -870,7 +879,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   const handleCreateClick = (e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+    setCreateMenuPosition({ x: rect.right + 4, y: rect.top, anchorLeft: rect.left });
     setCreateInFolderId(undefined); 
     setCreateMenuOpen(true);
   };
@@ -879,7 +888,7 @@ export default function DataPage({ params }: DataPageProps) {
     e.preventDefault();
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setCreateMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+    setCreateMenuPosition({ x: rect.right + 4, y: rect.top, anchorLeft: rect.left });
     setCreateInFolderId(parentId); 
     setCreateMenuOpen(true);
   };
@@ -1012,6 +1021,7 @@ export default function DataPage({ params }: DataPageProps) {
               onRename={handleRename}
               onDelete={handleDelete}
               agentResources={agentResources}
+              highlightNodeId={highlightNodeId}
               style={{
                 width: 250,
                 borderRight: '1px solid rgba(255,255,255,0.1)',
@@ -1234,6 +1244,7 @@ export default function DataPage({ params }: DataPageProps) {
                     onRefresh={handleRefresh}
                     onCreateTool={handleCreateTool}
                     agentResources={agentResources}
+                    highlightNodeId={highlightNodeId}
                   />
               )}
             </div>
@@ -1423,13 +1434,18 @@ export default function DataPage({ params }: DataPageProps) {
           <CreateMenu
             x={createMenuPosition.x}
             y={createMenuPosition.y}
+            anchorLeft={createMenuPosition.anchorLeft}
               onClose={() => setCreateMenuOpen(false)}
               onCreateFolder={async () => {
                 const targetFolderId = createInFolderId === undefined ? currentFolderId : createInFolderId;
                 try {
-                  await createFolder('New Folder', projectId, targetFolderId);
+                  const result = await createFolder('New Folder', projectId, targetFolderId);
                   if (targetFolderId) ensureExpanded(targetFolderId);
-                  refreshAllContentNodes(projectId);
+                  await refreshAllContentNodes(projectId);
+                  if (result?.id) {
+                    ensureExpanded(result.id);
+                    highlightCreatedNode(result.id);
+                  }
                 } catch (err) {
                   console.error('Failed to create folder:', err);
                 }
@@ -1437,9 +1453,14 @@ export default function DataPage({ params }: DataPageProps) {
               onCreateBlankJson={async () => {
                 const targetFolderId = createInFolderId === undefined ? currentFolderId : createInFolderId;
                 try {
-                  await createTable(projectId, 'Untitled', {}, targetFolderId);
+                  const result = await createJsonNode('Untitled', projectId, {}, targetFolderId);
                   if (targetFolderId) ensureExpanded(targetFolderId);
-                  refreshAllContentNodes(projectId);
+                  await refreshAllContentNodes(projectId);
+                  if (result?.id) {
+                    highlightCreatedNode(result.id);
+                    const navPath = result.id_path?.replace(/^\//, '') || result.id;
+                    router.push(`/projects/${projectId}/data/${navPath}`);
+                  }
                 } catch (err) {
                   console.error('Failed to create JSON:', err);
                 }
@@ -1447,9 +1468,14 @@ export default function DataPage({ params }: DataPageProps) {
               onCreateBlankMarkdown={async () => {
                 const targetFolderId = createInFolderId === undefined ? currentFolderId : createInFolderId;
                 try {
-                  await createMarkdownNode('Untitled Note', projectId, '', targetFolderId);
+                  const result = await createMarkdownNode('Untitled Note', projectId, '', targetFolderId);
                   if (targetFolderId) ensureExpanded(targetFolderId);
-                  refreshAllContentNodes(projectId);
+                  await refreshAllContentNodes(projectId);
+                  if (result?.id) {
+                    highlightCreatedNode(result.id);
+                    const navPath = result.id_path?.replace(/^\//, '') || result.id;
+                    router.push(`/projects/${projectId}/data/${navPath}`);
+                  }
                 } catch (err) {
                   console.error('Failed to create markdown:', err);
                 }

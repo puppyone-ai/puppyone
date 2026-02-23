@@ -148,6 +148,9 @@ async def complete_workspace(
     version_repo = FileVersionRepository(supabase)
     snapshot_repo = FolderSnapshotRepository(supabase)
 
+    from src.sync.changelog import SyncChangelogRepository
+    changelog_repo = SyncChangelogRepository(supabase)
+
     collab_service = CollaborationService(
         node_repo=node_repo,
         lock_service=LockService(node_repo),
@@ -157,6 +160,7 @@ async def complete_workspace(
             version_repo=version_repo,
             snapshot_repo=snapshot_repo,
             s3_service=s3_service,
+            changelog_repo=changelog_repo,
         ),
         audit_service=AuditService(audit_repo=AuditRepository(supabase)),
     )

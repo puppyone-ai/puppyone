@@ -40,12 +40,17 @@ export function clearConfig() {
  * Returns { api_url, api_key } or throws with a helpful message.
  */
 export function resolveAuth(cmdOrOpts) {
-  const root = cmdOrOpts?.parent ?? cmdOrOpts;
-  const opts = root.opts?.() ?? root;
+  let cur = cmdOrOpts;
+  let merged = {};
+  while (cur) {
+    const o = cur.opts?.() ?? {};
+    merged = { ...o, ...merged };
+    cur = cur.parent;
+  }
   const config = loadConfig();
 
-  const apiUrl = opts.apiUrl ?? config.api_url ?? DEFAULTS.api_url;
-  const apiKey = opts.apiKey ?? config.api_key;
+  const apiUrl = merged.apiUrl ?? config.api_url ?? DEFAULTS.api_url;
+  const apiKey = merged.apiKey ?? config.api_key;
 
   return { apiUrl, apiKey };
 }

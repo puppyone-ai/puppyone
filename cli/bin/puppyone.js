@@ -1,7 +1,17 @@
 #!/usr/bin/env node
 
 import { program } from "commander";
-import { registerLogin, registerLogout, registerWhoami } from "../src/commands/login.js";
+import { version } from "../src/version.js";
+
+// New command groups (primary)
+import { registerAuth, registerLegacyAuthAliases } from "../src/commands/auth.js";
+import { registerAccess } from "../src/commands/access.js";
+
+// Backward-compat aliases
+import { registerOpenClaw } from "../src/commands/openclaw.js";
+import { registerGlobalCommands } from "../src/commands/global.js";
+
+// Legacy commands (to be deprecated)
 import { registerConnect } from "../src/commands/connect.js";
 import { registerSync } from "../src/commands/sync.js";
 import { registerWatch } from "../src/commands/watch.js";
@@ -10,8 +20,8 @@ import { registerDisconnect } from "../src/commands/disconnect.js";
 
 program
   .name("puppyone")
-  .description("PuppyOne CLI — sync local folders with PuppyOne cloud projects")
-  .version("0.1.0", "-V, --version");
+  .description("PuppyOne CLI — cloud file system for LLM agents")
+  .version(version, "-V, --version");
 
 program
   .option("-u, --api-url <url>", "PuppyOne API URL (overrides config)")
@@ -19,9 +29,20 @@ program
   .option("--json", "output as JSON (for AI / scripts)")
   .option("-v, --verbose", "verbose output");
 
-registerLogin(program);
-registerLogout(program);
-registerWhoami(program);
+// Primary command groups
+registerAuth(program);
+registerAccess(program);
+
+// Backward-compat: `puppyone openclaw *` = `puppyone access agent *`
+registerOpenClaw(program);
+
+// Backward-compat: `puppyone login/logout/whoami` (hidden)
+registerLegacyAuthAliases(program);
+
+// Backward-compat: top-level `puppyone ps`, `puppyone status`
+registerGlobalCommands(program);
+
+// Legacy commands
 registerConnect(program);
 registerSync(program);
 registerWatch(program);

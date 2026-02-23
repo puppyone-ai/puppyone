@@ -1,416 +1,275 @@
 # PuppyOne CLI — Interface Specification
 
-> Version: 0.4.0 | 2026-02-21
+> Version: 0.7.0 | 2026-02-22
 
-## Quick Start (OpenClaw)
-
-The fastest way to sync PuppyOne data with an OpenClaw agent workspace:
+## Quick Start
 
 ```bash
 npm install -g puppyone
-puppyone connect --key <access-key> ~/openclaw-workspace -u <api-url>
-puppyone watch --key <access-key>
+puppyone openclaw up ~/.openclaw/workspace --key <access-key> -u <api-url>
 ```
 
-That's it. Three commands: install, connect, watch.
+`up` 自动完成：注册工作区 → 认证 → 初始同步 → 启动后台 daemon。
+**终端立刻返回，同步在后台持续运行。** 路径是必填参数，可在任意目录下执行。
 
----
-
-## Two Modes
-
-The CLI supports two independent operating modes:
-
-| Mode | Auth | Use Case | Endpoints |
-|------|------|----------|-----------|
-| **OpenClaw mode** (`--key`) | Access Key (`X-Access-Key`) | Distribute PuppyOne data to agent workspaces | `/api/v1/access/openclaw/*` |
-| **Sync mode** (login) | JWT Bearer | Connect local folders as information sources | `/api/v1/sync/sources/*` |
-
-OpenClaw mode is for **distribution** (PuppyOne → agent). Sync mode is for **collection** (local files → PuppyOne).
-
----
-
-## OpenClaw Mode Commands
-
-### `puppyone connect --key`
-
-First-time connection: merge-sync the workspace folder with PuppyOne, then save the connection locally.
-
+之后再次启动只需：
 ```bash
-puppyone connect --key <access-key> <folder> [-u <api-url>] [--dir <subdir>]
+puppyone openclaw up ~/.openclaw/workspace
 ```
 
-| Arg/Flag | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `--key` | Yes | | Access key (`cli_` prefix, from PuppyOne UI) |
-| `<folder>` | Yes | | OpenClaw workspace folder path |
-| `-u, --api-url` | First time only | `http://localhost:9090` | PuppyOne API URL (saved for reuse) |
-
-#### Sync Strategy: Merge
-
-On first connect, the CLI merges both sides so they end up identical:
-
-| Cloud | Local | Action |
-|-------|-------|--------|
-| Has file | Missing | Cloud → write to local |
-| Missing | Has file | Local → push to cloud (create new node) |
-| Has file | Has file, same content | Skip |
-| Has file | Has file, different content | **Cloud wins** → overwrite local, backup old local to `.puppyone/backups/` |
-
-After merge, both sides have exactly the same files.
-
-**What happens behind the scenes:**
-1. `POST /api/v1/access/openclaw/connect { workspace_path }` — registers connection, returns cloud node list
-2. Scans local folder recursively (excluding `.puppyone/`, `.git/`, `node_modules/`, etc.)
-3. Compares cloud nodes vs local files by filename
-4. Executes merge: pulls missing files from cloud, pushes missing files to cloud
-5. For conflicts (same filename, different content): cloud wins, local backed up
-6. Saves connection to `~/.puppyone/config.json` under `openclaw_connections[]`
-
-**Example output:**
-```
-Connecting to PuppyOne...  ✓
-  Agent:   My OpenClaw Bot
-  Project: Marketing Context
-
-Merging ~/openclaw-workspace ↔ PuppyOne...
-
-  ↓ product_info.json        cloud → local (new)
-  ↓ pricing.json             cloud → local (new)
-  ↑ agent.md                 local → cloud (new node created)
-  ↑ soul.md                  local → cloud (new node created)
-  = faq.md                   identical, skip
-  ↓ config.json              conflict → cloud wins, local backed up
-
-✅ Synced. 2 pulled, 2 pushed, 1 conflict, 1 skipped.
+查看所有同步中的工作区：
+```bash
+puppyone ls
+puppyone ps
 ```
 
 ---
 
-### `puppyone pull --key`
+## 命令结构
 
-One-time pull: download latest cloud data to local folder.
-
-```bash
-puppyone pull --key <access-key>
 ```
-
-Pulls all nodes from cloud. Writes new files, overwrites changed files, skips unchanged. Does NOT push local changes.
-
----
-
-### `puppyone watch --key`
-
-Continuous bidirectional sync. Runs in foreground.
-
-```bash
-puppyone watch --key <access-key> [-i <interval>]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-i, --interval` | `30` | Remote poll interval in seconds (min 5) |
-
-#### How watch works
-
-Two sync directions run simultaneously:
-
-**Local → Cloud (file watcher):**
-- chokidar monitors the workspace folder
-- File modified → push to cloud (update existing node)
-- File created → push to cloud (create new node)
-- File deleted → notify cloud (archive/delete node)
-- Debounced 500ms to avoid rapid-fire syncs
-
-**Cloud → Local (polling):**
-- Every `interval` seconds, pull latest node versions
-- Node content changed → overwrite local file
-- New node created → write new local file
-- Node deleted → delete local file
-
-**Conflict resolution (both sides changed same file):**
-- Cloud wins → overwrite local
-- Local version backed up to `.puppyone/backups/<filename>.<timestamp>`
-
-**Startup reconciliation:**
-- On every `watch` start, a full merge runs first (same logic as `connect`)
-- Ensures nothing was missed while watch was not running
-
-**Example output:**
-```
-Watching ~/openclaw-workspace ↔ PuppyOne
-  API: https://api.puppyone.com
-  Poll: 30s
-
-  ↑ soul.md → v4
-  ↓ product_info.json v3 → v4
-  ↑ new_report.md → v1 (created)
-  ↓ config.json v5 → v6 (conflict, cloud wins, backed up)
-
-Ctrl+C to stop.
+puppyone
+├── openclaw (oc)              # OpenClaw Agent 工作区管理
+│   ├── up <path> [--key]      # 注册 + 连接 + 同步 + 启动 daemon
+│   ├── down <path>            # 停止后台 daemon
+│   ├── remove <path>          # 停止 + 断连 + 注销工作区
+│   ├── disconnect <path>      # 同 remove
+│   ├── logs <path> [-f]       # 查看同步日志
+│   └── trigger <path>         # 强制立即同步
+│
+├── ls                         # 列出所有注册工作区 + 状态
+├── ps                         # 列出所有运行中 daemon + 传输
+├── status [path]              # 工作区详细状态（省略 path = 全部）
+│
+├── login                      # JWT 登录（Sync 模式）
+├── logout                     # 退出登录
+├── whoami                     # 查看当前登录状态
+├── connect <folder>           # 通用文件夹同步连接
+├── sync                       # 一次性同步
+├── watch                      # 持续监听（前台）
+├── pull                       # 一次性拉取
+└── disconnect                 # 断开连接（通用）
 ```
 
 ---
 
-### `puppyone disconnect --key`
+## 全局命令
 
-Remove the connection. Deletes server-side sync source + local config. Does NOT delete local files.
+### `puppyone ls`
 
-```bash
-puppyone disconnect --key <access-key>
+列出所有注册的工作区及同步状态。
+
+```
+PuppyOne Workspaces
+
+  PATH                             NAME          STATUS        FILES   LAST SYNC
+  ~/.openclaw/workspace            My Agent      ● Syncing     142     2s ago
+  ~/projects/app                   App Data      ● Up to date   67     5m ago
+  ~/research                       —             ○ Stopped      —      1h ago
+
+  3 workspaces, 2 active
+```
+
+### `puppyone ps`
+
+列出所有运行中的 daemon 进程及活跃传输。
+
+```
+PuppyOne Processes
+
+  PID     WORKSPACE                      UPTIME     CURSOR   FILES
+  42381   ~/.openclaw/workspace          2h 15m     8847     142
+  42420   ~/projects/app                 45m        1203      67
+
+  Active Transfers:
+  ↑ report.pdf             45.2 / 120.0 MB   37%  ████████░░░░░░░░░░░░
+
+  2 processes, 1 active transfer
+```
+
+### `puppyone status [path]`
+
+单个工作区的详细状态（省略 path 则显示所有工作区）。
+
+```
+Workspace: ~/.openclaw/workspace
+Name:      My Agent
+
+  Connection
+    API:        http://localhost:9090
+    Agent:      019c850e-ab2c-7f64-a021-bc3b56df6db5
+    Project:    proj_abc123
+
+  Daemon
+    Status:     ● Running (PID 42381)
+    Uptime:     2h 15m
+    Cursor:     8847
+
+  Sync
+    Files:      142 tracked
+    Last Sync:  2s ago
+    Conflicts:  1
+      - notes.md (2h ago)
 ```
 
 ---
 
-## Sync Mode Commands
+## OpenClaw 模式命令
 
-These commands use JWT authentication (from `puppyone login`) and the `/api/v1/sync/sources/*` endpoints. Used for **collecting** data from local folders into PuppyOne — a different use case from OpenClaw distribution.
+### `puppyone openclaw up <path>`
 
-### `puppyone login`
-
-```bash
-puppyone login [-e <email>] [-p <password>] [-u <api-url>]
-```
-
-Signs in via email/password. Saves JWT to `~/.puppyone/config.json`.
-
-For CI/scripts, provide token directly: `puppyone login -k <token>`
-
-### `puppyone logout`
+**一键启动**：注册工作区 → 连接 → 初始同步 → 启动后台 daemon。
 
 ```bash
-puppyone logout
+puppyone openclaw up ~/my-workspace --key <access-key> [-u <api-url>]
 ```
 
-Clears saved credentials.
+| 参数/选项 | 必填 | 默认值 | 说明 |
+|-----------|------|--------|------|
+| `<path>` | **是** | — | 工作区文件夹的绝对或相对路径 |
+| `--key` | 首次必填 | — | Access Key（来自 PuppyOne UI） |
+| `-u, --api-url` | 否 | `http://localhost:9090` | PuppyOne API 地址 |
 
-### `puppyone whoami`
+**安全检查**：拒绝 `/`、`~`、`/usr` 等危险路径。
+
+**首次运行输出：**
+```
+PuppyOne CLI v0.7.0
+
+  Authenticating...    Connected to "My Agent"
+  Syncing...           2 pulled, 3 pushed, 0 conflicts
+  Daemon starting...   PID 42381
+
+Sync is running in background.
+  Status:  puppyone openclaw status /Users/me/workspace
+  Logs:    puppyone openclaw logs /Users/me/workspace
+  Stop:    puppyone openclaw down /Users/me/workspace
+```
+
+### `puppyone openclaw down <path>`
+
+停止后台 daemon（保留注册信息，`puppyone ls` 仍可见为 "Stopped"）。
 
 ```bash
-puppyone whoami
+puppyone openclaw down ~/my-workspace
 ```
 
-Shows login status and checks server connectivity.
+### `puppyone openclaw remove <path>`
 
-### `puppyone sync`
+停止 daemon → 断开云端连接 → 从全局注册表移除。本地文件不删除。
 
 ```bash
-puppyone sync [-s <source-id>] [-d <direction>]
+puppyone openclaw remove ~/my-workspace
 ```
 
-One-time sync for JWT-based connections. Direction: `push` | `pull` | `both` (default: `both`).
-
-### `puppyone status`
+### `puppyone openclaw logs <path>`
 
 ```bash
-puppyone status [-s <source-id>]
+puppyone openclaw logs ~/my-workspace          # 最近日志
+puppyone openclaw logs ~/my-workspace -f       # 实时跟踪
 ```
 
-Shows status of all connections.
+### `puppyone openclaw trigger <path>`
+
+向 daemon 发送 SIGUSR1 信号，触发一次立即同步。
 
 ---
 
-## Ignored Files
+## 架构
 
-The CLI never syncs these:
+### 进程模型
+
+每个工作区运行一个独立的 daemon 进程。全局状态通过注册表和统计文件聚合。
 
 ```
-.puppyone/          CLI working directory
+~/.puppyone/                       ← 全局目录
+├── config.json                    ← 认证、API URL
+└── registry.json                  ← 所有工作区注册表
+
+<workspace>/.puppyone/             ← Per-workspace
+├── state.json                     ← 同步状态（文件映射 + 连接信息 + cursor）
+├── daemon.pid                     ← daemon 进程 PID
+├── daemon.log                     ← daemon 日志
+├── stats.json                     ← daemon 实时统计（ls/ps/status 读取）
+└── backups/                       ← 冲突备份
+```
+
+### stats.json
+
+Daemon 在以下时机更新：
+- 启动时：写入 `pid`, `started_at`
+- 每次 pull/long-poll 完成：更新 `last_sync_at`, `files_tracked`, `cursor`
+- S3 传输开始/完成：更新 `transfers.active[]`
+- 冲突发生：写入 `conflicts[]`
+- 错误：写入 `last_error`
+
+`puppyone ls` / `puppyone ps` / `puppyone status` 读取该文件呈现实时数据。
+
+### registry.json
+
+全局工作区注册表。`openclaw up` 注册，`openclaw remove` 注销，`openclaw down` 保留。
+
+### Daemon 通信
+
+- Cloud → Local：HTTP Long Poll（`/access/openclaw/changes`，30s 超时，指数退避）
+- Local → Cloud：chokidar 文件监听 → push API / S3 presigned upload
+- CLI → Daemon：通过 `stats.json` + `daemon.pid` 间接通信（只读）
+- CLI → Daemon 控制：SIGTERM（停止）、SIGUSR1（触发同步）
+
+### 文件分流
+
+| 文件类型 | 上传通道 | 下载通道 |
+|----------|----------|----------|
+| `.json`, `.md`, `.markdown` | API body (`/push`) | API body (`/pull`) |
+| 其他所有文件 | S3 Presigned URL | S3 Presigned URL |
+
+---
+
+## 后端 API 端点
+
+| CLI 操作 | HTTP | 端点 | 认证 |
+|----------|------|------|------|
+| connect | POST | `/api/v1/access/openclaw/connect` | X-Access-Key |
+| pull | GET | `/api/v1/access/openclaw/pull?cursor=N` | X-Access-Key |
+| long poll | GET | `/api/v1/access/openclaw/changes?cursor=N&timeout=30` | X-Access-Key |
+| push (inline) | POST | `/api/v1/access/openclaw/push` | X-Access-Key |
+| upload URL | POST | `/api/v1/access/openclaw/upload-url` | X-Access-Key |
+| confirm upload | POST | `/api/v1/access/openclaw/confirm-upload` | X-Access-Key |
+| status | GET | `/api/v1/access/openclaw/status` | X-Access-Key |
+| disconnect | DELETE | `/api/v1/access/openclaw/disconnect` | X-Access-Key |
+
+---
+
+## 全局配置
+
+路径：`~/.puppyone/config.json`
+
+```json
+{
+  "api_url": "http://localhost:9090",
+  "api_key": null
+}
+```
+
+---
+
+## 忽略的文件
+
+硬编码忽略（不可配置）：
+```
+.puppyone/
 .git/
 node_modules/
 __pycache__/
 .DS_Store
 .env
-*.log
-```
-
-Supported file types: `.json`, `.md`, `.markdown`, `.txt`, `.yaml`, `.yml`
-
----
-
-## Local Working Directory
-
-The CLI creates a `.puppyone/` directory inside the workspace:
-
-```
-~/openclaw-workspace/
-├── .puppyone/                  ← CLI internal (add to .gitignore)
-│   ├── state.json              ← filename ↔ node_id mapping + versions
-│   └── backups/                ← conflict backups
-│       └── config.json.1708412345
-├── agent.md                    ← synced
-├── soul.md                     ← synced
-├── product_info.json           ← synced
-└── ...
-```
-
-`state.json` tracks which local files map to which cloud nodes:
-
-```json
-{
-  "files": {
-    "agent.md": { "node_id": "abc-123", "version": 4, "hash": "sha256..." },
-    "product_info.json": { "node_id": "def-456", "version": 3, "hash": "sha256..." }
-  },
-  "connection": {
-    "access_key": "cli_xxxxx",
-    "api_url": "https://api.puppyone.com",
-    "source_id": "...",
-    "agent_id": "...",
-    "project_id": "..."
-  }
-}
 ```
 
 ---
 
-## Config File
+## 退出码
 
-Path: `~/.puppyone/config.json`
-
-```json
-{
-  "api_url": "https://api.puppyone.dev",
-  "api_key": "eyJhbGciOi...",
-  "refresh_token": "...",
-  "user_email": "user@example.com",
-  "openclaw_connections": [
-    {
-      "access_key": "cli_xxxxx",
-      "api_url": "https://api.puppyone.com",
-      "folder": "/home/user/openclaw-workspace"
-    }
-  ],
-  "connections": [
-    {
-      "source_id": 1,
-      "folder": "/Users/me/my-workspace",
-      "project_id": "abc-123",
-      "sync_mode": "bidirectional"
-    }
-  ]
-}
-```
-
----
-
-## Backend API Dependencies
-
-### OpenClaw Mode Endpoints
-
-| CLI Command | HTTP Method | Endpoint | Auth | Status |
-|-------------|-------------|----------|------|--------|
-| `connect --key` | POST | `/api/v1/access/openclaw/connect` | X-Access-Key | ✅ Done |
-| `pull --key` | GET | `/api/v1/access/openclaw/pull` | X-Access-Key | ✅ Done |
-| `watch --key` (push) | POST | `/api/v1/access/openclaw/push` | X-Access-Key | ✅ Done |
-| `watch --key` (push new) | POST | `/api/v1/access/openclaw/push` | X-Access-Key | 🔧 Needs: create-node support |
-| `watch --key` (pull) | GET | `/api/v1/access/openclaw/pull` | X-Access-Key | ✅ Done |
-| `disconnect --key` | DELETE | `/api/v1/access/openclaw/disconnect` | X-Access-Key | ✅ Done |
-| `connect --key` (status) | GET | `/api/v1/access/openclaw/status` | X-Access-Key | ✅ Done |
-
-### Sync Mode Endpoints
-
-| CLI Command | HTTP Method | Endpoint | Auth | Status |
-|-------------|-------------|----------|------|--------|
-| `login` | POST | `/api/v1/auth/login` | None | ✅ Done |
-| `whoami` | GET | `/health` | Bearer | ✅ Done |
-| `connect` | POST | `/api/v1/sync/sources` | Bearer | ✅ Done |
-| `disconnect` | DELETE | `/api/v1/sync/sources/{id}` | Bearer | ✅ Done |
-| `sync` (push) | POST | `/api/v1/sync/sources/{id}/push-file` | Bearer | ✅ Done |
-| `sync` (pull) | GET | `/api/v1/sync/sources/{id}/pull-files` | Bearer | ✅ Done |
-| `sync` (ack) | POST | `/api/v1/sync/sources/{id}/ack-pull` | Bearer | ✅ Done |
-| `status` | GET | `/api/v1/sync/sources` | Bearer | ✅ Done |
-
-### Backend Changes Needed for Full OpenClaw Merge
-
-1. **`POST /access/openclaw/push`**: Support `node_id: null` to create new content nodes from local files
-2. **`GET /access/openclaw/pull`**: Return ALL nodes (including those created via push), not just agent_bash pre-bound ones
-3. **`DELETE /access/openclaw/push`** or flag: Support marking nodes as deleted when local file is removed
-
----
-
-## Sync Mechanism Detail
-
-### Core Principle
-
-**Cloud is the source of truth.** When both sides change the same file, cloud wins.
-
-### First Connect (Merge)
-
-```
-┌─────────────┐         ┌─────────────┐
-│  PuppyOne   │         │   Local     │
-│  Cloud      │         │   Folder    │
-│             │         │             │
-│  A.json v3  │───↓────▶│  A.json     │  Cloud → Local (new)
-│  B.md   v1  │───↓────▶│  B.md       │  Cloud → Local (new)
-│             │◀──↑─────│  agent.md   │  Local → Cloud (new node)
-│             │◀──↑─────│  soul.md    │  Local → Cloud (new node)
-│  C.json v2  │──=══════│  C.json     │  Same content, skip
-│  D.md   v5  │───↓────▶│  D.md       │  Conflict: cloud wins, backup local
-└─────────────┘         └─────────────┘
-
-Result: Both sides identical.
-```
-
-### Watch (Continuous Sync)
-
-```
-Local file changed
-  → read file, compute hash
-  → compare with state.json hash
-  → if different: POST /access/openclaw/push { node_id, content, base_version }
-  → update state.json with new version
-
-Cloud poll (every 30s)
-  → GET /access/openclaw/pull
-  → for each node: compare version with state.json
-  → if cloud version > local version: overwrite file, update state.json
-  → if cloud version == local version: skip
-```
-
-### Conflict Resolution
-
-```
-Local changes file X (base_version = 5)
-Cloud also changed file X (now version = 6)
-
-CLI tries to push:
-  POST /push { node_id: X, content: ..., base_version: 5 }
-  Backend returns: 409 Conflict (current version is 6)
-
-CLI handles conflict:
-  1. Backup local file → .puppyone/backups/X.1708412345
-  2. Pull cloud version 6 → overwrite local file
-  3. Update state.json with version 6
-  4. Log: "⚠ X: conflict, cloud wins, local backed up"
-```
-
----
-
-## Exit Codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | General error |
-| 2 | Invalid arguments |
-| 3 | Authentication failed |
-| 4 | Network error |
-| 5 | Resource not found |
-
-## Error Format
-
-**Human mode:**
-```
-Error: <message>
-Hint: <suggestion>
-```
-
-**JSON mode (`--json`):**
-```json
-{
-  "success": false,
-  "error": { "code": "ERROR_CODE", "message": "..." },
-  "hint": "..."
-}
-```
+| 码 | 含义 |
+|----|------|
+| 0 | 成功 |
+| 1 | 通用错误 |

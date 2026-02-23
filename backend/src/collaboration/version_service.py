@@ -38,11 +38,13 @@ class VersionService:
         version_repo: FileVersionRepository,
         snapshot_repo: FolderSnapshotRepository,
         s3_service: S3Service,
+        changelog_repo=None,
     ):
         self.node_repo = node_repo
         self.version_repo = version_repo
         self.snapshot_repo = snapshot_repo
         self.s3 = s3_service
+        self._changelog = changelog_repo
 
     # ============================================================
     # 核心：创建新版本
@@ -90,10 +92,11 @@ class VersionService:
                 log_debug(f"[Version] Content unchanged for {node_id}, skipping")
                 return None
 
-            # 原子递增版本号：基于 content_nodes.current_version 而非 file_versions 表查询
-            # 避免并发 commit 拿到相同版本号的竞态条件
-            current_ver = node.current_version or 0
-            new_version = current_ver + 1
+            db_ver = node.current_version or 0
+            # Fall back to file_versions max when content_node is out of sync
+            latest_fv = self.version_repo.get_latest_by_node(node_id)
+            effective_ver = max(db_ver, latest_fv.version if latest_fv else 0)
+            new_version = effective_ver + 1
 
             actual_s3_key = s3_key
             if s3_key and new_hash:
@@ -124,22 +127,21 @@ class VersionService:
                 summary=summary,
             )
 
+            # Skip optimistic lock when DB version is 0/NULL (initial versioning)
             updated_node = self.node_repo.update(
                 node_id=node_id,
                 current_version=new_version,
                 content_hash=new_hash,
-                expected_version=current_ver,
+                expected_version=db_ver if db_ver > 0 else None,
             )
 
             if updated_node is None:
-                # 乐观锁冲突：另一个并发写入已更新了 current_version
-                # 版本记录已插入但 content_node 未更新 → 需调用方重试
                 log_error(
                     f"[Version] Optimistic lock conflict for {node_id}: "
-                    f"expected v{current_ver}, likely updated by concurrent write"
+                    f"expected v{db_ver}, likely updated by concurrent write"
                 )
                 raise VersionConflictException(
-                    f"Version conflict for node {node_id}: expected v{current_ver}, "
+                    f"Version conflict for node {node_id}: expected v{db_ver}, "
                     f"concurrent update detected"
                 )
 
@@ -147,6 +149,17 @@ class VersionService:
                 f"[Version] Created v{new_version} for {node_id} "
                 f"(op={operation}, by={operator_type}:{operator_id or 'N/A'})"
             )
+
+            self._emit_changelog(
+                project_id=node.project_id,
+                node_id=node_id,
+                action=operation if operation in ("create", "delete") else "update",
+                node_type=node.type,
+                version=new_version,
+                content_hash=new_hash,
+                size_bytes=size_bytes,
+            )
+
             return version
 
         except (VersionConflictException, BusinessException):
@@ -154,6 +167,34 @@ class VersionService:
         except Exception as e:
             log_error(f"[Version] Failed to create version for {node_id}: {e}")
             raise
+
+    def _emit_changelog(
+        self,
+        project_id: str,
+        node_id: str,
+        action: str,
+        node_type: Optional[str] = None,
+        version: int = 0,
+        content_hash: Optional[str] = None,
+        size_bytes: int = 0,
+    ) -> None:
+        """Best-effort append to sync_changelog + wake Long Poll waiters."""
+        if not self._changelog:
+            return
+        try:
+            self._changelog.append(
+                project_id=project_id,
+                node_id=node_id,
+                action=action,
+                node_type=node_type,
+                version=version,
+                hash=content_hash,
+                size_bytes=size_bytes,
+            )
+            from src.sync.notifier import ChangeNotifier
+            ChangeNotifier.get_instance().notify(project_id)
+        except Exception as e:
+            log_error(f"[Version] Failed to emit changelog for {node_id}: {e}")
 
     # ============================================================
     # 回滚：单文件
