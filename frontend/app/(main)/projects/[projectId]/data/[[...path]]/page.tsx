@@ -420,7 +420,7 @@ export default function DataPage({ params }: DataPageProps) {
   }, [projectId, session?.access_token]);
 
   // Agent Context - get draft resources for highlighting
-  const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, selectedSyncId, selectedSyncNodeId } = useAgent();
+  const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId } = useAgent();
 
   // Auto-create a blank node and open sync sidebar with it pre-bound
   const PROVIDER_NODE_TYPE: Record<string, 'json' | 'markdown' | 'folder'> = {
@@ -466,7 +466,12 @@ export default function DataPage({ params }: DataPageProps) {
       terminalReadonly: r.readonly ?? r.terminalReadonly ?? true,
     });
 
-    // 1. Hover Preview - highest priority
+    // 0. Hover sync preview — highest priority
+    if (hoveredSyncNodeId) {
+      return [{ nodeId: hoveredSyncNodeId, terminalReadonly: true }];
+    }
+
+    // 1. Hover Agent Preview
     if (hoveredAgentId) {
       const agent = savedAgents.find(a => a.id === hoveredAgentId);
       if (agent?.resources && agent.resources.length > 0) {
@@ -493,7 +498,7 @@ export default function DataPage({ params }: DataPageProps) {
     }
     
     return [];
-  }, [draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId]);
+  }, [draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId]);
 
   // Current project
   const activeProject = useMemo(
@@ -786,8 +791,13 @@ export default function DataPage({ params }: DataPageProps) {
     setTableData(currentTableData?.data);
   }, [currentTableData?.data, setTableData]);
 
+  const tableNameByIdRef = useRef<string>('');
   useEffect(() => {
-    setTableNameById(tableNameById);
+    const key = JSON.stringify(tableNameById);
+    if (key !== tableNameByIdRef.current) {
+      tableNameByIdRef.current = key;
+      setTableNameById(tableNameById);
+    }
   }, [tableNameById, setTableNameById]);
 
   useEffect(() => {

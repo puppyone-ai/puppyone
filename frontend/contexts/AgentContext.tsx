@@ -166,6 +166,8 @@ interface AgentContextValue {
   // Sync sidebar
   selectedSyncId: string | null;
   selectedSyncNodeId: string | null;
+  hoveredSyncNodeId: string | null;
+  setHoveredSyncNodeId: (nodeId: string | null) => void;
   selectSync: (syncId: string | null, nodeId?: string | null) => void;
 
   // Legacy support
@@ -350,6 +352,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   }, [savedAgents]);
 
   const [selectedSyncNodeId, setSelectedSyncNodeId] = useState<string | null>(null);
+  const [hoveredSyncNodeId, setHoveredSyncNodeId] = useState<string | null>(null);
 
   const selectSync = useCallback((syncId: string | null, nodeId?: string | null) => {
     setEditingAgentId(null);
@@ -785,6 +788,8 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         
         selectedSyncId,
         selectedSyncNodeId,
+        hoveredSyncNodeId,
+        setHoveredSyncNodeId,
         selectSync,
         selectAgent,
         openSetting,
