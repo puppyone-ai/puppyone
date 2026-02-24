@@ -15,7 +15,7 @@ export function registerWatch(program) {
   program
     .command("watch")
     .description("Watch local folder for changes and sync continuously")
-    .option("--key <access-key>", "OpenClaw access key (uses /access/openclaw endpoints)")
+    .option("--key <access-key>", "OpenClaw access key")
     .option("-s, --source <id>", "source ID (sync mode, omit to watch all connections)")
     .option("-i, --interval <seconds>", "poll interval for remote changes", "30")
     .action(async (opts, cmd) => {
@@ -60,6 +60,14 @@ async function watchOpenClaw(opts, cmd, out) {
   }
 
   const interval = Math.max(5, parseInt(opts.interval, 10) || 30) * 1000;
+  const state = loadState(conn.folder);
+
+  const folderId = conn.folder_id || state.connection?.folder_id;
+  if (!folderId) {
+    out.error("NO_FOLDER_ID", "No folder_id found. Re-run `puppyone connect` to update your connection.");
+    return;
+  }
+  const syncBase = `/sync/${folderId}`;
 
   out.info(`\nWatching ${conn.folder} ↔ PuppyOne`);
   out.info(`  API:  ${conn.api_url ?? "http://localhost:9090"}`);
@@ -67,8 +75,7 @@ async function watchOpenClaw(opts, cmd, out) {
 
   // Initial reconciliation (full merge)
   out.info("  Reconciling...");
-  const state = loadState(conn.folder);
-  await openClawReconcile(api, conn.folder, state, out);
+  await openClawReconcile(api, conn.folder, state, out, syncBase);
   saveState(conn.folder, state);
   out.info("  ✓ Reconciliation complete\n");
 
@@ -76,11 +83,11 @@ async function watchOpenClaw(opts, cmd, out) {
   const suppressSet = new Set();
 
   // Local file watcher → push changes to cloud
-  const watcher = startOpenClawWatcher(api, conn.folder, state, suppressSet, out);
+  const watcher = startOpenClawWatcher(api, conn.folder, state, suppressSet, out, syncBase);
 
   // Periodic remote poll → pull changes from cloud
   const timer = setInterval(async () => {
-    await openClawPoll(api, conn.folder, state, suppressSet, out);
+    await openClawPoll(api, conn.folder, state, suppressSet, out, syncBase);
   }, interval);
 
   out.info(`  Watching for changes. Press Ctrl+C to stop.\n`);
@@ -100,14 +107,16 @@ async function watchOpenClaw(opts, cmd, out) {
  * Full reconciliation on startup: same merge logic as connect.
  * Ensures nothing was missed while watch was not running.
  */
-async function openClawReconcile(api, folder, state, out) {
+async function openClawReconcile(api, folder, state, out, syncBase) {
   try {
-    const data = await api.get("/access/openclaw/pull");
-    const cloudNodes = data.nodes ?? [];
+    const cursor = state.cursor ?? 0;
+    const data = await api.get(`${syncBase}/pull?cursor=${cursor}`);
+    const cloudFiles = data.files ?? [];
     const localFiles = scanLocalFiles(folder);
 
     const cloudByName = new Map();
-    for (const node of cloudNodes) {
+    for (const node of cloudFiles) {
+      if (node.type === "folder") continue;
       cloudByName.set(nodeToFilename(node), node);
     }
 
@@ -127,7 +136,7 @@ async function openClawReconcile(api, folder, state, out) {
         const filePath = join(folder, fileName);
         mkdirSync(dirname(filePath), { recursive: true });
         writeFileSync(filePath, cloudContent, "utf-8");
-        state.files[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: cloudHash };
+        state.files[fileName] = { version: node.version ?? 0, hash: cloudHash };
         out.info(`    ↓ ${fileName} (new from cloud)`);
       } else if (cloudHash !== localFile.hash) {
         const cloudVersion = node.version ?? 0;
@@ -136,26 +145,25 @@ async function openClawReconcile(api, folder, state, out) {
         if (cloudVersion > localVersion) {
           backupFile(folder, fileName);
           writeFileSync(join(folder, fileName), cloudContent, "utf-8");
-          state.files[fileName] = { node_id: node.node_id, version: cloudVersion, hash: cloudHash };
+          state.files[fileName] = { version: cloudVersion, hash: cloudHash };
           out.info(`    ↓ ${fileName} (cloud wins, local backed up)`);
         } else if (stateEntry && localFile.hash !== stateEntry.hash) {
-          // Local changed since last sync, push to cloud
-          await pushLocalFile(api, folder, fileName, localFile, state, out);
+          await pushLocalFile(api, folder, fileName, localFile, state, out, syncBase);
         }
       } else {
-        // Same content, just update state
-        state.files[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: cloudHash };
+        state.files[fileName] = { version: node.version ?? 0, hash: cloudHash };
       }
       localByName.delete(fileName);
     }
 
     // Local-only → push to cloud
     for (const [relPath, file] of localByName) {
-      if (state.files[relPath]?.node_id) {
-        // Was previously synced but now missing from cloud — skip for now
-        continue;
-      }
-      await pushNewLocalFile(api, folder, relPath, file, state, out);
+      if (state.files[relPath]?.version > 0) continue;
+      await pushNewLocalFile(api, folder, relPath, file, state, out, syncBase);
+    }
+
+    if (data.cursor != null) {
+      state.cursor = data.cursor;
     }
   } catch (e) {
     out.info(`    ✗ reconciliation error: ${e.message}`);
@@ -165,12 +173,14 @@ async function openClawReconcile(api, folder, state, out) {
 /**
  * Periodic poll: pull cloud changes.
  */
-async function openClawPoll(api, folder, state, suppressSet, out) {
+async function openClawPoll(api, folder, state, suppressSet, out, syncBase) {
   try {
-    const data = await api.get("/access/openclaw/pull");
-    const nodes = data.nodes ?? [];
+    const cursor = state.cursor ?? 0;
+    const data = await api.get(`${syncBase}/pull?cursor=${cursor}`);
+    const files = data.files ?? [];
 
-    for (const node of nodes) {
+    for (const node of files) {
+      if (node.type === "folder") continue;
       const fileName = nodeToFilename(node);
       const newVersion = node.version ?? 0;
       const stateEntry = state.files[fileName];
@@ -188,7 +198,6 @@ async function openClawPoll(api, folder, state, suppressSet, out) {
 
       const filePath = join(folder, fileName);
 
-      // Check if local file was also changed
       if (existsSync(filePath)) {
         const localContent = readFileSync(filePath, "utf-8");
         const localHash = hashString(localContent);
@@ -204,12 +213,15 @@ async function openClawPoll(api, folder, state, suppressSet, out) {
       setTimeout(() => suppressSet.delete(fileName), 2000);
 
       state.files[fileName] = {
-        node_id: node.node_id,
         version: newVersion,
         hash: cloudHash,
       };
       saveState(folder, state);
       out.info(`  ↓ ${fileName} v${localVersion} → v${newVersion}`);
+    }
+
+    if (data.cursor != null) {
+      state.cursor = data.cursor;
     }
   } catch (e) {
     if (!(e instanceof ApiError && e.status === 0)) {
@@ -221,7 +233,7 @@ async function openClawPoll(api, folder, state, suppressSet, out) {
 /**
  * Watcher: local changes → push to cloud.
  */
-function startOpenClawWatcher(api, folder, state, suppressSet, out) {
+function startOpenClawWatcher(api, folder, state, suppressSet, out, syncBase) {
   const debounceMap = new Map();
   const DEBOUNCE_MS = 500;
   const IGNORED_NAMES = new Set(["node_modules", "__pycache__", ".git", ".DS_Store", ".env", ".puppyone"]);
@@ -251,7 +263,7 @@ function startOpenClawWatcher(api, folder, state, suppressSet, out) {
       relPath,
       setTimeout(async () => {
         debounceMap.delete(relPath);
-        await handleOpenClawPush(api, folder, absPath, relPath, ext, state, out);
+        await handleOpenClawPush(api, folder, absPath, relPath, ext, state, out, syncBase);
       }, DEBOUNCE_MS),
     );
   }
@@ -260,7 +272,7 @@ function startOpenClawWatcher(api, folder, state, suppressSet, out) {
     const relPath = relative(folder, absPath);
     const entry = state.files[relPath];
     if (!entry) return;
-    out.info(`  ✗ ${relPath}: local delete detected (node ${entry.node_id} preserved on cloud)`);
+    out.info(`  ✗ ${relPath}: local delete detected (cloud node preserved)`);
     delete state.files[relPath];
     saveState(folder, state);
   }
@@ -272,7 +284,7 @@ function startOpenClawWatcher(api, folder, state, suppressSet, out) {
   return watcher;
 }
 
-async function handleOpenClawPush(api, folder, absPath, relPath, ext, state, out) {
+async function handleOpenClawPush(api, folder, absPath, relPath, ext, state, out, syncBase) {
   try {
     if (!existsSync(absPath)) return;
 
@@ -280,7 +292,6 @@ async function handleOpenClawPush(api, folder, absPath, relPath, ext, state, out
     const currentHash = hashString(contentStr);
     const stateEntry = state.files[relPath];
 
-    // Skip if content unchanged
     if (stateEntry && stateEntry.hash === currentHash) return;
 
     let content;
@@ -297,54 +308,26 @@ async function handleOpenClawPush(api, folder, absPath, relPath, ext, state, out
       content = contentStr;
     }
 
-    if (stateEntry?.node_id) {
-      // Update existing node
-      try {
-        const resp = await api.post("/access/openclaw/push", {
-          node_id: stateEntry.node_id,
-          content,
-          base_version: stateEntry.version,
-          node_type: nodeType,
-        });
+    try {
+      const resp = await api.post(`${syncBase}/push`, {
+        filename: relPath,
+        content,
+        base_version: stateEntry?.version ?? 0,
+        node_type: nodeType,
+      });
 
-        if (resp.ok) {
-          state.files[relPath] = {
-            node_id: stateEntry.node_id,
-            version: resp.version ?? stateEntry.version + 1,
-            hash: currentHash,
-          };
-          saveState(folder, state);
-          out.info(`  ↑ ${relPath} → v${resp.version}`);
-        }
-      } catch (e) {
-        if (e.status === 409) {
-          // Version conflict: cloud wins
-          out.info(`  ⚠ ${relPath}: version conflict, will pull cloud version on next poll`);
-        } else {
-          out.info(`  ✗ push ${relPath}: ${e.message}`);
-        }
+      if (resp.ok) {
+        state.files[relPath] = {
+          version: resp.version ?? (stateEntry?.version ?? 0) + 1,
+          hash: currentHash,
+        };
+        saveState(folder, state);
+        out.info(`  ↑ ${relPath} → v${resp.version}${stateEntry ? "" : " (created)"}`);
       }
-    } else {
-      // New file, create node on cloud
-      try {
-        const resp = await api.post("/access/openclaw/push", {
-          node_id: null,
-          filename: relPath,
-          content,
-          base_version: 0,
-          node_type: nodeType,
-        });
-
-        if (resp.ok) {
-          state.files[relPath] = {
-            node_id: resp.node_id,
-            version: resp.version ?? 1,
-            hash: currentHash,
-          };
-          saveState(folder, state);
-          out.info(`  ↑ ${relPath} → v${resp.version} (created)`);
-        }
-      } catch (e) {
+    } catch (e) {
+      if (e.message?.includes("409")) {
+        out.info(`  ⚠ ${relPath}: version conflict, will pull cloud version on next poll`);
+      } else {
         out.info(`  ✗ push ${relPath}: ${e.message}`);
       }
     }
@@ -353,9 +336,8 @@ async function handleOpenClawPush(api, folder, absPath, relPath, ext, state, out
   }
 }
 
-async function pushLocalFile(api, folder, fileName, localFile, state, out) {
+async function pushLocalFile(api, folder, fileName, localFile, state, out, syncBase) {
   const stateEntry = state.files[fileName];
-  if (!stateEntry?.node_id) return;
 
   const contentStr = readFileSync(join(folder, fileName), "utf-8");
   const ext = extname(fileName).toLowerCase();
@@ -369,17 +351,16 @@ async function pushLocalFile(api, folder, fileName, localFile, state, out) {
   }
 
   try {
-    const resp = await api.post("/access/openclaw/push", {
-      node_id: stateEntry.node_id,
+    const resp = await api.post(`${syncBase}/push`, {
+      filename: fileName,
       content,
-      base_version: stateEntry.version,
+      base_version: stateEntry?.version ?? 0,
       node_type: nodeType,
     });
 
     if (resp.ok) {
       state.files[fileName] = {
-        node_id: stateEntry.node_id,
-        version: resp.version ?? stateEntry.version + 1,
+        version: resp.version ?? (stateEntry?.version ?? 0) + 1,
         hash: localFile.hash,
       };
       out.info(`    ↑ ${fileName} → v${resp.version}`);
@@ -389,7 +370,7 @@ async function pushLocalFile(api, folder, fileName, localFile, state, out) {
   }
 }
 
-async function pushNewLocalFile(api, folder, relPath, file, state, out) {
+async function pushNewLocalFile(api, folder, relPath, file, state, out, syncBase) {
   const contentStr = readFileSync(join(folder, relPath), "utf-8");
   const ext = extname(relPath).toLowerCase();
   let content;
@@ -402,8 +383,7 @@ async function pushNewLocalFile(api, folder, relPath, file, state, out) {
   }
 
   try {
-    const resp = await api.post("/access/openclaw/push", {
-      node_id: null,
+    const resp = await api.post(`${syncBase}/push`, {
       filename: relPath,
       content,
       base_version: 0,
@@ -412,7 +392,6 @@ async function pushNewLocalFile(api, folder, relPath, file, state, out) {
 
     if (resp.ok) {
       state.files[relPath] = {
-        node_id: resp.node_id,
         version: resp.version ?? 1,
         hash: file.hash,
       };

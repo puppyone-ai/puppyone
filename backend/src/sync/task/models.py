@@ -10,9 +10,9 @@ from pydantic import BaseModel, Field
 
 
 class ImportTaskStatus(str, Enum):
-    """Status of an import task."""
+    """Status of an import task. Values match uploads.status column."""
     PENDING = "pending"
-    PROCESSING = "processing"
+    RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -22,7 +22,7 @@ class ImportTaskStatus(str, Enum):
 
 
 class ImportTaskType(str, Enum):
-    """Type of import task - values match sync_task.task_type column."""
+    """Type of import task - stored in uploads.config.task_type."""
     GITHUB = "github_repo"
     NOTION = "notion_page"  # Default to page, handler can detect database
     NOTION_DATABASE = "notion_database"
@@ -59,13 +59,18 @@ class ImportTask(BaseModel):
     message: Optional[str] = None
     error: Optional[str] = None
     
+    # Node references
+    node_id: Optional[str] = None
+    result_node_id: Optional[str] = None
+
     # Result
-    content_node_id: Optional[str] = None
     items_count: int = 0
+    result: dict[str, Any] = Field(default_factory=dict)
     
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
     def update_progress(self, progress: int, message: Optional[str] = None) -> None:
@@ -76,15 +81,16 @@ class ImportTask(BaseModel):
         self.updated_at = datetime.utcnow()
 
     def mark_processing(self, message: str = "Processing...") -> None:
-        """Mark as processing."""
-        self.status = ImportTaskStatus.PROCESSING
+        """Mark as running."""
+        self.status = ImportTaskStatus.RUNNING
         self.message = message
+        self.started_at = self.started_at or datetime.utcnow()
         self.updated_at = datetime.utcnow()
 
-    def mark_completed(self, content_node_id: str, items_count: int = 0) -> None:
+    def mark_completed(self, result_node_id: str, items_count: int = 0) -> None:
         """Mark as completed."""
         self.status = ImportTaskStatus.COMPLETED
-        self.content_node_id = content_node_id
+        self.result_node_id = result_node_id
         self.items_count = items_count
         self.progress = 100
         self.message = "Completed"
@@ -106,29 +112,40 @@ class ImportTask(BaseModel):
         self.updated_at = datetime.utcnow()
 
     def to_db_dict(self) -> dict[str, Any]:
-        """Convert to dict for database."""
+        """Convert to dict for uploads table."""
+        config = {
+            **self.config,
+            "task_type": self.task_type.value,
+            "source_url": self.source_url,
+            "source_file_key": self.source_file_key,
+            "items_count": self.items_count,
+        }
         return {
             "id": self.id,
             "user_id": self.user_id,
             "project_id": self.project_id,
-            "task_type": self.task_type.value,
-            "source_url": self.source_url,
-            "source_file_key": self.source_file_key,
-            "config": self.config,
+            "node_id": self.node_id,
+            "type": "import",
+            "config": config,
             "status": self.status.value,
             "progress": self.progress,
             "message": self.message,
             "error": self.error,
-            "content_node_id": self.content_node_id,
-            "items_count": self.items_count,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "result_node_id": self.result_node_id,
+            "result": self.result or {},
+            "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
 
     @classmethod
     def from_db_dict(cls, data: dict[str, Any]) -> "ImportTask":
-        """Create from database record."""
+        """Create from uploads table record."""
+        config = dict(data.get("config") or {})
+        task_type_val = config.pop("task_type", "url")
+        source_url = config.pop("source_url", None)
+        source_file_key = config.pop("source_file_key", None)
+        items_count = config.pop("items_count", 0)
+
         def parse_dt(val: Any) -> Optional[datetime]:
             if val is None:
                 return None
@@ -142,18 +159,21 @@ class ImportTask(BaseModel):
             id=data.get("id"),
             user_id=data["user_id"],
             project_id=data["project_id"],
-            task_type=ImportTaskType(data["task_type"]),
-            source_url=data.get("source_url"),
-            source_file_key=data.get("source_file_key"),
-            config=data.get("config", {}),
-            status=ImportTaskStatus(data["status"]),
+            task_type=ImportTaskType(task_type_val),
+            source_url=source_url,
+            source_file_key=source_file_key,
+            config=config,
+            status=ImportTaskStatus(data.get("status", "pending")),
             progress=data.get("progress", 0),
             message=data.get("message"),
             error=data.get("error"),
-            content_node_id=data.get("content_node_id"),
-            items_count=data.get("items_count", 0),
+            node_id=data.get("node_id"),
+            result_node_id=data.get("result_node_id"),
+            items_count=items_count or 0,
+            result=data.get("result") or {},
             created_at=parse_dt(data.get("created_at")) or datetime.utcnow(),
             updated_at=parse_dt(data.get("updated_at")) or datetime.utcnow(),
+            started_at=parse_dt(data.get("started_at")),
             completed_at=parse_dt(data.get("completed_at")),
         )
 

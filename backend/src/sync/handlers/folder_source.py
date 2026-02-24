@@ -22,8 +22,8 @@ from src.folder_sync import (
     FolderWatcher, diff_snapshots, diff_incremental,
     IgnoreRules, FolderSnapshot, FileEntry,
 )
-from src.sync.repository import SyncSourceRepository, NodeSyncRepository
-from src.sync.schemas import SyncSource, SyncMapping
+from src.sync.repository import SyncRepository
+from src.sync.schemas import Sync
 from src.utils.logger import log_info, log_error, log_debug
 
 if TYPE_CHECKING:
@@ -46,14 +46,12 @@ class FolderSourceService:
     def __init__(
         self,
         node_service: "ContentNodeService",
-        source_repo: SyncSourceRepository,
-        node_sync_repo: NodeSyncRepository,
+        sync_repo: SyncRepository,
     ):
         self._node_svc = node_service
-        self._sources = source_repo
-        self._node_sync = node_sync_repo
-        self._watchers: dict[int, FolderWatcher] = {}
-        self._snapshots: dict[int, FolderSnapshot] = {}
+        self._sync_repo = sync_repo
+        self._watchers: dict[str, FolderWatcher] = {}
+        self._snapshots: dict[str, FolderSnapshot] = {}
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     @classmethod
@@ -70,23 +68,24 @@ class FolderSourceService:
         folder_path: str,
         target_folder_node_id: Optional[str] = None,
         ignore_patterns: Optional[list[str]] = None,
-    ) -> SyncSource:
+    ) -> Sync:
         """
         连接本地文件夹。
 
-        1. 注册 SyncSource
-        2. 全量扫描 → 为每个文件创建 content_node → 绑定 sync mapping
+        1. 创建 root Sync
+        2. 全量扫描 → 为每个文件创建 content_node → 绑定 Sync
         3. 拉取初始内容
         4. 启动 FolderWatcher
         """
         self._loop = asyncio.get_event_loop()
 
-        source = self._sources.create(
+        root_sync = self._sync_repo.create(
             project_id=project_id,
-            adapter_type="folder_source",
+            node_id=target_folder_node_id or "",
+            direction="inbound",
+            provider="folder_source",
             config={"path": folder_path},
-            trigger_config={"type": "watchdog"},
-            sync_mode="pull_only",
+            trigger={"type": "watchdog"},
             conflict_strategy="external_wins",
         )
 
@@ -96,32 +95,35 @@ class FolderSourceService:
                 ignore_rules.add_pattern(p)
 
         snapshot = scan_directory(folder_path, ignore_rules)
-        self._snapshots[source.id] = snapshot
+        self._snapshots[root_sync.id] = snapshot
 
         bindings = await self._bootstrap_nodes(
-            source=source,
+            root_sync=root_sync,
             snapshot=snapshot,
             folder_path=folder_path,
             target_folder_node_id=target_folder_node_id,
         )
 
-        await self._pull_initial_content(source, snapshot, folder_path)
+        await self._pull_initial_content(root_sync, snapshot, folder_path)
 
-        self._start_watcher(source.id, folder_path, ignore_rules)
+        self._start_watcher(root_sync.id, folder_path, ignore_rules)
 
         log_info(
             f"[FolderSource] Connected: {folder_path} → project {project_id} "
-            f"({len(bindings)} files, source #{source.id})"
+            f"({len(bindings)} files, sync #{root_sync.id})"
         )
-        return source
+        return root_sync
 
-    async def disconnect(self, source_id: int) -> None:
+    async def disconnect(self, sync_id: str) -> None:
         """断开连接：停止监听 + 解绑。"""
-        self._stop_watcher(source_id)
-        self._snapshots.pop(source_id, None)
-        self._node_sync.unbind_by_source(source_id)
-        self._sources.delete(source_id)
-        log_info(f"[FolderSource] Disconnected source #{source_id}")
+        self._stop_watcher(sync_id)
+        self._snapshots.pop(sync_id, None)
+        sync = self._sync_repo.get_by_id(sync_id)
+        if sync:
+            related = self._sync_repo.list_by_provider(sync.project_id, "folder_source")
+            for s in related:
+                self._sync_repo.delete(s.id)
+        log_info(f"[FolderSource] Disconnected sync #{sync_id}")
 
     # ============================================================
     # Bootstrap: 首次连接时创建节点
@@ -129,33 +131,40 @@ class FolderSourceService:
 
     async def _bootstrap_nodes(
         self,
-        source: SyncSource,
+        root_sync: Sync,
         snapshot: FolderSnapshot,
         folder_path: str,
         target_folder_node_id: Optional[str],
-    ) -> List[SyncMapping]:
+    ) -> List[Sync]:
         """为快照中的每个文件创建 content_node 并绑定。"""
-        bindings: List[SyncMapping] = []
+        bindings: List[Sync] = []
 
         for rel_path, entry in snapshot.entries.items():
-            existing = self._node_sync.find_by_resource(source.id, rel_path)
+            existing = self._sync_repo.find_by_config_key(
+                "folder_source", "external_resource_id", rel_path,
+            )
             if existing:
                 bindings.append(existing)
                 continue
 
             node_id = await self._create_node_for_file(
-                project_id=source.project_id,
+                project_id=root_sync.project_id,
                 rel_path=rel_path,
                 content_type=entry.content_type,
                 parent_id=target_folder_node_id,
             )
 
-            mapping = self._node_sync.bind_node(
+            node_sync = self._sync_repo.create(
+                project_id=root_sync.project_id,
                 node_id=node_id,
-                source_id=source.id,
-                external_resource_id=rel_path,
+                direction="inbound",
+                provider="folder_source",
+                config={
+                    "external_resource_id": rel_path,
+                    "path": folder_path,
+                },
             )
-            bindings.append(mapping)
+            bindings.append(node_sync)
 
         return bindings
 
@@ -194,57 +203,60 @@ class FolderSourceService:
 
     async def _pull_initial_content(
         self,
-        source: SyncSource,
+        root_sync: Sync,
         snapshot: FolderSnapshot,
         folder_path: str,
     ) -> None:
         """首次连接时拉取所有文件内容到 PuppyOne。"""
         for rel_path in snapshot.entries:
-            mapping = self._node_sync.find_by_resource(source.id, rel_path)
-            if not mapping:
+            node_sync = self._sync_repo.find_by_config_key(
+                "folder_source", "external_resource_id", rel_path,
+            )
+            if not node_sync:
                 continue
-            await self._pull_single_file(source, mapping, folder_path)
+            await self._pull_single_file(root_sync, node_sync, folder_path)
 
     async def _pull_single_file(
         self,
-        source: SyncSource,
-        mapping: SyncMapping,
+        root_sync: Sync,
+        node_sync: Sync,
         folder_path: str,
     ) -> bool:
         """拉取单个文件内容到 PuppyOne（直接覆写，不走 L2 乐观锁）。"""
-        fc = read_file(folder_path, mapping.external_resource_id)
+        external_resource_id = node_sync.config.get("external_resource_id", "")
+        fc = read_file(folder_path, external_resource_id)
         if fc is None:
             return False
 
         try:
             if fc.content_type == "json":
                 self._node_svc.update_node(
-                    node_id=mapping.node_id,
-                    project_id=source.project_id,
+                    node_id=node_sync.node_id,
+                    project_id=root_sync.project_id,
                     preview_json=fc.content,
                     operator_type="sync",
-                    operator_id=f"folder_source:{source.id}",
+                    operator_id=f"folder_source:{root_sync.id}",
                 )
             else:
                 content_str = fc.content if isinstance(fc.content, str) else str(fc.content)
                 await self._node_svc.update_markdown_content(
-                    node_id=mapping.node_id,
-                    project_id=source.project_id,
+                    node_id=node_sync.node_id,
+                    project_id=root_sync.project_id,
                     content=content_str,
                     operator_type="sync",
-                    operator_id=f"folder_source:{source.id}",
+                    operator_id=f"folder_source:{root_sync.id}",
                 )
 
-            self._node_sync.update_sync_point(
-                node_id=mapping.node_id,
+            self._sync_repo.update_sync_point(
+                sync_id=node_sync.id,
                 last_sync_version=0,
                 remote_hash=fc.content_hash,
             )
             return True
 
         except Exception as e:
-            log_error(f"[FolderSource] Pull failed for {mapping.external_resource_id}: {e}")
-            self._node_sync.update_error(mapping.node_id, str(e))
+            log_error(f"[FolderSource] Pull failed for {external_resource_id}: {e}")
+            self._sync_repo.update_error(node_sync.id, str(e))
             return False
 
     # ============================================================
@@ -252,10 +264,10 @@ class FolderSourceService:
     # ============================================================
 
     def _start_watcher(
-        self, source_id: int, folder_path: str, ignore_rules: IgnoreRules,
+        self, sync_id: str, folder_path: str, ignore_rules: IgnoreRules,
     ) -> None:
         """启动 FolderWatcher。"""
-        if source_id in self._watchers:
+        if sync_id in self._watchers:
             return
 
         watcher = FolderWatcher(
@@ -266,35 +278,35 @@ class FolderSourceService:
         def on_change(changed: Set[str]) -> None:
             if self._loop:
                 asyncio.run_coroutine_threadsafe(
-                    self._handle_changes(source_id, changed),
+                    self._handle_changes(sync_id, changed),
                     self._loop,
                 )
 
         watcher.start(on_change=on_change)
-        self._watchers[source_id] = watcher
-        log_info(f"[FolderSource] Watcher started for source #{source_id}")
+        self._watchers[sync_id] = watcher
+        log_info(f"[FolderSource] Watcher started for sync #{sync_id}")
 
-    def _stop_watcher(self, source_id: int) -> None:
+    def _stop_watcher(self, sync_id: str) -> None:
         """停止 FolderWatcher。"""
-        watcher = self._watchers.pop(source_id, None)
+        watcher = self._watchers.pop(sync_id, None)
         if watcher:
             watcher.stop()
-            log_info(f"[FolderSource] Watcher stopped for source #{source_id}")
+            log_info(f"[FolderSource] Watcher stopped for sync #{sync_id}")
 
-    def start_for_source(self, source_id: int) -> None:
-        """外部调用：为指定 source 启动 watcher。"""
-        source = self._sources.get_by_id(source_id)
-        if not source or source.adapter_type != "folder_source":
+    def start_for_sync(self, sync_id: str) -> None:
+        """外部调用：为指定 sync 启动 watcher。"""
+        sync = self._sync_repo.get_by_id(sync_id)
+        if not sync or sync.provider != "folder_source":
             return
-        folder_path = source.config.get("path", "")
+        folder_path = sync.config.get("path", "")
         if folder_path:
-            self._start_watcher(source_id, folder_path, IgnoreRules())
+            self._start_watcher(sync_id, folder_path, IgnoreRules())
 
-    def stop_for_source(self, source_id: int) -> None:
-        """外部调用：停止指定 source 的 watcher。"""
-        self._stop_watcher(source_id)
+    def stop_for_sync(self, sync_id: str) -> None:
+        """外部调用：停止指定 sync 的 watcher。"""
+        self._stop_watcher(sync_id)
 
-    async def _handle_changes(self, source_id: int, changed_paths: Set[str]) -> None:
+    async def _handle_changes(self, root_sync_id: str, changed_paths: Set[str]) -> None:
         """
         Watcher 回调：处理文件变更。
 
@@ -302,12 +314,12 @@ class FolderSourceService:
         2. diff_incremental() 对比快照
         3. 对 created/modified 执行 pull
         """
-        source = self._sources.get_by_id(source_id)
-        if not source or source.status != "active":
+        root_sync = self._sync_repo.get_by_id(root_sync_id)
+        if not root_sync or root_sync.status != "active":
             return
 
-        folder_path = source.config.get("path", "")
-        snapshot = self._snapshots.get(source_id)
+        folder_path = root_sync.config.get("path", "")
+        snapshot = self._snapshots.get(root_sync_id)
         if not snapshot:
             snapshot = FolderSnapshot(root_path=folder_path)
 
@@ -318,46 +330,55 @@ class FolderSourceService:
             return
 
         log_debug(
-            f"[FolderSource] source #{source_id}: "
+            f"[FolderSource] sync #{root_sync_id}: "
             f"+{len(changes.created)} ~{len(changes.modified)} -{len(changes.deleted)}"
         )
 
         for entry in changes.created:
-            await self._handle_new_file(source, entry, folder_path)
+            await self._handle_new_file(root_sync, entry, folder_path)
 
         for entry in changes.modified:
-            mapping = self._node_sync.find_by_resource(source_id, entry.rel_path)
-            if mapping:
-                await self._pull_single_file(source, mapping, folder_path)
+            node_sync = self._sync_repo.find_by_config_key(
+                "folder_source", "external_resource_id", entry.rel_path,
+            )
+            if node_sync:
+                await self._pull_single_file(root_sync, node_sync, folder_path)
 
         for entry in changes.created + changes.modified:
             snapshot.entries[entry.rel_path] = entry
         for rel_path in changes.deleted:
             snapshot.entries.pop(rel_path, None)
-        self._snapshots[source_id] = snapshot
+        self._snapshots[root_sync_id] = snapshot
 
     async def _handle_new_file(
-        self, source: SyncSource, entry: FileEntry, folder_path: str,
+        self, root_sync: Sync, entry: FileEntry, folder_path: str,
     ) -> None:
         """处理新文件：创建节点 + 绑定 + 拉取内容。"""
-        existing = self._node_sync.find_by_resource(source.id, entry.rel_path)
+        existing = self._sync_repo.find_by_config_key(
+            "folder_source", "external_resource_id", entry.rel_path,
+        )
         if existing:
             return
 
         node_id = await self._create_node_for_file(
-            project_id=source.project_id,
+            project_id=root_sync.project_id,
             rel_path=entry.rel_path,
             content_type=entry.content_type,
             parent_id=None,
         )
 
-        mapping = self._node_sync.bind_node(
+        node_sync = self._sync_repo.create(
+            project_id=root_sync.project_id,
             node_id=node_id,
-            source_id=source.id,
-            external_resource_id=entry.rel_path,
+            direction="inbound",
+            provider="folder_source",
+            config={
+                "external_resource_id": entry.rel_path,
+                "path": folder_path,
+            },
         )
 
-        await self._pull_single_file(source, mapping, folder_path)
+        await self._pull_single_file(root_sync, node_sync, folder_path)
         log_info(f"[FolderSource] New file: {entry.rel_path} → node {node_id}")
 
     # ============================================================
@@ -368,17 +389,19 @@ class FolderSourceService:
         """应用启动时恢复所有 active 的 folder source。"""
         self._loop = asyncio.get_event_loop()
         FolderSourceService._instance = self
-        sources = self._sources.list_active("folder_source")
+        syncs = self._sync_repo.list_active("folder_source")
         started = 0
 
-        for source in sources:
-            folder_path = source.config.get("path", "")
-            if not folder_path:
+        seen_paths: set[str] = set()
+        for sync in syncs:
+            folder_path = sync.config.get("path", "")
+            if not folder_path or folder_path in seen_paths:
                 continue
+            seen_paths.add(folder_path)
 
             snapshot = scan_directory(folder_path)
-            self._snapshots[source.id] = snapshot
-            self._start_watcher(source.id, folder_path, IgnoreRules())
+            self._snapshots[sync.id] = snapshot
+            self._start_watcher(sync.id, folder_path, IgnoreRules())
             started += 1
 
         if started:
@@ -386,8 +409,8 @@ class FolderSourceService:
 
     async def stop(self) -> None:
         """应用关闭时停止所有 watcher。"""
-        for source_id in list(self._watchers.keys()):
-            self._stop_watcher(source_id)
+        for sync_id in list(self._watchers.keys()):
+            self._stop_watcher(sync_id)
         self._snapshots.clear()
         FolderSourceService._instance = None
         log_info("[FolderSource] All watchers stopped")

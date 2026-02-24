@@ -1,6 +1,5 @@
 """Content Node Repository - 数据库操作层"""
 
-from datetime import datetime
 from typing import Optional, List
 from src.supabase.client import SupabaseClient
 from src.content_node.models import ContentNode
@@ -20,28 +19,18 @@ class ContentNodeRepository:
             id=row["id"],
             project_id=row["project_id"],
             created_by=str(row["created_by"]) if row.get("created_by") else None,
-            sync_oauth_user_id=str(row["sync_oauth_user_id"]) if row.get("sync_oauth_user_id") else None,
             parent_id=row.get("parent_id"),
             name=row["name"],
-            # 类型字段
             type=row["type"],
             id_path=row["id_path"],
-            # 内容字段
             preview_json=row.get("preview_json"),
             preview_md=row.get("preview_md"),
             s3_key=row.get("s3_key"),
             mime_type=row.get("mime_type"),
             size_bytes=row.get("size_bytes", 0),
             permissions=row.get("permissions", {"inherit": True}),
-            # 版本管理字段
             current_version=row.get("current_version", 0),
             content_hash=row.get("content_hash"),
-            # 同步相关字段
-            sync_url=row.get("sync_url"),
-            sync_id=row.get("sync_id"),
-            sync_config=row.get("sync_config"),
-            sync_status=row.get("sync_status", "idle"),
-            last_synced_at=row.get("last_synced_at"),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
@@ -148,39 +137,19 @@ class ContentNodeRepository:
         response = query.order("id_path").execute()
         return [self._row_to_model(row) for row in response.data]
     
-    def list_by_sync_oauth_user(self, sync_oauth_user_id: str, node_type: Optional[str] = None) -> List[ContentNode]:
-        """列出某用户绑定的所有同步节点"""
-        query = (
-            self.client.table(self.TABLE_NAME)
-            .select("*")
-            .eq("sync_oauth_user_id", sync_oauth_user_id)
-        )
-        if node_type:
-            # 按具体类型过滤，如 'github_repo', 'notion_page'
-            query = query.eq("type", node_type)
-        
-        response = query.order("id_path").execute()
-        return [self._row_to_model(row) for row in response.data]
-
     def create(
         self,
         project_id: str,
         name: str,
-        node_type: str,  # folder | json | markdown | file | github_repo | notion_page | ...
+        node_type: str,  # folder | json | markdown | file
         id_path: str,
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
-        sync_oauth_user_id: Optional[str] = None,  # 非原生类型必填
         preview_json: Optional[dict] = None,
         preview_md: Optional[str] = None,
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
         size_bytes: int = 0,
-        sync_url: Optional[str] = None,
-        sync_id: Optional[str] = None,
-        sync_config: Optional[dict] = None,
-        sync_status: str = "idle",
-        last_synced_at: Optional[datetime] = None,
     ) -> ContentNode:
         """创建节点"""
         data = {
@@ -194,23 +163,10 @@ class ContentNodeRepository:
             "s3_key": s3_key,
             "mime_type": mime_type,
             "size_bytes": size_bytes,
-            "sync_status": sync_status,
             "current_version": 0,
         }
-        # 添加可选字段
         if created_by is not None:
             data["created_by"] = created_by
-        if sync_oauth_user_id is not None:
-            data["sync_oauth_user_id"] = sync_oauth_user_id
-        # 添加同步相关字段（仅当有值时）
-        if sync_url is not None:
-            data["sync_url"] = sync_url
-        if sync_id is not None:
-            data["sync_id"] = sync_id
-        if sync_config is not None:
-            data["sync_config"] = sync_config
-        if last_synced_at is not None:
-            data["last_synced_at"] = last_synced_at.isoformat()
         
         response = self.client.table(self.TABLE_NAME).insert(data).execute()
         return self._row_to_model(response.data[0])
@@ -279,55 +235,6 @@ class ContentNodeRepository:
             query = query.eq("current_version", expected_version)
         
         response = query.execute()
-        if response.data:
-            return self._row_to_model(response.data[0])
-        return None
-
-    def update_sync_info(
-        self,
-        node_id: str,
-        sync_url: Optional[str] = None,
-        sync_id: Optional[str] = None,
-        sync_status: Optional[str] = None,
-        sync_config: Optional[dict] = None,
-        last_synced_at: Optional[datetime] = None,
-        preview_json: Optional[dict] = None,
-        sync_oauth_user_id: Optional[str] = None,  # 同步绑定的 OAuth 用户
-        node_type: Optional[str] = None,  # 更新节点类型（用于占位符转换）
-    ) -> Optional[ContentNode]:
-        """更新节点的同步信息
-        
-        用于将普通节点（如 markdown）标记为可同步，
-        或更新已有同步节点的同步元数据。
-        也用于将占位符节点转换为已同步节点。
-        """
-        data = {}
-        if sync_url is not None:
-            data["sync_url"] = sync_url
-        if sync_id is not None:
-            data["sync_id"] = sync_id
-        if sync_status is not None:
-            data["sync_status"] = sync_status
-        if sync_config is not None:
-            data["sync_config"] = sync_config
-        if last_synced_at is not None:
-            data["last_synced_at"] = last_synced_at.isoformat()
-        if preview_json is not None:
-            data["preview_json"] = preview_json
-        if sync_oauth_user_id is not None:
-            data["sync_oauth_user_id"] = sync_oauth_user_id
-        if node_type is not None:
-            data["type"] = node_type
-
-        if not data:
-            return self.get_by_id(node_id)
-
-        response = (
-            self.client.table(self.TABLE_NAME)
-            .update(data)
-            .eq("id", node_id)
-            .execute()
-        )
         if response.data:
             return self._row_to_model(response.data[0])
         return None

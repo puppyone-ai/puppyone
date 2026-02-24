@@ -110,19 +110,19 @@ class ImportTaskManager:
             await self._save_to_redis(task)
             # Also update DB status
             await self.repo.update_status(
-                task_id, ImportTaskStatus.PROCESSING, message=message
+                task_id, ImportTaskStatus.RUNNING, message=message
             )
 
     async def mark_completed(
         self,
         task_id: str,
-        content_node_id: str,
+        result_node_id: str,
         items_count: int = 0,
     ) -> None:
         """Mark task as completed."""
         task = await self.get_task(task_id)
         if task:
-            task.mark_completed(content_node_id, items_count)
+            task.mark_completed(result_node_id, items_count)
             await self._save_to_redis(task)
             # Update DB
             await self.repo.update_status(
@@ -130,7 +130,7 @@ class ImportTaskManager:
                 ImportTaskStatus.COMPLETED,
                 progress=100,
                 message="Completed",
-                content_node_id=content_node_id,
+                result_node_id=result_node_id,
                 items_count=items_count,
             )
             log_info(f"Import task completed: {task_id}")

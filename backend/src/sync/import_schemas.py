@@ -47,7 +47,7 @@ class ImportSubmitRequest(BaseModel):
     etl_rule_id: Optional[int] = Field(None, description="ETL rule ID (for file import)")
     crawl_options: Optional[dict] = Field(None, description="Firecrawl options (for URL)")
     
-    # Sync config (stored in content_node.sync_config for re-sync)
+    # Sync config (stored in task config, used by handlers for re-sync)
     sync_config: Optional[dict] = Field(None, description="Sync settings (e.g. recursive, max_depth)")
 
 

@@ -2,7 +2,6 @@
 
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
-import { AccessDock } from '@/components/agent/AccessDock';
 
 export type EditorType = 'treeline-virtual' | 'monaco' | 'table';
 export type ViewType = 'grid' | 'list' | 'explorer';
@@ -12,8 +11,6 @@ export type BreadcrumbSegment = {
   href?: string;
   icon?: React.ReactNode;
 };
-
-// Agent controls are now in AccessDock
 
 type ProjectsHeaderProps = {
   pathSegments: BreadcrumbSegment[];
@@ -27,7 +24,6 @@ export function ProjectsHeader({
   pathSegments,
   onBack,
 }: ProjectsHeaderProps) {
-  // Agent controls have moved to AccessDock
 
   return (
     <header style={headerStyle}>
@@ -158,9 +154,6 @@ export function ProjectsHeader({
           })}
         </div>
       </div>
-
-      {/* RIGHT SIDE: Access Dock (agent icons + add button) */}
-      <AccessDock />
     </header>
   );
 }
@@ -174,7 +167,7 @@ const headerStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   borderBottom: '1px solid rgba(255,255,255,0.1)',
-  background: '#1a1a1a',
+  background: '#0e0e0e',
   position: 'relative',
   zIndex: 10,
 };

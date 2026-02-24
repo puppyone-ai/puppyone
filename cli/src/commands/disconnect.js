@@ -35,7 +35,7 @@ async function disconnectOpenClaw(opts, cmd, out) {
   }
 
   try {
-    const data = await api.del("/access/openclaw/disconnect");
+    const data = await api.del("/sync/openclaw/disconnect");
     out.info(`✅ ${data.message ?? "Disconnected"}`);
 
     // Remove from local config

@@ -1,10 +1,11 @@
 """
 ETL Task Repository
 
-Repository for managing ETL task persistence in Supabase.
+Repository for managing ETL task persistence in the `uploads` table.
 """
 
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, UTC
 from typing import Optional
@@ -14,6 +15,8 @@ from src.supabase.client import SupabaseClient
 from src.supabase.exceptions import handle_supabase_error
 
 logger = logging.getLogger(__name__)
+
+ETL_UPLOAD_TYPES = ["file_ocr", "file_postprocess"]
 
 
 class ETLTaskRepositoryBase(ABC):
@@ -25,7 +28,7 @@ class ETLTaskRepositoryBase(ABC):
         Create a new task in storage.
 
         Args:
-            task: Task to create (task_id will be assigned)
+            task: Task to create (task_id will be assigned if not set)
 
         Returns:
             Task with assigned task_id
@@ -33,12 +36,12 @@ class ETLTaskRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_task(self, task_id: int) -> Optional[ETLTask]:
+    def get_task(self, task_id: str) -> Optional[ETLTask]:
         """
         Get task by ID.
 
         Args:
-            task_id: Task identifier
+            task_id: Task identifier (UUID text)
 
         Returns:
             Task if found, None otherwise
@@ -62,7 +65,7 @@ class ETLTaskRepositoryBase(ABC):
     def list_tasks(
         self,
         user_id: Optional[str] = None,
-        project_id: Optional[int] = None,
+        project_id: Optional[str] = None,
         status: Optional[ETLTaskStatus] = None,
         limit: int = 100,
         offset: int = 0,
@@ -86,7 +89,7 @@ class ETLTaskRepositoryBase(ABC):
     def count_tasks(
         self,
         user_id: Optional[str] = None,
-        project_id: Optional[int] = None,
+        project_id: Optional[str] = None,
         status: Optional[ETLTaskStatus] = None,
     ) -> int:
         """
@@ -103,12 +106,12 @@ class ETLTaskRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def delete_task(self, task_id: int) -> bool:
+    def delete_task(self, task_id: str) -> bool:
         """
         Delete task by ID.
 
         Args:
-            task_id: Task identifier
+            task_id: Task identifier (UUID text)
 
         Returns:
             True if deleted, False if not found
@@ -117,9 +120,9 @@ class ETLTaskRepositoryBase(ABC):
 
 
 class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
-    """Supabase implementation of ETL task repository."""
+    """Supabase implementation of ETL task repository using the `uploads` table."""
 
-    TABLE_NAME = "etl_task"
+    TABLE_NAME = "uploads"
 
     def __init__(self):
         """Initialize Supabase task repository."""
@@ -129,14 +132,12 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
     def create_task(self, task: ETLTask) -> ETLTask:
         """Create a new task in Supabase."""
         try:
-            # Convert task to dict for insertion
             insert_data = task.to_dict()
 
-            # Remove id field as it will be auto-generated
-            if "id" in insert_data:
-                del insert_data["id"]
+            # Generate a UUID if not already set (uploads.id is TEXT PK)
+            if "id" not in insert_data or not insert_data["id"]:
+                insert_data["id"] = str(uuid.uuid4())
 
-            # Insert to database
             response = (
                 self.supabase.table(self.TABLE_NAME).insert(insert_data).execute()
             )
@@ -144,10 +145,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             if not response.data or len(response.data) == 0:
                 raise Exception("Failed to create task: no data returned")
 
-            # Get inserted record
             row = response.data[0]
-
-            # Create task from database record
             created_task = ETLTask.from_dict(row)
 
             logger.info(
@@ -158,13 +156,14 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
         except Exception as e:
             handle_supabase_error(e, "创建 ETL 任务")
 
-    def get_task(self, task_id: int) -> Optional[ETLTask]:
+    def get_task(self, task_id: str) -> Optional[ETLTask]:
         """Get task by ID from Supabase."""
         try:
             response = (
                 self.supabase.table(self.TABLE_NAME)
                 .select("*")
                 .eq("id", task_id)
+                .in_("type", ETL_UPLOAD_TYPES)
                 .execute()
             )
 
@@ -173,9 +172,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
                 return None
 
             row = response.data[0]
-            task = ETLTask.from_dict(row)
-
-            return task
+            return ETLTask.from_dict(row)
 
         except Exception as e:
             logger.error(f"Error getting task {task_id}: {e}")
@@ -188,17 +185,13 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             return None
 
         try:
-            # Convert task to dict
             update_data = task.to_dict()
 
-            # Remove id field (not updatable)
             if "id" in update_data:
                 del update_data["id"]
 
-            # Update timestamp
             update_data["updated_at"] = datetime.now(UTC).isoformat()
 
-            # Update in database
             response = (
                 self.supabase.table(self.TABLE_NAME)
                 .update(update_data)
@@ -222,16 +215,18 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
     def list_tasks(
         self,
         user_id: Optional[str] = None,
-        project_id: Optional[int] = None,
+        project_id: Optional[str] = None,
         status: Optional[ETLTaskStatus] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[ETLTask]:
-        """List tasks with optional filters."""
+        """List tasks with optional filters (only ETL upload types)."""
         try:
             query = self.supabase.table(self.TABLE_NAME).select("*")
 
-            # Apply filters
+            # Restrict to ETL-related upload types
+            query = query.in_("type", ETL_UPLOAD_TYPES)
+
             if user_id is not None:
                 query = query.eq("user_id", user_id)
             if project_id is not None:
@@ -239,17 +234,13 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             if status is not None:
                 query = query.eq("status", status.value)
 
-            # Apply pagination and ordering
             query = query.range(offset, offset + limit - 1).order(
                 "created_at", desc=True
             )
 
             response = query.execute()
 
-            tasks = []
-            for row in response.data:
-                task = ETLTask.from_dict(row)
-                tasks.append(task)
+            tasks = [ETLTask.from_dict(row) for row in response.data]
 
             logger.info(
                 f"Listed {len(tasks)} tasks "
@@ -265,14 +256,15 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
     def count_tasks(
         self,
         user_id: Optional[str] = None,
-        project_id: Optional[int] = None,
+        project_id: Optional[str] = None,
         status: Optional[ETLTaskStatus] = None,
     ) -> int:
-        """Count tasks with optional filters."""
+        """Count tasks with optional filters (only ETL upload types)."""
         try:
             query = self.supabase.table(self.TABLE_NAME).select("id", count="exact")
 
-            # Apply filters
+            query = query.in_("type", ETL_UPLOAD_TYPES)
+
             if user_id is not None:
                 query = query.eq("user_id", user_id)
             if project_id is not None:
@@ -289,7 +281,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             logger.error(f"Error counting tasks: {e}")
             return 0
 
-    def delete_task(self, task_id: int) -> bool:
+    def delete_task(self, task_id: str) -> bool:
         """Delete task by ID."""
         try:
             response = (

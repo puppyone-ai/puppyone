@@ -1,10 +1,10 @@
 """
-L3 Access Layer — 统一接入层
+Backward-compatibility shim — 代码已迁移至以下位置：
 
-所有外部（和内部 Agent）访问都通过此层管理，按类型分为：
+- agent/config/    Agent 配置 CRUD (agents / agent_bash / agent_tool)
+- agent/chat/      Agent 聊天 (SSE 流式对话) + 核心编排
+- agent/mcp/       MCP 协议运行时 (工具绑定 & 代理转发)
+- sync/providers/openclaw/  OpenClaw CLI 同步 (连接管理 + 文件夹双向同步)
 
-- config/     共享的 Access Point 配置 CRUD（agents / agent_bash / agent_tool）
-- chat/       PuppyOne 内置 Agent (SSE 流式对话)
-- mcp/        MCP 协议运行时（工具绑定 & 代理转发）
-- openclaw/   OpenClaw 文件夹同步运行时（CLI connect / push / pull）
+本目录仅保留 re-export 以兼容旧 import 路径。
 """

@@ -35,23 +35,31 @@ export function registerPull(program) {
       }
 
       try {
+        const state = loadState(conn.folder);
+        const folderId = conn.folder_id || state.connection?.folder_id;
+        if (!folderId) {
+          out.error("NO_FOLDER_ID", "No folder_id found. Re-run `puppyone connect` to update your connection.");
+          return;
+        }
+
         out.info(`\nPulling data to ${conn.folder}...\n`);
 
-        const data = await api.get("/access/openclaw/pull");
-        const nodes = data.nodes ?? [];
+        const cursor = state.cursor ?? 0;
+        const data = await api.get(`/sync/${folderId}/pull?cursor=${cursor}`);
+        const files = data.files ?? [];
 
-        if (nodes.length === 0) {
-          out.info("  No nodes available. Check agent resource bindings.");
+        if (files.length === 0) {
+          out.info("  No files available. Check agent resource bindings.");
           out.success({ pulled: 0 });
           return;
         }
 
-        const state = loadState(conn.folder);
         let pulled = 0;
         let skippedCount = 0;
 
-        for (const node of nodes) {
+        for (const node of files) {
           try {
+            if (node.type === "folder") { skippedCount++; continue; }
             const fileName = nodeToFilename(node);
             const newVersion = node.version ?? 0;
             const localEntry = state.files[fileName];
@@ -70,7 +78,6 @@ export function registerPull(program) {
             const hash = hashString(content);
 
             state.files[fileName] = {
-              node_id: node.node_id,
               version: newVersion,
               hash,
             };
@@ -81,10 +88,13 @@ export function registerPull(program) {
           }
         }
 
+        if (data.cursor != null) {
+          state.cursor = data.cursor;
+        }
         saveState(conn.folder, state);
 
         out.info(`\n✅ Pulled ${pulled} updated, ${skippedCount} unchanged\n`);
-        out.success({ pulled, skipped: skippedCount, total: nodes.length });
+        out.success({ pulled, skipped: skippedCount, total: files.length });
       } catch (e) {
         if (e instanceof ApiError) out.error(e.code, e.message, e.hint);
         else out.error("PULL_FAILED", e.message);

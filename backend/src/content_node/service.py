@@ -476,108 +476,63 @@ class ContentNodeService:
         created_by: Optional[str] = None,
     ) -> ContentNode:
         """
-        创建占位符节点（未连接状态）
+        创建占位符节点（未连接状态）。
         
-        用于 Onboarding 等场景，展示"可以连接但尚未连接"的数据源。
-        用户点击后可以触发 OAuth 授权流程。
-        
-        Args:
-            placeholder_type: 平台类型（gmail, sheets, calendar, notion, github 等）
-        
-        注意：占位符节点的 sync_oauth_user_id 为 None，授权后才会填充。
+        在 Unified Sync 架构下，节点只是普通 json 节点。
+        同步关系通过 syncs 表单独管理。
         """
         import uuid
         name = self._validate_name(name)
-        
-        # placeholder_type → (node_type, import_type) 映射
-        TYPE_MAP = {
-            'gmail': ('gmail', 'inbox'),
-            'sheets': ('google_sheets', 'spreadsheet'),
-            'calendar': ('google_calendar', 'events'),
-            'docs': ('google_drive', 'file'),
-            'notion': ('notion', 'page'),
-            'github': ('github', 'repo'),
-            'airtable': ('airtable', 'base'),
-            'linear': ('linear', 'assigned_issues'),
-        }
-        
-        node_type, import_type = TYPE_MAP.get(placeholder_type, (placeholder_type, 'default'))
         
         new_id = str(uuid.uuid4())
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 占位符的默认内容
         placeholder_content = {
             "_status": "not_connected",
             "_placeholder_type": placeholder_type,
             "_message": f"Click to connect your {placeholder_type.replace('_', ' ').title()} account",
         }
         
-        # 占位符不设 sync_oauth_user_id，因为还没授权
-        # 数据库约束 chk_sync_oauth_user 只要求 sync_status != 'not_connected' 时必须有
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type=node_type,
+            node_type="json",
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
             preview_json=placeholder_content,
             mime_type="application/json",
-            sync_status="not_connected",
-            sync_config={"import_type": import_type},
         )
 
     async def convert_placeholder_to_synced(
         self,
         node_id: str,
         project_id: str,
-        sync_oauth_user_id: str,  # 授权后必须提供
         content: Any,
-        sync_url: str,
-        sync_id: str,
-        sync_config: Optional[dict] = None,
     ) -> ContentNode:
-        """将占位符节点转换为已同步的节点"""
+        """将占位符节点更新为有内容的节点（同步关系由 syncs 表管理）"""
         node = self.get_by_id(node_id, project_id)
         
-        if node.sync_status != "not_connected":
-            raise BusinessException(
-                f"Node is not a placeholder: {node.sync_status}",
-                code=ErrorCode.BAD_REQUEST
-            )
-        
-        # 更新同步信息，并设置 sync_oauth_user_id
-        return self.repo.update_sync_info(
+        updated = self.repo.update(
             node_id=node_id,
-            sync_url=sync_url,
-            sync_id=sync_id,
-            sync_status="idle",
-            sync_config=sync_config,
-            last_synced_at=datetime.utcnow(),
             preview_json=content,
-            sync_oauth_user_id=sync_oauth_user_id,
         )
+        self._track_version(node_id, "update", content_json=content, operator_type="sync")
+        return updated
 
     async def create_synced_node(
         self,
         project_id: str,
-        sync_oauth_user_id: str,  # 同步节点必须提供
         name: str,
-        node_type: str,  # 如 github_repo, notion_page, gmail_thread 等
-        sync_url: str,
         content: Any,
         parent_id: Optional[str] = None,
-        sync_id: Optional[str] = None,
-        sync_config: Optional[dict] = None,
         created_by: Optional[str] = None,
     ) -> ContentNode:
         """
-        创建同步节点（从 SaaS 平台导入的结构化数据）
+        创建用于同步的 JSON 节点。
         
-        JSON 数据直接存 JSONB（preview_json 字段）。
-        sync_oauth_user_id 用于标识使用哪个用户的 OAuth 凭证进行同步。
+        同步关系（provider、direction 等）通过 syncs 表单独管理。
         """
         import uuid
         name = self._validate_name(name)
@@ -589,18 +544,12 @@ class ContentNodeService:
         node = self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type=node_type,
+            node_type="json",
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
-            sync_oauth_user_id=sync_oauth_user_id,
             preview_json=content,
             mime_type="application/json",
-            sync_url=sync_url,
-            sync_id=sync_id,
-            sync_config=sync_config,
-            sync_status="idle",
-            last_synced_at=datetime.utcnow(),
         )
         self._track_version(node.id, "create", content_json=content, operator_type="sync", operator_id=created_by)
         return node
@@ -608,17 +557,13 @@ class ContentNodeService:
     async def create_github_repo_node(
         self,
         project_id: str,
-        sync_oauth_user_id: str,  # GitHub 同步节点必须提供
         name: str,
-        sync_url: str,
-        sync_id: str,
         s3_prefix: str,
         metadata: dict,
         parent_id: Optional[str] = None,
-        sync_config: Optional[dict] = None,
         created_by: Optional[str] = None,
     ) -> ContentNode:
-        """创建 GitHub repo 节点（单节点模式）"""
+        """创建 GitHub repo 节点（文件类型，同步关系由 syncs 表管理）"""
         import uuid
         name = self._validate_name(name)
         
@@ -626,24 +571,16 @@ class ContentNodeService:
         id_path = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, parent_id, name)
         
-        # 合并 sync_config，添加 import_type
-        merged_config = {"import_type": "repo", **(sync_config or {})}
-        
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type="github",
+            node_type="file",
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
-            sync_oauth_user_id=sync_oauth_user_id,
             preview_json=metadata,
             s3_key=s3_prefix,
             mime_type="application/x-github-repo",
-            sync_url=sync_url,
-            sync_id=sync_id,
-            sync_config=merged_config,
-            last_synced_at=datetime.utcnow(),
         )
 
     def create_pending_node(
@@ -740,17 +677,12 @@ class ContentNodeService:
     async def create_synced_markdown_node(
         self, 
         project_id: str,
-        sync_oauth_user_id: str,  # 同步 Markdown 节点必须提供
         name: str, 
         content: str,
-        node_type: str,  # 如 notion_page
-        sync_url: str,
-        sync_id: Optional[str] = None,
-        sync_config: Optional[dict] = None,
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> ContentNode:
-        """创建同步的 Markdown 节点（如 Notion Page），内容直接存 preview_md，不存 S3"""
+        """创建用于同步的 Markdown 节点（同步关系由 syncs 表管理）"""
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
@@ -762,18 +694,13 @@ class ContentNodeService:
         node = self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type=node_type,
+            node_type="markdown",
             id_path=id_path,
             parent_id=parent_id,
             created_by=created_by,
-            sync_oauth_user_id=sync_oauth_user_id,
-            preview_md=content,  # 直接存数据库
+            preview_md=content,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
-            sync_url=sync_url,
-            sync_id=sync_id,
-            sync_config=sync_config,
-            last_synced_at=datetime.utcnow(),
         )
         self._track_version(node.id, "create", content_text=content, size_bytes=len(content_bytes), operator_type="sync", operator_id=created_by)
         return node
@@ -1027,15 +954,10 @@ class ContentNodeService:
         return updated
 
     def update_sync_content(self, node_id: str, content: Any) -> ContentNode:
-        """
-        更新同步节点的 preview_json 数据（用于定时重跑 SQL 等场景）。
-        
-        同时更新 last_synced_at 时间戳。
-        """
-        updated = self.repo.update_sync_info(
+        """更新节点的 preview_json 数据（用于同步更新等场景）"""
+        updated = self.repo.update(
             node_id=node_id,
             preview_json=content,
-            last_synced_at=datetime.utcnow(),
         )
         if not updated:
             raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)

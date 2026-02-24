@@ -1,5 +1,2 @@
-"""
-MCP 协议运行时
-
-Agent 的 MCP 工具绑定、状态管理、代理转发。
-"""
+"""Backward-compatibility re-export — real code in src.agent.mcp.__init__."""
+from src.agent.mcp.__init__ import *  # noqa: F401,F403

@@ -137,6 +137,8 @@ interface AgentContextValue {
   
   // New Actions
   openSetting: () => void;
+  openSyncSetting: (provider: string, preBindResource?: AccessResource) => void;
+  pendingSyncProvider: string | null;
   editAgent: (agentId: string) => void;  // 编辑已有 agent
   editingAgentId: string | null;  // 正在编辑的 agent ID
   cancelSetting: () => void;  // 取消设置，返回聊天界面
@@ -161,6 +163,11 @@ interface AgentContextValue {
   // Runtime Actions
   toggleCapability: (id: string) => void;
   
+  // Sync sidebar
+  selectedSyncId: string | null;
+  selectedSyncNodeId: string | null;
+  selectSync: (syncId: string | null, nodeId?: string | null) => void;
+
   // Legacy support
   isChatOpen: boolean; 
   toggleChat: () => void;
@@ -198,6 +205,10 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   const [draftTaskNodeId, setDraftTaskNodeId] = useState<string | null>(null);
   const [draftExternalConfig, setDraftExternalConfig] = useState<ExternalConfig | null>(null);
   
+  // Sync sidebar state
+  const [selectedSyncId, setSelectedSyncId] = useState<string | null>(null);
+  const [pendingSyncProvider, setPendingSyncProvider] = useState<string | null>(null);
+
   // Runtime State (for Deployed/Playground Mode)
   const [selectedCapabilities, setSelectedCapabilities] = useState<Set<string>>(new Set());
 
@@ -322,8 +333,8 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
 
   // Select agent — callable from ANY state → always goes to deployed
   const selectAgent = useCallback((agentId: string | null) => {
-    // Clean up any in-progress editing
     setEditingAgentId(null);
+    setSelectedSyncId(null);
 
     if (!agentId) {
       setCurrentAgentId(null);
@@ -337,6 +348,22 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     setSelectedCapabilities(new Set(agent?.capabilities ?? []));
     setSidebarMode('deployed');
   }, [savedAgents]);
+
+  const [selectedSyncNodeId, setSelectedSyncNodeId] = useState<string | null>(null);
+
+  const selectSync = useCallback((syncId: string | null, nodeId?: string | null) => {
+    setEditingAgentId(null);
+    if (!syncId) {
+      setSelectedSyncId(null);
+      setSelectedSyncNodeId(null);
+      setSidebarMode('closed');
+      return;
+    }
+    setCurrentAgentId(null);
+    setSelectedSyncId(syncId);
+    setSelectedSyncNodeId(nodeId ?? null);
+    setSidebarMode('deployed');
+  }, []);
 
   const resetDraftState = useCallback(() => {
     setEditingAgentId(null);
@@ -353,6 +380,16 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   // Create new access — callable from ANY state
   const openSetting = useCallback(() => {
     resetDraftState();
+    setPendingSyncProvider(null);
+    setSidebarMode('setting');
+  }, [resetDraftState]);
+
+  const openSyncSetting = useCallback((provider: string, preBindResource?: AccessResource) => {
+    resetDraftState();
+    if (preBindResource) {
+      setDraftResources([preBindResource]);
+    }
+    setPendingSyncProvider(provider);
     setSidebarMode('setting');
   }, [resetDraftState]);
 
@@ -746,8 +783,13 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         draftTaskNodeId,
         draftExternalConfig,
         
+        selectedSyncId,
+        selectedSyncNodeId,
+        selectSync,
         selectAgent,
         openSetting,
+        openSyncSetting,
+        pendingSyncProvider,
         editAgent,
         editingAgentId,
         cancelSetting,

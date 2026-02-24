@@ -3,7 +3,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { get } from '@/lib/apiClient';
 import type { SavedAgent } from '@/components/AgentRail';
-import { FolderIcon } from './_icons';
 
 interface OpenClawSetupViewProps {
   agent: SavedAgent;
@@ -324,7 +323,8 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Header */}
         <div style={{
-          padding: '12px 16px',
+          height: 48,
+          padding: '0 16px',
           borderBottom: '1px solid #222',
           background: '#0d0d0d',
           display: 'flex',
@@ -373,186 +373,133 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-          {/* Sync Status Card (Hero) */}
+          {/* Sync visualization */}
           <div style={{
-            background: 'linear-gradient(180deg, #161616 0%, #0d0d0d 100%)',
-            border: '1px solid #2a2a2a',
-            borderRadius: 12,
-            overflow: 'hidden',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+            background: '#141414', border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 10, padding: '28px 24px 20px',
+            display: 'flex', flexDirection: 'column', gap: 14,
           }}>
-            {/* Visual Area */}
-            <div style={{ padding: '36px 32px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              
-              {/* Row 1: Icons & Line (Perfectly Aligned) */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                
-                {/* Local Icon */}
+            {/* Icons + connection */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* OpenClaw (LEFT) */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
+                <img src="/icons/folder.svg" alt="Folder" width={36} height={36} style={{ display: 'block' }} />
+                <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>OpenClaw</div>
                 <div style={{
-                  width: 52, height: 52, borderRadius: 12,
-                  background: '#1a1a1a',
-                  border: `1px solid ${hasEverConnected && !isConnected ? '#7f1d1d' : '#333'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  color: isConnected ? '#e5e5e5' : '#525252',
-                  flexShrink: 0,
-                  zIndex: 2,
-                }}>
-                  <FolderIcon />
-                </div>
-
-                {/* Connection Line */}
-                <div style={{ flex: 1, position: 'relative', height: 2, margin: '0 12px' }}>
-                  <div style={{
-                    position: 'absolute', inset: 0,
-                    borderTop: isConnected
-                      ? '2px dashed #4ade80'
-                      : hasEverConnected
-                        ? '2px dashed #ef4444'
-                        : '2px dashed #333',
-                    opacity: isConnected ? 0.4 : hasEverConnected ? 0.6 : 1,
-                    top: -1,
-                  }} />
-
-                  <div style={{
-                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                    background: '#161616',
-                    padding: '0 4px',
-                  }}>
-                    {isConnected ? (
-                      <div style={{
-                        width: 24, height: 24, borderRadius: '50%',
-                        background: '#22c55e',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#000',
-                        boxShadow: '0 0 12px rgba(34, 197, 94, 0.4)'
-                      }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                    ) : hasEverConnected ? (
-                      <div style={{
-                        width: 24, height: 24, borderRadius: '50%',
-                        background: '#ef4444',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#fff',
-                        boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)'
-                      }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                      </div>
-                    ) : (
-                      <div style={{
-                        width: 16, height: 16, borderRadius: '50%',
-                        background: '#1a1a1a', border: '2px solid #333',
-                      }} />
-                    )}
-                  </div>
-                </div>
-
-                {/* Remote Icon */}
-                <div style={{
-                  width: 52, height: 52, borderRadius: 12,
-                  background: '#1a1a1a',
-                  border: `1px solid ${hasEverConnected && !isConnected ? '#7f1d1d' : '#333'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  color: isConnected ? '#e5e5e5' : '#525252',
-                  flexShrink: 0,
-                  zIndex: 2,
-                }}>
-                  <FolderIcon />
+                  fontSize: 10, color: '#525252', fontFamily: 'monospace', textAlign: 'center',
+                  wordBreak: 'break-all', lineHeight: 1.3, maxWidth: 80,
+                }} title={connectionStatus.workspace_path}>
+                  {isConnected && connectionStatus.workspace_path
+                    ? connectionStatus.workspace_path.replace(/^\/Users\/[^/]+/, '~')
+                    : '~/...'}
                 </div>
               </div>
 
-              {/* Row 2: Text Labels */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ width: 120, textAlign: 'left' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#ededed' }}>OpenClaw</div>
-                  <div style={{ 
-                    fontSize: 11, color: '#737373', marginTop: 4, fontFamily: 'monospace',
-                    wordBreak: 'break-all', lineHeight: 1.4 
-                  }} title={connectionStatus.workspace_path}>
-                    {isConnected && connectionStatus.workspace_path
-                      ? connectionStatus.workspace_path.replace(/^\/Users\/[^/]+/, '~')
-                      : '~/.openclaw/workspace'}
+              {/* Connection line */}
+              {(() => {
+                if (!isConnected && !hasEverConnected) {
+                  return (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 4px' }}>
+                      <div style={{
+                        fontSize: 9, color: '#525252', fontWeight: 500, letterSpacing: '0.3px',
+                        borderTop: '1px dashed #333', width: '100%', textAlign: 'center',
+                        position: 'relative',
+                      }}>
+                        <span style={{
+                          position: 'relative', top: -7, background: '#141414',
+                          padding: '0 6px', whiteSpace: 'nowrap',
+                        }}>Waiting for CLI</span>
+                      </div>
+                    </div>
+                  );
+                }
+                if (!isConnected && hasEverConnected) {
+                  return (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 4px' }}>
+                      <div style={{
+                        fontSize: 9, color: '#ef4444', fontWeight: 500, letterSpacing: '0.3px',
+                        borderTop: '1px dashed rgba(239,68,68,0.3)', width: '100%', textAlign: 'center',
+                        position: 'relative',
+                      }}>
+                        <span style={{
+                          position: 'relative', top: -7, background: '#141414',
+                          padding: '0 6px', whiteSpace: 'nowrap',
+                        }}>Disconnected</span>
+                      </div>
+                    </div>
+                  );
+                }
+                const ds = 4, gs = 14, p = ds + gs;
+                const Track = ({ anim }: { anim: string }) => (
+                  <div style={{ height: ds, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', gap: gs, animation: `${anim} ${p * 50}ms linear infinite` }}>
+                      {Array.from({ length: 30 }).map((_, i) => (
+                        <div key={i} style={{ width: ds, height: ds, flexShrink: 0, background: '#4ade80', borderRadius: 1, opacity: 0.85 }} />
+                      ))}
+                    </div>
                   </div>
-                </div>
+                );
+                return (
+                  <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5, margin: '0 4px' }}>
+                    <style>{`
+                      @keyframes oc-fl { from { transform: translateX(0); } to { transform: translateX(-${p}px); } }
+                      @keyframes oc-fr { from { transform: translateX(-${p}px); } to { transform: translateX(0); } }
+                    `}</style>
+                    <Track anim="oc-fl" />
+                    <Track anim="oc-fr" />
+                  </div>
+                );
+              })()}
 
-                <div style={{ width: 120, textAlign: 'right' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#ededed' }}>PuppyOne</div>
-                  <div style={{ 
-                    fontSize: 11, color: '#737373', marginTop: 4,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                  }}>
-                    {resources.length > 0 ? resources[0].nodeName : agent.name}
-                  </div>
+              {/* PuppyOne (RIGHT) */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
+                <img src="/icons/folder.svg" alt="Folder" width={36} height={36} style={{ display: 'block' }} />
+                <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>
+                  {resources.length > 0 ? resources[0].nodeName : agent.name}
                 </div>
               </div>
-
             </div>
 
-            {/* Action Footer */}
-            <div style={{
-              background: '#0a0a0a',
-              borderTop: '1px solid #222',
-              padding: '12px 20px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                  width: 8, height: 8, borderRadius: '50%',
-                  background: statusColor,
-                  boxShadow: isConnected ? '0 0 8px rgba(34,197,94,0.4)' : 'none',
-                  display: 'inline-block'
-                }} />
-                <span style={{ fontSize: 12, fontWeight: 500, color: statusTextColor }}>
-                  {statusLabel}
-                  {lastSeenText && (
-                    <span style={{ fontWeight: 400, color: '#525252', marginLeft: 4 }}>
-                      · {lastSeenText}
-                    </span>
-                  )}
-                </span>
-                <button
-                  onClick={handleRefresh}
-                  title="Refresh status"
-                  style={{
-                    background: 'transparent', border: 'none', cursor: 'pointer',
-                    color: '#525252', padding: 4, borderRadius: 4, display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    transition: 'color 0.15s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.color = '#a3a3a3'}
-                  onMouseLeave={e => e.currentTarget.style.color = '#525252'}
+            {/* Status line */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0 0' }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%', background: statusColor,
+                display: 'inline-block', flexShrink: 0,
+              }} />
+              <span style={{ fontSize: 11, fontWeight: 500, color: statusTextColor }}>
+                {statusLabel}
+              </span>
+              {lastSeenText && (
+                <span style={{ fontSize: 11, color: '#525252' }}>· {lastSeenText}</span>
+              )}
+              <button
+                onClick={handleRefresh}
+                title="Refresh"
+                style={{
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: '#525252', padding: 2, borderRadius: 4, display: 'flex',
+                  marginLeft: 'auto', transition: 'color 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#a3a3a3'}
+                onMouseLeave={e => e.currentTarget.style.color = '#525252'}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ animation: refreshing ? 'spin 0.6s linear' : 'none' }}
                 >
-                  <svg
-                    width="13" height="13" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" strokeWidth="2.5"
-                    strokeLinecap="round" strokeLinejoin="round"
-                    style={{
-                      animation: refreshing ? 'spin 0.6s linear' : 'none',
-                    }}
-                  >
-                    <polyline points="23 4 23 10 17 10" />
-                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                  </svg>
-                </button>
-              </div>
-
+                  <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
+              </button>
               <button
                 onClick={() => setShowSetup(true)}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '8px 16px', background: '#ededed',
-                  border: 'none', borderRadius: 6,
-                  fontSize: 12, fontWeight: 600, color: '#000',
-                  cursor: 'pointer', transition: 'all 0.15s'
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  height: 28, padding: '0 12px', borderRadius: 6,
+                  background: '#ededed', border: 'none',
+                  fontSize: 12, fontWeight: 500, color: '#000',
+                  cursor: 'pointer', transition: 'opacity 0.12s',
                 }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
                 onMouseLeave={e => e.currentTarget.style.opacity = '1'}
               >
                 {isConnected ? 'Manage' : 'Connect'}
@@ -561,18 +508,16 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
             </div>
           </div>
 
-          {/* Access Key Section (Subtle) */}
+          {/* Access Key Section */}
           <div style={{ padding: '0 4px' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
               Credentials
             </div>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              background: '#111', border: '1px solid #2a2a2a', borderRadius: 8,
-              padding: '10px 12px',
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
             }}>
-              <div style={{ fontSize: 12, color: '#525252', fontWeight: 500 }}>Access Key</div>
-              <div style={{ width: 1, height: 16, background: '#2a2a2a' }} />
+              <div style={{ fontSize: 11, color: '#525252', fontWeight: 500, width: 72 }}>Access Key</div>
               <code style={{
                 flex: 1, fontSize: 12, color: '#a3a3a3', fontFamily: 'monospace',
                 background: 'transparent', border: 'none'

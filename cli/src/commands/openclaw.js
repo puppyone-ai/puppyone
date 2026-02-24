@@ -520,7 +520,7 @@ async function doRemove(folder, opts, cmd) {
   }
 
   try {
-    const data = await api.del("/access/openclaw/disconnect");
+    const data = await api.del("/sync/openclaw/disconnect");
     out.info(`  ${data.message ?? "Disconnected"}`);
 
     unregisterWorkspace(absPath);
@@ -548,7 +548,7 @@ async function doConnect(absPath, accessKey, cmd, state, out, opts = {}) {
     api = createOpenClawClient(accessKey, cmd);
 
     out.step("Authenticating...");
-    const data = await api.post("/access/openclaw/connect", { workspace_path: absPath });
+    const data = await api.post("/sync/openclaw/connect", { workspace_path: absPath });
 
     if (!data.folder_id) {
       out.done("");

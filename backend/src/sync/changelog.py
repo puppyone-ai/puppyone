@@ -27,6 +27,8 @@ class ChangelogEntry:
     hash: Optional[str]
     size_bytes: int
     created_at: Optional[str]
+    folder_id: Optional[str] = None
+    filename: Optional[str] = None
 
 
 class SyncChangelogRepository:
@@ -46,6 +48,8 @@ class SyncChangelogRepository:
         version: int = 0,
         hash: Optional[str] = None,
         size_bytes: int = 0,
+        folder_id: Optional[str] = None,
+        filename: Optional[str] = None,
     ) -> ChangelogEntry:
         data = {
             "project_id": project_id,
@@ -55,6 +59,8 @@ class SyncChangelogRepository:
             "version": version,
             "hash": hash,
             "size_bytes": size_bytes,
+            "folder_id": folder_id,
+            "filename": filename,
         }
         resp = self.client.table(self.TABLE).insert(data).execute()
         return self._to_entry(resp.data[0])
@@ -64,6 +70,7 @@ class SyncChangelogRepository:
         project_id: str,
         cursor: int = 0,
         limit: int = 500,
+        folder_id: Optional[str] = None,
     ) -> List[ChangelogEntry]:
         query = (
             self.client.table(self.TABLE)
@@ -73,6 +80,8 @@ class SyncChangelogRepository:
             .order("id")
             .limit(limit)
         )
+        if folder_id:
+            query = query.eq("folder_id", folder_id)
         resp = query.execute()
         return [self._to_entry(r) for r in resp.data]
 
@@ -123,4 +132,6 @@ class SyncChangelogRepository:
             hash=row.get("hash"),
             size_bytes=row.get("size_bytes", 0),
             created_at=row.get("created_at"),
+            folder_id=row.get("folder_id"),
+            filename=row.get("filename"),
         )

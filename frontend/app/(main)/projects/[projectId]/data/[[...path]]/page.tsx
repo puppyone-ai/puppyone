@@ -420,7 +420,40 @@ export default function DataPage({ params }: DataPageProps) {
   }, [projectId, session?.access_token]);
 
   // Agent Context - get draft resources for highlighting
-  const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId } = useAgent();
+  const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, selectedSyncId, selectedSyncNodeId } = useAgent();
+
+  // Auto-create a blank node and open sync sidebar with it pre-bound
+  const PROVIDER_NODE_TYPE: Record<string, 'json' | 'markdown' | 'folder'> = {
+    gmail: 'json', calendar: 'json', sheets: 'json', linear: 'json',
+    docs: 'markdown', github: 'folder', notion: 'folder',
+  };
+  const PROVIDER_DEFAULT_NAMES: Record<string, string> = {
+    gmail: 'Gmail Inbox', calendar: 'Calendar Events', sheets: 'Sheet Data',
+    linear: 'Linear Issues', docs: 'Document', github: 'GitHub Repo', notion: 'Notion Pages',
+  };
+  const handleCreateAndSync = useCallback(async (saasProvider: string) => {
+    const nodeType = PROVIDER_NODE_TYPE[saasProvider];
+    if (!nodeType) { openSyncSetting(saasProvider); return; }
+    const name = PROVIDER_DEFAULT_NAMES[saasProvider] || 'Untitled';
+    const parentId = currentFolderId ?? undefined;
+    try {
+      let node: { id: string; name: string; type?: string };
+      if (nodeType === 'json') {
+        node = await createJsonNode(name, projectId, {}, parentId);
+      } else if (nodeType === 'markdown') {
+        node = await createMarkdownNode(name, projectId, '', parentId);
+      } else {
+        node = await createFolder(name, projectId, parentId);
+      }
+      await refreshAllContentNodes(projectId);
+      openSyncSetting(saasProvider, {
+        nodeId: node.id, nodeName: node.name, nodeType: nodeType,
+        readonly: true, jsonPath: '',
+      } as any);
+    } catch {
+      openSyncSetting(saasProvider);
+    }
+  }, [projectId, currentFolderId, openSyncSetting]);
   
   // Convert resources to AgentResource format for views
   // Priority: 1) Hovered Agent (Preview), 2) Setting Mode (Draft), 3) Deployed Mode (Active Agent)
@@ -453,9 +486,14 @@ export default function DataPage({ params }: DataPageProps) {
         return agent.resources.map(toAgentResource);
       }
     }
+
+    // 4. Sync selected — highlight the sync's bound node
+    if (sidebarMode === 'deployed' && selectedSyncId && selectedSyncNodeId) {
+      return [{ nodeId: selectedSyncNodeId, terminalReadonly: true }];
+    }
     
     return [];
-  }, [draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId]);
+  }, [draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId]);
 
   // Current project
   const activeProject = useMemo(
@@ -858,14 +896,14 @@ export default function DataPage({ params }: DataPageProps) {
     preview_snippet: node.preview_snippet,
     children_count: node.children_count,
     onClick: () => {
-      // Handle placeholder nodes: open configuration dialog instead of navigating
+      // Handle placeholder nodes: open sync sidebar with this node pre-bound
       if (node.sync_status === 'not_connected') {
         const saasId = getPlaceholderSaasId(node.type);
         if (saasId) {
-          // Open TableManageDialog with the corresponding SaaS pre-selected
-          setDefaultStartOption('connect');
-          setDefaultSelectedSaas(saasId as any);
-          setCreateTableOpen(true);
+          openSyncSetting(saasId, {
+            nodeId: node.id, nodeName: node.name, nodeType: node.type as any,
+            readonly: true, jsonPath: '',
+          } as any);
         }
         return;
       }
@@ -989,8 +1027,6 @@ export default function DataPage({ params }: DataPageProps) {
         onDrop={handleGlobalDrop}
         style={{
           flex: 1, display: 'flex', minHeight: 0, position: 'relative', overflow: 'hidden',
-          paddingRight: 'var(--sidebar-offset, 0px)',
-          transition: 'padding-right 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         } as React.CSSProperties}
       >
         {/* File drop overlay */}
@@ -1489,34 +1525,14 @@ export default function DataPage({ params }: DataPageProps) {
                 setCreateTableOpen(true);
               }}
               onImportFromSaas={() => {
-                setDefaultStartOption('connect');
-                setDefaultSelectedSaas(undefined);
-                setCreateTableOpen(true);
+                openSyncSetting('_generic');
               }}
-              onImportNotion={() => {
-                setDefaultSelectedSaas('notion');
-                setCreateTableOpen(true);
-              }}
-              onImportGitHub={() => {
-                setDefaultSelectedSaas('github');
-                setCreateTableOpen(true);
-              }}
-              onImportGmail={() => {
-                setDefaultSelectedSaas('gmail');
-                setCreateTableOpen(true);
-              }}
-              onImportDocs={() => {
-                setDefaultSelectedSaas('docs');
-                setCreateTableOpen(true);
-              }}
-              onImportCalendar={() => {
-                setDefaultSelectedSaas('calendar');
-                setCreateTableOpen(true);
-              }}
-              onImportSheets={() => {
-                setDefaultSelectedSaas('sheets');
-                setCreateTableOpen(true);
-              }}
+              onImportNotion={() => { handleCreateAndSync('notion'); }}
+              onImportGitHub={() => { handleCreateAndSync('github'); }}
+              onImportGmail={() => { handleCreateAndSync('gmail'); }}
+              onImportDocs={() => { handleCreateAndSync('docs'); }}
+              onImportCalendar={() => { handleCreateAndSync('calendar'); }}
+              onImportSheets={() => { handleCreateAndSync('sheets'); }}
               onConnectSupabase={() => {
                 setSupabaseConnectOpen(true);
               }}

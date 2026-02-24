@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, use } from 'react';
-import { usePathname } from 'next/navigation';
 import { AgentProvider, useAgent } from '@/contexts/AgentContext';
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
 import { AgentViewport } from '@/components/agent/AgentViewport';
+import { SyncRail } from '@/components/agent/SyncRail';
 import { useProjectTools } from '@/lib/hooks/useData';
 
 const MIN_CHAT_WIDTH = 400;
@@ -79,17 +79,13 @@ function ResizeHandle({
   );
 }
 
-const HEADER_HEIGHT = 48;
 
-function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+function ProjectLayoutInner({ children, projectId }: { children: React.ReactNode; projectId: string }) {
   const { sidebarMode } = useAgent();
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
 
-  const isDataPage = pathname?.endsWith('/data') || pathname?.includes('/data/');
-  const hideAgentSidebar = !isDataPage;
-  const sidebarOpen = !hideAgentSidebar && sidebarMode !== 'closed';
+  const sidebarOpen = sidebarMode !== 'closed';
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -119,50 +115,37 @@ function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: '#0f0f0f' }}>
+      {/* Content area: header + page content */}
       <div
         style={{
           flex: 1,
+          minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
           borderLeft: '1px solid #2a2a2a',
           background: '#0e0e0e',
           overflow: 'hidden',
-          position: 'relative',
         }}
       >
-        {/* Children (header + content) — full width, with CSS variable for sidebar offset */}
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            '--sidebar-offset': sidebarOpen ? `${chatWidth}px` : '0px',
-          } as React.CSSProperties}
-        >
-          {children}
-        </div>
-
-        {/* Sidebar — absolutely positioned below header, doesn't affect header width */}
-        {!hideAgentSidebar && (
-          <div
-            style={{
-              position: 'absolute',
-              top: HEADER_HEIGHT,
-              right: 0,
-              bottom: 0,
-              width: sidebarOpen ? chatWidth : 0,
-              zIndex: 50,
-              display: 'flex',
-              overflow: 'hidden',
-              transition: 'width 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-          >
-            <ResizeHandle isResizing={isResizing} onMouseDown={handleMouseDown} />
-            <AgentViewportWrapper chatWidth={chatWidth} />
-          </div>
-        )}
+        {children}
       </div>
+
+      {/* Detail sidebar — full height, pushes header */}
+      <div
+        style={{
+          width: sidebarOpen ? chatWidth : 0,
+          flexShrink: 0,
+          display: 'flex',
+          overflow: 'hidden',
+          transition: 'width 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
+        <ResizeHandle isResizing={isResizing} onMouseDown={handleMouseDown} />
+        <AgentViewportWrapper chatWidth={chatWidth} />
+      </div>
+
+      {/* SyncRail — persistent vertical strip, 48px */}
+      <SyncRail projectId={projectId} />
     </div>
   );
 }
@@ -181,7 +164,7 @@ export default function ProjectLayout({
   return (
     <AgentProvider projectId={projectId}>
       <WorkspaceProvider>
-        <ProjectLayoutInner>{children}</ProjectLayoutInner>
+        <ProjectLayoutInner projectId={projectId}>{children}</ProjectLayoutInner>
       </WorkspaceProvider>
     </AgentProvider>
   );

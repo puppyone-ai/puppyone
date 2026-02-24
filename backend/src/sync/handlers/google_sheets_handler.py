@@ -121,14 +121,9 @@ class GoogleSheetsHandler(BaseHandler):
         # Create single JSONB node
         node = await self.node_service.create_synced_node(
             project_id=task.project_id,
-            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=config.get("name") or title[:100],
-            node_type="google_sheets",
-            sync_url=source_url,
             content=content,
             parent_id=parent_id,
-            sync_id=spreadsheet_id,
-            sync_config={"import_type": "spreadsheet", "spreadsheet_id": spreadsheet_id},
             created_by=task.user_id,
         )
 

@@ -82,28 +82,13 @@ class NodeInfo(BaseModel):
     project_id: str
     id_path: str
     parent_id: Optional[str] = None
-    
-    # 类型字段（直接决定前端渲染方式）
-    # 原生类型: folder | json | markdown | file
-    # 同步类型: github_repo | notion_page | gmail_thread | google_calendar_event | google_sheets | airtable_base | ...
-    type: str
+    type: str  # folder | json | markdown | file
     
     mime_type: Optional[str] = None
     size_bytes: int = 0
     
-    # 同步相关字段（仅非原生类型时有值）
-    sync_url: Optional[str] = None
-    sync_id: Optional[str] = None
-    sync_status: str = "idle"
-    last_synced_at: Optional[str] = None
-    
-    # 计算属性
-    is_synced: bool = False  # type 不在原生类型中
-    sync_source: Optional[str] = None  # 从 type 提取来源，如 github_repo → github
-    
-    # 预览摘要（Finder 风格图标预览用）
-    preview_snippet: Optional[str] = None  # 前 ~120 字符的内容摘要
-    children_count: Optional[int] = None   # 文件夹的直接子节点数
+    preview_snippet: Optional[str] = None
+    children_count: Optional[int] = None
     
     created_at: str
     updated_at: str
@@ -111,8 +96,8 @@ class NodeInfo(BaseModel):
 
 class NodeDetail(NodeInfo):
     """节点详情（包含内容）"""
-    preview_json: Optional[Any] = None  # type=json 或 sync 时的 JSON 预览内容
-    preview_md: Optional[str] = None  # type=markdown 时的 Markdown 预览内容
+    preview_json: Optional[Any] = None
+    preview_md: Optional[str] = None
     s3_key: Optional[str] = None
     permissions: dict = Field(default_factory=lambda: {"inherit": True})
 

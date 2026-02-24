@@ -33,7 +33,7 @@ export function registerConnect(program) {
     .command("connect")
     .description("Link a local folder to a PuppyOne project")
     .argument("<folder>", "absolute or relative path to the local folder")
-    .option("--key <access-key>", "OpenClaw access key (uses /access/openclaw endpoints)")
+    .option("--key <access-key>", "OpenClaw access key")
     .option("-p, --project <id>", "PuppyOne project ID (sync mode only)")
     .option("-f, --folder-id <id>", "target folder node ID inside the project (omit for project root)")
     .option("-m, --mode <mode>", "sync mode: bidirectional | pull | push", "bidirectional")
@@ -85,31 +85,35 @@ async function connectOpenClaw(absPath, folder, opts, cmd, out) {
     out.info(`\nConnecting ${absPath} to PuppyOne via OpenClaw...`);
     out.step("Registering connection...");
 
-    const data = await api.post("/access/openclaw/connect", {
+    const data = await api.post("/sync/openclaw/connect", {
       workspace_path: absPath,
     });
 
     out.done("✓");
     out.info(`  Agent:   ${data.agent_id}`);
     out.info(`  Project: ${data.project_id}`);
+    out.info(`  Folder:  ${data.folder_id}`);
     out.info(`  Source:  ${data.source_id}`);
 
     ensurePuppyOneDir(absPath);
 
-    // Merge: cloud nodes vs local files
-    const cloudNodes = data.nodes ?? [];
+    // Merge: cloud files vs local files
+    const folderId = data.folder_id;
+    const cloudFiles = data.files ?? data.nodes ?? [];
     const localFiles = scanLocalFiles(absPath);
-    const mergeResult = await executeMerge(api, absPath, cloudNodes, localFiles, out);
+    const mergeResult = await executeMerge(api, absPath, cloudFiles, localFiles, out, folderId);
 
     // Build state from merge result
     const state = {
       files: mergeResult.fileMap,
+      cursor: data.cursor ?? 0,
       connection: {
         access_key: opts.key,
         api_url: effectiveApiUrl,
         source_id: data.source_id,
         agent_id: data.agent_id,
         project_id: data.project_id,
+        folder_id: folderId,
       },
     };
     saveState(absPath, state);
@@ -122,6 +126,7 @@ async function connectOpenClaw(absPath, folder, opts, cmd, out) {
       access_key: opts.key,
       api_url: effectiveApiUrl,
       folder: absPath,
+      folder_id: folderId,
     };
     if (existing >= 0) {
       ocConnections[existing] = conn;
@@ -159,9 +164,10 @@ async function connectOpenClaw(absPath, folder, opts, cmd, out) {
  * | Has file | Has file, same    | Skip                           |
  * | Has file | Has file, differ  | Cloud wins, backup local       |
  */
-async function executeMerge(api, folder, cloudNodes, localFiles, out) {
+async function executeMerge(api, folder, cloudNodes, localFiles, out, folderId) {
   const fileMap = {};
   let pulled = 0, pushed = 0, skipped = 0, conflicts = 0;
+  const syncBase = folderId ? `/sync/${folderId}` : null;
 
   out.info("\nMerging...\n");
 
@@ -191,7 +197,7 @@ async function executeMerge(api, folder, cloudNodes, localFiles, out) {
             if (res.ok) {
               const buf = Buffer.from(await res.arrayBuffer());
               writeFileSync(filePath, buf);
-              fileMap[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: hashBuffer(buf), s3: true };
+              fileMap[fileName] = { version: node.version ?? 0, hash: hashBuffer(buf), s3: true };
               pulled++;
               out.info(`  ↓ ${fileName}  cloud → local (file via S3)`);
             }
@@ -200,13 +206,13 @@ async function executeMerge(api, folder, cloudNodes, localFiles, out) {
       } else {
         const content = serializeNodeContent(node);
         writeFileSync(filePath, content, "utf-8");
-        fileMap[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: hashString(content) };
+        fileMap[fileName] = { version: node.version ?? 0, hash: hashString(content) };
         pulled++;
         out.info(`  ↓ ${fileName}  cloud → local (new)`);
       }
     } else {
       if (isFileNode(node)) {
-        fileMap[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: localFile.hash, s3: true };
+        fileMap[fileName] = { version: node.version ?? 0, hash: localFile.hash, s3: true };
         skipped++;
         out.info(`  = ${fileName}  file node, keep local`);
       } else {
@@ -215,13 +221,13 @@ async function executeMerge(api, folder, cloudNodes, localFiles, out) {
         const localHash = localFile.hash;
 
         if (cloudHash === localHash) {
-          fileMap[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: localHash };
+          fileMap[fileName] = { version: node.version ?? 0, hash: localHash };
           skipped++;
           out.info(`  = ${fileName}  identical, skip`);
         } else {
           backupFile(folder, fileName);
           writeFileSync(join(folder, fileName), cloudContent, "utf-8");
-          fileMap[fileName] = { node_id: node.node_id, version: node.version ?? 0, hash: cloudHash };
+          fileMap[fileName] = { version: node.version ?? 0, hash: cloudHash };
           conflicts++;
           out.info(`  ↓ ${fileName}  conflict → cloud wins, local backed up`);
         }
@@ -240,30 +246,30 @@ async function executeMerge(api, folder, cloudNodes, localFiles, out) {
           try { content = JSON.parse(contentStr); nodeType = "json"; } catch { content = contentStr; }
         } else { content = contentStr; }
 
-        const resp = await api.post("/access/openclaw/push", {
-          node_id: null, filename: relPath, content, base_version: 0, node_type: nodeType,
+        const resp = await api.post(`${syncBase}/push`, {
+          filename: relPath, content, base_version: 0, node_type: nodeType,
         });
         if (resp.ok) {
-          fileMap[relPath] = { node_id: resp.node_id, version: resp.version ?? 1, hash: file.hash };
+          fileMap[relPath] = { version: resp.version ?? 1, hash: file.hash };
           pushed++;
-          out.info(`  ↑ ${relPath}  local → cloud (new node created)`);
+          out.info(`  ↑ ${relPath}  local → cloud (new)`);
         }
       } else {
         const fileBuf = readFileSync(join(folder, relPath));
         const mimeType = guessMimeType(relPath);
-        const urlResp = await api.post("/access/openclaw/upload-url", {
-          filename: relPath, content_type: mimeType, size_bytes: fileBuf.length, node_id: null,
+        const urlResp = await api.post(`${syncBase}/upload-url`, {
+          filename: relPath, content_type: mimeType, size_bytes: fileBuf.length,
         });
         if (!urlResp.ok) continue;
         const putRes = await fetch(urlResp.upload_url, {
           method: "PUT", headers: { "Content-Type": mimeType }, body: fileBuf,
         });
         if (!putRes.ok) continue;
-        const confirmResp = await api.post("/access/openclaw/confirm-upload", {
-          node_id: urlResp.node_id, size_bytes: fileBuf.length, content_hash: hashBuffer(fileBuf),
+        const confirmResp = await api.post(`${syncBase}/confirm-upload`, {
+          filename: relPath, size_bytes: fileBuf.length, content_hash: hashBuffer(fileBuf),
         });
         if (confirmResp.ok) {
-          fileMap[relPath] = { node_id: urlResp.node_id, version: confirmResp.version ?? 1, hash: file.hash, s3: true };
+          fileMap[relPath] = { version: confirmResp.version ?? 1, hash: file.hash, s3: true };
           pushed++;
           out.info(`  ↑ ${relPath}  local → cloud (file via S3)`);
         }

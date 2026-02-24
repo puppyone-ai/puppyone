@@ -1,20 +1,24 @@
 """
-L2.5 Sync — Repository
+Unified Sync — Repository
 
-SyncSourceRepository  — CRUD for sync_sources table
-NodeSyncRepository    — Sync-related CRUD on content_nodes table (replaces sync_mappings)
+SyncRepository — CRUD for the `syncs` table.
+
+The `syncs` table replaces both the old `sync_sources` table and the
+sync-related fields that used to live on `content_nodes`. Each row in
+`syncs` represents one sync binding between a content_node and an
+external resource.
 """
 
 from datetime import datetime, timezone
 from typing import Optional, List, Any
 from src.supabase.client import SupabaseClient
-from src.sync.schemas import SyncSource, SyncMapping
+from src.sync.schemas import Sync
 
 
-class SyncSourceRepository:
-    """CRUD for sync_sources table."""
+class SyncRepository:
+    """CRUD for the unified `syncs` table."""
 
-    TABLE = "sync_sources"
+    TABLE = "syncs"
 
     def __init__(self, supabase_client: SupabaseClient):
         self.client = supabase_client.client
@@ -23,227 +27,206 @@ class SyncSourceRepository:
     def _now() -> str:
         return datetime.now(timezone.utc).isoformat()
 
-    def _to_model(self, row: dict) -> SyncSource:
-        return SyncSource(
+    def _to_model(self, row: dict) -> Sync:
+        return Sync(
             id=row["id"],
             project_id=row["project_id"],
-            adapter_type=row["adapter_type"],
+            node_id=row["node_id"],
+            direction=row.get("direction", "inbound"),
+            provider=row.get("provider", ""),
+            authority=row.get("authority", "authoritative"),
             config=row.get("config") or {},
-            trigger_config=row.get("trigger_config") or {},
-            sync_mode=row.get("sync_mode", "bidirectional"),
-            conflict_strategy=row.get("conflict_strategy", "three_way_merge"),
-            status=row.get("status", "active"),
-            last_error=row.get("last_error"),
             credentials_ref=row.get("credentials_ref"),
+            access_key=row.get("access_key"),
+            trigger=row.get("trigger") or {},
+            conflict_strategy=row.get("conflict_strategy"),
+            status=row.get("status", "active"),
+            cursor=row.get("cursor"),
+            last_synced_at=row.get("last_synced_at"),
+            error_message=row.get("error_message"),
+            remote_hash=row.get("remote_hash"),
+            last_sync_version=row.get("last_sync_version", 0),
             created_at=row.get("created_at"),
             updated_at=row.get("updated_at"),
         )
 
+    # ============================================================
+    # Create
+    # ============================================================
+
     def create(
         self,
         project_id: str,
-        adapter_type: str,
-        config: dict,
-        trigger_config: Optional[dict] = None,
-        sync_mode: str = "bidirectional",
-        conflict_strategy: str = "three_way_merge",
+        node_id: str,
+        direction: str,
+        provider: str,
+        *,
+        authority: str = "authoritative",
+        config: Optional[dict] = None,
         credentials_ref: Optional[str] = None,
-    ) -> SyncSource:
-        data = {
+        access_key: Optional[str] = None,
+        trigger: Optional[dict] = None,
+        conflict_strategy: Optional[str] = None,
+        status: str = "active",
+    ) -> Sync:
+        data: dict[str, Any] = {
             "project_id": project_id,
-            "adapter_type": adapter_type,
-            "config": config,
-            "trigger_config": trigger_config or {},
-            "sync_mode": sync_mode,
-            "conflict_strategy": conflict_strategy,
+            "node_id": node_id,
+            "direction": direction,
+            "provider": provider,
+            "authority": authority,
+            "config": config or {},
             "credentials_ref": credentials_ref,
+            "access_key": access_key,
+            "trigger": trigger or {},
+            "conflict_strategy": conflict_strategy,
+            "status": status,
         }
         response = self.client.table(self.TABLE).insert(data).execute()
         return self._to_model(response.data[0])
 
-    def get_by_id(self, source_id: int) -> Optional[SyncSource]:
-        response = self.client.table(self.TABLE).select("*").eq("id", source_id).execute()
+    # ============================================================
+    # Read — single
+    # ============================================================
+
+    def get_by_id(self, sync_id: str) -> Optional[Sync]:
+        response = (
+            self.client.table(self.TABLE)
+            .select("*").eq("id", sync_id).execute()
+        )
         return self._to_model(response.data[0]) if response.data else None
 
-    def list_by_project(self, project_id: str) -> List[SyncSource]:
+    def get_by_node(self, node_id: str) -> Optional[Sync]:
+        """Get the first sync binding for a node (convenience for single-sync nodes)."""
+        response = (
+            self.client.table(self.TABLE)
+            .select("*").eq("node_id", node_id).limit(1).execute()
+        )
+        return self._to_model(response.data[0]) if response.data else None
+
+    def get_by_access_key(self, access_key: str) -> Optional[Sync]:
+        """Lookup sync by CLI/MCP access key (unique index)."""
+        response = (
+            self.client.table(self.TABLE)
+            .select("*")
+            .eq("access_key", access_key)
+            .limit(1)
+            .execute()
+        )
+        return self._to_model(response.data[0]) if response.data else None
+
+    def find_by_config_key(
+        self, provider: str, key: str, value: str,
+    ) -> Optional[Sync]:
+        """Find a single active sync whose config->>key matches value."""
+        response = (
+            self.client.table(self.TABLE)
+            .select("*")
+            .eq("provider", provider)
+            .eq("status", "active")
+            .eq(f"config->>{key}", value)
+            .limit(1)
+            .execute()
+        )
+        return self._to_model(response.data[0]) if response.data else None
+
+    # ============================================================
+    # Read — lists
+    # ============================================================
+
+    def list_by_project(self, project_id: str) -> List[Sync]:
         response = (
             self.client.table(self.TABLE)
             .select("*").eq("project_id", project_id).execute()
         )
         return [self._to_model(r) for r in response.data]
 
-    def list_active(self, adapter_type: Optional[str] = None) -> List[SyncSource]:
+    def list_by_node(self, node_id: str) -> List[Sync]:
+        """All sync bindings for a given node."""
+        response = (
+            self.client.table(self.TABLE)
+            .select("*").eq("node_id", node_id).execute()
+        )
+        return [self._to_model(r) for r in response.data]
+
+    def list_active(self, provider: Optional[str] = None) -> List[Sync]:
         query = self.client.table(self.TABLE).select("*").eq("status", "active")
-        if adapter_type:
-            query = query.eq("adapter_type", adapter_type)
+        if provider:
+            query = query.eq("provider", provider)
         return [self._to_model(r) for r in query.execute().data]
 
-    def find_active_by_config_key(
-        self, adapter_type: str, key: str, value: str,
-    ) -> Optional[SyncSource]:
-        """Find a single active source whose config->>key matches value."""
+    def list_by_provider(
+        self, project_id: str, provider: str,
+    ) -> List[Sync]:
+        """All syncs for a project + provider combination."""
         response = (
             self.client.table(self.TABLE)
             .select("*")
-            .eq("adapter_type", adapter_type)
-            .eq("status", "active")
-            .eq("config->>"+key, value)
-            .limit(1)
+            .eq("project_id", project_id)
+            .eq("provider", provider)
             .execute()
         )
-        return self._to_model(response.data[0]) if response.data else None
+        return [self._to_model(r) for r in response.data]
 
-    def update_config(self, source_id: int, config: dict) -> None:
-        self.client.table(self.TABLE).update({
-            "config": config, "updated_at": self._now(),
-        }).eq("id", source_id).execute()
+    # ============================================================
+    # Update
+    # ============================================================
 
-    def update_status(self, source_id: int, status: str) -> None:
-        self.client.table(self.TABLE).update({
-            "status": status, "updated_at": self._now(),
-        }).eq("id", source_id).execute()
+    def update(self, sync_id: str, **fields: Any) -> None:
+        """Generic partial update. Automatically sets updated_at."""
+        fields["updated_at"] = self._now()
+        self.client.table(self.TABLE).update(fields).eq("id", sync_id).execute()
 
-    def touch_heartbeat(self, source_id: int) -> None:
-        """Update updated_at as daemon heartbeat."""
-        self.client.table(self.TABLE).update({
-            "updated_at": self._now(),
-        }).eq("id", source_id).execute()
+    def update_config(self, sync_id: str, config: dict) -> None:
+        self.update(sync_id, config=config)
 
-    def update_error(self, source_id: int, error: str) -> None:
-        self.client.table(self.TABLE).update({
-            "status": "error", "last_error": error[:1000], "updated_at": self._now(),
-        }).eq("id", source_id).execute()
-
-    def delete(self, source_id: int) -> None:
-        self.client.table(self.TABLE).delete().eq("id", source_id).execute()
-
-
-class NodeSyncRepository:
-    """
-    Sync-related CRUD on content_nodes table.
-
-    Replaces the old SyncMappingRepository. Sync state
-    (sync_source_id, external_resource_id, remote_hash, last_sync_version)
-    now lives directly on content_nodes rows.
-    """
-
-    TABLE = "content_nodes"
-    SYNC_SELECT = (
-        "id, sync_source_id, external_resource_id, "
-        "remote_hash, last_sync_version, sync_status"
-    )
-
-    def __init__(self, supabase_client: SupabaseClient):
-        self.client = supabase_client.client
-
-    @staticmethod
-    def _now() -> str:
-        return datetime.now(timezone.utc).isoformat()
-
-    def _to_mapping(self, row: dict) -> SyncMapping:
-        return SyncMapping(
-            source_id=row["sync_source_id"],
-            node_id=row["id"],
-            external_resource_id=row.get("external_resource_id") or "",
-            remote_hash=row.get("remote_hash"),
-            last_sync_version=row.get("last_sync_version", 0),
-            status=row.get("sync_status", "idle"),
-        )
-
-    def list_by_source(self, source_id: int) -> List[SyncMapping]:
-        """All content_nodes bound to a given sync source."""
-        response = (
-            self.client.table(self.TABLE)
-            .select(self.SYNC_SELECT)
-            .eq("sync_source_id", source_id)
-            .execute()
-        )
-        return [self._to_mapping(r) for r in response.data]
-
-    def get_by_node(self, node_id: str) -> Optional[SyncMapping]:
-        """Get sync info for a node. Returns None if node has no sync binding."""
-        response = (
-            self.client.table(self.TABLE)
-            .select(self.SYNC_SELECT)
-            .eq("id", node_id)
-            .not_.is_("sync_source_id", "null")
-            .execute()
-        )
-        return self._to_mapping(response.data[0]) if response.data else None
-
-    def find_by_resource(
-        self, source_id: int, external_resource_id: str,
-    ) -> Optional[SyncMapping]:
-        """Find the node bound to a specific external resource within a source."""
-        response = (
-            self.client.table(self.TABLE)
-            .select(self.SYNC_SELECT)
-            .eq("sync_source_id", source_id)
-            .eq("external_resource_id", external_resource_id)
-            .execute()
-        )
-        return self._to_mapping(response.data[0]) if response.data else None
-
-    def bind_node(
-        self, node_id: str, source_id: int, external_resource_id: str,
-    ) -> SyncMapping:
-        """Bind a content node to a sync source + external resource."""
-        data = {
-            "sync_source_id": source_id,
-            "external_resource_id": external_resource_id,
-            "sync_status": "synced",
-            "updated_at": self._now(),
-        }
-        response = (
-            self.client.table(self.TABLE)
-            .update(data)
-            .eq("id", node_id)
-            .execute()
-        )
-        return self._to_mapping(response.data[0])
+    def update_status(self, sync_id: str, status: str) -> None:
+        self.update(sync_id, status=status)
 
     def update_sync_point(
         self,
-        node_id: str,
+        sync_id: str,
         last_sync_version: int,
         remote_hash: Optional[str] = None,
     ) -> None:
         """Record a successful sync checkpoint."""
         data: dict[str, Any] = {
             "last_sync_version": last_sync_version,
-            "sync_status": "synced",
+            "status": "active",
             "last_synced_at": self._now(),
             "updated_at": self._now(),
         }
         if remote_hash is not None:
             data["remote_hash"] = remote_hash
-        self.client.table(self.TABLE).update(data).eq("id", node_id).execute()
+        self.client.table(self.TABLE).update(data).eq("id", sync_id).execute()
 
-    def update_error(self, node_id: str, error: str) -> None:
-        """Mark a node's sync status as error."""
+    def update_error(self, sync_id: str, error: str) -> None:
         self.client.table(self.TABLE).update({
-            "sync_status": "error",
+            "status": "error",
+            "error_message": error[:1000],
             "updated_at": self._now(),
-        }).eq("id", node_id).execute()
+        }).eq("id", sync_id).execute()
 
-    def unbind_node(self, node_id: str) -> None:
-        """Remove sync binding from a node."""
+    def touch_heartbeat(self, sync_id: str) -> None:
+        """Update updated_at as daemon heartbeat."""
         self.client.table(self.TABLE).update({
-            "sync_source_id": None,
-            "external_resource_id": None,
-            "remote_hash": None,
-            "last_sync_version": 0,
-            "sync_status": "idle",
             "updated_at": self._now(),
-        }).eq("id", node_id).execute()
+        }).eq("id", sync_id).execute()
 
-    def unbind_by_source(self, source_id: int) -> None:
-        """Clear sync fields for all nodes belonging to a source."""
-        self.client.table(self.TABLE).update({
-            "sync_source_id": None,
-            "external_resource_id": None,
-            "remote_hash": None,
-            "last_sync_version": 0,
-            "sync_status": "idle",
-            "updated_at": self._now(),
-        }).eq("sync_source_id", source_id).execute()
+    def update_cursor(self, sync_id: str, cursor: int) -> None:
+        self.update(sync_id, cursor=cursor)
+
+    # ============================================================
+    # Delete
+    # ============================================================
+
+    def delete(self, sync_id: str) -> None:
+        self.client.table(self.TABLE).delete().eq("id", sync_id).execute()
+
+    def delete_by_node(self, node_id: str) -> None:
+        """Remove all sync bindings for a node."""
+        self.client.table(self.TABLE).delete().eq("node_id", node_id).execute()
+
+    def delete_by_project(self, project_id: str) -> None:
+        """Remove all syncs for a project."""
+        self.client.table(self.TABLE).delete().eq("project_id", project_id).execute()

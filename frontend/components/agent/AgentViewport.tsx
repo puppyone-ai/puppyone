@@ -8,6 +8,7 @@ import { ChatRuntimeView } from './views/ChatRuntimeView';
 import { McpConnectionView } from './views/McpConnectionView';
 import { OpenClawSetupView } from './views/OpenClawSetupView';
 import { AgentDetailView } from './views/AgentDetailView';
+import { SyncDetailView } from './views/SyncDetailView';
 import { type McpToolPermissions, type Tool as DbTool } from '@/lib/mcpApi';
 import type { AccessOption } from '../chat/ChatInputArea';
 import type { SavedAgent } from '@/components/AgentRail';
@@ -57,7 +58,7 @@ export function AgentViewport({
   projectTools,
   tableNameById,
 }: AgentViewportProps) {
-  const { sidebarMode, savedAgents, currentAgentId, deleteAgent, editAgent } = useAgent();
+  const { sidebarMode, savedAgents, currentAgentId, selectedSyncId, deleteAgent, editAgent } = useAgent();
   const [isFullyOpen, setIsFullyOpen] = useState(sidebarMode !== 'closed');
 
   // --- Determine Current Agent ---
@@ -154,7 +155,10 @@ export function AgentViewport({
 
       {sidebarMode === 'deployed' && (
         <>
-          {currentType === 'chat' && (
+          {selectedSyncId && !currentAgentId && (
+            <SyncDetailView syncId={selectedSyncId} projectId={projectId} />
+          )}
+          {currentAgentId && currentType === 'chat' && (
             <ChatRuntimeView
               availableTools={availableTools}
               tableData={tableData}
@@ -164,7 +168,7 @@ export function AgentViewport({
               projectTools={projectTools}
             />
           )}
-          {currentType === 'devbox' && currentAgent && (
+          {currentAgentId && currentType === 'devbox' && currentAgent && (
             <OpenClawSetupView
               agent={currentAgent}
               projectId={projectId}
@@ -176,11 +180,10 @@ export function AgentViewport({
               }}
             />
           )}
-          {/* Schedule 和 Webhook 类型使用 AgentDetailView 显示设置 */}
-          {currentType === 'schedule' && currentAgent && (
+          {currentAgentId && currentType === 'schedule' && currentAgent && (
             <AgentDetailView agent={currentAgent} />
           )}
-          {currentType === 'webhook' && currentAgent && (
+          {currentAgentId && currentType === 'webhook' && currentAgent && (
             <AgentDetailView agent={currentAgent} />
           )}
         </>

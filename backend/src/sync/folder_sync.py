@@ -14,7 +14,7 @@ from typing import Optional, Any
 from datetime import datetime
 
 from src.content_node.repository import ContentNodeRepository
-from src.sync.repository import SyncSourceRepository, NodeSyncRepository
+from src.sync.repository import SyncRepository
 from src.sync.changelog import SyncChangelogRepository
 from src.collaboration.service import CollaborationService
 from src.collaboration.version_service import VersionService
@@ -41,7 +41,7 @@ class FolderSyncService:
     def __init__(self, supabase: SupabaseClient):
         self._supabase = supabase
         self._node_repo = ContentNodeRepository(supabase)
-        self._node_sync = NodeSyncRepository(supabase)
+        self._sync_repo = SyncRepository(supabase)
         self._changelog = SyncChangelogRepository(supabase)
         self._s3 = get_s3_service_instance()
 
@@ -118,9 +118,6 @@ class FolderSyncService:
             }
 
         descendant_ids = self._get_all_descendant_ids(project_id, folder_id)
-        if source_id:
-            for mapping in self._node_sync.list_by_source(source_id):
-                descendant_ids.add(mapping.node_id)
 
         update_ids = list(dict.fromkeys(
             e.node_id for e in entries
@@ -157,7 +154,7 @@ class FolderSyncService:
             if node:
                 filename = self._build_relative_path(node, folder_id)
             else:
-                filename = e.hash or self._resolve_deleted_filename(e.node_id, source_id)
+                filename = e.filename or e.hash
             if filename:
                 result_files.append({"name": filename, "action": "delete"})
 
@@ -172,16 +169,12 @@ class FolderSyncService:
         }
 
     def _resolve_deleted_filename(
-        self, node_id: str, source_id: Optional[int],
+        self, node_id: str, source_id: Optional[int] = None,
     ) -> Optional[str]:
         """Best-effort filename resolution for a deleted node."""
         node = self._node_repo.get_by_id(node_id)
         if node:
             return self._node_to_filename(node)
-        if source_id:
-            mapping = self._node_sync.get_by_node(node_id)
-            if mapping and mapping.external_resource_id:
-                return mapping.external_resource_id
         return None
 
     # ----------------------------------------------------------
@@ -281,19 +274,7 @@ class FolderSyncService:
                     summary=f"CLI create from '{operator_name}'",
                 )
 
-            if source_id:
-                self._node_sync.bind_node(
-                    node_id=node.id,
-                    source_id=source_id,
-                    external_resource_id=filename,
-                )
-
             version = getattr(node, "current_version", 1) or 1
-            if source_id:
-                self._node_sync.update_sync_point(
-                    node_id=node.id, last_sync_version=version,
-                )
-
             log_info(f"[FolderSync] CREATE {filename} in folder {folder_id}")
             return {"ok": True, "version": version, "status": "created"}
 
@@ -324,22 +305,6 @@ class FolderSyncService:
                 operator_id=operator_id,
                 summary=f"CLI push from '{operator_name}'",
             )
-
-            if source_id:
-                mapping = self._node_sync.get_by_node(node.id)
-                if mapping:
-                    self._node_sync.update_sync_point(
-                        node_id=node.id, last_sync_version=result.version,
-                    )
-                else:
-                    self._node_sync.bind_node(
-                        node_id=node.id,
-                        source_id=source_id,
-                        external_resource_id=filename,
-                    )
-                    self._node_sync.update_sync_point(
-                        node_id=node.id, last_sync_version=result.version,
-                    )
 
             log_info(f"[FolderSync] UPDATE {filename} → v{result.version}")
             return {"ok": True, "version": result.version, "status": result.status}
@@ -372,9 +337,6 @@ class FolderSyncService:
                 operator_id="system",
                 summary=f"CLI delete: {filename}",
             )
-
-            if source_id:
-                self._node_sync.unbind_node(node.id)
 
             log_info(f"[FolderSync] DELETE {filename} from folder {folder_id}")
             return {"ok": True, "status": "deleted"}
@@ -421,13 +383,6 @@ class FolderSyncService:
                 size_bytes=size_bytes,
             )
             node_id = node.id
-
-            if source_id:
-                self._node_sync.bind_node(
-                    node_id=node_id,
-                    source_id=source_id,
-                    external_resource_id=filename,
-                )
 
         try:
             params = {"Bucket": self._s3.bucket_name, "Key": s3_key}
@@ -476,11 +431,6 @@ class FolderSyncService:
                 summary=f"CLI upload from '{operator_name}'",
             )
             new_version = version.version if version else 1
-
-            if source_id:
-                self._node_sync.update_sync_point(
-                    node_id=node.id, last_sync_version=new_version,
-                )
 
             log_info(
                 f"[FolderSync] CONFIRM {filename} v{new_version} ({size_bytes} bytes)"

@@ -61,7 +61,7 @@ class ImportService:
             name: Optional name for the content
             etl_rule_id: ETL rule ID (for file imports)
             crawl_options: Firecrawl options (for URL imports)
-            sync_config: Sync settings to store in content_node.sync_config
+            sync_config: Sync settings (stored in task config for handlers)
             
         Returns:
             Created ImportTask

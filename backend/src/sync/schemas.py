@@ -1,12 +1,9 @@
 """
-L2.5 Sync — Data Models
+Unified Sync — Data Models
 
-SyncSource  — External data source connection (a directory / Notion workspace / GitHub repo).
-              Stored in `sync_sources` table.
-
-SyncMapping — Per-node sync state. Backed by sync fields on `content_nodes` table
-              (sync_source_id, external_resource_id, remote_hash, last_sync_version, ...).
-              No separate table — one content_node row = one sync binding.
+Sync — A single sync binding between a content_node and an external resource.
+       Stored in the `syncs` table. Replaces the old `sync_sources` +
+       content_nodes sync fields with one unified row per sync relationship.
 """
 
 from dataclasses import dataclass, field
@@ -15,35 +12,37 @@ from pydantic import BaseModel
 
 
 # ============================================================
-# Core Models
+# Core Model
 # ============================================================
 
 @dataclass
-class SyncSource:
-    """External data source connection. Maps to sync_sources table."""
-    id: int
+class Sync:
+    """
+    Unified sync binding. Maps to the `syncs` table.
+
+    Each row represents one sync relationship between a content_node
+    and an external resource, carrying both connection config and
+    per-node sync state.
+    """
+    id: str
     project_id: str
-    adapter_type: str               # filesystem | github | notion | ...
-    config: Dict[str, Any]          # adapter-specific configuration
-    trigger_config: Dict[str, Any]  # { type: "watchdog" | "polling" | "webhook", ... }
-    sync_mode: str                  # bidirectional | pull_only | push_only
-    conflict_strategy: str          # three_way_merge | external_wins | puppyone_wins | manual
-    status: str                     # active | paused | error
-    last_error: Optional[str] = None
-    credentials_ref: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-
-
-@dataclass
-class SyncMapping:
-    """Per-node sync state. Backed by sync fields on content_nodes table."""
-    source_id: int
     node_id: str
-    external_resource_id: str       # resource identifier within source (relative path / page_id)
+    direction: str                          # inbound | outbound | bidirectional
+    provider: str                           # filesystem | github | notion | ...
+    authority: str = "authoritative"        # authoritative | mirror
+    config: Dict[str, Any] = field(default_factory=dict)
+    credentials_ref: Optional[str] = None
+    access_key: Optional[str] = None
+    trigger: Dict[str, Any] = field(default_factory=dict)
+    conflict_strategy: Optional[str] = None
+    status: str = "active"                  # active | paused | error | syncing
+    cursor: Optional[int] = None
+    last_synced_at: Optional[str] = None
+    error_message: Optional[str] = None
     remote_hash: Optional[str] = None
     last_sync_version: int = 0
-    status: str = "idle"            # idle | syncing | synced | error
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
 
 # ============================================================

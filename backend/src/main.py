@@ -62,13 +62,13 @@ from src.tool.router import router as tool_router
 tool_router_duration = time.time() - tool_router_start
 
 mcp_v3_router_start = time.time()
-from src.access.mcp.router import router as mcp_v3_router
+from src.agent.mcp.router import router as mcp_v3_router
 
 mcp_v3_router_duration = time.time() - mcp_v3_router_start
 
 agent_router_start = time.time()
-from src.access.chat.router import router as agent_router
-from src.access.config.router import router as agent_config_router
+from src.agent.router import router as agent_router
+from src.agent.config.router import router as agent_config_router
 
 agent_router_duration = time.time() - agent_router_start
 
@@ -265,8 +265,8 @@ async def app_lifespan(app: FastAPI):
     try:
         log_info("🔄 初始化 Folder Sync Services...")
         from src.sync.handlers.folder_source import FolderSourceService
-        from src.access.openclaw.folder_access import FolderAccessService
-        from src.sync.repository import SyncSourceRepository, NodeSyncRepository
+        from src.sync.providers.openclaw.folder_access import FolderAccessService
+        from src.sync.repository import SyncRepository
         from src.collaboration.service import CollaborationService
         from src.collaboration.lock_service import LockService
         from src.collaboration.conflict_service import ConflictService
@@ -302,21 +302,18 @@ async def app_lifespan(app: FastAPI):
             audit_service=AuditService(audit_repo=AuditRepository(supabase)),
         )
 
-        source_repo = SyncSourceRepository(supabase)
-        node_sync_repo = NodeSyncRepository(supabase)
+        sync_repo = SyncRepository(supabase)
 
         folder_source = FolderSourceService(
             node_service=node_svc,
-            source_repo=source_repo,
-            node_sync_repo=node_sync_repo,
+            sync_repo=sync_repo,
         )
         await folder_source.start()
 
         folder_access = FolderAccessService(
             collab_service=collab_svc,
             node_service=node_svc,
-            source_repo=source_repo,
-            node_sync_repo=node_sync_repo,
+            sync_repo=sync_repo,
         )
         await folder_access.start()
 
@@ -352,7 +349,7 @@ async def app_lifespan(app: FastAPI):
     # 停止 Folder Sync Services
     try:
         from src.sync.handlers.folder_source import FolderSourceService
-        from src.access.openclaw.folder_access import FolderAccessService
+        from src.sync.providers.openclaw.folder_access import FolderAccessService
         fs = FolderSourceService.get_instance()
         if fs:
             await fs.stop()
@@ -437,8 +434,10 @@ def create_app() -> FastAPI:
     app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
     from src.sync.folder_router import router as folder_sync_router
     app.include_router(folder_sync_router, tags=["folder-sync"])
-    from src.access.openclaw.router import router as openclaw_router
-    app.include_router(openclaw_router, tags=["access-openclaw"])
+    from src.sync.providers.openclaw.router import router as openclaw_router
+    app.include_router(openclaw_router, tags=["sync-openclaw"])
+    from src.access.openclaw.router import router as openclaw_compat_router
+    app.include_router(openclaw_compat_router, tags=["access-openclaw-compat"])
     from src.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])

@@ -158,14 +158,9 @@ class LinearHandler(BaseHandler):
         # Create single JSONB node
         node = await self.node_service.create_synced_node(
             project_id=task.project_id,
-            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=f"{issue['identifier']} - {issue['title']}"[:100],
-            node_type="linear",
-            sync_url=issue.get("url", ""),
             content=content,
             parent_id=config.get("parent_id"),
-            sync_id=issue["id"],
-            sync_config={"import_type": "issue", "issue_id": issue["id"]},
             created_by=task.user_id,
         )
 
@@ -248,14 +243,9 @@ class LinearHandler(BaseHandler):
         # Create single JSONB node
         node = await self.node_service.create_synced_node(
             project_id=task.project_id,
-            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=config.get("name") or f"Linear - {project['name']}"[:100],
-            node_type="linear",
-            sync_url=f"https://linear.app/project/{project_id}",
             content=content,
             parent_id=config.get("parent_id"),
-            sync_id=project_id,
-            sync_config={"import_type": "project", "project_id": project_id},
             created_by=task.user_id,
         )
 
@@ -334,14 +324,9 @@ class LinearHandler(BaseHandler):
         # Create single JSONB node
         node = await self.node_service.create_synced_node(
             project_id=task.project_id,
-            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=config.get("name") or f"Linear - {user_name}"[:100],
-            node_type="linear",
-            sync_url="oauth://linear",
             content=content,
             parent_id=config.get("parent_id"),
-            sync_id=user_email or viewer.get("id", ""),
-            sync_config={"import_type": "assigned_issues"},
             created_by=task.user_id,
         )
 

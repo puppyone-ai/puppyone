@@ -44,50 +44,37 @@ class ConfirmUploadRequest(BaseModel):
 # ============================================================
 
 _cached_svc = None
-_cached_deps = None
+_cached_sync_repo = None
 
 
 def _get_services():
-    global _cached_svc, _cached_deps
+    global _cached_svc, _cached_sync_repo
     if _cached_svc is not None:
-        return _cached_svc, _cached_deps
+        return _cached_svc, _cached_sync_repo
 
     from src.supabase.client import SupabaseClient
-    from src.access.config.repository import AgentRepository
-    from src.sync.repository import SyncSourceRepository
+    from src.sync.repository import SyncRepository
     from src.sync.folder_sync import FolderSyncService
 
     supabase = SupabaseClient()
     _cached_svc = FolderSyncService(supabase)
-    _cached_deps = {
-        "agent_repo": AgentRepository(supabase.client),
-        "source_repo": SyncSourceRepository(supabase),
-    }
-    return _cached_svc, _cached_deps
+    _cached_sync_repo = SyncRepository(supabase)
+    return _cached_svc, _cached_sync_repo
 
 
 def _auth(access_key: str, folder_id: str):
-    """Authenticate access key, verify folder access, refresh heartbeat."""
-    svc, deps = _get_services()
+    """Authenticate via syncs.access_key, verify folder access, refresh heartbeat."""
+    svc, sync_repo = _get_services()
 
-    agent = deps["agent_repo"].get_by_mcp_api_key(access_key)
-    if not agent or agent.type != "devbox":
+    sync = sync_repo.get_by_access_key(access_key)
+    if not sync or sync.provider != "openclaw":
         raise HTTPException(status_code=401, detail="Invalid or expired access key")
 
-    bash_list = deps["agent_repo"].get_bash_by_agent_id(agent.id)
-    folder_ids = {b.node_id for b in bash_list}
-    if folder_id not in folder_ids:
-        raise HTTPException(
-            status_code=403, detail="No access to this folder",
-        )
+    if sync.node_id != folder_id:
+        raise HTTPException(status_code=403, detail="No access to this folder")
 
-    source = deps["source_repo"].find_active_by_config_key(
-        "openclaw", "agent_id", agent.id,
-    )
-    if source:
-        deps["source_repo"].touch_heartbeat(source.id)
-
-    return agent, source, svc
+    sync_repo.touch_heartbeat(sync.id)
+    return sync, svc
 
 
 # ============================================================
@@ -106,12 +93,12 @@ async def pull(
     cursor=0 → full sync (all files + current cursor)
     cursor>0 → incremental (only changes since cursor)
     """
-    agent, source, svc = _auth(x_access_key, folder_id)
+    sync, svc = _auth(x_access_key, folder_id)
     data = svc.pull(
-        project_id=agent.project_id,
+        project_id=sync.project_id,
         folder_id=folder_id,
         cursor=cursor,
-        source_id=source.id if source else None,
+        source_id=sync.id,
     )
     return ApiResponse.success(data=data)
 
@@ -126,19 +113,19 @@ async def long_poll_changes(
     """Long Poll: block until changes or timeout."""
     from src.sync.notifier import ChangeNotifier
 
-    agent, source, svc = _auth(x_access_key, folder_id)
+    sync, svc = _auth(x_access_key, folder_id)
     notifier = ChangeNotifier.get_instance()
 
     changed = await notifier.wait_for_changes(
-        agent.project_id, timeout=float(timeout),
+        sync.project_id, timeout=float(timeout),
     )
 
     if changed:
         data = svc.pull(
-            project_id=agent.project_id,
+            project_id=sync.project_id,
             folder_id=folder_id,
             cursor=cursor,
-            source_id=source.id if source else None,
+            source_id=sync.id,
         )
         return ApiResponse.success(data={**data, "has_changes": True})
 
@@ -161,17 +148,17 @@ async def push(
     Push a file. Backend auto-detects create vs update by name lookup.
     No node_id needed — just send filename + content.
     """
-    agent, source, svc = _auth(x_access_key, folder_id)
+    sync, svc = _auth(x_access_key, folder_id)
     result = svc.push(
-        project_id=agent.project_id,
+        project_id=sync.project_id,
         folder_id=folder_id,
         filename=request.filename,
         content=request.content,
         base_version=request.base_version,
         node_type=request.node_type,
-        operator_id=agent.id,
-        operator_name=agent.name,
-        source_id=source.id if source else None,
+        operator_id=f"sync:{sync.id}",
+        operator_name="OpenClaw CLI",
+        source_id=sync.id,
     )
     if not result.get("ok"):
         error = result.get("error", "")
@@ -194,12 +181,12 @@ async def delete_file(
     x_access_key: str = Header(..., alias="X-Access-Key"),
 ):
     """Delete a file by name."""
-    agent, source, svc = _auth(x_access_key, folder_id)
+    sync, svc = _auth(x_access_key, folder_id)
     result = svc.delete_file(
-        project_id=agent.project_id,
+        project_id=sync.project_id,
         folder_id=folder_id,
         filename=filename,
-        source_id=source.id if source else None,
+        source_id=sync.id,
     )
     if not result.get("ok"):
         raise HTTPException(
@@ -216,15 +203,15 @@ async def request_upload_url(
     x_access_key: str = Header(..., alias="X-Access-Key"),
 ):
     """Get S3 presigned upload URL for large files."""
-    agent, source, svc = _auth(x_access_key, folder_id)
+    sync, svc = _auth(x_access_key, folder_id)
     result = svc.request_upload_url(
-        project_id=agent.project_id,
+        project_id=sync.project_id,
         folder_id=folder_id,
         filename=request.filename,
         content_type=request.content_type,
         size_bytes=request.size_bytes,
-        operator_id=agent.id,
-        source_id=source.id if source else None,
+        operator_id=f"sync:{sync.id}",
+        source_id=sync.id,
     )
     if not result.get("ok"):
         raise HTTPException(
@@ -241,16 +228,16 @@ async def confirm_upload(
     x_access_key: str = Header(..., alias="X-Access-Key"),
 ):
     """Confirm S3 upload complete — creates version record + changelog entry."""
-    agent, source, svc = _auth(x_access_key, folder_id)
+    sync, svc = _auth(x_access_key, folder_id)
     result = svc.confirm_upload(
-        project_id=agent.project_id,
+        project_id=sync.project_id,
         folder_id=folder_id,
         filename=request.filename,
         size_bytes=request.size_bytes,
-        operator_id=agent.id,
-        operator_name=agent.name,
+        operator_id=f"sync:{sync.id}",
+        operator_name="OpenClaw CLI",
         content_hash=request.content_hash,
-        source_id=source.id if source else None,
+        source_id=sync.id,
     )
     if not result.get("ok"):
         raise HTTPException(

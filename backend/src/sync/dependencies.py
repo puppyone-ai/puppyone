@@ -4,7 +4,7 @@ Sync Module — Dependency injection for folder sync and SaaS import.
 
 from fastapi import Depends
 from src.supabase.client import SupabaseClient
-from src.sync.repository import SyncSourceRepository, NodeSyncRepository
+from src.sync.repository import SyncRepository
 from src.sync.service import SyncService
 from src.sync.handlers.folder_source import FolderSourceService
 from src.sync.import_service import ImportService
@@ -27,8 +27,7 @@ def get_sync_service(
 ) -> SyncService:
     svc = SyncService(
         collab_service=collab_service,
-        source_repo=SyncSourceRepository(supabase),
-        node_sync_repo=NodeSyncRepository(supabase),
+        sync_repo=SyncRepository(supabase),
     )
     return svc
 
@@ -40,8 +39,7 @@ def get_folder_source_service(
     """Get FolderSourceService for local folder collection."""
     return FolderSourceService(
         node_service=node_service,
-        source_repo=SyncSourceRepository(supabase),
-        node_sync_repo=NodeSyncRepository(supabase),
+        sync_repo=SyncRepository(supabase),
     )
 
 

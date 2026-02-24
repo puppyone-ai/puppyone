@@ -46,6 +46,16 @@ class VersionService:
         self.s3 = s3_service
         self._changelog = changelog_repo
 
+    @staticmethod
+    def _derive_filename(node) -> str:
+        """Derive the external filename from a node (name + type extension)."""
+        name = node.name or ""
+        if node.type == "json" and not name.endswith(".json"):
+            return f"{name}.json"
+        if node.type == "markdown" and not name.endswith(".md"):
+            return f"{name}.md"
+        return name
+
     # ============================================================
     # 核心：创建新版本
     # ============================================================
@@ -150,6 +160,7 @@ class VersionService:
                 f"(op={operation}, by={operator_type}:{operator_id or 'N/A'})"
             )
 
+            _filename = self._derive_filename(node)
             self._emit_changelog(
                 project_id=node.project_id,
                 node_id=node_id,
@@ -157,6 +168,8 @@ class VersionService:
                 node_type=node.type,
                 version=new_version,
                 content_hash=new_hash,
+                folder_id=node.parent_id,
+                filename=_filename,
                 size_bytes=size_bytes,
             )
 
@@ -177,6 +190,8 @@ class VersionService:
         version: int = 0,
         content_hash: Optional[str] = None,
         size_bytes: int = 0,
+        folder_id: Optional[str] = None,
+        filename: Optional[str] = None,
     ) -> None:
         """Best-effort append to sync_changelog + wake Long Poll waiters."""
         if not self._changelog:
@@ -190,6 +205,8 @@ class VersionService:
                 version=version,
                 hash=content_hash,
                 size_bytes=size_bytes,
+                folder_id=folder_id,
+                filename=filename,
             )
             from src.sync.notifier import ChangeNotifier
             ChangeNotifier.get_instance().notify(project_id)

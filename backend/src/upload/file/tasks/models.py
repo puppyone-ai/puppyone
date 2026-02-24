@@ -1,7 +1,7 @@
 """
 ETL Task Models
 
-Data models for ETL tasks.
+Data models for ETL tasks, backed by the `uploads` table.
 """
 
 from datetime import datetime
@@ -12,14 +12,23 @@ from pydantic import BaseModel, Field
 
 
 class ETLTaskStatus(str, Enum):
-    """Status of an ETL task."""
+    """Status of an ETL task (maps to uploads.status column)."""
 
     PENDING = "pending"
-    MINERU_PARSING = "mineru_parsing"
-    LLM_PROCESSING = "llm_processing"
+    RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
+    # Fine-grained sub-statuses kept for backward compatibility with job code.
+    # These are persisted as "running" in the DB status column, with the
+    # fine-grained value stored in config._substatus.
+    MINERU_PARSING = "mineru_parsing"
+    LLM_PROCESSING = "llm_processing"
+
+
+# Statuses that map to "running" in the DB
+_RUNNING_SUBSTATUS = {ETLTaskStatus.MINERU_PARSING, ETLTaskStatus.LLM_PROCESSING}
 
 
 class ETLTaskResult(BaseModel):
@@ -32,27 +41,51 @@ class ETLTaskResult(BaseModel):
 
 
 class ETLTask(BaseModel):
-    """ETL task model."""
+    """ETL task model — maps to the `uploads` table."""
 
-    task_id: Optional[int] = Field(
-        None, description="Unique task identifier (None for new tasks)"
+    task_id: Optional[str] = Field(
+        None, description="Unique task identifier (TEXT UUID, None for new tasks)"
     )
     user_id: str = Field(..., description="User ID who created the task")
     project_id: str = Field(..., description="Project ID (UUID)")
-    filename: str = Field(..., description="Original filename")
-    rule_id: int = Field(..., description="Rule ID to apply")
+    node_id: Optional[str] = Field(
+        None, description="Associated content node ID"
+    )
+    type: str = Field(
+        default="file_ocr",
+        description="Upload type: 'file_ocr' | 'file_postprocess'",
+    )
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Task configuration JSONB (stores rule_id, filename, metadata, etc.)",
+    )
     status: ETLTaskStatus = Field(
         default=ETLTaskStatus.PENDING, description="Task status"
     )
     progress: int = Field(default=0, description="Progress percentage (0-100)")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    message: Optional[str] = Field(None, description="Status message")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    result_node_id: Optional[str] = Field(
+        None, description="Result content node ID"
+    )
     result: Optional[ETLTaskResult] = Field(
         None, description="Task result if completed"
     )
-    error: Optional[str] = Field(None, description="Error message if failed")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: Optional[datetime] = Field(
+        None, description="When task started running"
+    )
+    completed_at: Optional[datetime] = Field(
+        None, description="When task completed"
+    )
+
+    # ── Backward-compatible convenience fields ──
+    # Stored inside the `config` JSONB column, not as separate DB columns.
+    filename: str = Field(default="", description="Original filename (stored in config)")
+    rule_id: int = Field(default=0, description="Rule ID to apply (stored in config)")
     metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Additional metadata"
+        default_factory=dict, description="Additional metadata (stored in config)"
     )
 
     def update_status(self, status: ETLTaskStatus, progress: Optional[int] = None):
@@ -60,6 +93,9 @@ class ETLTask(BaseModel):
         self.status = status
         if progress is not None:
             self.progress = progress
+        if status in _RUNNING_SUBSTATUS or status == ETLTaskStatus.RUNNING:
+            if self.started_at is None:
+                self.started_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
 
     def mark_failed(self, error: str):
@@ -81,21 +117,41 @@ class ETLTask(BaseModel):
         self.status = ETLTaskStatus.COMPLETED
         self.result = result
         self.progress = 100
-        self.updated_at = datetime.utcnow()
+        now = datetime.utcnow()
+        self.updated_at = now
+        self.completed_at = now
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert task to dictionary for database storage."""
-        data = {
+        """Convert task to dictionary for database storage (uploads table)."""
+        config = {**self.config}
+        if self.filename:
+            config["filename"] = self.filename
+        if self.rule_id:
+            config["rule_id"] = self.rule_id
+        if self.metadata:
+            config["metadata"] = self.metadata
+
+        # Map fine-grained sub-statuses to DB "running" and preserve detail
+        if self.status in _RUNNING_SUBSTATUS:
+            db_status = "running"
+            config["_substatus"] = self.status.value
+        else:
+            db_status = self.status.value
+            config.pop("_substatus", None)
+
+        data: dict[str, Any] = {
             "user_id": self.user_id,
             "project_id": self.project_id,
-            "rule_id": self.rule_id,
-            "filename": self.filename,
-            "status": self.status.value,
+            "node_id": self.node_id,
+            "type": self.type,
+            "config": config,
+            "status": db_status,
             "progress": self.progress,
+            "message": self.message,
+            "error": self.error,
+            "result_node_id": self.result_node_id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
-            "error": self.error,
-            "metadata": self.metadata,
         }
 
         if self.task_id is not None:
@@ -104,38 +160,63 @@ class ETLTask(BaseModel):
         if self.result:
             data["result"] = self.result.model_dump()
 
+        if self.started_at:
+            data["started_at"] = self.started_at.isoformat()
+        if self.completed_at:
+            data["completed_at"] = self.completed_at.isoformat()
+
         return data
 
     @classmethod
+    def _parse_timestamp(cls, value: Any) -> Optional[datetime]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return value
+
+    @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ETLTask":
-        """Create task from database record."""
-        # Parse result if present
+        """Create task from database record (uploads table)."""
         result = None
         if data.get("result"):
             result = ETLTaskResult(**data["result"])
 
-        # Parse timestamps
-        created_at = data.get("created_at")
-        if isinstance(created_at, str):
-            created_at = created_at.replace("Z", "+00:00")
-            created_at = datetime.fromisoformat(created_at)
+        config = data.get("config") or {}
 
-        updated_at = data.get("updated_at")
-        if isinstance(updated_at, str):
-            updated_at = updated_at.replace("Z", "+00:00")
-            updated_at = datetime.fromisoformat(updated_at)
+        created_at = cls._parse_timestamp(data.get("created_at")) or datetime.utcnow()
+        updated_at = cls._parse_timestamp(data.get("updated_at")) or datetime.utcnow()
+        started_at = cls._parse_timestamp(data.get("started_at"))
+        completed_at = cls._parse_timestamp(data.get("completed_at"))
+
+        # Restore fine-grained sub-status from config if available
+        substatus = config.get("_substatus")
+        if substatus:
+            try:
+                status = ETLTaskStatus(substatus)
+            except ValueError:
+                status = ETLTaskStatus(data["status"])
+        else:
+            status = ETLTaskStatus(data["status"])
 
         return cls(
             task_id=data.get("id"),
             user_id=data["user_id"],
             project_id=data["project_id"],
-            rule_id=data["rule_id"],
-            filename=data["filename"],
-            status=ETLTaskStatus(data["status"]),
+            node_id=data.get("node_id"),
+            type=data.get("type", "file_ocr"),
+            config=config,
+            status=status,
             progress=data.get("progress", 0),
-            created_at=created_at or datetime.utcnow(),
-            updated_at=updated_at or datetime.utcnow(),
-            result=result,
+            message=data.get("message"),
             error=data.get("error"),
-            metadata=data.get("metadata", {}),
+            result_node_id=data.get("result_node_id"),
+            result=result,
+            created_at=created_at,
+            updated_at=updated_at,
+            started_at=started_at,
+            completed_at=completed_at,
+            filename=config.get("filename", ""),
+            rule_id=config.get("rule_id", 0),
+            metadata=config.get("metadata", {}),
         )

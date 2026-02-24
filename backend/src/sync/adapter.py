@@ -14,7 +14,7 @@ L2.5 Sync — SyncAdapter 基类
 from abc import ABC, abstractmethod
 from typing import Any, Optional, List
 
-from src.sync.schemas import SyncSource, SyncMapping, PullResult, PushResult, ResourceInfo
+from src.sync.schemas import Sync, PullResult, PushResult, ResourceInfo
 
 
 class SyncAdapter(ABC):
@@ -27,34 +27,34 @@ class SyncAdapter(ABC):
 
     @abstractmethod
     async def pull(
-        self, source: SyncSource, mapping: SyncMapping,
+        self, sync: Sync,
     ) -> Optional[PullResult]:
         """
         从外部拉取单个资源的变更。
 
-        对比 mapping.remote_hash 判断是否有变化：
+        对比 sync.remote_hash 判断是否有变化：
           有变化 → 返回 PullResult
           无变化 → 返回 None
         """
 
     @abstractmethod
     async def push(
-        self, source: SyncSource, mapping: SyncMapping,
+        self, sync: Sync,
         content: Any, node_type: str,
     ) -> PushResult:
         """推送内容到外部系统的单个资源。"""
 
     @abstractmethod
-    async def list_resources(self, source: SyncSource) -> List[ResourceInfo]:
+    async def list_resources(self, sync: Sync) -> List[ResourceInfo]:
         """
         发现数据源内所有资源。
 
         用于首次连接时的 bootstrap——扫描外部数据源，
-        返回其中所有资源（文件/页面/...），供 SyncService 建立 mapping。
+        返回其中所有资源（文件/页面/...），供 SyncService 建立 Sync 行。
         """
 
     @abstractmethod
-    def create_trigger(self, source: SyncSource) -> Optional[Any]:
+    def create_trigger(self, sync: Sync) -> Optional[Any]:
         """
         创建此数据源对应的触发器。
 

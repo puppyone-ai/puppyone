@@ -218,22 +218,11 @@ class NotionHandler(BaseHandler):
             s3_key = f"notion/{task.user_id}/{task.project_id}/{database_id}.json"
             await self.s3_service.upload_json(s3_key, data_content)
 
-        # Build sync_config from task.config
-        sync_config = {
-            k: v for k, v in task.config.items()
-            if k in ("recursive", "max_depth", "include_databases")
-        } or None
-        
         # Create content node using create_synced_node
         content_node = await self.node_service.create_synced_node(
             project_id=task.project_id,
-            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=title,
-            node_type="notion",
-            sync_url=task.source_url,
             content=data_content,
-            sync_id=database_id,
-            sync_config={**sync_config, "import_type": "database"} if sync_config else {"import_type": "database"},
             created_by=task.user_id,
         )
 
@@ -301,22 +290,11 @@ class NotionHandler(BaseHandler):
 
         await on_progress(80, "Saving to database...")
 
-        # Build sync_config from task.config
-        sync_config = {
-            k: v for k, v in task.config.items()
-            if k in ("recursive", "max_depth", "include_databases")
-        } or None
-        
         # Create content node using create_synced_markdown_node
         content_node = await self.node_service.create_synced_markdown_node(
             project_id=task.project_id,
-            sync_oauth_user_id=task.user_id,  # OAuth 绑定的用户
             name=title,
             content=markdown_content,
-            node_type="notion",
-            sync_url=task.source_url,
-            sync_id=page_id,
-            sync_config={**sync_config, "import_type": "page"} if sync_config else {"import_type": "page"},
             created_by=task.user_id,
         )
 
