@@ -174,4 +174,3 @@ class AgentOut(BaseModel):
     
     # 向后兼容：旧的 accesses 字段
     accesses: List[AgentAccessOut] = Field(default_factory=list)
-

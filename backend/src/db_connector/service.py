@@ -128,22 +128,10 @@ class DBConnectorService:
             "row_count": result.row_count,
         }
 
-        # sync_config 存表名 + 连接 ID，定时刷新时直接复用
-        sync_config = {
-            "connection_id": conn.id,
-            "table": table,
-            "limit": limit,
-        }
-
         content_node = await self.node_service.create_synced_node(
             project_id=project_id,
-            sync_oauth_user_id=user_id,
             name=name,
-            node_type=conn.provider,
-            sync_url=f"supabase://{conn.id}/{table}",
             content=content_data,
-            sync_id=conn.id,
-            sync_config=sync_config,
             created_by=user_id,
         )
 

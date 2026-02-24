@@ -1,10 +1,6 @@
 """
-Agent Config 模块
+Agent 配置层（共享 CRUD）
 
-管理 Agent 配置的 CRUD 操作
+所有 agent 类型（chat, schedule, mcp, webhook）
+共用同一套配置管理逻辑。DB 表: agents + agent_bash + agent_tool
 """
-
-
-
-
-

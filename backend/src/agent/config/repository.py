@@ -11,9 +11,20 @@ from src.agent.config.models import Agent, AgentBash, AgentTool
 from src.utils.id_generator import generate_uuid_v7
 
 
+def generate_access_key(agent_type: str = "chat") -> str:
+    """Generate a secure access key with type-specific prefix.
+
+    Prefixes:
+      mcp_  — MCP protocol (chat, schedule, webhook)
+      cli_  — CLI folder sync (devbox / OpenClaw)
+    """
+    prefix = "cli" if agent_type == "devbox" else "mcp"
+    return f"{prefix}_{secrets.token_urlsafe(32)}"
+
+
 def generate_mcp_api_key() -> str:
-    """Generate a secure MCP API key"""
-    return f"mcp_{secrets.token_urlsafe(32)}"
+    """Backward-compatible alias."""
+    return generate_access_key("chat")
 
 
 class AgentRepository:
@@ -119,9 +130,9 @@ class AgentRepository:
         task_node_id: Optional[str] = None,
         external_config: Optional[dict] = None,
     ) -> Agent:
-        """创建 Agent (自动生成 mcp_api_key)"""
+        """创建 Agent (根据类型自动生成 access key)"""
         agent_id = generate_uuid_v7()
-        mcp_api_key = generate_mcp_api_key()
+        mcp_api_key = generate_access_key(type)
         data = {
             "id": agent_id,
             "project_id": project_id,
@@ -548,4 +559,3 @@ class AgentRepository:
             .execute()
         )
         return response.data or []
-

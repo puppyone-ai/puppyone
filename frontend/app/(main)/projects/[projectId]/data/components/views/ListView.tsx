@@ -193,9 +193,9 @@ function ListItem({
       onClick={item.onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      draggable={!typeConfig.isReadOnly && !isPlaceholder}
+      draggable={!isPlaceholder}
       onDragStart={(e) => {
-        if (typeConfig.isReadOnly || isPlaceholder) {
+        if (isPlaceholder) {
           e.preventDefault();
           return;
         }

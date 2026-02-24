@@ -160,8 +160,8 @@ export function AgentRailVertical() {
     setHoveredAgentId,
   } = useAgent();
 
-  // Agent 只在 deployed 模式下激活，setting 模式下不激活
-  const isDeployedMode = sidebarMode === 'deployed';
+  // Agent chip is active when deployed or editing (agent is "in focus")
+  const isAgentFocused = sidebarMode === 'deployed' || sidebarMode === 'editing';
 
   // 显示所有 agents（用户有权看到所有 sub-agents）
   const visibleAgents = savedAgents;
@@ -182,7 +182,7 @@ export function AgentRailVertical() {
     >
       {/* Agent 列表 - 在上面 */}
       {visibleAgents.map((agent) => {
-        const isActive = currentAgentId === agent.id && isDeployedMode;
+        const isActive = currentAgentId === agent.id && isAgentFocused;
         const isHovered = hoveredAgentId === agent.id;
         // 解析 icon（支持数字索引和直接 emoji）
         const emoji = parseAgentIcon(agent.icon);
@@ -243,11 +243,8 @@ export function AgentRailVertical() {
       <div style={{ padding: '4px 0', display: 'flex', justifyContent: 'center' }}>
         <button
           onClick={() => {
-            if (sidebarMode === 'setting') {
-              closeSidebar();
-            } else {
-              openSetting();
-            }
+            if (sidebarMode === 'setting') closeSidebar();
+            else openSetting();
           }}
           style={{
             width: 32,

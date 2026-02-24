@@ -58,6 +58,10 @@ export interface NodeInfo {
   is_synced: boolean;          // type 不在 NATIVE_TYPES 中
   sync_source: string | null;  // 从 type 提取来源，如 github_repo → github
   
+  // Finder 风格预览摘要
+  preview_snippet: string | null;  // 前 ~120 字符内容摘要
+  children_count: number | null;   // 文件夹的直接子节点数
+  
   created_at: string;
   updated_at: string;
 }

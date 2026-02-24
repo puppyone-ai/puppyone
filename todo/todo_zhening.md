@@ -11,6 +11,8 @@
 
 ---
 
+## [ ] 架构上支持supabase的数据导入
+
 ## [ ] 安全存储用户的敏感信息
 
 **背景**：`db_connections.config` JSONB 字段当前未加密存储以下内容：

@@ -13,8 +13,6 @@
     "@anthropic-ai/claude-agent-sdk": "^0.1.76",
     "@anthropic-ai/sdk": "^0.71.2",
     "@codemirror/lang-json": "^6.0.2",
-    "@json-render/core": "^0.2.0",
-    "@json-render/react": "^0.2.0",
     "@milkdown/core": "^7.18.0",
     "@milkdown/ctx": "^7.18.0",
     "@milkdown/plugin-listener": "^7.18.0",

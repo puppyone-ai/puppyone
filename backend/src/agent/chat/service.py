@@ -73,5 +73,3 @@ class ChatService:
                 continue
             history.append({"role": m.role, "content": m.content or ""})
         return [h for h in history if h.get("content")]
-
-

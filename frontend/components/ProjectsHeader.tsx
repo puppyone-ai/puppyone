@@ -12,8 +12,6 @@ export type BreadcrumbSegment = {
   icon?: React.ReactNode;
 };
 
-// Agent controls are now in AgentRailVertical
-
 type ProjectsHeaderProps = {
   pathSegments: BreadcrumbSegment[];
   projectId: string | null;
@@ -26,7 +24,6 @@ export function ProjectsHeader({
   pathSegments,
   onBack,
 }: ProjectsHeaderProps) {
-  // Agent controls have moved to AgentRailVertical
 
   return (
     <header style={headerStyle}>
@@ -157,8 +154,6 @@ export function ProjectsHeader({
           })}
         </div>
       </div>
-
-      {/* Agent controls moved to AgentRailVertical */}
     </header>
   );
 }
@@ -171,8 +166,8 @@ const headerStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  borderBottom: '1px solid rgba(255,255,255,0.06)',
-  background: '#141414',
+  borderBottom: '1px solid rgba(255,255,255,0.1)',
+  background: '#0e0e0e',
   position: 'relative',
   zIndex: 10,
 };

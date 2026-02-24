@@ -36,7 +36,3 @@ class ChatMessageCreate(BaseModel):
     role: Literal["user", "assistant"]
     content: Optional[str] = None
     parts: Optional[list[dict[str, Any]]] = Field(default=None)
-
-
-
-

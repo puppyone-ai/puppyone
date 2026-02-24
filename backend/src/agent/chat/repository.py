@@ -98,5 +98,3 @@ class ChatRepositorySupabase:
             return [ChatMessage(**row) for row in (resp.data or [])]
         except Exception as e:
             raise handle_supabase_error(e, "获取 chat messages")
-
-

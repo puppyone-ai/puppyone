@@ -25,6 +25,7 @@ class ErrorCode(int, Enum):
 
     # 内容节点相关 (4000-4999)
     NAME_CONFLICT = 4001  # 同目录下存在同名节点
+    VERSION_CONFLICT = 4002  # 乐观锁版本冲突（并发写入）
 
     # MCP 相关 (3000-3999)
     MCP_INSTANCE_NOT_FOUND = 3001
@@ -98,6 +99,17 @@ class NameConflictException(AppException):
     def __init__(self, message: str = "A node with this name already exists in the folder"):
         super().__init__(
             code=ErrorCode.NAME_CONFLICT,
+            message=message,
+            status_code=409,
+        )
+
+
+class VersionConflictException(AppException):
+    """版本冲突：并发写入导致乐观锁失败"""
+
+    def __init__(self, message: str = "Version conflict: concurrent update detected"):
+        super().__init__(
+            code=ErrorCode.VERSION_CONFLICT,
             message=message,
             status_code=409,
         )

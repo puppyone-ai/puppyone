@@ -146,7 +146,7 @@ export function SidebarLayout({
     <aside
       ref={sidebarRef}
       className={clsx(
-        'relative flex h-screen flex-shrink-0 flex-col bg-[#1a1a1a] font-sans text-sm',
+        'relative flex h-screen flex-shrink-0 flex-col bg-[#1c1c1c] border-r border-white/[0.08] font-sans text-sm',
         isResizing
           ? 'transition-none'
           : 'transition-[width] duration-200 ease-in-out'
@@ -156,7 +156,7 @@ export function SidebarLayout({
       {/* Header */}
       <div
         className={clsx(
-          'box-border flex h-[48px] items-center border-b border-white/[0.06]',
+          'box-border flex h-[48px] items-center border-b border-white/[0.1]',
           effectiveCollapsed
             ? 'justify-center px-0'
             : 'justify-between pl-2 pr-[9px]'

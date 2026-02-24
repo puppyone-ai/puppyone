@@ -9,6 +9,7 @@ from typing import Any
 from src.db_connector.repository import DBConnectionRepository
 from src.db_connector.providers import get_provider
 from src.content_node.service import ContentNodeService
+from src.sync.repository import SyncRepository
 from src.supabase.client import SupabaseClient
 from src.utils.logger import log_info, log_error
 
@@ -27,14 +28,17 @@ async def db_sync_job(ctx: dict[str, Any], content_node_id: str) -> dict[str, An
     db_repo: DBConnectionRepository = ctx["db_repo"]
 
     try:
-        # 1. 读取 content_node，获取 sync_config
         node = node_service.get_by_id_unsafe(content_node_id)
 
-        if not node.sync_config:
-            return {"ok": False, "error": "No sync_config on node"}
+        sync_repo = SyncRepository(SupabaseClient())
+        sync = sync_repo.get_by_node(content_node_id)
+        sync_config = sync.config if sync else {}
 
-        connection_id = node.sync_config.get("connection_id")
-        table = node.sync_config.get("table")
+        if not sync_config:
+            return {"ok": False, "error": "No sync config found for node"}
+
+        connection_id = sync_config.get("connection_id")
+        table = sync_config.get("table")
 
         if not connection_id or not table:
             return {"ok": False, "error": "Missing connection_id or table in sync_config"}
@@ -51,10 +55,10 @@ async def db_sync_job(ctx: dict[str, Any], content_node_id: str) -> dict[str, An
         result = await provider.query_table(
             connection.config,
             table=table,
-            select=node.sync_config.get("select", "*"),
-            filters=node.sync_config.get("filters"),
-            order=node.sync_config.get("order"),
-            limit=node.sync_config.get("limit", 1000),
+            select=sync_config.get("select", "*"),
+            filters=sync_config.get("filters"),
+            order=sync_config.get("order"),
+            limit=sync_config.get("limit", 1000),
         )
 
         # 4. 更新 content_node 的数据

@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, use } from 'react';
-import { usePathname } from 'next/navigation';
 import { AgentProvider, useAgent } from '@/contexts/AgentContext';
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
 import { AgentViewport } from '@/components/agent/AgentViewport';
-import { AgentRailVertical } from '@/components/agent/AgentRailVertical';
+import { SyncRail } from '@/components/agent/SyncRail';
 import { useProjectTools } from '@/lib/hooks/useData';
 
 const MIN_CHAT_WIDTH = 400;
@@ -80,16 +79,14 @@ function ResizeHandle({
   );
 }
 
-function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+
+function ProjectLayoutInner({ children, projectId }: { children: React.ReactNode; projectId: string }) {
+  const { sidebarMode } = useAgent();
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
-  
-  // Hide Agent sidebar on non-context pages
-  // Agent sidebar only makes sense on /data (Context) page where users interact with content
-  const isDataPage = pathname?.endsWith('/data') || pathname?.includes('/data/');
-  const hideAgentSidebar = !isDataPage;
-  
+
+  const sidebarOpen = sidebarMode !== 'closed';
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -99,8 +96,7 @@ function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
     if (!isResizing) return;
     const handleMouseMove = (e: MouseEvent) => {
       const windowWidth = window.innerWidth;
-      const railWidth = 52 + 8; // Rail width + margin
-      const newWidth = windowWidth - e.clientX - railWidth;
+      const newWidth = windowWidth - e.clientX;
       const clampedWidth = Math.min(Math.max(newWidth, MIN_CHAT_WIDTH), MAX_CHAT_WIDTH);
       setChatWidth(clampedWidth);
     };
@@ -118,51 +114,38 @@ function ProjectLayoutInner({ children }: { children: React.ReactNode }) {
   }, [isResizing]);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        width: '100%',
-        height: '100%',
-        backgroundColor: '#0f0f0f',
-      }}
-    >
-      {/* Main Content Container */}
+    <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: '#0f0f0f' }}>
+      {/* Content area: header + page content */}
       <div
         style={{
           flex: 1,
+          minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
-          margin: 0,
-          borderRadius: 0,
-          border: 'none',
-          borderLeft: '1px solid #2a2a2a', 
+          borderLeft: '1px solid #2a2a2a',
           background: '#0e0e0e',
           overflow: 'hidden',
-          position: 'relative',
         }}
       >
-        {/* Page Content (children) - this is what changes on navigation */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, overflow: 'hidden' }}>
-          {/* Main content area that changes on navigation */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            {children}
-          </div>
-          
-          {/* Agent Sidebar - hidden on monitoring pages */}
-          {!hideAgentSidebar && (
-            <>
-              {/* Resize Handle - 在 Rail 左侧 */}
-              <ResizeHandle isResizing={isResizing} onMouseDown={handleMouseDown} />
-              
-              {/* Agent Rail - persists across navigation */}
-              <AgentRailVertical />
-              
-              {/* Chat Sidebar - persists across navigation */}
-              <AgentViewportWrapper chatWidth={chatWidth} />
-            </>
-          )}
-        </div>
+        {children}
       </div>
+
+      {/* Detail sidebar — full height, pushes header */}
+      <div
+        style={{
+          width: sidebarOpen ? chatWidth : 0,
+          flexShrink: 0,
+          display: 'flex',
+          overflow: 'hidden',
+          transition: 'width 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
+        <ResizeHandle isResizing={isResizing} onMouseDown={handleMouseDown} />
+        <AgentViewportWrapper chatWidth={chatWidth} />
+      </div>
+
+      {/* SyncRail — persistent vertical strip, 48px */}
+      <SyncRail projectId={projectId} />
     </div>
   );
 }
@@ -181,7 +164,7 @@ export default function ProjectLayout({
   return (
     <AgentProvider projectId={projectId}>
       <WorkspaceProvider>
-        <ProjectLayoutInner>{children}</ProjectLayoutInner>
+        <ProjectLayoutInner projectId={projectId}>{children}</ProjectLayoutInner>
       </WorkspaceProvider>
     </AgentProvider>
   );

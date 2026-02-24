@@ -62,7 +62,7 @@ from src.tool.router import router as tool_router
 tool_router_duration = time.time() - tool_router_start
 
 mcp_v3_router_start = time.time()
-from src.mcp_v3.router import router as mcp_v3_router
+from src.agent.mcp.router import router as mcp_v3_router
 
 mcp_v3_router_duration = time.time() - mcp_v3_router_start
 
@@ -80,7 +80,7 @@ context_publish_router_duration = time.time() - context_publish_router_start
 
 # Unified ingest router (file + SaaS imports)
 ingest_router_start = time.time()
-from src.ingest.router import router as ingest_router
+from src.upload.router import router as ingest_router
 
 ingest_router_duration = time.time() - ingest_router_start
 
@@ -239,7 +239,7 @@ async def app_lifespan(app: FastAPI):
         file_ingest_init_start = time.time()
         try:
             log_info("📄 初始化 File Ingest 服务...")
-            from src.ingest.file.dependencies import get_etl_service
+            from src.upload.file.dependencies import get_etl_service
             from pathlib import Path
 
             file_ingest_service = await get_etl_service()
@@ -259,6 +259,69 @@ async def app_lifespan(app: FastAPI):
             log_error(f"❌ File Ingest 服务启动失败 (耗时: {file_ingest_duration * 1000:.2f}ms): {e}")
     else:
         log_info("⏭️  File Ingest 服务已跳过（ENABLE_ETL 关闭）")
+
+    # 4. 初始化 FolderSourceService + FolderAccessService（启动文件夹同步）
+    sync_init_start = time.time()
+    try:
+        log_info("🔄 初始化 Folder Sync Services...")
+        from src.sync.handlers.folder_source import FolderSourceService
+        from src.sync.providers.openclaw.folder_access import FolderAccessService
+        from src.sync.repository import SyncRepository
+        from src.collaboration.service import CollaborationService
+        from src.collaboration.lock_service import LockService
+        from src.collaboration.conflict_service import ConflictService
+        from src.collaboration.version_service import VersionService as CollabVersionService
+        from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
+        from src.collaboration.audit_service import AuditService
+        from src.collaboration.audit_repository import AuditRepository
+        from src.content_node.repository import ContentNodeRepository
+        from src.content_node.service import ContentNodeService
+        from src.s3.service import S3Service
+        from src.supabase.client import SupabaseClient
+
+        from src.sync.changelog import SyncChangelogRepository
+
+        supabase = SupabaseClient()
+        node_repo = ContentNodeRepository(supabase)
+        s3_service = S3Service()
+        changelog_repo = SyncChangelogRepository(supabase)
+        version_svc = CollabVersionService(
+            node_repo=node_repo,
+            version_repo=FileVersionRepository(supabase),
+            snapshot_repo=FolderSnapshotRepository(supabase),
+            s3_service=s3_service,
+            changelog_repo=changelog_repo,
+        )
+        node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service, version_service=version_svc)
+
+        collab_svc = CollaborationService(
+            node_repo=node_repo,
+            lock_service=LockService(node_repo),
+            conflict_service=ConflictService(),
+            version_service=version_svc,
+            audit_service=AuditService(audit_repo=AuditRepository(supabase)),
+        )
+
+        sync_repo = SyncRepository(supabase)
+
+        folder_source = FolderSourceService(
+            node_service=node_svc,
+            sync_repo=sync_repo,
+        )
+        await folder_source.start()
+
+        folder_access = FolderAccessService(
+            collab_service=collab_svc,
+            node_service=node_svc,
+            sync_repo=sync_repo,
+        )
+        await folder_access.start()
+
+        sync_duration = time.time() - sync_init_start
+        log_info(f"✅ Folder Sync Services 启动成功 (耗时: {sync_duration * 1000:.2f}ms)")
+    except Exception as e:
+        sync_duration = time.time() - sync_init_start
+        log_error(f"❌ Folder Sync Services 启动失败 (耗时: {sync_duration * 1000:.2f}ms): {e}")
 
     # 输出总启动时间
     total_startup_time = time.time() - APP_START_TIME
@@ -283,10 +346,24 @@ async def app_lifespan(app: FastAPI):
         except Exception as e:
             log_error(f"Failed to stop Scheduler service: {e}")
 
+    # 停止 Folder Sync Services
+    try:
+        from src.sync.handlers.folder_source import FolderSourceService
+        from src.sync.providers.openclaw.folder_access import FolderAccessService
+        fs = FolderSourceService.get_instance()
+        if fs:
+            await fs.stop()
+        fa = FolderAccessService.get_instance()
+        if fa:
+            await fa.stop()
+        log_info("Folder Sync Services stopped successfully")
+    except Exception as e:
+        log_error(f"Failed to stop Folder Sync Services: {e}")
+
     # 停止 File Ingest 服务
     if settings.etl_enabled:
         try:
-            from src.ingest.file.dependencies import get_etl_service
+            from src.upload.file.dependencies import get_etl_service
 
             file_ingest_service = await get_etl_service()
             await file_ingest_service.stop()
@@ -347,6 +424,22 @@ def create_app() -> FastAPI:
         internal_router, tags=["internal"]
     )  # Internal API不加/api/v1前缀
     app.include_router(content_node_router, prefix="/api/v1", tags=["content-nodes"])
+    from src.content_node.version_router import router as version_router
+    app.include_router(version_router, prefix="/api/v1", tags=["content-node-versions"])
+    from src.collaboration.router import router as collab_router
+    app.include_router(collab_router, prefix="/api/v1", tags=["collaboration"])
+    from src.workspace.router import router as workspace_router
+    app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
+    from src.sync.router import router as sync_router
+    app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
+    from src.sync.folder_router import router as folder_sync_router
+    app.include_router(folder_sync_router, tags=["folder-sync"])
+    from src.sync.providers.openclaw.router import router as openclaw_router
+    app.include_router(openclaw_router, tags=["sync-openclaw"])
+    from src.access.openclaw.router import router as openclaw_compat_router
+    app.include_router(openclaw_compat_router, tags=["access-openclaw-compat"])
+    from src.auth.router import router as auth_router
+    app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])

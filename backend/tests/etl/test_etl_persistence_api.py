@@ -17,9 +17,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
-from src.ingest.file.dependencies import get_etl_service
-from src.ingest.router import router
-from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus
+from src.upload.file.dependencies import get_etl_service
+from src.upload.router import router
+from src.upload.file.tasks.models import ETLTask, ETLTaskStatus
 from src.exception_handler import (
     app_exception_handler,
     generic_exception_handler,

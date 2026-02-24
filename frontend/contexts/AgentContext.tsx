@@ -4,7 +4,27 @@ import React, { createContext, useContext, useState, useCallback, useEffect, typ
 import { type SavedAgent, type AgentType, type TriggerType, type TriggerConfig, type ExternalConfig } from '@/components/AgentRail';
 import { post, get, put, del } from '@/lib/apiClient';
 
-export type SidebarMode = 'closed' | 'setting' | 'deployed';
+/**
+ * Sidebar state machine:
+ *
+ *   closed ──[+ Access]──▸ setting ──[Save]──▸ deployed
+ *     ▴                        │                  │
+ *     └───[close]──────────────┘                  │
+ *                                                 │
+ *   deployed ──[⚙️ edit]──▸ editing ──[Save]──▸ deployed
+ *       ▴                      │
+ *       └───[cancel / X]───────┘
+ *
+ *   From ANY state:
+ *     [+ Access]  → setting  (interrupts editing / deployed)
+ *     [agent chip] → deployed (selects that agent)
+ *
+ * 'setting'  — creating a brand-new access point  (+ Access highlighted)
+ * 'editing'  — editing an existing access point   (agent chip highlighted)
+ * 'deployed' — viewing agent runtime              (agent chip highlighted)
+ * 'closed'   — sidebar hidden
+ */
+export type SidebarMode = 'closed' | 'setting' | 'editing' | 'deployed';
 
 // 节点信息类型（从后端 /api/v1/nodes/{id} 返回）
 interface NodeInfo {
@@ -117,6 +137,8 @@ interface AgentContextValue {
   
   // New Actions
   openSetting: () => void;
+  openSyncSetting: (provider: string, preBindResource?: AccessResource) => void;
+  pendingSyncProvider: string | null;
   editAgent: (agentId: string) => void;  // 编辑已有 agent
   editingAgentId: string | null;  // 正在编辑的 agent ID
   cancelSetting: () => void;  // 取消设置，返回聊天界面
@@ -141,6 +163,11 @@ interface AgentContextValue {
   // Runtime Actions
   toggleCapability: (id: string) => void;
   
+  // Sync sidebar
+  selectedSyncId: string | null;
+  selectedSyncNodeId: string | null;
+  selectSync: (syncId: string | null, nodeId?: string | null) => void;
+
   // Legacy support
   isChatOpen: boolean; 
   toggleChat: () => void;
@@ -178,6 +205,10 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   const [draftTaskNodeId, setDraftTaskNodeId] = useState<string | null>(null);
   const [draftExternalConfig, setDraftExternalConfig] = useState<ExternalConfig | null>(null);
   
+  // Sync sidebar state
+  const [selectedSyncId, setSelectedSyncId] = useState<string | null>(null);
+  const [pendingSyncProvider, setPendingSyncProvider] = useState<string | null>(null);
+
   // Runtime State (for Deployed/Playground Mode)
   const [selectedCapabilities, setSelectedCapabilities] = useState<Set<string>>(new Set());
 
@@ -300,36 +331,45 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     loadAgents();
   }, [projectId]);
 
-  // 切换 Agent (Triggers Deployed Mode)
+  // Select agent — callable from ANY state → always goes to deployed
   const selectAgent = useCallback((agentId: string | null) => {
+    setEditingAgentId(null);
+    setSelectedSyncId(null);
+
     if (!agentId) {
-      // 没有 agent，关闭 sidebar
       setCurrentAgentId(null);
       setSelectedCapabilities(new Set());
       setSidebarMode('closed');
       return;
     }
-    
+
     setCurrentAgentId(agentId);
     const agent = savedAgents.find(a => a.id === agentId);
-    if (agent) {
-      setSelectedCapabilities(new Set(agent.capabilities));
-      setSidebarMode('deployed');
-    } else {
-      setSelectedCapabilities(new Set());
-      setSidebarMode('deployed');
-    }
+    setSelectedCapabilities(new Set(agent?.capabilities ?? []));
+    setSidebarMode('deployed');
   }, [savedAgents]);
 
-  // 打开设置模式（新建）
-  const openSetting = useCallback(() => {
-    setSidebarMode('setting');
+  const [selectedSyncNodeId, setSelectedSyncNodeId] = useState<string | null>(null);
+
+  const selectSync = useCallback((syncId: string | null, nodeId?: string | null) => {
     setEditingAgentId(null);
-    // Reset draft state defaults
+    if (!syncId) {
+      setSelectedSyncId(null);
+      setSelectedSyncNodeId(null);
+      setSidebarMode('closed');
+      return;
+    }
+    setCurrentAgentId(null);
+    setSelectedSyncId(syncId);
+    setSelectedSyncNodeId(nodeId ?? null);
+    setSidebarMode('deployed');
+  }, []);
+
+  const resetDraftState = useCallback(() => {
+    setEditingAgentId(null);
     setDraftType('chat');
     setDraftCapabilities(new Set());
     setDraftResources([]);
-    // Reset Schedule Agent draft states
     setDraftTriggerType('manual');
     setDraftTriggerConfig(null);
     setDraftTaskContent('');
@@ -337,12 +377,28 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     setDraftExternalConfig(null);
   }, []);
 
+  // Create new access — callable from ANY state
+  const openSetting = useCallback(() => {
+    resetDraftState();
+    setPendingSyncProvider(null);
+    setSidebarMode('setting');
+  }, [resetDraftState]);
+
+  const openSyncSetting = useCallback((provider: string, preBindResource?: AccessResource) => {
+    resetDraftState();
+    if (preBindResource) {
+      setDraftResources([preBindResource]);
+    }
+    setPendingSyncProvider(provider);
+    setSidebarMode('setting');
+  }, [resetDraftState]);
+
   // 编辑已有 Agent
   const editAgent = useCallback(async (agentId: string) => {
     // 先从本地 state 查找
     const agent = savedAgents.find(a => a.id === agentId);
     if (agent) {
-      setSidebarMode('setting');
+      setSidebarMode('editing'); // stays "inside" the agent, doesn't jump to new-access flow
       setEditingAgentId(agentId);
       setDraftType(agent.type || 'chat');
       setDraftCapabilities(new Set(agent.capabilities.filter(c => !c.startsWith('resource:'))));
@@ -630,20 +686,21 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     }
   }, []);
 
-  // 取消设置，返回聊天界面
+  // Cancel / X — go back to the previous sensible state
   const cancelSetting = useCallback(() => {
-    if (editingAgentId) {
-      // 编辑模式：返回到聊天界面，保持当前 agent
-      setSidebarMode('deployed');
+    if (sidebarMode === 'editing' && editingAgentId) {
+      // Editing → back to deployed view of the same agent
       setEditingAgentId(null);
-    } else if (currentAgentId) {
-      // 新建模式但有当前 agent：返回到聊天界面
+      setCurrentAgentId(editingAgentId);
+      setSidebarMode('deployed');
+    } else if (sidebarMode === 'setting' && currentAgentId) {
+      // Creating new but an agent was already selected → back to it
       setSidebarMode('deployed');
     } else {
-      // 新建模式且没有当前 agent：关闭 sidebar
+      // Creating new with nothing selected → close
       setSidebarMode('closed');
     }
-  }, [editingAgentId, currentAgentId]);
+  }, [sidebarMode, editingAgentId, currentAgentId]);
 
   // Close Sidebar
   const closeSidebar = useCallback(() => {
@@ -726,8 +783,13 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         draftTaskNodeId,
         draftExternalConfig,
         
+        selectedSyncId,
+        selectedSyncNodeId,
+        selectSync,
         selectAgent,
         openSetting,
+        openSyncSetting,
+        pendingSyncProvider,
         editAgent,
         editingAgentId,
         cancelSetting,

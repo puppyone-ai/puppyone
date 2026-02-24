@@ -12,9 +12,9 @@ import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus, ETLTaskResult
-from src.ingest.file.tasks.queue import ETLQueue
-from src.ingest.file.tasks.repository import ETLTaskRepositorySupabase
+from src.upload.file.tasks.models import ETLTask, ETLTaskStatus, ETLTaskResult
+from src.upload.file.tasks.queue import ETLQueue
+from src.upload.file.tasks.repository import ETLTaskRepositorySupabase
 
 
 # 需要真实 Supabase 环境变量；未配置时跳过，避免本地/CI 失败

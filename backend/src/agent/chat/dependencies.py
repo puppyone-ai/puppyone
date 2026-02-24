@@ -16,11 +16,3 @@ def get_chat_service() -> ChatService:
         repo = ChatRepositorySupabase(client)
         _chat_service = ChatService(repo)
     return _chat_service
-
-
-
-
-
-
-
-

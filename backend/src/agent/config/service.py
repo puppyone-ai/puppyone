@@ -302,4 +302,3 @@ class AgentConfigService:
     def get_execution_history(self, agent_id: str, limit: int = 10) -> List[dict]:
         """获取 Agent 的执行历史"""
         return self._repo.get_execution_history(agent_id, limit)
-
