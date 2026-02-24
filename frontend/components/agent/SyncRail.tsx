@@ -199,14 +199,15 @@ function buildItems(
 // Rail icon button
 // ============================================================
 
-function RailIcon({ item, isActive, onClick }: {
+function RailIcon({ item, isActive, onClick, onHover }: {
   item: RailItem;
   isActive: boolean;
   onClick: () => void;
+  onHover?: (hovering: boolean) => void;
 }) {
   const dirArrow = item.sync ? DIRECTION_ARROWS[item.sync.direction] || '' : '';
   const tooltip = item.kind === 'sync'
-    ? `${PROVIDER_SHORT[item.sync!.provider] || item.sync!.provider} ${dirArrow} ${item.label}`
+    ? `${PROVIDER_SHORT[item.providerOrType] || item.providerOrType} ${dirArrow} ${item.label}`
     : item.label;
 
   const icon = item.kind === 'agent'
@@ -232,8 +233,8 @@ function RailIcon({ item, isActive, onClick }: {
         flexShrink: 0,
         padding: 0,
       }}
-      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; onHover?.(true); }}
+      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; onHover?.(false); }}
     >
       <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {icon}
@@ -265,6 +266,7 @@ export function SyncRail({ projectId }: { projectId: string }) {
   const {
     savedAgents, currentAgentId, selectedSyncId, sidebarMode,
     selectAgent, selectSync, openSetting, closeSidebar,
+    setHoveredAgentId, setHoveredSyncNodeId,
   } = useAgent();
 
   const { data: syncData } = useSWR<ProjectSyncStatus>(
@@ -375,6 +377,7 @@ export function SyncRail({ projectId }: { projectId: string }) {
             && (sidebarMode === 'deployed' || sidebarMode === 'editing')
           }
           onClick={() => handleClick(item)}
+          onHover={item.agent ? (h) => setHoveredAgentId(h ? item.agent!.id : null) : undefined}
         />
       ))}
 
@@ -391,12 +394,17 @@ export function SyncRail({ projectId }: { projectId: string }) {
         const active = item.agent
           ? currentAgentId === item.agent.id && (sidebarMode === 'deployed' || sidebarMode === 'editing')
           : selectedSyncId === item.sync?.id && sidebarMode === 'deployed';
+        const nodeId = item.sync?.node_id || item.agent?.resources?.[0]?.nodeId || null;
         return (
           <RailIcon
             key={item.id}
             item={item}
             isActive={active}
             onClick={() => handleClick(item)}
+            onHover={item.agent
+              ? (h) => setHoveredAgentId(h ? item.agent!.id : null)
+              : nodeId ? (h) => setHoveredSyncNodeId(h ? nodeId : null) : undefined
+            }
           />
         );
       })}
