@@ -8,12 +8,14 @@ Responsibilities:
   - push_node:       PuppyOne → external (after L2.commit)
 
 All writes go through L2. L2.5 is a background conveyor belt, not a write gate.
+
+Connector resolution uses BaseConnector from src.sync.connectors._base.
 """
 
 import json
 from typing import Optional, List, Any, TYPE_CHECKING
 
-from src.sync.adapter import SyncAdapter
+from src.sync.connectors._base import BaseConnector
 from src.sync.repository import SyncRepository
 from src.sync.schemas import Sync, PullResult
 from src.utils.logger import log_info, log_error, log_debug
@@ -32,13 +34,13 @@ class SyncService:
     ):
         self.collab = collab_service
         self.sync_repo = sync_repo
-        self._adapters: dict[str, SyncAdapter] = {}
+        self._connectors: dict[str, BaseConnector] = {}
 
-    def register_adapter(self, adapter: SyncAdapter) -> None:
-        self._adapters[adapter.adapter_type] = adapter
+    def register_connector(self, connector: BaseConnector) -> None:
+        self._connectors[connector.spec().provider] = connector
 
-    def _get_adapter(self, adapter_type: str) -> Optional[SyncAdapter]:
-        return self._adapters.get(adapter_type)
+    def _get_connector(self, provider: str) -> Optional[BaseConnector]:
+        return self._connectors.get(provider)
 
     # ============================================================
     # Sync lifecycle
@@ -72,9 +74,9 @@ class SyncService:
         First connect: scan external source, create nodes in PuppyOne,
         and create Sync rows for each binding.
         """
-        adapter = self._get_adapter(provider)
-        if not adapter:
-            raise ValueError(f"No adapter for type: {provider}")
+        connector = self._get_connector(provider)
+        if not connector:
+            raise ValueError(f"No connector for provider: {provider}")
 
         temp_sync = Sync(
             id="",
@@ -86,7 +88,7 @@ class SyncService:
             credentials_ref=credentials_ref,
         )
 
-        resources = await adapter.list_resources(temp_sync)
+        resources = await connector.list_resources(temp_sync)
         created_syncs: List[Sync] = []
 
         for res in resources:
@@ -168,11 +170,11 @@ class SyncService:
         if sync.direction == "outbound":
             return None
 
-        adapter = self._get_adapter(sync.provider)
-        if not adapter:
+        connector = self._get_connector(sync.provider)
+        if not connector:
             return None
 
-        return await self._pull_one(sync, adapter)
+        return await self._pull_one(sync, connector)
 
     async def pull_all(self, provider: Optional[str] = None) -> List[dict]:
         """Pull changes for all active syncs."""
@@ -184,10 +186,10 @@ class SyncService:
         for sync in syncs:
             if sync.direction == "outbound":
                 continue
-            adapter = self._get_adapter(sync.provider)
-            if not adapter:
+            connector = self._get_connector(sync.provider)
+            if not connector:
                 continue
-            result = await self._pull_one(sync, adapter)
+            result = await self._pull_one(sync, connector)
             if result:
                 results.append(result)
 
@@ -196,11 +198,11 @@ class SyncService:
         return results
 
     async def _pull_one(
-        self, sync: Sync, adapter: SyncAdapter,
+        self, sync: Sync, connector: BaseConnector,
     ) -> Optional[dict]:
         """Pull changes for a single sync binding."""
         try:
-            pull_result = await adapter.pull(sync)
+            pull_result = await connector.pull(sync)
             if not pull_result:
                 return None
 
@@ -266,12 +268,12 @@ class SyncService:
         if sync.status != "active" or sync.direction == "inbound":
             return []
 
-        adapter = self._get_adapter(sync.provider)
-        if not adapter:
+        connector = self._get_connector(sync.provider)
+        if not connector:
             return []
 
         try:
-            push_result = await adapter.push(sync, content, node_type)
+            push_result = await connector.push(sync, content, node_type)
 
             if push_result.success:
                 self.sync_repo.update_sync_point(
@@ -286,7 +288,7 @@ class SyncService:
                 )
                 return [{
                     "node_id": sync.node_id,
-                    "adapter": sync.provider,
+                    "provider": sync.provider,
                     "success": True,
                 }]
             else:

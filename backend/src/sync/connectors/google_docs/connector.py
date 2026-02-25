@@ -1,5 +1,5 @@
 """
-Google Docs Handler - Process Google Docs imports.
+Google Docs Connector - Process Google Docs imports.
 
 Imports Google Docs documents into content nodes as Markdown.
 """
@@ -10,18 +10,39 @@ from typing import Optional
 import httpx
 
 from src.content_node.service import ContentNodeService
-from src.sync.handlers.base import BaseHandler, ImportResult, PreviewResult, ProgressCallback
-from src.sync.task.models import ImportTask, ImportTaskType
+from src.sync.connectors._base import (
+    BaseConnector,
+    ConnectorSpec,
+    Capability,
+    AuthRequirement,
+    TriggerMode,
+    ImportResult,
+    PreviewResult,
+    ProgressCallback,
+)
+from src.sync.task.models import ImportTask
 from src.oauth.google_docs_service import GoogleDocsOAuthService
 from src.s3.service import S3Service
 from src.utils.logger import log_info, log_error
 
 
-class GoogleDocsHandler(BaseHandler):
-    """Handler for Google Docs imports."""
+class GoogleDocsConnector(BaseConnector):
+    """Connector for Google Docs imports."""
 
     DOCS_API_URL = "https://docs.googleapis.com/v1/documents"
-    
+
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="google_docs",
+            display_name="Google Docs",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+            default_trigger=TriggerMode.MANUAL,
+            default_node_type="markdown",
+            auth=AuthRequirement.OAUTH,
+            oauth_type="docs",
+        )
+
     def __init__(
         self,
         node_service: ContentNodeService,
@@ -33,10 +54,7 @@ class GoogleDocsHandler(BaseHandler):
         self.s3_service = s3_service
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    def can_handle(self, task: ImportTask) -> bool:
-        return task.task_type == ImportTaskType.GOOGLE_DOCS
-
-    async def process(
+    async def import_data(
         self,
         task: ImportTask,
         on_progress: ProgressCallback,
@@ -54,11 +72,11 @@ class GoogleDocsHandler(BaseHandler):
         user_email = metadata.get("user", {}).get("email", "Google Docs")
 
         config = task.config or {}
-        
+
         # Parse source - should be a Google Docs URL or document ID
         source = task.source_url or ""
         doc_id = self._extract_doc_id(source)
-        
+
         if not doc_id:
             raise ValueError(f"Invalid Google Docs URL or ID: {source}")
 
@@ -66,7 +84,7 @@ class GoogleDocsHandler(BaseHandler):
 
         # Fetch document content
         doc_content = await self._fetch_document(access_token, doc_id)
-        
+
         if not doc_content:
             raise ValueError(f"Failed to fetch document: {doc_id}")
 
@@ -92,65 +110,68 @@ class GoogleDocsHandler(BaseHandler):
         await on_progress(100, "Import complete!")
 
         return ImportResult(
-            success=True,
-            message=f"Successfully imported: {title}",
-            node_id=node.id if node else None,
-            items_processed=1,
+            content_node_id=str(node.id) if node else "",
+            items_count=1,
+            metadata={"message": f"Successfully imported: {title}"},
         )
 
-    async def preview(self, task: ImportTask) -> PreviewResult:
+    async def preview(self, url: str, user_id: str) -> PreviewResult:
         """Preview Google Docs import."""
-        connection = await self.docs_service.get_connection(task.user_id)
+        connection = await self.docs_service.get_connection(user_id)
         if not connection:
             return PreviewResult(
+                source_type="google_docs",
                 title="Google Docs",
                 description="Not connected to Google Docs",
-                item_count=0,
-                items=[],
-                metadata={"error": "Not authenticated"},
+                data=[],
+                total_items=0,
+                structure_info={"error": "Not authenticated"},
             )
 
-        source = task.source_url or ""
+        source = url or ""
         doc_id = self._extract_doc_id(source)
 
         if not doc_id:
             return PreviewResult(
+                source_type="google_docs",
                 title="Google Docs",
                 description="Invalid document URL or ID",
-                item_count=0,
-                items=[],
-                metadata={"error": "Invalid URL"},
+                data=[],
+                total_items=0,
+                structure_info={"error": "Invalid URL"},
             )
 
         try:
             access_token = connection.access_token
             doc_content = await self._fetch_document(access_token, doc_id)
-            
+
             if doc_content:
                 title = doc_content.get("title", "Untitled Document")
                 return PreviewResult(
+                    source_type="google_docs",
                     title=title,
                     description=f"Google Doc: {title}",
-                    item_count=1,
-                    items=[{"name": title, "type": "document"}],
-                    metadata={"doc_id": doc_id},
+                    data=[{"name": title, "type": "document"}],
+                    total_items=1,
+                    structure_info={"doc_id": doc_id},
                 )
         except Exception as e:
             log_error(f"Failed to preview Google Doc: {e}")
 
         return PreviewResult(
+            source_type="google_docs",
             title="Google Docs",
             description="Failed to fetch document",
-            item_count=0,
-            items=[],
-            metadata={"error": "Fetch failed"},
+            data=[],
+            total_items=0,
+            structure_info={"error": "Fetch failed"},
         )
 
     def _extract_doc_id(self, source: str) -> Optional[str]:
         """Extract document ID from URL or return as-is if already an ID."""
         if not source:
             return None
-            
+
         # Handle full URLs
         # Format: https://docs.google.com/document/d/DOC_ID/edit
         if "docs.google.com/document/d/" in source:
@@ -158,15 +179,15 @@ class GoogleDocsHandler(BaseHandler):
             if len(parts) > 1:
                 doc_id = parts[1].split("/")[0].split("?")[0]
                 return doc_id
-        
+
         # Handle oauth:// URLs
         if source.startswith("oauth://google-docs/"):
             return source.replace("oauth://google-docs/", "").split("?")[0]
-        
+
         # Assume it's already a document ID
         if len(source) > 10 and "/" not in source:
             return source
-            
+
         return None
 
     async def _fetch_document(self, access_token: str, doc_id: str) -> Optional[dict]:
@@ -185,23 +206,23 @@ class GoogleDocsHandler(BaseHandler):
     def _convert_to_markdown(self, doc_content: dict) -> str:
         """Convert Google Docs content to Markdown."""
         markdown_lines = []
-        
+
         body = doc_content.get("body", {})
         content = body.get("content", [])
-        
+
         for element in content:
             if "paragraph" in element:
                 paragraph = element["paragraph"]
                 paragraph_style = paragraph.get("paragraphStyle", {})
                 named_style = paragraph_style.get("namedStyleType", "NORMAL_TEXT")
-                
+
                 text_parts = []
                 for elem in paragraph.get("elements", []):
                     if "textRun" in elem:
                         text_run = elem["textRun"]
                         text = text_run.get("content", "")
                         text_style = text_run.get("textStyle", {})
-                        
+
                         # Apply text formatting
                         if text_style.get("bold"):
                             text = f"**{text.strip()}**"
@@ -212,11 +233,11 @@ class GoogleDocsHandler(BaseHandler):
                         if text_style.get("link"):
                             url = text_style["link"].get("url", "")
                             text = f"[{text.strip()}]({url})"
-                            
+
                         text_parts.append(text)
-                
+
                 line = "".join(text_parts).rstrip()
-                
+
                 # Apply heading styles
                 if named_style == "HEADING_1":
                     line = f"# {line}"
@@ -230,18 +251,18 @@ class GoogleDocsHandler(BaseHandler):
                     line = f"##### {line}"
                 elif named_style == "HEADING_6":
                     line = f"###### {line}"
-                
+
                 markdown_lines.append(line)
-                
+
             elif "table" in element:
                 # Basic table support
                 table = element["table"]
                 rows = table.get("tableRows", [])
-                
+
                 for i, row in enumerate(rows):
                     cells = row.get("tableCells", [])
                     cell_texts = []
-                    
+
                     for cell in cells:
                         cell_content = cell.get("content", [])
                         cell_text = ""
@@ -251,13 +272,13 @@ class GoogleDocsHandler(BaseHandler):
                                     if "textRun" in text_elem:
                                         cell_text += text_elem["textRun"].get("content", "").strip()
                         cell_texts.append(cell_text)
-                    
+
                     markdown_lines.append("| " + " | ".join(cell_texts) + " |")
-                    
+
                     # Add header separator after first row
                     if i == 0:
                         markdown_lines.append("| " + " | ".join(["---"] * len(cell_texts)) + " |")
-                
+
                 markdown_lines.append("")
 
         return "\n".join(markdown_lines)
@@ -265,5 +286,3 @@ class GoogleDocsHandler(BaseHandler):
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
-
-

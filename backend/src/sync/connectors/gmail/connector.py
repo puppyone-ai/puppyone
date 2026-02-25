@@ -1,5 +1,5 @@
 """
-Gmail Handler - Process Gmail imports via Google Gmail API.
+Gmail Connector - Process Gmail imports via Google Gmail API.
 
 Architecture:
 - All emails are stored in a SINGLE content_node with type "gmail_inbox"
@@ -15,21 +15,41 @@ from typing import Optional
 import httpx
 
 from src.content_node.service import ContentNodeService
-from src.sync.handlers.base import BaseHandler, ImportResult, ProgressCallback
-from src.sync.task.models import ImportTask, ImportTaskType
+from src.sync.connectors._base import (
+    BaseConnector,
+    ConnectorSpec,
+    Capability,
+    AuthRequirement,
+    TriggerMode,
+    ImportResult,
+    ProgressCallback,
+)
+from src.sync.task.models import ImportTask
 from src.oauth.gmail_service import GmailOAuthService
 from src.s3.service import S3Service
 from src.utils.logger import log_info, log_error
 
 
-class GmailHandler(BaseHandler):
-    """Handler for Gmail imports using Gmail API.
-    
+class GmailConnector(BaseConnector):
+    """Connector for Gmail imports using Gmail API.
+
     Stores all emails in a single JSONB node for efficient querying with jq.
     """
 
     GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
     GMAIL_MESSAGE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}"
+
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="gmail",
+            display_name="Gmail",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+            default_trigger=TriggerMode.POLL,
+            default_node_type="json",
+            auth=AuthRequirement.OAUTH,
+            oauth_type="gmail",
+        )
 
     def __init__(
         self,
@@ -42,10 +62,7 @@ class GmailHandler(BaseHandler):
         self.s3_service = s3_service
         self.client = httpx.AsyncClient(timeout=30.0)
 
-    def can_handle(self, task: ImportTask) -> bool:
-        return task.task_type == ImportTaskType.GMAIL
-
-    async def process(
+    async def import_data(
         self,
         task: ImportTask,
         on_progress: ProgressCallback,
@@ -67,7 +84,7 @@ class GmailHandler(BaseHandler):
         max_results = config.get("max_results", 50)
         query = config.get("query", "")
         parent_id = config.get("parent_id")
-        
+
         await on_progress(10, f"Fetching emails from {user_email}...")
 
         # Fetch email list
@@ -100,7 +117,7 @@ class GmailHandler(BaseHandler):
         # Fetch full details for each email
         emails = []
         total = len(email_ids)
-        
+
         for idx, email_id in enumerate(email_ids):
             progress = 20 + int((idx / total) * 70)  # 20-90%
             await on_progress(progress, f"Fetching email {idx + 1}/{total}...")
@@ -179,15 +196,15 @@ class GmailHandler(BaseHandler):
 
         # Extract headers
         headers = {
-            h["name"].lower(): h["value"] 
+            h["name"].lower(): h["value"]
             for h in email_data.get("payload", {}).get("headers", [])
         }
-        
+
         subject = headers.get("subject", "(No Subject)")
         from_addr = headers.get("from", "Unknown")
         to_addr = headers.get("to", "")
         date_str = headers.get("date", "")
-        
+
         # Parse date
         try:
             email_date = parsedate_to_datetime(date_str) if date_str else datetime.now(timezone.utc)
@@ -214,7 +231,7 @@ class GmailHandler(BaseHandler):
     def _extract_body(self, payload: dict) -> str:
         """Extract email body from payload, handling multipart messages."""
         body = ""
-        
+
         # Check for body in the payload directly
         if "body" in payload and payload["body"].get("data"):
             body = self._decode_body(payload["body"]["data"])
@@ -224,7 +241,7 @@ class GmailHandler(BaseHandler):
         parts = payload.get("parts", [])
         for part in parts:
             mime_type = part.get("mimeType", "")
-            
+
             if mime_type == "text/plain":
                 if "body" in part and part["body"].get("data"):
                     body = self._decode_body(part["body"]["data"])

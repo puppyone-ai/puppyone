@@ -17,7 +17,7 @@ from arq import ArqRedis
 from src.sync.import_schemas import ImportType, ImportStatus
 from src.sync.task.manager import ImportTaskManager
 from src.sync.task.models import ImportTask, ImportTaskType
-from src.sync.handlers.base import PreviewResult
+from src.sync.connectors._base import PreviewResult
 from src.sync.utils.url_parser import detect_import_type
 from src.utils.logger import log_info, log_error
 
@@ -204,47 +204,45 @@ class ImportService:
         task_type = detect_import_type(url)
         import_type = self.task_type_to_import_type(task_type)
         
-        handler = self._get_preview_handler(task_type)
+        connector = self._get_preview_connector(task_type)
         
-        # Call preview with appropriate signature
         if task_type == ImportTaskType.URL:
-            result = await handler.preview(url, user_id, crawl_options)
+            result = await connector.preview(url, user_id, crawl_options=crawl_options)
         else:
-            result = await handler.preview(url, user_id)
+            result = await connector.preview(url, user_id)
         
-        # Cleanup if needed
-        if hasattr(handler, 'close'):
-            await handler.close()
+        if hasattr(connector, 'close'):
+            await connector.close()
         
         return result, import_type
 
-    def _get_preview_handler(self, task_type: ImportTaskType):
+    def _get_preview_connector(self, task_type: ImportTaskType):
         """
-        Get handler instance for preview.
+        Get connector instance for preview.
         
         Note: For preview, we don't need node_service or s3_service,
         so we pass None for those dependencies.
         """
-        from src.sync.handlers.github_handler import GithubHandler
-        from src.sync.handlers.notion_handler import NotionHandler
-        from src.sync.handlers.url_handler import UrlHandler
+        from src.sync.connectors.github.connector import GithubConnector
+        from src.sync.connectors.notion.connector import NotionConnector
+        from src.sync.connectors.url.connector import UrlConnector
         from src.oauth.github_service import GithubOAuthService
         
         if task_type == ImportTaskType.GITHUB:
-            return GithubHandler(
+            return GithubConnector(
                 node_service=None,
                 github_service=GithubOAuthService(),
                 s3_service=None,
             )
         
         if task_type in (ImportTaskType.NOTION, ImportTaskType.NOTION_DATABASE):
-            return NotionHandler(
+            return NotionConnector(
                 node_service=None,
                 s3_service=None,
             )
         
-        # Default: URL handler (Firecrawl)
-        return UrlHandler(node_service=None)
+        # Default: URL connector (Firecrawl)
+        return UrlConnector(node_service=None)
 
     @staticmethod
     def task_type_to_import_type(task_type: ImportTaskType) -> ImportType:

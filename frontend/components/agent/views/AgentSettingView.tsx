@@ -8,7 +8,7 @@ import { ChatAgentConfig } from './configs/ChatAgentConfig';
 import { ScheduleAgentConfig } from './configs/ScheduleAgentConfig';
 import { SaaSyncConfig, type SaaSConfigField } from './configs/SaaSyncConfig';
 import { SyncPreview, type AcceptedNodeType } from './configs/SyncPreview';
-import { FolderIcon, CloseIcon, getNodeIcon } from './_icons';
+import { FolderIcon, JsonIcon, CloseIcon, getNodeIcon } from './_icons';
 import type { AgentConfigProps } from './configs/ChatAgentConfig';
 
 interface AgentSettingViewProps {
@@ -16,10 +16,11 @@ interface AgentSettingViewProps {
   projectTools?: DbTool[];
   tableNameById?: Record<string, string>;
   currentTableId?: string;
+  projectId?: string;
 }
 
 type Category = 'agent' | 'sync';
-type SyncProvider = 'openclaw' | 'gmail' | 'google_calendar' | 'google_sheets' | 'google_docs' | 'github' | 'notion' | 'linear';
+type SyncProvider = 'openclaw' | 'gmail' | 'google_calendar' | 'google_sheets' | 'google_docs' | 'github' | 'supabase';
 
 interface TypeOption {
   category: Category;
@@ -43,6 +44,20 @@ function Img({ src, alt, size = 16 }: { src: string; alt: string; size?: number 
   return <img src={src} alt={alt} width={size} height={size} style={{ display: 'block' }} />;
 }
 
+function SupabaseIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 109 113" fill="none">
+      <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#sp0)"/>
+      <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#sp1)" fillOpacity="0.2"/>
+      <path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/>
+      <defs>
+        <linearGradient id="sp0" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse"><stop stopColor="#249361"/><stop offset="1" stopColor="#3ECF8E"/></linearGradient>
+        <linearGradient id="sp1" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse"><stop/><stop offset="1" stopOpacity="0"/></linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
 const AGENT_OPTIONS: TypeOption[] = [
   {
     category: 'agent', agentType: 'chat', label: 'Chat Agent', description: 'Interactive AI assistant',
@@ -61,8 +76,7 @@ const SYNC_OPTIONS: TypeOption[] = [
   { category: 'sync', syncProvider: 'google_sheets', label: 'Google Sheets', description: 'Sync spreadsheet data', icon: <Img src="/icons/google_sheet.svg" alt="Sheets" /> },
   { category: 'sync', syncProvider: 'google_docs', label: 'Google Docs', description: 'Sync documents', icon: <Img src="/icons/google_doc.svg" alt="Docs" /> },
   { category: 'sync', syncProvider: 'github', label: 'GitHub', description: 'Sync repos & issues', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="#999"><path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> },
-  { category: 'sync', syncProvider: 'notion', label: 'Notion', description: 'Sync Notion pages', icon: <Img src="/icons/notion.svg" alt="Notion" /> },
-  { category: 'sync', syncProvider: 'linear', label: 'Linear', description: 'Sync Linear issues', icon: <Img src="/icons/linear.svg" alt="Linear" /> },
+  { category: 'sync', syncProvider: 'supabase', label: 'Supabase', description: 'Connect PostgreSQL database', icon: <SupabaseIcon size={16} /> },
 ];
 
 const SYNC_PROVIDER_SPECS: Record<SyncProvider, SyncProviderSpec> = {
@@ -115,17 +129,9 @@ const SYNC_PROVIDER_SPECS: Record<SyncProvider, SyncProviderSpec> = {
       { key: 'url', label: 'Repo URL', type: 'text', placeholder: 'https://github.com/owner/repo' },
     ],
   },
-  notion: {
-    accept: ['folder'], direction: 'inbound',
-    configFields: [
-      { key: 'url', label: 'Page URL', type: 'text', placeholder: 'https://notion.so/...' },
-    ],
-  },
-  linear: {
+  supabase: {
     accept: ['json'], direction: 'inbound',
-    configFields: [
-      { key: 'url', label: 'Issue URL', type: 'text', placeholder: 'https://linear.app/...' },
-    ],
+    configFields: [],
   },
 };
 
@@ -147,13 +153,13 @@ const genName = () => `${NAME_ADJ[Math.floor(Math.random() * NAME_ADJ.length)]} 
 // Map SaaS IDs from TableManageDialog to our SyncProvider keys
 const SAAS_TO_SYNC: Record<string, SyncProvider> = {
   gmail: 'gmail', calendar: 'google_calendar', sheets: 'google_sheets',
-  docs: 'google_docs', github: 'github', notion: 'notion', linear: 'linear',
+  docs: 'google_docs', github: 'github', supabase: 'supabase',
   google_sheets: 'google_sheets', google_calendar: 'google_calendar',
   google_docs: 'google_docs', openclaw: 'openclaw',
 };
 
-export function AgentSettingView({ projectTools }: AgentSettingViewProps) {
-  const { draftType, setDraftType, deployAgent, draftResources, cancelSetting, pendingSyncProvider } = useAgent();
+export function AgentSettingView({ projectTools, projectId = '' }: AgentSettingViewProps) {
+  const { draftType, setDraftType, deployAgent, deploySyncEndpoint, draftResources, cancelSetting, pendingSyncProvider } = useAgent();
 
   const [step, setStep] = useState<'pick' | 'config'>('pick');
   const [selected, setSelected] = useState<TypeOption | null>(null);
@@ -246,13 +252,36 @@ export function AgentSettingView({ projectTools }: AgentSettingViewProps) {
             />
             <OpenClawDragZone />
             <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-              <ActionButton label="Create sync endpoint" disabled={!canCreate} onClick={() => deployAgent(displayName, 'devbox')} />
+              <ActionButton label="Create sync endpoint" disabled={!canCreate} onClick={() => deploySyncEndpoint({ provider: 'openclaw', direction: 'bidirectional' })} />
+            </div>
+          </>
+        )}
+
+        {/* ── Supabase (API key, no OAuth) ── */}
+        {!isAgent && opt.syncProvider === 'supabase' && spec && (
+          <>
+            <SyncPreview
+              provider="supabase" providerLabel="Supabase" direction="inbound"
+              targetName={draftResources[0]?.nodeName || null} targetType="json"
+              isActive={!!draftResources[0]}
+            />
+            <OpenClawDragZone accept={['json']} />
+            <SupabaseInlineConfig projectId={projectId} />
+            <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+              <ActionButton label="Create sync endpoint" disabled={!canCreate} onClick={() => {
+                const supaConfig: Record<string, unknown> = {};
+                const urlEl = document.getElementById('sync-cfg-supabase-url') as HTMLInputElement | null;
+                const keyEl = document.getElementById('sync-cfg-supabase-key') as HTMLInputElement | null;
+                if (urlEl) supaConfig.supabase_url = urlEl.value;
+                if (keyEl) supaConfig.supabase_key = keyEl.value;
+                deploySyncEndpoint({ provider: 'supabase', direction: 'inbound', config: supaConfig });
+              }} />
             </div>
           </>
         )}
 
         {/* ── SaaS sync (OAuth + config fields + target node + preview) ── */}
-        {!isAgent && opt.syncProvider && opt.syncProvider !== 'openclaw' && spec && (
+        {!isAgent && opt.syncProvider && opt.syncProvider !== 'openclaw' && opt.syncProvider !== 'supabase' && spec && (
           <>
             <SaaSyncConfig
               provider={opt.syncProvider}
@@ -265,7 +294,14 @@ export function AgentSettingView({ projectTools }: AgentSettingViewProps) {
               direction={spec.direction}
             />
             <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-              <ActionButton label="Create sync endpoint" disabled={!canCreate} onClick={() => deployAgent(displayName, 'devbox')} />
+              <ActionButton label="Create sync endpoint" disabled={!canCreate} onClick={() => {
+                const config: Record<string, unknown> = {};
+                for (const field of spec.configFields) {
+                  const el = document.getElementById(`sync-cfg-${opt.syncProvider}-${field.key}`) as HTMLInputElement | HTMLSelectElement | null;
+                  if (el) config[field.key] = el.value;
+                }
+                deploySyncEndpoint({ provider: opt.syncProvider!, direction: spec.direction, config });
+              }} />
             </div>
           </>
         )}
@@ -369,10 +405,11 @@ function NameRow({ icon, displayName, draftName, setDraftName, isEditing, setIsE
   );
 }
 
-function OpenClawDragZone() {
+function OpenClawDragZone({ accept = ['folder'] as AcceptedNodeType[] }: { accept?: AcceptedNodeType[] } = {}) {
   const { draftResources, addDraftResource, removeDraftResource } = useAgent();
   const [isDragging, setIsDragging] = useState(false);
   const targetRes = draftResources[0] || null;
+  const primaryType = accept[0];
 
   const handleDragOver = (e: React.DragEvent) => {
     if (targetRes) return;
@@ -388,8 +425,9 @@ function OpenClawDragZone() {
     if (!data) return;
     try {
       const node = JSON.parse(data);
-      if (node.type !== 'folder') return;
-      addDraftResource({ nodeId: node.nodeId || node.id, nodeName: node.name, nodeType: 'folder' as const, readonly: true, jsonPath: '' } as any);
+      const nodeType: AcceptedNodeType = node.type === 'folder' ? 'folder' : node.type === 'json' ? 'json' : node.type === 'markdown' ? 'markdown' : 'file';
+      if (!accept.includes(nodeType)) return;
+      addDraftResource({ nodeId: node.nodeId || node.id, nodeName: node.name, nodeType, readonly: true, jsonPath: '' } as any);
     } catch { /* ignore */ }
   };
 
@@ -436,11 +474,114 @@ function OpenClawDragZone() {
           </div>
         ) : (
           <div style={{ minHeight: 72, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, color: isDragging ? '#a1a1aa' : '#525252' }}>
-            <div style={{ color: isDragging ? '#d4d4d4' : '#a1a1aa' }}><FolderIcon /></div>
-            <span style={{ fontSize: 12 }}>{isDragging ? 'Drop here' : 'Drag a folder into this'}</span>
+            <div style={{ color: isDragging ? '#d4d4d4' : primaryType === 'json' ? '#34d399' : '#a1a1aa' }}>
+              {primaryType === 'json' ? <JsonIcon /> : <FolderIcon />}
+            </div>
+            <span style={{ fontSize: 12 }}>{isDragging ? 'Drop here' : `Drag a ${primaryType === 'folder' ? 'folder' : primaryType === 'json' ? 'JSON file' : 'file'} into this`}</span>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function SupabaseInlineConfig({ projectId }: { projectId: string }) {
+  const [projectUrl, setProjectUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [keyType, setKeyType] = useState<'anon' | 'service_role'>('anon');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canConnect = projectUrl.trim().length > 0 && apiKey.trim().length > 0;
+
+  const handleConnect = async () => {
+    if (!canConnect) return;
+    setIsConnecting(true); setError(null);
+    try {
+      const { createConnection } = await import('@/lib/dbConnectorApi');
+      const urlHost = new URL(projectUrl.trim()).hostname;
+      const ref = urlHost.split('.')[0];
+      await createConnection(projectId, {
+        name: `Supabase (${ref})`,
+        provider: 'supabase',
+        project_url: projectUrl.trim(),
+        api_key: apiKey.trim(),
+        key_type: keyType,
+      });
+      setConnected(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Connection failed');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    flex: 1, height: 28, padding: '0 8px',
+    background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6,
+    color: '#e5e5e5', fontSize: 12, outline: 'none',
+  };
+
+  if (connected) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '6px 10px', borderRadius: 6,
+        background: 'transparent', border: '1px solid #2a2a2a',
+      }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#525252" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        <span style={{ fontSize: 11, color: '#666' }}>Supabase connected</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>Supabase connection</span>
+        <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
+      </div>
+
+      {/* Key type toggle */}
+      <div style={{ display: 'flex', gap: 4 }}>
+        {(['anon', 'service_role'] as const).map(kt => (
+          <button key={kt} onClick={() => setKeyType(kt)} style={{
+            flex: 1, height: 28, borderRadius: 6, fontSize: 11, fontWeight: 500,
+            background: keyType === kt ? 'rgba(62,207,142,0.1)' : 'transparent',
+            border: keyType === kt ? '1px solid rgba(62,207,142,0.3)' : '1px solid #2a2a2a',
+            color: keyType === kt ? '#3ECF8E' : '#525252', cursor: 'pointer', transition: 'all 0.12s',
+          }}>
+            {kt === 'anon' ? 'Anon Key' : 'Service Role'}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <label style={{ fontSize: 12, color: '#525252', minWidth: 60, flexShrink: 0 }}>URL</label>
+        <input type="text" placeholder="https://xxx.supabase.co" value={projectUrl}
+          onChange={e => { setProjectUrl(e.target.value); setError(null); }} style={inputStyle} />
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <label style={{ fontSize: 12, color: '#525252', minWidth: 60, flexShrink: 0 }}>API Key</label>
+        <input type="password" placeholder="eyJhbGci..." value={apiKey}
+          onChange={e => { setApiKey(e.target.value); setError(null); }}
+          onKeyDown={e => { if (e.key === 'Enter' && canConnect) handleConnect(); }} style={inputStyle} />
+      </div>
+
+      {error && <div style={{ fontSize: 11, color: '#ef4444', padding: '0 2px' }}>{error}</div>}
+
+      <button onClick={handleConnect} disabled={!canConnect || isConnecting} style={{
+        height: 28, borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: canConnect && !isConnecting ? 'pointer' : 'not-allowed',
+        background: canConnect && !isConnecting ? 'rgba(62,207,142,0.1)' : 'transparent',
+        border: canConnect && !isConnecting ? '1px solid rgba(62,207,142,0.3)' : '1px solid rgba(255,255,255,0.06)',
+        color: canConnect && !isConnecting ? '#3ECF8E' : '#525252', transition: 'all 0.12s',
+      }}>
+        {isConnecting ? 'Connecting...' : 'Connect to Supabase'}
+      </button>
     </div>
   );
 }

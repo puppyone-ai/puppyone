@@ -3,14 +3,15 @@
 /**
  * Logs Page - Activity Audit & Debugging
  * 
- * Redesigned to match Supabase Logs Explorer layout:
- * - Left Sidebar: Collections (Event Types, Agents)
+ * Unified view for agent activity and sync endpoint events.
+ * - Left Sidebar: Collections (Event Types), Agents, Sync Endpoints
  * - Right Content: Timeline Chart + Log List
  */
 
 import React, { use, useEffect, useState, useMemo, useCallback } from 'react';
 import { getAgentLogs, type AgentLog } from '@/lib/chatApi';
 import { get } from '@/lib/apiClient';
+import useSWR from 'swr';
 
 // ================= Types =================
 
@@ -21,7 +22,49 @@ interface Agent {
   type: string;
 }
 
-type LogFilterType = 'all' | 'bash' | 'tool' | 'llm' | string; // 'all', type, or agent_id
+interface SyncStatusItem {
+  id: string;
+  node_id: string;
+  node_name: string | null;
+  node_type: string | null;
+  provider: string;
+  direction: string;
+  status: string;
+  last_synced_at: string | null;
+  error_message: string | null;
+}
+
+interface ProjectSyncStatus {
+  syncs: SyncStatusItem[];
+  uploads: { id: string; status: string }[];
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+  openclaw: 'OpenClaw',
+  gmail: 'Gmail',
+  google_sheets: 'Google Sheets',
+  google_calendar: 'Google Calendar',
+  google_docs: 'Google Docs',
+  github: 'GitHub',
+  supabase: 'Supabase',
+  notion: 'Notion',
+  linear: 'Linear',
+};
+
+const DIRECTION_ARROWS: Record<string, string> = {
+  inbound: '←',
+  outbound: '→',
+  bidirectional: '↔',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  active: '#22c55e',
+  syncing: '#3b82f6',
+  paused: '#eab308',
+  error: '#ef4444',
+};
+
+type LogFilterType = 'all' | 'bash' | 'tool' | 'llm' | string;
 
 // ================= Helpers =================
 
@@ -253,8 +296,15 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Sync endpoints
+  const { data: syncData } = useSWR<ProjectSyncStatus>(
+    projectId ? ['sync-status-logs', projectId] : null,
+    () => get<ProjectSyncStatus>(`/api/v1/sync/status?project_id=${projectId}`),
+    { refreshInterval: 30000, revalidateOnFocus: true },
+  );
+
   // UI State
-  const [selectedFilter, setSelectedFilter] = useState<LogFilterType>('all'); // 'all', 'bash', 'tool', 'llm', or agent_id
+  const [selectedFilter, setSelectedFilter] = useState<LogFilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
 
@@ -283,6 +333,8 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
     agents.forEach(a => { map[a.id] = a; });
     return map;
   }, [agents]);
+
+  const syncEndpoints = syncData?.syncs || [];
 
   // Filtering Logic
   const filteredLogs = useMemo(() => {
@@ -329,7 +381,7 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
         background: '#141414',
         flexShrink: 0 
       }}>
-        <h1 style={{ fontSize: 14, fontWeight: 500, color: '#e4e4e7', margin: 0 }}>Logs & Analytics</h1>
+        <h1 style={{ fontSize: 14, fontWeight: 500, color: '#e4e4e7', margin: 0 }}>Activity Logs</h1>
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -378,19 +430,67 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
           </div>
 
           {/* Section: Agents */}
-          <div>
-            <h3 style={{ fontSize: 11, fontWeight: 600, color: '#52525b', padding: '0 12px', marginBottom: 8, letterSpacing: '0.05em' }}>AGENTS</h3>
-            {agents.map(agent => (
-              <SidebarItem
-                key={agent.id}
-                active={selectedFilter === agent.id}
-                label={agent.name}
-                icon={<span>{parseAgentIcon(agent.icon)}</span>}
-                onClick={() => setSelectedFilter(agent.id)}
-                count={logs.filter(l => l.agent_id === agent.id).length}
-              />
-            ))}
-          </div>
+          {agents.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <h3 style={{ fontSize: 11, fontWeight: 600, color: '#52525b', padding: '0 12px', marginBottom: 8, letterSpacing: '0.05em' }}>AGENTS</h3>
+              {agents.map(agent => (
+                <SidebarItem
+                  key={agent.id}
+                  active={selectedFilter === agent.id}
+                  label={agent.name}
+                  icon={<span>{parseAgentIcon(agent.icon)}</span>}
+                  onClick={() => setSelectedFilter(agent.id)}
+                  count={logs.filter(l => l.agent_id === agent.id).length}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Section: Sync Endpoints */}
+          {syncEndpoints.length > 0 && (
+            <div>
+              <h3 style={{ fontSize: 11, fontWeight: 600, color: '#52525b', padding: '0 12px', marginBottom: 8, letterSpacing: '0.05em' }}>SYNC ENDPOINTS</h3>
+              {syncEndpoints.map(sync => {
+                const label = sync.node_name || PROVIDER_LABELS[sync.provider] || sync.provider;
+                const arrow = DIRECTION_ARROWS[sync.direction] || '';
+                const statusColor = STATUS_COLORS[sync.status] || '#52525b';
+                const isActive = selectedFilter === `sync:${sync.id}`;
+
+                return (
+                  <div
+                    key={sync.id}
+                    onClick={() => setSelectedFilter(`sync:${sync.id}`)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '6px 12px',
+                      cursor: 'pointer',
+                      background: isActive ? '#18181b' : 'transparent',
+                      color: isActive ? '#e4e4e7' : '#71717a',
+                      fontSize: 13,
+                      borderRadius: 6,
+                      marginBottom: 2,
+                      transition: 'background 0.1s, color 0.1s',
+                    }}
+                    onMouseEnter={(e) => !isActive && (e.currentTarget.style.color = '#a1a1aa')}
+                    onMouseLeave={(e) => !isActive && (e.currentTarget.style.color = '#71717a')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {label}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#52525b', flexShrink: 0 }}>{arrow}</span>
+                    </div>
+                    <span style={{ fontSize: 11, color: isActive ? '#52525b' : '#3f3f46', flexShrink: 0, marginLeft: 8 }}>
+                      {PROVIDER_LABELS[sync.provider] || sync.provider}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Right Main Content */}
@@ -470,6 +570,60 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
 
           {/* 2. Log List / Table */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
+            {/* Sync endpoint detail card (when a sync is selected) */}
+            {selectedFilter.startsWith('sync:') && (() => {
+              const syncId = selectedFilter.replace('sync:', '');
+              const sync = syncEndpoints.find(s => s.id === syncId);
+              if (!sync) return null;
+              const providerLabel = PROVIDER_LABELS[sync.provider] || sync.provider;
+              const arrow = DIRECTION_ARROWS[sync.direction] || '';
+              const statusColor = STATUS_COLORS[sync.status] || '#52525b';
+              return (
+                <div style={{
+                  margin: 16,
+                  padding: 20,
+                  background: '#0a0a0a',
+                  border: '1px solid #27272a',
+                  borderRadius: 10,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor }} />
+                    <span style={{ fontSize: 15, fontWeight: 500, color: '#e4e4e7' }}>
+                      {sync.node_name || providerLabel}
+                    </span>
+                    <span style={{ fontSize: 12, color: '#52525b' }}>{arrow}</span>
+                    <span style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 4,
+                      background: 'rgba(59,130,246,0.1)', color: '#60a5fa', fontWeight: 500,
+                    }}>
+                      {providerLabel}
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#52525b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</div>
+                      <div style={{ fontSize: 13, color: '#e4e4e7', textTransform: 'capitalize' }}>{sync.status}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#52525b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Direction</div>
+                      <div style={{ fontSize: 13, color: '#e4e4e7' }}>{arrow} {sync.direction}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#52525b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Synced</div>
+                      <div style={{ fontSize: 13, color: '#e4e4e7' }}>
+                        {sync.last_synced_at ? formatRelativeTime(sync.last_synced_at) : '—'}
+                      </div>
+                    </div>
+                  </div>
+                  {sync.error_message && (
+                    <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.08)', borderRadius: 6, border: '1px solid rgba(239,68,68,0.15)' }}>
+                      <span style={{ fontSize: 12, color: '#ef4444' }}>{sync.error_message}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Table Header */}
             <div style={{ 
               display: 'grid', 
@@ -486,7 +640,7 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
               zIndex: 10
             }}>
               <div>TIMESTAMP</div>
-              <div>AGENT</div>
+              <div>SOURCE</div>
               <div>STAT</div>
               <div>EVENT</div>
               <div style={{ textAlign: 'right' }}>DUR</div>
@@ -494,6 +648,13 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
 
             {loading && logs.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: '#52525b' }}>Loading...</div>
+            ) : selectedFilter.startsWith('sync:') ? (
+              <div style={{ padding: 40, textAlign: 'center', color: '#3f3f46' }}>
+                <p>Sync activity events will appear here.</p>
+                <p style={{ fontSize: 11, marginTop: 8, color: '#27272a' }}>
+                  Detailed sync event logging is coming soon.
+                </p>
+              </div>
             ) : filteredLogs.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: '#3f3f46' }}>No events found</div>
             ) : (

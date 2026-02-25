@@ -143,6 +143,12 @@ interface AgentContextValue {
   editingAgentId: string | null;  // 正在编辑的 agent ID
   cancelSetting: () => void;  // 取消设置，返回聊天界面
   deployAgent: (name: string, icon: string) => void;
+  deploySyncEndpoint: (params: {
+    provider: string;
+    direction: string;
+    config?: Record<string, unknown>;
+    credentialsRef?: string;
+  }) => Promise<void>;
   closeSidebar: () => void;
   setDraftType: (type: AgentType) => void;
   toggleDraftCapability: (id: string) => void;
@@ -605,6 +611,58 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     }
   }, [draftType, draftCapabilities, draftResources, editingAgentId, draftTriggerType, draftTriggerConfig, draftTaskContent, draftTaskNodeId, draftExternalConfig, projectId]);
 
+  // Deploy a sync endpoint (creates a sync record, NOT an agent)
+  const deploySyncEndpoint = useCallback(async (params: {
+    provider: string;
+    direction: string;
+    config?: Record<string, unknown>;
+    credentialsRef?: string;
+  }) => {
+    if (!projectId) {
+      throw new Error('projectId is required to create sync endpoint');
+    }
+    const targetNode = draftResources[0];
+    if (!targetNode) {
+      throw new Error('target node is required');
+    }
+
+    try {
+      let syncId: string | null = null;
+      let nodeId: string = targetNode.nodeId;
+
+      if (params.provider === 'openclaw') {
+        const result = await post<{
+          sync_id: string;
+          access_key: string;
+          node_id: string;
+          project_id: string;
+        }>(`/api/v1/sync/syncs/openclaw/bootstrap?project_id=${projectId}&node_id=${nodeId}`);
+        syncId = result.sync_id;
+        nodeId = result.node_id;
+      } else {
+        await post<{ syncs_created: number }>('/api/v1/sync/bootstrap', {
+          project_id: projectId,
+          provider: params.provider,
+          config: params.config || {},
+          target_folder_node_id: nodeId,
+          credentials_ref: params.credentialsRef,
+          direction: params.direction,
+          conflict_strategy: 'three_way_merge',
+        });
+      }
+
+      if (syncId) {
+        selectSync(syncId, nodeId);
+      }
+      setSidebarMode('deployed');
+      setDraftResources([]);
+      setEditingAgentId(null);
+    } catch (error) {
+      console.error('Failed to create sync endpoint:', error);
+      alert('Failed to create sync endpoint. Please try again.');
+    }
+  }, [projectId, draftResources]);
+
   // Legacy saveAgent (maps to deploy with current selected capabilities if possible, or simple save)
   const saveAgent = useCallback((name: string, icon: string, capabilities: string[]) => {
     const newAgent: SavedAgent = {
@@ -799,6 +857,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         editingAgentId,
         cancelSetting,
         deployAgent,
+        deploySyncEndpoint,
         saveAgent,
         deleteAgent,
         updateAgentInfo,

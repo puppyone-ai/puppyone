@@ -1,5 +1,5 @@
 """
-URL Handler - Process generic URL imports via Firecrawl.
+URL Connector - Process generic URL imports via Firecrawl.
 
 Handles:
 - Single page scraping
@@ -9,14 +9,34 @@ Handles:
 from typing import Any, Dict, Optional
 
 from src.content_node.service import ContentNodeService
-from src.sync.handlers.base import BaseHandler, ImportResult, PreviewResult, ProgressCallback
-from src.sync.task.models import ImportTask, ImportTaskType
+from src.sync.connectors._base import (
+    BaseConnector,
+    ConnectorSpec,
+    Capability,
+    AuthRequirement,
+    TriggerMode,
+    ImportResult,
+    PreviewResult,
+    ProgressCallback,
+)
+from src.sync.task.models import ImportTask
 from src.sync.utils.url_parser import UrlParser
 from src.utils.logger import log_info, log_error
 
 
-class UrlHandler(BaseHandler):
-    """Handler for generic URL imports using Firecrawl."""
+class UrlConnector(BaseConnector):
+    """Connector for generic URL imports using Firecrawl."""
+
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="url",
+            display_name="Web URL",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+            default_trigger=TriggerMode.MANUAL,
+            default_node_type="json",
+            auth=AuthRequirement.NONE,
+        )
 
     def __init__(
         self,
@@ -25,10 +45,7 @@ class UrlHandler(BaseHandler):
         self.node_service = node_service
         self.url_parser = UrlParser()
 
-    def can_handle(self, task: ImportTask) -> bool:
-        return task.task_type == ImportTaskType.URL
-
-    async def process(
+    async def import_data(
         self,
         task: ImportTask,
         on_progress: ProgressCallback,

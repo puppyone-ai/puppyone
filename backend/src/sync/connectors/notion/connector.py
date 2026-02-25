@@ -1,11 +1,10 @@
 """
-Notion Handler - Process Notion page/database imports.
+Notion Connector - Process Notion page/database imports.
 
 Migrated from connect/providers/notion_provider.py
 """
 
 import re
-import json
 from typing import Any, List, Optional
 from urllib.parse import urlparse
 import httpx
@@ -14,13 +13,34 @@ from src.config import settings
 from src.content_node.service import ContentNodeService
 from src.oauth.notion_service import NotionOAuthService
 from src.s3.service import S3Service
-from src.sync.handlers.base import BaseHandler, ImportResult, PreviewResult, ProgressCallback
-from src.sync.task.models import ImportTask, ImportTaskType
+from src.sync.connectors._base import (
+    BaseConnector,
+    ConnectorSpec,
+    Capability,
+    AuthRequirement,
+    TriggerMode,
+    ImportResult,
+    PreviewResult,
+    ProgressCallback,
+)
+from src.sync.task.models import ImportTask
 from src.utils.logger import log_info, log_error
 
 
-class NotionHandler(BaseHandler):
-    """Handler for Notion imports (pages and databases)."""
+class NotionConnector(BaseConnector):
+    """Connector for Notion imports (pages and databases)."""
+
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="notion",
+            display_name="Notion",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+            default_trigger=TriggerMode.MANUAL,
+            default_node_type="json",
+            auth=AuthRequirement.OAUTH,
+            oauth_type="notion",
+        )
 
     def __init__(
         self,
@@ -33,11 +53,7 @@ class NotionHandler(BaseHandler):
         self.notion_service = notion_service or NotionOAuthService()
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    def can_handle(self, task: ImportTask) -> bool:
-        """Check if this handler can process the given task."""
-        return task.task_type in (ImportTaskType.NOTION, ImportTaskType.NOTION_DATABASE)
-
-    async def process(
+    async def import_data(
         self,
         task: ImportTask,
         on_progress: ProgressCallback,
@@ -53,9 +69,9 @@ class NotionHandler(BaseHandler):
                 raise ValueError(f"Could not extract Notion ID from URL: {task.source_url}")
 
             is_database = self._is_database_url(task.source_url)
-            
+
             await on_progress(30, f"Fetching Notion {'database' if is_database else 'page'}...")
-            
+
             try:
                 if is_database:
                     result = await self._fetch_and_save_database(
@@ -70,7 +86,7 @@ class NotionHandler(BaseHandler):
                 if e.response.status_code == 400:
                     error_data = e.response.json()
                     error_message = error_data.get("message", "")
-                    
+
                     if "is a page, not a database" in error_message and is_database:
                         log_info(f"Retrying as page instead of database: {task.source_url}")
                         result = await self._fetch_and_save_page(
@@ -104,7 +120,7 @@ class NotionHandler(BaseHandler):
         # Method 1: Internal Integration API Key
         if settings.NOTION_API_KEY:
             return settings.NOTION_API_KEY
-        
+
         # Method 2: OAuth token
         connection = await self.notion_service.get_connection(user_id)
         if not connection:
@@ -120,8 +136,20 @@ class NotionHandler(BaseHandler):
                 raise ValueError(
                     "Notion authorization expired. Please reconnect your Notion account."
                 )
-        
+
         return connection.access_token
+
+    def _get_headers(self, access_token: str) -> dict:
+        """Build Notion API headers."""
+        return {
+            "Authorization": f"Bearer {access_token}",
+            "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json",
+        }
+
+    def _extract_text(self, rich_text_list: list) -> str:
+        """Extract plain text from Notion rich text array."""
+        return " ".join([t.get("plain_text", "") for t in rich_text_list if t.get("plain_text")])
 
     async def _fetch_and_save_database(
         self,
@@ -131,11 +159,7 @@ class NotionHandler(BaseHandler):
         on_progress: ProgressCallback,
     ) -> ImportResult:
         """Fetch Notion database and save as content node."""
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Notion-Version": "2022-06-28",
-            "Content-Type": "application/json",
-        }
+        headers = self._get_headers(access_token)
 
         # Get database info
         await on_progress(40, "Fetching database metadata...")
@@ -163,11 +187,11 @@ class NotionHandler(BaseHandler):
             body = {}
             if next_cursor:
                 body["start_cursor"] = next_cursor
-            
+
             response = await self.client.post(query_url, json=body, headers=headers)
             response.raise_for_status()
             data = response.json()
-            
+
             all_rows.extend(data.get("results", []))
             has_more = data.get("has_more", False)
             next_cursor = data.get("next_cursor")
@@ -239,10 +263,7 @@ class NotionHandler(BaseHandler):
         on_progress: ProgressCallback,
     ) -> ImportResult:
         """Fetch Notion page and save as content node."""
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Notion-Version": "2022-06-28",
-        }
+        headers = self._get_headers(access_token)
 
         # Get page info
         await on_progress(40, "Fetching page metadata...")
@@ -274,17 +295,17 @@ class NotionHandler(BaseHandler):
             url = blocks_url
             if next_cursor:
                 url += f"?start_cursor={next_cursor}"
-            
+
             blocks_response = await self.client.get(url, headers=headers)
             blocks_response.raise_for_status()
             blocks_data = blocks_response.json()
-            
+
             all_blocks.extend(blocks_data.get("results", []))
             has_more = blocks_data.get("has_more", False)
             next_cursor = blocks_data.get("next_cursor")
 
         await on_progress(70, "Converting to Markdown...")
-        
+
         # Convert blocks to Markdown
         markdown_content = self._blocks_to_markdown(all_blocks)
 
@@ -402,7 +423,7 @@ class NotionHandler(BaseHandler):
                 continue
 
             block_data = block.get(block_type, {})
-            
+
             # Extract rich text helper
             def get_text(rich_text_list):
                 return " ".join([t.get("plain_text", "") for t in rich_text_list if t.get("plain_text")])
@@ -493,7 +514,7 @@ class NotionHandler(BaseHandler):
     async def preview(self, url: str, user_id: str) -> PreviewResult:
         """
         Get preview data for a Notion URL without importing.
-        
+
         Supports pages and databases.
         """
         access_token = await self._get_access_token(user_id)

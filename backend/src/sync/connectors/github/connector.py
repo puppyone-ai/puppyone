@@ -1,5 +1,5 @@
 """
-GitHub Handler - Process GitHub repository imports.
+GitHub Connector - Process GitHub repository imports.
 
 Design (single-node mode):
 - Download repo as ZIP
@@ -25,8 +25,17 @@ import httpx
 from src.content_node.service import ContentNodeService
 from src.oauth.github_service import GithubOAuthService
 from src.s3.service import S3Service
-from src.sync.handlers.base import BaseHandler, ImportResult, PreviewResult, ProgressCallback
-from src.sync.task.models import ImportTask, ImportTaskType
+from src.sync.connectors._base import (
+    BaseConnector,
+    ConnectorSpec,
+    Capability,
+    AuthRequirement,
+    TriggerMode,
+    ImportResult,
+    PreviewResult,
+    ProgressCallback,
+)
+from src.sync.task.models import ImportTask
 from src.utils.logger import log_info, log_error, log_debug
 
 
@@ -59,8 +68,20 @@ SKIP_PATTERNS = {
 }
 
 
-class GithubHandler(BaseHandler):
-    """Handler for GitHub repository imports."""
+class GithubConnector(BaseConnector):
+    """Connector for GitHub repository imports."""
+
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="github",
+            display_name="GitHub",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+            default_trigger=TriggerMode.MANUAL,
+            default_node_type="json",
+            auth=AuthRequirement.OAUTH,
+            oauth_type="github",
+        )
 
     def __init__(
         self,
@@ -72,16 +93,13 @@ class GithubHandler(BaseHandler):
         self.github_service = github_service
         self.s3_service = s3_service
 
-    def can_handle(self, task: ImportTask) -> bool:
-        return task.task_type == ImportTaskType.GITHUB
-
-    async def process(
+    async def import_data(
         self,
         task: ImportTask,
         on_progress: ProgressCallback,
     ) -> ImportResult:
         """Process GitHub repo import."""
-        
+
         if not task.source_url:
             raise ValueError("source_url is required for GitHub import")
 
@@ -132,7 +150,7 @@ class GithubHandler(BaseHandler):
         s3_prefix = f"users/{task.user_id}/repos/{owner}_{repo}"
         file_manifest = []
         total_size = 0
-        
+
         for i, file_info in enumerate(files):
             file_path = file_info["path"]
             content = file_info["content"]
@@ -141,7 +159,7 @@ class GithubHandler(BaseHandler):
             # Sanitize and upload
             safe_path = self._sanitize_s3_key(file_path)
             s3_key = f"{s3_prefix}/{safe_path}"
-            
+
             await self.s3_service.upload_file(
                 key=s3_key,
                 content=content.encode('utf-8'),
@@ -190,7 +208,7 @@ class GithubHandler(BaseHandler):
         log_info(f"GitHub import completed: {owner}/{repo}, {len(files)} files")
 
         return ImportResult(
-            content_node_id=root_node.id,
+            content_node_id=str(root_node.id),
             items_count=len(files),
             metadata={"owner": owner, "repo": repo},
         )
@@ -277,10 +295,10 @@ class GithubHandler(BaseHandler):
     def _sanitize_s3_key(self, path: str) -> str:
         """Sanitize S3 key by replacing unsupported characters."""
         replacements = {
-            '[': '_', ']': '_', '{': '_', '}': '_',
-            '#': '_', '%': '_', '&': '_', '*': '_',
-            '?': '_', '"': '_', "'": '_',
-            '<': '_', '>': '_', '|': '_', '\\': '/',
+            "[": "_", "]": "_", "{": "_", "}": "_",
+            "#": "_", "%": "_", "&": "_", "*": "_",
+            "?": "_", '"': "_", "'": "_",
+            "<": "_", ">": "_", "|": "_", "\\": "/",
         }
         result = path
         for old, new in replacements.items():
@@ -301,7 +319,7 @@ class GithubHandler(BaseHandler):
     async def preview(self, url: str, user_id: str) -> PreviewResult:
         """
         Get preview data for a GitHub URL.
-        
+
         Supports: repos, issues, PRs, projects.
         """
         connection = await self.github_service.get_connection(user_id)
@@ -565,4 +583,3 @@ class GithubHandler(BaseHandler):
             total_items=1,
             structure_info={"type": "project", "id": project_data.get("id")},
         )
-
