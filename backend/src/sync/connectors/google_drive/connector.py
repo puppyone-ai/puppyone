@@ -1,5 +1,5 @@
 """
-Google Drive Handler - Process Google Drive file imports.
+Google Drive Connector - Process Google Drive file imports.
 
 Imports files from Google Drive into content nodes.
 """
@@ -10,15 +10,24 @@ from typing import Optional
 import httpx
 
 from src.content_node.service import ContentNodeService
-from src.sync.handlers.base import BaseHandler, ImportResult, PreviewResult, ProgressCallback
-from src.sync.task.models import ImportTask, ImportTaskType
+from src.sync.connectors._base import (
+    BaseConnector,
+    ConnectorSpec,
+    Capability,
+    AuthRequirement,
+    TriggerMode,
+    ImportResult,
+    PreviewResult,
+    ProgressCallback,
+)
+from src.sync.task.models import ImportTask
 from src.oauth.google_drive_service import GoogleDriveOAuthService
 from src.s3.service import S3Service
 from src.utils.logger import log_info, log_error
 
 
-class GoogleDriveHandler(BaseHandler):
-    """Handler for Google Drive imports."""
+class GoogleDriveConnector(BaseConnector):
+    """Connector for Google Drive imports."""
 
     DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
     DRIVE_EXPORT_URL = "https://www.googleapis.com/drive/v3/files/{file_id}/export"
@@ -39,6 +48,18 @@ class GoogleDriveHandler(BaseHandler):
         "text/html",
     }
 
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="google_drive",
+            display_name="Google Drive",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+            default_trigger=TriggerMode.MANUAL,
+            default_node_type="markdown",
+            auth=AuthRequirement.OAUTH,
+            oauth_type="drive",
+        )
+
     def __init__(
         self,
         node_service: ContentNodeService,
@@ -50,10 +71,7 @@ class GoogleDriveHandler(BaseHandler):
         self.s3_service = s3_service
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    def can_handle(self, task: ImportTask) -> bool:
-        return task.task_type == ImportTaskType.GOOGLE_DRIVE
-
-    async def process(
+    async def import_data(
         self,
         task: ImportTask,
         on_progress: ProgressCallback,
@@ -359,4 +377,3 @@ class GoogleDriveHandler(BaseHandler):
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
-

@@ -424,12 +424,13 @@ export default function DataPage({ params }: DataPageProps) {
 
   // Auto-create a blank node and open sync sidebar with it pre-bound
   const PROVIDER_NODE_TYPE: Record<string, 'json' | 'markdown' | 'folder'> = {
-    gmail: 'json', calendar: 'json', sheets: 'json', linear: 'json',
+    gmail: 'json', calendar: 'json', sheets: 'json', linear: 'json', supabase: 'json',
     docs: 'markdown', github: 'folder', notion: 'folder',
   };
   const PROVIDER_DEFAULT_NAMES: Record<string, string> = {
     gmail: 'Gmail Inbox', calendar: 'Calendar Events', sheets: 'Sheet Data',
     linear: 'Linear Issues', docs: 'Document', github: 'GitHub Repo', notion: 'Notion Pages',
+    supabase: 'Supabase Data',
   };
   const handleCreateAndSync = useCallback(async (saasProvider: string) => {
     const nodeType = PROVIDER_NODE_TYPE[saasProvider];
@@ -439,7 +440,7 @@ export default function DataPage({ params }: DataPageProps) {
     try {
       let node: { id: string; name: string; type?: string };
       if (nodeType === 'json') {
-        node = await createJsonNode(name, projectId, {}, parentId);
+        node = await createJsonNode(name, projectId, null, parentId);
       } else if (nodeType === 'markdown') {
         node = await createMarkdownNode(name, projectId, '', parentId);
       } else {
@@ -1544,7 +1545,7 @@ export default function DataPage({ params }: DataPageProps) {
               onImportCalendar={() => { handleCreateAndSync('calendar'); }}
               onImportSheets={() => { handleCreateAndSync('sheets'); }}
               onConnectSupabase={() => {
-                setSupabaseConnectOpen(true);
+                handleCreateAndSync('supabase');
               }}
           />
         </div>

@@ -69,7 +69,7 @@ export function AppSidebar({
     // Project View Nav Items
     const projectNavItems: NavItem[] = [
       {
-        id: 'data', // Maps to Data/Files view
+        id: 'data',
         label: 'Context',
         icon: (
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap="round" strokeLinejoin="round">
@@ -78,20 +78,9 @@ export function AppSidebar({
         ),
       },
       {
-        id: 'toolkit',
-        label: 'Toolkit',
-        icon: (
-          // Wrench icon for tools
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-            <path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' />
-          </svg>
-        ),
-      },
-      {
         id: 'tools',
-        label: 'Context Access',
+        label: 'Dashboard',
         icon: (
-          // Dashboard / Grid Icon - 4 squares, standard for "Dashboard"
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
             <rect x="3" y="3" width="7" height="7"></rect>
             <rect x="14" y="3" width="7" height="7"></rect>
@@ -104,7 +93,6 @@ export function AppSidebar({
         id: 'logs',
         label: 'Logs',
         icon: (
-          // List / Timeline Icon - Lines with bullets, standard for "Logs/Activity"
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
             <line x1="8" y1="6" x2="21" y2="6"></line>
             <line x1="8" y1="12" x2="21" y2="12"></line>
@@ -112,6 +100,15 @@ export function AppSidebar({
             <line x1="3" y1="6" x2="3.01" y2="6"></line>
             <line x1="3" y1="12" x2="3.01" y2="12"></line>
             <line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg>
+        ),
+      },
+      {
+        id: 'toolkit',
+        label: 'Toolkit',
+        icon: (
+          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
+            <path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' />
           </svg>
         ),
       },

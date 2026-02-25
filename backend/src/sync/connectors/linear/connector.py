@@ -1,5 +1,5 @@
 """
-Linear Handler - Process Linear project/issue imports.
+Linear Connector - Process Linear project/issue imports.
 
 Architecture:
 - All issues are stored in a SINGLE content_node as JSONB
@@ -13,17 +13,38 @@ from typing import Any, Optional
 import httpx
 
 from src.content_node.service import ContentNodeService
-from src.sync.handlers.base import BaseHandler, ImportResult, PreviewResult, ProgressCallback
-from src.sync.task.models import ImportTask, ImportTaskType
+from src.sync.connectors._base import (
+    BaseConnector,
+    ConnectorSpec,
+    Capability,
+    AuthRequirement,
+    TriggerMode,
+    ImportResult,
+    PreviewResult,
+    ProgressCallback,
+)
+from src.sync.task.models import ImportTask
 from src.oauth.linear_service import LinearOAuthService
 from src.s3.service import S3Service
 from src.utils.logger import log_info, log_error
 
 
-class LinearHandler(BaseHandler):
-    """Handler for Linear imports - stores all issues in single JSONB node."""
+class LinearConnector(BaseConnector):
+    """Connector for Linear imports - stores all issues in single JSONB node."""
 
     LINEAR_GRAPHQL_URL = "https://api.linear.app/graphql"
+
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="linear",
+            display_name="Linear",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+            default_trigger=TriggerMode.MANUAL,
+            default_node_type="json",
+            auth=AuthRequirement.OAUTH,
+            oauth_type="linear",
+        )
 
     def __init__(
         self,
@@ -36,10 +57,7 @@ class LinearHandler(BaseHandler):
         self.s3_service = s3_service
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    def can_handle(self, task: ImportTask) -> bool:
-        return task.task_type == ImportTaskType.LINEAR
-
-    async def process(
+    async def import_data(
         self,
         task: ImportTask,
         on_progress: ProgressCallback,

@@ -40,7 +40,7 @@ def _get_service():
 
     from src.sync.repository import SyncRepository
     from src.supabase.client import SupabaseClient
-    from src.sync.providers.openclaw.lifecycle import OpenClawService
+    from src.sync.connectors.openclaw.lifecycle import OpenClawService
 
     supabase = SupabaseClient()
     _cached_service = OpenClawService(

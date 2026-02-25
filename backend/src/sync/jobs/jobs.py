@@ -1,22 +1,28 @@
 """
 Import Jobs - ARQ job functions for all import types.
+
+Routes tasks to the appropriate connector based on task type.
 """
 
 from typing import Any
 
 from src.sync.task.manager import ImportTaskManager
 from src.sync.task.models import ImportTask, ImportTaskType
-from src.sync.handlers.base import ProgressCallback
-from src.sync.handlers.github_handler import GithubHandler
-from src.sync.handlers.notion_handler import NotionHandler
-from src.sync.handlers.url_handler import UrlHandler
-from src.sync.handlers.gmail_handler import GmailHandler
-from src.sync.handlers.google_drive_handler import GoogleDriveHandler
-from src.sync.handlers.google_calendar_handler import GoogleCalendarHandler
-from src.sync.handlers.google_sheets_handler import GoogleSheetsHandler
-from src.sync.handlers.google_docs_handler import GoogleDocsHandler
-from src.sync.handlers.airtable_handler import AirtableHandler
-from src.sync.handlers.linear_handler import LinearHandler
+from src.sync.connectors._base import ProgressCallback
+
+# Connectors
+from src.sync.connectors.github.connector import GithubConnector
+from src.sync.connectors.notion.connector import NotionConnector
+from src.sync.connectors.url.connector import UrlConnector
+from src.sync.connectors.gmail.connector import GmailConnector
+from src.sync.connectors.google_drive.connector import GoogleDriveConnector
+from src.sync.connectors.google_calendar.connector import GoogleCalendarConnector
+from src.sync.connectors.google_sheets.connector import GoogleSheetsConnector
+from src.sync.connectors.google_docs.connector import GoogleDocsConnector
+from src.sync.connectors.airtable.connector import AirtableConnector
+from src.sync.connectors.linear.connector import LinearConnector
+
+# OAuth services
 from src.content_node.service import ContentNodeService
 from src.oauth.github_service import GithubOAuthService
 from src.oauth.notion_service import NotionOAuthService
@@ -33,21 +39,12 @@ from src.utils.logger import log_info, log_error
 
 async def import_job(ctx: dict[str, Any], task_id: str) -> dict[str, Any]:
     """
-    Unified import job - routes to appropriate handler based on task type.
-    
-    Args:
-        ctx: ARQ context with initialized services
-        task_id: Import task ID
-        
-    Returns:
-        Result dict with status and details
+    Unified import job - routes to appropriate connector based on task type.
     """
-    # Get services from context
     task_manager: ImportTaskManager = ctx["task_manager"]
     node_service: ContentNodeService = ctx["node_service"]
     s3_service: S3Service = ctx["s3_service"]
-    
-    # OAuth services
+
     github_service: GithubOAuthService = ctx["github_service"]
     notion_service: NotionOAuthService = ctx["notion_service"]
     gmail_service: GmailOAuthService = ctx["gmail_service"]
@@ -58,13 +55,11 @@ async def import_job(ctx: dict[str, Any], task_id: str) -> dict[str, Any]:
     airtable_service: AirtableOAuthService = ctx["airtable_service"]
     linear_service: LinearOAuthService = ctx["linear_service"]
 
-    # Load task
     task = await task_manager.get_task(task_id)
     if not task:
         log_error(f"Import job: task not found: {task_id}")
         return {"ok": False, "error": "task_not_found"}
 
-    # Check if already cancelled
     if task.status.is_terminal():
         log_info(f"Import job: task already terminal: {task_id} ({task.status})")
         return {"ok": True, "skipped": task.status.value}
@@ -83,16 +78,13 @@ async def import_job(ctx: dict[str, Any], task_id: str) -> dict[str, Any]:
             "error_code": "unsupported_task_type",
         }
 
-    # Mark as processing
     await task_manager.mark_processing(task_id, "Starting import...")
 
-    # Create progress callback
     async def on_progress(progress: int, message: str) -> None:
         await task_manager.update_progress(task_id, progress, message)
 
     try:
-        # Get handler based on task type
-        handler = _get_handler(
+        connector = _get_connector(
             task.task_type,
             node_service=node_service,
             s3_service=s3_service,
@@ -107,13 +99,11 @@ async def import_job(ctx: dict[str, Any], task_id: str) -> dict[str, Any]:
             linear_service=linear_service,
         )
 
-        if not handler:
-            raise ValueError(f"No handler for task type: {task.task_type}")
+        if not connector:
+            raise ValueError(f"No connector for task type: {task.task_type}")
 
-        # Process
-        result = await handler.process(task, on_progress)
+        result = await connector.import_data(task, on_progress)
 
-        # Mark completed
         await task_manager.mark_completed(
             task_id,
             content_node_id=result.content_node_id,
@@ -132,13 +122,11 @@ async def import_job(ctx: dict[str, Any], task_id: str) -> dict[str, Any]:
     except Exception as e:
         error_msg = str(e)
         log_error(f"Import job failed: {task_id} - {error_msg}")
-
         await task_manager.mark_failed(task_id, error_msg)
-
         return {"ok": False, "task_id": task_id, "error": error_msg}
 
 
-def _get_handler(
+def _get_connector(
     task_type: ImportTaskType,
     node_service: ContentNodeService,
     s3_service: S3Service,
@@ -152,74 +140,74 @@ def _get_handler(
     airtable_service: AirtableOAuthService,
     linear_service: LinearOAuthService,
 ):
-    """Get the appropriate handler for a task type."""
-    
+    """Get the appropriate connector for a task type."""
+
     if task_type == ImportTaskType.GITHUB:
-        return GithubHandler(
+        return GithubConnector(
             node_service=node_service,
             github_service=github_service,
             s3_service=s3_service,
         )
-    
+
     if task_type in (ImportTaskType.NOTION, ImportTaskType.NOTION_DATABASE):
-        return NotionHandler(
+        return NotionConnector(
             node_service=node_service,
             s3_service=s3_service,
             notion_service=notion_service,
         )
-    
+
     if task_type == ImportTaskType.GMAIL:
-        return GmailHandler(
+        return GmailConnector(
             node_service=node_service,
             gmail_service=gmail_service,
             s3_service=s3_service,
         )
-    
+
     if task_type == ImportTaskType.GOOGLE_DRIVE:
-        return GoogleDriveHandler(
+        return GoogleDriveConnector(
             node_service=node_service,
             drive_service=drive_service,
             s3_service=s3_service,
         )
-    
+
     if task_type == ImportTaskType.GOOGLE_CALENDAR:
-        return GoogleCalendarHandler(
+        return GoogleCalendarConnector(
             node_service=node_service,
             calendar_service=calendar_service,
             s3_service=s3_service,
         )
-    
+
     if task_type == ImportTaskType.GOOGLE_SHEETS:
-        return GoogleSheetsHandler(
+        return GoogleSheetsConnector(
             node_service=node_service,
             sheets_service=sheets_service,
             s3_service=s3_service,
         )
-    
+
     if task_type == ImportTaskType.GOOGLE_DOCS:
-        return GoogleDocsHandler(
+        return GoogleDocsConnector(
             node_service=node_service,
             docs_service=docs_service,
             s3_service=s3_service,
         )
-    
+
     if task_type == ImportTaskType.AIRTABLE:
-        return AirtableHandler(
+        return AirtableConnector(
             node_service=node_service,
             airtable_service=airtable_service,
             s3_service=s3_service,
         )
-    
+
     if task_type == ImportTaskType.LINEAR:
-        return LinearHandler(
+        return LinearConnector(
             node_service=node_service,
             linear_service=linear_service,
             s3_service=s3_service,
         )
-    
+
     if task_type == ImportTaskType.URL:
-        return UrlHandler(
+        return UrlConnector(
             node_service=node_service,
         )
-    
+
     return None

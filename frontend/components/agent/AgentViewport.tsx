@@ -145,7 +145,8 @@ export function AgentViewport({
           availableTools={availableTools} 
           projectTools={projectTools}
           tableNameById={tableNameById}
-          currentTableId={tableId ? String(tableId) : undefined} 
+          currentTableId={tableId ? String(tableId) : undefined}
+          projectId={projectId ? String(projectId) : ''}
         />
       )}
 

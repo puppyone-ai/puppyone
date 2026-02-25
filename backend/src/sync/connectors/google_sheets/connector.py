@@ -1,5 +1,5 @@
 """
-Google Sheets Handler - Process Google Sheets imports.
+Google Sheets Connector - Process Google Sheets imports.
 
 Architecture:
 - All sheets are stored in a SINGLE content_node as JSONB
@@ -13,17 +13,38 @@ from typing import Optional
 import httpx
 
 from src.content_node.service import ContentNodeService
-from src.sync.handlers.base import BaseHandler, ImportResult, PreviewResult, ProgressCallback
-from src.sync.task.models import ImportTask, ImportTaskType
+from src.sync.connectors._base import (
+    BaseConnector,
+    ConnectorSpec,
+    Capability,
+    AuthRequirement,
+    TriggerMode,
+    ImportResult,
+    ProgressCallback,
+    PreviewResult,
+)
+from src.sync.task.models import ImportTask
 from src.oauth.google_sheets_service import GoogleSheetsOAuthService
 from src.s3.service import S3Service
 from src.utils.logger import log_info, log_error
 
 
-class GoogleSheetsHandler(BaseHandler):
-    """Handler for Google Sheets imports - stores all data in single JSONB node."""
+class GoogleSheetsConnector(BaseConnector):
+    """Connector for Google Sheets imports - stores all data in single JSONB node."""
 
     SHEETS_API_URL = "https://sheets.googleapis.com/v4/spreadsheets"
+
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="google_sheets",
+            display_name="Google Sheets",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+            default_trigger=TriggerMode.POLL,
+            default_node_type="json",
+            auth=AuthRequirement.OAUTH,
+            oauth_type="sheets",
+        )
 
     def __init__(
         self,
@@ -36,10 +57,7 @@ class GoogleSheetsHandler(BaseHandler):
         self.s3_service = s3_service
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    def can_handle(self, task: ImportTask) -> bool:
-        return task.task_type == ImportTaskType.GOOGLE_SHEETS
-
-    async def process(
+    async def import_data(
         self,
         task: ImportTask,
         on_progress: ProgressCallback,

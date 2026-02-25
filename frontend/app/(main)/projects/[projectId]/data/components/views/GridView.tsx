@@ -111,10 +111,15 @@ const JsonPreviewIcon = ({ snippet }: { snippet?: string | null }) => (
         {snippet}
       </div>
     ) : (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3.5, paddingTop: 1 }}>
-        {[88, 52, 74, 44, 82, 56, 68, 48].map((w, i) => (
-          <div key={i} style={{ height: 2, background: '#3f6b56', borderRadius: 1, width: `${w}%` }} />
-        ))}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100%',
+        fontSize: 8, fontWeight: 600,
+        color: '#3f6b56',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        letterSpacing: '0.5px',
+      }}>
+        {'{ }'}
       </div>
     )}
   </DocShell>

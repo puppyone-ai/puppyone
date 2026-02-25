@@ -264,8 +264,8 @@ async def app_lifespan(app: FastAPI):
     sync_init_start = time.time()
     try:
         log_info("🔄 初始化 Folder Sync Services...")
-        from src.sync.handlers.folder_source import FolderSourceService
-        from src.sync.providers.openclaw.folder_access import FolderAccessService
+        from src.sync.connectors.openclaw.watcher import FolderSourceService
+        from src.sync.connectors.openclaw.folder_access import FolderAccessService
         from src.sync.repository import SyncRepository
         from src.collaboration.service import CollaborationService
         from src.collaboration.lock_service import LockService
@@ -348,8 +348,8 @@ async def app_lifespan(app: FastAPI):
 
     # 停止 Folder Sync Services
     try:
-        from src.sync.handlers.folder_source import FolderSourceService
-        from src.sync.providers.openclaw.folder_access import FolderAccessService
+        from src.sync.connectors.openclaw.watcher import FolderSourceService
+        from src.sync.connectors.openclaw.folder_access import FolderAccessService
         fs = FolderSourceService.get_instance()
         if fs:
             await fs.stop()
@@ -434,7 +434,7 @@ def create_app() -> FastAPI:
     app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
     from src.sync.folder_router import router as folder_sync_router
     app.include_router(folder_sync_router, tags=["folder-sync"])
-    from src.sync.providers.openclaw.router import router as openclaw_router
+    from src.sync.connectors.openclaw.router import router as openclaw_router
     app.include_router(openclaw_router, tags=["sync-openclaw"])
     from src.access.openclaw.router import router as openclaw_compat_router
     app.include_router(openclaw_compat_router, tags=["access-openclaw-compat"])

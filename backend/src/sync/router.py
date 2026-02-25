@@ -283,7 +283,7 @@ def bootstrap_openclaw(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Create an OpenClaw sync endpoint for a folder. Returns sync with access_key."""
-    from src.sync.providers.openclaw.lifecycle import OpenClawService
+    from src.sync.connectors.openclaw.lifecycle import OpenClawService
     from src.supabase.client import SupabaseClient
     svc = OpenClawService(
         supabase=SupabaseClient(),
@@ -309,7 +309,7 @@ def get_openclaw_status_by_sync(
     if not sync or sync.provider != "openclaw":
         return ApiResponse.success(data={"connected": False})
 
-    from src.sync.providers.openclaw.lifecycle import OpenClawService
+    from src.sync.connectors.openclaw.lifecycle import OpenClawService
     from src.supabase.client import SupabaseClient
     svc = OpenClawService(
         supabase=SupabaseClient(),
@@ -552,7 +552,7 @@ async def trigger_push(
 
 def _notify_folder_source(action: str, sync_id: str) -> None:
     try:
-        from src.sync.handlers.folder_source import FolderSourceService
+        from src.sync.connectors.openclaw.watcher import FolderSourceService
         svc = FolderSourceService.get_instance()
         if not svc:
             return

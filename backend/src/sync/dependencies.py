@@ -6,7 +6,7 @@ from fastapi import Depends
 from src.supabase.client import SupabaseClient
 from src.sync.repository import SyncRepository
 from src.sync.service import SyncService
-from src.sync.handlers.folder_source import FolderSourceService
+from src.sync.connectors.openclaw.watcher import FolderSourceService
 from src.sync.import_service import ImportService
 from src.sync.task.manager import ImportTaskManager
 from src.sync.task.repository import ImportTaskRepository

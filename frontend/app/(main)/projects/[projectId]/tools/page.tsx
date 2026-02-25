@@ -1,26 +1,22 @@
 'use client';
 
 /**
- * Project Agents Page (Agent Dashboard)
+ * Project Access Dashboard
  * 
- * Monitoring dashboard with multiple charts:
- * 1. Bash Executions (24h)
- * 2. Tool Usage (24h)
- * 3. Messages (24h)
- * 4. Sessions (24h)
- * 
- * Uses a single RPC call to fetch all dashboard data for optimal performance.
+ * Unified monitoring for all access points: agents + sync endpoints.
+ * Charts track agent activity (bash, tool, messages, sessions).
+ * Access Points table lists both agents and data sync endpoints.
  */
 
 import { use, useEffect, useState, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useProjects } from '@/lib/hooks/useData';
 import { getDashboardData, type DashboardData } from '@/lib/chatApi';
+import { get } from '@/lib/apiClient';
+import useSWR from 'swr';
 
 // ================= Types =================
 
 interface TimeSeriesBucket {
-  bucket: string;  // Local hour key like "2026-01-31-14"
+  bucket: string;
   count: number;
 }
 
@@ -34,6 +30,40 @@ interface DashboardAgent {
   last_active: string | null;
   bash_count: number;
   data_access_count: number;
+}
+
+interface SyncStatusItem {
+  id: string;
+  node_id: string;
+  node_name: string | null;
+  node_type: string | null;
+  provider: string;
+  direction: string;
+  status: string;
+  last_synced_at: string | null;
+  error_message: string | null;
+}
+
+interface ProjectSyncStatus {
+  syncs: SyncStatusItem[];
+  uploads: { id: string; status: string }[];
+}
+
+type AccessPointKind = 'agent' | 'sync';
+
+interface AccessPoint {
+  id: string;
+  kind: AccessPointKind;
+  name: string;
+  icon: React.ReactNode;
+  typeLabel: string;
+  status: string;
+  lastActive: string | null;
+  sessionCount: number;
+  maxSessionCount: number;
+  direction?: string;
+  provider?: string;
+  errorMessage?: string | null;
 }
 
 // ================= Helpers =================
@@ -88,10 +118,34 @@ function convertToLocalTimeSeries(
 }
 
 const AGENT_TYPE_LABELS: Record<string, string> = {
-  chat: 'Chat',
+  chat: 'Chat Agent',
   schedule: 'Schedule',
   webhook: 'Webhook',
-  devbox: 'DevBox',
+};
+
+const PROVIDER_LABELS: Record<string, string> = {
+  openclaw: 'OpenClaw',
+  gmail: 'Gmail',
+  google_sheets: 'Google Sheets',
+  google_calendar: 'Google Calendar',
+  google_docs: 'Google Docs',
+  github: 'GitHub',
+  supabase: 'Supabase',
+  notion: 'Notion',
+  linear: 'Linear',
+};
+
+const DIRECTION_LABELS: Record<string, string> = {
+  inbound: '← Inbound',
+  outbound: '→ Outbound',
+  bidirectional: '↔ Bidirectional',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  active: '#22c55e',
+  syncing: '#3b82f6',
+  paused: '#eab308',
+  error: '#ef4444',
 };
 
 const AGENT_ICONS = ['🐗', '🐙', '🐷', '🦄', '🐧', '🦉', '🐼', '🐝', '🐸', '🐱'];
@@ -99,6 +153,45 @@ const AGENT_ICONS = ['🐗', '🐙', '🐷', '🦄', '🐧', '🦉', '🐼', '�
 function parseAgentIcon(icon: string) {
   if (/^\d+$/.test(icon)) return AGENT_ICONS[parseInt(icon, 10) % AGENT_ICONS.length];
   return icon || '🤖';
+}
+
+function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number }) {
+  const logos: Record<string, string> = {
+    gmail: 'https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png',
+    google_sheets: 'https://www.gstatic.com/images/branding/product/1x/sheets_2020q4_32dp.png',
+    google_calendar: 'https://www.gstatic.com/images/branding/product/1x/calendar_2020q4_32dp.png',
+    google_docs: 'https://www.gstatic.com/images/branding/product/1x/docs_2020q4_32dp.png',
+    github: 'https://github.githubassets.com/favicons/favicon-dark.svg',
+    notion: 'https://www.notion.so/images/favicon.ico',
+  };
+
+  if (logos[provider]) {
+    return <img src={logos[provider]} alt={provider} width={size} height={size} style={{ display: 'block', borderRadius: 2 }} />;
+  }
+
+  if (provider === 'openclaw') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+      </svg>
+    );
+  }
+
+  if (provider === 'supabase') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <path d="M13.5 21.3c-.4.5-1.2.1-1.2-.6V13h8.1c.7 0 1.1.8.6 1.3L13.5 21.3z" fill="#3ECF8E" />
+        <path d="M10.5 2.7c.4-.5 1.2-.1 1.2.6V11H3.6c-.7 0-1.1-.8-.6-1.3L10.5 2.7z" fill="#3ECF8E" opacity=".6" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2">
+      <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
 }
 
 function formatRelativeTime(isoString: string | undefined) {
@@ -341,20 +434,14 @@ function BarChart({ title, subtitle, data, total, color = '#34d399', loading, sh
   );
 }
 
-// ================= Agents Table =================
+// ================= Access Points Table =================
 
-interface AgentsTableProps {
-  agents: DashboardAgent[];
-  maxChatCount: number;
-  onDelete?: (id: string) => void;
-}
-
-function AgentsTable({ agents, maxChatCount, onDelete }: AgentsTableProps) {
+function AccessPointsTable({ points }: { points: AccessPoint[] }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const gridTemplate = '40px 1.5fr 100px 120px 140px 100px 40px';
+  const gridTemplate = '40px 1.5fr 140px 100px 140px 100px';
 
-  if (agents.length === 0) {
-    return <div style={{ padding: 40, textAlign: 'center', color: '#52525b' }}>No agents configured yet.</div>;
+  if (points.length === 0) {
+    return <div style={{ padding: 40, textAlign: 'center', color: '#52525b' }}>No access points configured yet.</div>;
   }
 
   return (
@@ -365,23 +452,23 @@ function AgentsTable({ agents, maxChatCount, onDelete }: AgentsTableProps) {
         textTransform: 'uppercase', letterSpacing: '0.05em',
       }}>
         <div style={{ textAlign: 'center' }}>#</div>
-        <div>Agent Name</div>
+        <div>Endpoint</div>
         <div>Type</div>
-        <div>Data Access</div>
-        <div>Sessions</div>
+        <div>Status</div>
+        <div>Activity</div>
         <div>Last Active</div>
-        <div></div>
       </div>
 
-      {agents.map((agent, index) => {
-        const isHovered = hoveredId === agent.id;
-        const typeLabel = AGENT_TYPE_LABELS[agent.agent_type] || agent.agent_type;
-        const usagePercent = maxChatCount > 0 ? (agent.chat_count / maxChatCount) * 100 : 0;
+      {points.map((point, index) => {
+        const isHovered = hoveredId === point.id;
+        const statusColor = point.kind === 'sync'
+          ? (STATUS_COLORS[point.status] || '#52525b')
+          : (point.sessionCount > 0 ? '#22c55e' : '#52525b');
 
         return (
           <div
-            key={agent.id}
-            onMouseEnter={() => setHoveredId(agent.id)}
+            key={point.id}
+            onMouseEnter={() => setHoveredId(point.id)}
             onMouseLeave={() => setHoveredId(null)}
             style={{
               display: 'grid', gridTemplateColumns: gridTemplate, padding: '12px 24px', alignItems: 'center',
@@ -389,47 +476,69 @@ function AgentsTable({ agents, maxChatCount, onDelete }: AgentsTableProps) {
             }}
           >
             <div style={{ textAlign: 'center', color: '#52525b', fontSize: 12 }}>{index + 1}</div>
+
+            {/* Name + Icon */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 6, background: '#27272a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-                {parseAgentIcon(agent.icon || '')}
+              <div style={{
+                width: 28, height: 28, borderRadius: 6,
+                background: point.kind === 'sync' ? '#18181b' : '#27272a',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+                border: point.kind === 'sync' ? '1px solid #27272a' : 'none',
+              }}>
+                {point.icon}
               </div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{agent.name}</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{point.name}</div>
+                {point.direction && (
+                  <div style={{ fontSize: 11, color: '#52525b', marginTop: 1 }}>
+                    {DIRECTION_LABELS[point.direction] || point.direction}
+                  </div>
+                )}
+              </div>
             </div>
-            <div style={{ fontSize: 12, color: '#71717a' }}>{typeLabel}</div>
+
+            {/* Type */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {agent.data_access_count > 0 ? (
+              <span style={{
+                fontSize: 11, padding: '2px 8px', borderRadius: 4,
+                background: point.kind === 'sync' ? 'rgba(59,130,246,0.1)' : 'rgba(113,113,122,0.1)',
+                color: point.kind === 'sync' ? '#60a5fa' : '#a1a1aa',
+                fontWeight: 500,
+              }}>
+                {point.typeLabel}
+              </span>
+            </div>
+
+            {/* Status */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
+              <span style={{ fontSize: 12, color: '#a1a1aa', textTransform: 'capitalize' }}>
+                {point.status}
+              </span>
+            </div>
+
+            {/* Activity */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {point.kind === 'agent' ? (
                 <>
-                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#3b82f6' }} />
-                  <span style={{ fontSize: 12, color: '#d4d4d8' }}>{agent.data_access_count} sources</span>
+                  <span style={{ fontSize: 12, color: '#e4e4e7', minWidth: 20 }}>{point.sessionCount}</span>
+                  {point.sessionCount > 0 && point.maxSessionCount > 0 && (
+                    <div style={{ flex: 1, height: 4, background: '#27272a', borderRadius: 2, maxWidth: 80 }}>
+                      <div style={{ width: `${(point.sessionCount / point.maxSessionCount) * 100}%`, height: '100%', background: '#10b981', borderRadius: 2 }} />
+                    </div>
+                  )}
+                  <span style={{ fontSize: 11, color: '#52525b' }}>sessions</span>
                 </>
               ) : (
-                <span style={{ fontSize: 12, color: '#52525b' }}>—</span>
+                <span style={{ fontSize: 12, color: point.errorMessage ? '#ef4444' : '#71717a' }}>
+                  {point.errorMessage || (point.status === 'syncing' ? 'Syncing…' : '—')}
+                </span>
               )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 12, color: '#e4e4e7', minWidth: 20 }}>{agent.chat_count}</span>
-              {agent.chat_count > 0 && (
-                <div style={{ flex: 1, height: 4, background: '#27272a', borderRadius: 2, maxWidth: 80 }}>
-                  <div style={{ width: `${usagePercent}%`, height: '100%', background: '#10b981', borderRadius: 2 }} />
-                </div>
-              )}
-            </div>
-            <div style={{ fontSize: 12, color: agent.last_active ? '#a1a1aa' : '#52525b' }}>
-              {formatRelativeTime(agent.last_active || undefined)}
-            </div>
-            <div style={{ opacity: isHovered ? 1 : 0, transition: 'opacity 0.1s' }}>
-              {onDelete && (
-                <button
-                  onClick={e => { e.stopPropagation(); onDelete(agent.id); }}
-                  style={{ background: 'none', border: 'none', color: '#52525b', cursor: 'pointer', padding: 4 }}
-                  onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                  onMouseLeave={e => e.currentTarget.style.color = '#52525b'}
-                >
-                  <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
-                    <path d='M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' />
-                  </svg>
-                </button>
-              )}
+
+            {/* Last Active */}
+            <div style={{ fontSize: 12, color: point.lastActive ? '#a1a1aa' : '#52525b' }}>
+              {formatRelativeTime(point.lastActive || undefined)}
             </div>
           </div>
         );
@@ -442,17 +551,19 @@ function AgentsTable({ agents, maxChatCount, onDelete }: AgentsTableProps) {
 
 export default function ProjectAgentsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
-  const router = useRouter();
-  const { projects } = useProjects();
-  const currentProject = projects.find(p => p.id === projectId);
-  
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const RANGE_HOURS = 24; // Show last 24 hours
+  const RANGE_HOURS = 24;
 
-  // Convert RPC time series to local time buckets
+  // Fetch sync status from backend API
+  const { data: syncData } = useSWR<ProjectSyncStatus>(
+    projectId ? ['sync-status-dashboard', projectId] : null,
+    () => get<ProjectSyncStatus>(`/api/v1/sync/status?project_id=${projectId}`),
+    { refreshInterval: 30000, revalidateOnFocus: true },
+  );
+
   const bashPerHour = useMemo(() => 
     convertToLocalTimeSeries(dashboardData?.bashPerHour || null, RANGE_HOURS), 
     [dashboardData?.bashPerHour]
@@ -470,14 +581,52 @@ export default function ProjectAgentsPage({ params }: { params: Promise<{ projec
     [dashboardData?.sessionsPerHour]
   );
 
-  // Max chat count for usage bar scaling
   const maxChatCount = useMemo(() => {
     if (!dashboardData?.agents) return 0;
     const counts = dashboardData.agents.map(a => a.chat_count);
     return counts.length > 0 ? Math.max(...counts) : 0;
   }, [dashboardData?.agents]);
 
-  // Fetch dashboard data for this project
+  // Build unified access points list: agents + sync endpoints
+  const accessPoints = useMemo<AccessPoint[]>(() => {
+    const points: AccessPoint[] = [];
+
+    // Agents
+    (dashboardData?.agents || []).forEach(agent => {
+      points.push({
+        id: agent.id,
+        kind: 'agent',
+        name: agent.name,
+        icon: <span style={{ fontSize: 16 }}>{parseAgentIcon(agent.icon || '')}</span>,
+        typeLabel: AGENT_TYPE_LABELS[agent.agent_type] || agent.agent_type,
+        status: agent.chat_count > 0 ? 'active' : 'idle',
+        lastActive: agent.last_active,
+        sessionCount: agent.chat_count,
+        maxSessionCount: maxChatCount,
+      });
+    });
+
+    // Sync endpoints
+    (syncData?.syncs || []).forEach(sync => {
+      points.push({
+        id: sync.id,
+        kind: 'sync',
+        name: sync.node_name || PROVIDER_LABELS[sync.provider] || sync.provider,
+        icon: <ProviderIcon provider={sync.provider} size={16} />,
+        typeLabel: PROVIDER_LABELS[sync.provider] || sync.provider,
+        status: sync.status,
+        lastActive: sync.last_synced_at,
+        sessionCount: 0,
+        maxSessionCount: 0,
+        direction: sync.direction,
+        provider: sync.provider,
+        errorMessage: sync.error_message,
+      });
+    });
+
+    return points;
+  }, [dashboardData?.agents, syncData?.syncs, maxChatCount]);
+
   const fetchData = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
@@ -494,13 +643,6 @@ export default function ProjectAgentsPage({ params }: { params: Promise<{ projec
   }, [projectId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this agent?')) {
-      console.log('Delete agent:', id);
-      // TODO: Implement delete and refresh
-    }
-  };
 
   // Error state
   if (error && !loading) {
@@ -627,25 +769,32 @@ export default function ProjectAgentsPage({ params }: { params: Promise<{ projec
             </div>
           </div>
 
-          {/* Section: Access Points - L3 */}
+          {/* Section: Access Points - Agents + Sync Endpoints */}
           <div style={{ marginBottom: 48 }}>
-            <h3 style={{ 
-              fontSize: 16, 
-              fontWeight: 500, 
-              color: '#71717a', 
-              margin: '0 0 16px 0',
-            }}>
-              Access Points
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 500, color: '#71717a', margin: 0 }}>
+                Access Points
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#a1a1aa' }} />
+                  <span style={{ fontSize: 11, color: '#52525b' }}>
+                    {accessPoints.filter(p => p.kind === 'agent').length} Agents
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#60a5fa' }} />
+                  <span style={{ fontSize: 11, color: '#52525b' }}>
+                    {accessPoints.filter(p => p.kind === 'sync').length} Sync Endpoints
+                  </span>
+                </div>
+              </div>
+            </div>
             <div style={{ background: '#0a0a0a', border: '1px solid #27272a', borderRadius: 12, overflow: 'hidden' }}>
-            {loading ? (
+            {loading && !dashboardData ? (
               <div style={{ padding: 40, textAlign: 'center', color: '#52525b' }}>Loading...</div>
             ) : (
-              <AgentsTable 
-                agents={dashboardData?.agents ?? []} 
-                maxChatCount={maxChatCount}
-                onDelete={handleDelete}
-              />
+              <AccessPointsTable points={accessPoints} />
             )}
             </div>
           </div>

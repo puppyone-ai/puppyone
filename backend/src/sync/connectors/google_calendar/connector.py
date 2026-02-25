@@ -1,5 +1,5 @@
 """
-Google Calendar Handler - Process Google Calendar event imports.
+Google Calendar Connector - Process Google Calendar event imports.
 
 Architecture:
 - All events are stored in a SINGLE content_node as JSONB
@@ -15,18 +15,39 @@ from typing import Optional
 import httpx
 
 from src.content_node.service import ContentNodeService
-from src.sync.handlers.base import BaseHandler, ImportResult, PreviewResult, ProgressCallback
-from src.sync.task.models import ImportTask, ImportTaskType
+from src.sync.connectors._base import (
+    BaseConnector,
+    ConnectorSpec,
+    Capability,
+    AuthRequirement,
+    TriggerMode,
+    ImportResult,
+    PreviewResult,
+    ProgressCallback,
+)
+from src.sync.task.models import ImportTask
 from src.oauth.google_calendar_service import GoogleCalendarOAuthService
 from src.s3.service import S3Service
 from src.utils.logger import log_info, log_error
 
 
-class GoogleCalendarHandler(BaseHandler):
-    """Handler for Google Calendar imports - stores all events in single JSONB node."""
+class GoogleCalendarConnector(BaseConnector):
+    """Connector for Google Calendar imports - stores all events in single JSONB node."""
 
     CALENDAR_LIST_URL = "https://www.googleapis.com/calendar/v3/users/me/calendarList"
     CALENDAR_EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events"
+
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="google_calendar",
+            display_name="Google Calendar",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+            default_trigger=TriggerMode.POLL,
+            default_node_type="json",
+            auth=AuthRequirement.OAUTH,
+            oauth_type="calendar",
+        )
 
     def __init__(
         self,
@@ -39,10 +60,7 @@ class GoogleCalendarHandler(BaseHandler):
         self.s3_service = s3_service
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    def can_handle(self, task: ImportTask) -> bool:
-        return task.task_type == ImportTaskType.GOOGLE_CALENDAR
-
-    async def process(
+    async def import_data(
         self,
         task: ImportTask,
         on_progress: ProgressCallback,
@@ -61,12 +79,12 @@ class GoogleCalendarHandler(BaseHandler):
 
         config = task.config or {}
         parent_id = config.get("parent_id")
-        
+
         # Time range for events (default: past 30 days to next 30 days)
         days_past = config.get("days_past", 30)
         days_future = config.get("days_future", 30)
         max_results = config.get("max_results", 100)
-        
+
         time_min = (datetime.now(timezone.utc) - timedelta(days=days_past)).isoformat()
         time_max = (datetime.now(timezone.utc) + timedelta(days=days_future)).isoformat()
 
@@ -74,7 +92,7 @@ class GoogleCalendarHandler(BaseHandler):
 
         # Get list of calendars
         calendars = await self._list_calendars(access_token)
-        
+
         await on_progress(20, f"Found {len(calendars)} calendars, fetching events in parallel...")
 
         # Build calendar info
@@ -111,7 +129,7 @@ class GoogleCalendarHandler(BaseHandler):
 
         # Execute all calendar fetches in parallel
         results = await asyncio.gather(*[fetch_calendar_events(cal) for cal in calendars])
-        
+
         # Flatten results
         all_events = []
         for events in results:
@@ -153,7 +171,7 @@ class GoogleCalendarHandler(BaseHandler):
         await on_progress(100, "Google Calendar import completed")
 
         return ImportResult(
-            content_node_id=node.id,
+            content_node_id=str(node.id),
             items_count=len(events_data),
         )
 
@@ -198,7 +216,7 @@ class GoogleCalendarHandler(BaseHandler):
         end = event.get("end", {})
         attendees = event.get("attendees", [])
         organizer = event.get("organizer", {})
-        
+
         return {
             "id": event.get("id", ""),
             "summary": event.get("summary", "Untitled Event"),
@@ -225,10 +243,10 @@ class GoogleCalendarHandler(BaseHandler):
             raise ValueError("Google Calendar not connected. Please authorize first.")
 
         access_token = connection.access_token
-        
+
         # Get calendars for preview
         calendars = await self._list_calendars(access_token)
-        
+
         # Get upcoming events from primary calendar
         events = []
         if calendars:
