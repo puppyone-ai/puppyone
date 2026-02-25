@@ -1,10 +1,14 @@
 """DB Connector Repository - Supabase CRUD"""
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Any
 
 from src.supabase.client import SupabaseClient
 from src.db_connector.models import DBConnection
+from src.security.crypto import (
+    decrypt_db_connection_config,
+    encrypt_db_connection_config,
+)
 
 
 class DBConnectionRepository:
@@ -15,6 +19,12 @@ class DBConnectionRepository:
     def __init__(self, supabase_client: SupabaseClient):
         self.client = supabase_client.client
 
+    @staticmethod
+    def _normalize_plain_config(config: Any) -> dict[str, Any]:
+        if not isinstance(config, dict):
+            return {}
+        return decrypt_db_connection_config(config)
+
     def _row_to_model(self, row: dict) -> DBConnection:
         return DBConnection(
             id=str(row["id"]),
@@ -22,7 +32,7 @@ class DBConnectionRepository:
             project_id=str(row["project_id"]),
             name=row["name"],
             provider=row["provider"],
-            config=row.get("config", {}),
+            config=self._normalize_plain_config(row.get("config", {})),
             is_active=row.get("is_active", True),
             last_used_at=row.get("last_used_at"),
             created_at=row["created_at"],
@@ -37,12 +47,13 @@ class DBConnectionRepository:
         provider: str,
         config: dict,
     ) -> DBConnection:
+        encrypted_config = encrypt_db_connection_config(config)
         data = {
             "user_id": user_id,
             "project_id": project_id,
             "name": name,
             "provider": provider,
-            "config": config,
+            "config": encrypted_config,
         }
         response = self.client.table(self.TABLE).insert(data).execute()
         if not response.data:
