@@ -194,7 +194,7 @@ class FolderSyncService:
         source_id: Optional[int] = None,
     ) -> dict:
         parent_id, leaf = self._resolve_parent(project_id, folder_id, filename)
-        name = self._strip_extension(leaf)
+        name = self._leaf_to_node_name(leaf, node_type)
         existing = self._node_repo.get_child_by_name(project_id, parent_id, name)
 
         if existing:
@@ -360,7 +360,7 @@ class FolderSyncService:
         source_id: Optional[int] = None,
     ) -> dict:
         parent_id, leaf = self._resolve_parent(project_id, folder_id, filename)
-        name = self._strip_extension(leaf)
+        name = self._leaf_to_node_name(leaf, "file")
         existing = self._node_repo.get_child_by_name(project_id, parent_id, name)
 
         if existing:
@@ -488,6 +488,12 @@ class FolderSyncService:
         return os.path.splitext(filename)[0] if "." in filename else filename
 
     @staticmethod
+    def _leaf_to_node_name(leaf: str, node_type: str) -> str:
+        if node_type in INLINE_TYPES:
+            return FolderSyncService._strip_extension(leaf)
+        return leaf
+
+    @staticmethod
     def _make_s3_key(project_id: str, node_id: str, filename: str) -> str:
         safe_name = filename.replace("/", "_").replace("\\", "_")
         return f"projects/{project_id}/openclaw/{node_id}/{safe_name}"
@@ -554,8 +560,27 @@ class FolderSyncService:
             if not folder or folder.type != "folder":
                 return None
             current_parent = folder.id
-        leaf_name = self._strip_extension(leaf)
-        return self._node_repo.get_child_by_name(project_id, current_parent, leaf_name)
+        exact = self._node_repo.get_child_by_name(project_id, current_parent, leaf)
+        if exact:
+            return exact
+
+        legacy_name = self._strip_extension(leaf)
+        if legacy_name == leaf:
+            return None
+
+        legacy = self._node_repo.get_child_by_name(
+            project_id, current_parent, legacy_name,
+        )
+        if not legacy or legacy.type not in INLINE_TYPES:
+            return None
+
+        _, ext = os.path.splitext(leaf.lower())
+        if ext == ".json" and legacy.type != "json":
+            return None
+        if ext == ".md" and legacy.type != "markdown":
+            return None
+        return legacy
+        return None
 
     def _list_all_files_recursive(
         self, project_id: str, folder_id: str, prefix: str = "",
