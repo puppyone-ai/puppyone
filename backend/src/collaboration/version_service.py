@@ -269,6 +269,18 @@ class VersionService:
 
         self.node_repo.update(**update_kwargs)
 
+        self._emit_changelog(
+            project_id=node.project_id,
+            node_id=node_id,
+            action="update",
+            node_type=node.type,
+            version=new_version_num,
+            content_hash=old_version.content_hash,
+            size_bytes=old_version.size_bytes or 0,
+            folder_id=node.parent_id,
+            filename=self._derive_filename(node),
+        )
+
         log_info(f"[Version] Rolled back {node_id} to v{target_version} (new: v{new_version_num})")
 
         return RollbackResponse(

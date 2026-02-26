@@ -162,6 +162,11 @@ async def push(
     )
     if not result.get("ok"):
         error = result.get("error", "")
+        if error == "invalid_path":
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("message", "Invalid path"),
+            )
         if error == "version_conflict":
             raise HTTPException(
                 status_code=409,
@@ -189,6 +194,11 @@ async def delete_file(
         source_id=sync.id,
     )
     if not result.get("ok"):
+        if result.get("error") == "invalid_path":
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("message", "Invalid path"),
+            )
         raise HTTPException(
             status_code=404,
             detail=result.get("message", "Delete failed"),
@@ -214,6 +224,11 @@ async def request_upload_url(
         source_id=sync.id,
     )
     if not result.get("ok"):
+        if result.get("error") == "invalid_path":
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("message", "Invalid path"),
+            )
         raise HTTPException(
             status_code=403,
             detail=result.get("message", "Upload URL failed"),

@@ -193,8 +193,17 @@ class FolderSyncService:
         operator_name: str,
         source_id: Optional[int] = None,
     ) -> dict:
+        invalid_path = self._validate_filename_or_error(
+            filename=filename,
+            operation="push",
+            operator_id=operator_id,
+            source_id=source_id,
+        )
+        if invalid_path:
+            return invalid_path
+
         parent_id, leaf = self._resolve_parent(project_id, folder_id, filename)
-        name = self._strip_extension(leaf)
+        name = self._leaf_to_node_name(leaf, node_type)
         existing = self._node_repo.get_child_by_name(project_id, parent_id, name)
 
         if existing:
@@ -324,6 +333,14 @@ class FolderSyncService:
         filename: str,
         source_id: Optional[int] = None,
     ) -> dict:
+        invalid_path = self._validate_filename_or_error(
+            filename=filename,
+            operation="delete_file",
+            source_id=source_id,
+        )
+        if invalid_path:
+            return invalid_path
+
         node = self._find_node_by_path(project_id, folder_id, filename)
         if not node:
             return {"ok": True, "status": "not_found"}
@@ -359,8 +376,17 @@ class FolderSyncService:
         operator_id: str,
         source_id: Optional[int] = None,
     ) -> dict:
+        invalid_path = self._validate_filename_or_error(
+            filename=filename,
+            operation="request_upload_url",
+            operator_id=operator_id,
+            source_id=source_id,
+        )
+        if invalid_path:
+            return invalid_path
+
         parent_id, leaf = self._resolve_parent(project_id, folder_id, filename)
-        name = self._strip_extension(leaf)
+        name = self._leaf_to_node_name(leaf, "file")
         existing = self._node_repo.get_child_by_name(project_id, parent_id, name)
 
         if existing:
@@ -410,6 +436,15 @@ class FolderSyncService:
         content_hash: Optional[str] = None,
         source_id: Optional[int] = None,
     ) -> dict:
+        invalid_path = self._validate_filename_or_error(
+            filename=filename,
+            operation="confirm_upload",
+            operator_id=operator_id,
+            source_id=source_id,
+        )
+        if invalid_path:
+            return invalid_path
+
         node = self._find_node_by_path(project_id, folder_id, filename)
         if not node:
             return {
@@ -488,6 +523,12 @@ class FolderSyncService:
         return os.path.splitext(filename)[0] if "." in filename else filename
 
     @staticmethod
+    def _leaf_to_node_name(leaf: str, node_type: str) -> str:
+        if node_type in INLINE_TYPES:
+            return FolderSyncService._strip_extension(leaf)
+        return leaf
+
+    @staticmethod
     def _make_s3_key(project_id: str, node_id: str, filename: str) -> str:
         safe_name = filename.replace("/", "_").replace("\\", "_")
         return f"projects/{project_id}/openclaw/{node_id}/{safe_name}"
@@ -508,7 +549,44 @@ class FolderSyncService:
     def _parse_path(self, filename: str) -> tuple[list[str], str]:
         """Split 'a/b/c.md' into (['a','b'], 'c.md')."""
         parts = filename.replace("\\", "/").split("/")
+        for segment in parts:
+            if segment in ("", ".", "..") or "\x00" in segment:
+                raise ValueError(f"Invalid filename path segment: {segment!r}")
         return parts[:-1], parts[-1]
+
+    def _validate_filename_or_error(
+        self,
+        filename: str,
+        operation: str,
+        source_id: Optional[int] = None,
+        operator_id: Optional[str] = None,
+    ) -> Optional[dict]:
+        try:
+            self._parse_path(filename)
+            return None
+        except ValueError as e:
+            self._audit_invalid_path(
+                operation=operation,
+                filename=filename,
+                source_id=source_id,
+                operator_id=operator_id,
+                reason=str(e),
+            )
+            return {"ok": False, "error": "invalid_path", "message": str(e)}
+
+    @staticmethod
+    def _audit_invalid_path(
+        operation: str,
+        filename: str,
+        source_id: Optional[int],
+        operator_id: Optional[str],
+        reason: str,
+    ) -> None:
+        log_error(
+            "[FolderSync][SECURITY] Reject invalid path "
+            f"(op={operation}, source_id={source_id}, operator_id={operator_id}): "
+            f"{filename!r} ({reason})"
+        )
 
     def _ensure_folder_path(
         self, project_id: str, root_folder_id: str, dir_segments: list[str],
@@ -554,8 +632,27 @@ class FolderSyncService:
             if not folder or folder.type != "folder":
                 return None
             current_parent = folder.id
-        leaf_name = self._strip_extension(leaf)
-        return self._node_repo.get_child_by_name(project_id, current_parent, leaf_name)
+        exact = self._node_repo.get_child_by_name(project_id, current_parent, leaf)
+        if exact:
+            return exact
+
+        legacy_name = self._strip_extension(leaf)
+        if legacy_name == leaf:
+            return None
+
+        legacy = self._node_repo.get_child_by_name(
+            project_id, current_parent, legacy_name,
+        )
+        if not legacy or legacy.type not in INLINE_TYPES:
+            return None
+
+        _, ext = os.path.splitext(leaf.lower())
+        if ext == ".json" and legacy.type != "json":
+            return None
+        if ext == ".md" and legacy.type != "markdown":
+            return None
+        return legacy
+        return None
 
     def _list_all_files_recursive(
         self, project_id: str, folder_id: str, prefix: str = "",

@@ -29,16 +29,19 @@ Usage:
 """
 
 import asyncio
+import threading
 from typing import Optional
 
 
 class ChangeNotifier:
-    """Lightweight per-project change notification via asyncio.Event."""
+    """Lightweight per-project change notification via waiter futures."""
 
     _instance: Optional["ChangeNotifier"] = None
 
     def __init__(self):
-        self._events: dict[str, asyncio.Event] = {}
+        self._waiters: dict[str, set[asyncio.Future[bool]]] = {}
+        self._pending_signal: set[str] = set()
+        self._lock = threading.Lock()
 
     @classmethod
     def get_instance(cls) -> "ChangeNotifier":
@@ -51,9 +54,17 @@ class ChangeNotifier:
         Signal that project data has changed.
         Wakes up all Long Poll waiters for this project.
         """
-        ev = self._events.get(project_id)
-        if ev:
-            ev.set()
+        with self._lock:
+            waiters = list(self._waiters.pop(project_id, set()))
+            if not waiters:
+                self._pending_signal.add(project_id)
+                return
+
+        for fut in waiters:
+            if fut.done():
+                continue
+            loop = fut.get_loop()
+            loop.call_soon_threadsafe(self._resolve_waiter, fut)
 
     async def wait_for_changes(self, project_id: str, timeout: float = 30.0) -> bool:
         """
@@ -61,21 +72,35 @@ class ChangeNotifier:
 
         Returns True if a change was detected, False on timeout.
         """
-        ev = self._events.get(project_id)
-        if ev is None:
-            ev = asyncio.Event()
-            self._events[project_id] = ev
+        with self._lock:
+            if project_id in self._pending_signal:
+                self._pending_signal.remove(project_id)
+                return True
 
-        ev.clear()
+            loop = asyncio.get_running_loop()
+            fut: asyncio.Future[bool] = loop.create_future()
+            self._waiters.setdefault(project_id, set()).add(fut)
+
         try:
-            await asyncio.wait_for(ev.wait(), timeout=timeout)
+            await asyncio.wait_for(fut, timeout=timeout)
             return True
         except asyncio.TimeoutError:
             return False
         finally:
-            if project_id in self._events and not self._events[project_id].is_set():
-                pass
+            with self._lock:
+                waiters = self._waiters.get(project_id)
+                if waiters and fut in waiters:
+                    waiters.remove(fut)
+                    if not waiters:
+                        self._waiters.pop(project_id, None)
 
     def _cleanup_idle(self, project_id: str) -> None:
         """Remove event for a project with no active waiters (memory hygiene)."""
-        self._events.pop(project_id, None)
+        with self._lock:
+            self._waiters.pop(project_id, None)
+            self._pending_signal.discard(project_id)
+
+    @staticmethod
+    def _resolve_waiter(fut: asyncio.Future[bool]) -> None:
+        if not fut.done():
+            fut.set_result(True)
