@@ -136,7 +136,7 @@ async def _run_search_indexing_background(
     json_path: str,
 ) -> None:
     """
-    后台 indexing 执行器：负责写入 search_index_task 状态，并记录日志（不抛出到请求方）。
+    后台 indexing 执行器：负责写入索引任务状态，并记录日志（不抛出到请求方）。
     """
     now = dt.datetime.now(tz=dt.timezone.utc)
     log_info(
@@ -553,7 +553,7 @@ def create_search_tool_async(
     "/{tool_id}/search-index",
     response_model=ApiResponse[SearchIndexTaskOut],
     summary="查询 Search Tool 索引构建状态",
-    description="返回该 Search Tool 的索引任务状态（来自 search_index_task）。",
+    description="返回该 Search Tool 的索引任务状态。",
     status_code=status.HTTP_200_OK,
 )
 def get_search_index_status(

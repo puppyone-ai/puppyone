@@ -766,11 +766,20 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   // Close Sidebar
   const closeSidebar = useCallback(() => {
     setSidebarMode('closed');
+    setSelectedSyncId(null);
+    setSelectedSyncNodeId(null);
   }, []);
 
   // Legacy Toggle Chat
   const toggleChat = useCallback(() => {
-    setSidebarMode(prev => prev === 'closed' ? 'deployed' : 'closed');
+    setSidebarMode(prev => {
+      if (prev !== 'closed') {
+        setSelectedSyncId(null);
+        setSelectedSyncNodeId(null);
+        return 'closed';
+      }
+      return 'deployed';
+    });
   }, []);
 
   const openChat = useCallback(() => {

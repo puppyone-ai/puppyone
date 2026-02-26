@@ -561,7 +561,7 @@ export default function ProjectAgentsPage({ params }: { params: Promise<{ projec
   const { data: syncData } = useSWR<ProjectSyncStatus>(
     projectId ? ['sync-status-dashboard', projectId] : null,
     () => get<ProjectSyncStatus>(`/api/v1/sync/status?project_id=${projectId}`),
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { revalidateOnFocus: true },
   );
 
   const bashPerHour = useMemo(() => 

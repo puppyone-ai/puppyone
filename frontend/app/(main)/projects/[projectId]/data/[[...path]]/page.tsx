@@ -11,7 +11,9 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import useSWR from 'swr';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
+import { get } from '@/lib/apiClient';
 import {
   useProjects,
   useTableTools,
@@ -70,7 +72,7 @@ import { SupabaseConnectDialog } from '@/components/SupabaseConnectDialog';
 import { SupabaseSQLEditorDialog } from '@/components/SupabaseSQLEditorDialog';
 
 // Finder View Components
-import { GridView, ListView, ExplorerSidebar, ensureExpanded, type MillerColumnItem, type AgentResource, type ContentType } from '../components/views';
+import { GridView, ListView, ExplorerSidebar, ensureExpanded, type MillerColumnItem, type AgentResource, type ContentType, type SyncEndpointInfo } from '../components/views';
 import { CreateMenu } from '../../../[[...slug]]/components/finder';
 
 // Agent Context
@@ -156,6 +158,22 @@ export default function DataPage({ params }: DataPageProps) {
   // Data fetching
   const { projects, isLoading: projectsLoading } = useProjects();
   const { tools: projectTools } = useProjectTools(projectId);
+
+  // Sync endpoints for file tree badges
+  const { data: syncStatusData } = useSWR<{ syncs: { id: string; node_id: string; provider: string; direction: string; status: string }[] }>(
+    projectId ? ['sync-status', projectId] : null,
+    () => get(`/api/v1/sync/status?project_id=${projectId}`),
+    { revalidateOnFocus: false },
+  );
+  const syncEndpoints = useMemo(() => {
+    const map = new Map<string, SyncEndpointInfo>();
+    if (syncStatusData?.syncs) {
+      for (const s of syncStatusData.syncs) {
+        if (s.node_id) map.set(s.node_id, { syncId: s.id, provider: s.provider, direction: s.direction, status: s.status });
+      }
+    }
+    return map;
+  }, [syncStatusData]);
 
   // State - viewType & editorType persisted in localStorage
   // Sync init from localStorage to avoid flash of wrong view on re-mount
@@ -420,7 +438,7 @@ export default function DataPage({ params }: DataPageProps) {
   }, [projectId, session?.access_token]);
 
   // Agent Context - get draft resources for highlighting
-  const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId } = useAgent();
+  const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, selectSync, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId } = useAgent();
 
   // Auto-create a blank node and open sync sidebar with it pre-bound
   const PROVIDER_NODE_TYPE: Record<string, 'json' | 'markdown' | 'folder'> = {
@@ -1067,7 +1085,10 @@ export default function DataPage({ params }: DataPageProps) {
               onCreate={handleMillerCreateClick}
               onRename={handleRename}
               onDelete={handleDelete}
+              onSyncClick={(nodeId, syncInfo) => selectedSyncNodeId === nodeId ? selectSync(null) : selectSync(syncInfo.syncId, nodeId)}
+              activeSyncNodeId={selectedSyncNodeId}
               agentResources={agentResources}
+              syncEndpoints={syncEndpoints}
               highlightNodeId={highlightNodeId}
               style={{
                 width: 250,
