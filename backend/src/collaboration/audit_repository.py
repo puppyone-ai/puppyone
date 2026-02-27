@@ -65,3 +65,29 @@ class AuditRepository:
             .execute()
         )
         return response.data
+
+    def list_by_node_ids(
+        self, node_ids: List[str], limit: int = 100, offset: int = 0
+    ) -> List[dict]:
+        """查询多个节点的审计日志"""
+        if not node_ids:
+            return []
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("*")
+            .in_("node_id", node_ids)
+            .order("created_at", desc=True)
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
+        return response.data
+
+    def count_by_node(self, node_id: str) -> int:
+        """统计节点的审计日志数量"""
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("id", count="exact")
+            .eq("node_id", node_id)
+            .execute()
+        )
+        return response.count or 0
