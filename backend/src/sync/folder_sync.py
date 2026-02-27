@@ -355,6 +355,8 @@ class FolderSyncService:
                 summary=f"CLI delete: {filename}",
             )
 
+            self._node_repo.delete(node.id)
+
             log_info(f"[FolderSync] DELETE {filename} from folder {folder_id}")
             return {"ok": True, "status": "deleted"}
 

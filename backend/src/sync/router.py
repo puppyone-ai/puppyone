@@ -623,6 +623,78 @@ async def trigger_push(
 
 
 # ============================================================
+# Sync Changelog (frontend query)
+# ============================================================
+
+class ChangelogItem(BaseModel):
+    id: int
+    project_id: str
+    node_id: str
+    action: str
+    node_type: Optional[str] = None
+    version: int = 0
+    hash: Optional[str] = None
+    size_bytes: int = 0
+    folder_id: Optional[str] = None
+    filename: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ChangelogResponse(BaseModel):
+    entries: list[ChangelogItem]
+    cursor: int
+    has_more: bool
+
+
+@router.get("/changelog", response_model=ApiResponse[ChangelogResponse])
+def get_sync_changelog(
+    project_id: str = Query(..., description="Project ID"),
+    cursor: int = Query(0, ge=0, description="Cursor for pagination"),
+    limit: int = Query(100, ge=1, le=500),
+    sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """查询项目的同步变更日志（sync_changelog），供前端展示同步事件。"""
+    _ensure_project_access(project_service, current_user, project_id)
+
+    from src.sync.changelog import SyncChangelogRepository
+    from src.supabase.client import SupabaseClient
+
+    changelog_repo = SyncChangelogRepository(SupabaseClient())
+    entries = changelog_repo.list_since(project_id, cursor=cursor, limit=limit + 1)
+
+    has_more = len(entries) > limit
+    if has_more:
+        entries = entries[:limit]
+
+    new_cursor = entries[-1].id if entries else cursor
+
+    items = [
+        ChangelogItem(
+            id=e.id,
+            project_id=e.project_id,
+            node_id=e.node_id,
+            action=e.action,
+            node_type=e.node_type,
+            version=e.version,
+            hash=e.hash,
+            size_bytes=e.size_bytes,
+            folder_id=e.folder_id,
+            filename=e.filename,
+            created_at=e.created_at,
+        )
+        for e in entries
+    ]
+
+    return ApiResponse.success(data=ChangelogResponse(
+        entries=items,
+        cursor=new_cursor,
+        has_more=has_more,
+    ))
+
+
+# ============================================================
 # Helpers
 # ============================================================
 

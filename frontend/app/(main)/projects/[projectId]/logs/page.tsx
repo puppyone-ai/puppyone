@@ -12,6 +12,7 @@ import React, { use, useEffect, useState, useMemo, useCallback } from 'react';
 import { getAgentLogs, type AgentLog } from '@/lib/chatApi';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
+import { getSyncChangelog, type SyncChangelogItem } from '@/lib/contentNodesApi';
 
 // ================= Types =================
 
@@ -649,12 +650,7 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
             {loading && logs.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: '#52525b' }}>Loading...</div>
             ) : selectedFilter.startsWith('sync:') ? (
-              <div style={{ padding: 40, textAlign: 'center', color: '#3f3f46' }}>
-                <p>Sync activity events will appear here.</p>
-                <p style={{ fontSize: 11, marginTop: 8, color: '#27272a' }}>
-                  Detailed sync event logging is coming soon.
-                </p>
-              </div>
+              <SyncChangelogList projectId={projectId} />
             ) : filteredLogs.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: '#3f3f46' }}>No events found</div>
             ) : (
@@ -706,4 +702,168 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
       </div>
     </div>
   );
+}
+
+// ================= Sync Changelog Component =================
+
+const ACTION_COLORS: Record<string, string> = {
+  create: '#22c55e',
+  update: '#3b82f6',
+  delete: '#ef4444',
+};
+
+const ACTION_ICONS: Record<string, string> = {
+  create: '+',
+  update: '~',
+  delete: '-',
+};
+
+function SyncChangelogList({ projectId }: { projectId: string }) {
+  const { data: changelog, error, isLoading } = useSWR(
+    projectId ? ['sync-changelog', projectId] : null,
+    () => getSyncChangelog(projectId, 0, 200),
+    { refreshInterval: 15000, revalidateOnFocus: true },
+  );
+
+  const entries = changelog?.entries ?? [];
+
+  if (isLoading) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: '#52525b' }}>Loading sync events...</div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: '#ef4444', fontSize: 13 }}>
+        Failed to load sync events
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: '#3f3f46' }}>
+        <p style={{ marginBottom: 4 }}>No sync events yet.</p>
+        <p style={{ fontSize: 11, color: '#27272a' }}>
+          Events will appear here when files are synced between PuppyOne and OpenClaw.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Sync-specific Table Header */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '140px 70px 1fr 80px 60px',
+        gap: 16,
+        padding: '8px 16px',
+        borderBottom: '1px solid #27272a',
+        background: '#0a0a0a',
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#52525b',
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+      }}>
+        <div>TIMESTAMP</div>
+        <div>ACTION</div>
+        <div>FILE</div>
+        <div>VERSION</div>
+        <div style={{ textAlign: 'right' }}>SIZE</div>
+      </div>
+
+      {entries.map(entry => (
+        <SyncChangelogRow key={entry.id} entry={entry} />
+      ))}
+
+      {changelog?.has_more && (
+        <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: '#52525b' }}>
+          Showing latest {entries.length} events. More events available.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SyncChangelogRow({ entry }: { entry: SyncChangelogItem }) {
+  const actionColor = ACTION_COLORS[entry.action] || '#71717a';
+  const actionIcon = ACTION_ICONS[entry.action] || '?';
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '140px 70px 1fr 80px 60px',
+      gap: 16,
+      height: 32,
+      padding: '0 16px',
+      borderBottom: '1px solid #1a1a1a',
+      fontSize: 13,
+      alignItems: 'center',
+      color: '#a1a1aa',
+    }}>
+      {/* Time */}
+      <span style={{ fontFamily: 'monospace', color: '#71717a', fontSize: 12 }}>
+        {entry.created_at ? formatFullTime(entry.created_at).split(',').pop()?.trim() || '' : '-'}
+      </span>
+
+      {/* Action */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 16,
+          height: 16,
+          borderRadius: 3,
+          background: `${actionColor}15`,
+          color: actionColor,
+          fontSize: 11,
+          fontWeight: 700,
+          fontFamily: 'monospace',
+        }}>
+          {actionIcon}
+        </span>
+        <span style={{ fontSize: 11, color: actionColor, textTransform: 'capitalize' }}>
+          {entry.action}
+        </span>
+      </div>
+
+      {/* File */}
+      <div style={{
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        fontSize: 12,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        color: '#d4d4d8',
+      }}>
+        {entry.filename || entry.node_id.substring(0, 8)}
+        {entry.node_type && (
+          <span style={{ color: '#52525b', marginLeft: 6, fontSize: 10 }}>
+            .{entry.node_type}
+          </span>
+        )}
+      </div>
+
+      {/* Version */}
+      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#71717a' }}>
+        v{entry.version}
+      </span>
+
+      {/* Size */}
+      <span style={{ textAlign: 'right', color: '#52525b', fontSize: 11 }}>
+        {entry.size_bytes > 0 ? formatSize(entry.size_bytes) : '-'}
+      </span>
+    </div>
+  );
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}K`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}M`;
 }
