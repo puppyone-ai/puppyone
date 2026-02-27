@@ -1,0 +1,126 @@
+# File Level Security (FLS)
+
+Control exactly what each agent can see and do — down to the file path level.
+
+---
+
+## What Is FLS
+
+**File Level Security (FLS)** is PuppyOne's permission system.
+
+Think of it like Row Level Security (RLS) in databases, but applied to file paths. Each API Key carries a set of permission rules that define:
+
+1. **Tool permissions** — which operations this key can call (query / create / update / delete)
+2. **Path permissions** — which JSON paths each operation can access
+
+Paths an agent is not authorized to access **do not exist in its view** — they are physically absent from the file system it sees.
+
+---
+
+## Two-Layer Permission Model
+
+```
+┌──────────────────────────────────────┐
+│           Tool Permissions            │
+│  Which operations can this agent use? │
+│  query_data ✅  create ✅  delete ❌  │
+└──────────────────────────────────────┘
+                  │
+                  ▼
+┌──────────────────────────────────────┐
+│           Path Permissions            │
+│  Which paths can each operation see?  │
+│  /products ✅  /internal ❌           │
+└──────────────────────────────────────┘
+```
+
+---
+
+## Tool Permissions
+
+| Tool | Capability | Risk Level |
+|------|-----------|------------|
+| `get_data_schema` | Read data structure | 🟢 Low |
+| `get_all_data` | Read all data | 🟢 Low |
+| `query_data` | Filtered queries | 🟢 Low |
+| `preview` | Quick preview of a few records | 🟢 Low |
+| `select` | Return specific fields only | 🟢 Low |
+| `create` | Create new entries | 🟡 Medium |
+| `update` | Modify existing entries | 🟡 Medium |
+| `delete` | Delete entries | 🔴 High |
+
+---
+
+## Path Permissions
+
+Use JSON Path syntax to define allowed or restricted paths:
+
+```
+/                    → Entire dataset (root)
+/products            → The products array
+/products/*/price    → Price field of every product
+/internal            → Internal data (can be blocked)
+```
+
+---
+
+## Configuration Examples
+
+### Read-Only Agent (Customer Support)
+
+```yaml
+Tools:
+  get_data_schema: ✅
+  get_all_data:    ✅
+  query_data:      ✅
+  preview:         ✅
+  create:          ❌
+  update:          ❌
+  delete:          ❌
+
+Paths:
+  /products: allow
+  /faq:      allow
+  /internal: deny
+```
+
+### Read-Write Agent (no delete)
+
+```yaml
+Tools:
+  query_data: ✅
+  create:     ✅
+  update:     ✅
+  delete:     ❌
+
+Paths:
+  /specs:     allow
+  /code_docs: allow
+```
+
+### Admin Agent
+
+```yaml
+Tools: all
+Paths: / (root, no restriction)
+```
+
+---
+
+## How to Configure
+
+1. Open your Project → **Access** tab
+2. Select an API Key (or create one)
+3. Check the Tools you want to allow
+4. Click **Add Path Rule** to add path-level restrictions
+5. Save
+
+---
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="Tool Permissions" href="/en/access/tools" />
+  <Card title="Path Permissions" href="/en/access/paths" />
+  <Card title="API Keys" href="/en/access/api-keys" />
+</Cards>

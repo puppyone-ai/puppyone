@@ -1,0 +1,4 @@
+node_modules
+auth/session.json
+results/
+.env

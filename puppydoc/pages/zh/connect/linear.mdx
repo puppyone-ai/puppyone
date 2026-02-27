@@ -1,0 +1,84 @@
+# Linear
+
+将 Linear 的 Issue 和项目数据同步为结构化 JSON，让 Agent 可以查询任务状态、负责人和优先级。
+
+| 属性 | 说明 |
+|------|------|
+| **方向** | Pull（Linear → puppyone） |
+| **触发方式** | 手动 |
+| **认证** | Linear OAuth |
+| **输出格式** | JSON |
+
+---
+
+## 数据结构
+
+Linear 数据同步后，所有 Issue 存储在单个 JSON 节点中：
+
+```json
+{
+  "issues": [
+    {
+      "id": "ENG-123",
+      "title": "修复登录页面闪烁问题",
+      "status": "in_progress",
+      "priority": "urgent",
+      "assignee": {
+        "name": "Alice Chen",
+        "email": "alice@example.com"
+      },
+      "labels": ["bug", "frontend"],
+      "created_at": "2026-02-20T09:00:00Z",
+      "updated_at": "2026-02-25T14:30:00Z",
+      "due_date": "2026-03-01",
+      "description": "用户反馈在 Safari 下登录页有闪烁...",
+      "team": "Engineering",
+      "cycle": "Sprint 12"
+    }
+  ],
+  "total": 87,
+  "synced_at": "2026-02-26T08:00:00Z"
+}
+```
+
+---
+
+## 配置步骤
+
+### Step 1: 授权 Linear
+
+1. 进入 Project → **Add Connector** → **Linear**
+2. 点击 **Connect with Linear**，完成 OAuth 授权
+
+### Step 2: 选择同步范围
+
+| 配置项 | 说明 |
+|--------|------|
+| **Team** | 选择要同步哪个团队的 Issue |
+| **状态过滤** | 只同步特定状态（如 `in_progress`, `todo`） |
+| **时间范围** | 只同步最近更新的 Issue |
+
+### Step 3: 启动同步
+
+点击 **Start Sync**。Linear 同步目前为手动触发，完成后数据立即可用。
+
+---
+
+## Agent 使用示例
+
+```
+用户：有哪些 urgent 的 bug 还没处理？
+
+Agent：[调用 query_data，过滤 priority=urgent AND status!=done]
+      找到 3 个紧急未处理的 Bug：
+      1. ENG-123 - 登录页面闪烁（Alice Chen，截止 3/1）
+      2. ENG-156 - iOS 崩溃问题（未分配，截止 2/28）
+      3. ENG-171 - 支付超时（Bob Wang，截止 3/5）
+```
+
+---
+
+## 注意事项
+
+- Linear 同步目前只支持 **Pull 方向**，Agent 无法直接通过 puppyone 修改 Linear Issue
+- 每次同步为全量拉取，数据量较大时可能需要几分钟

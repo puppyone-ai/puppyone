@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/X-@puppyone-000000?style=flat&logo=x&logoColor=white" alt="X (Twitter)" height="22" />
 </a>
 &nbsp;
-<a href="https://discord.gg/eRjwqZpjBT" target="_blank">
+<a href="https://discord.gg/zwJ9Y3Uvpd" target="_blank">
   <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat&logo=discord&logoColor=white" alt="Discord" height="22" />
 </a>
 

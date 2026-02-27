@@ -1,0 +1,82 @@
+# Gmail
+
+将 Gmail 邮件同步到 Context File System，让 Agent 可以查询和分析你的邮件数据。
+
+| 属性 | 说明 |
+|------|------|
+| **方向** | Pull（Gmail → puppyone） |
+| **触发方式** | 定时拉取 |
+| **认证** | Google OAuth |
+| **输出格式** | JSON |
+
+---
+
+## 数据结构
+
+Gmail 邮件同步后，存储为单个 JSON 节点，包含所有邮件的结构化数据：
+
+```json
+{
+  "emails": [
+    {
+      "id": "18b2c3d4e5f6",
+      "subject": "Q4 产品规划会议",
+      "from": "alice@example.com",
+      "to": ["bob@example.com"],
+      "date": "2026-02-20T10:30:00Z",
+      "snippet": "下周三开会，议题如下...",
+      "body": "...",
+      "labels": ["INBOX", "IMPORTANT"],
+      "thread_id": "18b2c3d4e5f6"
+    }
+  ],
+  "total": 150,
+  "synced_at": "2026-02-26T08:00:00Z"
+}
+```
+
+---
+
+## 配置步骤
+
+### Step 1: 授权 Google 账号
+
+1. 进入 Project → **Add Connector** → **Gmail**
+2. 点击 **Connect with Google**，完成 OAuth 授权
+3. 授权完成后返回 puppyone
+
+### Step 2: 配置同步范围
+
+| 配置项 | 说明 | 示例 |
+|--------|------|------|
+| **标签过滤** | 只同步特定标签的邮件 | `INBOX`, `IMPORTANT` |
+| **时间范围** | 从哪个日期开始同步 | 最近 90 天 |
+| **最大数量** | 单次同步的邮件上限 | 500 封 |
+
+### Step 3: 启动同步
+
+点击 **Start Sync**，首次同步会拉取历史邮件，后续定时增量更新。
+
+---
+
+## Agent 使用示例
+
+同步完成后，Agent 可以通过 MCP 查询邮件数据：
+
+```
+用户：找出上周所有来自 @acme.com 的邮件，总结一下主要内容
+
+Agent：[调用 query_data]
+      找到 8 封来自 acme.com 的邮件：
+      1. "合作提案" - 2026-02-20, Alice Chen
+      2. "报价确认" - 2026-02-21, Bob Wang
+      ...
+```
+
+---
+
+## 注意事项
+
+- Gmail 同步仅拉取邮件元数据和正文，**不包含附件**
+- 邮件正文会自动去除 HTML 标签，转为纯文本
+- 定时同步间隔默认为 1 小时，可在设置中调整

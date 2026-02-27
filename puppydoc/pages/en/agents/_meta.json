@@ -1,0 +1,9 @@
+{
+  "index": "Overview",
+  "claude-code": "Claude Code",
+  "openclaw": "OpenClaw",
+  "cursor": "Cursor",
+  "claude-desktop": "Claude Desktop",
+  "sandbox": "Sandbox",
+  "rest-api": "Custom Agent"
+}

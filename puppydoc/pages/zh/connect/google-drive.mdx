@@ -1,0 +1,70 @@
+# Google Drive
+
+将 Google Drive 中的文件同步到 Context File System。
+
+| 属性 | 说明 |
+|------|------|
+| **方向** | Pull（Google Drive → puppyone） |
+| **触发方式** | 手动 / 定时 |
+| **认证** | Google OAuth |
+| **输出格式** | Markdown / JSON |
+
+---
+
+## 支持的文件类型
+
+| 文件类型 | 转换结果 |
+|----------|----------|
+| Google Docs | Markdown |
+| Google Sheets | CSV → JSON |
+| Google Slides | 纯文本 |
+| PDF | Markdown（OCR 解析） |
+| Word (.docx) | Markdown |
+| Markdown (.md) | Markdown |
+| CSV | JSON |
+| 纯文本 (.txt) | Markdown |
+
+---
+
+## 配置步骤
+
+### Step 1: 授权 Google 账号
+
+1. 进入 Project → **Add Connector** → **Google Drive**
+2. 点击 **Connect with Google**，完成 OAuth 授权
+3. 授权时请确保勾选 Google Drive 的读取权限
+
+### Step 2: 选择同步范围
+
+| 配置项 | 说明 |
+|--------|------|
+| **文件夹路径** | 指定同步哪个 Drive 文件夹（默认全部） |
+| **文件类型过滤** | 只同步特定类型的文件 |
+| **递归深度** | 是否同步子文件夹 |
+
+### Step 3: 启动同步
+
+点击 **Start Sync**。文件会被下载并转换为 Markdown 或 JSON，存储在你的 Project 中，保持原有的文件夹层级结构。
+
+---
+
+## 数据结构示例
+
+Google Drive 中的文件夹结构会映射为 puppyone 的节点树：
+
+```
+Drive/
+├── 产品文档/
+│   ├── PRD-v1.docx       → Markdown
+│   └── roadmap.gsheet    → JSON
+└── 会议记录/
+    └── 2026-02.gdoc      → Markdown
+```
+
+---
+
+## 注意事项
+
+- Google Drive 同步需要授权 **Drive 只读权限**，puppyone 不会修改你的 Drive 文件
+- 超过 50MB 的文件会跳过，并记录在同步日志中
+- Google Slides 目前转换为纯文本，不保留格式

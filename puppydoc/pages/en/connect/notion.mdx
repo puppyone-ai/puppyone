@@ -1,0 +1,66 @@
+# Notion
+
+Sync Notion pages and databases into your Context File System.
+
+| | |
+|---|---|
+| **Direction** | Pull (Notion → PuppyOne) |
+| **Trigger** | Incremental sync |
+| **Auth** | Notion OAuth |
+| **Output** | Markdown / JSON |
+
+---
+
+## What Gets Synced
+
+| Notion Content | Output |
+|----------------|--------|
+| Pages | Markdown |
+| Databases | JSON (each row = one object) |
+| Nested pages | Markdown (hierarchy preserved) |
+
+---
+
+## Setup
+
+### Step 1: Authorize Notion
+
+1. Open your Project → **Add Connector** → **Notion**
+2. Click **Connect with Notion**
+3. In the Notion popup, select the pages and databases PuppyOne should access
+4. Click **Allow access**
+
+### Step 2: Select Resources
+
+After authorization, choose which pages or databases to sync.
+
+### Step 3: Start Sync
+
+Click **Start Sync**. The first sync is a full pull; subsequent syncs are incremental — only changed content is updated.
+
+---
+
+## Data Structure Example
+
+A Notion database with product rows becomes:
+
+```json
+[
+  {
+    "id": "abc123",
+    "Name": "Widget Pro",
+    "Price": 99.99,
+    "Status": "Active",
+    "Category": "Electronics",
+    "last_edited_time": "2026-02-20T10:00:00Z"
+  }
+]
+```
+
+---
+
+## Notes
+
+- Notion OAuth requires you to explicitly share pages with PuppyOne — content you don't share is never accessed
+- Files and images inside Notion pages are not synced
+- Database relations are not followed — each database is synced independently

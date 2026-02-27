@@ -2,12 +2,13 @@
   "index": "概览",
   "notion": "Notion",
   "github": "GitHub",
-  "airtable": "Airtable",
+  "gmail": "Gmail",
+  "google-drive": "Google Drive",
+  "google-docs": "Google Docs",
   "google-sheets": "Google Sheets",
+  "google-calendar": "Google Calendar",
+  "linear": "Linear",
+  "airtable": "Airtable",
   "files": "文件上传",
   "urls": "网页爬取"
 }
-
-
-
-

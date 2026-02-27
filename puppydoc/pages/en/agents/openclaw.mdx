@@ -1,0 +1,91 @@
+# OpenClaw
+
+Sync a PuppyOne cloud folder to your local machine in real time, so agents like Claude Code can work with files directly.
+
+**Connection method: File sync (bidirectional, real-time)**
+
+---
+
+## Setup
+
+### Step 1: Create an OpenClaw Agent in the Dashboard
+
+1. Open your Project → click **New Agent** in the sidebar
+2. Select type **OpenClaw**
+3. In the **Workspace folder** area, drag a **folder** from the left file tree (folders only, max 1)
+4. Click **Save**
+
+The Agent panel will show **"Waiting for CLI"** — waiting for the local CLI to connect.
+
+---
+
+### Step 2: Install the puppyone CLI
+
+```bash
+npm install -g puppyone
+```
+
+---
+
+### Step 3: Run the sync command
+
+In the Agent panel, click **Connect** to open the setup dialog. Copy the generated command:
+
+```bash
+puppyone access up \
+  --key cli_xxxxxxxx \
+  -u https://api.puppyone.ai \
+  --path /Users/yourname/.openclaw/workspace
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `--key` | Access Key (generated in Dashboard, format `cli_xxx`) |
+| `-u` | PuppyOne API URL |
+| `--path` | Local folder path to sync (created automatically if it doesn't exist) |
+
+The CLI daemon starts in the background — you can close the terminal.
+
+---
+
+### Step 4: Confirm connection
+
+Back in the Dashboard, the Agent panel status changes to **"Sync active"** (green) — sync is live.
+
+```
+OpenClaw ◄──────────────────────────────────► PuppyOne
+Local folder          2-way real-time sync       Cloud folder
+```
+
+---
+
+## Using with Claude Code
+
+Once sync is running, point Claude Code at the local folder:
+
+```
+My context files are in ~/.openclaw/workspace.
+Please read the docs there and help me...
+```
+
+Any changes to local files sync automatically to PuppyOne cloud. New data in the cloud (external source updates, another agent's writes) syncs automatically to local.
+
+---
+
+## Status Reference
+
+| Status | Meaning |
+|--------|---------|
+| **Waiting for CLI** | CLI not yet running, waiting to connect |
+| **Sync active** | Daemon online, sync working |
+| **Daemon offline** | Was connected before, but daemon has stopped |
+
+If status shows Daemon offline, re-run the `puppyone access up` command to reconnect.
+
+---
+
+## Notes
+
+- Each OpenClaw Agent can only bind to one folder
+- Access Keys are folder-scoped — create separate Agents for different folders
+- Supported file types: all text files (Markdown, JSON, code); binary files are currently pull-only

@@ -5,18 +5,24 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "screenshots": "node scripts/screenshots.js",
+    "save-session": "node scripts/save-session.mjs",
+    "test:playwright": "node scripts/test-playwright.mjs",
+    "test:stagehand": "node scripts/test-stagehand.mjs"
   },
   "dependencies": {
+    "@browserbasehq/stagehand": "^3.1.0",
     "next": "^14.1.0",
     "nextra": "^2.13.2",
     "nextra-theme-docs": "^2.13.2",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/node": "20.11.19",
     "typescript": "5.3.3"
   }
 }
-

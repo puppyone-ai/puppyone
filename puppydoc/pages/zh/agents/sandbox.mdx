@@ -1,0 +1,126 @@
+# 沙盒
+
+把 Context File System 挂载进隔离的沙盒环境，让 Agent 安全地执行代码和处理数据。
+
+**接入方式：挂载执行（E2B 云沙盒 / Docker）**
+
+---
+
+## 什么是沙盒分发
+
+puppyone 沙盒会创建一个临时的隔离环境，把你的 Context 文件挂载进去：
+
+```
+puppyone 云端                       沙盒环境（隔离）
+┌─────────────────────┐             ┌─────────────────────┐
+│  Context File System │  ──挂载──►  │  /workspace/        │
+│  /products.json      │             │  /products.json     │
+│  /docs/              │             │  /docs/             │
+└─────────────────────┘             └──────────┬──────────┘
+                                               │
+                                    Agent 在沙盒里
+                                    用 Bash + Python
+                                    自由操作文件
+                                    执行完毕后销毁
+```
+
+- Agent 在沙盒里自由执行代码，完全隔离，不影响真实环境
+- 支持 **只读模式**（Agent 只能读，改动不写回）
+- 支持 **读写模式**（Agent 的改动写回 puppyone）
+- 会话结束后沙盒自动销毁
+
+---
+
+## 两种沙盒后端
+
+| 类型 | 说明 | 适用场景 |
+|------|------|----------|
+| **E2B 云沙盒** | Firecracker 微虚拟机，毫秒级冷启动 | 云端部署、高并发 |
+| **Docker 本地沙盒** | 本地 Docker 容器 | 自托管、开发调试 |
+
+puppyone 根据配置自动选择：有 `E2B_API_KEY` 时用 E2B，否则用 Docker。
+
+---
+
+## 使用方式
+
+### 通过 puppyone Dashboard
+
+1. 打开 Project → 选择一个节点或整个文件夹
+2. 点击 **Open in Sandbox**
+3. 选择沙盒模式（只读 / 读写）
+4. 沙盒启动后，可以在内置终端里直接操作
+
+### 通过 API 启动沙盒会话
+
+```bash
+# 启动沙盒，加载指定 Table 的数据
+POST /api/v1/sandbox/start
+{
+  "table_id": "your-table-id",
+  "readonly": false
+}
+
+# 在沙盒里执行命令
+POST /api/v1/sandbox/{session_id}/exec
+{
+  "command": "jq '.products[] | select(.price < 100)' /workspace/data.json"
+}
+
+# 读取执行结果
+GET /api/v1/sandbox/{session_id}/result
+
+# 销毁沙盒
+DELETE /api/v1/sandbox/{session_id}
+```
+
+---
+
+## 典型使用场景
+
+### 数据处理 Agent
+
+```bash
+# Agent 在沙盒里用 Python 处理数据
+python3 - <<EOF
+import json
+
+with open('/workspace/products.json') as f:
+    products = json.load(f)
+
+# 计算每个分类的平均价格
+from collections import defaultdict
+category_prices = defaultdict(list)
+for p in products:
+    category_prices[p['category']].append(p['price'])
+
+result = {k: sum(v)/len(v) for k, v in category_prices.items()}
+print(json.dumps(result, indent=2))
+EOF
+```
+
+### jq 查询
+
+```bash
+# 快速查询 JSON 数据
+jq '.issues[] | select(.priority == "urgent" and .status != "done")' \
+  /workspace/linear-issues.json
+```
+
+### 文件批量处理
+
+```bash
+# 遍历所有 Markdown 文件，统计字数
+for f in /workspace/docs/*.md; do
+  echo "$f: $(wc -w < $f) words"
+done
+```
+
+---
+
+## 注意事项
+
+- 沙盒环境预装了 `bash`、`python3`、`jq`、`node` 等常用工具
+- E2B 沙盒有执行时间上限（默认 5 分钟），超时自动销毁
+- 只读模式下，任何写操作都会报错，不影响真实数据
+- 读写模式下，沙盒内对 `/workspace` 的改动会在会话结束时同步回 puppyone
