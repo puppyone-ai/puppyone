@@ -18,7 +18,7 @@ Server-side sync:
 """
 
 from typing import Optional, Any
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from pydantic import BaseModel
 
 from src.auth.dependencies import get_current_user
@@ -26,6 +26,8 @@ from src.auth.models import CurrentUser
 from src.sync.service import SyncService
 from src.sync.dependencies import get_sync_service
 from src.common_schemas import ApiResponse
+from src.project.dependencies import get_project_service
+from src.project.service import ProjectService
 
 
 router = APIRouter(prefix="/sync", tags=["sync"])
@@ -142,6 +144,40 @@ class AckPullRequest(BaseModel):
 
 
 # ============================================================
+# Auth helpers
+# ============================================================
+
+def _ensure_project_access(
+    project_service: ProjectService,
+    current_user: CurrentUser,
+    project_id: str,
+) -> None:
+    if not project_service.verify_project_access(project_id, current_user.user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No access to this project",
+        )
+
+
+def _get_sync_with_access(
+    *,
+    sync_id: str,
+    sync_svc: SyncService,
+    project_service: ProjectService,
+    current_user: CurrentUser,
+):
+    sync = sync_svc.sync_repo.get_by_id(sync_id)
+    if not sync:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sync #{sync_id} not found",
+        )
+
+    _ensure_project_access(project_service, current_user, sync.project_id)
+    return sync
+
+
+# ============================================================
 # Project-level sync status (for frontend global panel)
 # ============================================================
 
@@ -149,6 +185,7 @@ class AckPullRequest(BaseModel):
 async def get_project_sync_status(
     project_id: str = Query(..., description="Project ID"),
     sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
@@ -159,13 +196,15 @@ async def get_project_sync_status(
     from src.sync.task.repository import ImportTaskRepository
     from src.supabase.client import SupabaseClient
 
+    _ensure_project_access(project_service, current_user, project_id)
+
     syncs = sync_svc.sync_repo.list_by_project(project_id)
 
     node_ids = [s.node_id for s in syncs if s.node_id]
     node_info: dict[str, dict] = {}
     if node_ids:
-        node_repo = ContentNodeRepository(SupabaseClient())
         try:
+            node_repo = ContentNodeRepository(SupabaseClient())
             resp = (
                 node_repo.client.table("content_nodes")
                 .select("id, name, type")
@@ -231,14 +270,21 @@ def list_syncs(
     project_id: Optional[str] = Query(None),
     provider: Optional[str] = Query(None),
     sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    if project_id and provider:
+    if not project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="project_id is required",
+        )
+
+    _ensure_project_access(project_service, current_user, project_id)
+
+    if provider:
         syncs = sync_svc.sync_repo.list_by_provider(project_id, provider)
-    elif project_id:
-        syncs = sync_svc.sync_repo.list_by_project(project_id)
     else:
-        syncs = sync_svc.sync_repo.list_active(provider)
+        syncs = sync_svc.sync_repo.list_by_project(project_id)
     return ApiResponse.success(data=[_sync_resp(s) for s in syncs])
 
 
@@ -246,8 +292,15 @@ def list_syncs(
 def delete_sync(
     sync_id: str,
     sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    _get_sync_with_access(
+        sync_id=sync_id,
+        sync_svc=sync_svc,
+        project_service=project_service,
+        current_user=current_user,
+    )
     _notify_folder_source("stop", sync_id)
     sync_svc.remove_sync(sync_id)
     return ApiResponse.success(message="Sync deleted")
@@ -257,8 +310,15 @@ def delete_sync(
 def pause_sync(
     sync_id: str,
     sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    _get_sync_with_access(
+        sync_id=sync_id,
+        sync_svc=sync_svc,
+        project_service=project_service,
+        current_user=current_user,
+    )
     _notify_folder_source("stop", sync_id)
     sync_svc.pause_sync(sync_id)
     return ApiResponse.success(message="Sync paused")
@@ -268,8 +328,15 @@ def pause_sync(
 def resume_sync(
     sync_id: str,
     sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    _get_sync_with_access(
+        sync_id=sync_id,
+        sync_svc=sync_svc,
+        project_service=project_service,
+        current_user=current_user,
+    )
     sync_svc.resume_sync(sync_id)
     _notify_folder_source("start", sync_id)
     return ApiResponse.success(message="Sync resumed")
@@ -280,9 +347,12 @@ def bootstrap_openclaw(
     project_id: str = Query(...),
     node_id: str = Query(...),
     sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Create an OpenClaw sync endpoint for a folder. Returns sync with access_key."""
+    _ensure_project_access(project_service, current_user, project_id)
+
     from src.sync.connectors.openclaw.lifecycle import OpenClawService
     from src.supabase.client import SupabaseClient
     svc = OpenClawService(
@@ -302,12 +372,15 @@ def bootstrap_openclaw(
 def get_openclaw_status_by_sync(
     sync_id: str,
     sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """OpenClaw CLI connection status for a sync endpoint (frontend polling)."""
     sync = sync_svc.sync_repo.get_by_id(sync_id)
     if not sync or sync.provider != "openclaw":
         return ApiResponse.success(data={"connected": False})
+
+    _ensure_project_access(project_service, current_user, sync.project_id)
 
     from src.sync.connectors.openclaw.lifecycle import OpenClawService
     from src.supabase.client import SupabaseClient
@@ -323,8 +396,11 @@ def get_openclaw_status_by_sync(
 async def bootstrap(
     body: BootstrapRequest,
     sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    _ensure_project_access(project_service, current_user, body.project_id)
+
     syncs = await sync_svc.bootstrap(
         project_id=body.project_id,
         provider=body.provider,
@@ -544,6 +620,78 @@ async def trigger_push(
         node_type=node_type,
     )
     return ApiResponse.success(data=PushResponse(pushed=len(results), results=results))
+
+
+# ============================================================
+# Sync Changelog (frontend query)
+# ============================================================
+
+class ChangelogItem(BaseModel):
+    id: int
+    project_id: str
+    node_id: str
+    action: str
+    node_type: Optional[str] = None
+    version: int = 0
+    hash: Optional[str] = None
+    size_bytes: int = 0
+    folder_id: Optional[str] = None
+    filename: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ChangelogResponse(BaseModel):
+    entries: list[ChangelogItem]
+    cursor: int
+    has_more: bool
+
+
+@router.get("/changelog", response_model=ApiResponse[ChangelogResponse])
+def get_sync_changelog(
+    project_id: str = Query(..., description="Project ID"),
+    cursor: int = Query(0, ge=0, description="Cursor for pagination"),
+    limit: int = Query(100, ge=1, le=500),
+    sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """查询项目的同步变更日志（sync_changelog），供前端展示同步事件。"""
+    _ensure_project_access(project_service, current_user, project_id)
+
+    from src.sync.changelog import SyncChangelogRepository
+    from src.supabase.client import SupabaseClient
+
+    changelog_repo = SyncChangelogRepository(SupabaseClient())
+    entries = changelog_repo.list_since(project_id, cursor=cursor, limit=limit + 1)
+
+    has_more = len(entries) > limit
+    if has_more:
+        entries = entries[:limit]
+
+    new_cursor = entries[-1].id if entries else cursor
+
+    items = [
+        ChangelogItem(
+            id=e.id,
+            project_id=e.project_id,
+            node_id=e.node_id,
+            action=e.action,
+            node_type=e.node_type,
+            version=e.version,
+            hash=e.hash,
+            size_bytes=e.size_bytes,
+            folder_id=e.folder_id,
+            filename=e.filename,
+            created_at=e.created_at,
+        )
+        for e in entries
+    ]
+
+    return ApiResponse.success(data=ChangelogResponse(
+        entries=items,
+        cursor=new_cursor,
+        has_more=has_more,
+    ))
 
 
 # ============================================================

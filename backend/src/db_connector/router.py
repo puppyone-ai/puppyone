@@ -65,8 +65,8 @@ async def create_connection(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Connection failed: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Connection failed")
 
 
 @router.get(
@@ -147,8 +147,8 @@ async def preview_table(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Preview failed: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Preview failed")
 
 
 # === 保存 ===
@@ -182,5 +182,5 @@ async def save_table(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Save failed: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Save failed")

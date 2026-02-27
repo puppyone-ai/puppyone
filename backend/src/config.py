@@ -216,5 +216,10 @@ class Settings(BaseSettings):
     # - 仅用于异步 indexing 的 wait_for 超时控制，避免后台任务无限挂起
     SEARCH_INDEX_TIMEOUT_SECONDS: int = 120
 
+    # DB Connector 敏感配置加密（AES-256-GCM）
+    # 32-byte key 的 base64 编码字符串
+    DB_CONNECTOR_ENCRYPTION_KEY: str = ""
+    DB_CONNECTOR_ENCRYPTION_KID: str = "k1"
+
 
 settings = Settings()

@@ -1,6 +1,6 @@
-[ ]系统性的 puppyone 和 openclaw 连通的测试
-    [ ] 在本地改动 -> 同步到puppyone云端
-    [ ] 在puppyone改动 -> 同步到openclaw的文件夹
+[x]系统性的 puppyone 和 openclaw 连通的测试
+    [x] 在本地改动 -> 同步到puppyone云端
+    [x] 在puppyone改动 -> 同步到openclaw的文件夹
     [ ] 云端的log记录和恢复
 
 [ ]各个信息源的同步 trigger

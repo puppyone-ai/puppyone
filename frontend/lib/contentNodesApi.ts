@@ -355,6 +355,174 @@ export async function getDownloadUrl(
   return apiRequest<DownloadUrlResponse>(`/api/v1/nodes/${nodeId}/download?${params.toString()}`);
 }
 
+// === Version History API ===
+
+export interface FileVersionInfo {
+  id: number;
+  version: number;
+  content_hash: string;
+  size_bytes: number;
+  snapshot_id: number | null;
+  operator_type: string;
+  operator_id: string | null;
+  operation: string;
+  merge_strategy: string | null;
+  summary: string | null;
+  created_at: string | null;
+}
+
+export interface FileVersionDetail extends FileVersionInfo {
+  node_id: string;
+  content_json: any | null;
+  content_text: string | null;
+  s3_key: string | null;
+  s3_download_url: string | null;
+}
+
+export interface VersionHistoryResponse {
+  node_id: string;
+  node_name: string;
+  current_version: number;
+  versions: FileVersionInfo[];
+  total: number;
+}
+
+export interface DiffItem {
+  path: string;
+  old_value: any | null;
+  new_value: any | null;
+  change_type: string;
+}
+
+export interface DiffResponse {
+  node_id: string;
+  v1: number;
+  v2: number;
+  changes: DiffItem[];
+}
+
+export interface RollbackResponse {
+  node_id: string;
+  new_version: number;
+  rolled_back_to: number;
+}
+
+export async function getVersionHistory(
+  nodeId: string,
+  projectId: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<VersionHistoryResponse> {
+  const params = new URLSearchParams({
+    project_id: projectId,
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return apiRequest<VersionHistoryResponse>(`/api/v1/nodes/${nodeId}/versions?${params}`);
+}
+
+export async function getVersionContent(
+  nodeId: string,
+  version: number,
+  projectId: string
+): Promise<FileVersionDetail> {
+  const params = new URLSearchParams({ project_id: projectId });
+  return apiRequest<FileVersionDetail>(`/api/v1/nodes/${nodeId}/versions/${version}?${params}`);
+}
+
+export async function rollbackToVersion(
+  nodeId: string,
+  version: number,
+  projectId: string
+): Promise<RollbackResponse> {
+  const params = new URLSearchParams({ project_id: projectId });
+  return apiRequest<RollbackResponse>(`/api/v1/nodes/${nodeId}/rollback/${version}?${params}`, {
+    method: 'POST',
+  });
+}
+
+export async function diffVersions(
+  nodeId: string,
+  v1: number,
+  v2: number,
+  projectId: string
+): Promise<DiffResponse> {
+  const params = new URLSearchParams({ project_id: projectId });
+  return apiRequest<DiffResponse>(`/api/v1/nodes/${nodeId}/diff/${v1}/${v2}?${params}`);
+}
+
+// === Audit Logs API ===
+
+export interface AuditLogItem {
+  id: number;
+  action: string;
+  node_id: string;
+  old_version: number | null;
+  new_version: number | null;
+  operator_type: string;
+  operator_id: string | null;
+  status: string | null;
+  strategy: string | null;
+  conflict_details: string | null;
+  metadata: Record<string, any> | null;
+  created_at: string | null;
+}
+
+export interface AuditLogListResponse {
+  node_id: string;
+  logs: AuditLogItem[];
+  total: number;
+}
+
+export async function getNodeAuditLogs(
+  nodeId: string,
+  projectId: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<AuditLogListResponse> {
+  const params = new URLSearchParams({
+    project_id: projectId,
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return apiRequest<AuditLogListResponse>(`/api/v1/nodes/${nodeId}/audit-logs?${params}`);
+}
+
+// === Sync Changelog API ===
+
+export interface SyncChangelogItem {
+  id: number;
+  project_id: string;
+  node_id: string;
+  action: string;
+  node_type: string | null;
+  version: number;
+  hash: string | null;
+  size_bytes: number;
+  folder_id: string | null;
+  filename: string | null;
+  created_at: string | null;
+}
+
+export interface SyncChangelogResponse {
+  entries: SyncChangelogItem[];
+  cursor: number;
+  has_more: boolean;
+}
+
+export async function getSyncChangelog(
+  projectId: string,
+  cursor: number = 0,
+  limit: number = 100
+): Promise<SyncChangelogResponse> {
+  const params = new URLSearchParams({
+    project_id: projectId,
+    cursor: String(cursor),
+    limit: String(limit),
+  });
+  return apiRequest<SyncChangelogResponse>(`/api/v1/sync/changelog?${params}`);
+}
+
 // === 批量创建 API ===
 
 export interface BulkCreateNodeItem {

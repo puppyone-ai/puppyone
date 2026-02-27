@@ -78,6 +78,9 @@ import { CreateMenu } from '../../../[[...slug]]/components/finder';
 // Agent Context
 import { useAgent } from '@/contexts/AgentContext';
 
+// Version History
+import { VersionHistoryPanel } from '@/components/editors/VersionHistoryPanel';
+
 // Tool Creation
 import { NodeAccessPanel } from '@/components/NodeAccessPanel';
 
@@ -103,7 +106,7 @@ async function getCachedNode(nodeId: string, projectId: string) {
 }
 
 // Panel content types
-type RightPanelContent = 'NONE' | 'EDITOR';
+type RightPanelContent = 'NONE' | 'EDITOR' | 'VERSION_HISTORY';
 
 interface EditorTarget {
   path: string;
@@ -1407,69 +1410,110 @@ export default function DataPage({ params }: DataPageProps) {
             </button>
           </div>
 
-          {/* Editor View Toggle - Bottom Right (only when viewing JSON content) */}
-          {isEditorView && getNodeTypeConfig(activeNodeType).renderAs !== 'markdown' && (
+          {/* Editor Controls - Bottom Right */}
+          {isEditorView && (
           <div
             style={{
               position: 'absolute',
               bottom: 12,
               right: 12,
               display: 'flex',
-              background: '#1a1a1a',
-              borderRadius: 6,
-              padding: 2,
-              gap: 1,
-              border: '1px solid #2a2a2a',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              gap: 6,
               zIndex: 20,
             }}
           >
+            {/* History Button */}
             <button
-              onClick={() => setEditorType('table')}
+              onClick={() => {
+                if (rightPanelContent === 'VERSION_HISTORY') {
+                  setRightPanelContent('NONE');
+                } else {
+                  setRightPanelContent('VERSION_HISTORY');
+                }
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 width: 24,
                 height: 24,
-                borderRadius: 4,
-                border: 'none',
-                background: editorType === 'table' ? '#2a2a2a' : 'transparent',
-                color: editorType === 'table' ? '#fff' : '#737373',
+                borderRadius: 6,
+                border: '1px solid #2a2a2a',
+                background: rightPanelContent === 'VERSION_HISTORY' ? '#2a2a2a' : '#1a1a1a',
+                color: rightPanelContent === 'VERSION_HISTORY' ? '#fff' : '#737373',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
               }}
-              title="Table view"
+              title="Version History"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <line x1="3" y1="9" x2="21" y2="9" />
-                <line x1="3" y1="15" x2="21" y2="15" />
-                <line x1="9" y1="3" x2="9" y2="21" />
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
               </svg>
             </button>
-            <button
-              onClick={() => setEditorType('monaco')}
+
+            {/* Editor Type Toggle (JSON only) */}
+            {getNodeTypeConfig(activeNodeType).renderAs !== 'markdown' && (
+            <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 24,
-                height: 24,
-                borderRadius: 4,
-                border: 'none',
-                background: editorType === 'monaco' ? '#2a2a2a' : 'transparent',
-                color: editorType === 'monaco' ? '#fff' : '#737373',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                background: '#1a1a1a',
+                borderRadius: 6,
+                padding: 2,
+                gap: 1,
+                border: '1px solid #2a2a2a',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
               }}
-              title="Raw JSON"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M7 4C5.5 4 4 5 4 7s1.5 2.5 1.5 5S4 17 4 17c0 2 1.5 3 3 3" strokeLinecap="round" />
-                <path d="M17 4c1.5 0 3 1 3 3s-1.5 2.5-1.5 5 1.5 5 1.5 5c0 2-1.5 3-3 3" strokeLinecap="round" />
-              </svg>
-            </button>
+              <button
+                onClick={() => setEditorType('table')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 24,
+                  height: 24,
+                  borderRadius: 4,
+                  border: 'none',
+                  background: editorType === 'table' ? '#2a2a2a' : 'transparent',
+                  color: editorType === 'table' ? '#fff' : '#737373',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                title="Table view"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <line x1="3" y1="9" x2="21" y2="9" />
+                  <line x1="3" y1="15" x2="21" y2="15" />
+                  <line x1="9" y1="3" x2="9" y2="21" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setEditorType('monaco')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 24,
+                  height: 24,
+                  borderRadius: 4,
+                  border: 'none',
+                  background: editorType === 'monaco' ? '#2a2a2a' : 'transparent',
+                  color: editorType === 'monaco' ? '#fff' : '#737373',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                title="Raw JSON"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M7 4C5.5 4 4 5 4 7s1.5 2.5 1.5 5S4 17 4 17c0 2 1.5 3 3 3" strokeLinecap="round" />
+                  <path d="M17 4c1.5 0 3 1 3 3s-1.5 2.5-1.5 5 1.5 5 1.5 5c0 2-1.5 3-3 3" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            )}
           </div>
           )}
 
@@ -1491,6 +1535,17 @@ export default function DataPage({ params }: DataPageProps) {
                 }}
                 isFullScreen={isEditorFullScreen}
                 onToggleFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
+              />
+            )}
+            {rightPanelContent === 'VERSION_HISTORY' && activeNodeId && (
+              <VersionHistoryPanel
+                nodeId={activeNodeId}
+                projectId={projectId}
+                onClose={() => setRightPanelContent('NONE')}
+                onRollbackComplete={() => {
+                  refreshTable();
+                  refreshCurrentNodes();
+                }}
               />
             )}
           </ResizablePanel>

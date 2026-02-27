@@ -87,7 +87,8 @@ export function SetupDialog({
 
   if (!open) return null;
 
-  const upCmd = `puppyone access up --key ${accessKey} -u ${apiUrl} --path <${workspacePath}>`;
+  const escapedWorkspacePath = workspacePath.replace(/"/g, '\\"');
+  const upCmd = `puppyone access up --key ${accessKey} -u ${apiUrl} --path "${escapedWorkspacePath}"`;
 
   return (
     <div

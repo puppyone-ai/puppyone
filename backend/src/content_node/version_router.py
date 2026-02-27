@@ -38,7 +38,7 @@ def _ensure_project_access(
     project_service: ProjectService, current_user: CurrentUser, project_id: str
 ):
     """验证用户有权访问该项目"""
-    project = project_service.get_project(project_id)
+    project = project_service.get_by_id(project_id)
     if not project:
         from src.exceptions import NotFoundException, ErrorCode
         raise NotFoundException("Project not found", code=ErrorCode.NOT_FOUND)
