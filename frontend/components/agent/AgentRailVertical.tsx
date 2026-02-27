@@ -207,7 +207,7 @@ export function AgentRailVertical() {
                   selectAgent(agent.id);
                 } else {
                   // 点击当前 agent：toggle sidebar
-                  if (isDeployedMode) closeSidebar();
+                  if (sidebarMode === 'deployed') closeSidebar();
                   else selectAgent(agent.id); // 重新选择会打开 deployed 模式
                 }
               }}

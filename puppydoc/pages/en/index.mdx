@@ -1,70 +1,60 @@
-# PuppyOne
+# puppyone
 
-**The Single Source of Context for AI Agents.**
+**The Context File System for AI Agents.**
 
-> **Converge scattered knowledge. Empower every agent.**
+Sync your scattered data into a structured file system that agents can read and write directly.
+
+---
+
+## Everything is Sync
+
+puppyone has one core concept: **Synchronize**.
+
+Whether it's data being pulled from Notion, an agent reading and writing via MCP, or a local folder staying in sync via OpenClaw — it's all the same sync engine underneath. Just different directions and protocols.
 
 ```
-┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
-│  Notion  │  │  GitHub  │  │ Airtable │  │   Files  │
-└─────┬────┘  └─────┬────┘  └─────┬────┘  └─────┬────┘
-      │             │             │             │
-      └─────────────▼─────────────▼─────────────┘
-                    │
-            ╔═══════▼═══════╗
-            ║   PuppyOne    ║  ◄── Context Base
-            ║ (Index/Sync)  ║
-            ╚═══════▲═══════╝
-                    │
-      ┌─────────────┼─────────────┐
-      │             │             │
-  ┌───▼───┐     ┌───▼───┐     ┌───▼───┐
-  │  MCP  │     │  API  │     │Skills │
-  └───┬───┘     └───┬───┘     └───┬───┘
-      │             │             │
-┌─────▼────┐  ┌─────▼────┐  ┌─────▼────┐
-│Cursor/IDE│  │ Custom   │  │ Cloud    │
-│ Agent    │  │ Workflow │  │ Agent    │
-└──────────┘  └──────────┘  └──────────┘
+  Notion  GitHub  Gmail  Linear  Files
+     │       │       │      │      │
+     └───────┴───────┴──────┴──────┘
+                     │
+               ← Sync (Pull)
+                     │
+            ╔════════▼════════╗
+            ║    puppyone     ║   Context File System
+            ╚════════▲════════╝
+                     │
+               Sync (Read / Write) →
+                     │
+       ┌─────────────┼─────────────┐
+       │             │             │
+   OpenClaw         MCP         REST API
+   (↕ bidirectional) (r/w)       (r/w)
+       │             │             │
+  Local folder  Cursor / Claude  Custom Agent
 ```
 
----
-
-## What PuppyOne Does
-
-PuppyOne unifies your organization's scattered data into a **single, structured Context Base**, and serves it to any AI agent in real-time.
-
-### 1. Centralize Context (The "One" Base)
-Instead of connecting every agent to every data source individually, connect them all to PuppyOne.
-- **Connectors**: Notion, GitHub, Airtable, Google Sheets, Linear, Slack.
-- **Files**: PDF, DOCX, Markdown, Codebases.
-- **Structure**: Auto-ETL pipelines clean and organize raw data into structured JSON.
-
-### 2. Distribute Everywhere (The Interface)
-We provide the right interface for every type of agent:
-
-| Interface | Best For |
-|-----------|----------|
-| **MCP Server** | **Cursor, Claude Desktop**. Native integration, no code required. |
-| **REST API** | **Custom Agents (Python/Node)**. Full programmatic access. |
-| **Cloud Skills** | **ChatGPT, Coze**. Plug-and-play skills for hosted agents. |
-| **Sandbox** | **Safe Execution**. Let agents run code against your data securely. |
-
-### 3. Agent-Native Control
-- **Deterministic Indexing**: Agents need exact paths and structured queries, not just fuzzy vector search.
-- **Permission Scoping**: Give your Support Agent read-only access to `/docs`, but give your Dev Agent write access to `/code`.
+MCP and REST API are not a separate "distribution layer" — they are protocol wrappers on top of the sync result. OpenClaw is the most direct form: bidirectional sync between a local folder and puppyone, kept live.
 
 ---
 
-## Why You Need This
+## File Level Security (FLS)
 
-- **Eliminate Hallucinations**: Structured context beats vector soup for pricing, specs, and code.
-- **Unify Agent Memory**: When your Dev Agent updates a spec, your QA Agent sees it instantly.
-- **Security & Governance**: One place to manage what all your agents can see and do.
+**Permission control down to the file path.**
+
+Similar to Row Level Security (RLS) in databases, FLS lets you control exactly what each agent can see and do:
+
+- Customer Support Agent: read-only `/products` and `/faq`
+- Dev Agent: read/write on `/specs`, no delete
+- Sales Agent: can read pricing, cannot see `/internal`
+
+Paths an agent is not authorized to access **do not exist in its view** — physically removed from the file system it sees.
 
 ---
 
-## Quick Start
+import { Cards, Card } from 'nextra/components'
 
-- **[Cloud →](/en/quickstart/cloud)**
-- **[Self-Hosted →](/en/quickstart/self-hosted)**
+<Cards>
+  <Card title="Quick Start" href="/en/quickstart/cloud" />
+  <Card title="Sync Connectors" href="/en/connect" />
+  <Card title="Connect Agents" href="/en/agents" />
+</Cards>

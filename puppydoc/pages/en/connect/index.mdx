@@ -1,0 +1,67 @@
+# Sync Connectors
+
+Mount external data sources into your Context File System.
+
+---
+
+## What Is a Sync Connector
+
+A Sync Connector is not a one-time import. It's an ongoing **sync relationship** — each connector has a direction and trigger mode that keeps your Context File System up to date with the outside world.
+
+Once synced, all data is converted to structured JSON or Markdown files stored in your Project, ready for any agent to query.
+
+---
+
+## Supported Connectors
+
+| Connector | Direction | Trigger | Output Format |
+|-----------|-----------|---------|---------------|
+| [**Notion**](/en/connect/notion) | Pull | Incremental | Pages / DBs → Markdown / JSON |
+| [**GitHub**](/en/connect/github) | Pull | Incremental | Repos / Issues / PRs → JSON |
+| [**Gmail**](/en/connect/gmail) | Pull | Scheduled poll | Emails → JSON |
+| [**Google Drive**](/en/connect/google-drive) | Pull | Manual / Scheduled | Files → Markdown / JSON |
+| [**Google Docs**](/en/connect/google-docs) | Pull | Manual / Scheduled | Docs → Markdown |
+| [**Google Sheets**](/en/connect/google-sheets) | Pull | Manual / Scheduled | Sheets → JSON |
+| [**Google Calendar**](/en/connect/google-calendar) | Pull | Scheduled poll | Events → JSON |
+| [**Linear**](/en/connect/linear) | Pull | Manual | Issues / Projects → JSON |
+| [**Airtable**](/en/connect/airtable) | Pull | Full sync | Tables → JSON |
+| [**File Upload**](/en/connect/files) | Pull | One-time | PDF / DOCX / Images → Markdown |
+| [**Web Crawl**](/en/connect/urls) | Pull | One-time | Public URLs → Markdown |
+
+> **OpenClaw / Local Folder** supports **Bidirectional** sync — agent writes are synced back to the source. See OpenClaw integration.
+
+---
+
+## Sync Directions Explained
+
+**Pull (External → PuppyOne)**
+- Suitable for SaaS sources like Notion, GitHub, Gmail
+- Data is read into the file system and kept updated
+
+**Bidirectional (External ↔ PuppyOne)**
+- Suitable for local folders and OpenClaw
+- Changes agents make in PuppyOne sync back to the source
+
+---
+
+## How to Add a Connector
+
+1. Open your **Project** → click **Add Connector**
+2. Select a source and complete **OAuth authorization** (or paste an API key)
+3. Choose the resources to sync (pages, repositories, mailbox labels, etc.)
+4. Click **Start Sync** and wait for the first sync to complete
+
+Once done, data appears in your Project's file tree and is immediately accessible via MCP or API.
+
+---
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="Notion" href="/en/connect/notion" />
+  <Card title="GitHub" href="/en/connect/github" />
+  <Card title="Gmail" href="/en/connect/gmail" />
+  <Card title="Google Drive" href="/en/connect/google-drive" />
+  <Card title="Linear" href="/en/connect/linear" />
+  <Card title="File Upload" href="/en/connect/files" />
+</Cards>

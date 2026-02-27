@@ -1,0 +1,14 @@
+{
+  "index": "Overview",
+  "notion": "Notion",
+  "github": "GitHub",
+  "gmail": "Gmail",
+  "google-drive": "Google Drive",
+  "google-docs": "Google Docs",
+  "google-sheets": "Google Sheets",
+  "google-calendar": "Google Calendar",
+  "linear": "Linear",
+  "airtable": "Airtable",
+  "files": "File Upload",
+  "urls": "Web Crawl"
+}

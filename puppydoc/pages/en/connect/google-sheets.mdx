@@ -1,0 +1,53 @@
+# Google Sheets
+
+Sync Google Sheets spreadsheets into structured JSON.
+
+| | |
+|---|---|
+| **Direction** | Pull (Google Sheets → PuppyOne) |
+| **Trigger** | Manual / Scheduled |
+| **Auth** | Google OAuth |
+| **Output** | JSON |
+
+---
+
+## Data Structure
+
+Each sheet row becomes a JSON object, with column headers as keys:
+
+```json
+[
+  { "Product": "Widget Pro", "Price": 99.99, "Stock": 150, "Category": "Electronics" },
+  { "Product": "Widget Mini", "Price": 59.99, "Stock": 320, "Category": "Electronics" }
+]
+```
+
+---
+
+## Setup
+
+### Step 1: Authorize Google
+
+1. Open your Project → **Add Connector** → **Google Sheets**
+2. Click **Connect with Google** and authorize Sheets read access
+
+### Step 2: Select Spreadsheet
+
+Paste the Google Sheets URL or browse your Drive to select a spreadsheet.
+
+| Option | Description |
+|--------|-------------|
+| **Sheet tab** | Which tab(s) to sync (default: first tab) |
+| **Header row** | Which row contains column headers (default: row 1) |
+
+### Step 3: Start Sync
+
+Click **Start Sync**. Each row in the sheet becomes a queryable JSON object.
+
+---
+
+## Notes
+
+- Empty rows and columns are skipped
+- Merged cells are expanded to individual cells
+- Formula results are synced as values — formulas themselves are not stored

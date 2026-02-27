@@ -1,0 +1,76 @@
+# Google Calendar
+
+Sync Google Calendar events into structured JSON so agents can query your schedule.
+
+| | |
+|---|---|
+| **Direction** | Pull (Google Calendar → PuppyOne) |
+| **Trigger** | Scheduled poll |
+| **Auth** | Google OAuth |
+| **Output** | JSON |
+
+---
+
+## Data Structure
+
+```json
+{
+  "events": [
+    {
+      "id": "abc123",
+      "title": "Q1 OKR Review",
+      "start": "2026-03-01T10:00:00+08:00",
+      "end": "2026-03-01T11:00:00+08:00",
+      "location": "Conference Room A",
+      "attendees": [
+        { "email": "alice@example.com", "status": "accepted" },
+        { "email": "bob@example.com", "status": "tentative" }
+      ],
+      "description": "Quarterly OKR review meeting",
+      "calendar": "Work"
+    }
+  ],
+  "synced_at": "2026-02-26T08:00:00Z"
+}
+```
+
+---
+
+## Setup
+
+### Step 1: Authorize Google
+
+1. Open your Project → **Add Connector** → **Google Calendar**
+2. Click **Connect with Google** and complete OAuth
+
+### Step 2: Configure Sync Scope
+
+| Option | Description |
+|--------|-------------|
+| **Calendar selection** | Choose which calendars to sync (multi-select supported) |
+| **Time range** | Past N days + future N days |
+
+### Step 3: Start Sync
+
+Click **Start Sync** — events update automatically on the configured interval.
+
+---
+
+## Agent Usage Example
+
+```
+User: What meetings do I have this week? List attendees.
+
+Agent: [calls query_data]
+       5 meetings this week (Feb 23 - Mar 1):
+       - Mon 10:00  Product Weekly (4 people)
+       - Wed 14:00  Business meeting with Acme (3 people)
+       ...
+```
+
+---
+
+## Notes
+
+- Only syncs calendars you have read access to
+- Events marked as **Private** are not synced

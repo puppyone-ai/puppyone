@@ -1,0 +1,78 @@
+# Google Calendar
+
+将 Google Calendar 日历事件同步为结构化 JSON，让 Agent 可以查询日程信息。
+
+| 属性 | 说明 |
+|------|------|
+| **方向** | Pull（Google Calendar → puppyone） |
+| **触发方式** | 定时拉取 |
+| **认证** | Google OAuth |
+| **输出格式** | JSON |
+
+---
+
+## 数据结构
+
+日历事件同步后，存储为 JSON：
+
+```json
+{
+  "events": [
+    {
+      "id": "abc123",
+      "title": "Q1 OKR Review",
+      "start": "2026-03-01T10:00:00+08:00",
+      "end": "2026-03-01T11:00:00+08:00",
+      "location": "会议室 A",
+      "attendees": [
+        { "email": "alice@example.com", "status": "accepted" },
+        { "email": "bob@example.com", "status": "tentative" }
+      ],
+      "description": "本季度 OKR 回顾会议",
+      "calendar": "工作"
+    }
+  ],
+  "synced_at": "2026-02-26T08:00:00Z"
+}
+```
+
+---
+
+## 配置步骤
+
+### Step 1: 授权 Google 账号
+
+1. 进入 Project → **Add Connector** → **Google Calendar**
+2. 点击 **Connect with Google**，完成 OAuth 授权
+
+### Step 2: 配置同步范围
+
+| 配置项 | 说明 |
+|--------|------|
+| **日历选择** | 选择要同步哪个日历（支持多选） |
+| **时间范围** | 同步过去 N 天 + 未来 N 天的事件 |
+
+### Step 3: 启动同步
+
+点击 **Start Sync**，后续按配置的间隔自动更新。
+
+---
+
+## Agent 使用示例
+
+```
+用户：帮我看看本周有哪些会议，列出参会人
+
+Agent：[调用 query_data]
+      本周（2/23-3/1）共 5 个会议：
+      - 周一 10:00  产品周会（4人）
+      - 周三 14:00  与 Acme 的商务洽谈（3人）
+      ...
+```
+
+---
+
+## 注意事项
+
+- 只同步你有读取权限的日历
+- 私密事件（标记为 Private）不会被同步

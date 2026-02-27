@@ -1,8 +1,8 @@
 {
   "index": "Introduction",
   "quickstart": "Quick Start",
-  "concepts": "Concepts",
-  "guides": "Guides",
-  "api": "API Reference",
-  "self-hosting": "Self-Hosting"
+  "connect": "Sync Connectors",
+  "agents": "Connect Agents",
+  "access": "File Level Security",
+  "reference": "Reference"
 }

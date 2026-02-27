@@ -172,7 +172,7 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
   const { data: syncData, mutate } = useSWR<{ syncs: SyncDetail[] }>(
     projectId ? ['sync-status', projectId] : null,
     () => get<{ syncs: SyncDetail[] }>(`/api/v1/sync/status?project_id=${projectId}`),
-    { refreshInterval: 10000, revalidateOnFocus: true },
+    { revalidateOnFocus: true },
   );
 
   const sync = syncData?.syncs?.find(s => s.id === syncId);

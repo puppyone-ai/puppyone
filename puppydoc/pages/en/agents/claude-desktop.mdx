@@ -1,0 +1,90 @@
+# Claude Desktop
+
+Connect PuppyOne to Claude Desktop so Claude can query your data directly.
+
+**Connection method: MCP protocol**
+
+---
+
+## Prerequisites
+
+- Claude Desktop (latest version)
+- A PuppyOne account with at least one Project
+
+---
+
+## Setup
+
+### Step 1: Get Your MCP Config
+
+1. Log in to PuppyOne Dashboard
+2. Open your Project → **Connect Agent** → **Claude Desktop**
+3. Copy the generated config
+
+### Step 2: Edit Claude Desktop Config
+
+Open the Claude Desktop config file:
+
+**macOS:**
+```
+~/Library/Application Support/Claude/claude_desktop_config.json
+```
+
+**Windows:**
+```
+%APPDATA%\Claude\claude_desktop_config.json
+```
+
+Add the PuppyOne MCP server:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/YOUR_API_KEY"]
+    }
+  }
+}
+```
+
+### Step 3: Restart Claude Desktop
+
+Fully close and reopen Claude Desktop. The MCP tools will appear in the tool list.
+
+### Step 4: Verify
+
+Ask Claude:
+
+> "What tools do you have available from PuppyOne?"
+
+---
+
+## Multiple Projects
+
+```json
+{
+  "mcpServers": {
+    "product-catalog": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_products"]
+    },
+    "customer-data": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_customers"]
+    }
+  }
+}
+```
+
+---
+
+## Troubleshooting
+
+**Tools not showing in Claude**
+- Verify the config file is valid JSON
+- Make sure Claude Desktop was fully restarted
+- Check the API Key has not expired
+
+**Permission errors**
+- Verify the API Key has the required Tool permissions in [FLS settings](/en/access)

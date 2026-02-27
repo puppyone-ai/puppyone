@@ -1,0 +1,139 @@
+# Cursor
+
+Connect PuppyOne to Cursor IDE so the AI assistant can query your data.
+
+**Connection method: MCP protocol**
+
+---
+
+## Prerequisites
+
+- Cursor version 0.40+ (MCP support required)
+- A PuppyOne account with at least one Project
+
+---
+
+## Setup
+
+### Step 1: Get Your MCP Config
+
+1. Log in to PuppyOne Dashboard
+2. Open your Project
+3. Click **Connect Agent** → **Cursor**
+4. Copy the generated config
+
+```json
+{
+  "mcpServers": {
+    "puppyone-products": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+### Step 2: Add to Cursor
+
+**Option A — via UI**
+
+1. Open Cursor → `Cmd/Ctrl + ,` → Settings
+2. Search "MCP"
+3. Click **Edit in settings.json** and paste the config
+
+**Option B — direct file edit**
+
+Edit `~/.cursor/mcp.json` (create if it doesn't exist):
+
+```json
+{
+  "mcpServers": {
+    "puppyone-products": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+### Step 3: Restart Cursor
+
+Fully close and reopen Cursor.
+
+### Step 4: Verify
+
+Open Cursor AI Chat (`Cmd/Ctrl + L`) and ask:
+
+> "What data do you have access to?"
+
+The agent will call `get_data_schema` and describe your data.
+
+---
+
+## Multiple Projects
+
+Connect multiple Projects by adding multiple MCP server entries:
+
+```json
+{
+  "mcpServers": {
+    "products": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_products"]
+    },
+    "engineering-docs": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_docs"]
+    }
+  }
+}
+```
+
+---
+
+## Usage Examples
+
+### Query data
+
+```
+User: Show me products priced under $50
+
+AI: [calls query_data]
+    Found 3 products under $50:
+    1. Widget Mini - $29.99
+    2. Gadget Lite - $39.99
+    3. Basic Kit - $49.99
+```
+
+### Modify data (requires write permission)
+
+```
+User: Update Widget Pro price to $89.99
+
+AI: [calls update]
+    Done — Widget Pro price updated from $99.99 to $89.99
+```
+
+---
+
+## Troubleshooting
+
+**MCP not loading**
+- Check Cursor version is 0.40+
+- Verify JSON config syntax is valid
+- Make sure Cursor was fully restarted (not just a window close)
+
+**Connection timeout**
+- Check your internet connection
+- Verify the API Key is valid and active
+
+**Tool call failing**
+- Check the API Key has the required Tool permissions in [FLS settings](/en/access)
+
+---
+
+## Best Practices
+
+- Use descriptive server names (`customer-support-kb` not `mcp1`)
+- Create dedicated API Keys per client with minimum required permissions
+- Use separate Projects to isolate unrelated data

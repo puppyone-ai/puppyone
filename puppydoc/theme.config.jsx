@@ -1,7 +1,7 @@
 import { LanguageSwitcher } from './components/LanguageSwitcher'
 
 export default {
-  logo: <span style={{ fontWeight: 600 }}>PuppyOne</span>,
+  logo: <span style={{ fontWeight: 600 }}>puppyone</span>,
   
   project: {
     link: 'https://github.com/puppyone-ai/puppyone'

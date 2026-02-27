@@ -1,0 +1,120 @@
+# Sandbox
+
+Mount the Context File System into an isolated sandbox environment so agents can safely execute code and process data.
+
+**Connection method: Mounted execution (E2B cloud sandbox / Docker)**
+
+---
+
+## How It Works
+
+```
+PuppyOne Cloud                       Sandbox (isolated)
+┌─────────────────────┐              ┌─────────────────────┐
+│  Context File System │  ──mount──► │  /workspace/        │
+│  /products.json      │             │  /products.json     │
+│  /docs/              │             │  /docs/             │
+└─────────────────────┘             └──────────┬──────────┘
+                                               │
+                                    Agent runs Bash + Python
+                                    freely inside the sandbox.
+                                    Environment destroyed on exit.
+```
+
+- Agent executes code with full isolation — no risk to real data
+- **Read-only mode**: changes are blocked, data is safe
+- **Read-write mode**: agent writes are synced back to PuppyOne on session end
+- Sandbox is automatically destroyed when the session ends
+
+---
+
+## Two Sandbox Backends
+
+| Type | Description | Best For |
+|------|-------------|----------|
+| **E2B Cloud Sandbox** | Firecracker microVM, millisecond cold start | Cloud deployments, high concurrency |
+| **Docker Local Sandbox** | Local Docker container | Self-hosted, development |
+
+PuppyOne auto-selects: uses E2B when `E2B_API_KEY` is configured, falls back to Docker otherwise.
+
+---
+
+## Usage
+
+### From the Dashboard
+
+1. Open your Project → select a node or folder
+2. Click **Open in Sandbox**
+3. Choose mode (read-only / read-write)
+4. Use the built-in terminal to run commands
+
+### Via API
+
+```bash
+# Start a sandbox session with a table's data
+POST /api/v1/sandbox/start
+{
+  "table_id": "your-table-id",
+  "readonly": false
+}
+
+# Execute a command inside the sandbox
+POST /api/v1/sandbox/{session_id}/exec
+{
+  "command": "jq '.products[] | select(.price < 100)' /workspace/data.json"
+}
+
+# Get the result
+GET /api/v1/sandbox/{session_id}/result
+
+# Destroy the sandbox
+DELETE /api/v1/sandbox/{session_id}
+```
+
+---
+
+## Example Use Cases
+
+### Data processing with Python
+
+```bash
+python3 - <<EOF
+import json
+
+with open('/workspace/products.json') as f:
+    products = json.load(f)
+
+from collections import defaultdict
+category_prices = defaultdict(list)
+for p in products:
+    category_prices[p['category']].append(p['price'])
+
+result = {k: sum(v)/len(v) for k, v in category_prices.items()}
+print(json.dumps(result, indent=2))
+EOF
+```
+
+### Query JSON with jq
+
+```bash
+jq '.issues[] | select(.priority == "urgent" and .status != "done")' \
+  /workspace/linear-issues.json
+```
+
+### Batch file operations
+
+```bash
+# Count words across all Markdown docs
+for f in /workspace/docs/*.md; do
+  echo "$f: $(wc -w < $f) words"
+done
+```
+
+---
+
+## Notes
+
+- The sandbox comes pre-installed with `bash`, `python3`, `jq`, `node`, and common utilities
+- E2B sandbox sessions have a default timeout of 5 minutes — auto-destroyed on expiry
+- In read-only mode, any write attempt throws an error and does not affect real data
+- In read-write mode, changes to `/workspace` are synced back to PuppyOne when the session ends

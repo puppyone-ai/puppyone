@@ -1,0 +1,61 @@
+# File Upload
+
+Upload local files directly into your Context File System.
+
+| | |
+|---|---|
+| **Direction** | Pull (local → PuppyOne) |
+| **Trigger** | One-time import |
+| **Auth** | None |
+| **Output** | Markdown / JSON |
+
+---
+
+## Supported File Types
+
+| Type | Extensions | Processing |
+|------|------------|------------|
+| Documents | `.pdf`, `.docx`, `.doc` | Text extraction → Markdown |
+| Spreadsheets | `.xlsx`, `.csv` | Parsed → JSON |
+| Images | `.png`, `.jpg`, `.jpeg` | OCR → Markdown |
+| Markdown | `.md`, `.mdx` | Stored as-is |
+| Code | `.py`, `.ts`, `.js`, etc. | Stored as-is |
+| Plain text | `.txt` | Stored as-is |
+
+---
+
+## Processing Modes
+
+| Mode | When Used | Result |
+|------|-----------|--------|
+| `raw` | Plain text, code, Markdown | Stored directly, no transformation |
+| `ocr_parse` | PDFs, images, scanned docs | OCR + text extraction → Markdown |
+
+PuppyOne automatically selects the right mode based on file type.
+
+---
+
+## How to Upload
+
+1. Open your Project
+2. Click **Import** → **Upload Files**
+3. Drag and drop files, or click to browse
+4. Files are processed in the background — you'll be notified when done
+
+---
+
+## File Size Limits
+
+| Plan | Max File Size | Total Storage |
+|------|--------------|---------------|
+| Free | 10 MB | 100 MB |
+| Pro | 50 MB | 10 GB |
+| Team | 100 MB | Unlimited |
+
+---
+
+## Notes
+
+- File processing is asynchronous — large files may take a few minutes
+- PDFs with complex layouts (multi-column, tables) use OCR for best results
+- Password-protected files cannot be processed

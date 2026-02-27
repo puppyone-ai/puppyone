@@ -1,0 +1,49 @@
+# API Keys
+
+Manage API Keys for agent access to your Context File System.
+
+---
+
+## What Is an API Key
+
+Each API Key represents an **access identity** — an agent, a script, or a client that connects to PuppyOne. The key carries its own Tool permissions and path rules.
+
+---
+
+## Creating a Key
+
+1. Open your Project → **Access** tab
+2. Click **Create API Key**
+3. Give it a descriptive name (e.g. `cursor-dev-agent`, `support-bot`)
+4. Configure Tool permissions
+5. Optionally add path restrictions
+6. Click **Create** — copy the key immediately, it won't be shown again
+
+---
+
+## Managing Keys
+
+| Action | How |
+|--------|-----|
+| View all keys | Project → Access tab |
+| Edit permissions | Click the key → modify Tools or Paths |
+| Disable (without delete) | Toggle the key off |
+| Delete | Click delete — any agent using the key will lose access immediately |
+
+---
+
+## Security Best Practices
+
+- **One key per agent** — never share keys between different agents or use cases
+- **Minimum permissions** — only grant the Tools and Paths the agent actually needs
+- **Rotate keys periodically** — especially after team member changes
+- **Revoke immediately** if a key is compromised or a team member leaves
+- **Never commit keys to source control** — use environment variables instead
+
+```bash
+# Good
+export PUPPYONE_API_KEY="sk_live_xxx"
+
+# Bad — never do this
+git commit -m "add config" # with key hardcoded in file
+```

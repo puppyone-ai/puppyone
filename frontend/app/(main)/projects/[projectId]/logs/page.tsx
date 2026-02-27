@@ -301,7 +301,7 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
   const { data: syncData } = useSWR<ProjectSyncStatus>(
     projectId ? ['sync-status-logs', projectId] : null,
     () => get<ProjectSyncStatus>(`/api/v1/sync/status?project_id=${projectId}`),
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { revalidateOnFocus: true },
   );
 
   // UI State

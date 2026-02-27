@@ -265,7 +265,7 @@ async def search_tool(
         raise HTTPException(status_code=400, detail="tool.project_id is missing")
 
     # 根据节点类型选择搜索方式：
-    # - 如果 search_index_task 有 folder_node_id，说明是 folder search
+    # - 如果索引任务有 folder_node_id，说明是 folder search
     # - 否则是 scope (JSON) search
     try:
         from src.search.index_task_repository import SearchIndexTaskRepository

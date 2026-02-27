@@ -1,0 +1,69 @@
+# Google Drive
+
+Sync files from Google Drive into your Context File System.
+
+| | |
+|---|---|
+| **Direction** | Pull (Google Drive → PuppyOne) |
+| **Trigger** | Manual / Scheduled |
+| **Auth** | Google OAuth |
+| **Output** | Markdown / JSON |
+
+---
+
+## Supported File Types
+
+| File Type | Output |
+|-----------|--------|
+| Google Docs | Markdown |
+| Google Sheets | CSV → JSON |
+| Google Slides | Plain text |
+| PDF | Markdown (OCR) |
+| Word (.docx) | Markdown |
+| Markdown (.md) | Markdown |
+| CSV | JSON |
+| Plain text (.txt) | Markdown |
+
+---
+
+## Setup
+
+### Step 1: Authorize Google
+
+1. Open your Project → **Add Connector** → **Google Drive**
+2. Click **Connect with Google** and authorize Drive read access
+
+### Step 2: Select Sync Scope
+
+| Option | Description |
+|--------|-------------|
+| **Folder path** | Which Drive folder to sync (default: all) |
+| **File type filter** | Only sync specific file types |
+| **Recursive** | Include subfolders |
+
+### Step 3: Start Sync
+
+Files are downloaded, converted to Markdown or JSON, and stored in your Project — preserving the original folder hierarchy.
+
+---
+
+## Structure Example
+
+Google Drive folder structure maps to the PuppyOne file tree:
+
+```
+Drive/
+├── Product Docs/
+│   ├── PRD-v1.docx       → Markdown
+│   └── roadmap.gsheet    → JSON
+└── Meeting Notes/
+    └── 2026-02.gdoc      → Markdown
+```
+
+---
+
+## Notes
+
+- Requires **read-only Drive permission** — PuppyOne never modifies your Drive files
+- Files larger than 50MB are skipped and logged
+- Google Slides export is plain text only, formatting is not preserved

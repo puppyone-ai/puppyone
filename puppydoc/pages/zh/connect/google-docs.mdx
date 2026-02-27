@@ -1,0 +1,82 @@
+# Google Docs
+
+将 Google Docs 文档同步为 Markdown，让 Agent 可以读取和引用文档内容。
+
+| 属性 | 说明 |
+|------|------|
+| **方向** | Pull（Google Docs → puppyone） |
+| **触发方式** | 手动 / 定时 |
+| **认证** | Google OAuth |
+| **输出格式** | Markdown |
+
+---
+
+## 使用场景
+
+- 产品需求文档（PRD）同步给研发 Agent
+- 公司 Wiki、SOP 文档供客服 Agent 参考
+- 会议记录整理后供各类 Agent 查询
+
+---
+
+## 配置步骤
+
+### Step 1: 授权 Google 账号
+
+1. 进入 Project → **Add Connector** → **Google Docs**
+2. 点击 **Connect with Google**，完成 OAuth 授权
+
+### Step 2: 选择文档
+
+支持两种方式指定要同步的文档：
+
+**方式一：粘贴文档链接**
+
+复制 Google Docs 的分享链接，粘贴到输入框：
+```
+https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit
+```
+
+**方式二：从 Drive 浏览器选择**
+
+浏览你的 Google Drive，勾选要同步的文档。
+
+### Step 3: 启动同步
+
+点击 **Start Sync**。文档内容会转换为 Markdown，标题层级和列表格式会自动保留。
+
+---
+
+## 输出示例
+
+原始 Google Doc：
+```
+# 产品需求文档 v2.1
+
+## 背景
+本次迭代聚焦于...
+
+## 功能列表
+- 功能A：...
+- 功能B：...
+```
+
+同步后（Markdown）：
+```markdown
+# 产品需求文档 v2.1
+
+## 背景
+本次迭代聚焦于...
+
+## 功能列表
+- 功能A：...
+- 功能B：...
+```
+
+---
+
+## 注意事项
+
+- 文档中的图片目前不会同步，仅保留文字内容
+- 表格会转换为 Markdown 表格格式
+- 文档更新后需手动触发同步，或开启定时同步

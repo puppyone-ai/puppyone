@@ -1,0 +1,47 @@
+# Core Concepts
+
+Key terms and concepts in PuppyOne.
+
+---
+
+## Data Model
+
+```
+Account
+└── Project (a context namespace)
+    ├── Content Nodes (file tree: folders / JSON / Markdown / files)
+    └── Sync Connectors (linked data sources)
+```
+
+| Term | Description |
+|------|-------------|
+| **Project** | Top-level container. One project = one context namespace with its own access controls. |
+| **Content Node** | A file in the Context File System. Can be a folder, JSON document, Markdown file, or binary file. |
+| **Sync Connector** | A configured connection to an external data source (Notion, GitHub, Gmail, etc.) |
+| **File Level Security (FLS)** | Permission system controlling what each agent can see and do, scoped to file paths. |
+| **API Key** | Authentication credential for agent access. Each key carries its own FLS rules. |
+
+---
+
+## Sync Concepts
+
+| Term | Description |
+|------|-------------|
+| **Pull** | Sync direction: external source → PuppyOne |
+| **Push** | Sync direction: PuppyOne → external source |
+| **Bidirectional** | Both pull and push — changes flow both ways |
+| **Incremental sync** | Only changed content is transferred (delta sync) |
+| **Full sync** | All content is re-pulled from the source |
+| **Bootstrap** | First-time scan to discover all available resources |
+
+---
+
+## Agent Access Concepts
+
+| Term | Description |
+|------|-------------|
+| **MCP** | Model Context Protocol — open standard for agent-to-tool communication |
+| **MCP Server** | PuppyOne's hosted MCP endpoint per project |
+| **Tool** | An operation an agent can invoke (query, create, update, delete, etc.) |
+| **Tool permission** | Whether an API Key is allowed to call a specific tool |
+| **Path permission** | Which JSON paths a tool can access for a given API Key |

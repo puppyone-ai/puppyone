@@ -1,0 +1,76 @@
+# Custom MCP Client
+
+Connect any MCP-compatible client to PuppyOne.
+
+---
+
+## MCP Endpoint
+
+```
+https://api.puppyone.ai/api/v1/mcp/server/{API_KEY}
+```
+
+Transport: **SSE (Server-Sent Events)**
+
+---
+
+## Generic MCP Config
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/YOUR_API_KEY"]
+    }
+  }
+}
+```
+
+---
+
+## Supported MCP Clients
+
+| Client | Config Location |
+|--------|----------------|
+| Cursor | `~/.cursor/mcp.json` |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Cline | VSCode settings → MCP |
+| Zed | MCP settings |
+| Any MCP SDK client | Pass endpoint URL directly |
+
+---
+
+## Using the MCP SDK Directly
+
+```python
+import asyncio
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+
+async def main():
+    api_key = "YOUR_API_KEY"
+    url = f"https://api.puppyone.ai/api/v1/mcp/server/{api_key}"
+
+    async with sse_client(url) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+
+            # List available tools
+            tools = await session.list_tools()
+            print([t.name for t in tools.tools])
+
+            # Query data
+            result = await session.call_tool("query_data", {
+                "filter": { "status": { "$eq": "active" } }
+            })
+            print(result.content)
+
+asyncio.run(main())
+```
+
+---
+
+## Available Tools
+
+See [MCP Tools Reference](/en/reference/mcp-tools) for the full list of tools, parameters, and examples.

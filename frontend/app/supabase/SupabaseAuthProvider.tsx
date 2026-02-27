@@ -19,6 +19,7 @@ type AuthContextValue = {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>;
   resetPassword: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
 };
@@ -73,11 +74,7 @@ export function SupabaseAuthProvider({
     try {
       console.log('Starting OAuth sign-in with:', provider);
 
-      // ✅ 极致精简：只信任环境变量，本地默认 localhost:3000
-      // 生产环境必须配置 NEXT_PUBLIC_SITE_URL
-      const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-      const redirectTo = `${siteUrl}/auth/callback`;
+      const redirectTo = `${window.location.origin}/auth/callback`;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -115,14 +112,9 @@ export function SupabaseAuthProvider({
       throw new Error('Supabase is not configured');
     }
     
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: `${siteUrl}/auth/callback`,
-      },
     });
     
     if (error) {
@@ -141,12 +133,18 @@ export function SupabaseAuthProvider({
       throw new Error('Supabase is not configured');
     }
     
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
     
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl}/auth/callback?type=recovery`,
-    });
-    
+    if (error) {
+      throw error;
+    }
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured');
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
       throw error;
     }
@@ -173,6 +171,7 @@ export function SupabaseAuthProvider({
       signInWithEmail,
       signUpWithEmail,
       resetPassword,
+      updatePassword,
       signOut,
       getAccessToken,
     }),

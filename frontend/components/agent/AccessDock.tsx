@@ -244,7 +244,7 @@ export function AccessDock({ projectId }: { projectId?: string | null }) {
   const { data: syncData } = useSWR<ProjectSyncStatus>(
     projectId ? ['sync-status', projectId] : null,
     () => get<ProjectSyncStatus>(`/api/v1/sync/status?project_id=${projectId}`),
-    { refreshInterval: 15000, revalidateOnFocus: false, dedupingInterval: 5000 },
+    { revalidateOnFocus: false, dedupingInterval: 5000 },
   );
 
   useEffect(() => {

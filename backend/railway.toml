@@ -10,7 +10,7 @@ builder = "NIXPACKS"
 #
 # Environment variables:
 # - SERVICE_ROLE: api | file_worker | saas_worker | mcp_server
-startCommand = "sh -c 'case \"${SERVICE_ROLE:-api}\" in file_worker) arq src.ingest.file.jobs.worker.WorkerSettings ;; saas_worker) arq src.ingest.saas.jobs.worker.WorkerSettings ;; mcp_server) uvicorn mcp_service.server:app --host 0.0.0.0 --port ${PORT} --no-access-log ;; *) uvicorn src.main:app --host 0.0.0.0 --port ${PORT} --no-access-log ;; esac'"
+startCommand = "sh -c 'case \"${SERVICE_ROLE:-api}\" in file_worker) arq src.upload.file.jobs.worker.WorkerSettings ;; saas_worker) arq src.sync.jobs.worker.WorkerSettings ;; mcp_server) uvicorn mcp_service.server:app --host 0.0.0.0 --port ${PORT} --no-access-log ;; *) uvicorn src.main:app --host 0.0.0.0 --port ${PORT} --no-access-log ;; esac'"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 

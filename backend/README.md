@@ -341,10 +341,10 @@ Notion / GitHub / Google Sheets / Gmail / Google Drive / Google Calendar / Googl
 uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --no-access-log
 
 # File Worker
-uv run arq src.ingest.file.jobs.worker.WorkerSettings
+uv run arq src.upload.file.jobs.worker.WorkerSettings
 
 # SaaS Worker
-uv run arq src.ingest.saas.jobs.worker.WorkerSettings
+uv run arq src.sync.jobs.worker.WorkerSettings
 
 # MCP Server
 uv run uvicorn mcp_service.server:app --host 0.0.0.0 --port 8080 --no-access-log

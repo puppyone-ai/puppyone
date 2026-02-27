@@ -1,13 +1,52 @@
-/* Linear Style - Minimal overrides */
+/* PuppyOne Docs — Linear-style dark theme */
 
-/* Sidebar text: 14px */
+/* ---------- Accent color ---------- */
+:root {
+  --nextra-primary-hue: 0;
+  --nextra-primary-saturation: 0%;
+}
+
+/* ---------- Dark mode background layers ---------- */
+.dark body {
+  background-color: #0d0d0d;
+}
+
+.dark .nextra-sidebar-container {
+  background-color: #0d0d0d;
+  border-right: 1px solid #222;
+}
+
+.dark .nextra-nav-container {
+  background-color: #0d0d0d;
+  border-bottom: 1px solid #222;
+}
+
+.dark article {
+  color: #e5e5e5;
+}
+
+/* ---------- Typography ---------- */
+
+/* Body content */
+.nextra-content main,
+article,
+.nextra-content p,
+.nextra-content li {
+  font-size: 14px;
+}
+
+/* Headings */
+article h1 { font-size: 22px; font-weight: 600; }
+article h2 { font-size: 16px; font-weight: 600; }
+article h3 { font-size: 14px; font-weight: 600; }
+
+/* ---------- Sidebar ---------- */
 .nextra-sidebar-container a,
 .nextra-sidebar-container span,
 .nextra-sidebar-container button {
-  font-size: 14px !important;
+  font-size: 13px !important;
 }
 
-/* Sidebar links: 28px height */
 .nextra-sidebar-container a {
   height: 28px !important;
   min-height: 28px !important;
@@ -17,15 +56,37 @@
   align-items: center !important;
 }
 
-/* Body content: 16px */
-.nextra-content main {
-  font-size: 16px;
+/* Sidebar section title */
+.nextra-sidebar-container .nextra-sidebar-title {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #737373 !important;
 }
 
-/* Buttons: 28px height */
+/* ---------- Code blocks ---------- */
+.dark pre {
+  background-color: #0a0a0a !important;
+  border: 1px solid #2a2a2a;
+}
+
+code {
+  font-size: 12px !important;
+}
+
+/* Inline code */
+.dark :not(pre) > code {
+  background-color: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  color: #a3a3a3;
+  font-size: 12px;
+}
+
+/* ---------- Buttons ---------- */
 button,
-.nextra-button,
-a.nextra-card {
+.nextra-button {
   height: 28px !important;
   min-height: 28px !important;
   padding-top: 0 !important;
@@ -34,14 +95,30 @@ a.nextra-card {
   align-items: center;
 }
 
-/* Search button: 28px */
 .nextra-search button {
   height: 28px !important;
 }
 
-/* Theme toggle button: 28px */
 nav button[aria-label] {
   height: 28px !important;
   width: 28px !important;
 }
 
+/* ---------- Cards (nextra callouts / cards) ---------- */
+.dark .nextra-card {
+  background-color: #141414 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 10px;
+}
+
+/* ---------- Tables ---------- */
+.dark table thead tr {
+  background-color: #141414;
+  border-bottom: 1px solid #222;
+}
+
+.dark table td,
+.dark table th {
+  border-color: #222;
+  font-size: 13px;
+}

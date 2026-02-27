@@ -1,0 +1,231 @@
+# MCP Tools
+
+Complete reference for all MCP Tools available when an agent connects to PuppyOne.
+
+Tool availability is controlled by your [File Level Security (FLS)](/en/access) configuration.
+
+---
+
+## Tools Overview
+
+| Tool | Default Name | Type | Risk |
+|------|-------------|------|------|
+| `get_data_schema` | `get_data_schema` | Read | 🟢 Safe |
+| `get_all_data` | `get_all_data` | Read | 🟢 Safe |
+| `query_data` | `query_data` | Read | 🟢 Safe |
+| `preview` | `preview_data` | Read | 🟢 Safe |
+| `select` | `select_data` | Read | 🟢 Safe |
+| `create` | `create_element` | Write | 🟡 Careful |
+| `update` | `update_element` | Write | 🟡 Careful |
+| `delete` | `delete_element` | Write | 🔴 Destructive |
+
+---
+
+## Read Tools
+
+### `get_data_schema`
+
+Returns the structure definition of the data so the agent understands what fields are available. Agents typically call this first before querying.
+
+**Input:** none
+
+**Response example:**
+```json
+{
+  "schema": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
+      }
+    }
+  }
+}
+```
+
+---
+
+### `get_all_data`
+
+Returns the complete dataset with no filtering. Best for small datasets or when you need the full picture.
+
+**Input:** none
+
+**Response example:**
+```json
+[
+  { "id": "1", "name": "Widget Pro", "price": 99.99 },
+  { "id": "2", "name": "Widget Mini", "price": 59.99 }
+]
+```
+
+---
+
+### `query_data`
+
+Filtered query with conditions, pagination, and sorting.
+
+**Input parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `filter` | object | Filter conditions (see syntax below) |
+| `limit` | number | Max records to return |
+| `offset` | number | Skip first N records (pagination) |
+
+**Filter syntax:**
+
+```json
+// Equals
+{ "status": { "$eq": "active" } }
+
+// Greater than
+{ "price": { "$gt": 50 } }
+
+// In list
+{ "category": { "$in": ["electronics", "accessories"] } }
+
+// AND
+{
+  "$and": [
+    { "status": { "$eq": "active" } },
+    { "price": { "$lt": 100 } }
+  ]
+}
+
+// OR
+{
+  "$or": [
+    { "priority": { "$eq": "urgent" } },
+    { "priority": { "$eq": "high" } }
+  ]
+}
+```
+
+**Supported operators:** `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`
+
+---
+
+### `preview`
+
+Returns the first N records — useful for agents to understand the data shape before committing to a full query.
+
+**Input parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `limit` | number | Number of records to preview (default: 5) |
+
+---
+
+### `select`
+
+Returns only the specified fields, reducing token usage when the dataset has many fields the agent doesn't need.
+
+**Input parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `fields` | string[] | Field names to return |
+| `filter` | object | Optional filter conditions (same as `query_data`) |
+
+**Example:**
+```json
+{
+  "fields": ["id", "name", "price"],
+  "filter": { "status": { "$eq": "active" } }
+}
+```
+
+---
+
+## Write Tools
+
+> Write tools must be explicitly enabled in [FLS configuration](/en/access).
+
+### `create`
+
+Adds a new entry to the dataset.
+
+**Input parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `data` | object | The new entry to create |
+| `path` | string | Optional JSON path to insert at |
+
+**Example:**
+```json
+{
+  "data": {
+    "name": "New Widget",
+    "price": 79.99,
+    "status": "active"
+  }
+}
+```
+
+---
+
+### `update`
+
+Modifies fields of existing entries matching the filter.
+
+**Input parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `filter` | object | Identifies which entries to update |
+| `data` | object | Fields and values to update |
+
+**Example:**
+```json
+{
+  "filter": { "id": { "$eq": "123" } },
+  "data": { "price": 89.99 }
+}
+```
+
+---
+
+### `delete`
+
+Removes entries matching the filter. **This action is irreversible.**
+
+**Input parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `filter` | object | Identifies which entries to delete |
+
+**Example:**
+```json
+{
+  "filter": { "status": { "$eq": "archived" } }
+}
+```
+
+---
+
+## Custom Tool Names
+
+Tool default names (like `create_element`) can be overridden in the MCP configuration to give agents clearer context:
+
+```json
+{
+  "tools_definition": {
+    "create": {
+      "name": "add_product",
+      "description": "Add a new product to the catalog"
+    },
+    "query_data": {
+      "name": "search_products",
+      "description": "Search products by condition"
+    }
+  }
+}
+```

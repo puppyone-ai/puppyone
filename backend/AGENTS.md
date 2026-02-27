@@ -121,8 +121,8 @@ uv run pytest
 uv run pytest -m "not e2e"      # 排除 e2e 测试
 
 # 启动 Worker (文件处理 / SaaS 同步)
-uv run arq src.ingest.file.jobs.worker.WorkerSettings
-uv run arq src.ingest.saas.jobs.worker.WorkerSettings
+uv run arq src.upload.file.jobs.worker.WorkerSettings
+uv run arq src.sync.jobs.worker.WorkerSettings
 ```
 
 ## 关键依赖

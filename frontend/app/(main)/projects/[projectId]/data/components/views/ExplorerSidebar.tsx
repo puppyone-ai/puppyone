@@ -51,6 +51,13 @@ export interface MillerColumnItem {
   last_synced_at?: string | null;
 }
 
+export interface SyncEndpointInfo {
+  syncId: string;
+  provider: string;
+  direction: string;
+  status: string;
+}
+
 export interface ExplorerSidebarProps {
   projectId: string;
   currentPath: { id: string; name: string }[];
@@ -59,7 +66,10 @@ export interface ExplorerSidebarProps {
   onCreate?: (e: React.MouseEvent, parentId: string | null) => void;
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
+  onSyncClick?: (nodeId: string, syncInfo: SyncEndpointInfo) => void;
+  activeSyncNodeId?: string | null;
   agentResources?: AgentResource[];
+  syncEndpoints?: Map<string, SyncEndpointInfo>;
   highlightNodeId?: string | null;
   className?: string;
   style?: React.CSSProperties;
@@ -153,6 +163,58 @@ function hasFileExtension(name: string): boolean {
   return /\.\w{1,10}$/.test(name);
 }
 
+// === Sync Provider Badge (subtle inline icon) ===
+function SyncBadge({ provider, direction, active }: { provider: string; direction: string; active?: boolean }) {
+  const sz = 12;
+  const icon = (() => {
+    switch (provider) {
+      case 'gmail': return <img src="/icons/gmail.svg" width={sz} height={sz} style={{ display: 'block' }} />;
+      case 'google_calendar': return <img src="/icons/google_calendar.svg" width={sz} height={sz} style={{ display: 'block' }} />;
+      case 'google_sheets': return <img src="/icons/google_sheet.svg" width={sz} height={sz} style={{ display: 'block' }} />;
+      case 'google_drive':
+      case 'google_docs': return <img src="/icons/google_doc.svg" width={sz} height={sz} style={{ display: 'block' }} />;
+      case 'github': return (
+        <svg width={sz} height={sz} viewBox="0 0 24 24" fill="#9ca3af">
+          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+        </svg>
+      );
+      case 'notion': return <img src="/icons/notion.svg" width={sz} height={sz} style={{ display: 'block' }} />;
+      case 'linear': return <img src="/icons/linear.svg" width={sz} height={sz} style={{ display: 'block' }} />;
+      case 'airtable': return <img src="/icons/airtable.svg" width={sz} height={sz} style={{ display: 'block' }} />;
+      case 'filesystem':
+      case 'openclaw': return <span style={{ fontSize: 10, lineHeight: 1 }}>🦞</span>;
+      default: return <span style={{ color: '#71717a', fontSize: 10 }}>⟳</span>;
+    }
+  })();
+
+  const arrowColor = '#6b7280';
+  const arrowSvg = direction === 'bidirectional' ? (
+    <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke={arrowColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 5h12M10 1l4 4-4 4" /><path d="M14 11H2M6 15l-4-4 4-4" />
+    </svg>
+  ) : direction === 'outbound' ? (
+    <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke={arrowColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 8H2M6 12l-4-4 4-4" />
+    </svg>
+  ) : (
+    <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke={arrowColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 8h12M10 4l4 4-4 4" />
+    </svg>
+  );
+
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 2,
+      padding: '0 5px', borderRadius: 4, height: 20,
+      background: active ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+      transition: 'background 0.15s ease',
+    }}>
+      {arrowSvg}
+      {icon}
+    </div>
+  );
+}
+
 // === Context Menu (three dots) ===
 function ItemContextMenu({ itemId, itemName, isSynced, onRename, onDelete, onOpenChange }: {
   itemId: string;
@@ -203,15 +265,15 @@ function ItemContextMenu({ itemId, itemName, isSynced, onRename, onDelete, onOpe
         onClick={handleToggle}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          width: 18, height: 18, borderRadius: 3,
+          width: 22, height: 22, borderRadius: 4,
           background: open ? 'rgba(255,255,255,0.1)' : 'transparent',
-          border: 'none', cursor: 'pointer', color: '#888', padding: 0,
+          border: 'none', cursor: 'pointer', color: '#999', padding: 0,
           transition: 'background 0.1s',
         }}
         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
         onMouseLeave={e => { if (!open) e.currentTarget.style.background = 'transparent'; }}
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" />
         </svg>
       </button>
@@ -276,14 +338,18 @@ interface TreeItemProps {
   onCreate?: (e: React.MouseEvent, parentId: string | null) => void;
   onRename?: (id: string, name: string) => void;
   onDelete?: (id: string, name: string) => void;
+  onSyncClick?: (nodeId: string, syncInfo: SyncEndpointInfo) => void;
+  activeSyncNodeId?: string | null;
   ancestors: string[];
   agentResourceMap?: Map<string, AgentResource>;
+  syncEndpoints?: Map<string, SyncEndpointInfo>;
   highlightNodeId?: string | null;
 }
 
-function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, ancestors, agentResourceMap, highlightNodeId }: TreeItemProps) {
+function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onSyncClick, activeSyncNodeId, ancestors, agentResourceMap, syncEndpoints, highlightNodeId }: TreeItemProps) {
   const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
   const isSynced = item.is_synced;
+  const syncEndpoint = syncEndpoints?.get(item.id);
   const { isExpanded } = useExpandedFolders();
   const expanded = isFolder && isExpanded(item.id);
   const [hovered, setHovered] = useState(false);
@@ -299,7 +365,6 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 
   const agentResource = agentResourceMap?.get(item.id);
   const hasAgentAccess = !!agentResource;
-  const accessMode = agentResource?.terminalReadonly ? 'read' : 'write';
 
   const { nodes: children, isLoading: loading } = useContentNodes(
     expanded ? projectId : '',
@@ -318,11 +383,13 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
   const isActive = activeId === item.id;
   const paddingLeft = 12 + (depth * 16);
 
+  const isSyncActive = activeSyncNodeId === item.id;
   const getBackground = (h: boolean) => {
     if (isHighlighted) return 'rgba(59, 130, 246, 0.15)';
-    if (isActive) return hasAgentAccess ? 'rgba(249, 115, 22, 0.15)' : '#2a2a2a';
-    if (hasAgentAccess) return h ? 'rgba(249, 115, 22, 0.08)' : 'rgba(249, 115, 22, 0.04)';
-    return h ? 'rgba(255,255,255,0.04)' : 'transparent';
+    if (isSyncActive) return 'rgba(249, 115, 22, 0.22)';
+    if (isActive) return hasAgentAccess ? 'rgba(249, 115, 22, 0.18)' : '#2a2a2a';
+    if (hasAgentAccess) return h ? 'rgba(249, 115, 22, 0.12)' : 'rgba(249, 115, 22, 0.05)';
+    return h ? 'rgba(255,255,255,0.06)' : 'transparent';
   };
 
   const childItems: MillerColumnItem[] = children.map(n => ({
@@ -349,14 +416,14 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '4px 8px', paddingLeft, paddingRight: 6, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 6, height: 28, boxSizing: 'border-box',
+          padding: '0 8px', paddingLeft, paddingRight: 6, cursor: 'pointer',
           background: getBackground(hovered),
           color: isActive ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
           fontSize: 13, userSelect: 'none',
           transition: 'background 0.1s, color 0.1s',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          borderLeft: hasAgentAccess ? '3px solid rgba(249, 115, 22, 0.6)' : '3px solid transparent',
+          borderLeft: hasAgentAccess ? '3px solid rgba(249, 115, 22, 0.7)' : '3px solid transparent',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', width: 16, height: 16, flexShrink: 0, color: '#666' }}>
@@ -384,55 +451,56 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
           })()}
         </span>
 
-        {/* Hover action buttons */}
-        {showActions && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-            {isFolder && onCreate && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onCreate(e, item.id); }}
-                title="New item"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 18, height: 18, borderRadius: 3,
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: '#888', padding: 0, transition: 'background 0.1s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
-            )}
-            {(onRename || onDelete) && (
-              <ItemContextMenu
-                itemId={item.id}
-                itemName={item.name}
-                isSynced={isSynced}
-                onRename={onRename}
-                onDelete={onDelete}
-                onOpenChange={setMenuOpen}
-              />
-            )}
-          </div>
-        )}
-
-        {/* Agent access badge (only when not hovered) */}
-        {!showActions && hasAgentAccess && (
-          <div style={{ display: 'flex', alignItems: 'center', fontSize: 10, color: accessMode === 'write' ? '#f97316' : '#fb923c', opacity: 0.8, flexShrink: 0 }}
-            title={accessMode === 'write' ? 'Agent can read & write' : 'Agent can read only'}>
-            {accessMode === 'write' ? (
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-              </svg>
-            ) : (
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-              </svg>
-            )}
-          </div>
-        )}
+        {/* Right area */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, flexShrink: 0, marginLeft: 'auto' }}>
+          {/* Hover: action buttons in fixed position */}
+          {showActions && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }} onClick={e => e.stopPropagation()}>
+              {isFolder && onCreate && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onCreate(e, item.id); }}
+                  title="New item"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 22, height: 22, borderRadius: 4,
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    color: '#999', padding: 0, transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+              )}
+              {(onRename || onDelete) && (
+                <ItemContextMenu
+                  itemId={item.id}
+                  itemName={item.name}
+                  isSynced={isSynced}
+                  onRename={onRename}
+                  onDelete={onDelete}
+                  onOpenChange={setMenuOpen}
+                />
+              )}
+            </div>
+          )}
+          {/* Sync badge: always visible, becomes clickable bubble on hover */}
+          {syncEndpoint && (
+            <div
+              title={`${syncEndpoint.provider} · ${syncEndpoint.direction}`}
+              onClick={(e) => { e.stopPropagation(); onSyncClick?.(item.id, syncEndpoint); }}
+              style={{
+                display: 'flex', alignItems: 'center', cursor: onSyncClick ? 'pointer' : 'default',
+                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                ...(hovered ? { transform: 'scale(1.08)' } : {}),
+              }}
+            >
+              <SyncBadge provider={syncEndpoint.provider} direction={syncEndpoint.direction} active={hovered} />
+            </div>
+          )}
+        </div>
       </div>
 
       {expanded && (
@@ -442,8 +510,8 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
           ) : childItems.length > 0 ? (
             childItems.map(child => (
               <TreeItem key={child.id} item={child} depth={depth + 1} projectId={projectId}
-                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete}
-                ancestors={[...ancestors, item.id]} agentResourceMap={agentResourceMap} highlightNodeId={highlightNodeId} />
+                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onSyncClick={onSyncClick} activeSyncNodeId={activeSyncNodeId}
+                ancestors={[...ancestors, item.id]} agentResourceMap={agentResourceMap} syncEndpoints={syncEndpoints} highlightNodeId={highlightNodeId} />
             ))
           ) : !loading ? (
             <div style={{ paddingLeft: paddingLeft + 22, paddingTop: 4, paddingBottom: 4, color: '#666', fontSize: 12, fontStyle: 'italic' }}>Empty</div>
@@ -455,7 +523,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 }
 
 // === Main Component ===
-export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, agentResources, highlightNodeId, className, style }: ExplorerSidebarProps) {
+export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, onSyncClick, activeSyncNodeId, agentResources, syncEndpoints, highlightNodeId, className, style }: ExplorerSidebarProps) {
   const { nodes: rootNodes, isLoading: loading } = useContentNodes(projectId, null);
 
   if (currentPath.length > 0) {
@@ -515,8 +583,8 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
         ) : (
           rootItems.map(item => (
             <TreeItem key={item.id} item={item} depth={0} projectId={projectId}
-              activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete}
-              ancestors={[]} agentResourceMap={agentResourceMap} highlightNodeId={highlightNodeId} />
+              activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onSyncClick={onSyncClick} activeSyncNodeId={activeSyncNodeId}
+              ancestors={[]} agentResourceMap={agentResourceMap} syncEndpoints={syncEndpoints} highlightNodeId={highlightNodeId} />
           ))
         )}
       </div>

@@ -1,13 +1,20 @@
-[X] 清理bin目录下过时的文件
-[X] 清理git ignore里面的遗留问题
-[x] 前端集成邮箱登录
+----------------------
 
-[x] 新账号登录测试
 
-[ ] onboarding 的体验打磨
-[ ] 付费系统的打通
-[ ] puppyone+openclaw的DX打磨
+[ ] main版本的上线
+[ ] qubit版本的线上部署
 
-[ ] mcp server 放在前端
-[ ] puppyone项目的开源安装体验打磨
-[ ] openclaw的DX打磨
+
+----------------------
+
+[ ] mcp server 打通
+
+[ ] puppyone 组织的 openclaw 化
+
+----------------------
+
+[ ] puppyone 的测试流程等
+[ ] puppyone doc
+[ ] puppyone readme
+
+
