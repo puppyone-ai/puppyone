@@ -48,11 +48,13 @@ backend/
 │   ├── table/                 # 结构化数据表 (JSON Pointer)
 │   ├── tool/                  # 工具注册 & 搜索索引
 │   ├── agent/                 # Agent 聊天 (SSE 流式) & 配置
-│   ├── mcp_v3/                # MCP 协议 v3 (工具绑定/代理)
-│   ├── mcp/                   # MCP 实例管理
-│   ├── ingest/                # 数据摄取 ETL
-│   │   ├── file/              # 文件摄取 (MineRU + LLM)
-│   │   └── saas/              # SaaS 同步 (Notion/GitHub 等)
+│   ├── upload/                # 文件上传 & 摄取 ETL
+│   ├── sync/                  # SaaS 同步 (Notion/GitHub 等) & OpenClaw
+│   ├── workspace/             # 工作区管理
+│   ├── collaboration/         # 协作 & 版本历史 & 审计日志
+│   ├── access/                # 访问控制 (OpenClaw 兼容层)
+│   ├── db_connector/          # 数据库连接器
+│   ├── security/              # 安全模块 (AES-256-GCM 加密)
 │   ├── search/                # 向量搜索 (Turbopuffer + RRF)
 │   ├── chunking/              # 文本分块
 │   ├── llm/                   # LLM 服务 (生成 + Embedding)
@@ -92,11 +94,15 @@ backend/
 | `/api/v1/tables` | table | 数据表 & JSON Pointer 操作 |
 | `/api/v1/tools` | tool | 工具注册 & 搜索索引 |
 | `/api/v1/agents` | agent | Agent SSE 流式对话 |
-| `/api/v1/mcp` | mcp_v3 | MCP 工具绑定 & 代理 |
-| `/api/v1/ingest` | ingest | 文件/SaaS/URL 数据摄取 |
-| `/api/v1/s3` | s3 | 文件上传/下载/预签名URL |
+| `/api/v1/mcp` | agent/mcp | MCP 工具绑定 & 代理 |
+| `/api/v1/ingest` | upload | 文件上传 & 摄取 ETL |
+| `/api/v1/sync` | sync | SaaS 同步 & OpenClaw 文件夹同步 |
+| `/api/v1/workspace` | workspace | 工作区管理 |
+| `/api/v1/collaboration` | collaboration | 协作 & 版本历史 & 审计日志 |
+| `/api/v1/db-connector` | db_connector | 数据库连接器 |
 | `/api/v1/publishes` | context_publish | 公开 JSON 短链接 |
 | `/api/v1/oauth` | oauth | OAuth 授权 (9+ 平台) |
+| `/api/v1/auth` | auth | 认证相关 |
 | `/internal` | internal | 内部服务 API |
 | `/health` | main | 健康检查 |
 
@@ -114,8 +120,8 @@ uv run pytest
 uv run pytest -m "not e2e"      # 排除 e2e 测试
 
 # 启动 Worker
-uv run arq src.ingest.file.jobs.worker.WorkerSettings      # 文件处理 Worker
-uv run arq src.ingest.saas.jobs.worker.WorkerSettings       # SaaS 同步 Worker
+uv run arq src.upload.file.jobs.worker.WorkerSettings      # 文件处理 Worker
+uv run arq src.sync.jobs.worker.WorkerSettings             # SaaS 同步 Worker
 ```
 
 ### 后端部署

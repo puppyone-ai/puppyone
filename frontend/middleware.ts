@@ -93,21 +93,12 @@ export async function middleware(request: NextRequest) {
  * - /_next (Next.js 内部资源)
  * - /api (API 路由)
  * - /auth/callback (Supabase OAuth 回调)
+ * - /auth/confirm (邮件验证回调)
  * - /oauth/callback (Notion OAuth 回调)
  * - 静态文件
  */
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder files (images, etc)
-     * - auth/callback (Supabase OAuth)
-     * - oauth/callback (Notion OAuth)
-     * - api routes
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$|auth/callback|oauth/callback|api).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$|auth/callback|auth/confirm|oauth/callback|api).*)',
   ],
 };
