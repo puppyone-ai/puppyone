@@ -1,11 +1,9 @@
 """
-L2 Collaboration — 依赖注入
+Mut Protocol — 依赖注入
 
 提供 FastAPI Depends 工厂函数：
-- get_collaboration_service() → CollaborationService
-- get_version_service()       → VersionService（向后兼容）
-
-同时导出内部组件的工厂函数供其他模块使用。
+- get_collaboration_service() → CollaborationService（唯一写入入口）
+- get_version_service()       → VersionService
 """
 
 from fastapi import Depends
@@ -13,6 +11,11 @@ from src.supabase.client import SupabaseClient
 from src.s3.service import S3Service
 from src.s3.dependencies import get_s3_service
 from src.content_node.repository import ContentNodeRepository
+from src.content_node.service import ContentNodeService
+from src.content_node.dependencies import (
+    get_content_node_repository,
+    get_content_node_service,
+)
 
 from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
 from src.collaboration.audit_repository import AuditRepository
@@ -26,12 +29,6 @@ from src.sync.changelog import SyncChangelogRepository
 
 def _get_supabase_client() -> SupabaseClient:
     return SupabaseClient()
-
-
-def _get_content_node_repository(
-    supabase: SupabaseClient = Depends(_get_supabase_client),
-) -> ContentNodeRepository:
-    return ContentNodeRepository(supabase)
 
 
 def _get_file_version_repository(
@@ -53,25 +50,22 @@ def _get_changelog_repository(
 
 
 def get_version_service(
-    node_repo: ContentNodeRepository = Depends(_get_content_node_repository),
+    node_repo: ContentNodeRepository = Depends(get_content_node_repository),
     version_repo: FileVersionRepository = Depends(_get_file_version_repository),
     snapshot_repo: FolderSnapshotRepository = Depends(_get_folder_snapshot_repository),
     s3_service: S3Service = Depends(get_s3_service),
     changelog_repo: SyncChangelogRepository = Depends(_get_changelog_repository),
 ) -> VersionService:
-    """获取 VersionService（向后兼容 + 内部使用）"""
     return VersionService(node_repo, version_repo, snapshot_repo, s3_service, changelog_repo)
 
 
 def get_conflict_service() -> ConflictService:
-    """获取 ConflictService"""
     return ConflictService()
 
 
 def get_lock_service(
-    node_repo: ContentNodeRepository = Depends(_get_content_node_repository),
+    node_repo: ContentNodeRepository = Depends(get_content_node_repository),
 ) -> LockService:
-    """获取 LockService"""
     return LockService(node_repo)
 
 
@@ -84,20 +78,21 @@ def _get_audit_repository(
 def get_audit_service(
     audit_repo: AuditRepository = Depends(_get_audit_repository),
 ) -> AuditService:
-    """获取 AuditService（含数据库持久化）"""
     return AuditService(audit_repo=audit_repo)
 
 
 def get_collaboration_service(
-    node_repo: ContentNodeRepository = Depends(_get_content_node_repository),
+    node_repo: ContentNodeRepository = Depends(get_content_node_repository),
+    node_service: ContentNodeService = Depends(get_content_node_service),
     lock_service: LockService = Depends(get_lock_service),
     conflict_service: ConflictService = Depends(get_conflict_service),
     version_service: VersionService = Depends(get_version_service),
     audit_service: AuditService = Depends(get_audit_service),
 ) -> CollaborationService:
-    """获取 CollaborationService（L2 统一入口）"""
+    """获取 CollaborationService（Mut Protocol 统一入口）"""
     return CollaborationService(
         node_repo=node_repo,
+        node_service=node_service,
         lock_service=lock_service,
         conflict_service=conflict_service,
         version_service=version_service,

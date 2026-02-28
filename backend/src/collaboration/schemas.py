@@ -1,50 +1,103 @@
 """
-L2 Collaboration — 数据模型
+Mut Protocol — 数据模型
 
 包含：
-1. 协同层核心类型（WorkingCopy, CommitResult, MergeResult）
-2. 版本管理数据模型（FileVersion, FolderSnapshot）
-3. API 响应 Schema
-
-迁移自 content_node/version_schemas.py + 新增 L2 类型
+1. Mutation 类型定义（MutationType, Operator, Mutation）
+2. 协同层核心类型（WorkingCopy, CommitResult, MergeResult）
+3. 版本管理数据模型（FileVersion, FolderSnapshot）
+4. API 响应 Schema
 """
 
+from enum import Enum
 from pydantic import BaseModel, Field
-from typing import Optional, Any, List, Dict
+from typing import Optional, Any, List, Dict, Callable
 from datetime import datetime
 
 
 # ============================================================
-# L2 协同层核心类型（新增）
+# Mut Protocol — Mutation 类型定义
+# ============================================================
+
+class MutationType(str, Enum):
+    """五种变更类型"""
+    CONTENT_UPDATE = "content_update"
+    NODE_CREATE = "node_create"
+    NODE_DELETE = "node_delete"
+    NODE_RENAME = "node_rename"
+    NODE_MOVE = "node_move"
+
+
+class Operator(BaseModel):
+    """变更发起方"""
+    type: str                               # "user" | "agent" | "sync" | "mcp_agent"
+    id: Optional[str] = None
+    session_id: Optional[str] = None
+    summary: Optional[str] = None
+
+
+class Mutation(BaseModel):
+    """
+    commit() 的唯一输入。描述"要做什么"。
+
+    所有写路径构造一个 Mutation，然后调用 commit(mutation)。
+    """
+    type: MutationType
+    operator: Operator
+
+    node_id: Optional[str] = None
+    project_id: Optional[str] = None
+
+    # CONTENT_UPDATE
+    content: Optional[Any] = None           # 新内容（JSON object 或 Markdown string）
+    node_type: str = "json"                 # json / markdown / file
+    base_version: int = 0
+    base_content: Optional[str] = None
+
+    # NODE_CREATE
+    parent_id: Optional[str] = None
+    name: Optional[str] = None
+    created_by: Optional[str] = None
+
+    # NODE_RENAME
+    new_name: Optional[str] = None
+
+    # NODE_MOVE
+    new_parent_id: Optional[str] = None
+
+
+# ============================================================
+# Mut Protocol — 协同层核心类型
 # ============================================================
 
 class WorkingCopy(BaseModel):
     """checkout 返回的工作副本"""
     node_id: str
     node_type: str                          # json / markdown / file
-    content: Optional[str] = None           # 序列化后的内容（JSON string 或 MD text）
-    content_json: Optional[Any] = None      # JSON 原始对象（便于直接操作）
-    base_version: int                       # checkout 时的版本号（commit 时作为乐观锁 base）
+    content: Optional[str] = None
+    content_json: Optional[Any] = None
+    base_version: int
     content_hash: Optional[str] = None
 
 
 class CommitResult(BaseModel):
-    """commit 返回的结果"""
+    """commit 返回的结果（commit 永远成功）"""
     node_id: str
-    status: str                             # "clean" | "merged" | "lww"
+    status: str                             # "clean" | "merged"
     version: int                            # 写入后的新版本号
-    final_content: Optional[Any] = None     # 最终写入的内容
-    strategy: Optional[str] = None          # "direct" | "json_key" | "line_diff3" | "lww"
-    conflict_details: Optional[str] = None
+    final_content: Optional[Any] = None
+    strategy: Optional[str] = None          # "direct" | "json_path" | "line_diff3"
+    lww_applied: bool = False
+    lww_details: Optional[Dict[str, Any]] = None
 
 
 class MergeResult(BaseModel):
     """三方合并的内部结果"""
     node_id: str
-    status: str                             # "clean" | "merged" | "lww"
+    status: str                             # "clean" | "merged"
     merged_content: Optional[Any] = None
-    strategy_used: Optional[str] = None     # "direct" / "json_key" / "line_diff3" / "lww"
-    conflict_details: Optional[str] = None
+    strategy_used: Optional[str] = None
+    lww_applied: bool = False
+    lww_details: Optional[Dict[str, Any]] = None
 
 
 # ============================================================

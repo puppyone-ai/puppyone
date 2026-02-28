@@ -406,12 +406,40 @@ class AgentService:
                     result["error"] = str(e)
                     break
             
-            # ========== 7. 回写数据到数据库 ==========
-            # NOTE: 当前使用 node_service.update_node (含版本记录但无冲突解决)
-            # Schedule Agent 是单一执行者，不存在并发冲突场景。
-            # 若未来需支持并发 Schedule Agent，应改为 collab_service.commit()。
+            # ========== 7. 回写数据到数据库（Mut Protocol） ==========
             if use_bash and sandbox_service and sandbox_session_id and not sandbox_readonly:
                 if sandbox_data and sandbox_data.node_path_map and node_service:
+                    from src.collaboration.schemas import Mutation as _SchedMutation, MutationType as _SchedMT, Operator as _SchedOp
+                    _sched_collab = None
+                    try:
+                        from src.collaboration.conflict_service import ConflictService as _CSvc
+                        from src.collaboration.lock_service import LockService as _LSvc
+                        from src.collaboration.version_service import VersionService as _VSvc
+                        from src.collaboration.version_repository import FileVersionRepository as _FVR, FolderSnapshotRepository as _FSR
+                        from src.collaboration.audit_service import AuditService as _ASvc
+                        from src.collaboration.audit_repository import AuditRepository as _AR
+                        from src.collaboration.service import CollaborationService as _CS
+                        from src.supabase.client import SupabaseClient as _SB
+                        from src.s3.service import S3Service as _S3
+
+                        _sb2 = _SB()
+                        _sched_collab = _CS(
+                            node_repo=node_service.repo,
+                            node_service=node_service,
+                            lock_service=_LSvc(node_service.repo),
+                            conflict_service=_CSvc(),
+                            version_service=_VSvc(
+                                node_repo=node_service.repo,
+                                version_repo=_FVR(_sb2),
+                                snapshot_repo=_FSR(_sb2),
+                                s3_service=_S3(),
+                                changelog_repo=_get_changelog_repo(_sb2),
+                            ),
+                            audit_service=_ASvc(audit_repo=_AR(_sb2)),
+                        )
+                    except Exception as e:
+                        logger.warning(f"[ScheduleAgent] CollaborationService init failed: {e}")
+
                     for node_id, info in sandbox_data.node_path_map.items():
                         if info.get("readonly"):
                             continue
@@ -437,29 +465,30 @@ class AgentService:
                             if not node:
                                 continue
                             
-                            if node_type == "json":
-                                if json_path_config:
-                                    updated_data = merge_data_by_path(
-                                        node.preview_json or {}, json_path_config, sandbox_content
-                                    )
-                                else:
-                                    updated_data = sandbox_content
-                                
-                                node_service.update_node(
-                                    node_id=node_id,
-                                    project_id=node.project_id,
-                                    preview_json=updated_data,
-                                    operator_type="agent",
-                                    operator_id=agent.id if agent else None,
+                            if node_type == "json" and json_path_config:
+                                sandbox_content = merge_data_by_path(
+                                    node.preview_json or {}, json_path_config, sandbox_content
                                 )
-                            elif node_type == "markdown":
-                                await node_service.update_markdown_content(
+
+                            if _sched_collab:
+                                mutation = _SchedMutation(
+                                    type=_SchedMT.CONTENT_UPDATE,
+                                    operator=_SchedOp(
+                                        type="agent",
+                                        id=agent.id if agent else None,
+                                        summary="Schedule Agent write-back",
+                                    ),
                                     node_id=node_id,
-                                    project_id=node.project_id,
                                     content=sandbox_content,
-                                    operator_type="agent",
-                                    operator_id=agent.id if agent else None,
+                                    node_type=node_type,
+                                    base_version=0,
                                 )
+                                await _sched_collab.commit(mutation)
+                            else:
+                                if node_type == "json":
+                                    node_service.repo.update(node_id=node_id, preview_json=sandbox_content)
+                                elif node_type == "markdown":
+                                    node_service.repo.update(node_id=node_id, preview_md=sandbox_content)
                             
                             result["updated_nodes"].append({
                                 "nodeId": node_id,
@@ -1257,7 +1286,7 @@ class AgentService:
             # 回写修改的数据到数据库（通过 CollaborationService: 乐观锁 + 三方合并 + 版本记录）
             updated_nodes = []
             
-            # 初始化 CollaborationService
+            # 初始化 CollaborationService (Mut Protocol)
             collab_service = None
             try:
                 from src.collaboration.conflict_service import ConflictService
@@ -1267,6 +1296,7 @@ class AgentService:
                 from src.collaboration.audit_service import AuditService
                 from src.collaboration.audit_repository import AuditRepository
                 from src.collaboration.service import CollaborationService
+                from src.collaboration.schemas import Mutation, MutationType, Operator
                 from src.supabase.client import SupabaseClient
                 from src.s3.service import S3Service
 
@@ -1275,6 +1305,7 @@ class AgentService:
                 if _node_repo:
                     collab_service = CollaborationService(
                         node_repo=_node_repo,
+                        node_service=node_service,
                         lock_service=LockService(_node_repo),
                         conflict_service=ConflictService(),
                         version_service=CollabVersionService(
@@ -1326,27 +1357,30 @@ class AgentService:
                                 node.preview_json or {}, json_path, sandbox_content
                             )
 
-                        # 使用 CollaborationService.commit() 统一处理
+                        # Mut Protocol: commit() 统一处理
                         merge_strategy = "direct"
                         if collab_service:
-                            commit_result = collab_service.commit(
+                            mutation = Mutation(
+                                type=MutationType.CONTENT_UPDATE,
+                                operator=Operator(
+                                    type="agent",
+                                    id=request.agent_id,
+                                    session_id=request.session_id,
+                                    summary="Agent write-back via sandbox",
+                                ),
                                 node_id=node_id,
-                                new_content=sandbox_content,
+                                content=sandbox_content,
                                 base_version=base_version,
                                 node_type=node_type,
                                 base_content=base_content,
-                                operator_type="agent",
-                                operator_id=request.agent_id,
-                                session_id=request.session_id,
-                                summary=f"Agent write-back via sandbox",
                             )
+                            commit_result = await collab_service.commit(mutation)
                             merge_strategy = commit_result.strategy or "direct"
                             logger.info(
                                 f"[Agent] Commit result for {node_id}: "
                                 f"status={commit_result.status}, strategy={merge_strategy}, v={commit_result.version}"
                             )
                         else:
-                            # 降级：直接写入（无冲突解决）
                             if node_type == "json":
                                 parsed = sandbox_content if isinstance(sandbox_content, dict) else json.loads(json.dumps(sandbox_content))
                                 node_service.repo.update(node_id=node_id, preview_json=parsed)

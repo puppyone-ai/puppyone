@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { get } from '@/lib/apiClient';
 import {
@@ -54,7 +54,8 @@ import {
   replacePlaceholderTasks,
   removeFailedPlaceholders,
 } from '@/components/BackgroundTaskNotifier';
-import { getNode, createFolder, createJsonNode, createMarkdownNode, getDownloadUrl, updateNode, deleteNode, type NodeInfo } from '@/lib/contentNodesApi';
+import { getNode, createFolder, createJsonNode, createMarkdownNode, getDownloadUrl, updateNode, deleteNode, moveNode, type NodeInfo } from '@/lib/contentNodesApi';
+import { MoveToDialog } from '@/components/MoveToDialog';
 import { createTable } from '@/lib/projectsApi';
 import { refreshProjects } from '@/lib/hooks/useData';
 
@@ -310,6 +311,18 @@ export default function DataPage({ params }: DataPageProps) {
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
 
+  // Move dialog state
+  const [moveDialogTarget, setMoveDialogTarget] = useState<{ id: string; name: string } | null>(null);
+
+  // Toast state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type });
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  }, []);
+
   // Tools for current node
   const { tools: tableTools, isLoading: toolsLoading } = useTableTools(activeNodeId);
   const { tableData: currentTableData, refresh: refreshTable } = useTable(projectId, activeNodeId);
@@ -373,7 +386,9 @@ export default function DataPage({ params }: DataPageProps) {
   }, []);
 
   const handleGlobalDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
+    if (e.dataTransfer.types.includes('Files')) {
+      e.preventDefault();
+    }
     e.stopPropagation();
   }, []);
 
@@ -1013,6 +1028,51 @@ export default function DataPage({ params }: DataPageProps) {
     alert(`Refreshing from: ${node.sync_url}\n\n(Not yet implemented)`);
   };
 
+  // Handle moving a node (used by both drag-and-drop and MoveToDialog)
+  const handleMoveNode = useCallback(async (nodeId: string, targetFolderId: string | null, sourceParentId: string | null = currentFolderId) => {
+    if (sourceParentId === targetFolderId) return;
+
+    const sourceKey = ['nodes', projectId, sourceParentId ?? '__root__'];
+    const targetKey = ['nodes', projectId, targetFolderId ?? '__root__'];
+
+    let movedNode: NodeInfo | undefined;
+
+    // Optimistic: remove from source
+    mutate(
+      sourceKey,
+      (nodes: NodeInfo[] | undefined) => {
+        movedNode = (nodes ?? []).find(n => n.id === nodeId);
+        return (nodes ?? []).filter(n => n.id !== nodeId);
+      },
+      { revalidate: false },
+    );
+
+    // Optimistic: insert into target (only if target cache already loaded)
+    if (movedNode) {
+      const nodeForTarget = { ...movedNode, parent_id: targetFolderId };
+      if (targetFolderId) ensureExpanded(targetFolderId);
+      mutate(
+        targetKey,
+        (nodes: NodeInfo[] | undefined) => nodes ? [...nodes, nodeForTarget] : undefined,
+        { revalidate: false },
+      );
+    }
+
+    try {
+      await moveNode(nodeId, projectId, targetFolderId);
+      refreshAllContentNodes(projectId);
+    } catch (err: unknown) {
+      refreshAllContentNodes(projectId);
+      const msg = (err as { message?: string })?.message || 'Failed to move item';
+      showToast(msg, 'error');
+    }
+  }, [projectId, currentFolderId, showToast]);
+
+  // Open MoveToDialog from context menu
+  const handleMoveRequest = useCallback((id: string, name: string) => {
+    setMoveDialogTarget({ id, name });
+  }, []);
+
   // Handle creating tools from the context menu
   const handleCreateTool = (id: string, name: string, type: string, jsonPath?: string) => {
     setToolPanelTarget({ id, name, type, jsonPath });
@@ -1041,6 +1101,55 @@ export default function DataPage({ params }: DataPageProps) {
         error={renameError}
       />
       
+      {/* Move To Dialog */}
+      {moveDialogTarget && (
+        <MoveToDialog
+          isOpen={true}
+          projectId={projectId}
+          nodeId={moveDialogTarget.id}
+          nodeName={moveDialogTarget.name}
+          onConfirm={async (targetFolderId) => {
+            setMoveDialogTarget(null);
+            await handleMoveNode(moveDialogTarget.id, targetFolderId);
+          }}
+          onClose={() => setMoveDialogTarget(null)}
+        />
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          bottom: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: toast.type === 'error' ? '#dc2626' : '#16a34a',
+          color: '#fff',
+          padding: '8px 16px',
+          borderRadius: 8,
+          fontSize: 13,
+          fontWeight: 500,
+          zIndex: 10001,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+        }}>
+          {toast.type === 'success' ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+              <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+          )}
+          {toast.message}
+        </div>
+      )}
+
       {/* Header (Full Width) */}
       <div style={{ flexShrink: 0, zIndex: 60 }}>
         <ProjectsHeader
@@ -1088,6 +1197,7 @@ export default function DataPage({ params }: DataPageProps) {
               onCreate={handleMillerCreateClick}
               onRename={handleRename}
               onDelete={handleDelete}
+              onMoveNode={handleMoveNode}
               onSyncClick={(nodeId, syncInfo) => selectedSyncNodeId === nodeId ? selectSync(null) : selectSync(syncInfo.syncId, nodeId)}
               activeSyncNodeId={selectedSyncNodeId}
               agentResources={agentResources}
@@ -1309,10 +1419,13 @@ export default function DataPage({ params }: DataPageProps) {
               ) : (
                   <GridView
                     items={items}
+                    parentFolderId={currentFolderId}
                     onCreateClick={handleCreateClick}
                     onRename={handleRename}
                     onDelete={handleDelete}
                     onRefresh={handleRefresh}
+                    onMove={handleMoveRequest}
+                    onMoveNode={handleMoveNode}
                     onCreateTool={handleCreateTool}
                     agentResources={agentResources}
                     highlightNodeId={highlightNodeId}

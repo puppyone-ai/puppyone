@@ -44,6 +44,13 @@ const RefreshIcon = () => (
   </svg>
 );
 
+const MoveIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+    <path d="M5 19H19C20.1046 19 21 18.1046 21 17V9C21 7.89543 20.1046 7 19 7H12.8284C12.298 7 11.7893 6.78929 11.4142 6.41421L9.58579 4.58579C9.21071 4.21071 8.70201 4 8.17157 4H5C3.89543 4 3 4.89543 3 6V17C3 18.1046 3.89543 19 5 19Z" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M12 11V16M12 16L9.5 13.5M12 16L14.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const ToolIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -69,6 +76,8 @@ export interface ItemActionMenuProps {
   onDuplicate?: (id: string) => void;
   /** 刷新同步数据（仅 synced 类型显示） */
   onRefresh?: (id: string) => void;
+  /** 移动节点到其他文件夹 */
+  onMove?: (id: string, name: string) => void;
   /** 创建 Tool（打开 Tool 创建面板） */
   onCreateTool?: (id: string, name: string, type: string) => void;
   /** 同步来源 URL（仅 synced 类型显示） */
@@ -100,6 +109,7 @@ export function ItemActionMenu({
   onDelete,
   onDuplicate,
   onRefresh,
+  onMove,
   onCreateTool,
   syncUrl,
   visible = true,
@@ -207,6 +217,18 @@ export function ItemActionMenu({
       onClick: () => {
         handleClose();
         onDuplicate(itemId);
+      },
+    });
+  }
+
+  if (onMove) {
+    menuItems.push({
+      type: 'item',
+      icon: <MoveIcon />,
+      label: 'Move to...',
+      onClick: () => {
+        handleClose();
+        onMove(itemId, itemName);
       },
     });
   }

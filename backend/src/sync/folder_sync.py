@@ -14,16 +14,18 @@ from typing import Optional, Any
 from datetime import datetime
 
 from src.content_node.repository import ContentNodeRepository
+from src.content_node.service import ContentNodeService
 from src.sync.repository import SyncRepository
 from src.sync.changelog import SyncChangelogRepository
 from src.collaboration.service import CollaborationService
+from src.collaboration.schemas import Mutation, MutationType, Operator
 from src.collaboration.version_service import VersionService
 from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
 from src.collaboration.lock_service import LockService
 from src.collaboration.conflict_service import ConflictService
 from src.collaboration.audit_service import AuditService
 from src.collaboration.audit_repository import AuditRepository
-from src.s3.service import get_s3_service_instance
+from src.s3.service import get_s3_service_instance, S3Service
 from src.supabase.client import SupabaseClient
 from src.utils.logger import log_info, log_error
 
@@ -54,9 +56,17 @@ class FolderSyncService:
             changelog_repo=self._changelog,
         )
 
+    def _build_node_service(self) -> ContentNodeService:
+        return ContentNodeService(
+            repo=self._node_repo,
+            s3_service=self._s3,
+            version_service=self._build_version_service(),
+        )
+
     def _build_collab_service(self) -> CollaborationService:
         return CollaborationService(
             node_repo=self._node_repo,
+            node_service=self._build_node_service(),
             lock_service=LockService(self._node_repo),
             conflict_service=ConflictService(),
             version_service=self._build_version_service(),
@@ -228,64 +238,34 @@ class FolderSyncService:
         operator_name: str,
         source_id: Optional[int],
     ) -> dict:
-        new_id = str(_uuid.uuid4())
-        created_by = self._get_project_owner(project_id)
+        import asyncio
+        collab_svc = self._build_collab_service()
 
         try:
-            if node_type == "json":
-                json_content = content if isinstance(content, (dict, list)) else {}
-                size_bytes = len(
-                    _json.dumps(json_content, ensure_ascii=False).encode("utf-8")
-                )
-                node = self._node_repo.create(
-                    project_id=project_id,
-                    name=name,
-                    node_type="json",
-                    id_path=f"{project_id}/{new_id}",
-                    parent_id=folder_id,
-                    created_by=created_by,
-                    preview_json=json_content,
-                    mime_type="application/json",
-                    size_bytes=size_bytes,
-                )
-            else:
-                content_str = content if isinstance(content, str) else str(content or "")
-                size_bytes = len(content_str.encode("utf-8"))
-                node = self._node_repo.create(
-                    project_id=project_id,
-                    name=name,
-                    node_type="markdown",
-                    id_path=f"{project_id}/{new_id}",
-                    parent_id=folder_id,
-                    created_by=created_by,
-                    preview_md=content_str,
-                    mime_type="text/markdown",
-                    size_bytes=size_bytes,
-                )
-
-            version_svc = self._build_version_service()
-            if node_type == "json":
-                version_svc.create_version(
-                    node_id=node.id,
-                    operator_type="agent",
-                    operation="create",
-                    content_json=content if isinstance(content, (dict, list)) else {},
-                    operator_id=operator_id,
+            mutation = Mutation(
+                type=MutationType.NODE_CREATE,
+                operator=Operator(
+                    type="agent",
+                    id=operator_id,
                     summary=f"CLI create from '{operator_name}'",
-                )
-            else:
-                version_svc.create_version(
-                    node_id=node.id,
-                    operator_type="agent",
-                    operation="create",
-                    content_text=content if isinstance(content, str) else str(content or ""),
-                    operator_id=operator_id,
-                    summary=f"CLI create from '{operator_name}'",
-                )
+                ),
+                project_id=project_id,
+                parent_id=folder_id,
+                name=name,
+                node_type=node_type if node_type in ("json", "markdown") else "markdown",
+                content=content,
+            )
 
-            version = getattr(node, "current_version", 1) or 1
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    result = pool.submit(asyncio.run, collab_svc.commit(mutation)).result()
+            else:
+                result = asyncio.run(collab_svc.commit(mutation))
+
             log_info(f"[FolderSync] CREATE {filename} in folder {folder_id}")
-            return {"ok": True, "version": version, "status": "created"}
+            return {"ok": True, "version": result.version, "status": "created"}
 
         except Exception as e:
             log_error(f"[FolderSync] CREATE failed for {filename}: {e}")
@@ -302,18 +282,30 @@ class FolderSyncService:
         source_id: Optional[int],
         filename: str,
     ) -> dict:
+        import asyncio
         collab_svc = self._build_collab_service()
 
         try:
-            result = collab_svc.commit(
+            mutation = Mutation(
+                type=MutationType.CONTENT_UPDATE,
+                operator=Operator(
+                    type="agent",
+                    id=operator_id,
+                    summary=f"CLI push from '{operator_name}'",
+                ),
                 node_id=node.id,
-                new_content=content,
+                content=content,
                 base_version=base_version,
                 node_type=node_type,
-                operator_type="agent",
-                operator_id=operator_id,
-                summary=f"CLI push from '{operator_name}'",
             )
+
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    result = pool.submit(asyncio.run, collab_svc.commit(mutation)).result()
+            else:
+                result = asyncio.run(collab_svc.commit(mutation))
 
             log_info(f"[FolderSync] UPDATE {filename} → v{result.version}")
             return {"ok": True, "version": result.version, "status": result.status}
@@ -346,16 +338,22 @@ class FolderSyncService:
             return {"ok": True, "status": "not_found"}
 
         try:
-            version_svc = self._build_version_service()
-            version_svc.create_version(
+            import asyncio
+            collab_svc = self._build_collab_service()
+            mutation = Mutation(
+                type=MutationType.NODE_DELETE,
+                operator=Operator(type="agent", id="system", summary=f"CLI delete: {filename}"),
                 node_id=node.id,
-                operator_type="agent",
-                operation="delete",
-                operator_id="system",
-                summary=f"CLI delete: {filename}",
+                project_id=project_id,
             )
 
-            self._node_repo.delete(node.id)
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    pool.submit(asyncio.run, collab_svc.commit(mutation)).result()
+            else:
+                asyncio.run(collab_svc.commit(mutation))
 
             log_info(f"[FolderSync] DELETE {filename} from folder {folder_id}")
             return {"ok": True, "status": "deleted"}
@@ -602,18 +600,25 @@ class FolderSyncService:
             if existing and existing.type == "folder":
                 current_parent = existing.id
             else:
-                new_id = str(_uuid.uuid4())
-                created_by = self._get_project_owner(project_id)
-                folder = self._node_repo.create(
+                import asyncio
+                collab_svc = self._build_collab_service()
+                mutation = Mutation(
+                    type=MutationType.NODE_CREATE,
+                    operator=Operator(type="agent", id="system"),
                     project_id=project_id,
+                    parent_id=current_parent,
                     name=segment,
                     node_type="folder",
-                    id_path=f"{project_id}/{new_id}",
-                    parent_id=current_parent,
-                    created_by=created_by,
                 )
-                current_parent = folder.id
-                log_info(f"[FolderSync] Auto-created folder '{segment}' ({folder.id})")
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        result = pool.submit(asyncio.run, collab_svc.commit(mutation)).result()
+                else:
+                    result = asyncio.run(collab_svc.commit(mutation))
+                current_parent = result.node_id
+                log_info(f"[FolderSync] Auto-created folder '{segment}' ({result.node_id})")
         return current_parent
 
     def _resolve_parent(self, project_id: str, folder_id: str, filename: str) -> tuple[str, str]:

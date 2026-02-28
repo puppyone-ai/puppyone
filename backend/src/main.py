@@ -296,6 +296,7 @@ async def app_lifespan(app: FastAPI):
 
         collab_svc = CollaborationService(
             node_repo=node_repo,
+            node_service=node_svc,
             lock_service=LockService(node_repo),
             conflict_service=ConflictService(),
             version_service=version_svc,

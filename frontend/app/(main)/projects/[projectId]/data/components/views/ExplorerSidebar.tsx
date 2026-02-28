@@ -5,6 +5,7 @@ import type { ContentType, AgentResource } from './GridView';
 import { getNodeTypeConfig, getSyncSourceIcon, getSyncSource, isSyncedType } from '@/lib/nodeTypeConfig';
 import { useContentNodes } from '@/lib/hooks/useData';
 import { useSyncExternalStore } from 'react';
+import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 
 // === Persistent expanded state (survives component re-mounts) ===
 const expandedSet = new Set<string>();
@@ -66,6 +67,7 @@ export interface ExplorerSidebarProps {
   onCreate?: (e: React.MouseEvent, parentId: string | null) => void;
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
+  onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onSyncClick?: (nodeId: string, syncInfo: SyncEndpointInfo) => void;
   activeSyncNodeId?: string | null;
   agentResources?: AgentResource[];
@@ -338,6 +340,7 @@ interface TreeItemProps {
   onCreate?: (e: React.MouseEvent, parentId: string | null) => void;
   onRename?: (id: string, name: string) => void;
   onDelete?: (id: string, name: string) => void;
+  onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onSyncClick?: (nodeId: string, syncInfo: SyncEndpointInfo) => void;
   activeSyncNodeId?: string | null;
   ancestors: string[];
@@ -346,7 +349,7 @@ interface TreeItemProps {
   highlightNodeId?: string | null;
 }
 
-function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onSyncClick, activeSyncNodeId, ancestors, agentResourceMap, syncEndpoints, highlightNodeId }: TreeItemProps) {
+function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, activeSyncNodeId, ancestors, agentResourceMap, syncEndpoints, highlightNodeId }: TreeItemProps) {
   const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
   const isSynced = item.is_synced;
   const syncEndpoint = syncEndpoints?.get(item.id);
@@ -356,6 +359,12 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
   const [menuOpen, setMenuOpen] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
   const isHighlighted = highlightNodeId === item.id;
+
+  const { isDropTarget, dropHandlers } = useNodeDrop({
+    targetFolderId: item.id,
+    onMoveNode,
+    disabled: !isFolder,
+  });
 
   useEffect(() => {
     if (isHighlighted && rowRef.current) {
@@ -385,6 +394,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 
   const isSyncActive = activeSyncNodeId === item.id;
   const getBackground = (h: boolean) => {
+    if (isDropTarget) return 'rgba(59, 130, 246, 0.2)';
     if (isHighlighted) return 'rgba(59, 130, 246, 0.15)';
     if (isSyncActive) return 'rgba(249, 115, 22, 0.22)';
     if (isActive) return hasAgentAccess ? 'rgba(249, 115, 22, 0.18)' : '#2a2a2a';
@@ -410,20 +420,22 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
             id: item.id,
             name: item.name,
             type: item.type,
+            parentId: ancestors.length > 0 ? ancestors[ancestors.length - 1] : null,
           }));
-          e.dataTransfer.effectAllowed = 'copy';
+          e.dataTransfer.effectAllowed = 'copyMove';
         }}
+        {...dropHandlers}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
           display: 'flex', alignItems: 'center', gap: 6, height: 28, boxSizing: 'border-box',
           padding: '0 8px', paddingLeft, paddingRight: 6, cursor: 'pointer',
           background: getBackground(hovered),
-          color: isActive ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
+          color: isDropTarget ? '#93c5fd' : isActive ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
           fontSize: 13, userSelect: 'none',
           transition: 'background 0.1s, color 0.1s',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          borderLeft: hasAgentAccess ? '3px solid rgba(249, 115, 22, 0.7)' : '3px solid transparent',
+          borderLeft: isDropTarget ? '3px solid rgba(59, 130, 246, 0.7)' : hasAgentAccess ? '3px solid rgba(249, 115, 22, 0.7)' : '3px solid transparent',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', width: 16, height: 16, flexShrink: 0, color: '#666' }}>
@@ -510,7 +522,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
           ) : childItems.length > 0 ? (
             childItems.map(child => (
               <TreeItem key={child.id} item={child} depth={depth + 1} projectId={projectId}
-                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onSyncClick={onSyncClick} activeSyncNodeId={activeSyncNodeId}
+                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} activeSyncNodeId={activeSyncNodeId}
                 ancestors={[...ancestors, item.id]} agentResourceMap={agentResourceMap} syncEndpoints={syncEndpoints} highlightNodeId={highlightNodeId} />
             ))
           ) : !loading ? (
@@ -523,8 +535,13 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 }
 
 // === Main Component ===
-export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, onSyncClick, activeSyncNodeId, agentResources, syncEndpoints, highlightNodeId, className, style }: ExplorerSidebarProps) {
+export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, activeSyncNodeId, agentResources, syncEndpoints, highlightNodeId, className, style }: ExplorerSidebarProps) {
   const { nodes: rootNodes, isLoading: loading } = useContentNodes(projectId, null);
+
+  const { isDropTarget: isRootDropTarget, dropHandlers: rootDropHandlers } = useNodeDrop({
+    targetFolderId: null,
+    onMoveNode,
+  });
 
   if (currentPath.length > 0) {
     currentPath.forEach(p => ensureExpanded(p.id));
@@ -546,10 +563,16 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
     <div className={className} style={{ ...style, overflow: 'auto' }}>
       <div style={{ padding: '6px 0' }}>
         {/* Root folder header + create button */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 6px 4px 12px',
-        }}>
+        <div
+          {...rootDropHandlers}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '0 6px 4px 12px',
+            background: isRootDropTarget ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+            borderRadius: 4,
+            transition: 'background 0.1s',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
             <FolderIcon />
             <span style={{
@@ -583,7 +606,7 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
         ) : (
           rootItems.map(item => (
             <TreeItem key={item.id} item={item} depth={0} projectId={projectId}
-              activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onSyncClick={onSyncClick} activeSyncNodeId={activeSyncNodeId}
+              activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} activeSyncNodeId={activeSyncNodeId}
               ancestors={[]} agentResourceMap={agentResourceMap} syncEndpoints={syncEndpoints} highlightNodeId={highlightNodeId} />
           ))
         )}

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, getSyncSource, getSyncSourceIcon, LockIcon } from '@/lib/nodeTypeConfig';
+import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 
 // Content type definition
 export type ContentType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'sync' | 'github_repo' | 'notion_page' | 'notion_database' | 'airtable_base' | 'linear_project' | 'google_sheets';
@@ -329,11 +330,14 @@ export interface GridViewItem {
 
 export interface GridViewProps {
   items: GridViewItem[];
+  parentFolderId?: string | null;
   onCreateClick?: (e: React.MouseEvent) => void;
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
+  onMove?: (id: string, name: string) => void;
+  onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
   loading?: boolean;
   agentResources?: AgentResource[];
@@ -342,25 +346,39 @@ export interface GridViewProps {
 
 function GridItem({
   item,
+  parentFolderId,
   agentResource,
   onRename,
   onDelete,
   onDuplicate,
   onRefresh,
+  onMove,
+  onMoveNode,
   onCreateTool,
   isHighlighted,
 }: {
   item: GridViewItem;
+  parentFolderId?: string | null;
   agentResource?: AgentResource;
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
+  onMove?: (id: string, name: string) => void;
+  onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
   isHighlighted?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const itemRef = useRef<HTMLDivElement>(null);
+
+  const typeConfig = getNodeTypeConfig(item.type);
+  const isFolder = typeConfig.renderAs === 'folder';
+  const { isDropTarget, dropHandlers } = useNodeDrop({
+    targetFolderId: item.id,
+    onMoveNode,
+    disabled: !isFolder,
+  });
 
   useEffect(() => {
     if (isHighlighted && itemRef.current) {
@@ -372,8 +390,6 @@ function GridItem({
   const hasAgentAccess = !!agentResource;
   const accessMode = agentResource?.terminalReadonly ? 'read' : 'write';
 
-  // Get type config - type directly determines rendering method
-  const typeConfig = getNodeTypeConfig(item.type);
   // 判断是否为同步类型
   const isSynced = item.is_synced || isSyncedType(item.type);
   // 从 sync_source 或 type 获取来源，用于显示 Logo
@@ -442,10 +458,12 @@ function GridItem({
         e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify({
           id: item.id,
           name: item.name,
-          type: item.type
+          type: item.type,
+          parentId: parentFolderId ?? null,
         }));
-        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.effectAllowed = 'copyMove';
       }}
+      {...dropHandlers}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -455,10 +473,12 @@ function GridItem({
         height: 128,
         borderRadius: 8,
         cursor: 'pointer',
-        background: isHighlighted ? 'rgba(59, 130, 246, 0.12)' : hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+        background: isDropTarget ? 'rgba(59, 130, 246, 0.15)' : isHighlighted ? 'rgba(59, 130, 246, 0.12)' : hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
         transition: 'all 0.15s',
         position: 'relative',
-        outline: isHighlighted
+        outline: isDropTarget
+            ? '2px solid rgba(59, 130, 246, 0.6)'
+            : isHighlighted
             ? '2px solid rgba(59, 130, 246, 0.5)'
             : hasAgentAccess
             ? '2px solid rgba(249, 115, 22, 0.5)'
@@ -476,7 +496,7 @@ function GridItem({
       </div>
       
       {/* Action Menu - 右上角 (absolute 定位相对于 GridItem) */}
-      {(onRename || onDelete || onDuplicate || onCreateTool || (isSynced && onRefresh)) && !isPlaceholder && (
+      {(onRename || onDelete || onDuplicate || onMove || onCreateTool || (isSynced && onRefresh)) && !isPlaceholder && (
         <div style={{ position: 'absolute', top: 4, right: 4 }}>
           <ItemActionMenu
             itemId={item.id}
@@ -485,6 +505,7 @@ function GridItem({
             onRename={onRename}
             onDelete={onDelete}
             onDuplicate={onDuplicate}
+            onMove={onMove}
             onRefresh={isSynced ? onRefresh : undefined}
             onCreateTool={onCreateTool}
             syncUrl={item.sync_url}
@@ -606,11 +627,14 @@ function CreateButton({
 
 export function GridView({
   items,
+  parentFolderId,
   onCreateClick,
   onRename,
   onDelete,
   onDuplicate,
   onRefresh,
+  onMove,
+  onMoveNode,
   onCreateTool,
   loading,
   agentResources,
@@ -642,11 +666,14 @@ export function GridView({
           <GridItem
             key={item.id}
             item={item}
+            parentFolderId={parentFolderId}
             agentResource={resourceMap.get(item.id)}
             onRename={onRename}
             onDelete={onDelete}
             onDuplicate={onDuplicate}
             onRefresh={onRefresh}
+            onMove={onMove}
+            onMoveNode={onMoveNode}
             onCreateTool={onCreateTool}
             isHighlighted={highlightNodeId === item.id}
           />

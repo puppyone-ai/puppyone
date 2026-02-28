@@ -271,16 +271,21 @@ class FolderAccessService:
         try:
             base_content = self._get_base_content(node_sync)
 
-            commit_result = self._collab.commit(
+            from src.collaboration.schemas import Mutation, MutationType, Operator
+            mutation = Mutation(
+                type=MutationType.CONTENT_UPDATE,
+                operator=Operator(
+                    type="agent",
+                    id=root_sync.config.get("agent_name", "folder_access"),
+                    summary=f"Agent edit: {external_resource_id}",
+                ),
                 node_id=node_sync.node_id,
-                new_content=fc.content,
+                content=fc.content,
                 base_version=node_sync.last_sync_version,
                 node_type=fc.content_type,
                 base_content=base_content,
-                operator_type="agent",
-                operator_id=root_sync.config.get("agent_name", "folder_access"),
-                summary=f"Agent edit: {external_resource_id}",
             )
+            commit_result = await self._collab.commit(mutation)
 
             self._sync_repo.update_sync_point(
                 sync_id=node_sync.id,

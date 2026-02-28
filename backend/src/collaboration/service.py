@@ -1,55 +1,360 @@
 """
-L2 Collaboration — CollaborationService 统一入口
+Mut Protocol — CollaborationService
 
-产品核心壁垒层。所有数据写入最终经过此层。
+系统中所有变更的唯一入口：commit(mutation)
 
-对外接口（Agent / API / SDK 统一调用）：
-- checkout()    获取工作副本 + 记录 base_version
-- commit()      写入 + 乐观锁 + 冲突解决 + 版本记录
-- get_history() 查看版本历史
-- rollback()    回滚到指定版本
-
-内部组合：
-  LockService → ConflictService → VersionService → AuditService
+commit() = Apply + Record + Hook
+  Apply  — 执行变更（写数据库）
+  Record — 版本快照 + 审计日志
+  Hook   — 触发 post-commit hooks（副作用）
 """
 
 import json
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Callable
 
 from src.content_node.repository import ContentNodeRepository
+from src.content_node.service import ContentNodeService
 from src.collaboration.lock_service import LockService
 from src.collaboration.conflict_service import ConflictService
 from src.collaboration.version_service import VersionService
 from src.collaboration.audit_service import AuditService
 from src.collaboration.schemas import (
+    Mutation, MutationType, Operator,
     WorkingCopy, CommitResult, MergeResult,
     VersionHistoryResponse, FileVersionDetail,
     FolderSnapshotHistoryResponse,
     RollbackResponse, FolderRollbackResponse,
     DiffResponse,
 )
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_info, log_error, log_warning
 
 
 class CollaborationService:
-    """L2 协同层统一入口"""
+    """
+    Mut Protocol 统一入口
+
+    所有数据写入通过 commit(mutation)。没有第二条写路径。
+    """
 
     def __init__(
         self,
         node_repo: ContentNodeRepository,
+        node_service: ContentNodeService,
         lock_service: LockService,
         conflict_service: ConflictService,
         version_service: VersionService,
         audit_service: AuditService,
     ):
         self.node_repo = node_repo
+        self.node_svc = node_service
         self.lock_svc = lock_service
         self.conflict_svc = conflict_service
         self.version_svc = version_service
         self.audit_svc = audit_service
+        self._hooks: List[Callable] = []
 
     # ============================================================
-    # checkout: 获取工作副本
+    # Hooks
+    # ============================================================
+
+    def register_hook(self, hook: Callable):
+        """注册 post-commit hook"""
+        self._hooks.append(hook)
+
+    async def _run_hooks(self, mutation: Mutation, result: CommitResult):
+        for hook in self._hooks:
+            try:
+                await hook(mutation, result)
+            except Exception as e:
+                log_error(f"[Mut] Hook {hook.__name__} failed: {e}")
+
+    # ============================================================
+    # commit: 唯一写入入口
+    # ============================================================
+
+    async def commit(self, mutation: Mutation) -> CommitResult:
+        """
+        Mut Protocol 核心。
+
+        所有变更通过此方法。commit 永远成功。
+
+        Apply → Record → Hook
+        """
+        t = mutation.type
+        if t == MutationType.CONTENT_UPDATE:
+            result = self._apply_content_update(mutation)
+        elif t == MutationType.NODE_CREATE:
+            result = await self._apply_node_create(mutation)
+        elif t == MutationType.NODE_DELETE:
+            result = self._apply_node_delete(mutation)
+        elif t == MutationType.NODE_RENAME:
+            result = self._apply_node_rename(mutation)
+        elif t == MutationType.NODE_MOVE:
+            result = self._apply_node_move(mutation)
+        else:
+            raise ValueError(f"Unknown mutation type: {mutation.type}")
+
+        await self._run_hooks(mutation, result)
+        return result
+
+    # ============================================================
+    # Apply: CONTENT_UPDATE
+    # ============================================================
+
+    def _apply_content_update(self, m: Mutation) -> CommitResult:
+        node_id = m.node_id
+        new_content_str = _serialize_content(m.content, m.node_type)
+
+        # 1. Apply: 乐观锁 + 合并
+        lock_passed = self.lock_svc.check_version(node_id, m.base_version)
+
+        final_content = new_content_str
+        status = "clean"
+        strategy = "direct"
+        lww_applied = False
+        lww_details = None
+
+        if not lock_passed:
+            current_content = self.lock_svc.get_current_content(node_id)
+
+            merge_result = self.conflict_svc.merge(
+                node_id=node_id,
+                base_content=m.base_content,
+                current_content=current_content,
+                new_content=new_content_str,
+                node_type=m.node_type,
+                agent_id=m.operator.id,
+            )
+
+            final_content = merge_result.merged_content
+            status = merge_result.status
+            strategy = merge_result.strategy_used or "direct"
+            lww_applied = merge_result.lww_applied
+            lww_details = merge_result.lww_details
+
+        # Apply: 写入数据库
+        content_json = None
+        content_text = None
+
+        if m.node_type == "json":
+            try:
+                content_json = json.loads(final_content) if isinstance(final_content, str) else final_content
+            except (json.JSONDecodeError, TypeError) as e:
+                log_error(f"[Mut] Invalid JSON for {node_id}, storing as markdown fallback: {e}")
+                content_text = final_content if isinstance(final_content, str) else str(final_content)
+                self.node_repo.update(node_id=node_id, preview_md=content_text)
+                m.node_type = "markdown"
+            if content_json is not None:
+                self.node_repo.update(node_id=node_id, preview_json=content_json)
+        elif m.node_type == "markdown":
+            content_text = final_content if isinstance(final_content, str) else str(final_content)
+            self.node_repo.update(node_id=node_id, preview_md=content_text)
+        elif m.node_type == "file":
+            pass
+
+        # 2. Record: 版本快照
+        version = self.version_svc.create_version(
+            node_id=node_id,
+            operator_type=m.operator.type,
+            operation="update",
+            content_json=content_json,
+            content_text=content_text,
+            operator_id=m.operator.id,
+            session_id=m.operator.session_id,
+            merge_strategy=strategy if status != "clean" else None,
+            summary=m.operator.summary,
+        )
+
+        new_version = version.version if version else self.lock_svc.get_current_version(node_id)
+
+        # 2. Record: 审计日志
+        self.audit_svc.log_commit(
+            node_id=node_id,
+            old_version=m.base_version,
+            new_version=new_version,
+            status=status,
+            strategy=strategy,
+            operator_type=m.operator.type,
+            operator_id=m.operator.id,
+        )
+
+        if lww_applied:
+            self.audit_svc.log_conflict(
+                node_id=node_id,
+                strategy=strategy,
+                details=json.dumps(lww_details) if lww_details else None,
+                agent_id=m.operator.id,
+            )
+
+        return CommitResult(
+            node_id=node_id,
+            status=status,
+            version=new_version,
+            final_content=content_json or content_text,
+            strategy=strategy,
+            lww_applied=lww_applied,
+            lww_details=lww_details,
+        )
+
+    # ============================================================
+    # Apply: NODE_CREATE
+    # ============================================================
+
+    async def _apply_node_create(self, m: Mutation) -> CommitResult:
+        # 1. Apply: 创建节点
+        if m.node_type == "folder":
+            node = self.node_svc.create_folder(
+                project_id=m.project_id,
+                name=m.name,
+                parent_id=m.parent_id,
+                created_by=m.created_by or m.operator.id,
+            )
+            # 2. Record: 审计日志（文件夹不创建版本快照）
+            self.audit_svc.log_commit(
+                node_id=node.id,
+                old_version=0,
+                new_version=0,
+                status="clean",
+                strategy="direct",
+                operator_type=m.operator.type,
+                operator_id=m.operator.id,
+            )
+            return CommitResult(
+                node_id=node.id, status="clean", version=0,
+                final_content=None, strategy="direct",
+            )
+
+        elif m.node_type == "json":
+            node = self.node_svc.create_json_node(
+                project_id=m.project_id,
+                name=m.name,
+                content=m.content or {},
+                parent_id=m.parent_id,
+                created_by=m.created_by or m.operator.id,
+            )
+            content_json = m.content or {}
+            content_text = None
+        elif m.node_type == "markdown":
+            content_str = m.content if isinstance(m.content, str) else ""
+            node = await self.node_svc.create_markdown_node(
+                project_id=m.project_id,
+                name=m.name,
+                content=content_str,
+                parent_id=m.parent_id,
+                created_by=m.created_by or m.operator.id,
+            )
+            content_json = None
+            content_text = content_str
+        else:
+            raise ValueError(f"Unsupported node_type for creation: {m.node_type}")
+
+        new_version = node.current_version or 1
+
+        # 2. Record: 审计日志
+        self.audit_svc.log_commit(
+            node_id=node.id,
+            old_version=0,
+            new_version=new_version,
+            status="clean",
+            strategy="direct",
+            operator_type=m.operator.type,
+            operator_id=m.operator.id,
+        )
+
+        return CommitResult(
+            node_id=node.id, status="clean", version=new_version,
+            final_content=content_json or content_text, strategy="direct",
+        )
+
+    # ============================================================
+    # Apply: NODE_DELETE
+    # ============================================================
+
+    def _apply_node_delete(self, m: Mutation) -> CommitResult:
+        # 1. Apply: 软删除（移入 .trash）
+        node = self.node_svc.soft_delete_node(
+            node_id=m.node_id,
+            project_id=m.project_id,
+            user_id=m.operator.id or "system",
+        )
+
+        # 2. Record: 审计日志
+        self.audit_svc.log_commit(
+            node_id=m.node_id,
+            old_version=node.current_version or 0,
+            new_version=node.current_version or 0,
+            status="clean",
+            strategy="direct",
+            operator_type=m.operator.type,
+            operator_id=m.operator.id,
+        )
+
+        return CommitResult(
+            node_id=m.node_id, status="clean",
+            version=node.current_version or 0,
+            strategy="direct",
+        )
+
+    # ============================================================
+    # Apply: NODE_RENAME
+    # ============================================================
+
+    def _apply_node_rename(self, m: Mutation) -> CommitResult:
+        # 1. Apply: 重命名
+        node = self.node_svc.update_node(
+            node_id=m.node_id,
+            project_id=m.project_id,
+            name=m.new_name,
+        )
+
+        # 2. Record: 审计日志
+        self.audit_svc.log_commit(
+            node_id=m.node_id,
+            old_version=node.current_version or 0,
+            new_version=node.current_version or 0,
+            status="clean",
+            strategy="direct",
+            operator_type=m.operator.type,
+            operator_id=m.operator.id,
+        )
+
+        return CommitResult(
+            node_id=m.node_id, status="clean",
+            version=node.current_version or 0,
+            strategy="direct",
+        )
+
+    # ============================================================
+    # Apply: NODE_MOVE
+    # ============================================================
+
+    def _apply_node_move(self, m: Mutation) -> CommitResult:
+        # 1. Apply: 移动节点
+        node = self.node_svc.move_node(
+            node_id=m.node_id,
+            project_id=m.project_id,
+            new_parent_id=m.new_parent_id,
+        )
+
+        # 2. Record: 审计日志
+        self.audit_svc.log_commit(
+            node_id=m.node_id,
+            old_version=node.current_version or 0,
+            new_version=node.current_version or 0,
+            status="clean",
+            strategy="direct",
+            operator_type=m.operator.type,
+            operator_id=m.operator.id,
+        )
+
+        return CommitResult(
+            node_id=m.node_id, status="clean",
+            version=node.current_version or 0,
+            strategy="direct",
+        )
+
+    # ============================================================
+    # checkout
     # ============================================================
 
     def checkout(
@@ -58,14 +363,9 @@ class CollaborationService:
         operator_type: str = "agent",
         operator_id: Optional[str] = None,
     ) -> Optional[WorkingCopy]:
-        """
-        checkout 一个文件的工作副本
-
-        返回 WorkingCopy（含 base_version），供 commit 时做乐观锁。
-        """
         node = self.node_repo.get_by_id(node_id)
         if not node:
-            log_error(f"[Collab] checkout: node not found {node_id}")
+            log_error(f"[Mut] checkout: node not found {node_id}")
             return None
 
         content_str = None
@@ -101,7 +401,6 @@ class CollaborationService:
         operator_type: str = "agent",
         operator_id: Optional[str] = None,
     ) -> List[WorkingCopy]:
-        """批量 checkout"""
         copies = []
         for nid in node_ids:
             wc = self.checkout(nid, operator_type, operator_id)
@@ -110,155 +409,25 @@ class CollaborationService:
         return copies
 
     # ============================================================
-    # commit: 写入 + 乐观锁 + 冲突解决 + 版本记录
-    # ============================================================
-
-    def commit(
-        self,
-        node_id: str,
-        new_content: Any,
-        base_version: int,
-        node_type: str = "json",
-        base_content: Optional[str] = None,
-        operator_type: str = "agent",
-        operator_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        summary: Optional[str] = None,
-    ) -> CommitResult:
-        """
-        提交单个文件的修改
-
-        流程：
-        1. 序列化 new_content
-        2. 乐观锁检查（base_version vs current_version）
-        3. 锁通过 → 直接写入
-        4. 锁失败 → 三方合并（ConflictService）
-        5. 创建版本记录（VersionService）
-        6. 审计日志（AuditService）
-        """
-        # 序列化新内容
-        new_content_str = _serialize_content(new_content, node_type)
-
-        # Step 1: 乐观锁检查
-        lock_passed = self.lock_svc.check_version(node_id, base_version)
-
-        final_content = new_content_str
-        status = "clean"
-        strategy = "direct"
-        conflict_details = None
-
-        if not lock_passed:
-            # Step 2: 乐观锁失败 → 三方合并
-            current_content = self.lock_svc.get_current_content(node_id)
-
-            merge_result = self.conflict_svc.merge(
-                node_id=node_id,
-                base_content=base_content,
-                current_content=current_content,
-                new_content=new_content_str,
-                node_type=node_type,
-                agent_id=operator_id,
-            )
-
-            final_content = merge_result.merged_content
-            status = merge_result.status
-            strategy = merge_result.strategy_used or "lww"
-            conflict_details = merge_result.conflict_details
-
-            if status in ("merged", "lww"):
-                self.audit_svc.log_conflict(
-                    node_id=node_id,
-                    strategy=strategy,
-                    details=conflict_details,
-                    agent_id=operator_id,
-                )
-
-        # Step 3: 写入内容到 content_nodes
-        content_json = None
-        content_text = None
-
-        if node_type == "json":
-            try:
-                content_json = json.loads(final_content) if isinstance(final_content, str) else final_content
-            except (json.JSONDecodeError, TypeError) as e:
-                log_error(
-                    f"[Collab] commit: invalid JSON for node {node_id}, "
-                    f"storing as markdown fallback. Error: {e}"
-                )
-                content_text = final_content if isinstance(final_content, str) else str(final_content)
-                self.node_repo.update(node_id=node_id, preview_md=content_text)
-                node_type = "markdown"
-            if content_json is not None:
-                self.node_repo.update(node_id=node_id, preview_json=content_json)
-        elif node_type == "markdown":
-            content_text = final_content if isinstance(final_content, str) else str(final_content)
-            self.node_repo.update(node_id=node_id, preview_md=content_text)
-
-        # Step 4: 创建版本记录
-        # create_version 可能返回 None（内容哈希未变化时跳过）
-        # 或者抛出 VersionConflictException（并发写入时）
-        version = self.version_svc.create_version(
-            node_id=node_id,
-            operator_type=operator_type,
-            operation="update",
-            content_json=content_json,
-            content_text=content_text,
-            operator_id=operator_id,
-            session_id=session_id,
-            merge_strategy=strategy if status != "clean" else None,
-            summary=summary,
-        )
-
-        if version:
-            new_version_num = version.version
-        else:
-            # 内容未变化，版本号不变
-            new_version_num = self.lock_svc.get_current_version(node_id)
-
-        # Step 5: 审计日志
-        self.audit_svc.log_commit(
-            node_id=node_id,
-            old_version=base_version,
-            new_version=new_version_num,
-            status=status,
-            strategy=strategy,
-            operator_type=operator_type,
-            operator_id=operator_id,
-        )
-
-        return CommitResult(
-            node_id=node_id,
-            status=status,
-            version=new_version_num,
-            final_content=content_json or content_text,
-            strategy=strategy,
-            conflict_details=conflict_details,
-        )
-
-    # ============================================================
     # 查询
     # ============================================================
 
     def get_version_history(
         self, node_id: str, limit: int = 50, offset: int = 0
     ) -> VersionHistoryResponse:
-        """获取文件版本历史"""
         return self.version_svc.get_version_history(node_id, limit, offset)
 
     def get_version_content(
         self, node_id: str, version: int
     ) -> FileVersionDetail:
-        """获取某个版本的完整内容"""
         return self.version_svc.get_version_content(node_id, version)
 
     def get_snapshot_history(
         self, folder_node_id: str, limit: int = 50, offset: int = 0
     ) -> FolderSnapshotHistoryResponse:
-        """获取文件夹快照历史"""
         return self.version_svc.get_snapshot_history(folder_node_id, limit, offset)
 
     def compute_diff(self, node_id: str, v1: int, v2: int) -> DiffResponse:
-        """对比两个版本差异"""
         return self.version_svc.compute_diff(node_id, v1, v2)
 
     # ============================================================
@@ -268,22 +437,18 @@ class CollaborationService:
     def rollback_file(
         self, node_id: str, target_version: int, operator_id: Optional[str] = None
     ) -> RollbackResponse:
-        """单文件回滚"""
         result = self.version_svc.rollback_file(node_id, target_version, operator_id)
-
         self.audit_svc.log_rollback(
             node_id=node_id,
             target_version=target_version,
             new_version=result.new_version,
             operator_id=operator_id,
         )
-
         return result
 
     def rollback_folder(
         self, folder_node_id: str, target_snapshot_id: int, operator_id: Optional[str] = None
     ) -> FolderRollbackResponse:
-        """文件夹回滚"""
         return self.version_svc.rollback_folder(folder_node_id, target_snapshot_id, operator_id)
 
     # ============================================================
@@ -300,7 +465,6 @@ class CollaborationService:
         session_id: Optional[str] = None,
         summary: Optional[str] = None,
     ):
-        """创建文件夹快照"""
         return self.version_svc.create_folder_snapshot(
             folder_node_id=folder_node_id,
             changed_node_ids=changed_node_ids,
@@ -317,7 +481,6 @@ class CollaborationService:
 # ============================================================
 
 def _serialize_content(content: Any, node_type: str) -> str:
-    """将内容序列化为字符串"""
     if isinstance(content, str):
         return content
     if node_type == "json":
