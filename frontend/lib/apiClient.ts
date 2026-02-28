@@ -7,18 +7,27 @@ import { createBrowserClient } from '@supabase/ssr';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
-// 创建一个独立的 Supabase 客户端用于获取 Token
-// 它会自动读取 Cookie，无需等待 AuthProvider
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+let _supabase: ReturnType<typeof createBrowserClient> | null = null;
+
+function getSupabase() {
+  if (!_supabase) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      throw new Error(
+        'NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set'
+      );
+    }
+    _supabase = createBrowserClient(url, key);
+  }
+  return _supabase;
+}
 
 /**
  * 获取当前 access token
  */
 async function getAuthToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
+  const { data } = await getSupabase().auth.getSession();
   return data.session?.access_token ?? null;
 }
 

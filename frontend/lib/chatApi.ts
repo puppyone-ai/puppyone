@@ -4,10 +4,21 @@ import { createBrowserClient } from '@supabase/ssr';
  * Chat API - 直接操作 Supabase
  */
 
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+let _supabase: ReturnType<typeof createBrowserClient> | null = null;
+
+function getSupabase() {
+  if (!_supabase) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      throw new Error(
+        'NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set'
+      );
+    }
+    _supabase = createBrowserClient(url, key);
+  }
+  return _supabase;
+}
 
 // ============ Types ============
 
@@ -62,10 +73,10 @@ export interface CreateMessageInput {
 export async function getChatSessions(agentId?: string | null): Promise<ChatSession[]> {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSupabase().auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  let query = supabase
+  let query = getSupabase()
     .from('chat_sessions')
     .select('*')
     .eq('user_id', user.id);
@@ -95,7 +106,7 @@ export async function createChatSession(
 ): Promise<ChatSession> {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSupabase().auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
@@ -214,7 +225,7 @@ export async function deleteChatMessage(messageId: string): Promise<void> {
 export async function getAllChatMessages(): Promise<ChatMessage[]> {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSupabase().auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
   // 先获取用户的所有 session ids
@@ -262,7 +273,7 @@ export interface AgentLog {
 export async function getAgentLogs(projectId: string): Promise<AgentLog[]> {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSupabase().auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
   // 1. 先获取该项目下的所有 agent IDs
@@ -352,7 +363,7 @@ export interface DashboardData {
 export async function getDashboardData(projectId: string, hours: number = 24): Promise<DashboardData> {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSupabase().auth.getUser();
   if (!user) throw new Error('Not authenticated');
   if (!projectId) throw new Error('Project ID is required');
 
@@ -377,13 +388,13 @@ export async function getDashboardData(projectId: string, hours: number = 24): P
   ] = await Promise.all([
     // sessions: 只获取属于这个项目 agents 的 sessions
     agentIds.length > 0 
-      ? supabase.from('chat_sessions').select('*').in('agent_id', agentIds)
+      ? getSupabase().from('chat_sessions').select('*').in('agent_id', agentIds)
       : Promise.resolve({ data: [], error: null }),
     // messages: RLS 自动过滤
-    supabase.from('chat_messages').select('id, session_id, created_at'),
+    getSupabase().from('chat_messages').select('id, session_id, created_at'),
     // logs: 只获取属于这个项目 agents 的 logs
     agentIds.length > 0
-      ? supabase.from('agent_logs').select('id, call_type, agent_id, created_at').in('agent_id', agentIds)
+      ? getSupabase().from('agent_logs').select('id, call_type, agent_id, created_at').in('agent_id', agentIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
