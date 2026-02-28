@@ -7,18 +7,22 @@ import { createBrowserClient } from '@supabase/ssr';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
-let _supabase: ReturnType<typeof createBrowserClient> | null = null;
+function _initSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error(
+      'NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set'
+    );
+  }
+  return createBrowserClient(url, key);
+}
+
+let _supabase: ReturnType<typeof _initSupabase> | null = null;
 
 function getSupabase() {
   if (!_supabase) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) {
-      throw new Error(
-        'NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set'
-      );
-    }
-    _supabase = createBrowserClient(url, key);
+    _supabase = _initSupabase();
   }
   return _supabase;
 }

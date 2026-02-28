@@ -4,18 +4,22 @@ import { createBrowserClient } from '@supabase/ssr';
  * Chat API - 直接操作 Supabase
  */
 
-let _supabase: ReturnType<typeof createBrowserClient> | null = null;
+function _initSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error(
+      'NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set'
+    );
+  }
+  return createBrowserClient(url, key);
+}
+
+let _supabase: ReturnType<typeof _initSupabase> | null = null;
 
 function getSupabase() {
   if (!_supabase) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) {
-      throw new Error(
-        'NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set'
-      );
-    }
-    _supabase = createBrowserClient(url, key);
+    _supabase = _initSupabase();
   }
   return _supabase;
 }
@@ -109,7 +113,7 @@ export async function createChatSession(
   } = await getSupabase().auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('chat_sessions')
     .insert({
       user_id: user.id,
@@ -131,7 +135,7 @@ export async function updateChatSessionTitle(
   sessionId: string,
   title: string
 ): Promise<void> {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('chat_sessions')
     .update({ title })
     .eq('id', sessionId);
@@ -143,7 +147,7 @@ export async function updateChatSessionTitle(
  * 删除会话（会级联删除所有消息）
  */
 export async function deleteChatSession(sessionId: string): Promise<void> {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('chat_sessions')
     .delete()
     .eq('id', sessionId);
@@ -159,7 +163,7 @@ export async function deleteChatSession(sessionId: string): Promise<void> {
 export async function getChatMessages(
   sessionId: string
 ): Promise<ChatMessage[]> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('chat_messages')
     .select('*')
     .eq('session_id', sessionId)
@@ -175,7 +179,7 @@ export async function getChatMessages(
 export async function addChatMessage(
   input: CreateMessageInput
 ): Promise<ChatMessage> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('chat_messages')
     .insert({
       session_id: input.session_id,
@@ -197,7 +201,7 @@ export async function updateChatMessage(
   messageId: string,
   updates: { content?: string; parts?: MessagePart[] }
 ): Promise<void> {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('chat_messages')
     .update(updates)
     .eq('id', messageId);
@@ -209,7 +213,7 @@ export async function updateChatMessage(
  * 删除消息
  */
 export async function deleteChatMessage(messageId: string): Promise<void> {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('chat_messages')
     .delete()
     .eq('id', messageId);
@@ -229,7 +233,7 @@ export async function getAllChatMessages(): Promise<ChatMessage[]> {
   if (!user) throw new Error('Not authenticated');
 
   // 先获取用户的所有 session ids
-  const { data: sessions, error: sessionsError } = await supabase
+  const { data: sessions, error: sessionsError } = await getSupabase()
     .from('chat_sessions')
     .select('id')
     .eq('user_id', user.id);
@@ -240,7 +244,7 @@ export async function getAllChatMessages(): Promise<ChatMessage[]> {
   const sessionIds = sessions.map(s => s.id);
 
   // 获取这些 sessions 的所有消息
-  const { data: messages, error: messagesError } = await supabase
+  const { data: messages, error: messagesError } = await getSupabase()
     .from('chat_messages')
     .select('*')
     .in('session_id', sessionIds)
@@ -277,7 +281,7 @@ export async function getAgentLogs(projectId: string): Promise<AgentLog[]> {
   if (!user) throw new Error('Not authenticated');
 
   // 1. 先获取该项目下的所有 agent IDs
-  const { data: agents, error: agentsError } = await supabase
+  const { data: agents, error: agentsError } = await getSupabase()
     .from('agents')
     .select('id')
     .eq('project_id', projectId);
@@ -291,7 +295,7 @@ export async function getAgentLogs(projectId: string): Promise<AgentLog[]> {
   }
 
   // 2. 获取这些 agents 的 logs
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('agent_logs')
     .select('*')
     .in('agent_id', agentIds)
@@ -370,7 +374,7 @@ export async function getDashboardData(projectId: string, hours: number = 24): P
   const timeStart = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
   // Step 1: 先获取该项目下的所有 agents
-  const agentsResult = await supabase
+  const agentsResult = await getSupabase()
     .from('agents')
     .select('*')
     .eq('project_id', projectId)
