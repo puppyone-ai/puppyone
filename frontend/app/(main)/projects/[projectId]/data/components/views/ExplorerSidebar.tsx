@@ -390,7 +390,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
   }, [isFolder, item, ancestors, onNavigate]);
 
   const isActive = activeId === item.id;
-  const paddingLeft = 12 + (depth * 16);
+  const paddingLeft = 8 + (depth * 16);
 
   const isSyncActive = activeSyncNodeId === item.id;
   const getBackground = (h: boolean) => {
@@ -430,6 +430,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
         style={{
           display: 'flex', alignItems: 'center', gap: 6, height: 28, boxSizing: 'border-box',
           padding: '0 8px', paddingLeft, paddingRight: 6, cursor: 'pointer',
+          margin: '1px 6px', borderRadius: 6,
           background: getBackground(hovered),
           color: isDropTarget ? '#93c5fd' : isActive ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
           fontSize: 13, userSelect: 'none',
@@ -543,9 +544,11 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
     onMoveNode,
   });
 
-  if (currentPath.length > 0) {
-    currentPath.forEach(p => ensureExpanded(p.id));
-  }
+  useEffect(() => {
+    if (currentPath.length > 0) {
+      currentPath.forEach(p => ensureExpanded(p.id));
+    }
+  }, [currentPath]);
 
   const rootItems: MillerColumnItem[] = rootNodes.map(n => ({
     id: n.id, name: n.name, type: n.type as ContentType,
@@ -567,9 +570,10 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
           {...rootDropHandlers}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '0 6px 4px 12px',
+            padding: '0 6px 4px 8px',
+            margin: '0 6px 2px',
             background: isRootDropTarget ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-            borderRadius: 4,
+            borderRadius: 6,
             transition: 'background 0.1s',
           }}
         >
