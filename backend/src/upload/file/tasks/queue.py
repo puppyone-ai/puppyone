@@ -79,7 +79,7 @@ class ETLQueue:
         logger.info(f"Task {task_with_id.task_id} submitted to queue")
         return task_with_id
 
-    def get_task(self, task_id: int) -> Optional[ETLTask]:
+    def get_task(self, task_id: str | int) -> Optional[ETLTask]:
         """
         Get task by ID from memory cache.
 

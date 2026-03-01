@@ -15,62 +15,36 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
-from src.sync.task.models import ImportTaskType
 from src.sync.utils.firecrawl_client import FirecrawlClient
 from src.utils.logger import log_info, log_error, log_warning
 
 
-def detect_import_type(url: str) -> ImportTaskType:
-    """
-    Detect import type from URL.
-    
-    Args:
-        url: The URL to analyze
-        
-    Returns:
-        ImportTaskType enum value
-    """
+def detect_source_type(url: str) -> str:
+    """Detect source type string from URL."""
     parsed = urlparse(url)
     scheme = parsed.scheme.lower()
     host = parsed.netloc.lower()
-    
-    # OAuth-based imports (oauth://gmail, oauth://drive, oauth://calendar)
+
     if scheme == "oauth":
         oauth_type = host or parsed.path.strip("/")
-        if oauth_type == "gmail":
-            return ImportTaskType.GMAIL
-        elif oauth_type in ("drive", "google-drive"):
-            return ImportTaskType.GOOGLE_DRIVE
-        elif oauth_type in ("calendar", "google-calendar"):
-            return ImportTaskType.GOOGLE_CALENDAR
-        return ImportTaskType.URL
-    
-    # GitHub
+        mapping = {"gmail": "gmail", "drive": "google_drive", "google-drive": "google_drive",
+                   "calendar": "google_calendar", "google-calendar": "google_calendar"}
+        return mapping.get(oauth_type, "url")
+
     if host in ("github.com", "www.github.com"):
-        return ImportTaskType.GITHUB
-    
-    # Notion
+        return "github"
     if host in ("notion.so", "www.notion.so") or "notion.site" in host:
-        return ImportTaskType.NOTION
-    
-    # Airtable
+        return "notion"
     if "airtable.com" in host:
-        return ImportTaskType.AIRTABLE
-    
-    # Google Sheets
+        return "airtable"
     if "docs.google.com" in host and "/spreadsheets/" in url:
-        return ImportTaskType.GOOGLE_SHEETS
-    
-    # Google Docs
+        return "google_sheets"
     if "docs.google.com" in host and "/document/" in url:
-        return ImportTaskType.GOOGLE_DOCS
-    
-    # Linear
+        return "google_docs"
     if "linear.app" in host:
-        return ImportTaskType.LINEAR
-    
-    # Default: generic URL
-    return ImportTaskType.URL
+        return "linear"
+
+    return "url"
 
 
 class UrlParser:
@@ -139,8 +113,7 @@ class UrlParser:
         if not self._is_safe_url(url):
             raise ValueError("Internal network addresses are not allowed")
 
-        import_type = detect_import_type(url)
-        source_type = import_type.value
+            source_type = detect_source_type(url)
 
         try:
             log_info(f"Parsing URL: {url}")

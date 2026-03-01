@@ -119,13 +119,13 @@ const DatePickerDropdown = ({
 
 // ── Schedule Trigger Section ────────────────────────────────────
 
-interface ScheduleTriggerSectionProps {
+export interface ScheduleTriggerSectionProps {
   draftTriggerConfig: { schedule?: string; timezone?: string } | null;
   setDraftTriggerConfig: (config: { schedule?: string; timezone?: string } | null) => void;
   setDraftTriggerType: (type: 'manual' | 'cron' | 'webhook') => void;
 }
 
-const ScheduleTriggerSection = ({ draftTriggerConfig, setDraftTriggerConfig, setDraftTriggerType }: ScheduleTriggerSectionProps) => {
+export const ScheduleTriggerSection = ({ draftTriggerConfig, setDraftTriggerConfig, setDraftTriggerType }: ScheduleTriggerSectionProps) => {
   const [hour, setHour] = useState(9);
   const [minute, setMinute] = useState(0);
   const [selectedDate, setSelectedDate] = useState(() => {

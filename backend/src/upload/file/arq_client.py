@@ -34,14 +34,14 @@ class ETLArqClient:
             logger.info("ETLArqClient: redis pool created")
         return self._pool
 
-    async def enqueue_ocr(self, task_id: int) -> str:
+    async def enqueue_ocr(self, task_id: str | int) -> str:
         redis = await self.get_pool()
         job = await redis.enqueue_job(
             "etl_ocr_job", task_id, _queue_name=self.queue_name
         )
         return job.job_id
 
-    async def enqueue_postprocess(self, task_id: int) -> str:
+    async def enqueue_postprocess(self, task_id: str | int) -> str:
         redis = await self.get_pool()
         job = await redis.enqueue_job(
             "etl_postprocess_job", task_id, _queue_name=self.queue_name

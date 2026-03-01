@@ -70,14 +70,24 @@ class SyncService:
         credentials_ref: Optional[str] = None,
         direction: str = "bidirectional",
         conflict_strategy: str = "three_way_merge",
+        sync_mode: str = "import_once",
+        trigger: Optional[dict] = None,
+        user_id: Optional[str] = None,
     ) -> List[Sync]:
         """
         First connect: scan external source, create nodes in PuppyOne,
         and create Sync rows for each binding.
+
+        sync_mode: 'import_once' | 'manual' | 'scheduled'
+        trigger: optional trigger config, e.g. {"type": "scheduled", "schedule": "0 9 * * *", "timezone": "Asia/Shanghai"}
         """
         connector = self._get_connector(provider)
         if not connector:
             raise ValueError(f"No connector for provider: {provider}")
+
+        trigger_data = trigger or {}
+        if not trigger_data.get("type"):
+            trigger_data["type"] = sync_mode
 
         temp_sync = Sync(
             id="",
@@ -105,22 +115,27 @@ class SyncService:
                 folder_node_id=target_folder_node_id,
             )
 
+            sync_config = {
+                **config,
+                "external_resource_id": res.external_resource_id,
+            }
+            if user_id:
+                sync_config["user_id"] = user_id
+
             sync = self.sync_repo.create(
                 project_id=project_id,
                 node_id=node_id,
                 direction=direction,
                 provider=provider,
-                config={
-                    **config,
-                    "external_resource_id": res.external_resource_id,
-                },
+                config=sync_config,
                 credentials_ref=credentials_ref,
                 conflict_strategy=conflict_strategy,
+                trigger=trigger_data,
             )
             created_syncs.append(sync)
-            log_info(f"[L2.5] Bound {res.external_resource_id} → node {node_id}")
+            log_info(f"[L2.5] Bound {res.external_resource_id} → node {node_id} (mode={sync_mode})")
 
-        log_info(f"[L2.5] Bootstrap complete: {len(created_syncs)} syncs created")
+        log_info(f"[L2.5] Bootstrap complete: {len(created_syncs)} syncs created (mode={sync_mode})")
         return created_syncs
 
     async def _ensure_node_exists(

@@ -11,9 +11,9 @@ from src.sync.connectors._base import (
     Capability,
     AuthRequirement,
     TriggerMode,
-    ImportResult,
-    PreviewResult,
-    ProgressCallback,
+    Credentials,
+    FetchResult,
+    ConfigField,
 )
 from src.sync.connectors.gmail.connector import GmailConnector
 from src.sync.connectors.github.connector import GithubConnector
@@ -47,9 +47,9 @@ __all__ = [
     "Capability",
     "AuthRequirement",
     "TriggerMode",
-    "ImportResult",
-    "PreviewResult",
-    "ProgressCallback",
+    "Credentials",
+    "FetchResult",
+    "ConfigField",
     "CONNECTOR_CLASSES",
     "GmailConnector",
     "GithubConnector",

@@ -9,9 +9,7 @@ import {
   type ProjectInfo,
 } from '../lib/projectsApi';
 import { EditorSkeleton } from './Skeleton';
-import TreeLineDiscreteEditor from './editors/tree/TreeLineDiscreteEditor';
 import TableDiscreteEditor from './editors/table/TableDiscreteEditor';
-
 import MonacoJsonEditor from './editors/code/MonacoJsonEditor';
 import type { EditorType } from './ProjectsHeader';
 import type { ProjectTableJSON } from '../lib/projectData';
@@ -214,24 +212,7 @@ export function ProjectWorkspaceView({
             </div>
           </div>
         ) : localData || tableData ? (
-          editorType === 'treeline-virtual' ? (
-            <div style={{ position: 'absolute', inset: 0 }}>
-              <TreeLineDiscreteEditor
-                json={localData || tableData}
-                onChange={handleDataChange}
-                // 传递所有业务回调
-                onPathChange={props.onTreePathChange}
-                onAddAccessPoint={props.onAddAccessPoint}
-                onAccessPointChange={props.onAccessPointChange}
-                onAccessPointRemove={props.onAccessPointRemove}
-                configuredAccessPoints={props.configuredAccessPoints}
-                projectId={Number(projectId)}
-                tableId={validTableId ? Number(validTableId) : undefined}
-                onImportSuccess={props.onImportSuccess}
-                onOpenDocument={props.onOpenDocument}
-              />
-            </div>
-          ) : editorType === 'table' ? (
+          editorType === 'table' ? (
             <div style={{ position: 'absolute', inset: 0 }}>
               <TableDiscreteEditor
                 json={localData || tableData}

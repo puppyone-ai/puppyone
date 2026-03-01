@@ -9,8 +9,9 @@ Architecture:
 """
 
 import asyncio
+import hashlib
+import json
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import httpx
 
@@ -21,14 +22,12 @@ from src.sync.connectors._base import (
     Capability,
     AuthRequirement,
     TriggerMode,
-    ImportResult,
-    PreviewResult,
-    ProgressCallback,
+    FetchResult,
+    Credentials,
 )
-from src.sync.task.models import ImportTask
 from src.oauth.google_calendar_service import GoogleCalendarOAuthService
 from src.s3.service import S3Service
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error
 
 
 class GoogleCalendarConnector(BaseConnector):
@@ -47,6 +46,8 @@ class GoogleCalendarConnector(BaseConnector):
             default_node_type="json",
             auth=AuthRequirement.OAUTH,
             oauth_type="calendar",
+            supported_sync_modes=("import_once", "manual", "scheduled"),
+            default_sync_mode="import_once",
         )
 
     def __init__(
@@ -60,27 +61,11 @@ class GoogleCalendarConnector(BaseConnector):
         self.s3_service = s3_service
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    async def import_data(
-        self,
-        task: ImportTask,
-        on_progress: ProgressCallback,
-    ) -> ImportResult:
-        """Process Google Calendar import - all events stored in single JSONB node."""
-        await on_progress(5, "Checking Google Calendar connection...")
+    async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
+        """Fetch Google Calendar events using the unified fetch interface."""
+        user_email = credentials.metadata.get("user", {}).get("email", "Google Calendar")
+        access_token = credentials.access_token
 
-        # Get OAuth connection
-        connection = await self.calendar_service.refresh_token_if_needed(task.user_id)
-        if not connection:
-            raise ValueError("Google Calendar not connected. Please authorize first.")
-
-        access_token = connection.access_token
-        metadata = connection.metadata or {}
-        user_email = metadata.get("user", {}).get("email", "Google Calendar")
-
-        config = task.config or {}
-        parent_id = config.get("parent_id")
-
-        # Time range for events (default: past 30 days to next 30 days)
         days_past = config.get("days_past", 30)
         days_future = config.get("days_future", 30)
         max_results = config.get("max_results", 100)
@@ -88,14 +73,8 @@ class GoogleCalendarConnector(BaseConnector):
         time_min = (datetime.now(timezone.utc) - timedelta(days=days_past)).isoformat()
         time_max = (datetime.now(timezone.utc) + timedelta(days=days_future)).isoformat()
 
-        await on_progress(10, f"Fetching calendars for {user_email}...")
-
-        # Get list of calendars
         calendars = await self._list_calendars(access_token)
 
-        await on_progress(20, f"Found {len(calendars)} calendars, fetching events in parallel...")
-
-        # Build calendar info
         calendars_info = [
             {
                 "id": cal.get("id", ""),
@@ -105,9 +84,7 @@ class GoogleCalendarConnector(BaseConnector):
             for cal in calendars
         ]
 
-        # Fetch events from ALL calendars in PARALLEL
         async def fetch_calendar_events(calendar: dict) -> list[dict]:
-            """Fetch events for a single calendar."""
             calendar_name = calendar.get("summary", "Unknown")
             calendar_id = calendar.get("id", "")
             try:
@@ -118,31 +95,22 @@ class GoogleCalendarConnector(BaseConnector):
                     time_max=time_max,
                     max_results=max_results,
                 )
-                # Add calendar info to each event
                 for event in events:
                     event["calendar_name"] = calendar_name
                     event["calendar_id"] = calendar_id
                 return events
             except Exception as e:
-                log_error(f"Failed to fetch events from calendar {calendar_name}: {e}")
+                log_error(f"[Calendar fetch] Failed to fetch events from {calendar_name}: {e}")
                 return []
 
-        # Execute all calendar fetches in parallel
         results = await asyncio.gather(*[fetch_calendar_events(cal) for cal in calendars])
 
-        # Flatten results
         all_events = []
         for events in results:
             all_events.extend(events)
 
-        await on_progress(70, f"Processing {len(all_events)} events...")
-
-        # Format all events for JSONB (this is fast, no need for progress updates)
         events_data = [self._format_event_data(event) for event in all_events]
 
-        await on_progress(90, "Saving to database...")
-
-        # Build JSONB content
         content = {
             "synced_at": datetime.now(timezone.utc).isoformat(),
             "source": "google_calendar",
@@ -159,20 +127,16 @@ class GoogleCalendarConnector(BaseConnector):
             "events": events_data,
         }
 
-        # Create single JSONB node
-        node = await self.node_service.create_synced_node(
-            project_id=task.project_id,
-            name=config.get("name") or f"Google Calendar - {user_email}"[:100],
+        content_hash = hashlib.sha256(
+            json.dumps(content, sort_keys=True, ensure_ascii=False).encode()
+        ).hexdigest()[:16]
+
+        return FetchResult(
             content=content,
-            parent_id=parent_id,
-            created_by=task.user_id,
-        )
-
-        await on_progress(100, "Google Calendar import completed")
-
-        return ImportResult(
-            content_node_id=str(node.id),
-            items_count=len(events_data),
+            content_hash=content_hash,
+            node_type="json",
+            node_name=config.get("name") or f"Google Calendar - {user_email}"[:100],
+            summary=f"Fetched {len(events_data)} events from {len(calendars_info)} calendars",
         )
 
     async def _list_calendars(self, access_token: str) -> list[dict]:
@@ -235,51 +199,6 @@ class GoogleCalendarConnector(BaseConnector):
             "created": event.get("created", ""),
             "updated": event.get("updated", ""),
         }
-
-    async def preview(self, url: str, user_id: str) -> PreviewResult:
-        """Preview Google Calendar contents."""
-        connection = await self.calendar_service.refresh_token_if_needed(user_id)
-        if not connection:
-            raise ValueError("Google Calendar not connected. Please authorize first.")
-
-        access_token = connection.access_token
-
-        # Get calendars for preview
-        calendars = await self._list_calendars(access_token)
-
-        # Get upcoming events from primary calendar
-        events = []
-        if calendars:
-            primary = next((c for c in calendars if c.get("primary")), calendars[0])
-            time_min = datetime.now(timezone.utc).isoformat()
-            time_max = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
-            events = await self._list_events(
-                access_token, primary["id"], time_min, time_max, max_results=10
-            )
-
-        data = [
-            {
-                "summary": e.get("summary", "Untitled"),
-                "start": e.get("start", {}).get("dateTime") or e.get("start", {}).get("date"),
-                "location": e.get("location", ""),
-                "link": e.get("htmlLink"),
-            }
-            for e in events
-        ]
-
-        return PreviewResult(
-            source_type="google_calendar",
-            title="Google Calendar Events",
-            description=f"Found {len(calendars)} calendars, {len(events)} upcoming events",
-            data=data,
-            fields=[
-                {"name": "summary", "type": "string"},
-                {"name": "start", "type": "datetime"},
-                {"name": "location", "type": "string"},
-            ],
-            total_items=len(events),
-            structure_info={"calendars": len(calendars)},
-        )
 
     async def close(self):
         """Close HTTP client."""

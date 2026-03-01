@@ -100,7 +100,7 @@ const SYNC_PROVIDER_SPECS: Record<SyncProvider, SyncProviderSpec> = {
     ],
   },
   google_calendar: {
-    oauthType: 'calendar', accept: ['json'], direction: 'inbound',
+    oauthType: 'google_calendar', accept: ['json'], direction: 'inbound',
     configFields: [
       { key: 'calendarId', label: 'Calendar', type: 'select', defaultValue: 'primary', options: [
         { value: 'primary', label: 'Primary Calendar' },
@@ -112,13 +112,13 @@ const SYNC_PROVIDER_SPECS: Record<SyncProvider, SyncProviderSpec> = {
     ],
   },
   google_sheets: {
-    oauthType: 'sheets', accept: ['json'], direction: 'inbound',
+    oauthType: 'google_sheets', accept: ['json'], direction: 'inbound',
     configFields: [
       { key: 'url', label: 'Sheet URL', type: 'text', placeholder: 'https://docs.google.com/spreadsheets/d/...' },
     ],
   },
   google_docs: {
-    oauthType: 'docs', accept: ['markdown'], direction: 'inbound',
+    oauthType: 'google_docs', accept: ['markdown'], direction: 'inbound',
     configFields: [
       { key: 'url', label: 'Doc URL', type: 'text', placeholder: 'https://docs.google.com/document/d/...' },
     ],
@@ -159,7 +159,7 @@ const SAAS_TO_SYNC: Record<string, SyncProvider> = {
 };
 
 export function AgentSettingView({ projectTools, projectId = '' }: AgentSettingViewProps) {
-  const { draftType, setDraftType, deployAgent, deploySyncEndpoint, draftResources, cancelSetting, pendingSyncProvider } = useAgent();
+  const { draftType, setDraftType, deployAgent, deploySyncEndpoint, draftResources, cancelSetting, pendingSyncProvider, draftSyncMode, draftTriggerConfig } = useAgent();
 
   const [step, setStep] = useState<'pick' | 'config'>('pick');
   const [selected, setSelected] = useState<TypeOption | null>(null);
@@ -294,14 +294,27 @@ export function AgentSettingView({ projectTools, projectId = '' }: AgentSettingV
               direction={spec.direction}
             />
             <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-              <ActionButton label="Create sync endpoint" disabled={!canCreate} onClick={() => {
-                const config: Record<string, unknown> = {};
-                for (const field of spec.configFields) {
-                  const el = document.getElementById(`sync-cfg-${opt.syncProvider}-${field.key}`) as HTMLInputElement | HTMLSelectElement | null;
-                  if (el) config[field.key] = el.value;
-                }
-                deploySyncEndpoint({ provider: opt.syncProvider!, direction: spec.direction, config });
-              }} />
+              <ActionButton
+                label={draftSyncMode === 'import_once' ? 'Import data' : 'Create sync endpoint'}
+                disabled={!canCreate}
+                onClick={() => {
+                  const config: Record<string, unknown> = {};
+                  for (const field of spec.configFields) {
+                    const el = document.getElementById(`sync-cfg-${opt.syncProvider}-${field.key}`) as HTMLInputElement | HTMLSelectElement | null;
+                    if (el) config[field.key] = el.value;
+                  }
+                  const trigger = draftSyncMode === 'scheduled' && draftTriggerConfig
+                    ? { type: 'scheduled', schedule: draftTriggerConfig.schedule, timezone: draftTriggerConfig.timezone }
+                    : undefined;
+                  deploySyncEndpoint({
+                    provider: opt.syncProvider!,
+                    direction: spec.direction,
+                    config,
+                    syncMode: draftSyncMode,
+                    trigger,
+                  });
+                }}
+              />
             </div>
           </>
         )}

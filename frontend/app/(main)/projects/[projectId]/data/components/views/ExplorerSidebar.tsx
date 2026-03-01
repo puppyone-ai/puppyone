@@ -16,10 +16,6 @@ function subscribe(cb: () => void) {
   return () => listeners.delete(cb);
 }
 
-function getSnapshot() {
-  return expandedSet;
-}
-
 function toggleExpanded(id: string) {
   if (expandedSet.has(id)) {
     expandedSet.delete(id);
@@ -39,6 +35,26 @@ export function ensureExpanded(id: string) {
 function useExpandedFolders() {
   const snap = useSyncExternalStore(subscribe, () => expandedSet.size, () => expandedSet.size);
   return { isExpanded: (id: string) => expandedSet.has(id), version: snap };
+}
+
+// === Pending active ID store (instant sidebar highlight, survives remounts) ===
+let _pendingActiveId: string | null = null;
+let _pendingVersion = 0;
+const _pendingListeners = new Set<() => void>();
+
+export function setPendingActiveId(id: string | null) {
+  _pendingActiveId = id;
+  _pendingVersion++;
+  _pendingListeners.forEach(cb => cb());
+}
+
+function usePendingActiveId() {
+  useSyncExternalStore(
+    (cb) => { _pendingListeners.add(cb); return () => _pendingListeners.delete(cb); },
+    () => _pendingVersion,
+    () => 0,
+  );
+  return _pendingActiveId;
 }
 
 // === Types ===
@@ -555,7 +571,8 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
     is_synced: n.is_synced, sync_source: n.sync_source, last_synced_at: n.last_synced_at,
   }));
 
-  const activeId = activeNodeId || (currentPath.length > 0 ? currentPath[currentPath.length - 1].id : null);
+  const pendingId = usePendingActiveId();
+  const activeId = pendingId || activeNodeId || (currentPath.length > 0 ? currentPath[currentPath.length - 1].id : null);
 
   const agentResourceMap = new Map<string, AgentResource>();
   if (agentResources) {

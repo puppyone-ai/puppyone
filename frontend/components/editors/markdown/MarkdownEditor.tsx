@@ -28,6 +28,8 @@ interface MarkdownEditorProps {
   onChange?: (content: string) => void;
   readOnly?: boolean;
   defaultMode?: MarkdownViewMode;
+  viewMode?: MarkdownViewMode;
+  onViewModeChange?: (mode: MarkdownViewMode) => void;
 }
 
 // Custom dark theme matching the app style (pure gray, not blue-tinted)
@@ -71,10 +73,15 @@ export function MarkdownEditor({
   onChange,
   readOnly = false,
   defaultMode = 'wysiwyg',
+  viewMode: controlledViewMode,
+  onViewModeChange,
 }: MarkdownEditorProps) {
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<Monaco | null>(null);
-  const [viewMode, setViewMode] = useState<MarkdownViewMode>(defaultMode);
+  const [internalViewMode, setInternalViewMode] = useState<MarkdownViewMode>(defaultMode);
+  const isControlled = controlledViewMode !== undefined;
+  const viewMode = isControlled ? controlledViewMode : internalViewMode;
+  const setViewMode = isControlled ? (mode: MarkdownViewMode) => onViewModeChange?.(mode) : setInternalViewMode;
   const [localContent, setLocalContent] = useState(content);
 
   // Sync content when prop changes
@@ -194,8 +201,8 @@ export function MarkdownEditor({
         </div>
       )}
 
-      {/* View Mode Toggle - Bottom Right */}
-      <div
+      {/* View Mode Toggle - Bottom Right (hidden when externally controlled) */}
+      {!isControlled && <div
         style={{
           position: 'absolute',
           bottom: 12,
@@ -254,7 +261,7 @@ export function MarkdownEditor({
             <polyline points="8 6 2 12 8 18" />
           </svg>
         </button>
-      </div>
+      </div>}
     </div>
   );
 }

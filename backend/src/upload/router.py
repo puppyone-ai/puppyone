@@ -31,6 +31,9 @@ from src.s3.service import S3Service
 from src.s3.exceptions import S3Error, S3FileSizeExceededError
 from src.content_node.dependencies import get_content_node_service
 from src.content_node.service import ContentNodeService
+from src.collaboration.dependencies import get_collaboration_service
+from src.collaboration.service import CollaborationService
+from src.collaboration.schemas import Mutation, MutationType, Operator
 
 from src.upload.schemas import (
     SourceType,
@@ -113,6 +116,7 @@ async def submit_file_ingest(
     etl_service: ETLService = Depends(get_etl_service),
     s3_service: S3Service = Depends(get_s3_service),
     node_service: ContentNodeService = Depends(get_content_node_service),
+    collab: CollaborationService = Depends(get_collaboration_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -177,51 +181,47 @@ async def submit_file_ingest(
             # ═══════════════════════════════════════════════════════════════
             
             if file_type == "json":
-                # ─────────────────────────────────────────────────────────
-                # JSON 文件：直接存 preview_json，不存 S3
-                # ─────────────────────────────────────────────────────────
                 try:
                     text_content = content.decode("utf-8", errors="ignore")
                     json_data = json.loads(text_content)
                 except json.JSONDecodeError as e:
-                    # JSON 解析失败，作为文本处理
                     logger.warning(f"JSON parse failed for {original_filename}: {e}")
                     json_data = {"_raw": content.decode("utf-8", errors="ignore"), "_parse_error": str(e)}
-                
-                node = node_service.create_json_node(
+
+                result = await collab.commit(Mutation(
+                    type=MutationType.NODE_CREATE,
+                    operator=Operator(type="user", id=current_user.user_id, summary=f"Upload {original_basename}"),
                     project_id=project_id,
                     name=original_basename,
                     content=json_data,
                     parent_id=parent_id,
-                    created_by=current_user.user_id,
-                )
-                
-                # 创建完成状态的任务记录（用于前端轮询）
+                    node_type="json",
+                ))
+
                 task = await _create_completed_task(
-                    etl_service, current_user.user_id, project_id, 
-                    original_filename, rule_id, node.id, "json"
+                    etl_service, current_user.user_id, project_id,
+                    original_filename, rule_id, result.node_id, "json"
                 )
-                items.append(_make_completed_item(task, original_filename, node.id))
+                items.append(_make_completed_item(task, original_filename, result.node_id))
                 
             elif file_type == "text":
-                # ─────────────────────────────────────────────────────────
-                # 文本文件：直接存 preview_md，不存 S3
-                # ─────────────────────────────────────────────────────────
                 text_content = content.decode("utf-8", errors="ignore")
-                
-                node = await node_service.create_markdown_node(
+
+                result = await collab.commit(Mutation(
+                    type=MutationType.NODE_CREATE,
+                    operator=Operator(type="user", id=current_user.user_id, summary=f"Upload {original_basename}"),
                     project_id=project_id,
                     name=original_basename,
                     content=text_content,
                     parent_id=parent_id,
-                    created_by=current_user.user_id,
-                )
-                
+                    node_type="markdown",
+                ))
+
                 task = await _create_completed_task(
                     etl_service, current_user.user_id, project_id,
-                    original_filename, rule_id, node.id, "markdown"
+                    original_filename, rule_id, result.node_id, "markdown"
                 )
-                items.append(_make_completed_item(task, original_filename, node.id))
+                items.append(_make_completed_item(task, original_filename, result.node_id))
                 
             elif file_type == "ocr_needed" and mode == "ocr_parse":
                 # ─────────────────────────────────────────────────────────
@@ -420,44 +420,144 @@ def _make_failed_item(
 
 # === SaaS/URL Submit Endpoint ===
 
+def _detect_provider_from_url(url: str) -> str:
+    """Detect sync provider from URL."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    host = parsed.netloc.lower()
+
+    if scheme == "oauth":
+        oauth_type = host or parsed.path.strip("/")
+        mapping = {
+            "gmail": "gmail",
+            "drive": "google_drive",
+            "google-drive": "google_drive",
+            "calendar": "google_calendar",
+            "google-calendar": "google_calendar",
+        }
+        return mapping.get(oauth_type, "url")
+
+    if host in ("github.com", "www.github.com"):
+        return "github"
+    if host in ("notion.so", "www.notion.so") or "notion.site" in host:
+        return "notion"
+    if "airtable.com" in host:
+        return "airtable"
+    if "docs.google.com" in host and "/spreadsheets/" in url:
+        return "google_sheets"
+    if "docs.google.com" in host and "/document/" in url:
+        return "google_docs"
+    if "linear.app" in host:
+        return "linear"
+    if "drive.google.com" in host:
+        return "google_drive"
+
+    return "url"
+
+
 @router.post("/submit/saas", response_model=IngestSubmitResponse, status_code=202)
 async def submit_saas_ingest(
     project_id: str = Form(..., description="Target project ID"),
     url: str = Form(..., description="SaaS or Web URL"),
     name: Optional[str] = Form(None, description="Custom name"),
-    
+
     # Dependencies
-    service: IngestService = Depends(get_ingest_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Submit SaaS/URL ingest task.
-    
-    Supported URLs:
-    - GitHub: https://github.com/owner/repo
-    - Notion: https://notion.so/page-id
-    - Google Sheets: https://docs.google.com/spreadsheets/d/...
-    - Airtable: https://airtable.com/...
-    - Generic URL: Any web page (via Firecrawl)
+    Submit SaaS/URL ingest — now routes through Bootstrap + SyncEngine.
+
+    All data writes go through CollaborationService (versioned).
     """
-    # Access checks
+    from src.sync.service import SyncService
+    from src.sync.engine import SyncEngine
+    from src.sync.dependencies import get_connector_registry
+    from src.collaboration.dependencies import create_collaboration_service
+    from src.supabase.client import SupabaseClient
+    from src.sync.repository import SyncRepository
+
     if not project_service.verify_project_access(project_id, current_user.user_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
+    provider = _detect_provider_from_url(url)
+
     try:
-        item = await service.submit_saas(
-            user_id=current_user.user_id,
-            project_id=project_id,
-            url=url,
-            name=name,
+        registry = get_connector_registry()
+        collab_service = create_collaboration_service()
+        supabase = SupabaseClient()
+        sync_repo = SyncRepository(supabase)
+
+        sync_svc = SyncService(collab_service=collab_service, sync_repo=sync_repo)
+        for p in registry.providers():
+            connector = registry.get(p)
+            if connector:
+                sync_svc.register_connector(connector)
+
+        engine = SyncEngine(
+            registry=registry,
+            collab_service=collab_service,
+            sync_repo=sync_repo,
         )
-        return IngestSubmitResponse(items=[item], total=1)
+
+        config = {"source_url": url}
+        if name:
+            config["name"] = name
+
+        syncs = await sync_svc.bootstrap(
+            project_id=project_id,
+            provider=provider,
+            config=config,
+            sync_mode="import_once",
+            trigger={"type": "import_once"},
+            user_id=current_user.user_id,
+        )
+
+        node_id = syncs[0].node_id if syncs else None
+
+        for s in syncs:
+            try:
+                await engine.execute(s.id)
+            except Exception as exc:
+                logger.error(f"[SaaS ingest] First fetch failed for sync {s.id}: {exc}")
+
+        return IngestSubmitResponse(
+            items=[
+                IngestSubmitItem(
+                    task_id=syncs[0].id if syncs else "",
+                    source_type=SourceType.SAAS if provider != "url" else SourceType.URL,
+                    ingest_type=_provider_to_ingest_type(provider),
+                    status=IngestStatus.COMPLETED,
+                    node_id=node_id,
+                )
+            ],
+            total=1,
+        )
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"SaaS submit failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to submit import task")
+        raise HTTPException(status_code=500, detail=f"Import failed: {e}")
+
+
+def _provider_to_ingest_type(provider: str) -> IngestType:
+    """Map provider name to IngestType enum."""
+    mapping = {
+        "github": IngestType.GITHUB,
+        "notion": IngestType.NOTION,
+        "gmail": IngestType.GMAIL,
+        "google_drive": IngestType.GOOGLE_DRIVE,
+        "google_sheets": IngestType.GOOGLE_SHEETS,
+        "google_docs": IngestType.GOOGLE_DOCS,
+        "google_calendar": IngestType.GOOGLE_CALENDAR,
+        "airtable": IngestType.AIRTABLE,
+        "linear": IngestType.LINEAR,
+        "url": IngestType.WEB_PAGE,
+    }
+    return mapping.get(provider, IngestType.WEB_PAGE)
 
 
 # === Task Query Endpoints ===

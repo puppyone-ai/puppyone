@@ -116,6 +116,10 @@ interface AgentContextValue {
   draftCapabilities: Set<string>;  // 保留向后兼容
   draftResources: AccessResource[];  // 新：资源访问配置
   
+  // Sync frequency mode
+  draftSyncMode: 'import_once' | 'manual' | 'scheduled';
+  setDraftSyncMode: (mode: 'import_once' | 'manual' | 'scheduled') => void;
+
   // Schedule Agent 新增 draft 状态
   draftTriggerType: TriggerType;
   draftTriggerConfig: TriggerConfig | null;
@@ -148,6 +152,8 @@ interface AgentContextValue {
     direction: string;
     config?: Record<string, unknown>;
     credentialsRef?: string;
+    syncMode?: 'import_once' | 'manual' | 'scheduled';
+    trigger?: { type: string; schedule?: string; timezone?: string };
   }) => Promise<void>;
   closeSidebar: () => void;
   setDraftType: (type: AgentType) => void;
@@ -206,6 +212,9 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   const [draftResources, setDraftResources] = useState<AccessResource[]>([]);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   
+  // Sync frequency mode
+  const [draftSyncMode, setDraftSyncMode] = useState<'import_once' | 'manual' | 'scheduled'>('import_once');
+
   // Schedule Agent 新增 draft 状态
   const [draftTriggerType, setDraftTriggerType] = useState<TriggerType>('manual');
   const [draftTriggerConfig, setDraftTriggerConfig] = useState<TriggerConfig | null>(null);
@@ -617,6 +626,8 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     direction: string;
     config?: Record<string, unknown>;
     credentialsRef?: string;
+    syncMode?: 'import_once' | 'manual' | 'scheduled';
+    trigger?: { type: string; schedule?: string; timezone?: string };
   }) => {
     if (!projectId) {
       throw new Error('projectId is required to create sync endpoint');
@@ -640,6 +651,12 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         syncId = result.sync_id;
         nodeId = result.node_id;
       } else {
+        const triggerPayload = params.syncMode === 'scheduled' && params.trigger
+          ? { type: 'scheduled', schedule: params.trigger.schedule, timezone: params.trigger.timezone }
+          : params.syncMode === 'manual'
+            ? { type: 'manual' }
+            : undefined;
+
         await post<{ syncs_created: number }>('/api/v1/sync/bootstrap', {
           project_id: projectId,
           provider: params.provider,
@@ -648,6 +665,8 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           credentials_ref: params.credentialsRef,
           direction: params.direction,
           conflict_strategy: 'three_way_merge',
+          sync_mode: params.syncMode || 'import_once',
+          trigger: triggerPayload,
         });
       }
 
@@ -846,6 +865,10 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         selectedCapabilities,
         isChatOpen,
         
+        // Sync frequency mode
+        draftSyncMode,
+        setDraftSyncMode,
+
         // Schedule Agent draft states
         draftTriggerType,
         draftTriggerConfig,

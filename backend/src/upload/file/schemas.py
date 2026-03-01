@@ -16,7 +16,7 @@ class UploadAndSubmitItem(BaseModel):
     """Per-file result for upload_and_submit."""
 
     filename: str = Field(..., description="Original filename")
-    task_id: int = Field(..., description="ETL task ID (created even if upload failed)")
+    task_id: str = Field(..., description="ETL task ID (created even if upload failed)")
     status: ETLTaskStatus = Field(..., description="Initial task status")
     s3_key: Optional[str] = Field(
         default=None, description="Uploaded raw S3 key (None if upload failed)"
@@ -34,7 +34,7 @@ class UploadAndSubmitResponse(BaseModel):
 class ETLTaskResponse(BaseModel):
     """Response for ETL task status query."""
 
-    task_id: int
+    task_id: str
     user_id: str
     project_id: str
     filename: str
@@ -114,7 +114,7 @@ class BatchETLTaskStatusResponse(BaseModel):
 class ETLCancelResponse(BaseModel):
     """Response for task cancellation."""
 
-    task_id: int
+    task_id: str
     status: ETLTaskStatus
     message: str
 
@@ -128,6 +128,6 @@ class ETLRetryRequest(BaseModel):
 class ETLRetryResponse(BaseModel):
     """Response for task retry."""
 
-    task_id: int
+    task_id: str
     status: ETLTaskStatus
     message: str

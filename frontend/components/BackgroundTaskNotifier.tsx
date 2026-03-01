@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import { batchGetETLTaskStatus, isTerminalStatus } from '../lib/etlApi';
-import { getImportTask, isTerminalStatus as isImportTerminalStatus } from '../lib/importApi';
 
 // 使用 sessionStorage，刷新后自动清空
 const STORAGE_KEY = 'etl_pending_tasks';
@@ -31,15 +30,10 @@ export interface PendingTask {
   taskType?: TaskType; // 任务类型：文件上传 or SaaS 导入
   status?:
     | 'pending'
-    | 'processing'  // Unified status (replaces mineru_parsing, llm_processing)
+    | 'processing'
     | 'completed'
     | 'failed'
-    | 'cancelled'
-    // SaaS 导入状态
-    | 'downloading'
-    | 'extracting'
-    | 'uploading'
-    | 'creating_nodes';
+    | 'cancelled';
 }
 
 /**
@@ -82,150 +76,86 @@ export function BackgroundTaskNotifier() {
     }
   }, []);
 
-  // 检查是否有非终态任务需要轮询
   const hasActiveTasksToPool = useCallback(() => {
-    // 只有真实 ID 且非终态的任务才需要轮询
     return pendingTasks.some(t => {
-      if (isPlaceholderTaskId(t.taskId)) return false; // 占位任务不轮询
-      const isTerminal =
+      if (isPlaceholderTaskId(t.taskId)) return false;
+      if (t.taskType && t.taskType !== 'file') return false;
+      const terminal =
         t.status === 'completed' ||
         t.status === 'failed' ||
         t.status === 'cancelled';
-      return !isTerminal;
+      return !terminal;
     });
   }, [pendingTasks]);
 
-  // 检查任务状态（同时支持 ETL 和 SaaS 任务）
   const checkTaskStatus = useCallback(async () => {
     if (!session?.access_token || pendingTasks.length === 0) return;
 
-    // 分离 ETL 任务和 SaaS 任务
     const etlTasks = pendingTasks.filter(t => {
       if (isPlaceholderTaskId(t.taskId)) return false;
-      if (t.taskType && t.taskType !== 'file') return false; // SaaS 任务
-      const isTerminal =
+      if (t.taskType && t.taskType !== 'file') return false;
+      const terminal =
         t.status === 'completed' ||
         t.status === 'failed' ||
         t.status === 'cancelled';
-      return !isTerminal;
+      return !terminal;
     });
 
-    const saasTasks = pendingTasks.filter(t => {
-      if (isPlaceholderTaskId(t.taskId)) return false;
-      if (!t.taskType || t.taskType === 'file') return false; // ETL 任务
-      const isTerminal =
-        t.status === 'completed' ||
-        t.status === 'failed' ||
-        t.status === 'cancelled';
-      return !isTerminal;
-    });
-
-    if (etlTasks.length === 0 && saasTasks.length === 0) return;
+    if (etlTasks.length === 0) return;
 
     let hasChanges = false;
     let updatedTasks = [...pendingTasks];
 
-    // 检查 ETL 任务状态
-    if (etlTasks.length > 0) {
-      try {
-        const taskIds = etlTasks.map(t => t.taskId);
-        const response = await batchGetETLTaskStatus(
-          taskIds,
-          session.access_token
-        );
+    try {
+      const taskIds = etlTasks.map(t => t.taskId);
+      const response = await batchGetETLTaskStatus(
+        taskIds,
+        session.access_token
+      );
 
-        updatedTasks = updatedTasks.map(pendingTask => {
-          if (isPlaceholderTaskId(pendingTask.taskId)) return pendingTask;
-          if (pendingTask.taskType && pendingTask.taskType !== 'file') return pendingTask;
-          const isTerminal =
-            pendingTask.status === 'completed' ||
-            pendingTask.status === 'failed' ||
-            pendingTask.status === 'cancelled';
-          if (isTerminal) return pendingTask;
+      updatedTasks = updatedTasks.map(pendingTask => {
+        if (isPlaceholderTaskId(pendingTask.taskId)) return pendingTask;
+        if (pendingTask.taskType && pendingTask.taskType !== 'file') return pendingTask;
+        const terminal =
+          pendingTask.status === 'completed' ||
+          pendingTask.status === 'failed' ||
+          pendingTask.status === 'cancelled';
+        if (terminal) return pendingTask;
 
-          const task = response.tasks.find(t => t.task_id === pendingTask.taskId);
-          if (task && pendingTask.status !== task.status) {
-            hasChanges = true;
+        const task = response.tasks.find(t => t.task_id === pendingTask.taskId);
+        if (task && pendingTask.status !== task.status) {
+          hasChanges = true;
 
-            if (isTerminalStatus(task.status)) {
-              if (task.status === 'completed') {
-                window.dispatchEvent(
-                  new CustomEvent('etl-task-completed', {
-                    detail: {
-                      taskId: task.task_id,
-                      filename: pendingTask.filename,
-                      tableId: pendingTask.tableId,
-                    },
-                  })
-                );
-              } else if (task.status === 'failed') {
-                window.dispatchEvent(
-                  new CustomEvent('etl-task-failed', {
-                    detail: {
-                      taskId: task.task_id,
-                      error: task.error,
-                      filename: pendingTask.filename,
-                    },
-                  })
-                );
-              }
+          if (isTerminalStatus(task.status)) {
+            if (task.status === 'completed') {
+              window.dispatchEvent(
+                new CustomEvent('etl-task-completed', {
+                  detail: {
+                    taskId: task.task_id,
+                    filename: pendingTask.filename,
+                    tableId: pendingTask.tableId,
+                  },
+                })
+              );
+            } else if (task.status === 'failed') {
+              window.dispatchEvent(
+                new CustomEvent('etl-task-failed', {
+                  detail: {
+                    taskId: task.task_id,
+                    error: task.error,
+                    filename: pendingTask.filename,
+                  },
+                })
+              );
             }
-
-            return { ...pendingTask, status: task.status };
           }
-          return pendingTask;
-        });
-      } catch (error) {
-        console.error('Failed to check ETL task status:', error);
-      }
-    }
 
-    // 检查 SaaS 任务状态（使用新的 import API）
-    for (const saasTask of saasTasks) {
-      try {
-        const taskResponse = await getImportTask(saasTask.taskId);
-        
-        // 映射新API状态到本地状态（processing -> downloading）
-        const mappedStatus = taskResponse.status === 'processing' ? 'downloading' : taskResponse.status;
-        
-        updatedTasks = updatedTasks.map(pendingTask => {
-          if (pendingTask.taskId !== saasTask.taskId) return pendingTask;
-          
-          if (pendingTask.status !== mappedStatus) {
-            hasChanges = true;
-
-            if (isImportTerminalStatus(taskResponse.status)) {
-              if (taskResponse.status === 'completed') {
-                window.dispatchEvent(
-                  new CustomEvent('saas-task-completed', {
-                    detail: {
-                      taskId: saasTask.taskId,
-                      filename: pendingTask.filename,
-                      taskType: pendingTask.taskType,
-                      rootNodeId: taskResponse.content_node_id,
-                    },
-                  })
-                );
-              } else if (taskResponse.status === 'failed') {
-                window.dispatchEvent(
-                  new CustomEvent('saas-task-failed', {
-                    detail: {
-                      taskId: saasTask.taskId,
-                      error: taskResponse.error,
-                      filename: pendingTask.filename,
-                    },
-                  })
-                );
-              }
-            }
-
-            return { ...pendingTask, status: mappedStatus as PendingTask['status'] };
-          }
-          return pendingTask;
-        });
-      } catch (error) {
-        console.error(`Failed to check SaaS task ${saasTask.taskId} status:`, error);
-      }
+          return { ...pendingTask, status: task.status };
+        }
+        return pendingTask;
+      });
+    } catch (error) {
+      console.error('Failed to check ETL task status:', error);
     }
 
     if (hasChanges) {

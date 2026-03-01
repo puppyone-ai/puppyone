@@ -260,7 +260,19 @@ async def app_lifespan(app: FastAPI):
     else:
         log_info("⏭️  File Ingest 服务已跳过（ENABLE_ETL 关闭）")
 
-    # 4. 初始化 FolderSourceService + FolderAccessService（启动文件夹同步）
+    # 4. 初始化 ConnectorRegistry 单例
+    registry_init_start = time.time()
+    try:
+        log_info("🔌 初始化 ConnectorRegistry...")
+        from src.sync.dependencies import init_registry
+        init_registry()
+        registry_duration = time.time() - registry_init_start
+        log_info(f"✅ ConnectorRegistry 初始化成功 (耗时: {registry_duration * 1000:.2f}ms)")
+    except Exception as e:
+        registry_duration = time.time() - registry_init_start
+        log_error(f"❌ ConnectorRegistry 初始化失败 (耗时: {registry_duration * 1000:.2f}ms): {e}")
+
+    # 5. 初始化 FolderSourceService + FolderAccessService（启动文件夹同步）
     sync_init_start = time.time()
     try:
         log_info("🔄 初始化 Folder Sync Services...")

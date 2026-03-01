@@ -5,6 +5,7 @@ import { useAgent } from '@/contexts/AgentContext';
 import type { AccessResource } from '@/contexts/AgentContext';
 import { openOAuthPopup, type SaasType } from '@/lib/oauthApi';
 import { SyncPreview, type AcceptedNodeType } from './SyncPreview';
+import { ScheduleTriggerSection } from './ScheduleAgentConfig';
 import { FolderIcon, JsonIcon, MarkdownIcon, CloseIcon, getNodeIcon } from '../_icons';
 
 export interface SaaSConfigField {
@@ -290,6 +291,140 @@ export function SaaSyncConfig({
             ))}
           </div>
         )}
+      </div>
+
+      {/* ─── 4. Sync frequency ─── */}
+      {isConnected && <SyncFrequencySelector provider={provider} />}
+    </div>
+  );
+}
+
+// ── Sync Frequency Selector ─────────────────────────────────────
+
+const SYNC_MODE_OPTIONS = [
+  { value: 'import_once' as const, label: 'Import once', desc: 'One-time import, no ongoing sync' },
+  { value: 'manual' as const, label: 'Manual refresh', desc: 'Refresh data when you click the button' },
+  { value: 'scheduled' as const, label: 'Scheduled', desc: 'Automatically sync on a schedule' },
+] as const;
+
+const DEFAULT_SYNC_MODES: Record<string, 'import_once' | 'manual' | 'scheduled'> = {
+  gmail: 'import_once',
+  notion: 'manual',
+  github: 'import_once',
+  google_drive: 'import_once',
+  google_docs: 'manual',
+  google_sheets: 'manual',
+  google_calendar: 'scheduled',
+  linear: 'manual',
+  airtable: 'manual',
+  url: 'import_once',
+};
+
+function SyncFrequencySelector({ provider }: { provider: string }) {
+  const {
+    draftSyncMode, setDraftSyncMode,
+    draftTriggerConfig, setDraftTriggerConfig, setDraftTriggerType,
+  } = useAgent();
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    setDraftSyncMode(DEFAULT_SYNC_MODES[provider] || 'import_once');
+  }, [provider, setDraftSyncMode]);
+
+  const selected = SYNC_MODE_OPTIONS.find(o => o.value === draftSyncMode) || SYNC_MODE_OPTIONS[0];
+
+  const handleSelect = (mode: 'import_once' | 'manual' | 'scheduled') => {
+    setDraftSyncMode(mode);
+    setIsOpen(false);
+    if (mode === 'scheduled') {
+      setDraftTriggerType('cron');
+      if (!draftTriggerConfig?.schedule) {
+        setDraftTriggerConfig({ schedule: '0 9 * * *', timezone: 'Asia/Shanghai' });
+      }
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>Sync frequency</label>
+      </div>
+
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          style={{
+            width: '100%', height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: '#161616', border: `1px solid ${isOpen ? '#525252' : '#2a2a2a'}`, borderRadius: 6,
+            padding: '0 10px', color: '#e5e5e5', cursor: 'pointer', fontSize: 13, textAlign: 'left',
+          }}
+        >
+          <span>{selected.label}</span>
+          <svg width="10" height="6" viewBox="0 0 10 6" fill="none"
+            style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+            <path d="M1 1L5 5L9 1" stroke="#525252" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        {isOpen && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
+            background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6,
+            overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+          }}>
+            {SYNC_MODE_OPTIONS.map((opt, idx) => (
+              <button
+                key={opt.value}
+                onClick={() => handleSelect(opt.value)}
+                style={{
+                  width: '100%', display: 'flex', flexDirection: 'column', gap: 1,
+                  padding: '8px 10px', textAlign: 'left', cursor: 'pointer',
+                  background: draftSyncMode === opt.value ? 'rgba(255,255,255,0.06)' : 'transparent',
+                  border: 'none',
+                  borderBottom: idx !== SYNC_MODE_OPTIONS.length - 1 ? '1px solid #1f1f1f' : 'none',
+                }}
+                onMouseEnter={e => { if (draftSyncMode !== opt.value) e.currentTarget.style.background = '#1f1f1f'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = draftSyncMode === opt.value ? 'rgba(255,255,255,0.06)' : 'transparent'; }}
+              >
+                <span style={{
+                  fontSize: 13, fontWeight: draftSyncMode === opt.value ? 500 : 400,
+                  color: draftSyncMode === opt.value ? '#e5e5e5' : '#a3a3a3',
+                }}>{opt.label}</span>
+                <span style={{ fontSize: 11, color: '#525252' }}>{opt.desc}</span>
+              </button>
+            ))}
+
+            {/* Real-time placeholder */}
+            <div style={{
+              padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 1,
+              borderTop: '1px solid #1f1f1f', opacity: 0.4, cursor: 'not-allowed',
+            }}>
+              <span style={{ fontSize: 13, color: '#525252' }}>Real-time ⚡</span>
+              <span style={{ fontSize: 11, color: '#3a3a3a' }}>Coming soon</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Schedule config — expand when Scheduled is selected */}
+      {draftSyncMode === 'scheduled' && (
+        <div style={{
+          padding: '12px', marginTop: 4,
+          background: '#141414', border: '1px solid #2a2a2a', borderRadius: 8,
+        }}>
+          <ScheduleTriggerSection
+            draftTriggerConfig={draftTriggerConfig}
+            setDraftTriggerConfig={setDraftTriggerConfig}
+            setDraftTriggerType={setDraftTriggerType}
+          />
+        </div>
+      )}
+
+      {/* Mode description */}
+      <div style={{ fontSize: 11, color: '#3a3a3a', padding: '0 2px', lineHeight: 1.5 }}>
+        {draftSyncMode === 'import_once' && 'Data will be imported once. No sync binding will be created.'}
+        {draftSyncMode === 'manual' && 'A sync binding will be created. Click "Refresh" anytime to pull the latest data.'}
+        {draftSyncMode === 'scheduled' && 'Data will be automatically refreshed on the schedule above.'}
       </div>
     </div>
   );

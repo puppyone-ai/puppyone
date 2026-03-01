@@ -8,6 +8,8 @@ Architecture:
 """
 
 import base64
+import hashlib
+import json
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Optional
@@ -21,13 +23,12 @@ from src.sync.connectors._base import (
     Capability,
     AuthRequirement,
     TriggerMode,
-    ImportResult,
-    ProgressCallback,
+    FetchResult,
+    Credentials,
 )
-from src.sync.task.models import ImportTask
 from src.oauth.gmail_service import GmailOAuthService
 from src.s3.service import S3Service
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error
 
 
 class GmailConnector(BaseConnector):
@@ -49,6 +50,8 @@ class GmailConnector(BaseConnector):
             default_node_type="json",
             auth=AuthRequirement.OAUTH,
             oauth_type="gmail",
+            supported_sync_modes=("import_once", "manual", "scheduled"),
+            default_sync_mode="import_once",
         )
 
     def __init__(
@@ -62,77 +65,32 @@ class GmailConnector(BaseConnector):
         self.s3_service = s3_service
         self.client = httpx.AsyncClient(timeout=30.0)
 
-    async def import_data(
-        self,
-        task: ImportTask,
-        on_progress: ProgressCallback,
-    ) -> ImportResult:
-        """Process Gmail import - stores all emails in a single JSONB node."""
-        await on_progress(5, "Checking Gmail connection...")
-
-        # Get OAuth connection
-        connection = await self.gmail_service.refresh_token_if_needed(task.user_id)
-        if not connection:
-            raise ValueError("Gmail not connected. Please authorize Gmail first.")
-
-        access_token = connection.access_token
-        metadata = connection.metadata or {}
-        user_email = metadata.get("user", {}).get("email", "Gmail")
-
-        # Parse config
-        config = task.config or {}
-        max_results = config.get("max_results", 50)
+    async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
+        """Fetch Gmail emails using the unified fetch interface."""
+        user_email = credentials.metadata.get("user", {}).get("email", "Gmail")
+        max_results = config.get("max_results", config.get("maxEmails", 50))
+        if isinstance(max_results, str):
+            max_results = int(max_results)
         query = config.get("query", "")
-        parent_id = config.get("parent_id")
 
-        await on_progress(10, f"Fetching emails from {user_email}...")
-
-        # Fetch email list
         email_ids = await self._fetch_email_ids(
-            access_token=access_token,
+            access_token=credentials.access_token,
             max_results=max_results,
             query=query,
         )
 
-        if not email_ids:
-            # No emails found, create empty inbox node
-            content = {
-                "account": user_email,
-                "synced_at": datetime.now(timezone.utc).isoformat(),
-                "email_count": 0,
-                "query": query,
-                "emails": [],
-            }
-            node = await self.node_service.create_synced_node(
-                project_id=task.project_id,
-                name=f"Gmail - {user_email}",
-                content=content,
-                parent_id=parent_id,
-                created_by=task.user_id,
-            )
-            return ImportResult(content_node_id=node.id, items_count=0)
-
-        await on_progress(20, f"Found {len(email_ids)} emails, fetching details...")
-
-        # Fetch full details for each email
         emails = []
-        total = len(email_ids)
-
-        for idx, email_id in enumerate(email_ids):
-            progress = 20 + int((idx / total) * 70)  # 20-90%
-            await on_progress(progress, f"Fetching email {idx + 1}/{total}...")
-
+        for email_id in email_ids:
             try:
-                email_data = await self._fetch_email_details(access_token, email_id)
+                email_data = await self._fetch_email_details(
+                    credentials.access_token, email_id,
+                )
                 if email_data:
                     emails.append(email_data)
             except Exception as e:
-                log_error(f"Failed to fetch email {email_id}: {e}")
+                log_error(f"[Gmail fetch] Failed to fetch email {email_id}: {e}")
                 continue
 
-        await on_progress(95, "Creating inbox node...")
-
-        # Build the complete JSONB content
         content = {
             "account": user_email,
             "synced_at": datetime.now(timezone.utc).isoformat(),
@@ -141,20 +99,16 @@ class GmailConnector(BaseConnector):
             "emails": emails,
         }
 
-        # Create single node with all emails in JSONB
-        node = await self.node_service.create_synced_node(
-            project_id=task.project_id,
-            name=config.get("name") or f"Gmail - {user_email}",
+        content_hash = hashlib.sha256(
+            json.dumps(content, sort_keys=True, ensure_ascii=False).encode()
+        ).hexdigest()[:16]
+
+        return FetchResult(
             content=content,
-            parent_id=parent_id,
-            created_by=task.user_id,
-        )
-
-        await on_progress(100, "Gmail import completed")
-
-        return ImportResult(
-            content_node_id=node.id,
-            items_count=len(emails),
+            content_hash=content_hash,
+            node_type="json",
+            node_name=config.get("name") or f"Gmail - {user_email}",
+            summary=f"Fetched {len(emails)} emails from {user_email}",
         )
 
     async def _fetch_email_ids(

@@ -11,7 +11,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
 
 from src.scheduler.config import scheduler_settings
-from src.scheduler.jobs import execute_agent_task
+from src.scheduler.jobs import execute_agent_task, execute_sync_pull
 from src.utils.logger import log_info, log_error, log_warning
 
 
@@ -75,6 +75,7 @@ class SchedulerService:
         
         # Load existing schedule agents from database
         await self._load_scheduled_agents()
+        await self._load_scheduled_syncs()
         
         log_info(f"✅ APScheduler started with {scheduler_settings.max_workers} workers")
     
@@ -160,6 +161,88 @@ class SchedulerService:
         
         return job
     
+    # ── Sync Jobs ─────────────────────────────────────────────
+
+    async def _load_scheduled_syncs(self):
+        """Load all syncs with trigger type 'scheduled' and register jobs."""
+        if not self.scheduler:
+            return
+
+        try:
+            from src.supabase.client import SupabaseClient
+
+            client = SupabaseClient().client
+            result = (
+                client.table("syncs")
+                .select("id, provider, trigger, status")
+                .eq("status", "active")
+                .execute()
+            )
+
+            syncs = result.data or []
+            scheduled = [
+                s for s in syncs
+                if (s.get("trigger") or {}).get("type") == "scheduled"
+            ]
+
+            log_info(f"Found {len(scheduled)} scheduled syncs to load")
+
+            for sync_row in scheduled:
+                trigger_config = sync_row.get("trigger") or {}
+                await self.add_sync_job(
+                    sync_id=sync_row["id"],
+                    trigger_config=trigger_config,
+                    provider=sync_row.get("provider", ""),
+                )
+
+            if scheduled:
+                log_info(f"Loaded {len(scheduled)} sync polling jobs")
+
+        except Exception as e:
+            log_error(f"Failed to load scheduled syncs: {e}")
+
+    async def add_sync_job(
+        self,
+        sync_id: str,
+        trigger_config: dict,
+        provider: str = "",
+    ) -> Optional[Job]:
+        """Add a sync polling job to the scheduler."""
+        if not self.scheduler or not self._started:
+            log_warning(f"Scheduler not running, skipping sync job for {sync_id}")
+            return None
+
+        job_id = f"sync:{sync_id}"
+        self.remove_sync_job(sync_id)
+
+        trigger = self._parse_trigger(trigger_config)
+        if not trigger:
+            log_warning(f"Invalid trigger config for sync {sync_id}: {trigger_config}")
+            return None
+
+        job = self.scheduler.add_job(
+            execute_sync_pull,
+            trigger=trigger,
+            id=job_id,
+            name=f"Sync: {provider} ({sync_id[:8]})",
+            args=[sync_id],
+            replace_existing=True,
+        )
+
+        next_run = job.next_run_time.strftime("%Y-%m-%d %H:%M:%S") if job.next_run_time else "N/A"
+        log_info(f"Added sync job for {provider} ({sync_id[:8]}), next run: {next_run}")
+        return job
+
+    def remove_sync_job(self, sync_id: str) -> bool:
+        """Remove a sync job from the scheduler."""
+        if not self.scheduler:
+            return False
+        try:
+            self.scheduler.remove_job(f"sync:{sync_id}")
+            return True
+        except Exception:
+            return False
+
     def remove_agent_job(self, agent_id: str) -> bool:
         """Remove an agent job from the scheduler."""
         if not self.scheduler:

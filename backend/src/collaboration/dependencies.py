@@ -89,7 +89,7 @@ def get_collaboration_service(
     version_service: VersionService = Depends(get_version_service),
     audit_service: AuditService = Depends(get_audit_service),
 ) -> CollaborationService:
-    """获取 CollaborationService（Mut Protocol 统一入口）"""
+    """获取 CollaborationService（Mut Protocol 统一入口）— FastAPI DI 版"""
     return CollaborationService(
         node_repo=node_repo,
         node_service=node_service,
@@ -97,4 +97,31 @@ def get_collaboration_service(
         conflict_service=conflict_service,
         version_service=version_service,
         audit_service=audit_service,
+    )
+
+
+def create_collaboration_service() -> CollaborationService:
+    """
+    在非请求上下文中构造 CollaborationService。
+
+    用于 Scheduler job、ARQ worker、测试等无法使用 FastAPI Depends 的场景。
+    """
+    supabase = SupabaseClient()
+    node_repo = ContentNodeRepository(supabase)
+    s3 = S3Service()
+    node_service = ContentNodeService(node_repo, s3)
+
+    return CollaborationService(
+        node_repo=node_repo,
+        node_service=node_service,
+        lock_service=LockService(node_repo),
+        conflict_service=ConflictService(),
+        version_service=VersionService(
+            node_repo,
+            FileVersionRepository(supabase),
+            FolderSnapshotRepository(supabase),
+            s3,
+            SyncChangelogRepository(supabase),
+        ),
+        audit_service=AuditService(audit_repo=AuditRepository(supabase)),
     )

@@ -4,7 +4,7 @@ Google Docs Connector - Process Google Docs imports.
 Imports Google Docs documents into content nodes as Markdown.
 """
 
-from datetime import datetime
+import hashlib
 from typing import Optional
 
 import httpx
@@ -16,14 +16,12 @@ from src.sync.connectors._base import (
     Capability,
     AuthRequirement,
     TriggerMode,
-    ImportResult,
-    PreviewResult,
-    ProgressCallback,
+    FetchResult,
+    Credentials,
 )
-from src.sync.task.models import ImportTask
 from src.oauth.google_docs_service import GoogleDocsOAuthService
 from src.s3.service import S3Service
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error
 
 
 class GoogleDocsConnector(BaseConnector):
@@ -41,6 +39,8 @@ class GoogleDocsConnector(BaseConnector):
             default_node_type="markdown",
             auth=AuthRequirement.OAUTH,
             oauth_type="docs",
+            supported_sync_modes=("import_once", "manual", "scheduled"),
+            default_sync_mode="manual",
         )
 
     def __init__(
@@ -54,117 +54,28 @@ class GoogleDocsConnector(BaseConnector):
         self.s3_service = s3_service
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    async def import_data(
-        self,
-        task: ImportTask,
-        on_progress: ProgressCallback,
-    ) -> ImportResult:
-        """Process Google Docs import."""
-        await on_progress(5, "Checking Google Docs connection...")
-
-        # Get OAuth connection
-        connection = await self.docs_service.refresh_token_if_needed(task.user_id)
-        if not connection:
-            raise ValueError("Google Docs not connected. Please authorize first.")
-
-        access_token = connection.access_token
-        metadata = connection.metadata or {}
-        user_email = metadata.get("user", {}).get("email", "Google Docs")
-
-        config = task.config or {}
-
-        # Parse source - should be a Google Docs URL or document ID
-        source = task.source_url or ""
-        doc_id = self._extract_doc_id(source)
-
+    async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
+        """Pull a Google Doc and return as markdown."""
+        access_token = credentials.access_token
+        source_url = config.get("source_url", "")
+        doc_id = self._extract_doc_id(source_url)
         if not doc_id:
-            raise ValueError(f"Invalid Google Docs URL or ID: {source}")
+            raise ValueError(f"Invalid Google Docs URL or ID: {source_url}")
 
-        await on_progress(10, f"Fetching document from {user_email}...")
-
-        # Fetch document content
         doc_content = await self._fetch_document(access_token, doc_id)
-
         if not doc_content:
             raise ValueError(f"Failed to fetch document: {doc_id}")
 
-        await on_progress(40, "Converting to Markdown...")
-
-        # Convert to Markdown
         title = doc_content.get("title", "Untitled Document")
         markdown_content = self._convert_to_markdown(doc_content)
+        content_hash = hashlib.sha256(markdown_content.encode()).hexdigest()[:16]
 
-        await on_progress(70, "Creating content node...")
-
-        # Create content node
-        # Note: metadata (source, doc_id, etc.) is logged but not stored directly
-        log_info(f"Google Docs import: doc_id={doc_id}, title={title}, user={user_email}")
-        node = await self.node_service.create_markdown_node(
-            project_id=task.project_id,
-            name=f"{title}.md",
+        return FetchResult(
             content=markdown_content,
-            parent_id=task.parent_node_id,
-            created_by=task.user_id,
-        )
-
-        await on_progress(100, "Import complete!")
-
-        return ImportResult(
-            content_node_id=str(node.id) if node else "",
-            items_count=1,
-            metadata={"message": f"Successfully imported: {title}"},
-        )
-
-    async def preview(self, url: str, user_id: str) -> PreviewResult:
-        """Preview Google Docs import."""
-        connection = await self.docs_service.get_connection(user_id)
-        if not connection:
-            return PreviewResult(
-                source_type="google_docs",
-                title="Google Docs",
-                description="Not connected to Google Docs",
-                data=[],
-                total_items=0,
-                structure_info={"error": "Not authenticated"},
-            )
-
-        source = url or ""
-        doc_id = self._extract_doc_id(source)
-
-        if not doc_id:
-            return PreviewResult(
-                source_type="google_docs",
-                title="Google Docs",
-                description="Invalid document URL or ID",
-                data=[],
-                total_items=0,
-                structure_info={"error": "Invalid URL"},
-            )
-
-        try:
-            access_token = connection.access_token
-            doc_content = await self._fetch_document(access_token, doc_id)
-
-            if doc_content:
-                title = doc_content.get("title", "Untitled Document")
-                return PreviewResult(
-                    source_type="google_docs",
-                    title=title,
-                    description=f"Google Doc: {title}",
-                    data=[{"name": title, "type": "document"}],
-                    total_items=1,
-                    structure_info={"doc_id": doc_id},
-                )
-        except Exception as e:
-            log_error(f"Failed to preview Google Doc: {e}")
-
-        return PreviewResult(
-            source_type="google_docs",
-            title="Google Docs",
-            description="Failed to fetch document",
-            data=[],
-            total_items=0,
-            structure_info={"error": "Fetch failed"},
+            content_hash=content_hash,
+            node_type="markdown",
+            node_name=f"{title}.md",
+            summary=f"Google Doc '{title}'",
         )
 
     def _extract_doc_id(self, source: str) -> Optional[str]:

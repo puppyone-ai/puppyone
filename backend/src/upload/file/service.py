@@ -193,7 +193,7 @@ class ETLService:
         )
         return task_with_id
 
-    async def get_task_status(self, task_id: int) -> Optional[ETLTask]:
+    async def get_task_status(self, task_id: str | int) -> Optional[ETLTask]:
         """
         Get ETL task status.
 
@@ -268,7 +268,7 @@ class ETLService:
         return self.task_repository.get_task(task_id)
 
     async def get_task_status_with_access_check(
-        self, task_id: int, user_id: str
+        self, task_id: str | int, user_id: str
     ) -> ETLTask:
         """
         获取任务状态并验证用户权限
@@ -339,7 +339,7 @@ class ETLService:
         return tasks
 
     async def cancel_task(
-        self, task_id: int, user_id: str, *, force: bool = False
+        self, task_id: str | int, user_id: str, *, force: bool = False
     ) -> ETLTask:
         """
         Cancel a queued/pending task.
@@ -405,7 +405,7 @@ class ETLService:
         self.task_repository.update_task(task)
         return task
 
-    async def retry_task(self, task_id: int, user_id: str, from_stage: str) -> ETLTask:
+    async def retry_task(self, task_id: str | int, user_id: str, from_stage: str) -> ETLTask:
         """
         Retry from a given stage: "mineru" or "postprocess".
         """

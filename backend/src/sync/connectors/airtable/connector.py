@@ -7,6 +7,8 @@ Architecture:
 - Agent can query with jq: jq '.tables[0].records[] | select(.Status == "Done")'
 """
 
+import hashlib
+import json
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -19,14 +21,12 @@ from src.sync.connectors._base import (
     Capability,
     AuthRequirement,
     TriggerMode,
-    ImportResult,
-    PreviewResult,
-    ProgressCallback,
+    FetchResult,
+    Credentials,
 )
-from src.sync.task.models import ImportTask
 from src.oauth.airtable_service import AirtableOAuthService
 from src.s3.service import S3Service
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error
 
 
 class AirtableConnector(BaseConnector):
@@ -45,6 +45,8 @@ class AirtableConnector(BaseConnector):
             default_node_type="json",
             auth=AuthRequirement.OAUTH,
             oauth_type="airtable",
+            supported_sync_modes=("import_once", "manual", "scheduled"),
+            default_sync_mode="manual",
         )
 
     def __init__(
@@ -58,56 +60,27 @@ class AirtableConnector(BaseConnector):
         self.s3_service = s3_service
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    async def import_data(
-        self,
-        task: ImportTask,
-        on_progress: ProgressCallback,
-    ) -> ImportResult:
-        """Process Airtable import - all data stored in single JSONB node."""
-        await on_progress(5, "Checking Airtable connection...")
+    async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
+        """Pull Airtable base data. Returns raw content without creating nodes."""
+        access_token = credentials.access_token
+        source_url = config.get("source_url", "")
 
-        # Get OAuth connection
-        connection = await self.airtable_service.refresh_token_if_needed(task.user_id)
-        if not connection:
-            raise ValueError("Airtable not connected. Please authorize first.")
-
-        access_token = connection.access_token
-        metadata = connection.metadata or {}
-        user_email = metadata.get("user", {}).get("email", "")
-
-        config = task.config or {}
-        source_url = task.source_url or ""
-        parent_id = config.get("parent_id")
-        
-        # Extract base ID from URL
         base_id = self._extract_base_id(source_url)
         if not base_id:
             raise ValueError(f"Could not extract Airtable base ID from URL: {source_url}")
 
-        await on_progress(10, "Fetching base schema...")
-
-        # Get base schema (tables)
         tables_meta = await self._get_base_tables(access_token, base_id)
-        
         if not tables_meta:
             raise ValueError("Airtable base has no tables")
 
         base_name = config.get("name") or f"Airtable Base {base_id[:8]}"
 
-        await on_progress(20, f"Found {len(tables_meta)} tables...")
-
-        # Process each table
         tables_data = []
         total_records = 0
-        
-        for idx, table in enumerate(tables_meta):
-            table_name = table.get("name", f"Table{idx + 1}")
+        for table in tables_meta:
             table_id = table.get("id", "")
+            table_name = table.get("name", "")
             table_fields = table.get("fields", [])
-            
-            progress = 20 + int((idx / len(tables_meta)) * 70)
-            await on_progress(progress, f"Processing table: {table_name}...")
-
             try:
                 table_data = await self._process_table(
                     access_token=access_token,
@@ -119,7 +92,7 @@ class AirtableConnector(BaseConnector):
                 tables_data.append(table_data)
                 total_records += table_data.get("record_count", 0)
             except Exception as e:
-                log_error(f"Failed to process table {table_name}: {e}")
+                log_error(f"fetch: failed to process table {table_name}: {e}")
                 tables_data.append({
                     "table_id": table_id,
                     "name": table_name,
@@ -129,7 +102,6 @@ class AirtableConnector(BaseConnector):
                     "records": [],
                 })
 
-        # Build JSONB content
         content = {
             "synced_at": datetime.now(timezone.utc).isoformat(),
             "source": "airtable",
@@ -140,22 +112,16 @@ class AirtableConnector(BaseConnector):
             "total_records": total_records,
             "tables": tables_data,
         }
+        content_hash = hashlib.sha256(
+            json.dumps(content, sort_keys=True, ensure_ascii=False).encode()
+        ).hexdigest()[:16]
 
-        # Create single JSONB node
-        node = await self.node_service.create_synced_node(
-            project_id=task.project_id,
-            name=base_name[:100],
+        return FetchResult(
             content=content,
-            parent_id=parent_id,
-            created_by=task.user_id,
-        )
-
-        await on_progress(100, "Airtable import completed")
-
-        return ImportResult(
-            content_node_id=node.id,
-            items_count=total_records,
-            metadata={"tables": len(tables_data)},
+            content_hash=content_hash,
+            node_type="json",
+            node_name=base_name[:100],
+            summary=f"Airtable base '{base_name}' with {len(tables_data)} tables, {total_records} records",
         )
 
     async def _get_base_tables(self, access_token: str, base_id: str) -> list[dict]:
@@ -177,12 +143,12 @@ class AirtableConnector(BaseConnector):
         """Get records from a table with pagination."""
         all_records = []
         offset = None
-        
+
         while len(all_records) < max_records:
             params = {"pageSize": min(100, max_records - len(all_records))}
             if offset:
                 params["offset"] = offset
-            
+
             response = await self.client.get(
                 f"{self.AIRTABLE_API_URL}/{base_id}/{table_id}",
                 headers={"Authorization": f"Bearer {access_token}"},
@@ -190,14 +156,14 @@ class AirtableConnector(BaseConnector):
             )
             response.raise_for_status()
             data = response.json()
-            
+
             records = data.get("records", [])
             all_records.extend(records)
-            
+
             offset = data.get("offset")
             if not offset:
                 break
-        
+
         return all_records
 
     async def _process_table(
@@ -211,7 +177,7 @@ class AirtableConnector(BaseConnector):
         """Process a single table and return structured data."""
         # Get records
         records = await self._get_table_records(access_token, base_id, table_id)
-        
+
         # Format field info
         fields_info = [
             {
@@ -227,7 +193,7 @@ class AirtableConnector(BaseConnector):
         for record in records:
             record_fields = record.get("fields", {})
             formatted_record = {"_id": record.get("id", "")}
-            
+
             for field_name, value in record_fields.items():
                 # Simplify complex field types for JSONB
                 if isinstance(value, list):
@@ -239,7 +205,7 @@ class AirtableConnector(BaseConnector):
                     formatted_record[field_name] = self._simplify_value(value)
                 else:
                     formatted_record[field_name] = value
-            
+
             records_data.append(formatted_record)
 
         return {
@@ -274,60 +240,18 @@ class AirtableConnector(BaseConnector):
     def _extract_base_id(self, url: str) -> Optional[str]:
         """Extract base ID from Airtable URL."""
         import re
-        
+
         patterns = [
             r'airtable\.com/(app[a-zA-Z0-9]+)',
             r'/(app[a-zA-Z0-9]+)/',
         ]
-        
+
         for pattern in patterns:
             match = re.search(pattern, url)
             if match:
                 return match.group(1)
-        
+
         return None
-
-    async def preview(self, url: str, user_id: str) -> PreviewResult:
-        """Preview Airtable base contents."""
-        connection = await self.airtable_service.refresh_token_if_needed(user_id)
-        if not connection:
-            raise ValueError("Airtable not connected. Please authorize first.")
-
-        access_token = connection.access_token
-        
-        base_id = self._extract_base_id(url)
-        if not base_id:
-            raise ValueError(f"Could not extract base ID from URL: {url}")
-
-        # Get tables
-        tables = await self._get_base_tables(access_token, base_id)
-        
-        # Get sample from first table
-        sample_data = []
-        if tables:
-            first_table = tables[0]
-            try:
-                records = await self._get_table_records(
-                    access_token, base_id, first_table["id"], max_records=5
-                )
-                sample_data = [r.get("fields", {}) for r in records]
-            except Exception as e:
-                log_error(f"Failed to get sample data: {e}")
-
-        table_info = [
-            {"name": t.get("name"), "fields": len(t.get("fields", []))}
-            for t in tables
-        ]
-
-        return PreviewResult(
-            source_type="airtable",
-            title=f"Airtable Base: {base_id}",
-            description=f"Base with {len(tables)} tables",
-            data=sample_data,
-            fields=[{"name": k, "type": "string"} for k in (sample_data[0].keys() if sample_data else [])],
-            total_items=len(tables),
-            structure_info={"base_id": base_id, "tables": table_info},
-        )
 
     async def close(self):
         """Close HTTP client."""

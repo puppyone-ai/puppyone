@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import useSWR from 'swr';
-import { get } from '@/lib/apiClient';
+import { get, post } from '@/lib/apiClient';
 import { useAgent } from '@/contexts/AgentContext';
 
 interface SyncDetail {
@@ -14,6 +14,7 @@ interface SyncDetail {
   direction: string;
   status: string;
   access_key: string | null;
+  trigger: { type?: string; schedule?: string; timezone?: string } | null;
   last_synced_at: string | null;
   error_message: string | null;
 }
@@ -183,6 +184,19 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
     setTimeout(() => setRefreshing(false), 600);
   }, [mutate]);
 
+  const handleSyncRefresh = useCallback(async () => {
+    if (!syncId) return;
+    setRefreshing(true);
+    try {
+      await post(`/api/v1/sync/syncs/${syncId}/refresh`);
+      await mutate();
+    } catch (err) {
+      console.error('Sync refresh failed:', err);
+    } finally {
+      setTimeout(() => setRefreshing(false), 1000);
+    }
+  }, [syncId, mutate]);
+
   if (!sync) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -301,8 +315,19 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
             </div>
           )}
 
+          {/* Sync mode info */}
+          {sync.trigger && sync.trigger.type && sync.trigger.type !== 'import_once' && (
+            <SyncModeInfo trigger={sync.trigger} lastSyncedAt={sync.last_synced_at} />
+          )}
+
           {/* Actions — Linear style: 28px, minimal */}
           <div style={{ display: 'flex', gap: 6 }}>
+            {sync.trigger?.type === 'manual' && (
+              <ActionButton label={refreshing ? 'Refreshing...' : 'Refresh now'} icon="retry" onClick={handleSyncRefresh} />
+            )}
+            {sync.trigger?.type === 'scheduled' && (
+              <ActionButton label={refreshing ? 'Syncing...' : 'Sync now'} icon="retry" onClick={handleSyncRefresh} />
+            )}
             {isActive && (
               <ActionButton label="Pause" icon="pause" onClick={() => {}} />
             )}
@@ -310,7 +335,7 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
               <ActionButton label="Resume" icon="play" onClick={() => {}} />
             )}
             {isError && (
-              <ActionButton label="Retry" icon="retry" onClick={handleRefresh} />
+              <ActionButton label="Retry" icon="retry" onClick={handleSyncRefresh} />
             )}
             <ActionButton label="Disconnect" icon="disconnect" variant="danger" onClick={() => {}} />
           </div>
@@ -328,6 +353,7 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <DetailRow label="Provider" value={providerLabel} />
               <DetailRow label="Direction" value={dirLabel} />
+              <DetailRow label="Sync mode" value={SYNC_MODE_LABELS[(sync.trigger?.type) || 'import_once'] || 'Import once'} />
               {sync.node_name && <DetailRow label="Folder" value={sync.node_name} />}
               <DetailRow label="Last synced" value={sync.last_synced_at ? relativeTime(sync.last_synced_at) : 'Never'} />
               <DetailRow label="Sync ID" value={sync.id} mono />
@@ -337,6 +363,56 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
         </div>
       </div>
     </>
+  );
+}
+
+// ============================================================
+// Sync Mode Info
+// ============================================================
+
+const SYNC_MODE_LABELS: Record<string, string> = {
+  import_once: 'Import once',
+  manual: 'Manual refresh',
+  scheduled: 'Scheduled',
+};
+
+function describeCron(schedule: string): string {
+  const parts = schedule.split(' ');
+  if (parts.length < 5) return schedule;
+  const [min, hour, day, month, weekday] = parts;
+
+  const time = `${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+
+  if (weekday !== '*' && day === '*') return `Weekly at ${time}`;
+  if (day === '*' && month === '*' && weekday === '*') return `Daily at ${time}`;
+  return `At ${time}`;
+}
+
+function SyncModeInfo({ trigger, lastSyncedAt }: {
+  trigger: { type?: string; schedule?: string; timezone?: string };
+  lastSyncedAt: string | null;
+}) {
+  const mode = trigger.type || 'import_once';
+  const modeLabel = SYNC_MODE_LABELS[mode] || mode;
+
+  return (
+    <div style={{
+      padding: '10px 12px', borderRadius: 6,
+      background: '#141414', border: '1px solid rgba(255,255,255,0.06)',
+      display: 'flex', flexDirection: 'column', gap: 4,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3' }}>{modeLabel}</span>
+        {mode === 'scheduled' && trigger.schedule && (
+          <span style={{ fontSize: 11, color: '#525252' }}>· {describeCron(trigger.schedule)}</span>
+        )}
+      </div>
+      {lastSyncedAt && (
+        <div style={{ fontSize: 11, color: '#525252' }}>
+          Last synced: {relativeTime(lastSyncedAt)}
+        </div>
+      )}
+    </div>
   );
 }
 
