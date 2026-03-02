@@ -89,6 +89,8 @@ from src.project.router import router as project_router
 
 project_router_duration = time.time() - project_router_start
 
+from src.organization.router import router as organization_router
+
 oauth_router_start = time.time()
 from src.oauth.router import router as oauth_router
 
@@ -458,6 +460,7 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
+    app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
     router_register_duration = time.time() - router_register_start
 
     # 注册异常处理器

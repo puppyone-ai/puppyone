@@ -91,17 +91,15 @@ class McpRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[str] = None,
-        project_id: Optional[int] = None,
-        table_id: Optional[int] = None,
+        project_id: Optional[str] = None,
+        table_id: Optional[str] = None,
     ) -> List[McpResponse]:
         """
-        获取 MCP 实例列表
+        获取 MCP 实例列表（按 project_id 过滤，不再按 user_id）
 
         Args:
             skip: 跳过记录数
             limit: 返回记录数
-            user_id: 可选，按用户 ID 过滤
             project_id: 可选，按项目 ID 过滤
             table_id: 可选，按表 ID 过滤
 
@@ -109,9 +107,6 @@ class McpRepository:
             MCP 实例列表
         """
         query = self._client.table("mcp").select("*")
-
-        if user_id is not None:
-            query = query.eq("user_id", user_id)
 
         if project_id is not None:
             query = query.eq("project_id", project_id)

@@ -8,6 +8,7 @@ from src.db_connector.repository import DBConnectionRepository
 from src.db_connector.providers import get_provider
 from src.db_connector.providers.base import QueryResult, TableInfo
 from src.content_node.service import ContentNodeService
+from src.project.service import ProjectService
 from src.exceptions import NotFoundException, ErrorCode
 
 logger = logging.getLogger(__name__)
@@ -27,9 +28,11 @@ class DBConnectorService:
         self,
         repo: DBConnectionRepository,
         node_service: ContentNodeService,
+        project_service: ProjectService,
     ):
         self.repo = repo
         self.node_service = node_service
+        self.project_service = project_service
 
     # === 连接管理 ===
 
@@ -46,7 +49,7 @@ class DBConnectorService:
         test_result = await db_provider.test_connection(config)
 
         connection = self.repo.create(
-            user_id=user_id,
+            created_by=user_id,
             project_id=project_id,
             name=name,
             provider=provider,
@@ -60,12 +63,17 @@ class DBConnectorService:
 
     def get_connection(self, connection_id: str, user_id: str) -> DBConnection:
         conn = self.repo.get_by_id(connection_id)
-        if not conn or conn.user_id != user_id:
+        if not conn:
+            raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+        # Access check: verify user has access to the connection's project
+        if not self.project_service.verify_project_access(conn.project_id, user_id):
             raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
         return conn
 
-    def list_connections(self, user_id: str, project_id: str) -> List[DBConnection]:
-        return self.repo.list_by_user_and_project(user_id, project_id)
+    def list_connections(self, project_id: str, user_id: str) -> List[DBConnection]:
+        if not self.project_service.verify_project_access(project_id, user_id):
+            raise NotFoundException("Project not found", code=ErrorCode.NOT_FOUND)
+        return self.repo.list_by_project(project_id)
 
     def delete_connection(self, connection_id: str, user_id: str) -> bool:
         conn = self.get_connection(connection_id, user_id)

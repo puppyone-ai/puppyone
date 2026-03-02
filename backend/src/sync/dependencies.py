@@ -177,6 +177,34 @@ def _build_registry(node_service: ContentNodeService) -> ConnectorRegistry:
     except Exception as e:
         log_error(f"[Registry] Failed to register URL: {e}")
 
+    # --- Hacker News (no OAuth) ---
+    try:
+        from src.sync.connectors.hackernews.connector import HackerNewsConnector
+        registry.register(HackerNewsConnector())
+    except Exception as e:
+        log_error(f"[Registry] Failed to register Hacker News: {e}")
+
+    # --- PostHog (API key in connector config) ---
+    try:
+        from src.sync.connectors.posthog.connector import PosthogConnector
+        registry.register(PosthogConnector())
+    except Exception as e:
+        log_error(f"[Registry] Failed to register PostHog: {e}")
+
+    # --- Google Search Console (OAuth) ---
+    try:
+        from src.sync.connectors.google_search_console.connector import GoogleSearchConsoleConnector
+        registry.register(GoogleSearchConsoleConnector())
+    except Exception as e:
+        log_error(f"[Registry] Failed to register Google Search Console: {e}")
+
+    # --- Script (sandboxed user scripts, no OAuth) ---
+    try:
+        from src.sync.connectors.script.connector import ScriptConnector
+        registry.register(ScriptConnector())
+    except Exception as e:
+        log_error(f"[Registry] Failed to register Script: {e}")
+
     return registry
 
 

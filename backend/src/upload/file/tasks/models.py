@@ -46,7 +46,7 @@ class ETLTask(BaseModel):
     task_id: Optional[str] = Field(
         None, description="Unique task identifier (TEXT UUID, None for new tasks)"
     )
-    user_id: str = Field(..., description="User ID who created the task")
+    created_by: Optional[str] = Field(None, description="User ID who created the task (audit field)")
     project_id: str = Field(..., description="Project ID (UUID)")
     node_id: Optional[str] = Field(
         None, description="Associated content node ID"
@@ -140,7 +140,7 @@ class ETLTask(BaseModel):
             config.pop("_substatus", None)
 
         data: dict[str, Any] = {
-            "user_id": self.user_id,
+            "created_by": self.created_by,
             "project_id": self.project_id,
             "node_id": self.node_id,
             "type": self.type,
@@ -201,7 +201,7 @@ class ETLTask(BaseModel):
 
         return cls(
             task_id=data.get("id"),
-            user_id=data["user_id"],
+            created_by=data.get("created_by") or data.get("user_id"),
             project_id=data["project_id"],
             node_id=data.get("node_id"),
             type=data.get("type", "file_ocr"),

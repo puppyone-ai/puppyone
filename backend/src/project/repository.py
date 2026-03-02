@@ -19,8 +19,8 @@ class ProjectRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_by_user_id(self, user_id: str) -> List[Project]:
-        """根据用户ID获取项目列表"""
+    def get_by_org_id(self, org_id: str) -> List[Project]:
+        """根据组织ID获取项目列表"""
         pass
 
     @abstractmethod
@@ -28,7 +28,8 @@ class ProjectRepositoryBase(ABC):
         self,
         name: str,
         description: Optional[str],
-        user_id: str,
+        org_id: str,
+        created_by: str,
     ) -> Project:
         """创建项目"""
         pass
@@ -49,8 +50,8 @@ class ProjectRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def verify_project_access(self, project_id: str, user_id: str) -> bool:
-        """验证用户是否有权限访问指定的项目"""
+    def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
+        """验证用户是否有权限访问指定的项目，返回角色字符串或 None"""
         pass
 
 
@@ -86,24 +87,25 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             return self._project_response_to_project(project_response)
         return None
 
-    def get_by_user_id(self, user_id: str) -> List[Project]:
+    def get_by_org_id(self, org_id: str) -> List[Project]:
         """
-        根据用户ID获取项目列表
+        根据组织ID获取项目列表
 
         Args:
-            user_id: 用户ID
+            org_id: 组织ID
 
         Returns:
             Project列表
         """
-        projects_response = self._supabase_repo.get_projects(user_id=user_id)
+        projects_response = self._supabase_repo.get_projects(org_id=org_id)
         return [self._project_response_to_project(p) for p in projects_response]
 
     def create(
         self,
         name: str,
         description: Optional[str],
-        user_id: str,
+        org_id: str,
+        created_by: str,
     ) -> Project:
         """
         创建项目
@@ -111,7 +113,8 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         Args:
             name: 项目名称
             description: 项目描述
-            user_id: 用户ID
+            org_id: 组织ID
+            created_by: 创建者用户ID
 
         Returns:
             创建的Project对象
@@ -123,7 +126,8 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             id=generate_uuid_v7(),
             name=name,
             description=description,
-            user_id=user_id,
+            org_id=org_id,
+            created_by=created_by,
         )
         project_response = self._supabase_repo.create_project(project_data)
         return self._project_response_to_project(project_response)
@@ -133,6 +137,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         project_id: str,
         name: Optional[str],
         description: Optional[str],
+        visibility: Optional[str] = None,
     ) -> Optional[Project]:
         """
         更新项目
@@ -141,6 +146,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             project_id: 项目ID
             name: 项目名称（可选，如果为None则不更新）
             description: 项目描述（可选，如果为None则不更新）
+            visibility: 可见性（可选）
 
         Returns:
             更新后的Project对象，如果不存在则返回None
@@ -151,6 +157,8 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             name=name,
             description=description,
         )
+        if visibility is not None:
+            update_data.visibility = visibility
         project_response = self._supabase_repo.update_project(project_id, update_data)
         if project_response:
             return self._project_response_to_project(project_response)
@@ -168,25 +176,46 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         """
         return self._supabase_repo.delete_project(project_id)
 
-    def verify_project_access(self, project_id: str, user_id: str) -> bool:
+    def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
         """
         验证用户是否有权限访问指定的项目
 
-        检查 project.user_id 是否等于用户ID
-
-        Args:
-            project_id: 项目ID
-            user_id: 用户ID
+        权限逻辑:
+        1. visibility='org' → org 的任何 member 都可访问
+        2. visibility='private' → 只有 org owner 或 project_members 中的人可访问
 
         Returns:
-            如果用户有权限返回True，否则返回False
+            角色字符串 (org 角色或 project 角色)，无权限则返回 None
         """
         project = self.get_by_id(project_id)
         if not project:
-            return False
+            return None
 
-        # 检查项目是否属于当前用户
-        return project.user_id == user_id
+        from src.organization.repository import OrganizationRepository
+        org_repo = OrganizationRepository()
+        member = org_repo.get_member(project.org_id, user_id)
+
+        if project.visibility == "org":
+            return member.role if member else None
+
+        # private project: org owner always has access
+        if member and member.role == "owner":
+            return "owner"
+
+        # Check project_members
+        from src.supabase.dependencies import get_supabase_client
+        client = get_supabase_client()
+        resp = (
+            client.table("project_members")
+            .select("role")
+            .eq("project_id", project_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if resp.data:
+            return resp.data[0]["role"]
+
+        return None
 
     def _project_response_to_project(self, project_response) -> Project:
         """
@@ -202,6 +231,8 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             id=project_response.id,
             name=project_response.name,
             description=project_response.description,
-            user_id=project_response.user_id,
+            org_id=project_response.org_id,
+            visibility=getattr(project_response, 'visibility', 'org'),
+            created_by=project_response.created_by,
             created_at=project_response.created_at,
         )

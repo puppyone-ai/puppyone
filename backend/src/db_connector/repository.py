@@ -26,9 +26,10 @@ class DBConnectionRepository:
         return decrypt_db_connection_config(config)
 
     def _row_to_model(self, row: dict) -> DBConnection:
+        created_by = row.get("created_by")
         return DBConnection(
             id=str(row["id"]),
-            user_id=str(row["user_id"]),
+            created_by=str(created_by) if created_by is not None else None,
             project_id=str(row["project_id"]),
             name=row["name"],
             provider=row["provider"],
@@ -41,7 +42,7 @@ class DBConnectionRepository:
 
     def create(
         self,
-        user_id: str,
+        created_by: str,
         project_id: str,
         name: str,
         provider: str,
@@ -49,7 +50,7 @@ class DBConnectionRepository:
     ) -> DBConnection:
         encrypted_config = encrypt_db_connection_config(config)
         data = {
-            "user_id": user_id,
+            "created_by": created_by,
             "project_id": project_id,
             "name": name,
             "provider": provider,
@@ -71,13 +72,10 @@ class DBConnectionRepository:
             return self._row_to_model(response.data[0])
         return None
 
-    def list_by_user_and_project(
-        self, user_id: str, project_id: str
-    ) -> List[DBConnection]:
+    def list_by_project(self, project_id: str) -> List[DBConnection]:
         response = (
             self.client.table(self.TABLE)
             .select("*")
-            .eq("user_id", user_id)
             .eq("project_id", project_id)
             .eq("is_active", True)
             .order("created_at", desc=True)

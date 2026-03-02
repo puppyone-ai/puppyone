@@ -9,7 +9,7 @@ class DBConnection(BaseModel):
     """外部数据库连接"""
 
     id: str = Field(..., description="连接 ID (UUID)")
-    user_id: str = Field(..., description="所属用户 ID")
+    created_by: Optional[str] = Field(None, description="创建者用户 ID (nullable)")
     project_id: str = Field(..., description="所属项目 ID")
     name: str = Field(..., description="连接名称")
     provider: str = Field("supabase", description="数据库类型: supabase | postgres | mysql")

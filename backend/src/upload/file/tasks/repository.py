@@ -64,7 +64,6 @@ class ETLTaskRepositoryBase(ABC):
     @abstractmethod
     def list_tasks(
         self,
-        user_id: Optional[str] = None,
         project_id: Optional[str] = None,
         status: Optional[ETLTaskStatus] = None,
         limit: int = 100,
@@ -74,7 +73,6 @@ class ETLTaskRepositoryBase(ABC):
         List tasks with optional filters.
 
         Args:
-            user_id: Filter by user ID
             project_id: Filter by project ID
             status: Filter by status
             limit: Maximum number of results
@@ -88,7 +86,6 @@ class ETLTaskRepositoryBase(ABC):
     @abstractmethod
     def count_tasks(
         self,
-        user_id: Optional[str] = None,
         project_id: Optional[str] = None,
         status: Optional[ETLTaskStatus] = None,
     ) -> int:
@@ -96,7 +93,6 @@ class ETLTaskRepositoryBase(ABC):
         Count tasks with optional filters.
 
         Args:
-            user_id: Filter by user ID
             project_id: Filter by project ID
             status: Filter by status
 
@@ -149,7 +145,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             created_task = ETLTask.from_dict(row)
 
             logger.info(
-                f"Created task: {created_task.task_id} for user {created_task.user_id}"
+                f"Created task: {created_task.task_id} for created_by {created_task.created_by}"
             )
             return created_task
 
@@ -214,7 +210,6 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
     def list_tasks(
         self,
-        user_id: Optional[str] = None,
         project_id: Optional[str] = None,
         status: Optional[ETLTaskStatus] = None,
         limit: int = 100,
@@ -227,8 +222,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             # Restrict to ETL-related upload types
             query = query.in_("type", ETL_UPLOAD_TYPES)
 
-            if user_id is not None:
-                query = query.eq("user_id", user_id)
+            # Use project_id for listing (created_by is audit-only)
             if project_id is not None:
                 query = query.eq("project_id", project_id)
             if status is not None:
@@ -244,7 +238,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
             logger.info(
                 f"Listed {len(tasks)} tasks "
-                f"(user_id={user_id}, project_id={project_id}, status={status}, "
+                f"(project_id={project_id}, status={status}, "
                 f"offset={offset}, limit={limit})"
             )
             return tasks
@@ -255,7 +249,6 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
     def count_tasks(
         self,
-        user_id: Optional[str] = None,
         project_id: Optional[str] = None,
         status: Optional[ETLTaskStatus] = None,
     ) -> int:
@@ -265,8 +258,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
             query = query.in_("type", ETL_UPLOAD_TYPES)
 
-            if user_id is not None:
-                query = query.eq("user_id", user_id)
+            # Use project_id for counting (created_by is audit-only)
             if project_id is not None:
                 query = query.eq("project_id", project_id)
             if status is not None:

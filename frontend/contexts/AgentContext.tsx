@@ -154,6 +154,7 @@ interface AgentContextValue {
     credentialsRef?: string;
     syncMode?: 'import_once' | 'manual' | 'scheduled';
     trigger?: { type: string; schedule?: string; timezone?: string };
+    uiMode?: 'sidebar' | 'inline';
   }) => Promise<void>;
   closeSidebar: () => void;
   setDraftType: (type: AgentType) => void;
@@ -628,6 +629,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     credentialsRef?: string;
     syncMode?: 'import_once' | 'manual' | 'scheduled';
     trigger?: { type: string; schedule?: string; timezone?: string };
+    uiMode?: 'sidebar' | 'inline';
   }) => {
     if (!projectId) {
       throw new Error('projectId is required to create sync endpoint');
@@ -670,10 +672,12 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         });
       }
 
-      if (syncId) {
-        selectSync(syncId, nodeId);
+      if (params.uiMode !== 'inline') {
+        if (syncId) {
+          selectSync(syncId, nodeId);
+        }
+        setSidebarMode('deployed');
       }
-      setSidebarMode('deployed');
       setDraftResources([]);
       setEditingAgentId(null);
     } catch (error) {

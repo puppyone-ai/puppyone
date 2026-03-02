@@ -13,9 +13,9 @@ class McpBase(BaseModel):
     """MCP 基础模型"""
 
     api_key: Optional[str] = None
-    user_id: Optional[str] = None
-    project_id: Optional[int] = None
-    table_id: Optional[int] = None
+    created_by: Optional[str] = None  # nullable, was user_id
+    project_id: Optional[str] = None  # UUID, references project(id)
+    table_id: Optional[str] = None  # UUID, references content_nodes(id)
     name: Optional[str] = None
     json_path: Optional[str] = None
     status: Optional[bool] = None
@@ -36,9 +36,9 @@ class McpUpdate(BaseModel):
     """更新 MCP 实例模型"""
 
     api_key: Optional[str] = None
-    user_id: Optional[str] = None
-    project_id: Optional[int] = None
-    table_id: Optional[int] = None
+    created_by: Optional[str] = None  # nullable, was user_id
+    project_id: Optional[str] = None  # UUID, references project(id)
+    table_id: Optional[str] = None  # UUID, references content_nodes(id)
     name: Optional[str] = None
     json_path: Optional[str] = None
     status: Optional[bool] = None

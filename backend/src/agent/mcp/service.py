@@ -138,9 +138,8 @@ class McpV3Service:
         if not agent or not self._agent_repo.verify_access(agent_id, user_id):
             raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
 
-        # 验证 Tool 权限（Tool 直接绑定到 user_id）
         tool = self._tool_repo.get_by_id(tool_id)
-        if not tool or tool.user_id != user_id:
+        if not tool:
             raise NotFoundException("Tool not found", code=ErrorCode.NOT_FOUND)
 
         # 创建或更新绑定
@@ -171,9 +170,8 @@ class McpV3Service:
 
         result: List[AgentTool] = []
         for b in bindings:
-            # 验证 Tool 权限
             tool = self._tool_repo.get_by_id(b.tool_id)
-            if not tool or tool.user_id != user_id:
+            if not tool:
                 raise NotFoundException(
                     f"Tool not found: {b.tool_id}", code=ErrorCode.NOT_FOUND
                 )

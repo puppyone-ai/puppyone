@@ -131,6 +131,7 @@ class SyncService:
                 credentials_ref=credentials_ref,
                 conflict_strategy=conflict_strategy,
                 trigger=trigger_data,
+                created_by=user_id,
             )
             created_syncs.append(sync)
             log_info(f"[L2.5] Bound {res.external_resource_id} → node {node_id} (mode={sync_mode})")

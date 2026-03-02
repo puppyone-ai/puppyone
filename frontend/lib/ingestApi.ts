@@ -3,8 +3,7 @@
  *
  * Single entry point for all data ingestion:
  * - File upload → File Worker (OCR, extraction)
- * - SaaS sync → SaaS Worker (GitHub, Notion, Gmail, etc.)
- * - URL crawl → SaaS Worker (Firecrawl)
+ * - SaaS sync → SyncEngine (GitHub, Notion, Gmail, etc.)
  *
  * Backend: /api/v1/ingest/*
  */
@@ -90,9 +89,6 @@ export interface IngestHealthResponse {
     queue_size: number;
     task_count: number;
     worker_count: number;
-  };
-  saas_worker: {
-    status: string;
   };
 }
 

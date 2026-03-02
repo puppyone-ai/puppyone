@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ProjectInfo } from '../lib/projectsApi';
 import { updateTable } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
+import { useOrganization } from '@/contexts/OrganizationContext';
 
 type TableRenameDialogProps = {
   projectId: string;
@@ -18,6 +19,7 @@ export function TableRenameDialog({
   projects,
   onClose,
 }: TableRenameDialogProps) {
+  const { currentOrg } = useOrganization();
   const table = useMemo(() => {
     const project = projects.find(p => String(p.id) === String(projectId));
     return project?.nodes?.find(t => String(t.id) === String(tableId)) ?? null;
@@ -37,7 +39,7 @@ export function TableRenameDialog({
     try {
       setLoading(true);
       await updateTable(projectId, tableId, name.trim());
-      await refreshProjects();
+      await refreshProjects(currentOrg?.id);
       onClose();
     } catch (error) {
       console.error('Failed to rename table:', error);

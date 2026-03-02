@@ -17,6 +17,7 @@ from src.common_schemas import ApiResponse
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
 from src.exceptions import NotFoundException, ErrorCode
+from src.organization.dependencies import resolve_org_ids
 
 router = APIRouter(
     prefix="/tables",
@@ -32,20 +33,22 @@ router = APIRouter(
     "/",
     response_model=ApiResponse[List[ProjectWithTables]],
     summary="获取所有项目及其下的表格",
-    description="获取当前用户的所有项目，每个项目包含其下的所有表格信息",
-    response_description="返回用户的所有项目列表，每个项目包含其下的表格列表",
+    description="获取指定组织的所有项目，每个项目包含其下的所有表格信息",
+    response_description="返回组织的所有项目列表，每个项目包含其下的表格列表",
     status_code=status.HTTP_200_OK,
 )
 def list_tables(
+    org_id: Optional[str] = Query(None, description="组织ID（不传则返回用户所有组织的数据）"),
     table_service: TableService = Depends(get_table_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # 获取用户的所有项目及其下的表格
-    projects_with_tables = table_service.get_projects_with_tables_by_user_id(
-        current_user.user_id
-    )
+    oids = resolve_org_ids(org_id, current_user.user_id)
+
+    all_results = []
+    for oid in oids:
+        all_results.extend(table_service.get_projects_with_tables_by_org_id(oid))
     return ApiResponse.success(
-        data=projects_with_tables, message="项目及表格列表获取成功"
+        data=all_results, message="项目及表格列表获取成功"
     )
 
 
@@ -61,7 +64,7 @@ def list_orphan_tables(
     table_service: TableService = Depends(get_table_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    tables = table_service.get_orphan_tables_by_user_id(current_user.user_id)
+    tables = table_service.get_orphan_tables_by_created_by(current_user.user_id)
     return ApiResponse.success(data=tables, message="获取成功")
 
 

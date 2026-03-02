@@ -2,7 +2,7 @@
 OCR Provider Module
 
 Pluggable OCR service abstraction layer.
-Supports multiple OCR providers: MineRU, Reducto, etc.
+Supports multiple OCR providers: MineRU, Reducto, DeepSeek, etc.
 """
 
 from src.upload.file.ocr.base import OCRProvider, ParsedDocument

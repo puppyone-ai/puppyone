@@ -49,13 +49,13 @@ def example_usage():
     # 创建项目
     try:
         project = repo.create_project(
-            ProjectCreate(name="我的项目", description="项目描述", user_id=user.id)
+            ProjectCreate(name="我的项目", description="项目描述", org_id="example-org-id", created_by=user.id)
         )
         print(f"创建项目: {project}")
     except SupabaseDuplicateKeyError as e:
         print(f"创建项目失败（记录已存在）: {e.message}")
         # 如果项目已存在，尝试获取现有项目
-        projects = repo.get_projects(user_id=user.id, name="我的项目")
+        projects = repo.get_projects(org_id="example-org-id", name="我的项目")
         if projects:
             project = projects[0]
             print(f"使用现有项目: {project}")
@@ -73,9 +73,9 @@ def example_usage():
     project = repo.update_project(project.id, ProjectUpdate(description="更新后的描述"))
     print(f"更新项目: {project}")
 
-    # 获取用户的所有项目
-    projects = repo.get_projects(user_id=user.id)
-    print(f"用户的项目列表: {projects}")
+    # 获取组织的所有项目
+    projects = repo.get_projects(org_id="example-org-id")
+    print(f"组织的项目列表: {projects}")
 
     # ==================== Table 操作示例 ====================
     print("\n=== Table 操作示例 ===")

@@ -8,6 +8,7 @@ import {
   deleteProject,
 } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
+import { useOrganization } from '@/contexts/OrganizationContext';
 
 type DialogMode = 'create' | 'edit' | 'delete';
 
@@ -26,6 +27,7 @@ export function ProjectManageDialog({
   onClose,
   onModeChange,
 }: ProjectManageDialogProps) {
+  const { currentOrg } = useOrganization();
   const project = projectId ? projects.find(p => p.id === projectId) : null;
 
   const [name, setName] = useState(project?.name || '');
@@ -47,9 +49,9 @@ export function ProjectManageDialog({
       if (mode === 'edit' && projectId) {
         await updateProject(projectId, name.trim(), description);
       } else {
-        await createProject(name.trim(), '');
+        await createProject(name.trim(), '', currentOrg?.id);
       }
-      await refreshProjects();
+      await refreshProjects(currentOrg?.id);
       onClose();
     } catch (error) {
       console.error('Failed to save project:', error);
@@ -68,7 +70,7 @@ export function ProjectManageDialog({
     try {
       setLoading(true);
       await deleteProject(projectId);
-      await refreshProjects();
+      await refreshProjects(currentOrg?.id);
       onClose();
     } catch (error) {
       console.error('Failed to delete project:', error);

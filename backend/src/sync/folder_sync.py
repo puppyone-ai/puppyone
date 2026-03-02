@@ -538,7 +538,7 @@ class FolderSyncService:
         try:
             repo = ProjectRepositorySupabase()
             project = repo.get_by_id(project_id)
-            return project.user_id if project else None
+            return project.created_by if project else None
         except Exception:
             return None
 

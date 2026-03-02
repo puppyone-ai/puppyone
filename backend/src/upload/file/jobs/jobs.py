@@ -31,13 +31,18 @@ from src.supabase.client import SupabaseClient
 logger = logging.getLogger(__name__)
 
 
-def _artifact_markdown_key(task_id: str | int, user_id: str, project_id: str) -> str:
+def _creator_id(task) -> str:
+    """Creator ID for S3 paths (created_by or project_id fallback for legacy)."""
+    return task.created_by or task.project_id or "unknown"
+
+
+def _artifact_markdown_key(task_id: str | int, creator_id: str, project_id: str) -> str:
     # Avoid using filename here (can have special chars). Use deterministic keys.
-    return f"users/{user_id}/etl_artifacts/{project_id}/{task_id}/mineru.md"
+    return f"users/{creator_id}/etl_artifacts/{project_id}/{task_id}/mineru.md"
 
 
-def _output_json_key(task_id: str | int, user_id: str, project_id: str) -> str:
-    return f"users/{user_id}/processed/{project_id}/{task_id}.json"
+def _output_json_key(task_id: str | int, creator_id: str, project_id: str) -> str:
+    return f"users/{creator_id}/processed/{project_id}/{task_id}.json"
 
 
 def _chunk_text(text: str, chunk_size: int, max_chunks: int) -> list[str]:
@@ -78,7 +83,7 @@ async def etl_ocr_job(ctx: dict, task_id: str | int) -> dict:
     if state is None:
         state = ETLRuntimeState(
             task_id=task_id,
-            user_id=task.user_id,
+            user_id=_creator_id(task),
             project_id=task.project_id,
             filename=task.filename,
             rule_id=task.rule_id,
@@ -101,7 +106,7 @@ async def etl_ocr_job(ctx: dict, task_id: str | int) -> dict:
         if "s3_key" in task.metadata:
             source_key = task.metadata["s3_key"]
         else:
-            source_key = f"users/{task.user_id}/raw/{task.project_id}/{task.filename}"
+            source_key = f"users/{_creator_id(task)}/raw/{task.project_id}/{task.filename}"
 
         presigned_url = await s3.generate_presigned_download_url(
             source_key, expires_in=3600
@@ -126,7 +131,7 @@ async def etl_ocr_job(ctx: dict, task_id: str | int) -> dict:
         await state_repo.set(state)
 
         # Upload markdown artifact to S3
-        md_key = _artifact_markdown_key(task_id, task.user_id, task.project_id)
+        md_key = _artifact_markdown_key(task_id, _creator_id(task), task.project_id)
         await s3.upload_file(
             key=md_key,
             content=parsed.markdown_content.encode("utf-8"),
@@ -247,7 +252,7 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
     if state is None:
         state = ETLRuntimeState(
             task_id=task_id,
-            user_id=task.user_id,
+            user_id=_creator_id(task),
             project_id=task.project_id,
             filename=task.filename,
             rule_id=task.rule_id,
@@ -280,7 +285,7 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
         # RuleRepositorySupabase expects supabase.Client (with .table()), not our wrapper class.
         supabase_client = SupabaseClient().client
         rule_repo = RuleRepositorySupabase(
-            supabase_client=supabase_client, user_id=task.user_id
+            supabase_client=supabase_client
         )
         rule = rule_repo.get_rule(str(task.rule_id))
         if not rule:
@@ -345,7 +350,7 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
             )
             return {"ok": True, "skipped": "cancelled"}
 
-        output_key = _output_json_key(task_id, task.user_id, task.project_id)
+        output_key = _output_json_key(task_id, _creator_id(task), task.project_id)
         output_json = json.dumps(output_obj, indent=2, ensure_ascii=False).encode(
             "utf-8"
         )
@@ -388,7 +393,7 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                 content={},
                 parent_id=None,
                 node_type="json",
-                created_by=task.user_id,
+                created_by=_creator_id(task),
             ))
             mount_node_id = create_result.node_id
             task.metadata["mount_node_id"] = mount_node_id

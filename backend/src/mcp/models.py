@@ -6,7 +6,7 @@ from src.mcp.schemas import McpToolsDefinition, ToolTypeKey
 class McpInstance(BaseModel):
     mcp_instance_id: str
     api_key: str
-    user_id: str
+    created_by: Optional[str] = None  # nullable, was user_id
     project_id: str
     table_id: str
     name: Optional[str] = Field(default=None, description="MCP实例名称")

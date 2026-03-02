@@ -43,7 +43,7 @@ class _InMemoryPublishRepo(ContextPublishRepositoryBase):
             id=self._id,
             created_at=now,
             updated_at=now,
-            user_id=str(data.user_id or ""),
+            created_by=data.created_by,
             table_id=str(data.table_id or ""),
             json_path=str(data.json_path or ""),
             publish_key=str(data.publish_key or ""),
@@ -66,8 +66,8 @@ class _InMemoryPublishRepo(ContextPublishRepositoryBase):
             return None
         return self._by_id.get(pid)
 
-    def list_by_user_id(self, user_id: str, *, skip: int = 0, limit: int = 100):
-        items = [p for p in self._by_id.values() if p.user_id == user_id]
+    def list_by_created_by(self, created_by: str, *, skip: int = 0, limit: int = 100):
+        items = [p for p in self._by_id.values() if (p.created_by or "") == created_by]
         items.sort(key=lambda x: x.created_at, reverse=True)
         return items[skip : skip + limit]
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useProjects } from '@/lib/hooks/useData';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { DashboardView } from '@/components/dashboard/DashboardView';
 import { ProjectManageDialog } from '@/components/ProjectManageDialog';
@@ -19,7 +20,8 @@ function DashboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session } = useAuth();
-  const { projects, isLoading: projectsLoading, refresh: refreshProjects } = useProjects();
+  const { currentOrg } = useOrganization();
+  const { projects, isLoading: projectsLoading, refresh: refreshProjects } = useProjects(currentOrg?.id);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   
   // Onboarding fallback state

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { ProjectInfo } from '../lib/projectsApi';
 import { updateTable, deleteTable } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import { ImportModal } from './editors/table/components/ImportModal';
 import { uploadAndSubmit, getETLHealth } from '../lib/etlApi';
@@ -41,6 +42,7 @@ export function TableManageDialog({
   defaultStartOption = 'documents',
 }: TableManageDialogProps) {
   const { session } = useAuth();
+  const { currentOrg } = useOrganization();
   const project = projectId ? projects.find(p => p.id === projectId) : null;
   const table = tableId && project ? project.nodes.find(t => t.id === tableId) : null;
 
@@ -173,7 +175,7 @@ export function TableManageDialog({
 
       if (mode === 'edit' && tableId) {
         await updateTable(projectId || '', tableId, name.trim());
-        await refreshProjects();
+        await refreshProjects(currentOrg?.id);
         onClose();
         return;
       }
@@ -198,7 +200,7 @@ export function TableManageDialog({
         }));
         addPendingTasks(placeholderTasks);
 
-        await refreshProjects();
+        await refreshProjects(currentOrg?.id);
         onClose();
 
         setTimeout(async () => {
@@ -249,7 +251,7 @@ export function TableManageDialog({
     try {
       setLoading(true);
       await deleteTable(projectId || '', tableId);
-      await refreshProjects();
+      await refreshProjects(currentOrg?.id);
       onClose();
     } catch (error) {
       alert('Delete failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -612,7 +614,7 @@ export function TableManageDialog({
           initialUrl={urlInput}
           initialCrawlOptions={crawlOptions}
           onClose={() => { setShowImportModal(false); setUrlInput(''); }}
-          onSuccess={() => { setShowImportModal(false); setUrlInput(''); refreshProjects(); onClose(); }}
+          onSuccess={() => { setShowImportModal(false); setUrlInput(''); refreshProjects(currentOrg?.id); onClose(); }}
         />
       )}
 

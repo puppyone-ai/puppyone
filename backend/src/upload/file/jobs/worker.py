@@ -1,8 +1,7 @@
 """
 ETL ARQ Worker Settings
 
-This worker handles ETL jobs (OCR + postprocess for document processing).
-SaaS sync jobs are handled by the separate import_worker.
+Handles file ETL jobs (OCR + postprocess for document processing).
 
 Run worker:
   uv run arq src.upload.file.jobs.worker.WorkerSettings
@@ -36,9 +35,6 @@ from src.upload.file.state.repository import ETLStateRepositoryRedis
 from src.upload.file.tasks.repository import ETLTaskRepositorySupabase
 from src.llm.service import LLMService
 from src.s3.service import S3Service
-
-# NOTE: legacy_sync_job has been removed - SaaS sync now uses separate import_worker
-# See: src/import_/jobs/worker.py
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +71,6 @@ async def shutdown(ctx: dict) -> None:
 
 
 class WorkerSettings:
-    # ETL jobs only (SaaS sync uses separate import_worker)
     functions = [etl_ocr_job, etl_postprocess_job]
     on_startup = startup
     on_shutdown = shutdown

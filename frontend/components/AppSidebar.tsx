@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { ProjectInfo } from '../lib/projectsApi';
+import type { OrganizationInfo } from '../lib/organizationsApi';
 import { SidebarLayout, type NavItem } from './sidebar/SidebarLayout';
 
 type UtilityNavItem = {
@@ -32,6 +33,9 @@ type AppSidebarProps = {
   sidebarWidth?: number;
   onSidebarWidthChange?: (width: number) => void;
   toolsCount?: number;
+  currentOrg?: OrganizationInfo | null;
+  orgs?: OrganizationInfo[];
+  onSwitchOrg?: (orgId: string) => void;
 };
 
 export function AppSidebar({
@@ -51,6 +55,9 @@ export function AppSidebar({
   sidebarWidth,
   onSidebarWidthChange,
   toolsCount = 0,
+  currentOrg,
+  orgs = [],
+  onSwitchOrg,
 }: AppSidebarProps) {
   const router = useRouter();
 
@@ -78,28 +85,23 @@ export function AppSidebar({
         ),
       },
       {
-        id: 'tools',
-        label: 'Dashboard',
+        id: 'connections',
+        label: 'Connections',
         icon: (
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22v-5" />
+            <path d="M9 8V2" />
+            <path d="M15 8V2" />
+            <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
           </svg>
         ),
       },
       {
-        id: 'logs',
-        label: 'Logs',
+        id: 'monitor',
+        label: 'Monitor',
         icon: (
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-            <line x1="8" y1="6" x2="21" y2="6"></line>
-            <line x1="8" y1="12" x2="21" y2="12"></line>
-            <line x1="8" y1="18" x2="21" y2="18"></line>
-            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
           </svg>
         ),
       },
@@ -137,12 +139,12 @@ export function AppSidebar({
         onNavigate={(viewId) => {
           if (viewId === 'projects' || viewId === 'data') {
             router.push(`/projects/${activeProject.id}/data`);
+          } else if (viewId === 'connections') {
+            router.push(`/projects/${activeProject.id}/connections`);
+          } else if (viewId === 'monitor') {
+            router.push(`/projects/${activeProject.id}/monitor`);
           } else if (viewId === 'toolkit') {
             router.push(`/projects/${activeProject.id}/toolkit`);
-          } else if (viewId === 'tools') {
-            router.push(`/projects/${activeProject.id}/tools`);
-          } else if (viewId === 'logs') {
-            router.push(`/projects/${activeProject.id}/logs`);
           } else if (viewId === 'settings') {
             router.push(`/projects/${activeProject.id}/settings`);
           }
@@ -201,7 +203,7 @@ export function AppSidebar({
 
   return (
     <SidebarLayout
-      title="puppyone"
+      title={currentOrg?.name ?? 'puppyone'}
       context="global"
       currentProjectId={null}
       projects={projectOptions}

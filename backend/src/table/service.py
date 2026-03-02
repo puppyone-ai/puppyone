@@ -18,19 +18,19 @@ class TableService:
     def __init__(self, repo: TableRepositoryBase):
         self.repo = repo
 
-    def get_projects_with_tables_by_user_id(
-        self, user_id: str
+    def get_projects_with_tables_by_org_id(
+        self, org_id: str
     ) -> List[ProjectWithTables]:
         """
-        获取用户的所有项目及其下的所有表格
+        获取组织的所有项目及其下的所有表格
 
         Args:
-            user_id: 用户ID（字符串类型）
+            org_id: 组织ID
 
         Returns:
             包含项目信息和其下所有表格的列表
         """
-        return self.repo.get_projects_with_tables_by_user_id(user_id)
+        return self.repo.get_projects_with_tables_by_org_id(org_id)
 
     def get_by_id(self, table_id: str) -> Optional[Table]:
         return self.repo.get_by_id(table_id)
@@ -38,8 +38,6 @@ class TableService:
     def get_by_id_with_access_check(self, table_id: str, user_id: str) -> Table:
         """
         获取表格并验证用户权限
-
-        通过 table.project_id 关联到 project 表，检查 project.user_id 是否等于用户ID
 
         Args:
             table_id: 表格ID
@@ -49,7 +47,7 @@ class TableService:
             已验证的 Table 对象
 
         Raises:
-            NotFoundException: 如果表格不存在、没有关联项目、项目不存在或用户无权限
+            NotFoundException: 如果表格不存在或用户无权限
         """
         table = self.get_by_id(table_id)
         if not table:
@@ -87,16 +85,16 @@ class TableService:
         project_id: Optional[str] = None,
     ) -> Table:
         return self.repo.create(
-            user_id=user_id,
+            created_by=user_id,
             name=name,
             description=description,
             data=data,
             project_id=project_id,
         )
 
-    def get_orphan_tables_by_user_id(self, user_id: str) -> List[Table]:
+    def get_orphan_tables_by_created_by(self, user_id: str) -> List[Table]:
         """获取用户的所有裸 Table（不属于任何 Project）"""
-        return self.repo.get_orphan_tables_by_user_id(user_id)
+        return self.repo.get_orphan_tables_by_created_by(user_id)
 
     def update(
         self,

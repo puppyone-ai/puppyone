@@ -79,7 +79,7 @@ async def list_connections(
     user: CurrentUser = Depends(get_current_user),
     service: DBConnectorService = Depends(get_db_connector_service),
 ):
-    connections = service.list_connections(user.user_id, project_id)
+    connections = service.list_connections(project_id, user.user_id)
     return ApiResponse.success(data=[_conn_to_response(c) for c in connections])
 
 

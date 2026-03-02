@@ -14,7 +14,9 @@ class ProjectBase(BaseModel):
 
     name: str
     description: Optional[str] = None
-    user_id: Optional[str] = None
+    org_id: Optional[str] = None
+    visibility: str = "org"
+    created_by: Optional[str] = None
 
 
 class ProjectCreate(ProjectBase):
@@ -28,7 +30,7 @@ class ProjectUpdate(BaseModel):
 
     name: Optional[str] = None
     description: Optional[str] = None
-    user_id: Optional[str] = None
+    visibility: Optional[str] = None
 
 
 class ProjectResponse(ProjectBase):

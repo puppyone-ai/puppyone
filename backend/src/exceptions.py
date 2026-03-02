@@ -86,6 +86,10 @@ class PermissionException(AppException):
         super().__init__(code=code, message=message, status_code=403)
 
 
+# Alias for HTTP 403 Forbidden (used by organization service)
+ForbiddenException = PermissionException
+
+
 class BusinessException(AppException):
     """业务逻辑错误"""
 

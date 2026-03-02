@@ -143,18 +143,25 @@ class ProfileService:
             log_error("Project service not available")
             return None
 
-        # 防止重复创建：检查是否已存在 "Get Started" 项目
-        existing_projects = self._project_service.get_by_user_id(user_id)
+        from src.organization.repository import OrganizationRepository
+        org_repo = OrganizationRepository()
+        orgs = org_repo.list_by_user(user_id)
+        if not orgs:
+            log_error(f"No organization found for user {user_id}, cannot create demo project")
+            return None
+        org_id = orgs[0].id
+
+        existing_projects = self._project_service.get_by_org_id(org_id)
         for p in existing_projects:
             if p.name == DEMO_PROJECT_NAME:
                 log_info(f"Demo project already exists for user {user_id}: {p.id}")
                 return p
 
-        # 1. 创建项目
         project = self._project_service.create(
             name=DEMO_PROJECT_NAME,
             description=DEMO_PROJECT_DESCRIPTION,
-            user_id=user_id,
+            org_id=org_id,
+            created_by=user_id,
         )
 
         if not project:

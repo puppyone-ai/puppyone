@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState, useRef, useCallback, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import { get } from '@/lib/apiClient';
 import {
   useProjects,
@@ -51,6 +52,7 @@ import {
   ExplorerSidebar,
   ensureExpanded,
   setPendingActiveId,
+  usePendingActiveId,
   type MillerColumnItem,
   type AgentResource,
   type ContentType,
@@ -71,9 +73,14 @@ import { useNodeActions } from '../hooks/useNodeActions';
 import { EditorArea } from '../components/EditorArea';
 import { BottomBar } from '../components/BottomBar';
 import { DataPageDialogs, type CreateMenuActions } from '../components/DataPageDialogs';
+import { SyncConfigPanel } from '../components/SyncConfigPanel';
 
-// Panel content types
-type RightPanelContent = 'NONE' | 'EDITOR' | 'VERSION_HISTORY';
+type UrlPanelType = 'none' | 'version_history' | 'sync_config' | 'sync_create';
+
+interface UrlPanelState {
+  type: UrlPanelType;
+  nodeId?: string;
+}
 
 interface EditorTarget {
   path: string;
@@ -89,6 +96,7 @@ export default function DataPage({ params }: DataPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session } = useAuth();
+  const { currentOrg } = useOrganization();
 
   // Onboarding state
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
@@ -104,13 +112,13 @@ export default function DataPage({ params }: DataPageProps) {
   } = useWorkspace();
 
   // Data fetching
-  const { projects, isLoading: projectsLoading } = useProjects();
+  const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id);
   const { tools: projectTools } = useProjectTools(projectId);
 
   // Sync endpoints for file tree badges
-  const { data: syncStatusData } = useSWR<{ syncs: { id: string; node_id: string; provider: string; direction: string; status: string }[] }>(
+  const { data: syncStatusData, mutate: mutateSyncStatus } = useSWR<{ syncs: { id: string; node_id: string; provider: string; direction: string; status: string }[] }>(
     projectId ? ['sync-status', projectId] : null,
-    () => get(`/api/v1/sync/status?project_id=${projectId}`),
+    () => get(`/api/v1/connections/status?project_id=${projectId}`),
     { revalidateOnFocus: false },
   );
   const syncEndpoints = useMemo(() => {
@@ -145,7 +153,7 @@ export default function DataPage({ params }: DataPageProps) {
   useEffect(() => {
     const isWelcome = searchParams.get('welcome') === 'true';
     if (isWelcome) {
-      refreshProjects().then(() => {
+      refreshProjects(currentOrg?.id).then(() => {
         setShowOnboardingGuide(true);
         router.replace(`/projects/${projectId}/data`);
       });
@@ -156,8 +164,6 @@ export default function DataPage({ params }: DataPageProps) {
     sessionStorage.setItem(`onboarding-completed-${projectId}`, 'true');
   };
 
-  // Right panel state
-  const [rightPanelContent, setRightPanelContent] = useState<RightPanelContent>('NONE');
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
 
@@ -177,6 +183,89 @@ export default function DataPage({ params }: DataPageProps) {
   const fileImport = useFileImport(projectId, currentFolderId, session?.access_token);
 
   const nodeActions = useNodeActions(projectId, currentFolderId);
+
+  // Derive active node info (single source of truth for editor context)
+  // pendingActiveId fills the gap before usePathResolver finishes resolving
+  const pendingActiveId = usePendingActiveId();
+  const effectiveNodeId = pendingActiveId || activeNodeId;
+
+  const urlPanelState = useMemo<UrlPanelState>(() => {
+    const panel = searchParams.get('panel');
+    const queryNodeId = searchParams.get('panelNodeId') || undefined;
+
+    if (panel === 'history') {
+      const nodeId = queryNodeId || effectiveNodeId || undefined;
+      return nodeId ? { type: 'version_history', nodeId } : { type: 'none' };
+    }
+    if (panel === 'sync') {
+      const nodeId = queryNodeId || effectiveNodeId || undefined;
+      return nodeId ? { type: 'sync_config', nodeId } : { type: 'none' };
+    }
+    if (panel === 'sync-create') {
+      return { type: 'sync_create' };
+    }
+    return { type: 'none' };
+  }, [searchParams, effectiveNodeId]);
+
+  const activeSyncNodeId = urlPanelState.type === 'sync_config' ? urlPanelState.nodeId ?? null : null;
+  const activeSyncId = activeSyncNodeId ? (syncEndpoints.get(activeSyncNodeId)?.syncId ?? null) : null;
+
+  const navigateWithPanelState = useCallback((
+    nextPath: string[],
+    nextPanel: UrlPanelState,
+    navigation: 'push' | 'replace' = 'replace',
+  ) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (nextPanel.type === 'none') {
+      params.delete('panel');
+      params.delete('panelNodeId');
+    } else if (nextPanel.type === 'version_history') {
+      params.set('panel', 'history');
+      if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
+      else params.delete('panelNodeId');
+    } else if (nextPanel.type === 'sync_config') {
+      params.set('panel', 'sync');
+      if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
+      else params.delete('panelNodeId');
+    } else if (nextPanel.type === 'sync_create') {
+      params.set('panel', 'sync-create');
+      params.delete('panelNodeId');
+    }
+
+    const basePath = `/projects/${projectId}/data${nextPath.length > 0 ? `/${nextPath.join('/')}` : ''}`;
+    const query = params.toString();
+    const url = query ? `${basePath}?${query}` : basePath;
+    if (navigation === 'push') {
+      router.push(url);
+      return;
+    }
+    router.replace(url);
+  }, [projectId, router, searchParams]);
+
+  const closeRightPanel = useCallback(() => {
+    setEditorTarget(null);
+    setIsEditorFullScreen(false);
+    navigateWithPanelState(path, { type: 'none' }, 'replace');
+  }, [navigateWithPanelState, path]);
+
+  const openVersionHistoryPanel = useCallback(() => {
+    if (!effectiveNodeId) return;
+    setEditorTarget(null);
+    setIsEditorFullScreen(false);
+    navigateWithPanelState(path, { type: 'version_history', nodeId: effectiveNodeId }, 'replace');
+  }, [effectiveNodeId, navigateWithPanelState, path]);
+
+  const openSyncCreatePanel = useCallback(() => {
+    setEditorTarget(null);
+    setIsEditorFullScreen(false);
+    navigateWithPanelState(path, { type: 'sync_create' }, 'replace');
+  }, [navigateWithPanelState, path]);
+
+  const handleSyncCreated = useCallback(async (nodeId: string) => {
+    await mutateSyncStatus();
+    navigateWithPanelState(path, { type: 'sync_config', nodeId }, 'replace');
+  }, [mutateSyncStatus, navigateWithPanelState, path]);
 
   // ───── Table & Tools ─────
 
@@ -214,7 +303,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   // ───── Agent Context ─────
 
-  const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, selectSync, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId } = useAgent();
+  const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId } = useAgent();
 
   const PROVIDER_NODE_TYPE: Record<string, 'json' | 'markdown' | 'folder'> = {
     gmail: 'json', calendar: 'json', sheets: 'json', linear: 'json', supabase: 'json',
@@ -227,7 +316,7 @@ export default function DataPage({ params }: DataPageProps) {
   };
   const handleCreateAndSync = useCallback(async (saasProvider: string) => {
     const nodeType = PROVIDER_NODE_TYPE[saasProvider];
-    if (!nodeType) { openSyncSetting(saasProvider); return; }
+    if (!nodeType) { openSyncSetting(saasProvider); openSyncCreatePanel(); return; }
     const name = PROVIDER_DEFAULT_NAMES[saasProvider] || 'Untitled';
     const parentId = currentFolderId ?? undefined;
     try {
@@ -244,10 +333,12 @@ export default function DataPage({ params }: DataPageProps) {
         nodeId: node.id, nodeName: node.name, nodeType: nodeType,
         readonly: true, jsonPath: '',
       } as any);
+      openSyncCreatePanel();
     } catch {
       openSyncSetting(saasProvider);
+      openSyncCreatePanel();
     }
-  }, [projectId, currentFolderId, openSyncSetting]);
+  }, [projectId, currentFolderId, openSyncSetting, openSyncCreatePanel]);
 
   const agentResources: AgentResource[] = useMemo(() => {
     const toAgentResource = (r: { nodeId: string; readonly?: boolean; terminal?: boolean; terminalReadonly?: boolean }) => ({
@@ -260,7 +351,7 @@ export default function DataPage({ params }: DataPageProps) {
       const agent = savedAgents.find(a => a.id === hoveredAgentId);
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
     }
-    if (sidebarMode === 'setting' || sidebarMode === 'editing') return draftResources.map(toAgentResource);
+    if (urlPanelState.type === 'sync_create' || sidebarMode === 'editing') return draftResources.map(toAgentResource);
     if (sidebarMode === 'deployed' && currentAgentId) {
       const agent = savedAgents.find(a => a.id === currentAgentId);
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
@@ -269,7 +360,7 @@ export default function DataPage({ params }: DataPageProps) {
       return [{ nodeId: selectedSyncNodeId, terminalReadonly: true }];
     }
     return [];
-  }, [draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId]);
+  }, [draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, urlPanelState.type]);
 
   const activeProject = useMemo(
     () => projects.find(p => p.id === projectId) ?? null,
@@ -278,9 +369,12 @@ export default function DataPage({ params }: DataPageProps) {
 
   // ───── Effects ─────
 
+  // (Legacy effect removed — 'setting' mode no longer opens the sidebar.
+  //  Sync/agent creation now happens inline via SyncConfigPanel.)
+
   // Refresh on external events (SaaS sync, ETL, etc.)
   useEffect(() => {
-    const handler = () => { refreshAllContentNodes(projectId); refreshProjects(); };
+    const handler = () => { refreshAllContentNodes(projectId); refreshProjects(currentOrg?.id); };
     window.addEventListener('saas-task-completed', handler);
     window.addEventListener('etl-task-completed', handler);
     return () => { window.removeEventListener('saas-task-completed', handler); window.removeEventListener('etl-task-completed', handler); };
@@ -423,13 +517,14 @@ export default function DataPage({ params }: DataPageProps) {
             nodeId: node.id, nodeName: node.name, nodeType: node.type as any,
             readonly: true, jsonPath: '',
           } as any);
+          openSyncCreatePanel();
         }
         return;
       }
       if (node.type !== 'folder') setPendingActiveId(node.id);
       const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
       const newPath = currentPath ? `${currentPath}/${node.id}` : node.id;
-      router.push(`/projects/${projectId}/data/${newPath}`);
+      navigateWithPanelState(newPath.split('/').filter(Boolean), urlPanelState, 'push');
     },
   }));
 
@@ -451,7 +546,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   const handleMillerNavigate = (item: MillerColumnItem, pathToItem: string[]) => {
     setPendingActiveId(item.id);
-    router.push(`/projects/${projectId}/data/${pathToItem.join('/')}`);
+    navigateWithPanelState(pathToItem, urlPanelState, 'push');
   };
 
   const handleRefresh = async (id: string) => {
@@ -570,7 +665,7 @@ export default function DataPage({ params }: DataPageProps) {
           if (result?.id) {
             highlightCreatedNode(result.id);
             const navPath = result.id_path?.replace(/^\//, '') || result.id;
-            router.push(`/projects/${projectId}/data/${navPath}`);
+            navigateWithPanelState(navPath.split('/').filter(Boolean), urlPanelState, 'push');
           }
         } catch (err) { console.error('Failed to create JSON:', err); }
       },
@@ -583,13 +678,13 @@ export default function DataPage({ params }: DataPageProps) {
           if (result?.id) {
             highlightCreatedNode(result.id);
             const navPath = result.id_path?.replace(/^\//, '') || result.id;
-            router.push(`/projects/${projectId}/data/${navPath}`);
+            navigateWithPanelState(navPath.split('/').filter(Boolean), urlPanelState, 'push');
           }
         } catch (err) { console.error('Failed to create markdown:', err); }
       },
       onImportFromFiles: () => { setDefaultStartOption('documents'); setCreateTableOpen(true); },
       onImportFromUrl: () => { setDefaultStartOption('url'); setCreateTableOpen(true); },
-      onImportFromSaas: () => { openSyncSetting('_generic'); },
+      onImportFromSaas: () => { openSyncSetting('_generic'); openSyncCreatePanel(); },
       onImportNotion: () => { handleCreateAndSync('notion'); },
       onImportGitHub: () => { handleCreateAndSync('github'); },
       onImportGmail: () => { handleCreateAndSync('gmail'); },
@@ -599,7 +694,7 @@ export default function DataPage({ params }: DataPageProps) {
       onConnectSupabase: () => { handleCreateAndSync('supabase'); },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, currentFolderId, createInFolderId, router, highlightCreatedNode, openSyncSetting, handleCreateAndSync]);
+  }, [projectId, currentFolderId, createInFolderId, highlightCreatedNode, openSyncSetting, openSyncCreatePanel, handleCreateAndSync, navigateWithPanelState, urlPanelState]);
 
   // ───── Render ─────
 
@@ -663,16 +758,6 @@ export default function DataPage({ params }: DataPageProps) {
         }}
       />
 
-      {/* Header */}
-      <div style={{ flexShrink: 0, zIndex: 60 }}>
-        <ProjectsHeader
-          pathSegments={pathSegments}
-          projectId={activeProject?.id ?? null}
-          onProjectsRefresh={() => {}}
-          accessPointCount={accessPoints.length}
-        />
-      </div>
-
       {/* Main Content */}
       <div
         onDragEnter={fileImport.handleGlobalDragEnter}
@@ -709,18 +794,99 @@ export default function DataPage({ params }: DataPageProps) {
             onRename={nodeActions.handleRename}
             onDelete={nodeActions.handleDelete}
             onMoveNode={nodeActions.handleMoveNode}
-            onSyncClick={(nodeId, syncInfo) => selectedSyncNodeId === nodeId ? selectSync(null) : selectSync(syncInfo.syncId, nodeId)}
-            activeSyncNodeId={selectedSyncNodeId}
+            onSyncClick={(item, pathToItem) => {
+              const isAlreadyOpen = urlPanelState.type === 'sync_config' && urlPanelState.nodeId === item.id;
+              setPendingActiveId(item.id);
+              setEditorTarget(null);
+              setIsEditorFullScreen(false);
+              navigateWithPanelState(
+                pathToItem,
+                isAlreadyOpen ? { type: 'none' } : { type: 'sync_config', nodeId: item.id },
+                'push',
+              );
+            }}
+            activeSyncNodeId={urlPanelState.type === 'sync_config' ? (urlPanelState.nodeId ?? null) : null}
             agentResources={agentResources}
             syncEndpoints={syncEndpoints}
             highlightNodeId={highlightNodeId}
-            style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.1)', background: '#1a1a1a', flexShrink: 0 }}
+            style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.06)', background: 'transparent', flexShrink: 0 }}
           />
         )}
 
         {/* Content column */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* Header (Breadcrumbs + Connect) */}
+          <div style={{ flexShrink: 0, zIndex: 60, display: 'flex', alignItems: 'stretch', height: 40 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <ProjectsHeader
+                pathSegments={pathSegments}
+                projectId={activeProject?.id ?? null}
+                onProjectsRefresh={() => {}}
+                accessPointCount={accessPoints.length}
+              />
+            </div>
+            {/* New Sync button in header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', paddingRight: 8,
+              borderBottom: '1px solid rgba(255,255,255,0.1)', background: '#0e0e0e',
+              height: '100%',
+            }}>
+              <button
+                onClick={openSyncCreatePanel}
+                title="New connection"
+                style={{
+                  display: 'flex', alignItems: 'center',
+                  height: 28, paddingRight: 10, borderRadius: 6,
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  background: '#242424', 
+                  color: '#ededed',
+                  fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                  transition: 'all 0.15s ease', whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = '#2a2a2a';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = '#242424';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+                }}
+                onMouseDown={e => {
+                  e.currentTarget.style.background = '#1f1f1f';
+                }}
+                onMouseUp={e => {
+                  e.currentTarget.style.background = '#2a2a2a';
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: '100%' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.9 }}>
+                    <path d="M12 5v14" />
+                    <path d="M5 12h14" />
+                  </svg>
+                </div>
+                <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
+                <span style={{ 
+                  display: 'flex', alignItems: 'center', gap: 4, 
+                  paddingLeft: 8
+                }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.85 }}>
+                    <path d="M12 22v-5" />
+                    <path d="M9 8V2" />
+                    <path d="M15 8V2" />
+                    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+                  </svg>
+                  Connect
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Wrapper for Content Column and Right Panel */}
+          <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
+            
+            {/* Content Column */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             {/* Explorer loading state */}
             {viewType === 'explorer' && isResolvingPath && !isEditorView && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', background: '#0a0a0a' }}>
@@ -748,7 +914,7 @@ export default function DataPage({ params }: DataPageProps) {
                 onActiveTableChange={(id: string) => {
                   const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
                   const nodePath = currentPath ? `${currentPath}/${id}` : id;
-                  router.push(`/projects/${projectId}/data/${nodePath}`);
+                  navigateWithPanelState(nodePath.split('/').filter(Boolean), urlPanelState, 'push');
                 }}
                 onAccessPointChange={(apPath: string, permissions: McpToolPermissions) => {
                   const hasAnyPermission = Object.values(permissions).some(Boolean);
@@ -780,7 +946,8 @@ export default function DataPage({ params }: DataPageProps) {
                 }}
                 onOpenDocument={(docPath: string, value: string) => {
                   setEditorTarget({ path: docPath, value });
-                  setRightPanelContent('EDITOR');
+                  setIsEditorFullScreen(false);
+                  navigateWithPanelState(path, { type: 'none' }, 'replace');
                 }}
                 onCreateTool={(path: string) => {
                   if (!activeNodeId) return;
@@ -846,37 +1013,60 @@ export default function DataPage({ params }: DataPageProps) {
             activeProject={activeProject}
             currentTableData={currentTableData}
             markdownContent={markdownContent}
-            rightPanelContent={rightPanelContent}
-            setRightPanelContent={setRightPanelContent}
+            isVersionHistoryOpen={urlPanelState.type === 'version_history'}
+            onOpenVersionHistory={openVersionHistoryPanel}
           />
-        </div>
+            </div>
 
-        {/* Right Panel */}
-        <ResizablePanel isVisible={rightPanelContent !== 'NONE'}>
-          {rightPanelContent === 'EDITOR' && editorTarget && (
+            {/* Right Panel */}
+            <ResizablePanel isVisible={!!editorTarget || urlPanelState.type !== 'none'}>
+          {editorTarget && (
             <DocumentEditor
               path={editorTarget.path}
               value={editorTarget.value}
               onSave={newValue => {
                 console.log('Save document:', editorTarget.path, newValue);
                 setEditorTarget(null);
-                setRightPanelContent('NONE');
                 setIsEditorFullScreen(false);
               }}
-              onClose={() => { setRightPanelContent('NONE'); setIsEditorFullScreen(false); }}
+              onClose={() => { setEditorTarget(null); setIsEditorFullScreen(false); }}
               isFullScreen={isEditorFullScreen}
               onToggleFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
             />
           )}
-          {rightPanelContent === 'VERSION_HISTORY' && activeNodeId && (
+          {!editorTarget && urlPanelState.type === 'version_history' && urlPanelState.nodeId && (
             <VersionHistoryPanel
-              nodeId={activeNodeId}
+              nodeId={urlPanelState.nodeId}
               projectId={projectId}
-              onClose={() => setRightPanelContent('NONE')}
+              onClose={closeRightPanel}
               onRollbackComplete={() => { refreshTable(); refreshCurrentNodes(); }}
             />
           )}
+          {!editorTarget && urlPanelState.type === 'sync_config' && activeSyncId && (
+            <SyncConfigPanel
+              mode="detail"
+              syncId={activeSyncId}
+              projectId={projectId}
+              onClose={closeRightPanel}
+            />
+          )}
+          {!editorTarget && urlPanelState.type === 'sync_config' && !activeSyncId && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#71717a', fontSize: 13 }}>
+              Loading sync details...
+            </div>
+          )}
+          {!editorTarget && urlPanelState.type === 'sync_create' && (
+            <SyncConfigPanel
+              mode="create"
+              syncId={null}
+              projectId={projectId}
+              onClose={closeRightPanel}
+              onSyncCreated={handleSyncCreated}
+            />
+          )}
         </ResizablePanel>
+          </div>
+        </div>
       </div>
     </>
   );

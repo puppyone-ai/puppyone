@@ -9,15 +9,15 @@ class TableRepositoryBase(ABC):
     """抽象Table仓库接口"""
 
     @abstractmethod
-    def get_by_user_id(self, user_id: str) -> List[Table]:
-        """通过用户ID获取所有Tables（通过project关联）"""
+    def get_by_org_id(self, org_id: str) -> List[Table]:
+        """通过组织ID获取所有Tables（通过project关联）"""
         pass
 
     @abstractmethod
-    def get_projects_with_tables_by_user_id(
-        self, user_id: str
+    def get_projects_with_tables_by_org_id(
+        self, org_id: str
     ) -> List[ProjectWithTables]:
-        """获取用户的所有项目及其下的所有表格"""
+        """获取组织的所有项目及其下的所有表格"""
         pass
 
     @abstractmethod
@@ -41,7 +41,7 @@ class TableRepositoryBase(ABC):
     @abstractmethod
     def create(
         self,
-        user_id: str,
+        created_by: str,
         name: str,
         description: str,
         data: dict,
@@ -50,7 +50,7 @@ class TableRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_orphan_tables_by_user_id(self, user_id: str) -> List[Table]:
+    def get_orphan_tables_by_created_by(self, created_by: str) -> List[Table]:
         """获取用户的所有裸 Table（不属于任何 Project）"""
         pass
 
@@ -63,8 +63,6 @@ class TableRepositoryBase(ABC):
     def verify_table_access(self, table_id: str, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的表格
-
-        通过 table.project_id 关联到 project 表，检查 project.user_id 是否等于用户ID
 
         Args:
             table_id: 表格ID
@@ -80,7 +78,7 @@ class TableRepositoryBase(ABC):
         """
         验证用户是否有权限访问指定的项目
 
-        检查 project.user_id 是否等于用户ID
+        通过 org_members 表检查用户是否属于项目所在组织
 
         Args:
             project_id: 项目ID
@@ -111,56 +109,49 @@ class TableRepositorySupabase(TableRepositoryBase):
         else:
             self._supabase_repo = supabase_repo
 
-    def get_by_user_id(self, user_id: str) -> List[Table]:
+    def get_by_org_id(self, org_id: str) -> List[Table]:
         """
-        通过用户ID获取所有Tables（通过project关联）
+        通过组织ID获取所有Tables（通过project关联）
 
         Args:
-            user_id: 用户ID
+            org_id: 组织ID
 
         Returns:
             Table列表
         """
-        # 首先获取该用户的所有项目
-        projects = self._supabase_repo.get_projects(user_id=user_id)
+        projects = self._supabase_repo.get_projects(org_id=org_id)
         project_ids = [project.id for project in projects]
 
         if not project_ids:
             return []
 
-        # 获取这些项目下的所有Tables
         all_tables = []
         for project_id in project_ids:
             tables = self._supabase_repo.get_tables(project_id=project_id)
             all_tables.extend(tables)
 
-        # 转换为Table模型
         return [self._table_response_to_table(table) for table in all_tables]
 
-    def get_projects_with_tables_by_user_id(
-        self, user_id: str
+    def get_projects_with_tables_by_org_id(
+        self, org_id: str
     ) -> List[ProjectWithTables]:
         """
-        获取用户的所有项目及其下的所有表格
+        获取组织的所有项目及其下的所有表格
 
         Args:
-            user_id: 用户ID（字符串类型）
+            org_id: 组织ID
 
         Returns:
             包含项目信息和其下所有表格的列表
         """
         from src.table.schemas import TableOut
 
-        # 获取用户的所有项目
-        projects = self._supabase_repo.get_projects(user_id=user_id)
+        projects = self._supabase_repo.get_projects(org_id=org_id)
 
-        # 为每个项目获取其下的所有表格
         result = []
         for project in projects:
-            # 获取该项目下的所有表格
             tables_response = self._supabase_repo.get_tables(project_id=project.id)
 
-            # 转换为 TableOut 模型
             tables = [
                 TableOut(
                     id=table.id,
@@ -173,12 +164,12 @@ class TableRepositorySupabase(TableRepositoryBase):
                 for table in tables_response
             ]
 
-            # 创建 ProjectWithTables 对象
             project_with_tables = ProjectWithTables(
                 id=project.id,
                 name=project.name,
                 description=project.description,
-                user_id=project.user_id,
+                org_id=project.org_id,
+                created_by=project.created_by,
                 created_at=project.created_at,
                 tables=tables,
             )
@@ -203,7 +194,7 @@ class TableRepositorySupabase(TableRepositoryBase):
 
     def create(
         self,
-        user_id: str,
+        created_by: str,
         name: str,
         description: str,
         data: dict,
@@ -213,7 +204,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         创建新的Table
 
         Args:
-            user_id: 用户ID（必须）
+            created_by: 创建者用户ID（必须）
             name: Table名称
             description: Table描述
             data: Table数据（JSON对象）
@@ -229,19 +220,19 @@ class TableRepositorySupabase(TableRepositoryBase):
             id=generate_uuid_v7(),
             name=name,
             project_id=project_id,
-            user_id=user_id,
+            created_by=created_by,
             description=description,
             data=data,
         )
         table_response = self._supabase_repo.create_table(table_data)
         return self._table_response_to_table(table_response)
 
-    def get_orphan_tables_by_user_id(self, user_id: str) -> List[Table]:
+    def get_orphan_tables_by_created_by(self, created_by: str) -> List[Table]:
         """
         获取用户的所有裸 Table（不属于任何 Project）
 
         Args:
-            user_id: 用户ID
+            created_by: 创建者用户ID
 
         Returns:
             裸 Table 列表
@@ -251,7 +242,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         response = (
             self._supabase_repo._client.table("content_nodes")
             .select("*")
-            .eq("user_id", user_id)
+            .eq("created_by", created_by)
             .is_("project_id", "null")
             .order("created_at", desc=True)
             .execute()
@@ -327,8 +318,6 @@ class TableRepositorySupabase(TableRepositoryBase):
         """
         验证用户是否有权限访问指定的表格
 
-        直接检查 table.user_id 是否等于用户ID
-
         Args:
             table_id: 表格ID
             user_id: 用户ID
@@ -340,13 +329,16 @@ class TableRepositorySupabase(TableRepositoryBase):
         if not table:
             return False
 
-        return table.user_id == user_id
+        if table.project_id:
+            return self.verify_project_access(table.project_id, user_id)
+
+        return table.created_by == user_id
 
     def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """
         验证用户是否有权限访问指定的项目
 
-        检查 project.user_id 是否等于用户ID
+        通过 org_members 表检查用户是否属于项目所在组织
 
         Args:
             project_id: 项目ID
@@ -355,13 +347,14 @@ class TableRepositorySupabase(TableRepositoryBase):
         Returns:
             如果用户有权限返回True，否则返回False
         """
-        # 获取项目并检查用户权限
         project = self._supabase_repo.get_project(project_id)
         if not project:
             return False
 
-        # 检查项目是否属于当前用户
-        return project.user_id == user_id
+        from src.organization.repository import OrganizationRepository
+        org_repo = OrganizationRepository()
+        member = org_repo.get_member(project.org_id, user_id)
+        return member is not None
 
     def _table_response_to_table(self, table_response) -> Table:
         """
@@ -377,8 +370,8 @@ class TableRepositorySupabase(TableRepositoryBase):
             id=table_response.id,
             name=table_response.name,
             project_id=table_response.project_id,
-            user_id=table_response.user_id,
+            created_by=table_response.created_by,
             description=table_response.description,
-            data=table_response.data,  # 保持原始数据类型（可以是Dict、List或其他JSON类型）
+            data=table_response.data,
             created_at=table_response.created_at,
         )

@@ -2,7 +2,7 @@
 #
 # Railway Multi-Service Deployment Script
 # 
-# 此脚本帮助自动化部署三个服务（API、ETL Worker、Import Worker）到 Railway
+# 此脚本帮助自动化部署服务（API、File Worker、MCP Server）到 Railway
 #
 # 使用方法:
 #   1. 安装 Railway CLI: npm i -g @railway/cli
@@ -13,26 +13,23 @@
 
 set -e
 
-# 颜色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Railway Multi-Service Deployment${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
-# 检查 Railway CLI 是否安装
 if ! command -v railway &> /dev/null; then
     echo -e "${RED}Error: Railway CLI 未安装${NC}"
     echo "请运行: npm i -g @railway/cli"
     exit 1
 fi
 
-# 检查是否已登录
 if ! railway whoami &> /dev/null 2>&1; then
     echo -e "${YELLOW}请先登录 Railway...${NC}"
     railway login
@@ -86,7 +83,6 @@ echo -e "${YELLOW}请在 Railway Dashboard 中设置以下环境变量:${NC}"
 cat << 'EOF'
 SERVICE_ROLE=api
 
-# 必需变量
 SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_KEY=your-key
 S3_ENDPOINT_URL=https://...
@@ -95,7 +91,6 @@ S3_ACCESS_KEY_ID=xxx
 S3_SECRET_ACCESS_KEY=xxx
 JWT_SECRET=your-secret
 ETL_REDIS_URL=redis://...
-IMPORT_REDIS_URL=redis://...
 DEBUG=False
 EOF
 
@@ -108,61 +103,61 @@ railway up
 echo -e "${GREEN}✓ API 服务部署完成${NC}"
 echo ""
 
-# ========== 步骤 4: 创建 ETL Worker ==========
-echo -e "${BLUE}步骤 4: 部署 ETL Worker${NC}"
+# ========== 步骤 4: 创建 File Worker ==========
+echo -e "${BLUE}步骤 4: 部署 File Worker${NC}"
 echo "----------------------------------------"
 echo -e "${YELLOW}请在 Railway Dashboard 中:${NC}"
 echo "1. 点击 '+ New' → 'GitHub Repo' → 选择同一个仓库"
 echo "2. Root Directory 设置为: backend"
-echo "3. 服务重命名为: ETL Worker"
-echo "4. 设置环境变量: SERVICE_ROLE=etl_worker"
-echo "5. 添加 MINERU_API_KEY"
+echo "3. 服务重命名为: File Worker"
+echo "4. 设置环境变量: SERVICE_ROLE=file_worker"
+echo "5. 设置 OCR: OCR_PROVIDER=deepseek + DEEPINFRA_API_KEY"
 echo "6. 复制 API Service 的其他环境变量"
 echo ""
 read -p "完成后按 Enter 继续..."
 
-# 关联到 ETL Worker 服务
-echo "关联到 ETL Worker..."
+echo "关联到 File Worker..."
 railway service
 
-echo "部署 ETL Worker..."
+echo "部署 File Worker..."
 railway up
 
-echo -e "${GREEN}✓ ETL Worker 部署完成${NC}"
+echo -e "${GREEN}✓ File Worker 部署完成${NC}"
 echo ""
 
-# ========== 步骤 5: 创建 Import Worker ==========
-echo -e "${BLUE}步骤 5: 部署 Import Worker${NC}"
+# ========== 步骤 5 (可选): 创建 MCP Server ==========
+echo -e "${BLUE}步骤 5 (可选): 部署 MCP Server${NC}"
 echo "----------------------------------------"
-echo -e "${YELLOW}请在 Railway Dashboard 中:${NC}"
-echo "1. 点击 '+ New' → 'GitHub Repo' → 选择同一个仓库"
-echo "2. Root Directory 设置为: backend"
-echo "3. 服务重命名为: Import Worker"
-echo "4. 设置环境变量: SERVICE_ROLE=import_worker"
-echo "5. 添加 OAuth 配置 (GitHub, Notion, Google 等)"
-echo "6. 复制 API Service 的其他环境变量"
-echo ""
-read -p "完成后按 Enter 继续..."
+read -p "是否部署 MCP Server? (y/n): " DEPLOY_MCP
 
-# 关联到 Import Worker 服务
-echo "关联到 Import Worker..."
-railway service
+if [[ "$DEPLOY_MCP" == "y" || "$DEPLOY_MCP" == "Y" ]]; then
+    echo -e "${YELLOW}请在 Railway Dashboard 中:${NC}"
+    echo "1. 点击 '+ New' → 'GitHub Repo' → 选择同一个仓库"
+    echo "2. Root Directory 设置为: backend"
+    echo "3. 服务重命名为: MCP Server"
+    echo "4. 设置环境变量: SERVICE_ROLE=mcp_server"
+    echo "5. 复制 API Service 的其他环境变量"
+    echo ""
+    read -p "完成后按 Enter 继续..."
 
-echo "部署 Import Worker..."
-railway up
+    echo "关联到 MCP Server..."
+    railway service
 
-echo -e "${GREEN}✓ Import Worker 部署完成${NC}"
+    echo "部署 MCP Server..."
+    railway up
+
+    echo -e "${GREEN}✓ MCP Server 部署完成${NC}"
+fi
+
 echo ""
 
 # ========== 完成 ==========
 echo -e "${BLUE}========================================${NC}"
-echo -e "${GREEN}  部署完成! 🎉${NC}"
+echo -e "${GREEN}  部署完成!${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 echo "请验证以下内容:"
 echo "  1. API 健康检查: curl https://your-api.railway.app/health"
-echo "  2. 查看 ETL Worker 日志: railway logs (关联到 ETL Worker)"
-echo "  3. 查看 Import Worker 日志: railway logs (关联到 Import Worker)"
+echo "  2. 查看 File Worker 日志: railway logs (关联到 File Worker)"
 echo ""
 echo "详细文档: backend/docs/RAILWAY_MULTI_SERVICE_DEPLOY.md"
-

@@ -51,13 +51,13 @@ class ContextPublishService:
     def create(
         self,
         *,
-        user_id: str,
+        created_by: str,
         table_id: str,
         json_path: str,
         expires_at: Optional[datetime],
     ) -> ContextPublish:
         # 强校验：table 必须属于当前用户
-        self.table_service.get_by_id_with_access_check(table_id, user_id)
+        self.table_service.get_by_id_with_access_check(table_id, created_by)
 
         if expires_at is None:
             expires_at = _default_expires_at()
@@ -69,7 +69,7 @@ class ContextPublishService:
             try:
                 created = self.repo.create(
                     SbContextPublishCreate(
-                        user_id=user_id,
+                        created_by=created_by,
                         table_id=table_id,
                         json_path=json_path or "",
                         publish_key=key,
@@ -92,16 +92,16 @@ class ContextPublishService:
         # 极小概率：连续撞 key；这里返回 422（Validation）
         raise ValidationException("Failed to generate unique publish_key") from last_dup
 
-    def list_user_publishes(
-        self, user_id: str, *, skip: int = 0, limit: int = 100
+    def list_by_created_by(
+        self, created_by: str, *, skip: int = 0, limit: int = 100
     ) -> List[ContextPublish]:
-        return self.repo.list_by_user_id(user_id, skip=skip, limit=limit)
+        return self.repo.list_by_created_by(created_by, skip=skip, limit=limit)
 
     def get_by_id_with_access_check(
-        self, publish_id: int, user_id: str
+        self, publish_id: int, created_by: str
     ) -> ContextPublish:
         p = self.repo.get_by_id(publish_id)
-        if not p or p.user_id != user_id:
+        if not p or (p.created_by or "") != created_by:
             raise NotFoundException("Publish not found", code=ErrorCode.NOT_FOUND)
         return p
 
@@ -109,11 +109,11 @@ class ContextPublishService:
         self,
         *,
         publish_id: int,
-        user_id: str,
+        created_by: str,
         status: Optional[bool],
         expires_at: Optional[datetime],
     ) -> ContextPublish:
-        existing = self.get_by_id_with_access_check(publish_id, user_id)
+        existing = self.get_by_id_with_access_check(publish_id, created_by)
         updated = self.repo.update(
             publish_id,
             SbContextPublishUpdate(status=status, expires_at=expires_at),
@@ -124,8 +124,8 @@ class ContextPublishService:
         self._invalidate_cache(existing.publish_key)
         return updated
 
-    def delete(self, *, publish_id: int, user_id: str) -> None:
-        existing = self.get_by_id_with_access_check(publish_id, user_id)
+    def delete(self, *, publish_id: int, created_by: str) -> None:
+        existing = self.get_by_id_with_access_check(publish_id, created_by)
         ok = self.repo.delete(publish_id)
         if not ok:
             raise NotFoundException("Publish not found", code=ErrorCode.NOT_FOUND)

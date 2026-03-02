@@ -25,8 +25,8 @@ class McpInstanceRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_by_user_id(self, user_id: str) -> List[McpInstance]:
-        """根据 user_id 获取该用户的所有 MCP 实例"""
+    def get_by_project_id(self, project_id: str) -> List[McpInstance]:
+        """根据 project_id 获取该项目的所有 MCP 实例"""
         pass
 
     @abstractmethod
@@ -38,7 +38,7 @@ class McpInstanceRepositoryBase(ABC):
     def create(
         self,
         api_key: str,
-        user_id: str,
+        created_by: Optional[str],
         project_id: str,
         table_id: str,
         name: str,
@@ -57,7 +57,7 @@ class McpInstanceRepositoryBase(ABC):
         self,
         mcp_instance_id: str,
         api_key: str,
-        user_id: str,
+        created_by: Optional[str],
         project_id: str,
         table_id: str,
         name: str,
@@ -75,7 +75,7 @@ class McpInstanceRepositoryBase(ABC):
     def update_by_api_key(
         self,
         api_key: str,
-        user_id: str,
+        created_by: Optional[str],
         project_id: str,
         table_id: str,
         name: str,
@@ -141,10 +141,10 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
                 return instance
         return None
 
-    def get_by_user_id(self, user_id: str) -> List[McpInstance]:
-        """根据 user_id 获取该用户的所有 MCP 实例"""
+    def get_by_project_id(self, project_id: str) -> List[McpInstance]:
+        """根据 project_id 获取该项目的所有 MCP 实例"""
         instances = self._read_data()
-        return [instance for instance in instances if instance.user_id == user_id]
+        return [instance for instance in instances if instance.project_id == project_id]
 
     def get_all(self) -> List[McpInstance]:
         """获取所有 MCP 实例"""
@@ -153,7 +153,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
     def create(
         self,
         api_key: str,
-        user_id: str,
+        created_by: Optional[str],
         project_id: str,
         table_id: str,
         name: str,
@@ -172,7 +172,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         new_instance = McpInstance(
             mcp_instance_id=new_id,
             api_key=api_key,
-            user_id=user_id,
+            created_by=created_by,
             project_id=project_id,
             table_id=table_id,
             name=name,
@@ -192,7 +192,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         self,
         mcp_instance_id: str,
         api_key: str,
-        user_id: str,
+        created_by: Optional[str],
         project_id: str,
         table_id: str,
         name: str,
@@ -208,7 +208,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         for instance in instances:
             if instance.mcp_instance_id == mcp_instance_id:
                 instance.api_key = api_key
-                instance.user_id = user_id
+                instance.created_by = created_by
                 instance.project_id = project_id
                 instance.table_id = table_id
                 instance.name = name
@@ -226,7 +226,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
     def update_by_api_key(
         self,
         api_key: str,
-        user_id: str,
+        created_by: Optional[str],
         project_id: str,
         table_id: str,
         name: str,
@@ -241,7 +241,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         instances = self._read_data()
         for instance in instances:
             if instance.api_key == api_key:
-                instance.user_id = user_id
+                instance.created_by = created_by
                 instance.project_id = project_id
                 instance.table_id = table_id
                 instance.name = name
@@ -297,7 +297,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         return McpInstance(
             mcp_instance_id=str(mcp_response.id),
             api_key=mcp_response.api_key or "",
-            user_id=str(mcp_response.user_id) if mcp_response.user_id else "",
+            created_by=str(mcp_response.created_by) if mcp_response.created_by else None,
             project_id=str(mcp_response.project_id) if mcp_response.project_id else "",
             table_id=str(mcp_response.table_id) if mcp_response.table_id else "",
             name=mcp_response.name,
@@ -329,9 +329,9 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
             return self._mcp_response_to_instance(mcp_response)
         return None
 
-    def get_by_user_id(self, user_id: str) -> List[McpInstance]:
-        """根据 user_id 获取该用户的所有 MCP 实例"""
-        mcp_responses = self._repo.get_mcps(user_id=user_id)
+    def get_by_project_id(self, project_id: str) -> List[McpInstance]:
+        """根据 project_id 获取该项目的所有 MCP 实例"""
+        mcp_responses = self._repo.get_mcps(project_id=project_id)
         return [self._mcp_response_to_instance(resp) for resp in mcp_responses]
 
     def get_all(self) -> List[McpInstance]:
@@ -344,7 +344,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
     def create(
         self,
         api_key: str,
-        user_id: str,
+        created_by: Optional[str],
         project_id: str,
         table_id: str,
         name: str,
@@ -360,9 +360,9 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         # 字段映射：json_pointer → json_path, status (int) → status (bool)
         mcp_data = McpCreate(
             api_key=api_key,
-            user_id=user_id if user_id else None,
-            project_id=int(project_id) if project_id else None,
-            table_id=int(table_id) if table_id else None,
+            created_by=created_by if created_by else None,
+            project_id=project_id if project_id else None,
+            table_id=table_id if table_id else None,
             name=name,
             json_path=json_pointer,
             status=bool(status),
@@ -380,7 +380,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         self,
         mcp_instance_id: str,
         api_key: str,
-        user_id: str,
+        created_by: Optional[str],
         project_id: str,
         table_id: str,
         name: str,
@@ -401,9 +401,9 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         # 字段映射：json_pointer → json_path, status (int) → status (bool)
         mcp_data = McpUpdate(
             api_key=api_key,
-            user_id=user_id if user_id else None,
-            project_id=int(project_id) if project_id else None,
-            table_id=int(table_id) if table_id else None,
+            created_by=created_by if created_by else None,
+            project_id=project_id if project_id else None,
+            table_id=table_id if table_id else None,
             name=name,
             json_path=json_pointer,
             status=bool(status),
@@ -422,7 +422,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
     def update_by_api_key(
         self,
         api_key: str,
-        user_id: str,
+        created_by: Optional[str],
         project_id: str,
         table_id: str,
         name: str,
@@ -438,9 +438,9 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         # 字段映射：json_pointer → json_path, status (int) → status (bool)
         mcp_data = McpUpdate(
             api_key=api_key,
-            user_id=user_id if user_id else None,
-            project_id=int(project_id) if project_id else None,
-            table_id=int(table_id) if table_id else None,
+            created_by=created_by if created_by else None,
+            project_id=project_id if project_id else None,
+            table_id=table_id if table_id else None,
             name=name,
             json_path=json_pointer,
             status=bool(status),

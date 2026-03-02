@@ -75,9 +75,9 @@ class SyncEngine:
         try:
             self.sync_repo.update_status(sync_id, "syncing")
 
-            # Resolve credentials
+            # Resolve credentials (user_id for OAuth comes from created_by or config)
             spec = connector.spec()
-            user_id = (sync.config or {}).get("user_id", "")
+            user_id = sync.created_by or (sync.config or {}).get("user_id", "")
             credentials = await self.registry.resolve_credentials(
                 oauth_type=spec.oauth_type,
                 user_id=user_id,

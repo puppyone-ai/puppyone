@@ -89,7 +89,7 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
     <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        <label style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>{label}</label>
+        <label style={{ fontSize: 12, fontWeight: 500, color: '#666' }}>{label}</label>
         <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
         <span style={{ fontSize: 11, color: '#525252', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 4, padding: '1px 6px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
           {hint}
@@ -126,7 +126,7 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
               style={{
                 width: '100%', height: 32, padding: '0 10px', paddingRight: 80,
                 background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6,
-                color: '#e5e5e5', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                color: '#e5e5e5', fontSize: 12, outline: 'none', boxSizing: 'border-box',
               }}
               onFocus={e => e.currentTarget.style.borderColor = '#3a3a3a'}
               onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'}

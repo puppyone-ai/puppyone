@@ -62,10 +62,15 @@ class ConnectorRegistry:
         if not oauth_type or oauth_type not in self._oauth_services:
             return Credentials()
 
+        if not user_id:
+            raise ValueError(
+                f"Cannot resolve {oauth_type} credentials: user_id is empty. "
+                f"Please re-create this sync."
+            )
+
         service = self._oauth_services[oauth_type]
 
         try:
-            # All our OAuth services implement refresh_token_if_needed(user_id)
             connection = await service.refresh_token_if_needed(user_id)
             if not connection:
                 raise ValueError(

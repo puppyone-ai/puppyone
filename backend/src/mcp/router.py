@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from starlette.requests import ClientDisconnect
@@ -25,6 +25,8 @@ from src.mcp.dependencies import (
     get_verified_mcp_instance,
     get_mcp_instance_by_api_key,
 )
+from src.project.dependencies import get_project_service
+from src.project.service import ProjectService
 from src.mcp.models import McpInstance
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
@@ -116,18 +118,21 @@ def _hydrate_tools_definition_for_list_response(instance: McpInstance) -> None:
 @router.get(
     "/list",
     response_model=ApiResponse[List[McpInstance]],
-    summary="获取用户的所有 MCP 实例",
-    description="获取当前用户下的所有MCP实例列表",
-    response_description="返回用户的所有MCP实例列表",
+    summary="获取项目的所有 MCP 实例",
+    description="获取指定项目下的所有MCP实例列表（按 project_id 过滤）",
+    response_description="返回项目的所有MCP实例列表",
 )
 async def list_mcp_instances(
+    project_id: str = Query(..., description="项目ID (UUID)"),
     mcp_instance_service: McpService = Depends(get_mcp_instance_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    获取用户的所有 MCP 实例
+    获取项目的所有 MCP 实例（需验证用户对项目的访问权限）
     """
-    instances = await mcp_instance_service.get_user_mcp_instances(current_user.user_id)
+    project_service.get_by_id_with_access_check(project_id, current_user.user_id)
+    instances = await mcp_instance_service.get_project_mcp_instances(project_id)
     # 仅用于展示：补全默认工具描述，不修改数据库字段
     for inst in instances:
         _hydrate_tools_definition_for_list_response(inst)
@@ -153,9 +158,9 @@ async def generate_mcp_instance(
     1. proxy_url: 通过代理访问的 URL（推荐使用，无需记住端口）
     2. direct_url: 直接访问 MCP Server 的 URL（需要记住端口）
     """
-    # 创建 MCP 实例（使用当前用户的 user_id）
+    # 创建 MCP 实例（created_by 用于审计）
     instance = await mcp_instance_service.create_mcp_instance(
-        user_id=current_user.user_id,
+        created_by=current_user.user_id,
         project_id=mcp_create.project_id,
         table_id=mcp_create.table_id,
         name=mcp_create.name,

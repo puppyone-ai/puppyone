@@ -96,7 +96,7 @@ class SupabaseRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
         name: Optional[str] = None,
     ) -> List[ProjectResponse]:
         """
@@ -105,14 +105,14 @@ class SupabaseRepository:
         Args:
             skip: 跳过记录数
             limit: 返回记录数
-            user_id: 可选，按用户 ID 过滤
+            org_id: 可选，按组织 ID 过滤
             name: 可选，按名称过滤
 
         Returns:
             项目列表
         """
         return self._project_repo.get_list(
-            skip=skip, limit=limit, user_id=user_id, name=name
+            skip=skip, limit=limit, org_id=org_id, name=name
         )
 
     def update_project(
@@ -272,17 +272,15 @@ class SupabaseRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[str] = None,
         project_id: Optional[str] = None,
         table_id: Optional[str] = None,
     ) -> List[McpResponse]:
         """
-        获取 MCP 实例列表
+        获取 MCP 实例列表（按 project_id 过滤，不再按 user_id）
 
         Args:
             skip: 跳过记录数
             limit: 返回记录数
-            user_id: 可选，按用户 ID 过滤
             project_id: 可选，按项目 ID 过滤
             table_id: 可选，按表 ID 过滤
 
@@ -292,7 +290,6 @@ class SupabaseRepository:
         return self._mcp_repo.get_list(
             skip=skip,
             limit=limit,
-            user_id=user_id,
             project_id=project_id,
             table_id=table_id,
         )
@@ -368,12 +365,12 @@ class SupabaseRepository:
         *,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
         node_id: Optional[str] = None,
         project_id: Optional[str] = None,
     ) -> List[ToolResponse]:
         return self._tool_repo.get_list(
-            skip=skip, limit=limit, user_id=user_id, node_id=node_id, project_id=project_id
+            skip=skip, limit=limit, org_id=org_id, node_id=node_id, project_id=project_id
         )
 
     def update_tool(
@@ -404,10 +401,10 @@ class SupabaseRepository:
         *,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> List[ContextPublishResponse]:
         return self._context_publish_repo.get_list(
-            skip=skip, limit=limit, user_id=user_id
+            skip=skip, limit=limit, created_by=created_by
         )
 
     def update_context_publish(

@@ -35,7 +35,7 @@ class ETLTaskResponse(BaseModel):
     """Response for ETL task status query."""
 
     task_id: str
-    user_id: str
+    created_by: Optional[str] = None
     project_id: str
     filename: str
     rule_id: int

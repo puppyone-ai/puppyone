@@ -2,13 +2,17 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
-const CONFIG_DIR = join(homedir(), ".puppyone");
-const CONFIG_FILE = join(CONFIG_DIR, "config.json");
+export const CONFIG_DIR = join(homedir(), ".puppyone");
+export const CONFIG_FILE = join(CONFIG_DIR, "config.json");
 
 const DEFAULTS = {
   api_url: "http://localhost:9090",
   api_key: null,
-  default_project: null,
+  refresh_token: null,
+  user_email: null,
+  token_expires_at: null,
+  active_org: null,
+  active_project: null,
 };
 
 export function loadConfig() {
@@ -35,10 +39,6 @@ export function clearConfig() {
   }
 }
 
-/**
- * Resolve effective api_url and api_key from CLI flags → config file.
- * Returns { api_url, api_key } or throws with a helpful message.
- */
 export function resolveAuth(cmdOrOpts) {
   let cur = cmdOrOpts;
   let merged = {};

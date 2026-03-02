@@ -12,7 +12,6 @@
 
 import React, { use, useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProjects } from '@/lib/hooks/useData';
 import { 
   getToolsByProjectId, 
   deleteTool, 
@@ -678,10 +677,10 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
       
       {/* Header */}
       <div style={{ 
-        height: 48, minHeight: 48, borderBottom: '1px solid rgba(255,255,255,0.06)', 
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', background: '#141414', flexShrink: 0 
+        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.1)', 
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#0e0e0e', flexShrink: 0 
       }}>
-        <h1 style={{ fontSize: 14, fontWeight: 500, color: '#e4e4e7', margin: 0 }}>Toolkit</h1>
+        <h1 style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif', fontSize: 13, fontWeight: 500, color: '#CDCDCD', margin: 0 }}>Toolkit</h1>
         {/* Create Tool button hidden - tools are auto-created when users configure access in Context page */}
       </div>
 

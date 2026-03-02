@@ -3,8 +3,7 @@ Ingest Router - Unified entry point API.
 
 This router provides a unified interface for all data ingestion:
 - FILE: Local file upload → File Worker (ETL)
-- SAAS: SaaS platform sync → SaaS Worker (Import)
-- URL: Generic URL crawl → SaaS Worker (Import)
+- SAAS: SaaS platform sync → SyncEngine (同步执行)
 
 双层路由架构:
 - Layer 1: mode (raw | ocr_parse)
@@ -641,11 +640,6 @@ async def get_ingest_health(
         file_worker["status"] = "unhealthy"
         errors.append(f"file_worker_check_failed: {e}")
 
-    # 当前尚无统一的 SaaS worker 健康探针，先显式标记 unknown，避免误报 healthy。
-    saas_worker = {
-        "status": "unknown",
-    }
-
     status = "ready" if file_worker["status"] == "ready" else "degraded"
     if status != "ready":
         response.status_code = 503
@@ -653,7 +647,6 @@ async def get_ingest_health(
     return {
         "status": status,
         "file_worker": file_worker,
-        "saas_worker": saas_worker,
         "errors": errors,
     }
 

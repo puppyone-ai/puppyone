@@ -94,12 +94,13 @@ class OCRProviderFactory:
     @classmethod
     def _register_default_providers(cls) -> None:
         """Register built-in providers."""
-        # Import here to avoid circular imports
         from src.upload.file.ocr.mineru_adapter import MineRUProvider
         from src.upload.file.ocr.reducto_provider import ReductoProvider
+        from src.upload.file.ocr.deepseek_provider import DeepSeekOCRProvider
         
         cls.register("mineru", MineRUProvider)
         cls.register("reducto", ReductoProvider)
+        cls.register("deepseek", DeepSeekOCRProvider)
     
     @classmethod
     def list_providers(cls) -> list[str]:

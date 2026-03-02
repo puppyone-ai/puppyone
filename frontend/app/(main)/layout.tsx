@@ -5,8 +5,9 @@ import { useParams, usePathname, useRouter } from 'next/navigation';
 import { AppSidebar } from '@/components/AppSidebar';
 import { useProjects } from '@/lib/hooks/useData';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
+import { OrganizationProvider, useOrganization } from '@/contexts/OrganizationContext';
 
-export default function MainLayout({
+function MainLayoutInner({
   children,
 }: {
   children: React.ReactNode;
@@ -16,8 +17,8 @@ export default function MainLayout({
   const params = useParams();
 
   const { session } = useAuth();
-  // useProjects 自动处理了 SWR 缓存
-  const { projects, isLoading: projectsLoading } = useProjects();
+  const { currentOrg, orgs, switchOrg } = useOrganization();
+  const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id);
 
   // 解析 URL 参数 - 增加更健壮的解析逻辑
   // 注意：params.projectId 和 tableId 在 layout 中可能获取不到，因为它们是在子页面的 params 中的
@@ -60,7 +61,7 @@ export default function MainLayout({
   }, [activeBaseId]);
 
   // 计算 Active View
-  // New URL structure: /projects/{projectId}/data|toolkit|tools|logs|settings
+  // URL structure: /projects/{projectId}/data|toolkit|connections|monitor|settings
   const activeView = useMemo(() => {
     if (!pathname) return 'data';
     
@@ -73,8 +74,8 @@ export default function MainLayout({
     if (pathname.includes('/projects/')) {
       // Check toolkit before tools (toolkit used to be context-tools)
       if (pathname.includes('/toolkit')) return 'toolkit';
-      if (pathname.includes('/tools')) return 'tools';
-      if (pathname.includes('/logs')) return 'logs';
+      if (pathname.includes('/connections')) return 'connections';
+      if (pathname.includes('/monitor')) return 'monitor';
       if (pathname.includes('/settings')) return 'settings';
       return 'data'; // /projects/{id}/data/... or /projects/{id}
     }
@@ -129,7 +130,7 @@ export default function MainLayout({
         display: 'flex',
         height: '100vh',
         overflow: 'hidden',
-        backgroundColor: '#040404',
+        backgroundColor: '#1c1c1c',
       }}
     >
       <AppSidebar
@@ -140,7 +141,6 @@ export default function MainLayout({
         activeView={activeView}
         onBaseClick={handleBaseClick}
         onTableClick={handleTableClick}
-        // 传入空数组，因为 AppSidebar 内部对 tools 和 settings 有特殊处理
         utilityNav={[]}
         onUtilityNavClick={handleUtilityNavClick}
         userInitial={userInitial}
@@ -150,8 +150,10 @@ export default function MainLayout({
         onCollapsedChange={setIsNavCollapsed}
         sidebarWidth={sidebarWidth}
         onSidebarWidthChange={setSidebarWidth}
-        // 暂时写死 0，后续可从 context/hook 获取全局工具数量
         toolsCount={0}
+        currentOrg={currentOrg}
+        orgs={orgs}
+        onSwitchOrg={switchOrg}
       />
 
       <main
@@ -160,12 +162,24 @@ export default function MainLayout({
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,
-          height: '100%', // 确保高度传递给子组件
-          overflow: 'hidden', // 防止子元素溢出
+          height: 'calc(100vh - 16px)',
+          overflow: 'hidden',
+          margin: '8px 8px 8px 0',
+          borderRadius: 12,
+          background: '#0e0e0e',
+          border: '1.5px solid rgba(255,255,255,0.15)',
         }}
       >
         {children}
       </main>
     </div>
+  );
+}
+
+export default function MainLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <OrganizationProvider>
+      <MainLayoutInner>{children}</MainLayoutInner>
+    </OrganizationProvider>
   );
 }

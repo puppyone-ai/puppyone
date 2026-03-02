@@ -5,8 +5,6 @@ import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import type { EditorType, ViewType } from '@/components/ProjectsHeader';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
 
-type RightPanelContent = 'NONE' | 'EDITOR' | 'VERSION_HISTORY';
-
 interface BottomBarProps {
   viewType: ViewType;
   setViewType: (v: ViewType) => void;
@@ -19,8 +17,8 @@ interface BottomBarProps {
   activeProject: any;
   currentTableData: any;
   markdownContent: string;
-  rightPanelContent: RightPanelContent;
-  setRightPanelContent: (c: RightPanelContent) => void;
+  isVersionHistoryOpen: boolean;
+  onOpenVersionHistory: () => void;
 }
 
 const toggleGroupStyle: React.CSSProperties = {
@@ -53,7 +51,7 @@ export function BottomBar({
   markdownViewMode, setMarkdownViewMode,
   isEditorView, activeNodeType, activeProject,
   currentTableData, markdownContent,
-  rightPanelContent, setRightPanelContent,
+  isVersionHistoryOpen, onOpenVersionHistory,
 }: BottomBarProps) {
   const nodeConfig = activeNodeType ? getNodeTypeConfig(activeNodeType) : null;
   const showJsonToggle = isEditorView && activeProject
@@ -123,9 +121,9 @@ export function BottomBar({
 
       {/* Right: version history */}
       <div>
-        {isEditorView && rightPanelContent !== 'VERSION_HISTORY' && (
+        {isEditorView && !isVersionHistoryOpen && (
           <button
-            onClick={() => setRightPanelContent('VERSION_HISTORY')}
+            onClick={onOpenVersionHistory}
             style={{
               display: 'flex', alignItems: 'center', gap: 4,
               padding: '3px 8px', borderRadius: 5,

@@ -87,7 +87,14 @@ S3_MAX_FILE_SIZE=104857600
 S3_MULTIPART_THRESHOLD=10485760
 S3_MULTIPART_CHUNKSIZE=5242880
 
-# MineRU 配置
+# OCR Provider: "mineru" | "reducto" | "deepseek"
+OCR_PROVIDER=deepseek
+
+# DeepSeek OCR (通过 DeepInfra / Novita，推荐)
+DEEPINFRA_API_KEY=your-deepinfra-api-key
+
+# MineRU 配置 (备选 OCR Provider)
+MINERU_API_KEY=your-mineru-api-key
 MINERU_API_BASE_URL=https://mineru.net/api/v4
 MINERU_POLL_INTERVAL=5
 MINERU_MAX_WAIT_TIME=600
@@ -123,9 +130,9 @@ S3_REGION=auto
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-### MineRU API
-- 访问 https://mineru.net 注册
-- 获取 API Key
+### OCR API Key
+- **DeepSeek OCR (推荐)**: 访问 https://deepinfra.com 或 https://novita.ai 注册获取 API Key
+- **MineRU (备选)**: 访问 https://mineru.net 注册获取 API Key（注意：Key 每 14 天过期）
 
 ## 数据库初始化
 
@@ -274,7 +281,7 @@ Railway 按使用量计费：
 - [ ] Supabase 数据库表已创建
 - [ ] S3 存储桶已创建
 - [ ] JWT Secret 已生成
-- [ ] MineRU API Key 已获取
+- [ ] OCR API Key 已获取 (DeepInfra 或 MineRU)
 - [ ] 健康检查通过
 - [ ] API 文档可访问
 - [ ] 日志无严重错误

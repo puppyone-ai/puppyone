@@ -36,8 +36,9 @@ export type TableData = {
 };
 
 // 项目相关API
-export async function getProjects(): Promise<ProjectInfo[]> {
-  return apiRequest<ProjectInfo[]>('/api/v1/projects/');
+export async function getProjects(orgId?: string): Promise<ProjectInfo[]> {
+  const params = orgId ? `?org_id=${encodeURIComponent(orgId)}` : '';
+  return apiRequest<ProjectInfo[]>(`/api/v1/projects/${params}`);
 }
 
 export async function getProject(projectId: string): Promise<ProjectInfo> {
@@ -46,11 +47,12 @@ export async function getProject(projectId: string): Promise<ProjectInfo> {
 
 export async function createProject(
   name: string,
-  description?: string
+  description?: string,
+  orgId?: string
 ): Promise<ProjectInfo> {
   return apiRequest<ProjectInfo>('/api/v1/projects/', {
     method: 'POST',
-    body: JSON.stringify({ name, description }),
+    body: JSON.stringify({ name, description, org_id: orgId }),
   });
 }
 
@@ -285,6 +287,48 @@ export async function updateTableData(
 // 获取用户的裸 Table（不属于任何 Project）
 // 注意：在新架构中，所有节点都属于某个 Project，不存在 orphan tables
 export async function getOrphanTables(): Promise<TableInfo[]> {
-  // 返回空数组，因为新架构不支持 orphan tables
   return [];
+}
+
+// ── Project Members ──
+
+export type ProjectMember = {
+  id: string;
+  user_id: string;
+  email?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
+  role: 'admin' | 'editor' | 'viewer';
+  created_at: string;
+};
+
+export async function getProjectMembers(projectId: string): Promise<ProjectMember[]> {
+  return apiRequest<ProjectMember[]>(`/api/v1/projects/${projectId}/members`);
+}
+
+export async function addProjectMember(projectId: string, userId: string, role: string = 'editor'): Promise<void> {
+  return apiRequest<void>(`/api/v1/projects/${projectId}/members`, {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId, role }),
+  });
+}
+
+export async function updateProjectMemberRole(projectId: string, userId: string, role: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/projects/${projectId}/members/${userId}/role`, {
+    method: 'PUT',
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function removeProjectMember(projectId: string, userId: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/projects/${projectId}/members/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function updateProjectVisibility(projectId: string, visibility: 'org' | 'private'): Promise<void> {
+  return apiRequest<void>(`/api/v1/projects/${projectId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ visibility }),
+  });
 }

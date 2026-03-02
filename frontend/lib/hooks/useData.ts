@@ -35,13 +35,18 @@ const defaultConfig = {
  * - 自动缓存，多个组件共享同一份数据
  * - 30秒内不重复请求
  */
-export function useProjects() {
+export function useProjects(orgId?: string | null) {
+  const key = orgId ? ['projects', orgId] : 'projects';
   const {
     data,
     error,
     isLoading,
     mutate: revalidate,
-  } = useSWR<ProjectInfo[]>('projects', getProjects, defaultConfig);
+  } = useSWR<ProjectInfo[]>(
+    key,
+    () => getProjects(orgId ?? undefined),
+    defaultConfig
+  );
 
   return {
     projects: data ?? [],
@@ -109,14 +114,12 @@ export function useOrphanTables() {
  * 
  * @returns Promise that resolves when the data is actually fetched
  */
-export async function refreshProjects() {
-  // 同时刷新孤儿 tables
+export async function refreshProjects(orgId?: string | null) {
   mutate('orphan-tables');
-  // Force revalidation and wait for the actual data to be fetched
-  // Setting the second param to undefined and third to { revalidate: true }
-  // ensures we actually fetch fresh data from the server
-  const result = await mutate('projects', undefined, { revalidate: true });
-  return result;
+  if (orgId) {
+    return mutate(['projects', orgId], undefined, { revalidate: true });
+  }
+  return mutate('projects', undefined, { revalidate: true });
 }
 
 /**

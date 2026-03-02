@@ -46,6 +46,7 @@ class SyncRepository:
             error_message=row.get("error_message"),
             remote_hash=row.get("remote_hash"),
             last_sync_version=row.get("last_sync_version", 0),
+            created_by=row.get("created_by"),
             created_at=row.get("created_at"),
             updated_at=row.get("updated_at"),
         )
@@ -68,6 +69,7 @@ class SyncRepository:
         trigger: Optional[dict] = None,
         conflict_strategy: Optional[str] = None,
         status: str = "active",
+        created_by: Optional[str] = None,
     ) -> Sync:
         data: dict[str, Any] = {
             "project_id": project_id,
@@ -82,6 +84,8 @@ class SyncRepository:
             "conflict_strategy": conflict_strategy,
             "status": status,
         }
+        if created_by is not None:
+            data["created_by"] = created_by
         response = self.client.table(self.TABLE).insert(data).execute()
         return self._to_model(response.data[0])
 
