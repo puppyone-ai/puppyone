@@ -1,7 +1,12 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { ConnectContentView } from '../../components/ConnectContentView';
+
+const ConnectContentView = dynamic(
+  () => import('../../components/ConnectContentView').then(m => m.ConnectContentView),
+  { ssr: false },
+);
 
 export default function ConnectPage() {
   const router = useRouter();

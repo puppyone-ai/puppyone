@@ -15,7 +15,8 @@ export type ProjectInfo = {
   id: string;
   name: string;
   description?: string;
-  nodes: NodeInfo[]; // 从 tables 改为 nodes
+  visibility?: 'org' | 'private';
+  nodes: NodeInfo[];
 };
 
 // 保留 TableInfo 用于兼容性

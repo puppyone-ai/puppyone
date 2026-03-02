@@ -357,11 +357,11 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   // Map platform ID to SaasType
   const platformToSaasType: Record<PlatformId, SaasType> = {
     'github': 'github',
-    'google-sheets': 'sheets',
-    'google-docs': 'docs',
+    'google-sheets': 'google_sheets',
+    'google-docs': 'google_docs',
     'gmail': 'gmail',
-    'google-calendar': 'calendar',
-    'google-drive': 'drive',
+    'google-calendar': 'google_calendar',
+    'google-drive': 'google_drive',
   };
 
   // Map platform ID to status check function

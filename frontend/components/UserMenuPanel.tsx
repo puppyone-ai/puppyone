@@ -255,11 +255,11 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
 
   const platformToSaasType: Record<PlatformId, SaasType> = {
     'github': 'github',
-    'google-sheets': 'sheets',
-    'google-docs': 'docs',
+    'google-sheets': 'google_sheets',
+    'google-docs': 'google_docs',
     'gmail': 'gmail',
-    'google-calendar': 'calendar',
-    'google-drive': 'drive',
+    'google-calendar': 'google_calendar',
+    'google-drive': 'google_drive',
   };
 
   const platformStatusCheckers: Record<PlatformId, () => Promise<void>> = {

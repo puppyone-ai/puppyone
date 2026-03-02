@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
 import type { AccessResource } from '@/contexts/AgentContext';
 import { SyncDetailView } from '@/components/agent/views/SyncDetailView';
-import { ChatAgentConfig } from '@/components/agent/views/configs/ChatAgentConfig';
+import { ChatAgentConfig, type AgentConfigProps } from '@/components/agent/views/configs/ChatAgentConfig';
 import { OpenClawAgentConfig } from '@/components/agent/views/configs/OpenClawAgentConfig';
 import { SaaSyncConfig, type SaaSConfigField } from '@/components/agent/views/configs/SaaSyncConfig';
 import type { AcceptedNodeType } from '@/components/agent/views/configs/SyncPreview';
@@ -237,7 +237,7 @@ function SandboxMini() {
    Config map for agent types
    ================================================================ */
 
-const AGENT_CONFIG_MAP: Record<AgentTypeId, React.ComponentType<{ projectTools?: unknown[] }>> = {
+const AGENT_CONFIG_MAP: Record<AgentTypeId, React.ComponentType<AgentConfigProps>> = {
   chat: ChatAgentConfig,
 };
 
