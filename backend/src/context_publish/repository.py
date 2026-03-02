@@ -25,8 +25,8 @@ class ContextPublishRepositoryBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list_by_user_id(
-        self, user_id: str, *, skip: int = 0, limit: int = 100
+    def list_by_created_by(
+        self, created_by: str, *, skip: int = 0, limit: int = 100
     ) -> List[ContextPublish]:
         raise NotImplementedError
 
@@ -50,7 +50,7 @@ class ContextPublishRepositorySupabase(ContextPublishRepositoryBase):
             id=resp.id,
             created_at=resp.created_at,
             updated_at=resp.updated_at,
-            user_id=str(resp.user_id) if resp.user_id else "",
+            created_by=str(resp.created_by) if resp.created_by else None,
             table_id=int(resp.table_id or 0),
             json_path=resp.json_path or "",
             publish_key=resp.publish_key or "",
@@ -74,11 +74,11 @@ class ContextPublishRepositorySupabase(ContextPublishRepositoryBase):
             return None
         return self._to_model(resp)
 
-    def list_by_user_id(
-        self, user_id: str, *, skip: int = 0, limit: int = 100
+    def list_by_created_by(
+        self, created_by: str, *, skip: int = 0, limit: int = 100
     ) -> List[ContextPublish]:
         resps = self._repo.get_context_publish_list(
-            skip=skip, limit=limit, user_id=user_id
+            skip=skip, limit=limit, created_by=created_by
         )
         return [self._to_model(r) for r in resps]
 

@@ -31,7 +31,7 @@ const AGENT_CONFIG_MAP: Record<AgentType, React.ComponentType<AgentConfigProps>>
 const AGENT_TYPE_LABELS: Record<AgentType, { label: string; icon: string }> = {
   chat:     { label: 'Chat Agent', icon: '💬' },
   schedule: { label: 'Schedule',   icon: '⏰' },
-  devbox:   { label: 'OpenClaw',   icon: '🦞' },
+  devbox:   { label: 'Desktop Folder', icon: '🦞' },
   webhook:  { label: 'N8N/Zapier', icon: '⚡' },
 };
 

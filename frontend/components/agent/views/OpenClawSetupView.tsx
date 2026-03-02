@@ -67,8 +67,10 @@ export function SetupDialog({
   accessKey: string;
   apiUrl: string;
 }) {
+  const DEFAULT_PATH = '~/.openclaw/workspace';
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [workspacePath, setWorkspacePath] = useState('~/.openclaw/workspace');
+  const [workspacePath, setWorkspacePath] = useState('');
+  const pathIsPlaceholder = !workspacePath || workspacePath === DEFAULT_PATH;
 
   const handleCopy = useCallback(async (text: string, field: string) => {
     await navigator.clipboard.writeText(text);
@@ -87,8 +89,8 @@ export function SetupDialog({
 
   if (!open) return null;
 
-  const escapedWorkspacePath = workspacePath.replace(/"/g, '\\"');
-  const upCmd = `puppyone access up --key ${accessKey} -u ${apiUrl} --path "${escapedWorkspacePath}"`;
+  const pathDisplay = pathIsPlaceholder ? '<your-folder-path>' : workspacePath;
+  const upCmd = `puppyone openclaw up ${pathDisplay} --key ${accessKey} -u ${apiUrl}`;
 
   return (
     <div
@@ -120,7 +122,7 @@ export function SetupDialog({
         }}>
           <div>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#e5e5e5' }}>
-              Connect Agent
+              Connect Desktop Folder
             </h3>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#525252' }}>
               Run these commands to sync a local folder with PuppyOne.
@@ -160,29 +162,22 @@ export function SetupDialog({
                 }}>
                   2
                 </span>
-                <span style={{ fontSize: 13, color: '#a3a3a3', fontWeight: 500 }}>Choose a local folder</span>
+                <span style={{ fontSize: 12, color: '#a3a3a3', fontWeight: 500 }}>Choose a local folder</span>
               </div>
               <div style={{ marginLeft: 28 }}>
                 <p style={{ fontSize: 12, color: '#a3a3a3', margin: '0 0 12px', lineHeight: 1.7 }}>
-                  Pick a folder on your machine to sync with this project.
-                  It's usually located at:
-                </p>
-                <p style={{ fontSize: 13, color: '#e5e5e5', margin: '0 0 12px', lineHeight: 1.5 }}>
-                  /Users/<span style={{ color: '#f59e0b' }}>{'<your-username>'}</span>/.openclaw/workspace
-                </p>
-                <p style={{ fontSize: 11, color: '#525252', margin: '0 0 12px', lineHeight: 1.5 }}>
-                  Replace the path below, then copy the command in Step 3.
+                  Enter the absolute path to a local folder you want to sync.
                   The folder will be created automatically if it doesn't exist.
                 </p>
                 <input
                   type="text"
                   value={workspacePath}
                   onChange={e => setWorkspacePath(e.target.value)}
-                  placeholder="/Users/your-username/.openclaw/workspace"
+                  placeholder="e.g. ~/my-project or /Users/you/Documents/sync"
                   spellCheck={false}
                   style={{
                     width: '100%', boxSizing: 'border-box' as const,
-                    fontSize: 13, color: '#e5e5e5',
+                    fontSize: 12, color: '#e5e5e5',
                     background: 'transparent',
                     border: 'none', borderBottom: '1px solid #333',
                     padding: '6px 0', outline: 'none',
@@ -206,12 +201,20 @@ export function SetupDialog({
                 }}>
                   3
                 </span>
-                <span style={{ fontSize: 13, color: '#a3a3a3', fontWeight: 500 }}>Run in terminal</span>
+                <span style={{ fontSize: 12, color: '#a3a3a3', fontWeight: 500 }}>Run in terminal</span>
               </div>
+              {pathIsPlaceholder && (
+                <p style={{ fontSize: 11, color: '#f59e0b', margin: '0 0 6px 28px', lineHeight: 1.5 }}>
+                  ↑ Fill in a folder path in Step 2 first.
+                </p>
+              )}
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8,
-                background: '#0a0a0a', border: '1px solid #2a2a2a',
+                background: '#0a0a0a',
+                border: `1px solid ${pathIsPlaceholder ? 'rgba(245,158,11,0.3)' : '#2a2a2a'}`,
                 borderRadius: 6, padding: '8px 12px', marginLeft: 28,
+                opacity: pathIsPlaceholder ? 0.6 : 1,
+                transition: 'opacity 0.15s, border-color 0.15s',
               }}>
                 <code style={{
                   flex: 1, fontSize: 12, color: '#a3a3a3',
@@ -220,9 +223,12 @@ export function SetupDialog({
                   {upCmd}
                 </code>
                 <button
-                  onClick={() => handleCopy(upCmd, 'd-up')}
+                  onClick={() => !pathIsPlaceholder && handleCopy(upCmd, 'd-up')}
+                  disabled={pathIsPlaceholder}
+                  title={pathIsPlaceholder ? 'Enter a folder path in Step 2 first' : 'Copy command'}
                   style={{
-                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    background: 'transparent', border: 'none',
+                    cursor: pathIsPlaceholder ? 'not-allowed' : 'pointer',
                     color: copiedField === 'd-up' ? '#4ade80' : '#525252',
                     padding: 4, borderRadius: 4, display: 'flex',
                     alignItems: 'center', flexShrink: 0,
@@ -376,16 +382,15 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
 
           {/* Sync visualization */}
           <div style={{
-            background: '#141414', border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: 10, padding: '28px 24px 20px',
             display: 'flex', flexDirection: 'column', gap: 14,
           }}>
             {/* Icons + connection */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              {/* OpenClaw (LEFT) */}
+              {/* Desktop Folder (LEFT) */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
                 <img src="/icons/folder.svg" alt="Folder" width={36} height={36} style={{ display: 'block' }} />
-                <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>OpenClaw</div>
+                <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>Desktop Folder</div>
                 <div style={{
                   fontSize: 10, color: '#525252', fontFamily: 'monospace', textAlign: 'center',
                   wordBreak: 'break-all', lineHeight: 1.3, maxWidth: 80,
@@ -396,7 +401,7 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
                 </div>
               </div>
 
-              {/* Connection line */}
+              {/* Connection arrows */}
               {(() => {
                 if (!isConnected && !hasEverConnected) {
                   return (
@@ -407,7 +412,7 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
                         position: 'relative',
                       }}>
                         <span style={{
-                          position: 'relative', top: -7, background: '#141414',
+                          position: 'relative', top: -7, background: '#0e0e0e',
                           padding: '0 6px', whiteSpace: 'nowrap',
                         }}>Waiting for CLI</span>
                       </div>
@@ -423,31 +428,19 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
                         position: 'relative',
                       }}>
                         <span style={{
-                          position: 'relative', top: -7, background: '#141414',
+                          position: 'relative', top: -7, background: '#0e0e0e',
                           padding: '0 6px', whiteSpace: 'nowrap',
                         }}>Disconnected</span>
                       </div>
                     </div>
                   );
                 }
-                const ds = 4, gs = 14, p = ds + gs;
-                const Track = ({ anim }: { anim: string }) => (
-                  <div style={{ height: ds, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', gap: gs, animation: `${anim} ${p * 50}ms linear infinite` }}>
-                      {Array.from({ length: 30 }).map((_, i) => (
-                        <div key={i} style={{ width: ds, height: ds, flexShrink: 0, background: '#4ade80', borderRadius: 1, opacity: 0.85 }} />
-                      ))}
-                    </div>
-                  </div>
-                );
                 return (
-                  <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5, margin: '0 4px' }}>
-                    <style>{`
-                      @keyframes oc-fl { from { transform: translateX(0); } to { transform: translateX(-${p}px); } }
-                      @keyframes oc-fr { from { transform: translateX(-${p}px); } to { transform: translateX(0); } }
-                    `}</style>
-                    <Track anim="oc-fl" />
-                    <Track anim="oc-fr" />
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 4px' }}>
+                    <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke="#4ade80" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2 5h44M6 2L2 5l4 3" />
+                      <path d="M42 8l4 3-4 3M2 11h44" />
+                    </svg>
                   </div>
                 );
               })()}
@@ -578,7 +571,7 @@ function StepBlock({
         }}>
           {step}
         </span>
-        <span style={{ fontSize: 13, color: '#a3a3a3', fontWeight: 500 }}>{label}</span>
+        <span style={{ fontSize: 12, color: '#a3a3a3', fontWeight: 500 }}>{label}</span>
       </div>
       {hint && (
         <p style={{ fontSize: 11, color: '#525252', margin: '0 0 6px 28px' }}>{hint}</p>

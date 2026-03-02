@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import type { ProjectInfo } from '../lib/projectsApi';
 import { deleteTable } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
+import { useOrganization } from '@/contexts/OrganizationContext';
 
 type TableDeleteDialogProps = {
   projectId: string;
@@ -18,6 +19,7 @@ export function TableDeleteDialog({
   projects,
   onClose,
 }: TableDeleteDialogProps) {
+  const { currentOrg } = useOrganization();
   const table = useMemo(() => {
     const project = projects.find(p => String(p.id) === String(projectId));
     return project?.nodes?.find(t => String(t.id) === String(tableId)) ?? null;
@@ -29,7 +31,7 @@ export function TableDeleteDialog({
     try {
       setLoading(true);
       await deleteTable(projectId, tableId);
-      await refreshProjects();
+      await refreshProjects(currentOrg?.id);
       onClose();
     } catch (error) {
       console.error('Failed to delete table:', error);

@@ -9,10 +9,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Create a pre-configured API client using JWT Bearer auth (sync mode).
- * Includes transparent token refresh when the JWT is about to expire.
- */
 export function createClient(cmd) {
   const { apiUrl, apiKey } = resolveAuth(cmd);
 
@@ -23,17 +19,8 @@ export function createClient(cmd) {
   return _makeClient(apiUrl, { Authorization: `Bearer ${apiKey}` }, { autoRefresh: true });
 }
 
-/**
- * Create a pre-configured API client using X-Access-Key auth (OpenClaw mode).
- *
- * API URL resolution order:
- *   1. Explicit `apiUrlOverride` (from saved connection config)
- *   2. CLI global flag `-u / --api-url`
- *   3. Config file `api_url`
- *   4. Default `http://localhost:9090`
- */
 export function createOpenClawClient(accessKey, cmd, apiUrlOverride) {
-  const opts = _collectOpts(cmd);
+  const opts = collectOpts(cmd);
   const config = loadConfig();
   const apiUrl = apiUrlOverride ?? opts.apiUrl ?? config.api_url ?? "http://localhost:9090";
 
@@ -44,7 +31,7 @@ export function createOpenClawClient(accessKey, cmd, apiUrlOverride) {
   return _makeClient(apiUrl, { "X-Access-Key": accessKey }, { autoRefresh: false });
 }
 
-function _collectOpts(cmd) {
+export function collectOpts(cmd) {
   let cur = cmd;
   let merged = {};
   while (cur) {
@@ -89,6 +76,19 @@ async function _tryRefreshToken(baseUrl) {
   }
 }
 
+function _buildUrl(baseUrl, path, query) {
+  let url = `${baseUrl}/api/v1${path}`;
+  if (query) {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(query)) {
+      if (v != null) params.set(k, String(v));
+    }
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
+  }
+  return url;
+}
+
 function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
   const baseUrl = apiUrl.replace(/\/+$/, "");
 
@@ -108,8 +108,8 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
     return authHeaders;
   }
 
-  async function request(method, path, body) {
-    const url = `${baseUrl}/api/v1${path}`;
+  async function request(method, path, body, query) {
+    const url = _buildUrl(baseUrl, path, query);
     const currentAuthHeaders = await getAuthHeaders();
     const headers = {
       ...currentAuthHeaders,
@@ -152,7 +152,7 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
       const hint = res.status === 401
         ? "Invalid or expired token. Run `puppyone auth login`."
         : res.status === 404
-        ? "Check the resource ID exists."
+        ? "Check the resource ID or path."
         : undefined;
 
       throw new ApiError(res.status, "API_ERROR", detail, hint);
@@ -166,10 +166,46 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
     return json.data;
   }
 
+  async function rawRequest(method, path, body, query) {
+    const url = _buildUrl(baseUrl, path, query);
+    const currentAuthHeaders = await getAuthHeaders();
+    return fetch(url, {
+      method,
+      headers: { ...currentAuthHeaders, "Content-Type": "application/json" },
+      body: body != null ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  async function upload(path, filePath, query) {
+    const { createReadStream, statSync } = await import("node:fs");
+    const { basename } = await import("node:path");
+    const url = _buildUrl(baseUrl, path, query);
+    const currentAuthHeaders = await getAuthHeaders();
+    const stat = statSync(filePath);
+    const stream = createReadStream(filePath);
+
+    return fetch(url, {
+      method: "POST",
+      headers: {
+        ...currentAuthHeaders,
+        "Content-Type": "application/octet-stream",
+        "X-Filename": basename(filePath),
+        "Content-Length": String(stat.size),
+      },
+      body: stream,
+      duplex: "half",
+    });
+  }
+
   return {
-    get: (path) => request("GET", path),
-    post: (path, body) => request("POST", path, body),
-    put: (path, body) => request("PUT", path, body),
-    del: (path) => request("DELETE", path),
+    baseUrl,
+    get: (path, query) => request("GET", path, null, query),
+    post: (path, body, query) => request("POST", path, body, query),
+    put: (path, body, query) => request("PUT", path, body, query),
+    patch: (path, body, query) => request("PATCH", path, body, query),
+    del: (path, body, query) => request("DELETE", path, body, query),
+    raw: rawRequest,
+    upload,
+    getAuthHeaders,
   };
 }

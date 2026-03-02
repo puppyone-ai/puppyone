@@ -14,9 +14,9 @@ class Profile(BaseModel):
 
     user_id: str = Field(..., description="用户ID (UUID，关联 auth.users)")
     email: str = Field(..., description="用户邮箱")
-    role: str = Field(default="user", description="用户角色: user/admin")
-    plan: str = Field(default="free", description="订阅计划: free/plus/pro/team")
-    stripe_customer_id: Optional[str] = Field(None, description="Stripe 客户ID")
+    display_name: Optional[str] = Field(None, description="显示名称")
+    avatar_url: Optional[str] = Field(None, description="头像 URL")
+    default_org_id: Optional[str] = Field(None, description="默认组织 ID")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
@@ -37,9 +37,9 @@ class Profile(BaseModel):
 class ProfileUpdate(BaseModel):
     """Profile 更新数据"""
 
-    role: Optional[str] = None
-    plan: Optional[str] = None
-    stripe_customer_id: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    default_org_id: Optional[str] = None
     has_onboarded: Optional[bool] = None
     onboarded_at: Optional[datetime] = None
     demo_project_id: Optional[int] = None

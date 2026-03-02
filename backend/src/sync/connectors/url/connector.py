@@ -6,7 +6,8 @@ Handles:
 - Multi-page crawling (with crawl_options)
 """
 
-from typing import Any, Dict, Optional
+import hashlib
+import json
 
 from src.content_node.service import ContentNodeService
 from src.sync.connectors._base import (
@@ -15,13 +16,10 @@ from src.sync.connectors._base import (
     Capability,
     AuthRequirement,
     TriggerMode,
-    ImportResult,
-    PreviewResult,
-    ProgressCallback,
+    FetchResult,
+    Credentials,
 )
-from src.sync.task.models import ImportTask
 from src.sync.utils.url_parser import UrlParser
-from src.utils.logger import log_info, log_error
 
 
 class UrlConnector(BaseConnector):
@@ -36,6 +34,8 @@ class UrlConnector(BaseConnector):
             default_trigger=TriggerMode.MANUAL,
             default_node_type="json",
             auth=AuthRequirement.NONE,
+            supported_sync_modes=("import_once", "manual", "scheduled"),
+            default_sync_mode="import_once",
         )
 
     def __init__(
@@ -45,31 +45,20 @@ class UrlConnector(BaseConnector):
         self.node_service = node_service
         self.url_parser = UrlParser()
 
-    async def import_data(
-        self,
-        task: ImportTask,
-        on_progress: ProgressCallback,
-    ) -> ImportResult:
-        """Process URL import using Firecrawl."""
-        if not task.source_url:
-            raise ValueError("source_url is required for URL import")
+    async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
+        """Scrape a URL via Firecrawl. No OAuth needed — credentials are ignored."""
+        source_url = config.get("source_url", "")
+        if not source_url:
+            raise ValueError("source_url is required for URL fetch")
 
-        await on_progress(10, "Fetching URL content...")
-
+        url_parser = UrlParser()
         try:
-            # Parse URL with optional crawl options
-            crawl_options = task.metadata.get("crawl_options") if task.metadata else None
-            result = await self.url_parser.parse(task.source_url, crawl_options)
-
-            await on_progress(50, "Processing content...")
+            crawl_options = config.get("crawl_options")
+            result = await url_parser.parse(source_url, crawl_options)
 
             data = result.get("data", [])
-            title = result.get("title", task.source_url)
-            source_type = result.get("source_type", "url")
+            title = result.get("title", source_url)
 
-            await on_progress(70, "Creating content node...")
-
-            # Build markdown content from sections
             markdown_parts = []
             for item in data:
                 item_title = item.get("title", "")
@@ -81,64 +70,16 @@ class UrlConnector(BaseConnector):
 
             markdown_content = "\n\n".join(markdown_parts)
 
-            # Create markdown content node
-            # Note: metadata (source_url, source_type, etc.) is logged but not stored in node
-            log_info(f"URL import metadata: source_url={task.source_url}, source_type={source_type}, sections={len(data)}")
-            node = await self.node_service.create_markdown_node(
-                project_id=task.project_id,
-                name=title,
+            content_hash = hashlib.sha256(
+                json.dumps(markdown_content, sort_keys=True, ensure_ascii=False).encode()
+            ).hexdigest()[:16]
+
+            return FetchResult(
                 content=markdown_content,
-                parent_id=task.parent_node_id,
-                created_by=task.user_id,
-            )
-
-            await on_progress(100, "Completed")
-            log_info(f"URL import completed: {task.source_url}, {len(data)} sections")
-
-            return ImportResult(
-                content_node_id=node.id,
-                items_count=len(data),
-                metadata={"source_url": task.source_url, "title": title},
-            )
-
-        except Exception as e:
-            log_error(f"URL import failed: {e}")
-            raise
-        finally:
-            await self.url_parser.close()
-
-    async def preview(self, url: str, user_id: str, crawl_options: Optional[Dict[str, Any]] = None) -> PreviewResult:
-        """
-        Get preview data for a URL using Firecrawl.
-        
-        Args:
-            url: The URL to preview
-            user_id: User ID (not used for generic URLs)
-            crawl_options: Optional crawl settings for multi-page crawl
-        """
-        try:
-            result = await self.url_parser.parse(url, crawl_options)
-
-            data = result.get("data", [])
-            source_type = result.get("source_type", "url")
-            title = result.get("title", url)
-
-            # Analyze fields from first item
-            fields = []
-            if data and isinstance(data[0], dict):
-                fields = [
-                    {"name": key, "type": type(value).__name__}
-                    for key, value in data[0].items()
-                ]
-
-            return PreviewResult(
-                source_type=source_type,
-                title=title,
-                description=result.get("description"),
-                data=data[:5],  # Limit preview
-                fields=fields,
-                total_items=len(data),
-                structure_info=result.get("crawl_info"),
+                content_hash=content_hash,
+                node_type="markdown",
+                node_name=title[:100],
+                summary=f"Scraped {source_url} ({len(data)} sections)",
             )
         finally:
-            await self.url_parser.close()
+            await url_parser.close()

@@ -43,7 +43,7 @@ export function OpenClawAgentConfig({}: AgentConfigProps) {
   };
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 13, fontWeight: 500, color: '#666', marginBottom: 8, display: 'block',
+    fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8, display: 'block',
   };
 
   return (

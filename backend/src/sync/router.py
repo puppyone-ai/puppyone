@@ -24,7 +24,9 @@ from pydantic import BaseModel
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
 from src.sync.service import SyncService
-from src.sync.dependencies import get_sync_service
+from src.sync.engine import SyncEngine
+from src.sync.registry import ConnectorRegistry
+from src.sync.dependencies import get_sync_service, get_sync_engine, get_connector_registry
 from src.common_schemas import ApiResponse
 from src.project.dependencies import get_project_service
 from src.project.service import ProjectService
@@ -58,6 +60,7 @@ class SyncStatusItem(BaseModel):
     direction: str
     status: str
     access_key: Optional[str] = None
+    trigger: Optional[dict] = None
     last_synced_at: Optional[str] = None
     error_message: Optional[str] = None
 
@@ -86,6 +89,8 @@ class BootstrapRequest(BaseModel):
     credentials_ref: Optional[str] = None
     direction: str = "bidirectional"
     conflict_strategy: str = "three_way_merge"
+    sync_mode: str = "import_once"
+    trigger: Optional[dict] = None
 
 
 class BootstrapResponse(BaseModel):
@@ -189,11 +194,10 @@ async def get_project_sync_status(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Aggregated sync + upload status for a project.
+    Aggregated sync status for a project.
     Used by the frontend header sync panel.
     """
     from src.content_node.repository import ContentNodeRepository
-    from src.sync.task.repository import ImportTaskRepository
     from src.supabase.client import SupabaseClient
 
     _ensure_project_access(project_service, current_user, project_id)
@@ -225,40 +229,32 @@ async def get_project_sync_status(
             direction=s.direction,
             status=s.status,
             access_key=s.access_key if s.provider == "openclaw" else None,
+            trigger=s.trigger if s.trigger else None,
             last_synced_at=s.last_synced_at,
             error_message=s.error_message,
         )
         for s in syncs
     ]
 
-    upload_items: list[UploadStatusItem] = []
-    try:
-        task_repo = ImportTaskRepository()
-        tasks = await task_repo.get_by_user(
-            user_id=current_user.user_id,
-            project_id=project_id,
-            limit=20,
-        )
-        upload_items = [
-            UploadStatusItem(
-                id=t.id or "",
-                node_id=t.node_id,
-                type="import",
-                task_type=t.task_type.value if t.task_type else None,
-                status=t.status.value,
-                progress=t.progress,
-                message=t.message,
-                created_at=t.created_at.isoformat() if t.created_at else None,
-            )
-            for t in tasks
-            if not t.status.is_terminal()
-        ]
-    except Exception:
-        pass
-
     return ApiResponse.success(
-        data=ProjectSyncStatusResponse(syncs=sync_items, uploads=upload_items)
+        data=ProjectSyncStatusResponse(syncs=sync_items, uploads=[])
     )
+
+
+# ============================================================
+# Connector registry (for frontend dynamic rendering)
+# ============================================================
+
+@router.get("/connectors", response_model=ApiResponse)
+def list_connectors(
+    registry: ConnectorRegistry = Depends(get_connector_registry),
+):
+    """
+    List all registered connectors with their specs.
+    Frontend uses this to dynamically render connector options
+    instead of hardcoding SYNC_OPTIONS / SYNC_PROVIDER_SPECS.
+    """
+    return ApiResponse.success(data=registry.specs_to_dicts())
 
 
 # ============================================================
@@ -306,6 +302,53 @@ def delete_sync(
     return ApiResponse.success(message="Sync deleted")
 
 
+class UpdateSyncTriggerRequest(BaseModel):
+    sync_mode: str
+    trigger: Optional[dict] = None
+
+
+@router.patch("/syncs/{sync_id}/trigger", response_model=ApiResponse)
+async def update_sync_trigger(
+    sync_id: str,
+    body: UpdateSyncTriggerRequest,
+    sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Update sync trigger mode (import_once, manual, scheduled)."""
+    _get_sync_with_access(
+        sync_id=sync_id,
+        sync_svc=sync_svc,
+        project_service=project_service,
+        current_user=current_user,
+    )
+
+    trigger_data = body.trigger or {}
+    if not trigger_data.get("type"):
+        trigger_data["type"] = body.sync_mode
+
+    sync_svc.sync_repo.update(sync_id, trigger=trigger_data)
+
+    # Manage scheduler job
+    try:
+        from src.scheduler.service import get_scheduler_service
+        scheduler = get_scheduler_service()
+
+        if body.sync_mode == "scheduled" and body.trigger:
+            sync = sync_svc.sync_repo.get_by_id(sync_id)
+            await scheduler.add_sync_job(
+                sync_id=sync_id,
+                trigger_config=body.trigger,
+                provider=sync.provider if sync else "",
+            )
+        else:
+            scheduler.remove_sync_job(sync_id)
+    except Exception:
+        pass
+
+    return ApiResponse.success(message=f"Sync trigger updated to {body.sync_mode}")
+
+
 @router.post("/syncs/{sync_id}/pause", response_model=ApiResponse)
 def pause_sync(
     sync_id: str,
@@ -322,6 +365,37 @@ def pause_sync(
     _notify_folder_source("stop", sync_id)
     sync_svc.pause_sync(sync_id)
     return ApiResponse.success(message="Sync paused")
+
+
+@router.post("/syncs/{sync_id}/refresh", response_model=ApiResponse[PullResponse])
+async def refresh_sync(
+    sync_id: str,
+    sync_svc: SyncService = Depends(get_sync_service),
+    engine: SyncEngine = Depends(get_sync_engine),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Manually trigger a refresh (re-pull) for a sync binding.
+    Uses SyncEngine — all writes go through CollaborationService.
+    """
+    sync = _get_sync_with_access(
+        sync_id=sync_id,
+        sync_svc=sync_svc,
+        project_service=project_service,
+        current_user=current_user,
+    )
+
+    trigger_type = (sync.trigger or {}).get("type", "import_once")
+    if trigger_type == "import_once":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot refresh an import-once sync. Change sync mode first.",
+        )
+
+    result = await engine.execute(sync_id)
+    results = [result] if result else []
+    return ApiResponse.success(data=PullResponse(synced=len(results), results=results))
 
 
 @router.post("/syncs/{sync_id}/resume", response_model=ApiResponse)
@@ -396,6 +470,7 @@ def get_openclaw_status_by_sync(
 async def bootstrap(
     body: BootstrapRequest,
     sync_svc: SyncService = Depends(get_sync_service),
+    engine: SyncEngine = Depends(get_sync_engine),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -409,7 +484,31 @@ async def bootstrap(
         credentials_ref=body.credentials_ref,
         direction=body.direction,
         conflict_strategy=body.conflict_strategy,
+        sync_mode=body.sync_mode,
+        trigger=body.trigger,
+        user_id=current_user.user_id,
     )
+
+    if body.sync_mode == "scheduled" and body.trigger:
+        try:
+            from src.scheduler.service import get_scheduler_service
+            scheduler = get_scheduler_service()
+            for s in syncs:
+                await scheduler.add_sync_job(
+                    sync_id=s.id,
+                    trigger_config=body.trigger,
+                    provider=body.provider,
+                )
+        except Exception:
+            pass
+
+    for s in syncs:
+        try:
+            await engine.execute(s.id)
+        except Exception as e:
+            from src.utils.logger import log_error
+            log_error(f"[Bootstrap] First fetch failed for sync {s.id}: {e}")
+
     return ApiResponse.success(data=BootstrapResponse(syncs_created=len(syncs)))
 
 
@@ -586,14 +685,14 @@ def ack_pull(
 async def trigger_pull(
     sync_id: Optional[str] = Query(None, description="Sync ID. Omit to pull all."),
     provider: Optional[str] = Query(None),
-    sync_svc: SyncService = Depends(get_sync_service),
+    engine: SyncEngine = Depends(get_sync_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     if sync_id:
-        result = await sync_svc.pull_sync(sync_id)
+        result = await engine.execute(sync_id)
         results = [result] if result else []
     else:
-        results = await sync_svc.pull_all(provider)
+        results = await engine.execute_all(provider)
     return ApiResponse.success(data=PullResponse(synced=len(results), results=results))
 
 

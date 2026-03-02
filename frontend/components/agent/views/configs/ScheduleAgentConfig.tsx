@@ -119,13 +119,13 @@ const DatePickerDropdown = ({
 
 // ── Schedule Trigger Section ────────────────────────────────────
 
-interface ScheduleTriggerSectionProps {
+export interface ScheduleTriggerSectionProps {
   draftTriggerConfig: { schedule?: string; timezone?: string } | null;
   setDraftTriggerConfig: (config: { schedule?: string; timezone?: string } | null) => void;
   setDraftTriggerType: (type: 'manual' | 'cron' | 'webhook') => void;
 }
 
-const ScheduleTriggerSection = ({ draftTriggerConfig, setDraftTriggerConfig, setDraftTriggerType }: ScheduleTriggerSectionProps) => {
+export const ScheduleTriggerSection = ({ draftTriggerConfig, setDraftTriggerConfig, setDraftTriggerType }: ScheduleTriggerSectionProps) => {
   const [hour, setHour] = useState(9);
   const [minute, setMinute] = useState(0);
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -159,9 +159,33 @@ const ScheduleTriggerSection = ({ draftTriggerConfig, setDraftTriggerConfig, set
     const min = parseInt(parts[0], 10);
     const hr = parseInt(parts[1], 10);
     if (!isNaN(min) && !isNaN(hr)) { setHour(hr); setMinute(min); }
-    if (parts[4] !== '*' && parts[2] === '*') setRepeatType('weekly');
-    else if (parts[2] === '*' && parts[4] === '*') setRepeatType('daily');
-    else setRepeatType('once');
+    
+    if (parts[4] !== '*' && parts[2] === '*') {
+      setRepeatType('weekly');
+      const dayOfWeek = parseInt(parts[4], 10);
+      if (!isNaN(dayOfWeek)) {
+        const d = new Date();
+        const currentDay = d.getDay();
+        const diff = (dayOfWeek - currentDay + 7) % 7;
+        const targetDate = new Date(d);
+        targetDate.setDate(d.getDate() + (diff === 0 ? 0 : diff));
+        setSelectedDate(targetDate.toISOString().split('T')[0]);
+      }
+    } else if (parts[2] === '*' && parts[4] === '*') {
+      setRepeatType('daily');
+    } else {
+      setRepeatType('once');
+      const dayOfMonth = parseInt(parts[2], 10);
+      const month = parseInt(parts[3], 10);
+      if (!isNaN(dayOfMonth) && !isNaN(month)) {
+        const d = new Date();
+        d.setMonth(month - 1, dayOfMonth);
+        if (d.getTime() < new Date().setHours(0,0,0,0)) {
+          d.setFullYear(d.getFullYear() + 1);
+        }
+        setSelectedDate(d.toISOString().split('T')[0]);
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

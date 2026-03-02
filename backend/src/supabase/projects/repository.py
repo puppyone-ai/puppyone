@@ -74,7 +74,7 @@ class ProjectRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
         name: Optional[str] = None,
     ) -> List[ProjectResponse]:
         """
@@ -83,7 +83,7 @@ class ProjectRepository:
         Args:
             skip: 跳过记录数
             limit: 返回记录数
-            user_id: 可选，按用户 ID 过滤
+            org_id: 可选，按组织 ID 过滤
             name: 可选，按名称过滤
 
         Returns:
@@ -91,8 +91,8 @@ class ProjectRepository:
         """
         query = self._client.table("project").select("*")
 
-        if user_id is not None:
-            query = query.eq("user_id", user_id)
+        if org_id is not None:
+            query = query.eq("org_id", org_id)
 
         if name:
             query = query.eq("name", name)

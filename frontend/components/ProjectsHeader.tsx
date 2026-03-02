@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
 
-export type EditorType = 'treeline-virtual' | 'monaco' | 'table';
+export type EditorType = 'table' | 'monaco';
 export type ViewType = 'grid' | 'list' | 'explorer';
 
 export type BreadcrumbSegment = {
@@ -160,7 +160,7 @@ export function ProjectsHeader({
 
 // Styles
 const headerStyle: CSSProperties = {
-  height: 48,
+  height: 40,
   paddingLeft: 16,
   paddingRight: 16,
   display: 'flex',
@@ -181,7 +181,7 @@ const headerLeftStyle: CSSProperties = {
 const pathStyle: CSSProperties = {
   fontFamily:
     "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 500,
   color: '#CDCDCD',
 };

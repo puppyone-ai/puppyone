@@ -54,18 +54,19 @@ class ETLService:
 
         logger.info("ETLService initialized")
 
-    def _get_rule_repository(self, user_id: str) -> RuleRepositorySupabase:
+    def _get_rule_repository(self, org_id: Optional[str] = None, created_by: Optional[str] = None) -> RuleRepositorySupabase:
         """
-        获取规则仓库实例（按用户）。
+        获取规则仓库实例。
 
         Args:
-            user_id: 用户 ID
+            org_id: 组织 ID（用于过滤）
+            created_by: 创建者用户 ID
 
         Returns:
             RuleRepositorySupabase 实例
         """
         supabase_client = get_supabase_client()
-        return RuleRepositorySupabase(supabase_client=supabase_client, user_id=user_id)
+        return RuleRepositorySupabase(supabase_client=supabase_client, org_id=org_id, created_by=created_by)
 
     async def start(self):
         """Warm up control-plane dependencies."""
@@ -101,11 +102,10 @@ class ETLService:
         """
         # Determine rule: use global default if omitted
         if rule_id is None:
-            rule_repository = self._get_rule_repository(user_id)
+            rule_repository = self._get_rule_repository(created_by=user_id)
             rule_id = get_default_rule_id(rule_repository)
 
-        # Validate rule exists (using user's rule repository)
-        rule_repository = self._get_rule_repository(user_id)
+        rule_repository = self._get_rule_repository(created_by=user_id)
         rule = rule_repository.get_rule(str(rule_id))
         if not rule:
             logger.error(f"Rule not found: {rule_id}")
@@ -114,7 +114,7 @@ class ETLService:
         # Create task (task_id will be assigned by repository)
         task = ETLTask(
             task_id=None,  # Will be assigned by database
-            user_id=user_id,
+            created_by=user_id,
             project_id=project_id,
             filename=filename,
             rule_id=int(rule_id),
@@ -130,7 +130,7 @@ class ETLService:
         job_id = await self.arq_client.enqueue_ocr(task_with_id.task_id)
         state = ETLRuntimeState(
             task_id=task_with_id.task_id,
-            user_id=task_with_id.user_id,
+            user_id=task_with_id.created_by or task_with_id.project_id,
             project_id=task_with_id.project_id,
             filename=task_with_id.filename,
             rule_id=task_with_id.rule_id,
@@ -153,7 +153,7 @@ class ETLService:
         self,
         *,
         user_id: str,
-        project_id: int,
+        project_id: str,
         filename: str,
         rule_id: int | None,
         error: str,
@@ -163,13 +163,11 @@ class ETLService:
         Create a failed ETL task record for cases where we want a pollable task_id
         but the pipeline cannot be started (e.g. upload failed).
         """
-        # Determine rule: use global default if omitted
         if rule_id is None:
-            rule_repository = self._get_rule_repository(user_id)
+            rule_repository = self._get_rule_repository(created_by=user_id)
             rule_id = get_default_rule_id(rule_repository)
 
-        # Validate rule exists (using user's rule repository)
-        rule_repository = self._get_rule_repository(user_id)
+        rule_repository = self._get_rule_repository(created_by=user_id)
         rule = rule_repository.get_rule(str(rule_id))
         if not rule:
             logger.error(f"Rule not found: {rule_id}")
@@ -177,7 +175,7 @@ class ETLService:
 
         task = ETLTask(
             task_id=None,
-            user_id=user_id,
+            created_by=user_id,
             project_id=project_id,
             filename=filename,
             rule_id=int(rule_id),
@@ -193,7 +191,7 @@ class ETLService:
         )
         return task_with_id
 
-    async def get_task_status(self, task_id: int) -> Optional[ETLTask]:
+    async def get_task_status(self, task_id: str | int) -> Optional[ETLTask]:
         """
         Get ETL task status.
 
@@ -253,7 +251,7 @@ class ETLService:
 
             return ETLTask(
                 task_id=state.task_id,
-                user_id=state.user_id,
+                created_by=state.user_id,
                 project_id=state.project_id,
                 filename=state.filename,
                 rule_id=state.rule_id,
@@ -268,7 +266,7 @@ class ETLService:
         return self.task_repository.get_task(task_id)
 
     async def get_task_status_with_access_check(
-        self, task_id: int, user_id: str
+        self, task_id: str | int, user_id: str
     ) -> ETLTask:
         """
         获取任务状态并验证用户权限
@@ -289,8 +287,8 @@ class ETLService:
                 f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
             )
 
-        # 检查用户权限
-        if task.user_id != user_id:
+        # 检查用户权限 (created_by is audit field; when set, must match)
+        if task.created_by is not None and task.created_by != user_id:
             raise NotFoundException(
                 f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
             )
@@ -299,23 +297,22 @@ class ETLService:
 
     async def list_tasks(
         self,
-        user_id: Optional[str] = None,
-        project_id: Optional[int] = None,
+        project_id: Optional[str] = None,
         status: Optional[ETLTaskStatus] = None,
     ) -> list[ETLTask]:
         """
         List ETL tasks with optional filters.
 
         Args:
-            user_id: Filter by user ID (string type)
             project_id: Filter by project ID
             status: Filter by status
 
         Returns:
             List of matching tasks
         """
+        # Use project_id for listing (created_by is audit-only)
         tasks = self.task_repository.list_tasks(
-            user_id=user_id, project_id=project_id, status=status, limit=100, offset=0
+            project_id=project_id, status=status, limit=100, offset=0
         )
 
         for t in tasks:
@@ -339,7 +336,7 @@ class ETLService:
         return tasks
 
     async def cancel_task(
-        self, task_id: int, user_id: str, *, force: bool = False
+        self, task_id: str | int, user_id: str, *, force: bool = False
     ) -> ETLTask:
         """
         Cancel a queued/pending task.
@@ -349,7 +346,11 @@ class ETLService:
         Note: this cannot interrupt external providers immediately; it is a control-plane cancellation.
         """
         task = self.task_repository.get_task(task_id)
-        if not task or task.user_id != user_id:
+        if not task:
+            raise NotFoundException(
+                f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
+            )
+        if task.created_by is not None and task.created_by != user_id:
             raise NotFoundException(
                 f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
             )
@@ -371,7 +372,7 @@ class ETLService:
             # Redis state may have expired; create a minimal terminal state so worker jobs can honor cancellation
             state = ETLRuntimeState(
                 task_id=task_id,
-                user_id=task.user_id,
+                user_id=task.created_by or task.project_id,
                 project_id=task.project_id,
                 filename=task.filename,
                 rule_id=task.rule_id,
@@ -382,7 +383,7 @@ class ETLService:
                 metadata=task.metadata,
             )
         else:
-            if state.user_id != user_id:
+            if task.created_by is not None and state.user_id != user_id:
                 raise NotFoundException(
                     f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
                 )
@@ -405,12 +406,16 @@ class ETLService:
         self.task_repository.update_task(task)
         return task
 
-    async def retry_task(self, task_id: int, user_id: str, from_stage: str) -> ETLTask:
+    async def retry_task(self, task_id: str | int, user_id: str, from_stage: str) -> ETLTask:
         """
         Retry from a given stage: "mineru" or "postprocess".
         """
         task = self.task_repository.get_task(task_id)
-        if not task or task.user_id != user_id:
+        if not task:
+            raise NotFoundException(
+                f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
+            )
+        if task.created_by is not None and task.created_by != user_id:
             raise NotFoundException(
                 f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
             )
@@ -419,7 +424,7 @@ class ETLService:
         if state is None:
             state = ETLRuntimeState(
                 task_id=task_id,
-                user_id=task.user_id,
+                user_id=task.created_by or task.project_id,
                 project_id=task.project_id,
                 filename=task.filename,
                 rule_id=task.rule_id,

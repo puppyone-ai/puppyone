@@ -11,9 +11,9 @@ from src.sync.connectors._base import (
     Capability,
     AuthRequirement,
     TriggerMode,
-    ImportResult,
-    PreviewResult,
-    ProgressCallback,
+    Credentials,
+    FetchResult,
+    ConfigField,
 )
 from src.sync.connectors.gmail.connector import GmailConnector
 from src.sync.connectors.github.connector import GithubConnector
@@ -26,6 +26,10 @@ from src.sync.connectors.airtable.connector import AirtableConnector
 from src.sync.connectors.linear.connector import LinearConnector
 from src.sync.connectors.url.connector import UrlConnector
 from src.sync.connectors.openclaw.connector import OpenClawConnector
+from src.sync.connectors.hackernews.connector import HackerNewsConnector
+from src.sync.connectors.posthog.connector import PosthogConnector
+from src.sync.connectors.google_search_console.connector import GoogleSearchConsoleConnector
+from src.sync.connectors.script.connector import ScriptConnector
 
 CONNECTOR_CLASSES: list[type[BaseConnector]] = [
     GmailConnector,
@@ -39,6 +43,10 @@ CONNECTOR_CLASSES: list[type[BaseConnector]] = [
     LinearConnector,
     UrlConnector,
     OpenClawConnector,
+    HackerNewsConnector,
+    PosthogConnector,
+    GoogleSearchConsoleConnector,
+    ScriptConnector,
 ]
 
 __all__ = [
@@ -47,9 +55,9 @@ __all__ = [
     "Capability",
     "AuthRequirement",
     "TriggerMode",
-    "ImportResult",
-    "PreviewResult",
-    "ProgressCallback",
+    "Credentials",
+    "FetchResult",
+    "ConfigField",
     "CONNECTOR_CLASSES",
     "GmailConnector",
     "GithubConnector",
@@ -62,4 +70,8 @@ __all__ = [
     "LinearConnector",
     "UrlConnector",
     "OpenClawConnector",
+    "HackerNewsConnector",
+    "PosthogConnector",
+    "GoogleSearchConsoleConnector",
+    "ScriptConnector",
 ]

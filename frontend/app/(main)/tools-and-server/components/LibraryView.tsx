@@ -8,6 +8,7 @@ import {
   type Tool,
 } from '@/lib/mcpApi';
 import { useProjects } from '@/lib/hooks/useData';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import { FONT, TOOL_TYPE_CONFIG } from '@/lib/toolConfig';
 
 // Header 高度 (包含 border)
@@ -42,7 +43,8 @@ export function LibraryView({
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
-  const { projects } = useProjects();
+  const { currentOrg } = useOrganization();
+  const { projects } = useProjects(currentOrg?.id);
 
   // 构建 nodeId -> path 的映射
   const tablePathMap = useMemo(() => {

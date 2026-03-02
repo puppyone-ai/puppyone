@@ -1,219 +1,457 @@
-import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync } from "node:fs";
-import { join, relative, dirname, extname, basename } from "node:path";
-import { createClient, ApiError } from "../api.js";
+import { createClient } from "../api.js";
 import { createOutput } from "../output.js";
-import { loadConfig } from "../config.js";
+import { withErrors, requireProject, resolvePath, formatDate } from "../helpers.js";
+
+// ─── Provider Metadata ────────────────────────────────────
+// Canonical provider keys and their CLI aliases / display names.
+
+const PROVIDERS = {
+  notion:                 { name: "Notion",                 auth: "oauth",     alias: ["notion"] },
+  github:                 { name: "GitHub",                 auth: "oauth",     alias: ["github", "gh"] },
+  google_drive:           { name: "Google Drive",           auth: "oauth",     alias: ["google_drive", "gdrive", "google-drive"] },
+  google_docs:            { name: "Google Docs",            auth: "oauth",     alias: ["google_docs", "gdocs", "google-docs"] },
+  google_sheets:          { name: "Google Sheets",          auth: "oauth",     alias: ["google_sheets", "gsheets", "google-sheets"] },
+  gmail:                  { name: "Gmail",                  auth: "oauth",     alias: ["gmail"] },
+  google_calendar:        { name: "Google Calendar",        auth: "oauth",     alias: ["google_calendar", "gcal", "google-calendar"] },
+  linear:                 { name: "Linear",                 auth: "oauth",     alias: ["linear"] },
+  airtable:               { name: "Airtable",               auth: "oauth",     alias: ["airtable"] },
+  google_search_console:  { name: "Google Search Console",  auth: "oauth",     alias: ["google_search_console", "gsc", "google-search-console"] },
+  url:                    { name: "URL / Web Page",         auth: "none",      alias: ["url", "web"] },
+  hackernews:             { name: "Hacker News",            auth: "none",      alias: ["hackernews", "hn"] },
+  posthog:                { name: "PostHog",                auth: "api_key",   alias: ["posthog", "ph"] },
+  script:                 { name: "Custom Script",          auth: "none",      alias: ["script"] },
+  openclaw:               { name: "Local Folder (OpenClaw)",auth: "access_key",alias: ["openclaw", "folder"] },
+};
+
+const ALIAS_MAP = {};
+for (const [key, meta] of Object.entries(PROVIDERS)) {
+  for (const a of meta.alias) ALIAS_MAP[a] = key;
+}
+
+function resolveProvider(input) {
+  const k = input.toLowerCase().replace(/[\s-]+/g, "_");
+  return ALIAS_MAP[k] ?? k;
+}
+
+const OAUTH_ENDPOINTS = {
+  notion: "notion",
+  github: "github",
+  google_drive: "google-drive",
+  google_docs: "google-docs",
+  google_sheets: "google-sheets",
+  gmail: "gmail",
+  google_calendar: "google-calendar",
+  linear: "linear",
+  airtable: "airtable",
+  google_search_console: "google-search-console",
+};
+
+// ─── Register ─────────────────────────────────────────────
 
 export function registerSync(program) {
-  program
+  const sync = program
     .command("sync")
-    .description("One-time sync between local folder and PuppyOne")
-    .option("-s, --source <id>", "source ID (omit to sync all connections)")
-    .option("-d, --direction <dir>", "push | pull | both", "both")
-    .action(async (opts, cmd) => {
+    .description("Data source sync — connect Notion, GitHub, Gmail, PostHog, scripts, and more");
+
+  // ── providers ─────────────────────────────────────────────
+  sync
+    .command("providers")
+    .description("List all supported data source providers")
+    .action(withErrors(async (opts, cmd) => {
       const out = createOutput(cmd);
+      const client = createClient(cmd);
 
-      const config = loadConfig();
-      const connections = config.connections ?? [];
-      if (connections.length === 0) {
-        out.error("NO_CONNECTIONS", "No connections found.", "Run `puppyone connect <folder> -p <project-id>` first.");
-        return;
-      }
+      let projectId;
+      try { projectId = requireProject(cmd); } catch { projectId = null; }
 
-      let api;
       try {
-        api = createClient(cmd);
-      } catch (e) {
-        if (e instanceof ApiError) out.error(e.code, e.message, e.hint);
-        else out.error("UNKNOWN", e.message);
+        if (!projectId) throw new Error("skip");
+        const data = await client.get("/connections/connectors", { project_id: projectId });
+        const connectors = Array.isArray(data) ? data : data?.items ?? [];
+        if (connectors.length) {
+          out.table(
+            connectors.map((c) => ({
+              provider: c.provider ?? c.name ?? c.id,
+              name: c.display_name ?? c.name ?? "-",
+              auth: c.auth_type ?? "-",
+            })),
+            [
+              { key: "provider", label: "PROVIDER" },
+              { key: "name", label: "NAME" },
+              { key: "auth", label: "AUTH" },
+            ]
+          );
+          out.success({ connectors });
+          return;
+        }
+      } catch { /* fall through to local list */ }
+
+      const rows = Object.entries(PROVIDERS)
+        .filter(([k]) => k !== "openclaw")
+        .map(([key, m]) => ({ provider: key, name: m.name, auth: m.auth, aliases: m.alias.filter((a) => a !== key).join(", ") || "-" }));
+
+      out.table(rows, [
+        { key: "provider", label: "PROVIDER" },
+        { key: "name", label: "NAME" },
+        { key: "auth", label: "AUTH" },
+        { key: "aliases", label: "ALIASES" },
+      ]);
+      out.info("\n  Local folder sync: use `puppyone access` commands instead.");
+      out.success({ providers: rows });
+    }));
+
+  // ── auth ──────────────────────────────────────────────────
+  sync
+    .command("auth")
+    .description("Authorize an OAuth provider")
+    .argument("<provider>", "provider name (notion, github, gdrive, ...)")
+    .action(withErrors(async (providerArg, opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      const provider = resolveProvider(providerArg);
+      const meta = PROVIDERS[provider];
+
+      if (!meta) {
+        out.error("UNKNOWN_PROVIDER", `Unknown provider: ${providerArg}`, `Run \`puppyone sync providers\` to see the list.`);
         return;
       }
 
-      const targets = opts.source
-        ? connections.filter((c) => String(c.source_id) === String(opts.source))
-        : connections;
-
-      if (targets.length === 0) {
-        out.error("SOURCE_NOT_FOUND", `No connection with source ID ${opts.source}.`, "Run `puppyone status` to see connections.");
+      if (meta.auth !== "oauth") {
+        const hints = {
+          none: `${meta.name} doesn't require auth. Use \`puppyone sync add ${providerArg} ...\` directly.`,
+          api_key: `${meta.name} uses an API key. Pass it with \`puppyone sync add ${providerArg} --api-key <key>\`.`,
+          access_key: `${meta.name} uses access keys. Use \`puppyone access up <path> --key <key>\` instead.`,
+        };
+        out.info(hints[meta.auth] ?? `${meta.name} doesn't use OAuth.`);
         return;
       }
 
-      const direction = opts.direction;
-      const summary = { pushed: 0, pulled: 0, skipped: 0, errors: 0 };
-
-      for (const conn of targets) {
-        out.info(`\nSyncing source #${conn.source_id}: ${conn.folder}`);
-
-        if (!existsSync(conn.folder)) {
-          out.info(`  ⚠ Folder not found: ${conn.folder}, skipping push`);
-          if (direction === "push") continue;
-        }
-
-        try {
-          if (direction === "push" || direction === "both") {
-            const pushResult = await doPush(api, conn, out);
-            summary.pushed += pushResult.pushed;
-            summary.skipped += pushResult.skipped;
-            summary.errors += pushResult.errors;
-          }
-
-          if (direction === "pull" || direction === "both") {
-            const pullResult = await doPull(api, conn, out);
-            summary.pulled += pullResult.pulled;
-            summary.skipped += pullResult.skipped;
-            summary.errors += pullResult.errors;
-          }
-        } catch (e) {
-          if (e instanceof ApiError) {
-            out.info(`  ✗ API error: ${e.message}`);
-          } else {
-            out.info(`  ✗ Error: ${e.message}`);
-          }
-          summary.errors++;
-        }
+      const oauthPath = OAUTH_ENDPOINTS[provider];
+      if (!oauthPath) {
+        out.error("NO_OAUTH", `OAuth not configured for ${meta.name}.`);
+        return;
       }
 
+      const data = await client.get(`/oauth/${oauthPath}/authorize`);
+      const authUrl = data?.url ?? data?.authorization_url ?? data;
+
+      out.info("Open this URL to authorize:");
       out.info("");
-      out.info(`Done: ${summary.pushed} pushed, ${summary.pulled} pulled, ${summary.skipped} skipped, ${summary.errors} errors`);
+      out.info(`  ${authUrl}`);
+      out.info("");
+      out.info("Then check status:");
+      out.info(`  puppyone sync auth-status ${providerArg}`);
+      out.success({ provider, authorization_url: authUrl });
+    }));
 
-      out.success({
-        pushed: summary.pushed,
-        pulled: summary.pulled,
-        skipped: summary.skipped,
-        errors: summary.errors,
-      });
-    });
-}
+  // ── auth-status ───────────────────────────────────────────
+  sync
+    .command("auth-status")
+    .description("Check OAuth authorization status")
+    .argument("<provider>", "provider name")
+    .action(withErrors(async (providerArg, opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      const provider = resolveProvider(providerArg);
+      const oauthPath = OAUTH_ENDPOINTS[provider];
 
-async function doPush(api, conn, out) {
-  const result = { pushed: 0, skipped: 0, errors: 0 };
-  const localFiles = scanFolder(conn.folder);
+      if (!oauthPath) {
+        out.error("NOT_OAUTH", `${providerArg} doesn't use OAuth.`);
+        return;
+      }
 
-  out.info(`  PUSH: ${localFiles.length} local files found`);
+      const data = await client.get(`/oauth/${oauthPath}/status`);
+      const connected = data?.connected ?? data?.is_connected ?? false;
 
-  for (const file of localFiles) {
-    const relPath = file.relPath;
-    try {
-      const contentBytes = readFileSync(file.absPath);
-      const hash = createHash("sha256").update(contentBytes).digest("hex");
-      const contentStr = contentBytes.toString("utf-8");
-
-      let contentJson = null;
-      let contentMd = null;
-      if (file.ext === ".json") {
-        try {
-          contentJson = JSON.parse(contentStr);
-        } catch {
-          contentMd = contentStr;
-        }
+      if (connected) {
+        out.info(`${PROVIDERS[provider]?.name ?? providerArg}: authorized ✓`);
       } else {
-        contentMd = contentStr;
+        out.info(`${PROVIDERS[provider]?.name ?? providerArg}: not authorized ✗`);
+        out.info(`  Run \`puppyone sync auth ${providerArg}\` to authorize.`);
+      }
+      out.success({ provider, connected });
+    }));
+
+  // ── add ───────────────────────────────────────────────────
+  sync
+    .command("add")
+    .description("Add a new data source sync")
+    .argument("<provider>", "provider (notion, github, gdrive, gmail, url, hn, posthog, script, ...)")
+    .argument("[source]", "source URL or identifier (provider-specific)")
+    .option("--folder <path>", "target folder path in the project")
+    .option("--mode <mode>", "sync mode: import_once, manual, scheduled", "import_once")
+    .option("--api-key <key>", "API key (for posthog, etc.)")
+    .option("--config <json>", "provider-specific config as JSON")
+    .option("--direction <dir>", "sync direction: inbound, outbound, bidirectional", "inbound")
+    .option("--runtime <rt>", "script runtime: python, node, shell (for script provider)")
+    .option("--script <path>", "local script file path (for script provider)")
+    .action(withErrors(async (providerArg, source, opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      const projectId = requireProject(cmd);
+      const provider = resolveProvider(providerArg);
+      const meta = PROVIDERS[provider];
+
+      if (!meta) {
+        out.error("UNKNOWN_PROVIDER", `Unknown provider: ${providerArg}`, "Run `puppyone sync providers` to see the list.");
+        return;
       }
 
-      const resp = await api.post(`/sync/sources/${conn.source_id}/push-file`, {
-        external_resource_id: relPath,
-        content_json: contentJson,
-        content_md: contentMd,
-        content_hash: hash,
-      });
-
-      if (resp.action === "skipped") {
-        result.skipped++;
-      } else {
-        out.info(`    ${resp.action}: ${relPath} → node ${resp.node_id} v${resp.version}`);
-        result.pushed++;
-      }
-    } catch (e) {
-      out.info(`    ✗ ${relPath}: ${e.message}`);
-      result.errors++;
-    }
-  }
-
-  return result;
-}
-
-async function doPull(api, conn, out) {
-  const result = { pulled: 0, skipped: 0, errors: 0 };
-
-  const resp = await api.get(`/sync/sources/${conn.source_id}/pull-files`);
-  const files = resp.files ?? [];
-
-  out.info(`  PULL: ${files.length} files to download`);
-
-  const ackItems = [];
-
-  for (const file of files) {
-    const localPath = join(conn.folder, file.external_resource_id);
-    try {
-      mkdirSync(dirname(localPath), { recursive: true });
-
-      let contentStr;
-      if (file.node_type === "json" && file.content_json != null) {
-        contentStr = JSON.stringify(file.content_json, null, 2);
-      } else {
-        contentStr = file.content_md ?? "";
+      if (provider === "openclaw") {
+        out.info("For local folder sync, use `puppyone access up <path> --key <key>` instead.");
+        return;
       }
 
-      writeFileSync(localPath, contentStr, "utf-8");
-      const hash = createHash("sha256").update(contentStr, "utf-8").digest("hex");
+      let config = {};
 
-      ackItems.push({
-        node_id: file.node_id,
-        version: file.current_version,
-        remote_hash: hash,
-      });
-
-      out.info(`    pulled: ${file.external_resource_id} v${file.current_version}`);
-      result.pulled++;
-    } catch (e) {
-      out.info(`    ✗ ${file.external_resource_id}: ${e.message}`);
-      result.errors++;
-    }
-  }
-
-  if (ackItems.length > 0) {
-    await api.post(`/sync/sources/${conn.source_id}/ack-pull`, { items: ackItems });
-  }
-
-  return result;
-}
-
-function scanFolder(folderPath) {
-  const files = [];
-  const IGNORED = new Set([".git", ".DS_Store", "node_modules", "__pycache__", ".env"]);
-
-  function walk(dir) {
-    let entries;
-    try {
-      entries = readdirSync(dir);
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.startsWith(".") || IGNORED.has(entry)) continue;
-      const abs = join(dir, entry);
-      let stat;
-      try {
-        stat = statSync(abs);
-      } catch {
-        continue;
-      }
-      if (stat.isDirectory()) {
-        walk(abs);
-      } else if (stat.isFile()) {
-        const ext = extname(entry).toLowerCase();
-        if ([".json", ".md", ".markdown", ".txt", ".yaml", ".yml"].includes(ext)) {
-          files.push({
-            absPath: abs,
-            relPath: relative(folderPath, abs),
-            ext,
-          });
+      if (opts.config) {
+        try { config = JSON.parse(opts.config); } catch {
+          out.error("INVALID_JSON", "Invalid --config JSON.");
+          return;
         }
       }
-    }
-  }
 
-  walk(folderPath);
-  return files;
+      if (source) config.source_url = source;
+
+      // Provider-specific config building
+      if (provider === "posthog") {
+        if (opts.apiKey) config.api_key = opts.apiKey;
+        if (!config.api_key) {
+          out.error("MISSING_KEY", "PostHog requires --api-key.", "Usage: puppyone sync add posthog --api-key phx_xxx --config '{\"project_id\":\"123\"}'");
+          return;
+        }
+      }
+
+      if (provider === "script") {
+        if (opts.runtime) config.runtime = opts.runtime;
+        if (opts.script) {
+          const { readFileSync } = await import("node:fs");
+          const { resolve } = await import("node:path");
+          config.script_content = readFileSync(resolve(opts.script), "utf-8");
+          if (!config.runtime) {
+            const ext = opts.script.split(".").pop();
+            config.runtime = { py: "python", js: "node", sh: "shell" }[ext] ?? "python";
+          }
+        }
+      }
+
+      if (provider === "hackernews") {
+        if (!config.feed_type && !source) config.feed_type = "topstories";
+        if (source && !config.feed_type) config.feed_type = source;
+      }
+
+      const body = {
+        project_id: projectId,
+        provider,
+        config,
+        sync_mode: opts.mode,
+        direction: opts.direction,
+      };
+
+      if (opts.folder) {
+        const folderId = await resolvePath(client, projectId, opts.folder);
+        if (folderId) body.target_folder_node_id = folderId;
+      }
+
+      out.step(`Adding ${meta.name} sync...`);
+      const result = await client.post("/connections/bootstrap", body);
+      out.done("done");
+
+      const syncId = result?.sync_id ?? result?.id ?? result?.sync?.id;
+      out.info(`  Sync created: ${syncId ?? "(created)"}`);
+      if (result?.node_name || result?.folder_name) {
+        out.info(`  Target: ${result.node_name ?? result.folder_name}`);
+      }
+      out.success({ sync: result });
+    }));
+
+  // ── ls ────────────────────────────────────────────────────
+  sync
+    .command("ls")
+    .description("List active syncs")
+    .option("--provider <name>", "filter by provider")
+    .action(withErrors(async (opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      const projectId = requireProject(cmd);
+
+      const query = { project_id: projectId };
+      if (opts.provider) query.provider = resolveProvider(opts.provider);
+
+      const data = await client.get("/connections/syncs", query);
+      const syncs = Array.isArray(data) ? data : data?.items ?? [];
+
+      out.table(
+        syncs.map((s) => ({
+          id: (s.id ?? "").slice(0, 8),
+          provider: s.provider ?? "-",
+          name: s.name ?? s.config?.source_url?.slice(0, 30) ?? "-",
+          status: s.status ?? s.state ?? "-",
+          direction: s.direction ?? "-",
+          mode: s.sync_mode ?? s.trigger_policy ?? "-",
+          updated: formatDate(s.updated_at ?? s.last_synced_at),
+        })),
+        [
+          { key: "id", label: "ID" },
+          { key: "provider", label: "PROVIDER" },
+          { key: "name", label: "SOURCE" },
+          { key: "direction", label: "DIR" },
+          { key: "status", label: "STATUS" },
+          { key: "mode", label: "MODE" },
+          { key: "updated", label: "UPDATED" },
+        ]
+      );
+      out.success({ syncs });
+    }));
+
+  // ── info ──────────────────────────────────────────────────
+  sync
+    .command("info")
+    .description("Show sync details")
+    .argument("<id>", "sync ID (or prefix)")
+    .action(withErrors(async (id, opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      const projectId = requireProject(cmd);
+
+      const syncs = await client.get("/connections/syncs", { project_id: projectId });
+      const list = Array.isArray(syncs) ? syncs : syncs?.items ?? [];
+      const s = list.find((x) => x.id === id || x.id?.startsWith(id));
+
+      if (!s) {
+        out.error("NOT_FOUND", `Sync not found: ${id}`);
+        return;
+      }
+
+      const provName = PROVIDERS[s.provider]?.name ?? s.provider;
+      const sourceDesc = s.config?.source_url ?? s.config?.feed_type ?? s.config?.site_url ?? "(configured)";
+
+      out.info(`\n  ${provName}  →  ${s.node_name ?? s.node_id ?? "(project root)"}`);
+      out.info("");
+      out.kv([
+        ["ID:", s.id],
+        ["Provider:", provName],
+        ["Source:", sourceDesc],
+        ["Target Node:", s.node_id ?? "-"],
+        ["Direction:", s.direction ?? "inbound"],
+        ["Status:", s.status ?? s.state ?? "-"],
+        ["Mode:", s.sync_mode ?? s.trigger_policy ?? "-"],
+        ["Authority:", s.authority ?? "-"],
+        ["Created:", formatDate(s.created_at)],
+        ["Updated:", formatDate(s.updated_at)],
+        ["Last Sync:", formatDate(s.last_synced_at)],
+      ]);
+
+      if (s.config && Object.keys(s.config).length) {
+        out.info("\n  Config:");
+        for (const [k, v] of Object.entries(s.config)) {
+          if (k === "api_key" || k === "access_key") {
+            out.info(`    ${k}: ***`);
+          } else {
+            out.info(`    ${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
+          }
+        }
+      }
+
+      out.success({ sync: s });
+    }));
+
+  // ── rm ────────────────────────────────────────────────────
+  sync
+    .command("rm")
+    .description("Remove a sync")
+    .argument("<id>", "sync ID")
+    .action(withErrors(async (id, opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      await client.del(`/connections/syncs/${id}`);
+      out.info(`Sync removed: ${id}`);
+      out.success({ deleted: id });
+    }));
+
+  // ── refresh ───────────────────────────────────────────────
+  sync
+    .command("refresh")
+    .description("Manually trigger a sync pull")
+    .argument("<id>", "sync ID")
+    .action(withErrors(async (id, opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      await client.post(`/connections/syncs/${id}/refresh`);
+      out.info(`Sync refresh triggered: ${id}`);
+      out.success({ refreshed: id });
+    }));
+
+  // ── pause ─────────────────────────────────────────────────
+  sync
+    .command("pause")
+    .description("Pause a sync")
+    .argument("<id>", "sync ID")
+    .action(withErrors(async (id, opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      await client.post(`/connections/syncs/${id}/pause`);
+      out.info(`Sync paused: ${id}`);
+      out.success({ paused: id });
+    }));
+
+  // ── resume ────────────────────────────────────────────────
+  sync
+    .command("resume")
+    .description("Resume a paused sync")
+    .argument("<id>", "sync ID")
+    .action(withErrors(async (id, opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      await client.post(`/connections/syncs/${id}/resume`);
+      out.info(`Sync resumed: ${id}`);
+      out.success({ resumed: id });
+    }));
+
+  // ── trigger ───────────────────────────────────────────────
+  sync
+    .command("trigger")
+    .description("Update sync trigger mode")
+    .argument("<id>", "sync ID")
+    .argument("<mode>", "trigger mode: import_once, manual, scheduled")
+    .action(withErrors(async (id, mode, opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      await client.patch(`/connections/syncs/${id}/trigger`, { sync_mode: mode });
+      out.info(`Sync trigger updated: ${id} → ${mode}`);
+      out.success({ sync_id: id, mode });
+    }));
+
+  // ── log ───────────────────────────────────────────────────
+  sync
+    .command("log")
+    .description("Show sync changelog")
+    .option("-n, --limit <n>", "number of entries", "20")
+    .action(withErrors(async (opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createClient(cmd);
+      const projectId = requireProject(cmd);
+
+      const data = await client.get("/connections/changelog", {
+        project_id: projectId,
+        limit: opts.limit,
+      });
+      const entries = Array.isArray(data) ? data : data?.items ?? [];
+
+      out.table(
+        entries.map((e) => ({
+          time: formatDate(e.created_at ?? e.timestamp),
+          action: e.action ?? e.event ?? "-",
+          provider: e.provider ?? "-",
+          detail: e.detail ?? e.message ?? "-",
+        })),
+        [
+          { key: "time", label: "TIME" },
+          { key: "action", label: "ACTION" },
+          { key: "provider", label: "PROVIDER" },
+          { key: "detail", label: "DETAIL" },
+        ]
+      );
+      out.success({ changelog: entries });
+    }));
 }

@@ -1,7 +1,5 @@
 """
 DB Connector Sync Job - 定时重跑查询刷新 content_node 数据。
-
-跑在 SaaS Worker 进程里（ARQ），不阻塞 API。
 """
 
 from typing import Any

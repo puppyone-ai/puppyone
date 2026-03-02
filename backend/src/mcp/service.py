@@ -6,7 +6,7 @@
 import jwt
 import httpx
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Callable
 from src.config import settings
 from src.exceptions import (
     AuthException,
@@ -137,7 +137,7 @@ class McpService:
 
     async def create_mcp_instance(
         self,
-        user_id: str,
+        created_by: str,
         project_id: str,
         table_id: str,
         name: str,
@@ -150,7 +150,7 @@ class McpService:
         创建MCP实例（仅创建数据库记录，不启动子进程）
 
         Args:
-            user_id: 用户ID
+            created_by: 创建者用户ID（用于审计，nullable）
             project_id: 项目ID
             table_id: 表格ID
             name: MCP实例名称
@@ -163,14 +163,14 @@ class McpService:
             McpInstance 对象
         """
         # 1. 生成 API_KEY
-        api_key = self.generate_mcp_token(user_id, project_id, table_id, json_pointer)
+        api_key = self.generate_mcp_token(created_by, project_id, table_id, json_pointer)
 
         # 2. 直接新增数据库记录
         try:
             # 创建数据库记录，默认开启MCP实例
             mcp_instance = self.instance_repo.create(
                 api_key=api_key,
-                user_id=user_id,
+                created_by=created_by,
                 project_id=project_id,
                 table_id=table_id,
                 name=name,
@@ -256,7 +256,7 @@ class McpService:
             # 更新数据库
             updated_instance = self.instance_repo.update_by_api_key(
                 api_key=api_key,
-                user_id=instance.user_id,
+                created_by=instance.created_by,
                 project_id=instance.project_id,
                 table_id=instance.table_id,
                 name=final_name,
@@ -375,14 +375,17 @@ class McpService:
         """根据实例ID获取 MCP 实例"""
         return self.instance_repo.get_by_id(mcp_instance_id)
 
-    async def get_user_mcp_instances(self, user_id: str) -> List[McpInstance]:
-        """获取用户的所有 MCP 实例"""
-        return self.instance_repo.get_by_user_id(user_id)
+    async def get_project_mcp_instances(self, project_id: str) -> List[McpInstance]:
+        """获取项目的所有 MCP 实例（按 project_id 过滤）"""
+        return self.instance_repo.get_by_project_id(project_id)
 
     async def get_mcp_instance_by_api_key_with_access_check(
-        self, api_key: str, user_id: str
+        self,
+        api_key: str,
+        user_id: str,
+        verify_project_access: Callable[[str, str], bool],
     ) -> McpInstance:
-        """获取 MCP 实例并验证用户权限"""
+        """获取 MCP 实例并验证用户对项目的访问权限（project_id-based access）"""
         instance = self.instance_repo.get_by_api_key(api_key)
         if not instance:
             raise NotFoundException(
@@ -390,7 +393,8 @@ class McpService:
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
 
-        if instance.user_id != user_id:
+        # 通过 project 验证访问权限，不再比较 user_id
+        if not verify_project_access(instance.project_id, user_id):
             raise NotFoundException(
                 f"MCP instance not found: api_key={api_key}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,

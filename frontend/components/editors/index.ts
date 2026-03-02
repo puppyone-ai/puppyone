@@ -1,9 +1,8 @@
 /**
  * JSON Editors Collection
  *
- * ├── tree/           - Tree-based editors with visual hierarchy
- * │   ├── JsonEditorComponent     - Original jsoneditor library
- * │   └── TreeLineVirtualEditor   - Virtual scrolling (high performance)
+ * ├── table/          - Table-based discrete editor
+ * │   └── TableDiscreteEditor
  * │
  * ├── code/           - Code/text-based editors
  * │   ├── MonacoJsonEditor        - VS Code engine
@@ -11,20 +10,10 @@
  * │
  * └── vanilla/        - Svelte-based editor
  *     └── VanillaJsonEditor       - svelte-jsoneditor (recommended)
- *
- * Performance comparison (10,000 nodes):
- * - VanillaJsonEditor: ⚡⚡⚡⚡⚡ (best, virtual scrolling built-in)
- * - TreeLineVirtualEditor: ⚡⚡⚡⚡ (virtual scrolling)
- * - MonacoJsonEditor: ⚡⚡⚡ (text-based, handles large files)
- * - JsonEditorComponent: ⚡⚡ (original jsoneditor)
- * - CodeMirrorJsonEditor: ⚡⚡⚡ (text-based)
  */
 
-// Tree-based editors
-export {
-  JsonEditorComponent,
-  TreeLineDiscreteEditor as TreeLineVirtualEditor,
-} from './tree';
+// Table-based editor
+export { TableDiscreteEditor } from './table';
 
 // Code-based editors
 export { MonacoJsonEditor, CodeMirrorJsonEditor } from './code';
@@ -32,8 +21,8 @@ export { MonacoJsonEditor, CodeMirrorJsonEditor } from './code';
 // Vanilla (Svelte-based) editor
 export { VanillaJsonEditor } from './vanilla';
 
-// Editor types (simplified - only 3 main editors)
-export type EditorType = 'treeline-virtual' | 'vanilla' | 'monaco';
+// Editor types
+export type EditorType = 'table' | 'monaco';
 
 // Editor metadata
 export const EDITOR_OPTIONS: {
@@ -43,16 +32,10 @@ export const EDITOR_OPTIONS: {
   description: string;
 }[] = [
   {
-    id: 'treeline-virtual',
-    label: 'Tree',
-    icon: '├─',
-    description: 'Tree view with connection lines (virtual scrolling)',
-  },
-  {
-    id: 'vanilla',
-    label: 'Pro',
-    icon: '⚡',
-    description: 'Full-featured editor (svelte-jsoneditor)',
+    id: 'table',
+    label: 'Table',
+    icon: '⊞',
+    description: 'Structured table view',
   },
   {
     id: 'monaco',

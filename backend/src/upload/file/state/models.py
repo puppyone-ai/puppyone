@@ -24,13 +24,12 @@ class ETLPhase(str, Enum):
 class ETLRuntimeState(BaseModel):
     """Runtime state stored in Redis."""
 
-    task_id: int
+    task_id: str
 
-    # Identifiers needed for access-check without DB round-trip
     user_id: str
     project_id: str
     filename: str
-    rule_id: int
+    rule_id: Optional[int] = None
 
     status: ETLTaskStatus = Field(default=ETLTaskStatus.PENDING)
     phase: ETLPhase = Field(default=ETLPhase.OCR)

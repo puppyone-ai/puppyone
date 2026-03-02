@@ -79,7 +79,7 @@ async def get_etl_service() -> ETLService:
 
 
 async def get_verified_etl_task(
-    task_id: int = Path(..., description="ETL任务ID"),
+    task_id: str = Path(..., description="ETL任务ID"),
     etl_service: ETLService = Depends(get_etl_service),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> ETLTask:

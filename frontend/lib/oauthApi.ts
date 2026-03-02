@@ -1,1125 +1,241 @@
 import { API_BASE_URL } from '@/config/api';
 import { getApiAccessToken } from './apiClient';
 
-export interface NotionStatusResponse {
+// ---------------------------------------------------------------------------
+// Generic types
+// ---------------------------------------------------------------------------
+
+export interface OAuthStatusResponse {
   connected: boolean;
   workspace_name?: string;
+  username?: string;
+  email?: string;
   connected_at?: string;
 }
 
-export interface NotionCallbackResponse {
+export interface OAuthCallbackResponse {
   success: boolean;
   message: string;
   workspace_name?: string;
-}
-
-export interface GithubCallbackResponse {
-  success: boolean;
-  message: string;
   username?: string;
 }
 
-export interface NotionDisconnectResponse {
+export interface OAuthDisconnectResponse {
   success: boolean;
   message: string;
 }
 
-export interface GithubStatusResponse {
-  connected: boolean;
-  username?: string;
-  connected_at?: string;
-}
+// ---------------------------------------------------------------------------
+// Provider registry — add a new provider by adding one line here
+// ---------------------------------------------------------------------------
 
-export interface GithubDisconnectResponse {
-  success: boolean;
-  message: string;
-}
+const OAUTH_PROVIDERS = {
+  notion:          { slug: 'notion' },
+  github:          { slug: 'github' },
+  gmail:           { slug: 'gmail' },
+  google_drive:    { slug: 'google-drive' },
+  google_calendar: { slug: 'google-calendar' },
+  google_sheets:   { slug: 'google-sheets' },
+  google_docs:     { slug: 'google-docs' },
+  linear:          { slug: 'linear' },
+  airtable:        { slug: 'airtable' },
+} as const;
 
-export interface GoogleSheetsStatusResponse {
-  connected: boolean;
-  workspace_name?: string;
-  connected_at?: string;
-}
+export type SaasType = keyof typeof OAUTH_PROVIDERS;
 
-export interface GoogleSheetsCallbackResponse {
-  success: boolean;
-  message: string;
-  workspace_name?: string;
-}
+// ---------------------------------------------------------------------------
+// Low-level fetch helpers
+// ---------------------------------------------------------------------------
 
-export interface GoogleSheetsDisconnectResponse {
-  success: boolean;
-  message: string;
-}
-
-export interface LinearStatusResponse {
-  connected: boolean;
-  workspace_name?: string;
-  connected_at?: string;
-}
-
-export interface LinearCallbackResponse {
-  success: boolean;
-  message: string;
-  workspace_name?: string;
-}
-
-export interface LinearDisconnectResponse {
-  success: boolean;
-  message: string;
-}
-
-export interface AirtableStatusResponse {
-  connected: boolean;
-  workspace_name?: string;
-  connected_at?: string;
-}
-
-export interface AirtableCallbackResponse {
-  success: boolean;
-  message: string;
-  workspace_name?: string;
-}
-
-export interface AirtableDisconnectResponse {
-  success: boolean;
-  message: string;
-}
-
-/**
- * Get Notion OAuth authorization URL
- */
-export async function getNotionAuthUrl(): Promise<string> {
+async function oauthFetch<T>(
+  path: string,
+  method: 'GET' | 'POST' | 'DELETE',
+  body?: Record<string, unknown>,
+): Promise<T> {
   const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/notion/authorize`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to get authorization URL: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // Handle both direct response and ApiResponse wrapped response
-    if (data.authorization_url) {
-      return data.authorization_url;
-    } else if (data.data && data.data.authorization_url) {
-      return data.data.authorization_url;
-    } else {
-      throw new Error(
-        'Invalid response from server: authorization_url not found'
-      );
-    }
-  } catch (error) {
-    console.error('Error getting Notion auth URL:', error);
-
-    // Provide more specific error messages
-    if (error instanceof Error && error.message.includes('500')) {
-      throw new Error(
-        'Notion OAuth is not properly configured. Please check server configuration.'
-      );
-    }
-
-    throw error;
-  }
-}
-
-/**
- * Handle Notion OAuth callback
- */
-export async function notionCallback(
-  code: string,
-  provider: string = 'notion'
-): Promise<NotionCallbackResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/notion/callback`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          code,
-          state: provider,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to handle callback: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error handling Notion callback:', error);
-    throw error;
-  }
-}
-
-/**
- * Handle GitHub OAuth callback
- */
-export async function githubCallback(
-  code: string
-): Promise<GithubCallbackResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/github/callback`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          code,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to handle GitHub callback: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error handling GitHub callback:', error);
-    throw error;
-  }
-}
-
-/**
- * Check Notion connection status
- */
-export async function getNotionStatus(): Promise<NotionStatusResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/notion/status`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get Notion status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error getting Notion status:', error);
-    // Return disconnected status on error
-    return {
-      connected: false,
-    };
-  }
-}
-
-/**
- * Disconnect Notion integration
- */
-export async function disconnectNotion(): Promise<NotionDisconnectResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/notion/disconnect`,
-      {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to disconnect Notion: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error disconnecting Notion:', error);
-    throw error;
-  }
-}
-
-/**
- * Initiate Notion OAuth flow
- */
-export async function connectNotion(): Promise<void> {
-  try {
-    const authUrl = await getNotionAuthUrl();
-    window.location.href = authUrl;
-  } catch (error) {
-    console.error('Error initiating Notion OAuth flow:', error);
-    throw error;
-  }
-}
-
-/**
- * Handle OAuth redirect callback from browser
- */
-export function handleOAuthRedirect(): {
-  code: string | null;
-  state: string | null;
-} {
-  const urlParams = new URLSearchParams(window.location.search);
-  const code = urlParams.get('code');
-  const state = urlParams.get('state');
-
-  return { code, state };
-}
-
-async function getGithubAuthUrl(): Promise<string> {
-  const token = await getApiAccessToken();
-
-  const response = await fetch(
-    `${API_BASE_URL}/api/v1/oauth/github/authorize`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to get authorization URL: ${response.status}`);
-  }
-
-  const data = await response.json();
-
-  if (data.authorization_url) {
-    return data.authorization_url;
-  }
-  if (data.data?.authorization_url) {
-    return data.data.authorization_url;
-  }
-  throw new Error('Invalid response from server: authorization_url not found');
-}
-
-export async function connectGithub(): Promise<void> {
-  try {
-    const authUrl = await getGithubAuthUrl();
-    window.location.href = authUrl;
-  } catch (error) {
-    console.error('Error initiating GitHub OAuth flow:', error);
-    throw error;
-  }
-}
-
-/**
- * 在 popup 窗口中打开 GitHub OAuth 授权
- * 授权完成后自动关闭 popup 并返回
- */
-export async function connectGithubPopup(): Promise<boolean> {
-  try {
-    const authUrl = await getGithubAuthUrl();
-    
-    // 打开 popup 窗口
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    const popup = window.open(
-      authUrl,
-      'github-oauth',
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
-    );
-    
-    if (!popup) {
-      // Popup 被阻止，fallback 到跳转
-      window.location.href = authUrl;
-      return false;
-    }
-    
-    // 等待 popup 关闭
-    return new Promise((resolve) => {
-      const checkClosed = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkClosed);
-          // Popup 关闭了，检查是否授权成功
-          resolve(true);
-        }
-      }, 500);
-      
-      // 30秒超时
-      setTimeout(() => {
-        clearInterval(checkClosed);
-        if (!popup.closed) {
-          popup.close();
-        }
-        resolve(false);
-      }, 30000);
-    });
-  } catch (error) {
-    console.error('Error initiating GitHub OAuth popup:', error);
-    throw error;
-  }
-}
-
-export async function getGithubStatus(): Promise<GithubStatusResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/github/status`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get GitHub status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error getting GitHub status:', error);
-    return { connected: false };
-  }
-}
-
-export async function disconnectGithub(): Promise<GithubDisconnectResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/github/disconnect`,
-      {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to disconnect GitHub: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error disconnecting GitHub:', error);
-    throw error;
-  }
-}
-
-// Google Sheets OAuth functions
-async function getGoogleSheetsAuthUrl(): Promise<string> {
-  const token = await getApiAccessToken();
-
-  const response = await fetch(
-    `${API_BASE_URL}/api/v1/oauth/google-sheets/authorize`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to get authorization URL: ${response.status}`);
-  }
-
-  const data = await response.json();
-
-  if (data.authorization_url) {
-    return data.authorization_url;
-  }
-  if (data.data?.authorization_url) {
-    return data.data.authorization_url;
-  }
-  throw new Error('Invalid response from server: authorization_url not found');
-}
-
-export async function connectGoogleSheets(): Promise<void> {
-  try {
-    const authUrl = await getGoogleSheetsAuthUrl();
-    window.location.href = authUrl;
-  } catch (error) {
-    console.error('Error initiating Google Sheets OAuth flow:', error);
-    throw error;
-  }
-}
-
-export async function googleSheetsCallback(
-  code: string
-): Promise<GoogleSheetsCallbackResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/google-sheets/callback`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          code,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to handle Google Sheets callback: ${response.status}`
-      );
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error handling Google Sheets callback:', error);
-    throw error;
-  }
-}
-
-export async function getGoogleSheetsStatus(): Promise<GoogleSheetsStatusResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/google-sheets/status`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to get Google Sheets status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error getting Google Sheets status:', error);
-    return { connected: false };
-  }
-}
-
-export async function disconnectGoogleSheets(): Promise<GoogleSheetsDisconnectResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/google-sheets/disconnect`,
-      {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to disconnect Google Sheets: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error disconnecting Google Sheets:', error);
-    throw error;
-  }
-}
-
-// ========== Gmail OAuth functions ==========
-export async function gmailCallback(code: string): Promise<{ success: boolean; message: string }> {
-  const token = await getApiAccessToken();
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/gmail/callback`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-      body: JSON.stringify({ code }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to handle Gmail callback: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error handling Gmail callback:', error);
-    throw error;
-  }
-}
-
-export async function getGmailStatus(): Promise<{ connected: boolean; email?: string }> {
-  const token = await getApiAccessToken();
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/gmail/status`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-    if (!response.ok) return { connected: false };
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error getting Gmail status:', error);
-    return { connected: false };
-  }
-}
-
-export async function disconnectGmail(): Promise<void> {
-  const token = await getApiAccessToken();
-  await fetch(`${API_BASE_URL}/api/v1/oauth/gmail/disconnect`, {
-    method: 'DELETE',
+  const response = await fetch(`${API_BASE_URL}/api/v1/oauth/${path}`, {
+    method,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     credentials: 'include',
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
-}
-
-// ========== Google Drive OAuth functions ==========
-export async function googleDriveCallback(code: string): Promise<{ success: boolean; message: string }> {
-  const token = await getApiAccessToken();
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-drive/callback`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-      body: JSON.stringify({ code }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to handle Google Drive callback: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error handling Google Drive callback:', error);
-    throw error;
-  }
-}
-
-export async function getGoogleDriveStatus(): Promise<{ connected: boolean; email?: string }> {
-  const token = await getApiAccessToken();
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-drive/status`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-    if (!response.ok) return { connected: false };
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error getting Google Drive status:', error);
-    return { connected: false };
-  }
-}
-
-// ========== Google Calendar OAuth functions ==========
-export async function googleCalendarCallback(code: string): Promise<{ success: boolean; message: string }> {
-  const token = await getApiAccessToken();
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-calendar/callback`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-      body: JSON.stringify({ code }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to handle Google Calendar callback: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error handling Google Calendar callback:', error);
-    throw error;
-  }
-}
-
-export async function getGoogleCalendarStatus(): Promise<{ connected: boolean; email?: string }> {
-  const token = await getApiAccessToken();
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-calendar/status`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-    if (!response.ok) return { connected: false };
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error getting Google Calendar status:', error);
-    return { connected: false };
-  }
-}
-
-// Linear OAuth functions
-async function getLinearAuthUrl(): Promise<string> {
-  const token = await getApiAccessToken();
-
-  const response = await fetch(
-    `${API_BASE_URL}/api/v1/oauth/linear/authorize`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    }
-  );
-
   if (!response.ok) {
-    throw new Error(`Failed to get authorization URL: ${response.status}`);
+    throw new Error(`OAuth request failed: ${method} ${path} → ${response.status}`);
   }
-
   const data = await response.json();
-
-  if (data.authorization_url) {
-    return data.authorization_url;
-  }
-  if (data.data?.authorization_url) {
-    return data.data.authorization_url;
-  }
-  throw new Error('Invalid response from server: authorization_url not found');
+  return data.data ?? data;
 }
 
-export async function connectLinear(): Promise<void> {
+async function oauthFetchSafe<T>(
+  path: string,
+  fallback: T,
+): Promise<T> {
   try {
-    const authUrl = await getLinearAuthUrl();
-    window.location.href = authUrl;
-  } catch (error) {
-    console.error('Error initiating Linear OAuth flow:', error);
-    throw error;
+    return await oauthFetch<T>(path, 'GET');
+  } catch {
+    return fallback;
   }
 }
 
-export async function linearCallback(
-  code: string
-): Promise<LinearCallbackResponse> {
-  const token = await getApiAccessToken();
+// ---------------------------------------------------------------------------
+// Factory — creates a full API for any OAuth provider
+// ---------------------------------------------------------------------------
 
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/linear/callback`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          code,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to handle Linear callback: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error handling Linear callback:', error);
-    throw error;
-  }
+export interface OAuthProviderApi {
+  getAuthUrl: () => Promise<string>;
+  callback:   (code: string, extra?: Record<string, string>) => Promise<OAuthCallbackResponse>;
+  getStatus:  () => Promise<OAuthStatusResponse>;
+  disconnect: () => Promise<OAuthDisconnectResponse | void>;
 }
 
-export async function getLinearStatus(): Promise<LinearStatusResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/linear/status`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get Linear status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error getting Linear status:', error);
-    return { connected: false };
-  }
-}
-
-export async function disconnectLinear(): Promise<LinearDisconnectResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/linear/disconnect`,
-      {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to disconnect Linear: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error disconnecting Linear:', error);
-    throw error;
-  }
-}
-
-// Airtable OAuth functions
-async function getAirtableAuthUrl(): Promise<string> {
-  const token = await getApiAccessToken();
-
-  const response = await fetch(
-    `${API_BASE_URL}/api/v1/oauth/airtable/authorize`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to get authorization URL: ${response.status}`);
-  }
-
-  const data = await response.json();
-
-  if (data.authorization_url) {
-    return data.authorization_url;
-  }
-  if (data.data?.authorization_url) {
-    return data.data.authorization_url;
-  }
-  throw new Error('Invalid response from server: authorization_url not found');
-}
-
-export async function connectAirtable(): Promise<void> {
-  try {
-    const authUrl = await getAirtableAuthUrl();
-    window.location.href = authUrl;
-  } catch (error) {
-    console.error('Error initiating Airtable OAuth flow:', error);
-    throw error;
-  }
-}
-
-export async function airtableCallback(
-  code: string,
-  state?: string
-): Promise<AirtableCallbackResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/airtable/callback`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          code,
-          state,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to handle Airtable callback: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error handling Airtable callback:', error);
-    throw error;
-  }
-}
-
-export async function getAirtableStatus(): Promise<AirtableStatusResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/airtable/status`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to get Airtable status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error getting Airtable status:', error);
-    return { connected: false };
-  }
-}
-
-export async function disconnectAirtable(): Promise<AirtableDisconnectResponse> {
-  const token = await getApiAccessToken();
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/oauth/airtable/disconnect`,
-      {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to disconnect Airtable: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error disconnecting Airtable:', error);
-    throw error;
-  }
-}
-
-// ========== Google Docs OAuth functions ==========
-export async function googleDocsCallback(code: string): Promise<{ success: boolean; message: string }> {
-  const token = await getApiAccessToken();
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-docs/callback`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-      body: JSON.stringify({ code }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to handle Google Docs callback: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error('Error handling Google Docs callback:', error);
-    throw error;
-  }
-}
-
-export async function getGoogleDocsStatus(): Promise<{ connected: boolean; email?: string }> {
-  const token = await getApiAccessToken();
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/oauth/google-docs/status`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-    if (!response.ok) return { connected: false };
-    const data = await response.json();
-    return { connected: data.data?.connected, email: data.data?.workspace_name };
-  } catch (error) {
-    console.error('Error getting Google Docs status:', error);
-    return { connected: false };
-  }
-}
-
-export async function disconnectGoogleDocs(): Promise<void> {
-  const token = await getApiAccessToken();
-  await fetch(`${API_BASE_URL}/api/v1/oauth/google-docs/disconnect`, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+function createOAuthApi(slug: string): OAuthProviderApi {
+  return {
+    getAuthUrl: async () => {
+      const data = await oauthFetch<{ authorization_url?: string }>(
+        `${slug}/authorize`, 'GET',
+      );
+      const url = (data as any).authorization_url ?? (data as any)?.data?.authorization_url;
+      if (!url) throw new Error('authorization_url not found in response');
+      return url as string;
     },
-    credentials: 'include',
-  });
+    callback: (code, extra) =>
+      oauthFetch(`${slug}/callback`, 'POST', { code, ...extra }),
+    getStatus: () =>
+      oauthFetchSafe<OAuthStatusResponse>(`${slug}/status`, { connected: false }),
+    disconnect: () =>
+      oauthFetch(`${slug}/disconnect`, 'DELETE'),
+  };
 }
 
-// ========== SAAS 类型映射 ==========
-type SaasType = 'notion' | 'github' | 'sheets' | 'gmail' | 'drive' | 'calendar' | 'docs' | 'linear' | 'airtable';
+// ---------------------------------------------------------------------------
+// Generated provider APIs
+// ---------------------------------------------------------------------------
 
-// 通用的 OAuth URL 获取函数
-async function getOAuthUrl(endpoint: string): Promise<string> {
-  const token = await getApiAccessToken();
-  const response = await fetch(`${API_BASE_URL}/api/v1/oauth/${endpoint}/authorize`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: 'include',
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to get authorization URL: ${response.status}`);
-  }
-  const data = await response.json();
-  return data.data?.authorization_url || data.authorization_url;
-}
+type OAuthProviderMap = { [K in SaasType]: OAuthProviderApi };
 
-// OAuth URL 获取函数映射
-const getAuthUrlMap: Record<SaasType, () => Promise<string>> = {
-  notion: getNotionAuthUrl,
-  github: () => getOAuthUrl('github'),
-  sheets: () => getOAuthUrl('google-sheets'),
-  gmail: () => getOAuthUrl('gmail'),
-  drive: () => getOAuthUrl('google-drive'),
-  calendar: () => getOAuthUrl('google-calendar'),
-  docs: () => getOAuthUrl('google-docs'),
-  linear: () => getOAuthUrl('linear'),
-  airtable: () => getOAuthUrl('airtable'),
-};
+export const oauth: OAuthProviderMap = Object.fromEntries(
+  Object.entries(OAUTH_PROVIDERS).map(([key, { slug }]) => [key, createOAuthApi(slug)]),
+) as OAuthProviderMap;
 
-/**
- * 在 popup 窗口中打开 OAuth 授权
- * @param saasType - SaaS 类型
- * @returns Promise<boolean> - 用户是否完成了授权流程（关闭了 popup）
- */
+// ---------------------------------------------------------------------------
+// openOAuthPopup — universal popup-based OAuth flow
+// ---------------------------------------------------------------------------
+
 export async function openOAuthPopup(saasType: SaasType): Promise<boolean> {
-  const getAuthUrl = getAuthUrlMap[saasType];
-  if (!getAuthUrl) {
-    throw new Error(`Unknown SaaS type: ${saasType}`);
+  const provider = oauth[saasType];
+  if (!provider) throw new Error(`Unknown SaaS type: ${saasType}`);
+
+  const authUrl = await provider.getAuthUrl();
+
+  const width = 600;
+  const height = 700;
+  const left = window.screenX + (window.outerWidth - width) / 2;
+  const top = window.screenY + (window.outerHeight - height) / 2;
+
+  const popup = window.open(
+    authUrl,
+    `${saasType}-oauth`,
+    `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`,
+  );
+
+  if (!popup) {
+    throw new Error('Popup blocked. Please allow popups and try again.');
   }
 
-  try {
-    const authUrl = await getAuthUrl();
-    
-    // 打开 popup 窗口
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    const popup = window.open(
-      authUrl,
-      `${saasType}-oauth`,
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
-    );
-    
-    if (!popup) {
-      // Popup 被阻止
-      throw new Error('Popup blocked. Please allow popups and try again.');
-    }
-    
-    // 等待 popup 关闭
-    return new Promise((resolve) => {
-      const checkClosed = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkClosed);
-          resolve(true);
-        }
-      }, 500);
-      
-      // 60秒超时
-      setTimeout(() => {
+  return new Promise((resolve) => {
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
         clearInterval(checkClosed);
-        if (!popup.closed) {
-          popup.close();
-        }
-        resolve(false);
-      }, 60000);
-    });
-  } catch (error) {
-    console.error(`Error initiating ${saasType} OAuth popup:`, error);
-    throw error;
-  }
+        resolve(true);
+      }
+    }, 500);
+
+    setTimeout(() => {
+      clearInterval(checkClosed);
+      if (!popup.closed) popup.close();
+      resolve(false);
+    }, 60_000);
+  });
 }
 
-export type { SaasType };
+// ---------------------------------------------------------------------------
+// Backward-compatible named exports
+// (so existing callers don't need to change their imports)
+// ---------------------------------------------------------------------------
+
+// --- Notion ---
+export const getNotionAuthUrl  = () => oauth.notion.getAuthUrl();
+export const notionCallback    = (code: string, provider?: string) =>
+  oauth.notion.callback(code, provider ? { state: provider } : undefined);
+export const getNotionStatus   = () => oauth.notion.getStatus();
+export const disconnectNotion  = () => oauth.notion.disconnect();
+export const connectNotion     = async () => { window.location.href = await oauth.notion.getAuthUrl(); };
+
+// --- GitHub ---
+export const getGithubStatus   = () => oauth.github.getStatus();
+export const githubCallback    = (code: string) => oauth.github.callback(code);
+export const disconnectGithub  = () => oauth.github.disconnect();
+export const connectGithub     = async () => { window.location.href = await oauth.github.getAuthUrl(); };
+
+// --- Gmail ---
+export const gmailCallback     = (code: string) => oauth.gmail.callback(code);
+export const getGmailStatus    = () => oauth.gmail.getStatus();
+export const disconnectGmail   = () => oauth.gmail.disconnect();
+
+// --- Google Drive ---
+export const googleDriveCallback  = (code: string) => oauth.google_drive.callback(code);
+export const getGoogleDriveStatus = () => oauth.google_drive.getStatus();
+
+// --- Google Calendar ---
+export const googleCalendarCallback  = (code: string) => oauth.google_calendar.callback(code);
+export const getGoogleCalendarStatus = () => oauth.google_calendar.getStatus();
+
+// --- Google Sheets ---
+export const googleSheetsCallback    = (code: string) => oauth.google_sheets.callback(code);
+export const getGoogleSheetsStatus   = () => oauth.google_sheets.getStatus();
+export const disconnectGoogleSheets  = () => oauth.google_sheets.disconnect();
+export const connectGoogleSheets     = async () => { window.location.href = await oauth.google_sheets.getAuthUrl(); };
+
+// --- Google Docs ---
+export const googleDocsCallback    = (code: string) => oauth.google_docs.callback(code);
+export const getGoogleDocsStatus   = () => oauth.google_docs.getStatus();
+export const disconnectGoogleDocs  = () => oauth.google_docs.disconnect();
+
+// --- Linear ---
+export const linearCallback    = (code: string) => oauth.linear.callback(code);
+export const getLinearStatus   = () => oauth.linear.getStatus();
+export const disconnectLinear  = () => oauth.linear.disconnect();
+export const connectLinear     = async () => { window.location.href = await oauth.linear.getAuthUrl(); };
+
+// --- Airtable ---
+export const airtableCallback    = (code: string, state?: string) =>
+  oauth.airtable.callback(code, state ? { state } : undefined);
+export const getAirtableStatus   = () => oauth.airtable.getStatus();
+export const disconnectAirtable  = () => oauth.airtable.disconnect();
+export const connectAirtable     = async () => { window.location.href = await oauth.airtable.getAuthUrl(); };
+
+// --- Legacy type aliases ---
+export type GithubStatusResponse       = OAuthStatusResponse;
+export type GithubCallbackResponse     = OAuthCallbackResponse;
+export type GithubDisconnectResponse   = OAuthDisconnectResponse;
+export type NotionStatusResponse       = OAuthStatusResponse;
+export type NotionCallbackResponse     = OAuthCallbackResponse;
+export type NotionDisconnectResponse   = OAuthDisconnectResponse;
+export type GoogleSheetsStatusResponse = OAuthStatusResponse;
+export type GoogleSheetsCallbackResponse  = OAuthCallbackResponse;
+export type GoogleSheetsDisconnectResponse = OAuthDisconnectResponse;
+export type LinearStatusResponse       = OAuthStatusResponse;
+export type LinearCallbackResponse     = OAuthCallbackResponse;
+export type LinearDisconnectResponse   = OAuthDisconnectResponse;
+export type AirtableStatusResponse     = OAuthStatusResponse;
+export type AirtableCallbackResponse   = OAuthCallbackResponse;
+export type AirtableDisconnectResponse = OAuthDisconnectResponse;
+
+// Legacy helper
+export function handleOAuthRedirect(): { code: string | null; state: string | null } {
+  const params = new URLSearchParams(window.location.search);
+  return { code: params.get('code'), state: params.get('state') };
+}

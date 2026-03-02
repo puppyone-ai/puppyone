@@ -89,6 +89,8 @@ from src.project.router import router as project_router
 
 project_router_duration = time.time() - project_router_start
 
+from src.organization.router import router as organization_router
+
 oauth_router_start = time.time()
 from src.oauth.router import router as oauth_router
 
@@ -260,7 +262,19 @@ async def app_lifespan(app: FastAPI):
     else:
         log_info("⏭️  File Ingest 服务已跳过（ENABLE_ETL 关闭）")
 
-    # 4. 初始化 FolderSourceService + FolderAccessService（启动文件夹同步）
+    # 4. 初始化 ConnectorRegistry 单例
+    registry_init_start = time.time()
+    try:
+        log_info("🔌 初始化 ConnectorRegistry...")
+        from src.sync.dependencies import init_registry
+        init_registry()
+        registry_duration = time.time() - registry_init_start
+        log_info(f"✅ ConnectorRegistry 初始化成功 (耗时: {registry_duration * 1000:.2f}ms)")
+    except Exception as e:
+        registry_duration = time.time() - registry_init_start
+        log_error(f"❌ ConnectorRegistry 初始化失败 (耗时: {registry_duration * 1000:.2f}ms): {e}")
+
+    # 5. 初始化 FolderSourceService + FolderAccessService（启动文件夹同步）
     sync_init_start = time.time()
     try:
         log_info("🔄 初始化 Folder Sync Services...")
@@ -296,6 +310,7 @@ async def app_lifespan(app: FastAPI):
 
         collab_svc = CollaborationService(
             node_repo=node_repo,
+            node_service=node_svc,
             lock_service=LockService(node_repo),
             conflict_service=ConflictService(),
             version_service=version_svc,
@@ -445,6 +460,7 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
+    app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
     router_register_duration = time.time() - router_register_start
 
     # 注册异常处理器

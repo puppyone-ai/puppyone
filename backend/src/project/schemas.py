@@ -31,6 +31,7 @@ class ProjectCreate(BaseModel):
 
     name: str
     description: Optional[str] = None
+    org_id: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
@@ -38,3 +39,29 @@ class ProjectUpdate(BaseModel):
 
     name: Optional[str] = None
     description: Optional[str] = None
+    visibility: Optional[str] = None
+
+
+class ProjectMemberOut(BaseModel):
+    """项目成员输出"""
+
+    id: str
+    user_id: str
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    role: str
+    created_at: str
+
+
+class AddProjectMember(BaseModel):
+    """添加项目成员"""
+
+    user_id: str
+    role: str = "editor"
+
+
+class UpdateProjectMemberRole(BaseModel):
+    """更新项目成员角色"""
+
+    role: str

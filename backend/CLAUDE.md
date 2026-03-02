@@ -122,9 +122,8 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info
 uv run pytest
 uv run pytest -m "not e2e"      # 排除 e2e 测试
 
-# 启动 Worker (文件处理 / SaaS 同步)
+# 启动 File Worker (文件 ETL / OCR)
 uv run arq src.upload.file.jobs.worker.WorkerSettings
-uv run arq src.sync.jobs.worker.WorkerSettings
 ```
 
 ## 关键依赖
@@ -170,8 +169,7 @@ uv run arq src.sync.jobs.worker.WorkerSettings
 Railway 多服务部署 (共享代码库，通过 `SERVICE_ROLE` 区分):
 
 - **api** (默认): 主 API 服务
-- **file_worker**: 文件 ETL Worker (ARQ)
-- **saas_worker**: SaaS 同步 Worker (ARQ)
+- **file_worker**: 文件 ETL / OCR Worker (ARQ)
 - **mcp_server**: MCP 协议服务 (FastMCP)
 
 ## 文档资源

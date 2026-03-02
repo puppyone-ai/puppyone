@@ -1,7 +1,5 @@
 """
-L2 Collaboration — API 路由
-
-新增 /api/v1/collab/* 端点（模式 B：REST API 直接调用协同层）
+Mut Protocol — Collaboration API 路由
 
 端点：
   POST /collab/checkout           checkout 工作副本
@@ -12,8 +10,6 @@ L2 Collaboration — API 路由
   GET  /collab/diff/{node_id}/{v1}/{v2}          版本对比
   GET  /collab/snapshots/{folder_id}             文件夹快照历史
   POST /collab/rollback-snapshot/{folder_id}/{snapshot_id}  文件夹回滚
-
-同时保留旧路由 /api/v1/nodes/... 的兼容（通过 version_router 不变）
 """
 
 from typing import List
@@ -24,6 +20,7 @@ from src.collaboration.service import CollaborationService
 from src.collaboration.dependencies import get_collaboration_service
 from src.collaboration.schemas import (
     CheckoutRequest, CommitRequest, RollbackRequest,
+    Mutation, MutationType, Operator,
     WorkingCopy, CommitResult,
     VersionHistoryResponse, FileVersionDetail,
     RollbackResponse, FolderRollbackResponse,
@@ -51,11 +48,7 @@ def checkout(
     collab: CollaborationService = Depends(get_collaboration_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """
-    checkout 一组文件的工作副本
-
-    返回每个文件的 base_version（commit 时用于乐观锁）。
-    """
+    """checkout 一组文件的工作副本"""
     copies = collab.checkout_batch(
         node_ids=body.node_ids,
         operator_type="user",
@@ -65,27 +58,26 @@ def checkout(
 
 
 @router.post("/commit", response_model=ApiResponse[CommitResult])
-def commit(
+async def commit(
     body: CommitRequest,
     background_tasks: BackgroundTasks,
     collab: CollaborationService = Depends(get_collaboration_service),
     sync_svc: SyncService = Depends(get_sync_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """
-    commit 单个文件的修改
-
-    自动处理乐观锁 + 三方合并 + 版本记录。
-    commit 成功后在后台推送到关联的外部系统 (L2.5 PUSH)。
-    """
-    result = collab.commit(
+    """commit 单个文件的修改（Mut Protocol 统一入口）"""
+    mutation = Mutation(
+        type=MutationType.CONTENT_UPDATE,
+        operator=Operator(
+            type="user",
+            id=body.operator or current_user.user_id,
+        ),
         node_id=body.node_id,
-        new_content=body.content,
-        base_version=body.base_version,
+        content=body.content,
         node_type=body.node_type,
-        operator_type="user",
-        operator_id=body.operator or current_user.user_id,
+        base_version=body.base_version,
     )
+    result = await collab.commit(mutation)
 
     background_tasks.add_task(
         sync_svc.push_node,

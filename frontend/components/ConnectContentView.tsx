@@ -26,6 +26,7 @@ import {
   type SaasType,
 } from '../lib/oauthApi';
 import { useProjects } from '../lib/hooks/useData';
+import { useOrganization } from '@/contexts/OrganizationContext';
 
 type ConnectContentViewProps = {
   onBack: () => void;
@@ -131,7 +132,8 @@ const statusColors: Record<PlatformStatusType, string> = {
 };
 
 export function ConnectContentView({ onBack }: ConnectContentViewProps) {
-  const { projects } = useProjects();
+  const { currentOrg } = useOrganization();
+  const { projects } = useProjects(currentOrg?.id);
 
   // URL parsing功能已移至 TableManageDialog
   // const [url, setUrl] = useState('');
@@ -355,11 +357,11 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   // Map platform ID to SaasType
   const platformToSaasType: Record<PlatformId, SaasType> = {
     'github': 'github',
-    'google-sheets': 'sheets',
-    'google-docs': 'docs',
+    'google-sheets': 'google_sheets',
+    'google-docs': 'google_docs',
     'gmail': 'gmail',
-    'google-calendar': 'calendar',
-    'google-drive': 'drive',
+    'google-calendar': 'google_calendar',
+    'google-drive': 'google_drive',
   };
 
   // Map platform ID to status check function

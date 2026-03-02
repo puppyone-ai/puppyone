@@ -130,6 +130,7 @@ async def complete_workspace(
     import json as json_mod
     from src.workspace.provider import get_workspace_provider
     from src.collaboration.service import CollaborationService
+    from src.collaboration.schemas import Mutation, MutationType, Operator
     from src.collaboration.conflict_service import ConflictService
     from src.collaboration.lock_service import LockService
     from src.collaboration.version_service import VersionService as CollabVersionService
@@ -151,17 +152,20 @@ async def complete_workspace(
     from src.sync.changelog import SyncChangelogRepository
     changelog_repo = SyncChangelogRepository(supabase)
 
+    version_svc = CollabVersionService(
+        node_repo=node_repo,
+        version_repo=version_repo,
+        snapshot_repo=snapshot_repo,
+        s3_service=s3_service,
+        changelog_repo=changelog_repo,
+    )
+    node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service, version_service=version_svc)
     collab_service = CollaborationService(
         node_repo=node_repo,
+        node_service=node_svc,
         lock_service=LockService(node_repo),
         conflict_service=ConflictService(),
-        version_service=CollabVersionService(
-            node_repo=node_repo,
-            version_repo=version_repo,
-            snapshot_repo=snapshot_repo,
-            s3_service=s3_service,
-            changelog_repo=changelog_repo,
-        ),
+        version_service=version_svc,
         audit_service=AuditService(audit_repo=AuditRepository(supabase)),
     )
 
@@ -211,11 +215,10 @@ async def complete_workspace(
         mapping = path_to_node.get(rel_path)
 
         if mapping:
-            # --- 已有节点：通过 L2 commit ---
+            # --- 已有节点：通过 Mut commit ---
             node_id = mapping["node_id"]
             base_version = mapping["version"]
 
-            # 获取 base_content 用于三方合并
             base_content = None
             if base_version > 0:
                 try:
@@ -228,16 +231,20 @@ async def complete_workspace(
                     pass
 
             try:
-                result = collab_service.commit(
+                mutation = Mutation(
+                    type=MutationType.CONTENT_UPDATE,
+                    operator=Operator(
+                        type="agent",
+                        id=agent_id,
+                        summary=f"Agent write-back: {rel_path}",
+                    ),
                     node_id=node_id,
-                    new_content=new_content,
+                    content=new_content,
                     base_version=base_version,
                     node_type=node_type,
                     base_content=base_content,
-                    operator_type="external_agent",
-                    operator_id=agent_id,
-                    summary=f"Agent write-back: {rel_path}",
                 )
+                result = await collab_service.commit(mutation)
                 committed += 1
                 committed_items.append({
                     "node_id": node_id,
@@ -258,54 +265,49 @@ async def complete_workspace(
         else:
             # --- 新建文件：Agent 在沙盒中创建了一个 lower 中没有的文件 ---
             node_name = os.path.basename(rel_path)
-            # 去掉扩展名作为节点名
             base_name = os.path.splitext(node_name)[0] if "." in node_name else node_name
 
             try:
-                node_svc = ContentNodeService(
-                    repo=node_repo,
-                    s3_service=s3_service,
-                    version_service=collab_service.version_svc,
+                mutation = Mutation(
+                    type=MutationType.NODE_CREATE,
+                    operator=Operator(type="agent", id=agent_id),
+                    project_id=project_id,
+                    name=base_name,
+                    node_type=node_type,
+                    content=new_content if node_type == "json" else (
+                        new_content if isinstance(new_content, str) else str(new_content)
+                    ),
+                    created_by=current_user.user_id,
                 )
-                if node_type == "json":
-                    new_node = node_svc.create_json_node(
-                        project_id=project_id,
-                        name=base_name,
-                        content=new_content,
-                        created_by=current_user.user_id,
-                    )
-                else:
-                    new_node = await node_svc.create_markdown_node(
-                        project_id=project_id,
-                        name=base_name,
-                        content=new_content if isinstance(new_content, str) else str(new_content),
-                        created_by=current_user.user_id,
-                    )
+                result = await collab_service.commit(mutation)
                 committed += 1
                 created_nodes.append(rel_path)
                 log_info(
-                    f"[Workspace API] Created new node {new_node.id} "
+                    f"[Workspace API] Created new node {result.node_id} "
                     f"for {rel_path} (type={node_type})"
                 )
             except Exception as e:
                 conflict_count += 1
                 log_error(f"[Workspace API] Failed to create node for {rel_path}: {e}")
 
-    # 4. 处理删除（先创建 delete 版本记录，再删除节点）
+    # 4. 处理删除（通过 Mut commit → soft delete）
     deleted_count = 0
     for rel_path in changes.deleted:
         mapping = path_to_node.get(rel_path)
         if mapping:
             node_id = mapping["node_id"]
             try:
-                collab_service.version_svc.create_version(
+                mutation = Mutation(
+                    type=MutationType.NODE_DELETE,
+                    operator=Operator(
+                        type="agent",
+                        id=agent_id,
+                        summary=f"Agent deleted: {rel_path}",
+                    ),
                     node_id=node_id,
-                    operator_type="external_agent",
-                    operator_id=agent_id,
-                    operation="delete",
-                    summary=f"Agent deleted: {rel_path}",
+                    project_id=project_id,
                 )
-                node_repo.delete(node_id)
+                await collab_service.commit(mutation)
                 deleted_count += 1
                 log_info(f"[Workspace API] Deleted node {node_id} ({rel_path})")
             except Exception as e:

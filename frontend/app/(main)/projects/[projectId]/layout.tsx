@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, use } from 'react';
 import { AgentProvider, useAgent } from '@/contexts/AgentContext';
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
 import { AgentViewport } from '@/components/agent/AgentViewport';
-import { SyncRail } from '@/components/agent/SyncRail';
 import { useProjectTools } from '@/lib/hooks/useData';
 
 const MIN_CHAT_WIDTH = 400;
@@ -144,8 +143,6 @@ function ProjectLayoutInner({ children, projectId }: { children: React.ReactNode
         <AgentViewportWrapper chatWidth={chatWidth} />
       </div>
 
-      {/* SyncRail — persistent vertical strip, 48px */}
-      <SyncRail projectId={projectId} />
     </div>
   );
 }

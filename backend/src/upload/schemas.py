@@ -10,10 +10,10 @@ from pydantic import BaseModel, Field
 
 
 class SourceType(str, Enum):
-    """Data source type - determines which worker to route to."""
+    """Data source type."""
     FILE = "file"      # → File Worker (ETL)
-    SAAS = "saas"      # → SaaS Worker (Import)
-    URL = "url"        # → SaaS Worker (Import)
+    SAAS = "saas"      # → SyncEngine (同步执行)
+    URL = "url"        # → SyncEngine (同步执行)
 
 
 class IngestType(str, Enum):
@@ -24,7 +24,7 @@ class IngestType(str, Enum):
     DOCUMENT = "document"  # docx, xlsx, etc.
     TEXT = "text"          # txt, md, json, code files
     
-    # SaaS types (SAAS source → SaaS Worker)
+    # SaaS types (SAAS source → SyncEngine)
     GITHUB = "github"
     NOTION = "notion"
     GMAIL = "gmail"
@@ -35,7 +35,7 @@ class IngestType(str, Enum):
     AIRTABLE = "airtable"
     LINEAR = "linear"
     
-    # URL types (URL source → SaaS Worker)
+    # URL types
     WEB_PAGE = "web_page"
 
 

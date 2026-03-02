@@ -1081,5 +1081,57 @@ Header 右侧放一个 Sync 按钮，显示整体同步状态：
 | `sync_changelog` | 保留不变 |
 | `CollaborationService` | 保留，增加 authority check |
 | `VersionService` | 保留不变 |
-| OAuth | 保留，被 `syncs.credentials_ref` 引用 |
-| Agents | 保留，不再承担同步通道角色 |
+| OAuth | 保留，被 `connections.credentials_ref` 引用 |
+| Agents | 合并为 `provider='agent'` 类型的 connection |
+
+### Provider 类型总览
+
+| Provider | 分类 | Auth | 方向 | 触发模式 |
+|----------|------|------|------|---------|
+| `gmail`, `notion`, `github`, `google_drive`, `google_docs`, `google_sheets`, `google_calendar`, `linear`, `airtable` | Data Sync | OAuth | inbound / bidirectional | manual, scheduled |
+| `openclaw` | Data Sync | Access Key | bidirectional | manual, realtime |
+| `url` | Data Sync | None | inbound | import_once, manual, scheduled |
+| `hackernews` | Data Sync | None | inbound | manual, scheduled |
+| `posthog` | Data Sync | API Key | inbound | manual, scheduled |
+| `google_search_console` | Data Sync | OAuth | inbound | manual, scheduled |
+| `script` | Data Sync | None | inbound | manual, scheduled |
+| `agent` | Runtime | None | bidirectional | manual, scheduled |
+| `mcp` | Protocol | Access Key | bidirectional | on-demand |
+| `sandbox` | Runtime | Access Key | bidirectional | on-demand |
+
+### Script Provider
+
+`provider='script'` 允许用户上传自定义脚本（Python / Node / Shell），在沙盒环境中执行，并将结果导入 Content Space。
+
+**输出协议**: 脚本 stdout 必须输出 JSON:
+```json
+{
+  "content": <any>,
+  "node_type": "json",
+  "name": "My Data",
+  "summary": "Fetched 42 rows"
+}
+```
+非 JSON 输出会以 markdown 形式存储。
+
+**执行流程**:
+```
+CLI/Web → connections 表 (provider=script) → SyncEngine
+  → ScriptConnector.fetch()
+    → SandboxService (Docker/E2B)
+      → 写入脚本文件 → 执行 → 捕获 stdout
+    → 解析输出 → FetchResult
+  → CollaborationService → content_nodes
+```
+
+**Config 结构**:
+```json
+{
+  "runtime": "python",
+  "script_content": "import requests\n...",
+  "script_s3_key": null,
+  "timeout": 60,
+  "env": { "API_KEY": "..." },
+  "entrypoint": "script.py"
+}
+```

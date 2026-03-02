@@ -42,5 +42,4 @@ SaaS sync handlers: src/sync/saas/
 |--------------|--------|-------------|
 | `api` (default) | API Server | `src.main:app` |
 | `file_worker` | File Worker | `src.upload.file.jobs.worker.WorkerSettings` |
-| `saas_worker` | SaaS Worker | `src.sync.saas.jobs.worker.WorkerSettings` |
 | `mcp_server` | MCP Server | `mcp_service.server:app` |

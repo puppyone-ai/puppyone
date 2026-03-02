@@ -15,7 +15,9 @@ class Project(BaseModel):
     id: str = Field(..., description="项目ID (UUID)")
     name: str = Field(..., description="项目名称")
     description: Optional[str] = Field(None, description="项目描述")
-    user_id: Optional[str] = Field(None, description="所属用户ID")
+    org_id: str = Field(..., description="所属组织ID")
+    visibility: str = Field(default="org", description="可见性: org (组织内可见) / private (仅授权成员)")
+    created_by: Optional[str] = Field(None, description="创建者用户ID")
     created_at: datetime = Field(..., description="创建时间")
 
     model_config = ConfigDict(from_attributes=True)

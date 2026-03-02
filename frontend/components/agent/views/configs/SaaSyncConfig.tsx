@@ -5,7 +5,9 @@ import { useAgent } from '@/contexts/AgentContext';
 import type { AccessResource } from '@/contexts/AgentContext';
 import { openOAuthPopup, type SaasType } from '@/lib/oauthApi';
 import { SyncPreview, type AcceptedNodeType } from './SyncPreview';
+import { ScheduleTriggerSection } from './ScheduleAgentConfig';
 import { FolderIcon, JsonIcon, MarkdownIcon, CloseIcon, getNodeIcon } from '../_icons';
+import { getSyncTriggerPolicy, SYNC_MODE_META, type SyncModeType } from '@/lib/syncTriggerPolicy';
 
 export interface SaaSConfigField {
   key: string;
@@ -22,6 +24,7 @@ export interface SaaSyncConfigProps {
   provider: string;
   providerLabel: string;
   oauthType: SaasType;
+  requiresAuth?: boolean;
   icon: React.ReactNode;
   description: string;
   configFields: SaaSConfigField[];
@@ -36,23 +39,24 @@ const TYPE_ARTICLE: Record<AcceptedNodeType, string> = {
 };
 
 export function SaaSyncConfig({
-  provider, providerLabel, oauthType, icon, description,
+  provider, providerLabel, oauthType, requiresAuth = true, icon, description,
   configFields, accept, direction,
 }: SaaSyncConfigProps) {
   const { draftResources, addDraftResource, removeDraftResource } = useAgent();
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus>(null);
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(requiresAuth);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   const primaryType = accept[0];
   const targetRes = draftResources[0] || null;
-  const isConnected = !!oauthStatus?.connected;
+  const isConnected = !requiresAuth || !!oauthStatus?.connected;
 
   // ── OAuth ──
 
   const checkStatus = useCallback(async () => {
+    if (!requiresAuth) { setChecking(false); return; }
     setChecking(true);
     try {
       const checkers: Record<string, () => Promise<OAuthStatus>> = {
@@ -69,7 +73,7 @@ export function SaaSyncConfig({
     } finally {
       setChecking(false);
     }
-  }, [oauthType]);
+  }, [oauthType, requiresAuth]);
 
   useEffect(() => { checkStatus(); }, [checkStatus]);
 
@@ -117,7 +121,7 @@ export function SaaSyncConfig({
       {/* ─── 2. Drag zone (ChatAgentConfig style) ─── */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>Sync target</label>
+          <label style={{ fontSize: 12, fontWeight: 500, color: '#666' }}>Sync target</label>
           <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
         </div>
 
@@ -147,7 +151,7 @@ export function SaaSyncConfig({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', flex: 1, minWidth: 0 }}>
                       <div style={{ color, flexShrink: 0, display: 'flex', alignItems: 'center' }}>{nodeIcon}</div>
-                      <span style={{ fontSize: 13, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <span style={{ fontSize: 12, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {targetRes.nodeName}
                       </span>
                     </div>
@@ -190,68 +194,72 @@ export function SaaSyncConfig({
 
       {/* ─── 3. Account + config fields ─── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: -2 }}>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>{providerLabel} account</span>
-          {!isConnected && <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />}
-        </div>
+        {requiresAuth && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: -2 }}>
+              <span style={{ fontSize: 12, fontWeight: 500, color: '#666' }}>{providerLabel} account</span>
+              {!oauthStatus?.connected && <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />}
+            </div>
 
-        {checking ? (
-          <div style={{ textAlign: 'center', color: '#525252', fontSize: 12, padding: '8px 0' }}>
-            Checking account...
-          </div>
-        ) : isConnected ? (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '6px 10px', borderRadius: 6,
-            background: 'transparent', border: '1px solid #2a2a2a',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#525252" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              <span style={{ fontSize: 11, color: '#666', fontWeight: 400 }}>
-                {oauthStatus?.email || 'Signed in'}
-              </span>
-            </div>
-            <button
-              onClick={handleConnect}
-              style={{ background: 'transparent', border: 'none', color: '#3a3a3a', fontSize: 10, cursor: 'pointer', padding: '2px 0' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#a3a3a3'}
-              onMouseLeave={e => e.currentTarget.style.color = '#3a3a3a'}
-            >
-              Switch
-            </button>
-          </div>
-        ) : (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '12px 14px', borderRadius: 8,
-            background: '#161616', border: '1px solid #252525',
-          }}>
-            <span style={{ display: 'flex', flexShrink: 0 }}>{icon}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: '#a3a3a3' }}>Sign in to {providerLabel}</div>
-              <div style={{ fontSize: 11, color: '#525252', marginTop: 2 }}>{description}</div>
-            </div>
-            <button
-              onClick={handleConnect} disabled={connecting}
-              style={{
-                height: 28, padding: '0 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-                background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
-                color: connecting ? '#525252' : '#e5e5e5', cursor: connecting ? 'not-allowed' : 'pointer',
-                transition: 'all 0.12s', flexShrink: 0, whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => { if (!connecting) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-            >
-              {connecting ? 'Signing in...' : 'Sign in'}
-            </button>
-          </div>
+            {checking ? (
+              <div style={{ textAlign: 'center', color: '#525252', fontSize: 12, padding: '8px 0' }}>
+                Checking account...
+              </div>
+            ) : oauthStatus?.connected ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '6px 10px', borderRadius: 6,
+                background: 'transparent', border: '1px solid #2a2a2a',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#525252" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span style={{ fontSize: 11, color: '#666', fontWeight: 400 }}>
+                    {oauthStatus?.email || 'Signed in'}
+                  </span>
+                </div>
+                <button
+                  onClick={handleConnect}
+                  style={{ background: 'transparent', border: 'none', color: '#3a3a3a', fontSize: 10, cursor: 'pointer', padding: '2px 0' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#a3a3a3'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#3a3a3a'}
+                >
+                  Switch
+                </button>
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 14px', borderRadius: 8,
+                background: '#161616', border: '1px solid #252525',
+              }}>
+                <span style={{ display: 'flex', flexShrink: 0 }}>{icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#a3a3a3' }}>Sign in to {providerLabel}</div>
+                  <div style={{ fontSize: 11, color: '#525252', marginTop: 2 }}>{description}</div>
+                </div>
+                <button
+                  onClick={handleConnect} disabled={connecting}
+                  style={{
+                    height: 28, padding: '0 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                    background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
+                    color: connecting ? '#525252' : '#e5e5e5', cursor: connecting ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.12s', flexShrink: 0, whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => { if (!connecting) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {connecting ? 'Signing in...' : 'Sign in'}
+                </button>
+              </div>
+            )}
+
+            {error && <div style={{ fontSize: 11, color: '#ef4444', padding: '0 2px' }}>{error}</div>}
+          </>
         )}
 
-        {error && <div style={{ fontSize: 11, color: '#ef4444', padding: '0 2px' }}>{error}</div>}
-
-        {/* Config fields — only when account is connected */}
+        {/* Config fields — show when connected (or always for no-auth providers) */}
         {isConnected && configFields.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
             {configFields.map(field => (
@@ -290,6 +298,124 @@ export function SaaSyncConfig({
             ))}
           </div>
         )}
+      </div>
+
+      {/* ─── 4. Sync frequency ─── */}
+      {isConnected && <SyncFrequencySelector provider={provider} />}
+    </div>
+  );
+}
+
+// ── Sync Frequency Selector ─────────────────────────────────────
+
+const SELECTABLE_SYNC_MODES: SyncModeType[] = ['import_once', 'manual', 'scheduled', 'realtime'];
+
+function SyncFrequencySelector({ provider }: { provider: string }) {
+  const {
+    draftSyncMode, setDraftSyncMode,
+    draftTriggerConfig, setDraftTriggerConfig, setDraftTriggerType,
+  } = useAgent();
+  const [isOpen, setIsOpen] = useState(false);
+  const policy = getSyncTriggerPolicy(provider);
+  const options = SELECTABLE_SYNC_MODES
+    .filter(mode => policy.supportedModes.includes(mode))
+    .map(mode => ({ value: mode, label: SYNC_MODE_META[mode].label, desc: SYNC_MODE_META[mode].desc }));
+
+  useEffect(() => {
+    const preferred = policy.defaultMode;
+    const normalized = preferred === 'realtime' ? 'manual' : preferred;
+    setDraftSyncMode(normalized as 'import_once' | 'manual' | 'scheduled');
+  }, [policy.defaultMode, setDraftSyncMode]);
+
+  const selected = options.find(o => o.value === draftSyncMode)
+    || options[0]
+    || { value: 'manual' as const, label: SYNC_MODE_META.manual.label, desc: SYNC_MODE_META.manual.desc };
+
+  const handleSelect = (mode: 'import_once' | 'manual' | 'scheduled' | 'realtime') => {
+    if (mode === 'realtime') return;
+    setDraftSyncMode(mode);
+    setIsOpen(false);
+    if (mode === 'scheduled') {
+      setDraftTriggerType('cron');
+      if (!draftTriggerConfig?.schedule) {
+        setDraftTriggerConfig({ schedule: '0 9 * * *', timezone: 'Asia/Shanghai' });
+      }
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <label style={{ fontSize: 12, fontWeight: 500, color: '#666' }}>Sync frequency</label>
+      </div>
+
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          style={{
+            width: '100%', height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: '#161616', border: `1px solid ${isOpen ? '#525252' : '#2a2a2a'}`, borderRadius: 6,
+            padding: '0 10px', color: '#e5e5e5', cursor: 'pointer', fontSize: 12, textAlign: 'left',
+          }}
+        >
+          <span>{selected.label}</span>
+          <svg width="10" height="6" viewBox="0 0 10 6" fill="none"
+            style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+            <path d="M1 1L5 5L9 1" stroke="#525252" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        {isOpen && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
+            background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6,
+            overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+          }}>
+            {options.map((opt, idx) => (
+              <button
+                key={opt.value}
+                onClick={() => handleSelect(opt.value)}
+                style={{
+                  width: '100%', display: 'flex', flexDirection: 'column', gap: 1,
+                  padding: '8px 10px', textAlign: 'left', cursor: 'pointer',
+                  background: draftSyncMode === opt.value ? 'rgba(255,255,255,0.06)' : 'transparent',
+                  border: 'none',
+                  borderBottom: idx !== options.length - 1 ? '1px solid #1f1f1f' : 'none',
+                }}
+                onMouseEnter={e => { if (draftSyncMode !== opt.value) e.currentTarget.style.background = '#1f1f1f'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = draftSyncMode === opt.value ? 'rgba(255,255,255,0.06)' : 'transparent'; }}
+              >
+                <span style={{
+                  fontSize: 12, fontWeight: draftSyncMode === opt.value ? 500 : 400,
+                  color: draftSyncMode === opt.value ? '#e5e5e5' : '#a3a3a3',
+                }}>{opt.label}</span>
+                <span style={{ fontSize: 11, color: '#525252' }}>{opt.desc}</span>
+              </button>
+            ))}
+
+          </div>
+        )}
+      </div>
+
+      {/* Schedule config — expand when Scheduled is selected */}
+      {draftSyncMode === 'scheduled' && (
+        <div style={{
+          padding: '12px', marginTop: 4,
+          background: '#141414', border: '1px solid #2a2a2a', borderRadius: 8,
+        }}>
+          <ScheduleTriggerSection
+            draftTriggerConfig={draftTriggerConfig}
+            setDraftTriggerConfig={setDraftTriggerConfig}
+            setDraftTriggerType={setDraftTriggerType}
+          />
+        </div>
+      )}
+
+      {/* Mode description */}
+      <div style={{ fontSize: 11, color: '#3a3a3a', padding: '0 2px', lineHeight: 1.5 }}>
+        {draftSyncMode === 'import_once' && 'Data will be imported once. No sync binding will be created.'}
+        {draftSyncMode === 'manual' && 'A sync binding will be created. Click "Refresh" anytime to pull the latest data.'}
+        {draftSyncMode === 'scheduled' && 'Data will be automatically refreshed on the schedule above.'}
       </div>
     </div>
   );

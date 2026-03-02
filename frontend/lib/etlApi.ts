@@ -80,9 +80,6 @@ export interface ETLHealthResponse {
     task_count: number;
     worker_count: number;
   };
-  saas_worker: {
-    status: string;
-  };
 }
 
 // ============= Helper Functions =============

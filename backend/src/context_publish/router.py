@@ -38,7 +38,7 @@ def _to_out(request: Request, p) -> PublishOut:
         id=p.id,
         created_at=p.created_at,
         updated_at=p.updated_at,
-        user_id=p.user_id,
+        created_by=p.created_by,
         table_id=p.table_id,
         json_path=p.json_path,
         publish_key=p.publish_key,
@@ -61,7 +61,7 @@ def create_publish(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     p = svc.create(
-        user_id=current_user.user_id,
+        created_by=current_user.user_id,
         table_id=payload.table_id,
         json_path=payload.json_path,
         expires_at=payload.expires_at,
@@ -82,7 +82,7 @@ def list_publishes(
     svc: ContextPublishService = Depends(get_context_publish_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    items = svc.list_user_publishes(current_user.user_id, skip=skip, limit=limit)
+    items = svc.list_by_created_by(current_user.user_id, skip=skip, limit=limit)
     return ApiResponse.success(
         data=[_to_out(request, p) for p in items],
         message="获取 Publish 列表成功",
@@ -104,7 +104,7 @@ def update_publish(
 ):
     p = svc.update(
         publish_id=publish_id,
-        user_id=current_user.user_id,
+        created_by=current_user.user_id,
         status=payload.status,
         expires_at=payload.expires_at,
     )
@@ -122,7 +122,7 @@ def delete_publish(
     svc: ContextPublishService = Depends(get_context_publish_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    svc.delete(publish_id=publish_id, user_id=current_user.user_id)
+    svc.delete(publish_id=publish_id, created_by=current_user.user_id)
     return ApiResponse.success(data=None, message="删除 Publish 成功")
 
 

@@ -21,9 +21,9 @@ class ToolRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_by_user_id(
+    def get_by_org_id(
         self,
-        user_id: str,
+        org_id: str,
         *,
         skip: int = 0,
         limit: int = 100,
@@ -49,7 +49,8 @@ class ToolRepositorySupabase(ToolRepositoryBase):
         return Tool(
             id=resp.id,
             created_at=resp.created_at,
-            user_id=str(resp.user_id) if resp.user_id else "",
+            created_by=resp.created_by if resp.created_by else None,
+            org_id=resp.org_id or "",
             project_id=resp.project_id,
             node_id=resp.node_id,
             json_path=resp.json_path or "",
@@ -75,9 +76,9 @@ class ToolRepositorySupabase(ToolRepositoryBase):
             return None
         return self._to_model(resp)
 
-    def get_by_user_id(
+    def get_by_org_id(
         self,
-        user_id: str,
+        org_id: str,
         *,
         skip: int = 0,
         limit: int = 100,
@@ -85,7 +86,7 @@ class ToolRepositorySupabase(ToolRepositoryBase):
         project_id: Optional[str] = None,
     ) -> List[Tool]:
         resps = self._repo.get_tools(
-            skip=skip, limit=limit, user_id=user_id, node_id=node_id, project_id=project_id
+            skip=skip, limit=limit, org_id=org_id, node_id=node_id, project_id=project_id
         )
         return [self._to_model(r) for r in resps]
 

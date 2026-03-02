@@ -73,8 +73,6 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
             insert_data = {
                 "user_id": user_id,
                 "email": email,
-                "role": "user",
-                "plan": "free",
                 "has_onboarded": False,
                 "created_at": now,
                 "updated_at": now,
@@ -115,9 +113,9 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
         return Profile(
             user_id=row["user_id"],
             email=row["email"],
-            role=row.get("role", "user"),
-            plan=row.get("plan", "free"),
-            stripe_customer_id=row.get("stripe_customer_id"),
+            display_name=row.get("display_name"),
+            avatar_url=row.get("avatar_url"),
+            default_org_id=row.get("default_org_id"),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             has_onboarded=row.get("has_onboarded", False),

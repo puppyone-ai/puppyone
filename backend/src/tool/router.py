@@ -10,7 +10,7 @@ import asyncio
 import datetime as dt
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
-from typing import List
+from typing import List, Optional
 
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
@@ -28,6 +28,7 @@ from src.tool.dependencies import get_tool_service
 from src.tool.schemas import ToolCreate, ToolOut, ToolUpdate
 from src.tool.service import ToolService
 from src.utils.logger import log_error, log_info
+from src.organization.dependencies import resolve_org_id, resolve_org_ids
 
 
 router = APIRouter(prefix="/tools", tags=["tools"])
@@ -40,13 +41,17 @@ router = APIRouter(prefix="/tools", tags=["tools"])
     status_code=status.HTTP_200_OK,
 )
 def list_tools(
+    org_id: Optional[str] = Query(None, description="Organization ID (optional, falls back to user's orgs)"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=1000),
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    tools = tool_service.list_user_tools(current_user.user_id, skip=skip, limit=limit)
-    return ApiResponse.success(data=tools, message="获取 Tool 列表成功")
+    oids = resolve_org_ids(org_id, current_user.user_id)
+    all_tools: list = []
+    for oid in oids:
+        all_tools.extend(tool_service.list_org_tools(oid, skip=skip, limit=limit))
+    return ApiResponse.success(data=all_tools, message="获取 Tool 列表成功")
 
 
 @router.get(
@@ -57,13 +62,16 @@ def list_tools(
 )
 def list_tools_by_node_id(
     node_id: str,
+    org_id: Optional[str] = Query(None, description="Organization ID (optional)"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=1000, ge=1, le=1000),
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    tools = tool_service.list_user_tools_by_node_id(
+    resolved = resolve_org_id(org_id, current_user.user_id)
+    tools = tool_service.list_org_tools_by_node_id(
         current_user.user_id,
+        resolved,
         node_id=node_id,
         skip=skip,
         limit=limit,
@@ -79,11 +87,13 @@ def list_tools_by_node_id(
 )
 def list_tools_by_project_id(
     project_id: str,
+    org_id: Optional[str] = Query(None, description="Organization ID (optional)"),
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    tools = tool_service.list_user_tools_by_project_id(
-        current_user.user_id, project_id=project_id
+    resolved = resolve_org_id(org_id, current_user.user_id)
+    tools = tool_service.list_org_tools_by_project_id(
+        resolved, project_id=project_id
     )
     return ApiResponse.success(data=tools, message="获取 Tool 列表成功")
 
@@ -100,14 +110,17 @@ def list_tools_by_project_id(
 )
 def create_tool(
     payload: ToolCreate,
+    org_id: Optional[str] = Query(None, description="Organization ID (optional)"),
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    resolved = resolve_org_id(org_id, current_user.user_id)
     metadata = (
         payload.metadata if isinstance(payload.metadata, dict) else payload.metadata
     )
     tool = tool_service.create(
-        user_id=current_user.user_id,
+        org_id=resolved,
+        created_by=current_user.user_id,
         node_id=payload.node_id,
         json_path=payload.json_path,
         type=payload.type,
@@ -424,24 +437,25 @@ async def _run_folder_search_indexing_background(
 def create_search_tool_async(
     payload: ToolCreate,
     background_tasks: BackgroundTasks,
+    org_id: Optional[str] = Query(None, description="Organization ID (optional)"),
     tool_service: ToolService = Depends(get_tool_service),
     search_service: SearchService = Depends(get_search_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    resolved = resolve_org_id(org_id, current_user.user_id)
     if (payload.type or "").strip() != "search":
-        # 这里不复用 AppException，避免引入新的错误类型；保持简单
         return ApiResponse.error(code=400, message="payload.type must be 'search'")
 
     if not payload.node_id:
         return ApiResponse.error(code=400, message="node_id is required for search tool")
 
-    # 获取节点信息并做用户访问校验，判断是 folder search 还是 json search
     node = tool_service.get_node_with_access_check(current_user.user_id, payload.node_id)
     project_id = node.project_id
     is_folder_search = node.type == "folder"
 
     tool = tool_service.create(
-        user_id=current_user.user_id,
+        org_id=resolved,
+        created_by=current_user.user_id,
         node_id=payload.node_id,
         json_path=payload.json_path,
         type=payload.type,

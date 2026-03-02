@@ -2,8 +2,10 @@
 
 import React, { useState, useCallback } from 'react';
 import useSWR from 'swr';
-import { get } from '@/lib/apiClient';
+import { get, post } from '@/lib/apiClient';
 import { useAgent } from '@/contexts/AgentContext';
+import { SYNC_MODE_META, getProviderDisplayLabel } from '@/lib/syncTriggerPolicy';
+import type { SyncModeType } from '@/lib/syncTriggerPolicy';
 
 interface SyncDetail {
   id: string;
@@ -14,6 +16,7 @@ interface SyncDetail {
   direction: string;
   status: string;
   access_key: string | null;
+  trigger: { type?: string; schedule?: string; timezone?: string } | null;
   last_synced_at: string | null;
   error_message: string | null;
 }
@@ -82,13 +85,10 @@ function getProviderLogo(provider: string, size: number) {
 }
 
 // ============================================================
-// ConnectionLine — animated flowing square dots
+// ConnectionLine — directional arrows
 // ============================================================
 
-function ConnectionLine({ direction, color, isActive, status }: { direction: string; color: string; isActive: boolean; status: string }) {
-  const id = React.useId();
-  const cls = id.replace(/:/g, '');
-
+function ConnectionLine({ direction, isActive, status }: { direction: string; color?: string; isActive: boolean; status: string }) {
   if (!isActive) {
     const label = status === 'error' ? 'Sync error'
       : status === 'paused' ? 'Paused'
@@ -99,7 +99,7 @@ function ConnectionLine({ direction, color, isActive, status }: { direction: str
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', margin: '0 4px' }}>
         <div style={{ width: '100%', textAlign: 'center', position: 'relative', borderTop: `1px dashed ${lineColor}` }}>
-          <span style={{ position: 'relative', top: -7, background: '#141414', padding: '0 6px', fontSize: 9, fontWeight: 500, color: labelColor, whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>
+          <span style={{ position: 'relative', top: -7, background: '#0e0e0e', padding: '0 6px', fontSize: 9, fontWeight: 500, color: labelColor, whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>
             {label}
           </span>
         </div>
@@ -107,25 +107,24 @@ function ConnectionLine({ direction, color, isActive, status }: { direction: str
     );
   }
 
-  const dotSize = 4, gapSize = 14, period = dotSize + gapSize;
-  const DotTrack = ({ animName }: { animName: string }) => (
-    <div style={{ height: dotSize, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', gap: gapSize, animation: `${animName} ${period * 50}ms linear infinite` }}>
-        {Array.from({ length: 30 }).map((_, i) => (
-          <div key={i} style={{ width: dotSize, height: dotSize, flexShrink: 0, background: color, borderRadius: 1, opacity: 0.85 }} />
-        ))}
-      </div>
-    </div>
-  );
+  const arrowColor = '#4ade80';
 
   return (
-    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: direction === 'bidirectional' ? 5 : 0, margin: '0 4px' }}>
-      <style>{`
-        @keyframes fl-${cls} { from { transform: translateX(0); } to { transform: translateX(-${period}px); } }
-        @keyframes fr-${cls} { from { transform: translateX(-${period}px); } to { transform: translateX(0); } }
-      `}</style>
-      {(direction === 'inbound' || direction === 'bidirectional') && <DotTrack animName={`fl-${cls}`} />}
-      {(direction === 'outbound' || direction === 'bidirectional') && <DotTrack animName={`fr-${cls}`} />}
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 4px' }}>
+      {direction === 'bidirectional' ? (
+        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 5h44M6 2L2 5l4 3" />
+          <path d="M42 8l4 3-4 3M2 11h44" />
+        </svg>
+      ) : direction === 'outbound' ? (
+        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M46 8H2M6 4L2 8l4 4" />
+        </svg>
+      ) : (
+        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 8h44M42 4l4 4-4 4" />
+        </svg>
+      )}
     </div>
   );
 }
@@ -135,7 +134,7 @@ function ConnectionLine({ direction, color, isActive, status }: { direction: str
 // ============================================================
 
 const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'OpenClaw', openclaw: 'OpenClaw',
+  filesystem: 'Desktop Folder', openclaw: 'Desktop Folder',
   github: 'GitHub', notion: 'Notion', gmail: 'Gmail',
   google_calendar: 'Google Calendar', google_sheets: 'Google Sheets',
   google_drive: 'Google Drive', google_docs: 'Google Docs',
@@ -183,18 +182,33 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
     setTimeout(() => setRefreshing(false), 600);
   }, [mutate]);
 
+  const handleSyncRefresh = useCallback(async () => {
+    if (!syncId) return;
+    setRefreshing(true);
+    try {
+      await post(`/api/v1/sync/syncs/${syncId}/refresh`);
+      await mutate();
+    } catch (err) {
+      console.error('Sync refresh failed:', err);
+    } finally {
+      setTimeout(() => setRefreshing(false), 1000);
+    }
+  }, [syncId, mutate]);
+
   if (!sync) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <ViewHeader name="Sync" onClose={closeSidebar} />
-        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>
+        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 12 }}>
           Sync endpoint not found
         </div>
       </div>
     );
   }
 
-  const providerLabel = PROVIDER_LABELS[sync.provider] || sync.provider;
+  const providerLabel = getProviderDisplayLabel(sync.provider) !== sync.provider
+    ? getProviderDisplayLabel(sync.provider)
+    : (PROVIDER_LABELS[sync.provider] || sync.provider);
   const dirLabel = DIRECTION_LABELS[sync.direction] || sync.direction;
   const isActive = sync.status === 'active' || sync.status === 'syncing';
   const isError = sync.status === 'error';
@@ -216,32 +230,12 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
 
           {/* Sync visualization */}
           <div style={{
-            background: '#141414', border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: 10, padding: '28px 24px 20px',
             display: 'flex', flexDirection: 'column', gap: 14,
           }}>
             {/* Icons + connection */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              {/* PuppyOne node (LEFT) — icon matches node type */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
-                {sync.node_type === 'folder' || !sync.node_type
-                  ? <img src="/icons/folder.svg" alt="Folder" width={36} height={36} style={{ display: 'block' }} />
-                  : <MiniDocShell type={sync.node_type as 'json' | 'markdown' | 'file'} />
-                }
-                <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>
-                  {sync.node_name || 'Workspace'}
-                </div>
-              </div>
-
-              {/* Connection line */}
-              <ConnectionLine
-                direction={sync.direction}
-                color={isActive ? '#4ade80' : isError ? '#ef4444' : '#525252'}
-                isActive={isActive}
-                status={sync.status}
-              />
-
-              {/* External service (RIGHT) */}
+              {/* External source (LEFT) */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 8,
@@ -252,6 +246,24 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>
                   {providerLabel}
+                </div>
+              </div>
+
+              {/* Connection line */}
+              <ConnectionLine
+                direction={sync.direction}
+                isActive={isActive}
+                status={sync.status}
+              />
+
+              {/* PuppyOne target node (RIGHT) */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
+                {sync.node_type === 'folder' || !sync.node_type
+                  ? <img src="/icons/folder.svg" alt="Folder" width={36} height={36} style={{ display: 'block' }} />
+                  : <MiniDocShell type={sync.node_type as 'json' | 'markdown' | 'file'} />
+                }
+                <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>
+                  {sync.node_name || 'Workspace'}
                 </div>
               </div>
             </div>
@@ -301,8 +313,19 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
             </div>
           )}
 
+          {/* Sync mode info */}
+          {sync.trigger && sync.trigger.type && sync.trigger.type !== 'import_once' && (
+            <SyncModeInfo trigger={sync.trigger} lastSyncedAt={sync.last_synced_at} />
+          )}
+
           {/* Actions — Linear style: 28px, minimal */}
           <div style={{ display: 'flex', gap: 6 }}>
+            {sync.trigger?.type === 'manual' && (
+              <ActionButton label={refreshing ? 'Refreshing...' : 'Refresh now'} icon="retry" onClick={handleSyncRefresh} />
+            )}
+            {sync.trigger?.type === 'scheduled' && (
+              <ActionButton label={refreshing ? 'Syncing...' : 'Sync now'} icon="retry" onClick={handleSyncRefresh} />
+            )}
             {isActive && (
               <ActionButton label="Pause" icon="pause" onClick={() => {}} />
             )}
@@ -310,7 +333,7 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
               <ActionButton label="Resume" icon="play" onClick={() => {}} />
             )}
             {isError && (
-              <ActionButton label="Retry" icon="retry" onClick={handleRefresh} />
+              <ActionButton label="Retry" icon="retry" onClick={handleSyncRefresh} />
             )}
             <ActionButton label="Disconnect" icon="disconnect" variant="danger" onClick={() => {}} />
           </div>
@@ -328,6 +351,7 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <DetailRow label="Provider" value={providerLabel} />
               <DetailRow label="Direction" value={dirLabel} />
+              <DetailRow label="Sync mode" value={getSyncModeLabel(sync.trigger?.type || 'import_once')} />
               {sync.node_name && <DetailRow label="Folder" value={sync.node_name} />}
               <DetailRow label="Last synced" value={sync.last_synced_at ? relativeTime(sync.last_synced_at) : 'Never'} />
               <DetailRow label="Sync ID" value={sync.id} mono />
@@ -337,6 +361,54 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
         </div>
       </div>
     </>
+  );
+}
+
+// ============================================================
+// Sync Mode Info
+// ============================================================
+
+function getSyncModeLabel(mode: string): string {
+  return SYNC_MODE_META[mode as SyncModeType]?.label || mode;
+}
+
+function describeCron(schedule: string): string {
+  const parts = schedule.split(' ');
+  if (parts.length < 5) return schedule;
+  const [min, hour, day, month, weekday] = parts;
+
+  const time = `${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+
+  if (weekday !== '*' && day === '*') return `Weekly at ${time}`;
+  if (day === '*' && month === '*' && weekday === '*') return `Daily at ${time}`;
+  return `At ${time}`;
+}
+
+function SyncModeInfo({ trigger, lastSyncedAt }: {
+  trigger: { type?: string; schedule?: string; timezone?: string };
+  lastSyncedAt: string | null;
+}) {
+  const mode = trigger.type || 'import_once';
+  const modeLabel = getSyncModeLabel(mode);
+
+  return (
+    <div style={{
+      padding: '10px 12px', borderRadius: 6,
+      background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+      display: 'flex', flexDirection: 'column', gap: 4,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3' }}>{modeLabel}</span>
+        {mode === 'scheduled' && trigger.schedule && (
+          <span style={{ fontSize: 11, color: '#525252' }}>· {describeCron(trigger.schedule)}</span>
+        )}
+      </div>
+      {lastSyncedAt && (
+        <div style={{ fontSize: 11, color: '#525252' }}>
+          Last synced: {relativeTime(lastSyncedAt)}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -41,13 +41,13 @@ class ETLStateRepositoryRedis:
             else etl_config.etl_state_terminal_ttl_seconds
         )
 
-    def _key(self, task_id: int) -> str:
+    def _key(self, task_id: str | int) -> str:
         prefix = self.key_prefix
         if prefix and not prefix.endswith(":"):
             prefix = f"{prefix}:"
         return f"{prefix}task:{task_id}"
 
-    async def get(self, task_id: int) -> Optional[ETLRuntimeState]:
+    async def get(self, task_id: str | int) -> Optional[ETLRuntimeState]:
         raw = await self.redis.get(self._key(task_id))
         if not raw:
             return None
@@ -69,7 +69,7 @@ class ETLStateRepositoryRedis:
         await self.redis.set(self._key(state.task_id), state.model_dump_json(), ex=ttl)
 
     async def merge(
-        self, task_id: int, patch: dict[str, Any], *, ttl_seconds: int | None = None
+        self, task_id: str | int, patch: dict[str, Any], *, ttl_seconds: int | None = None
     ) -> Optional[ETLRuntimeState]:
         current = await self.get(task_id)
         if current is None:

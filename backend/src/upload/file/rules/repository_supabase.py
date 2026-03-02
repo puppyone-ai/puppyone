@@ -49,17 +49,19 @@ class RuleRepositorySupabase:
 
     TABLE_NAME = "etl_rule"
 
-    def __init__(self, supabase_client, user_id: Optional[str] = None):
+    def __init__(self, supabase_client, org_id: Optional[str] = None, created_by: Optional[str] = None):
         """
         初始化 Supabase rule repository.
 
         Args:
             supabase_client: Supabase client 实例
-            user_id: 用户 ID，用于过滤和关联规则
+            org_id: 组织 ID，用于过滤规则
+            created_by: 创建者用户 ID，用于记录创建者
         """
         self.supabase = supabase_client
-        self.user_id = user_id
-        logger.info(f"RuleRepositorySupabase initialized for user_id: {user_id}")
+        self.org_id = org_id
+        self.created_by = created_by
+        logger.info(f"RuleRepositorySupabase initialized for org_id: {org_id}")
 
     def create_rule(self, request: RuleCreateRequest) -> ETLRule:
         """
@@ -90,7 +92,8 @@ class RuleRepositorySupabase:
             "description": request.description,
             "json_schema": payload,
             "system_prompt": request.system_prompt or "",
-            "user_id": self.user_id,
+            "created_by": self.created_by,
+            "org_id": self.org_id,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
         }
@@ -148,9 +151,8 @@ class RuleRepositorySupabase:
 
             query = self.supabase.table(self.TABLE_NAME).select("*").eq("id", id_int)
 
-            # 如果指定了 user_id，添加过滤
-            if self.user_id is not None:
-                query = query.eq("user_id", self.user_id)
+            if self.org_id is not None:
+                query = query.eq("org_id", self.org_id)
 
             response = query.execute()
 
@@ -252,9 +254,8 @@ class RuleRepositorySupabase:
                 .eq("id", id_int)
             )
 
-            # 如果指定了 user_id，添加过滤
-            if self.user_id is not None:
-                query = query.eq("user_id", self.user_id)
+            if self.org_id is not None:
+                query = query.eq("org_id", self.org_id)
 
             response = query.execute()
 
@@ -309,9 +310,8 @@ class RuleRepositorySupabase:
 
             query = self.supabase.table(self.TABLE_NAME).delete().eq("id", id_int)
 
-            # 如果指定了 user_id，添加过滤
-            if self.user_id is not None:
-                query = query.eq("user_id", self.user_id)
+            if self.org_id is not None:
+                query = query.eq("org_id", self.org_id)
 
             response = query.execute()
 
@@ -339,9 +339,8 @@ class RuleRepositorySupabase:
         try:
             query = self.supabase.table(self.TABLE_NAME).select("*")
 
-            # 如果指定了 user_id，添加过滤
-            if self.user_id is not None:
-                query = query.eq("user_id", self.user_id)
+            if self.org_id is not None:
+                query = query.eq("org_id", self.org_id)
 
             # 应用分页
             query = query.range(offset, offset + limit - 1).order(
@@ -385,9 +384,8 @@ class RuleRepositorySupabase:
         try:
             query = self.supabase.table(self.TABLE_NAME).select("id", count="exact")
 
-            # 如果指定了 user_id，添加过滤
-            if self.user_id is not None:
-                query = query.eq("user_id", self.user_id)
+            if self.org_id is not None:
+                query = query.eq("org_id", self.org_id)
 
             response = query.execute()
 

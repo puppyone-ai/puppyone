@@ -79,7 +79,7 @@ class ETLQueue:
         logger.info(f"Task {task_with_id.task_id} submitted to queue")
         return task_with_id
 
-    def get_task(self, task_id: int) -> Optional[ETLTask]:
+    def get_task(self, task_id: str | int) -> Optional[ETLTask]:
         """
         Get task by ID from memory cache.
 
@@ -103,8 +103,7 @@ class ETLQueue:
 
     def list_tasks(
         self,
-        user_id: Optional[str] = None,
-        project_id: Optional[int] = None,
+        project_id: Optional[str] = None,
         status: Optional[ETLTaskStatus] = None,
     ) -> list[ETLTask]:
         """
@@ -113,7 +112,6 @@ class ETLQueue:
         从数据库和内存缓存中合并任务列表。
 
         Args:
-            user_id: Filter by user ID (string type)
             project_id: Filter by project ID
             status: Filter by status
 
@@ -122,7 +120,7 @@ class ETLQueue:
         """
         # 从数据库获取任务列表
         db_tasks = self.task_repository.list_tasks(
-            user_id=user_id, project_id=project_id, status=status
+            project_id=project_id, status=status
         )
 
         # 创建任务字典（以 task_id 为 key）
@@ -130,9 +128,7 @@ class ETLQueue:
 
         # 用内存中的任务状态覆盖数据库中的状态（内存中的状态更新）
         for task_id, memory_task in self.tasks.items():
-            # 应用过滤条件
-            if user_id is not None and memory_task.user_id != user_id:
-                continue
+            # 应用过滤条件 (use project_id for scoping)
             if project_id is not None and memory_task.project_id != project_id:
                 continue
             if status is not None and memory_task.status != status:
@@ -208,7 +204,7 @@ class ETLQueue:
 
                 logger.info(
                     f"Worker {worker_id} processing task {task_id} "
-                    f"(user_id={task.user_id}, filename={task.filename})"
+                    f"(created_by={task.created_by}, filename={task.filename})"
                 )
 
                 # Execute task

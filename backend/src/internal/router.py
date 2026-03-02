@@ -21,6 +21,9 @@ from src.tool.repository import ToolRepositorySupabase
 from src.tool.models import Tool
 from src.content_node.dependencies import get_content_node_service
 from src.content_node.service import ContentNodeService
+from src.collaboration.service import CollaborationService
+from src.collaboration.dependencies import get_collaboration_service
+from src.collaboration.schemas import Mutation, MutationType, Operator
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -568,7 +571,7 @@ async def read_node_content(
 
 @router.put(
     "/nodes/{node_id}/content",
-    summary="更新节点内容",
+    summary="更新节点内容（via Mut Protocol）",
     description="更新 JSON 或 Markdown 节点的内容",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -576,6 +579,7 @@ async def write_node_content(
     node_id: str,
     payload: Dict[str, Any],
     node_service: ContentNodeService = Depends(get_content_node_service),
+    collab: CollaborationService = Depends(get_collaboration_service),
 ):
     """
     更新节点内容。
@@ -583,33 +587,43 @@ async def write_node_content(
     payload:
         project_id: str
         content: Any (JSON 对象或 Markdown 字符串)
+        operator_id: str (可选)
     """
     try:
         project_id = payload.get("project_id", "")
         content = payload.get("content")
+        operator_id = payload.get("operator_id", "mcp_agent")
         node = node_service.get_by_id(node_id, project_id)
 
         if node.is_markdown or node.type == "markdown":
             if not isinstance(content, str):
                 raise HTTPException(status_code=400, detail="Markdown content must be a string")
-            updated = await node_service.update_markdown_content(node_id, project_id, content)
-        elif node.is_json or node.type == "json":
-            updated = node_service.update_node(node_id, project_id, preview_json=content)
-        elif node.preview_json is not None:
-            # 同步节点等带 preview_json 的节点
-            updated = node_service.update_node(node_id, project_id, preview_json=content)
+            node_type = "markdown"
+        elif node.is_json or node.type == "json" or node.preview_json is not None:
+            node_type = "json"
         elif node.preview_md is not None:
             if not isinstance(content, str):
                 raise HTTPException(status_code=400, detail="Markdown content must be a string")
-            updated = await node_service.update_markdown_content(node_id, project_id, content)
+            node_type = "markdown"
         else:
             raise HTTPException(status_code=400, detail=f"Cannot write to node type: {node.type}")
 
+        result = await collab.commit(Mutation(
+            type=MutationType.CONTENT_UPDATE,
+            operator=Operator(type="mcp_agent", id=operator_id),
+            node_id=node_id,
+            content=content,
+            node_type=node_type,
+            base_version=0,
+        ))
+
+        updated = node_service.get_by_id(node_id, project_id)
         return {
             "node_id": updated.id,
             "name": updated.name,
             "type": updated.type,
             "updated": True,
+            "version": result.version,
             "updated_at": updated.updated_at.isoformat() if updated.updated_at else None,
         }
     except HTTPException:
@@ -622,12 +636,13 @@ async def write_node_content(
 
 @router.post(
     "/nodes/create",
-    summary="创建节点",
+    summary="创建节点（via Mut Protocol）",
     description="在指定父目录下创建新节点（JSON / Markdown / Folder）",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def create_node(
     payload: Dict[str, Any],
+    collab: CollaborationService = Depends(get_collaboration_service),
     node_service: ContentNodeService = Depends(get_content_node_service),
 ):
     """
@@ -649,16 +664,20 @@ async def create_node(
         content = payload.get("content")
         created_by = payload.get("created_by")
 
-        if node_type == "folder":
-            node = node_service.create_folder(project_id, name, parent_id, created_by)
-        elif node_type == "json":
-            node = node_service.create_json_node(project_id, name, content or {}, parent_id, created_by)
-        elif node_type == "markdown":
-            content_str = content if isinstance(content, str) else ""
-            node = await node_service.create_markdown_node(project_id, name, content_str, parent_id, created_by)
-        else:
+        if node_type not in ("json", "markdown", "folder"):
             raise HTTPException(status_code=400, detail=f"Unsupported node type for creation: {node_type}")
 
+        result = await collab.commit(Mutation(
+            type=MutationType.NODE_CREATE,
+            operator=Operator(type="mcp_agent", id=created_by or "system"),
+            project_id=project_id,
+            parent_id=parent_id,
+            name=name,
+            node_type=node_type,
+            content=content if node_type != "folder" else None,
+        ))
+
+        node = node_service.get_by_id(result.node_id, project_id)
         return {
             "node_id": node.id,
             "name": node.name,
@@ -676,14 +695,14 @@ async def create_node(
 
 @router.post(
     "/nodes/{node_id}/trash",
-    summary="软删除节点（移入废纸篓）",
+    summary="软删除节点（via Mut Protocol）",
     description="将节点移入 .trash 文件夹（可恢复的软删除）",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def trash_node(
     node_id: str,
     payload: Dict[str, Any],
-    node_service: ContentNodeService = Depends(get_content_node_service),
+    collab: CollaborationService = Depends(get_collaboration_service),
 ):
     """
     软删除：移入 .trash
@@ -696,7 +715,12 @@ async def trash_node(
         project_id = payload.get("project_id", "")
         user_id = payload.get("user_id", "system")
 
-        node_service.soft_delete_node(node_id, project_id, user_id)
+        await collab.commit(Mutation(
+            type=MutationType.NODE_DELETE,
+            operator=Operator(type="mcp_agent", id=user_id),
+            node_id=node_id,
+            project_id=project_id,
+        ))
         return {"node_id": node_id, "removed": True, "message": "Moved to trash"}
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
@@ -710,14 +734,14 @@ async def trash_node(
 
 @router.post(
     "/nodes/{node_id}/rename",
-    summary="重命名节点",
+    summary="重命名节点（via Mut Protocol）",
     description="修改节点名称（不影响 id_path）",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def rename_node(
     node_id: str,
     payload: Dict[str, Any],
-    node_service: ContentNodeService = Depends(get_content_node_service),
+    collab: CollaborationService = Depends(get_collaboration_service),
 ):
     """
     重命名节点
@@ -731,8 +755,15 @@ async def rename_node(
         new_name = payload.get("new_name", "")
         if not new_name:
             raise HTTPException(status_code=400, detail="new_name is required")
-        updated = node_service.update_node(node_id, project_id, name=new_name)
-        return {"node_id": updated.id, "name": updated.name, "renamed": True}
+
+        result = await collab.commit(Mutation(
+            type=MutationType.NODE_RENAME,
+            operator=Operator(type="mcp_agent", id="system"),
+            node_id=node_id,
+            project_id=project_id,
+            new_name=new_name,
+        ))
+        return {"node_id": node_id, "name": new_name, "renamed": True}
     except HTTPException:
         raise
     except AppException as e:
@@ -743,14 +774,14 @@ async def rename_node(
 
 @router.post(
     "/nodes/{node_id}/move",
-    summary="移动节点到新父目录",
+    summary="移动节点到新父目录（via Mut Protocol）",
     description="将节点移动到另一个文件夹下（递归更新子节点 id_path）",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def move_node_internal(
     node_id: str,
     payload: Dict[str, Any],
-    node_service: ContentNodeService = Depends(get_content_node_service),
+    collab: CollaborationService = Depends(get_collaboration_service),
 ):
     """
     移动节点
@@ -762,8 +793,15 @@ async def move_node_internal(
     try:
         project_id = payload.get("project_id", "")
         new_parent_id = payload.get("new_parent_id")
-        updated = node_service.move_node(node_id, project_id, new_parent_id)
-        return {"node_id": updated.id, "parent_id": updated.parent_id, "moved": True}
+
+        await collab.commit(Mutation(
+            type=MutationType.NODE_MOVE,
+            operator=Operator(type="mcp_agent", id="system"),
+            node_id=node_id,
+            project_id=project_id,
+            new_parent_id=new_parent_id,
+        ))
+        return {"node_id": node_id, "parent_id": new_parent_id, "moved": True}
     except HTTPException:
         raise
     except AppException as e:

@@ -31,13 +31,18 @@ from src.supabase.client import SupabaseClient
 logger = logging.getLogger(__name__)
 
 
-def _artifact_markdown_key(task_id: int, user_id: str, project_id: str) -> str:
+def _creator_id(task) -> str:
+    """Creator ID for S3 paths (created_by or project_id fallback for legacy)."""
+    return task.created_by or task.project_id or "unknown"
+
+
+def _artifact_markdown_key(task_id: str | int, creator_id: str, project_id: str) -> str:
     # Avoid using filename here (can have special chars). Use deterministic keys.
-    return f"users/{user_id}/etl_artifacts/{project_id}/{task_id}/mineru.md"
+    return f"users/{creator_id}/etl_artifacts/{project_id}/{task_id}/mineru.md"
 
 
-def _output_json_key(task_id: int, user_id: str, project_id: str) -> str:
-    return f"users/{user_id}/processed/{project_id}/{task_id}.json"
+def _output_json_key(task_id: str | int, creator_id: str, project_id: str) -> str:
+    return f"users/{creator_id}/processed/{project_id}/{task_id}.json"
 
 
 def _chunk_text(text: str, chunk_size: int, max_chunks: int) -> list[str]:
@@ -51,7 +56,7 @@ def _chunk_text(text: str, chunk_size: int, max_chunks: int) -> list[str]:
     return chunks
 
 
-async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
+async def etl_ocr_job(ctx: dict, task_id: str | int) -> dict:
     """
     OCR stage: Parse document -> upload markdown artifact -> enqueue postprocess job.
     
@@ -78,7 +83,7 @@ async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
     if state is None:
         state = ETLRuntimeState(
             task_id=task_id,
-            user_id=task.user_id,
+            user_id=_creator_id(task),
             project_id=task.project_id,
             filename=task.filename,
             rule_id=task.rule_id,
@@ -101,7 +106,7 @@ async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
         if "s3_key" in task.metadata:
             source_key = task.metadata["s3_key"]
         else:
-            source_key = f"users/{task.user_id}/raw/{task.project_id}/{task.filename}"
+            source_key = f"users/{_creator_id(task)}/raw/{task.project_id}/{task.filename}"
 
         presigned_url = await s3.generate_presigned_download_url(
             source_key, expires_in=3600
@@ -126,7 +131,7 @@ async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
         await state_repo.set(state)
 
         # Upload markdown artifact to S3
-        md_key = _artifact_markdown_key(task_id, task.user_id, task.project_id)
+        md_key = _artifact_markdown_key(task_id, _creator_id(task), task.project_id)
         await s3.upload_file(
             key=md_key,
             content=parsed.markdown_content.encode("utf-8"),
@@ -219,7 +224,7 @@ async def etl_ocr_job(ctx: dict, task_id: int) -> dict:
         return {"ok": False, "stage": "ocr", "error": str(e)}
 
 
-async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
+async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
     """
     Postprocess stage: load markdown artifact -> apply rule (LLM) -> upload JSON -> persist terminal state.
     """
@@ -247,7 +252,7 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
     if state is None:
         state = ETLRuntimeState(
             task_id=task_id,
-            user_id=task.user_id,
+            user_id=_creator_id(task),
             project_id=task.project_id,
             filename=task.filename,
             rule_id=task.rule_id,
@@ -280,7 +285,7 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
         # RuleRepositorySupabase expects supabase.Client (with .table()), not our wrapper class.
         supabase_client = SupabaseClient().client
         rule_repo = RuleRepositorySupabase(
-            supabase_client=supabase_client, user_id=task.user_id
+            supabase_client=supabase_client
         )
         rule = rule_repo.get_rule(str(task.rule_id))
         if not rule:
@@ -345,7 +350,7 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
             )
             return {"ok": True, "skipped": "cancelled"}
 
-        output_key = _output_json_key(task_id, task.user_id, task.project_id)
+        output_key = _output_json_key(task_id, _creator_id(task), task.project_id)
         output_json = json.dumps(output_obj, indent=2, ensure_ascii=False).encode(
             "utf-8"
         )
@@ -364,36 +369,36 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
             mineru_task_id=state.provider_task_id,
         )
 
-        # Auto-mount after output is generated (this replaces legacy mount endpoint & callbacks)
         mount_node_id = task.metadata.get("mount_node_id")
         mount_json_path = task.metadata.get("mount_json_path") or ""
         mount_key = task.metadata.get("mount_key") or Path(task.filename).name
 
-        # Create ContentNodeService manually (Worker has no FastAPI Depends context)
+        from src.collaboration.dependencies import create_collaboration_service
+        from src.collaboration.schemas import Mutation, MutationType, Operator
+        collab_service = create_collaboration_service()
+
         _supabase = SupabaseClient()
         _repo = ContentNodeRepository(_supabase)
         _s3 = S3Service()
         node_service = ContentNodeService(_repo, _s3)
 
         if not mount_node_id:
-            # Auto-create a JSON node per file when mount target is not provided
             auto_name = task.metadata.get("auto_node_name") or f"{task_id}"
             auto_name = str(auto_name)[:12]
-            created_node = await asyncio.to_thread(
-                node_service.create_json_node,
+            create_result = await collab_service.commit(Mutation(
+                type=MutationType.NODE_CREATE,
+                operator=Operator(type="system", id=f"etl:{task_id}", summary=f"ETL auto-create for {task.filename}"),
                 project_id=task.project_id,
                 name=auto_name,
                 content={},
                 parent_id=None,
-                created_by=task.user_id,
-            )
-            mount_node_id = created_node.id
+                node_type="json",
+                created_by=_creator_id(task),
+            ))
+            mount_node_id = create_result.node_id
             task.metadata["mount_node_id"] = mount_node_id
             task.metadata["auto_node_created"] = True
 
-        # Avoid double-wrapping on mount:
-        # - skip-mode output_obj shape is {base_name: {filename, content}}
-        # - mount_key is already a per-file unique key (filename+hash), so we mount the inner payload.
         if getattr(rule, "postprocess_mode", "llm") == "skip":
             base_name = Path(task.filename).stem
             mount_value: Any = (
@@ -405,64 +410,60 @@ async def etl_postprocess_job(ctx: dict, task_id: int) -> dict:
             mount_value = output_obj
 
         try:
-            # Check if target node is a pending node (方案 B: 直接更新节点)
             existing_node = await asyncio.to_thread(
                 node_service.get_by_id, mount_node_id, task.project_id
             )
-            
-            # Check if it's a pending file (type='file' with no preview content)
+
             is_pending = existing_node.type == "file" and not existing_node.has_preview
             if is_pending:
-                # ─────────────────────────────────────────────────────────────
-                # Pending 节点处理：填充 preview_md，type 保持 "file" 不变
-                # 语义：type=原始本质, preview_md/preview_json=Agent看到什么
-                # ─────────────────────────────────────────────────────────────
-                # 提取 markdown 内容
                 if isinstance(mount_value, dict) and "content" in mount_value:
                     markdown_content = mount_value["content"]
                 elif isinstance(mount_value, str):
                     markdown_content = mount_value
                 else:
-                    markdown_content = markdown  # 使用原始 markdown
-                
-                # type 保持 "file"，文件名也保持原始（IMG_4561.PNG 就是 IMG_4561.PNG）
-                # 只更新 preview_md（填充 OCR 结果）
+                    markdown_content = markdown
+
+                current_version = existing_node.current_version or 0
+                await collab_service.commit(Mutation(
+                    type=MutationType.CONTENT_UPDATE,
+                    operator=Operator(type="system", id=f"etl:{task_id}", summary=f"OCR result for {task.filename}"),
+                    node_id=mount_node_id,
+                    content=markdown_content,
+                    node_type="markdown",
+                    base_version=current_version,
+                ))
                 await node_service.finalize_pending_node(
                     node_id=mount_node_id,
                     project_id=task.project_id,
                     content=markdown_content,
-                    # new_name=None → 不改名
                 )
                 logger.info(f"ETL: Filled preview for pending node {mount_node_id}")
-                # Pending 节点处理完成，跳过后面的 JSON 挂载逻辑
             else:
-                # ─────────────────────────────────────────────────────────────
-                # 传统逻辑：挂载到已存在的 JSON 节点
-                # ─────────────────────────────────────────────────────────────
                 existing_content = existing_node.preview_json or {}
-            
-            # Merge data at the specified path
-            if mount_json_path:
-                path_parts = [p for p in mount_json_path.split("/") if p]
-                current = existing_content
-                for part in path_parts[:-1]:
-                    if part not in current:
-                        current[part] = {}
-                    current = current[part]
-                if path_parts:
-                    current[path_parts[-1]] = {mount_key: mount_value}
+
+                if mount_json_path:
+                    path_parts = [p for p in mount_json_path.split("/") if p]
+                    current = existing_content
+                    for part in path_parts[:-1]:
+                        if part not in current:
+                            current[part] = {}
+                        current = current[part]
+                    if path_parts:
+                        current[path_parts[-1]] = {mount_key: mount_value}
+                    else:
+                        existing_content[mount_key] = mount_value
                 else:
                     existing_content[mount_key] = mount_value
-            else:
-                existing_content[mount_key] = mount_value
-            
-            # Update node with merged content
-            await asyncio.to_thread(
-                node_service.update_node,
-                mount_node_id,
-                    task.project_id,
-                    preview_json=existing_content,
-            )
+
+                current_version = existing_node.current_version or 0
+                await collab_service.commit(Mutation(
+                    type=MutationType.CONTENT_UPDATE,
+                    operator=Operator(type="system", id=f"etl:{task_id}", summary=f"ETL mount for {task.filename}"),
+                    node_id=mount_node_id,
+                    content=existing_content,
+                    node_type="json",
+                    base_version=current_version,
+                ))
         except Exception as e:
             # Mount failure => task failed (output exists in S3, but contract is "completed means mounted")
             err = f"Mount failed: {e}"

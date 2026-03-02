@@ -18,6 +18,7 @@ from typing import Optional, List, Any, TYPE_CHECKING
 from src.sync.connectors._base import BaseConnector
 from src.sync.repository import SyncRepository
 from src.sync.schemas import Sync, PullResult
+from src.collaboration.schemas import Mutation, MutationType, Operator
 from src.utils.logger import log_info, log_error, log_debug
 
 if TYPE_CHECKING:
@@ -69,14 +70,24 @@ class SyncService:
         credentials_ref: Optional[str] = None,
         direction: str = "bidirectional",
         conflict_strategy: str = "three_way_merge",
+        sync_mode: str = "import_once",
+        trigger: Optional[dict] = None,
+        user_id: Optional[str] = None,
     ) -> List[Sync]:
         """
         First connect: scan external source, create nodes in PuppyOne,
         and create Sync rows for each binding.
+
+        sync_mode: 'import_once' | 'manual' | 'scheduled'
+        trigger: optional trigger config, e.g. {"type": "scheduled", "schedule": "0 9 * * *", "timezone": "Asia/Shanghai"}
         """
         connector = self._get_connector(provider)
         if not connector:
             raise ValueError(f"No connector for provider: {provider}")
+
+        trigger_data = trigger or {}
+        if not trigger_data.get("type"):
+            trigger_data["type"] = sync_mode
 
         temp_sync = Sync(
             id="",
@@ -104,56 +115,49 @@ class SyncService:
                 folder_node_id=target_folder_node_id,
             )
 
+            sync_config = {
+                **config,
+                "external_resource_id": res.external_resource_id,
+            }
+            if user_id:
+                sync_config["user_id"] = user_id
+
             sync = self.sync_repo.create(
                 project_id=project_id,
                 node_id=node_id,
                 direction=direction,
                 provider=provider,
-                config={
-                    **config,
-                    "external_resource_id": res.external_resource_id,
-                },
+                config=sync_config,
                 credentials_ref=credentials_ref,
                 conflict_strategy=conflict_strategy,
+                trigger=trigger_data,
+                created_by=user_id,
             )
             created_syncs.append(sync)
-            log_info(f"[L2.5] Bound {res.external_resource_id} → node {node_id}")
+            log_info(f"[L2.5] Bound {res.external_resource_id} → node {node_id} (mode={sync_mode})")
 
-        log_info(f"[L2.5] Bootstrap complete: {len(created_syncs)} syncs created")
+        log_info(f"[L2.5] Bootstrap complete: {len(created_syncs)} syncs created (mode={sync_mode})")
         return created_syncs
 
     async def _ensure_node_exists(
         self, project_id: str, resource, folder_node_id: Optional[str],
     ) -> str:
         """Ensure a corresponding node exists in PuppyOne. Create if missing."""
-        from src.content_node.repository import ContentNodeRepository
-        from src.content_node.service import ContentNodeService
-        from src.s3.service import S3Service
-        from src.supabase.client import SupabaseClient
+        if not self.collab:
+            raise RuntimeError("collab_service required for _ensure_node_exists")
 
-        supabase = SupabaseClient()
-        node_repo = ContentNodeRepository(supabase)
-        s3_service = S3Service()
-        node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service)
-
-        name = resource.name
-        if resource.node_type == "json":
-            new_node = node_svc.create_json_node(
-                project_id=project_id,
-                name=name,
-                content={},
-                parent_id=folder_node_id,
-                created_by="sync_bootstrap",
-            )
-        else:
-            new_node = await node_svc.create_markdown_node(
-                project_id=project_id,
-                name=name,
-                content="",
-                parent_id=folder_node_id,
-                created_by="sync_bootstrap",
-            )
-        return new_node.id
+        node_type = resource.node_type if resource.node_type in ("json", "markdown") else "markdown"
+        mutation = Mutation(
+            type=MutationType.NODE_CREATE,
+            operator=Operator(type="sync", id="sync_bootstrap"),
+            project_id=project_id,
+            parent_id=folder_node_id,
+            name=resource.name,
+            node_type=node_type,
+            content={} if node_type == "json" else "",
+        )
+        result = await self.collab.commit(mutation)
+        return result.node_id
 
     # ============================================================
     # PULL: External → PuppyOne
@@ -209,16 +213,20 @@ class SyncService:
             base_content = self._get_base_content(sync)
 
             external_resource_id = sync.config.get("external_resource_id", "")
-            commit_result = self.collab.commit(
+            mutation = Mutation(
+                type=MutationType.CONTENT_UPDATE,
+                operator=Operator(
+                    type="sync",
+                    id=f"{sync.provider}:{external_resource_id}",
+                    summary=pull_result.summary or f"Sync from {sync.provider}",
+                ),
                 node_id=sync.node_id,
-                new_content=pull_result.content,
+                content=pull_result.content,
                 base_version=sync.last_sync_version,
                 node_type=pull_result.node_type,
                 base_content=base_content,
-                operator_type="sync",
-                operator_id=f"{sync.provider}:{external_resource_id}",
-                summary=pull_result.summary or f"Sync from {sync.provider}",
             )
+            commit_result = await self.collab.commit(mutation)
 
             self.sync_repo.update_sync_point(
                 sync_id=sync.id,

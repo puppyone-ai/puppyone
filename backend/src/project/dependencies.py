@@ -50,11 +50,7 @@ def get_verified_project(
     """
     依赖注入函数：获取并验证用户对项目的访问权限
 
-    这个依赖会自动验证：
-    1. 项目是否存在
-    2. 项目是否属于当前用户
-
-    如果验证失败，会抛出 NotFoundException
+    通过 org_members 表验证用户是否属于项目所在组织。
 
     Args:
         project_id: 项目ID（从路径参数获取）

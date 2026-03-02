@@ -1,4 +1,4 @@
-"""Content Node API Router"""
+"""Content Node API Router — All writes go through Mut Protocol commit()"""
 
 from fastapi import APIRouter, Depends, Query, status
 from typing import Optional, List
@@ -20,6 +20,9 @@ from src.content_node.schemas import (
     UploadUrlResponse,
     DownloadUrlResponse,
 )
+from src.collaboration.service import CollaborationService
+from src.collaboration.dependencies import get_collaboration_service
+from src.collaboration.schemas import Mutation, MutationType, Operator
 from src.common_schemas import ApiResponse
 from src.auth.models import CurrentUser
 from src.auth.dependencies import get_current_user
@@ -198,19 +201,23 @@ def get_node_by_id_path(
     summary="创建文件夹",
     status_code=status.HTTP_201_CREATED,
 )
-def create_folder(
+async def create_folder(
     request: CreateFolderRequest,
+    collab: CollaborationService = Depends(get_collaboration_service),
     service: ContentNodeService = Depends(get_content_node_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, request.project_id)
-    node = service.create_folder(
+    result = await collab.commit(Mutation(
+        type=MutationType.NODE_CREATE,
+        operator=Operator(type="user", id=current_user.user_id),
         project_id=request.project_id,
         name=request.name,
         parent_id=request.parent_id,
-        created_by=current_user.user_id,
-    )
+        node_type="folder",
+    ))
+    node = service.get_by_id(result.node_id, request.project_id)
     return ApiResponse.success(data=_node_to_detail(node), message="文件夹创建成功")
 
 
@@ -220,20 +227,24 @@ def create_folder(
     summary="创建 JSON 节点",
     status_code=status.HTTP_201_CREATED,
 )
-def create_json_node(
+async def create_json_node(
     request: CreateJsonNodeRequest,
+    collab: CollaborationService = Depends(get_collaboration_service),
     service: ContentNodeService = Depends(get_content_node_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, request.project_id)
-    node = service.create_json_node(
+    result = await collab.commit(Mutation(
+        type=MutationType.NODE_CREATE,
+        operator=Operator(type="user", id=current_user.user_id),
         project_id=request.project_id,
         name=request.name,
         content=request.content,
         parent_id=request.parent_id,
-        created_by=current_user.user_id,
-    )
+        node_type="json",
+    ))
+    node = service.get_by_id(result.node_id, request.project_id)
     return ApiResponse.success(data=_node_to_detail(node), message="节点创建成功")
 
 
@@ -245,18 +256,22 @@ def create_json_node(
 )
 async def create_markdown_node(
     request: CreateMarkdownNodeRequest,
+    collab: CollaborationService = Depends(get_collaboration_service),
     service: ContentNodeService = Depends(get_content_node_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, request.project_id)
-    node = await service.create_markdown_node(
+    result = await collab.commit(Mutation(
+        type=MutationType.NODE_CREATE,
+        operator=Operator(type="user", id=current_user.user_id),
         project_id=request.project_id,
         name=request.name,
         content=request.content,
         parent_id=request.parent_id,
-        created_by=current_user.user_id,
-    )
+        node_type="markdown",
+    ))
+    node = service.get_by_id(result.node_id, request.project_id)
     return ApiResponse.success(data=_node_to_detail(node), message="Markdown 节点创建成功")
 
 
@@ -364,22 +379,47 @@ async def prepare_upload(
     response_model=ApiResponse[NodeDetail],
     summary="更新节点",
 )
-def update_node(
+async def update_node(
     node_id: str,
     request: UpdateNodeRequest,
     project_id: str = Query(..., description="项目 ID"),
+    collab: CollaborationService = Depends(get_collaboration_service),
     service: ContentNodeService = Depends(get_content_node_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
-    node = service.update_node(
-        node_id=node_id,
-        project_id=project_id,
-        name=request.name,
-        preview_json=request.preview_json,
-        preview_md=request.preview_md,
-    )
+    op = Operator(type="user", id=current_user.user_id)
+
+    if request.name is not None:
+        await collab.commit(Mutation(
+            type=MutationType.NODE_RENAME,
+            operator=op,
+            node_id=node_id,
+            project_id=project_id,
+            new_name=request.name,
+        ))
+
+    if request.preview_json is not None:
+        await collab.commit(Mutation(
+            type=MutationType.CONTENT_UPDATE,
+            operator=op,
+            node_id=node_id,
+            content=request.preview_json,
+            node_type="json",
+            base_version=0,
+        ))
+    elif request.preview_md is not None:
+        await collab.commit(Mutation(
+            type=MutationType.CONTENT_UPDATE,
+            operator=op,
+            node_id=node_id,
+            content=request.preview_md,
+            node_type="markdown",
+            base_version=0,
+        ))
+
+    node = service.get_by_id(node_id, project_id)
     return ApiResponse.success(data=_node_to_detail(node), message="节点更新成功")
 
 
@@ -388,20 +428,24 @@ def update_node(
     response_model=ApiResponse[NodeDetail],
     summary="移动节点",
 )
-def move_node(
+async def move_node(
     node_id: str,
     request: MoveNodeRequest,
     project_id: str = Query(..., description="项目 ID"),
+    collab: CollaborationService = Depends(get_collaboration_service),
     service: ContentNodeService = Depends(get_content_node_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
-    node = service.move_node(
+    await collab.commit(Mutation(
+        type=MutationType.NODE_MOVE,
+        operator=Operator(type="user", id=current_user.user_id),
         node_id=node_id,
         project_id=project_id,
         new_parent_id=request.new_parent_id,
-    )
+    ))
+    node = service.get_by_id(node_id, project_id)
     return ApiResponse.success(data=_node_to_detail(node), message="节点移动成功")
 
 
@@ -410,18 +454,22 @@ def move_node(
 @router.delete(
     "/{node_id}",
     response_model=ApiResponse[None],
-    summary="删除节点",
-    description="删除节点及其所有子节点",
+    summary="删除节点（软删除，移入 .trash）",
 )
 async def delete_node(
     node_id: str,
     project_id: str = Query(..., description="项目 ID"),
-    service: ContentNodeService = Depends(get_content_node_service),
+    collab: CollaborationService = Depends(get_collaboration_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
-    await service.delete_node(node_id, project_id)
+    await collab.commit(Mutation(
+        type=MutationType.NODE_DELETE,
+        operator=Operator(type="user", id=current_user.user_id),
+        node_id=node_id,
+        project_id=project_id,
+    ))
     return ApiResponse.success(message="节点删除成功")
 
 

@@ -9,7 +9,8 @@ class Project(BaseModel):
     """
 
     id: str = Field(..., description="主键，表示项目的ID (UUID)")
-    user_id: str = Field(..., description="用户ID")
+    org_id: str = Field(..., description="所属组织ID")
+    created_by: Optional[str] = Field(None, description="创建者用户ID")
     name: Optional[str] = Field(None, description="项目名称")
     description: Optional[str] = Field(None, description="项目描述")
     created_at: datetime = Field(..., description="创建时间")
@@ -29,8 +30,8 @@ class Table(BaseModel):
     project_id: Optional[str] = Field(
         None, description="外键，对应项目表，表示知识库所属的项目ID (UUID)"
     )
-    user_id: Optional[str] = Field(
-        None, description="直接关联用户ID，支持裸Table（不属于任何Project）"
+    created_by: Optional[str] = Field(
+        None, description="创建者用户ID，支持裸Table（不属于任何Project）"
     )
     description: Optional[str] = Field(
         None, description="知识库的描述，在MCP服务中可以提供给Agent"

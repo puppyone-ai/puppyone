@@ -145,7 +145,7 @@ class McpV2Service:
                     binding_id=int(b.id),
                     binding_status=binding_status,
                     created_at=tool.created_at,
-                    user_id=tool.user_id,
+                    created_by=tool.created_by,
                     name=tool.name,
                     type=tool.type,
                     node_id=tool.node_id,  # 改为 node_id
@@ -180,7 +180,7 @@ class McpV2Service:
         inst = self.get_by_api_key_with_access_check(api_key, user_id)
 
         tool = self._tool_repo.get_by_id(tool_id)
-        if not tool or tool.user_id != user_id:
+        if not tool:
             raise NotFoundException("Tool not found", code=ErrorCode.NOT_FOUND)
 
         # 强制同一 mcp_v2 内 tool.name 唯一（不区分 binding status，确保未来 enable 不会冲突）
@@ -228,7 +228,7 @@ class McpV2Service:
         request_names: set[str] = set()
         for b in bindings:
             tool = self._tool_repo.get_by_id(b.tool_id)
-            if not tool or tool.user_id != user_id:
+            if not tool:
                 raise NotFoundException("Tool not found", code=ErrorCode.NOT_FOUND)
             if tool.name in request_names:
                 raise ValidationException(
@@ -322,7 +322,7 @@ class McpV2Service:
         seen_names: set[str] = set()
         for b in bindings:
             tool = self._tool_repo.get_by_id(b.tool_id)
-            if not tool or tool.user_id != user_id:
+            if not tool:
                 raise NotFoundException("Tool not found", code=ErrorCode.NOT_FOUND)
             if tool.name in seen_names:
                 raise ValidationException(

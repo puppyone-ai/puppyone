@@ -72,11 +72,11 @@ class ContextPublishRepository:
         *,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> List[ContextPublishResponse]:
         query = self._client.table("context_publish").select("*")
-        if user_id is not None:
-            query = query.eq("user_id", user_id)
+        if created_by is not None:
+            query = query.eq("created_by", created_by)
         response = query.range(skip, skip + limit - 1).execute()
         return [ContextPublishResponse(**item) for item in response.data]
 

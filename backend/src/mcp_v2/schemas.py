@@ -84,7 +84,7 @@ class BoundToolOut(BaseModel):
     binding_status: bool
 
     created_at: datetime
-    user_id: str
+    created_by: Optional[str] = None
 
     name: str
     type: str

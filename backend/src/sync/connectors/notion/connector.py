@@ -4,12 +4,13 @@ Notion Connector - Process Notion page/database imports.
 Migrated from connect/providers/notion_provider.py
 """
 
+import hashlib
+import json
 import re
 from typing import Any, List, Optional
-from urllib.parse import urlparse
+
 import httpx
 
-from src.config import settings
 from src.content_node.service import ContentNodeService
 from src.oauth.notion_service import NotionOAuthService
 from src.s3.service import S3Service
@@ -19,12 +20,9 @@ from src.sync.connectors._base import (
     Capability,
     AuthRequirement,
     TriggerMode,
-    ImportResult,
-    PreviewResult,
-    ProgressCallback,
+    FetchResult,
+    Credentials,
 )
-from src.sync.task.models import ImportTask
-from src.utils.logger import log_info, log_error
 
 
 class NotionConnector(BaseConnector):
@@ -40,6 +38,8 @@ class NotionConnector(BaseConnector):
             default_node_type="json",
             auth=AuthRequirement.OAUTH,
             oauth_type="notion",
+            supported_sync_modes=("import_once", "manual", "scheduled"),
+            default_sync_mode="manual",
         )
 
     def __init__(
@@ -53,122 +53,39 @@ class NotionConnector(BaseConnector):
         self.notion_service = notion_service or NotionOAuthService()
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    async def import_data(
-        self,
-        task: ImportTask,
-        on_progress: ProgressCallback,
-    ) -> ImportResult:
-        """Process Notion import (page or database)."""
-        try:
-            await on_progress(10, "Getting Notion access token...")
-            access_token = await self._get_access_token(task.user_id)
+    async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
+        """Pull data from Notion. Returns database JSON or page markdown."""
+        access_token = credentials.access_token
+        source_url = config.get("source_url", "")
 
-            await on_progress(20, "Extracting Notion ID from URL...")
-            entity_id = self._extract_notion_id(task.source_url)
-            if not entity_id:
-                raise ValueError(f"Could not extract Notion ID from URL: {task.source_url}")
+        entity_id = self._extract_notion_id(source_url)
+        if not entity_id:
+            raise ValueError(f"Could not extract Notion ID from URL: {source_url}")
 
-            is_database = self._is_database_url(task.source_url)
-
-            await on_progress(30, f"Fetching Notion {'database' if is_database else 'page'}...")
-
-            try:
-                if is_database:
-                    result = await self._fetch_and_save_database(
-                        task, entity_id, access_token, on_progress
-                    )
-                else:
-                    result = await self._fetch_and_save_page(
-                        task, entity_id, access_token, on_progress
-                    )
-            except httpx.HTTPStatusError as e:
-                # Handle 400 error - might be wrong type detection
-                if e.response.status_code == 400:
-                    error_data = e.response.json()
-                    error_message = error_data.get("message", "")
-
-                    if "is a page, not a database" in error_message and is_database:
-                        log_info(f"Retrying as page instead of database: {task.source_url}")
-                        result = await self._fetch_and_save_page(
-                            task, entity_id, access_token, on_progress
-                        )
-                    elif "is a database, not a page" in error_message and not is_database:
-                        log_info(f"Retrying as database instead of page: {task.source_url}")
-                        result = await self._fetch_and_save_database(
-                            task, entity_id, access_token, on_progress
-                        )
-                    else:
-                        raise
-                elif e.response.status_code in [401, 403]:
-                    raise ValueError(
-                        "Notion authorization failed. Please check:\n"
-                        "1. Your Notion integration has access to this page/database\n"
-                        "2. In Notion, click '...' → 'Connect to' → Select your integration"
-                    )
-                else:
-                    raise
-
-            await on_progress(100, "Notion import completed!")
-            return result
-
-        except Exception as e:
-            log_error(f"Notion import failed: {e}")
-            raise
-
-    async def _get_access_token(self, user_id: str) -> str:
-        """Get access token (API Key or OAuth)."""
-        # Method 1: Internal Integration API Key
-        if settings.NOTION_API_KEY:
-            return settings.NOTION_API_KEY
-
-        # Method 2: OAuth token
-        connection = await self.notion_service.get_connection(user_id)
-        if not connection:
-            raise ValueError(
-                "Not connected to Notion. Please authorize your Notion account first, "
-                "or configure NOTION_API_KEY in backend .env file."
-            )
-
-        # Refresh token if needed
-        if await self.notion_service.is_token_expired(user_id):
-            connection = await self.notion_service.refresh_token_if_needed(user_id)
-            if not connection:
-                raise ValueError(
-                    "Notion authorization expired. Please reconnect your Notion account."
-                )
-
-        return connection.access_token
-
-    def _get_headers(self, access_token: str) -> dict:
-        """Build Notion API headers."""
-        return {
-            "Authorization": f"Bearer {access_token}",
-            "Notion-Version": "2022-06-28",
-            "Content-Type": "application/json",
-        }
-
-    def _extract_text(self, rich_text_list: list) -> str:
-        """Extract plain text from Notion rich text array."""
-        return " ".join([t.get("plain_text", "") for t in rich_text_list if t.get("plain_text")])
-
-    async def _fetch_and_save_database(
-        self,
-        task: ImportTask,
-        database_id: str,
-        access_token: str,
-        on_progress: ProgressCallback,
-    ) -> ImportResult:
-        """Fetch Notion database and save as content node."""
+        is_database = self._is_database_url(source_url)
         headers = self._get_headers(access_token)
 
-        # Get database info
-        await on_progress(40, "Fetching database metadata...")
+        try:
+            if is_database:
+                return await self._fetch_database(entity_id, headers)
+            else:
+                return await self._fetch_page(entity_id, headers)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 400:
+                error_message = e.response.json().get("message", "")
+                if "is a page, not a database" in error_message and is_database:
+                    return await self._fetch_page(entity_id, headers)
+                elif "is a database, not a page" in error_message and not is_database:
+                    return await self._fetch_database(entity_id, headers)
+            raise
+
+    async def _fetch_database(self, database_id: str, headers: dict) -> FetchResult:
+        """Fetch database metadata + rows without creating nodes."""
         db_info_url = f"https://api.notion.com/v1/databases/{database_id}"
         db_response = await self.client.get(db_info_url, headers=headers)
         db_response.raise_for_status()
         database_info = db_response.json()
 
-        # Extract title
         title = "Untitled Database"
         title_info = database_info.get("title", [])
         if title_info and isinstance(title_info, list) and title_info:
@@ -176,8 +93,6 @@ class NotionConnector(BaseConnector):
             if title_parts:
                 title = title_parts
 
-        # Query all rows
-        await on_progress(50, "Fetching database rows...")
         query_url = f"https://api.notion.com/v1/databases/{database_id}/query"
         all_rows = []
         has_more = True
@@ -187,22 +102,16 @@ class NotionConnector(BaseConnector):
             body = {}
             if next_cursor:
                 body["start_cursor"] = next_cursor
-
             response = await self.client.post(query_url, json=body, headers=headers)
             response.raise_for_status()
             data = response.json()
-
             all_rows.extend(data.get("results", []))
             has_more = data.get("has_more", False)
             next_cursor = data.get("next_cursor")
 
-        await on_progress(70, f"Processing {len(all_rows)} rows...")
-
-        # Convert rows to structured data
         properties = database_info.get("properties", {})
         rows = []
         fields = set()
-
         for result in all_rows:
             row = {}
             for prop_name, prop_data in result.get("properties", {}).items():
@@ -213,21 +122,13 @@ class NotionConnector(BaseConnector):
             if row:
                 rows.append(row)
 
-        # Build field definitions
         field_definitions = []
         for field_name in sorted(fields):
             field_info = properties.get(field_name, {})
             field_type = self._infer_field_type(field_info.get("type", "text"))
-            field_definitions.append({
-                "name": field_name,
-                "type": field_type,
-                "nullable": True,
-            })
+            field_definitions.append({"name": field_name, "type": field_type, "nullable": True})
 
-        await on_progress(80, "Saving to database...")
-
-        # Save data to S3 if large
-        data_content = {
+        content = {
             "source_type": "notion_database",
             "title": title,
             "database_id": database_id,
@@ -235,44 +136,25 @@ class NotionConnector(BaseConnector):
             "fields": field_definitions,
             "data": rows,
         }
+        content_hash = hashlib.sha256(
+            json.dumps(content, sort_keys=True, ensure_ascii=False).encode()
+        ).hexdigest()[:16]
 
-        s3_key = None
-        if len(rows) > 100:
-            # Large data - save to S3
-            s3_key = f"notion/{task.user_id}/{task.project_id}/{database_id}.json"
-            await self.s3_service.upload_json(s3_key, data_content)
-
-        # Create content node using create_synced_node
-        content_node = await self.node_service.create_synced_node(
-            project_id=task.project_id,
-            name=title,
-            content=data_content,
-            created_by=task.user_id,
+        return FetchResult(
+            content=content,
+            content_hash=content_hash,
+            node_type="json",
+            node_name=title,
+            summary=f"Notion database '{title}' with {len(rows)} rows",
         )
 
-        return ImportResult(
-            content_node_id=str(content_node.id),
-            items_count=len(rows),
-        )
-
-    async def _fetch_and_save_page(
-        self,
-        task: ImportTask,
-        page_id: str,
-        access_token: str,
-        on_progress: ProgressCallback,
-    ) -> ImportResult:
-        """Fetch Notion page and save as content node."""
-        headers = self._get_headers(access_token)
-
-        # Get page info
-        await on_progress(40, "Fetching page metadata...")
+    async def _fetch_page(self, page_id: str, headers: dict) -> FetchResult:
+        """Fetch page + blocks and convert to markdown without creating nodes."""
         page_url = f"https://api.notion.com/v1/pages/{page_id}"
         response = await self.client.get(page_url, headers=headers)
         response.raise_for_status()
         page_data = response.json()
 
-        # Extract title
         title = "Untitled Page"
         properties = page_data.get("properties", {})
         for prop_name, prop_data in properties.items():
@@ -284,8 +166,6 @@ class NotionConnector(BaseConnector):
                         title = " ".join(title_parts)
                 break
 
-        # Get page blocks
-        await on_progress(50, "Fetching page content...")
         blocks_url = f"https://api.notion.com/v1/blocks/{page_id}/children"
         all_blocks = []
         has_more = True
@@ -295,34 +175,31 @@ class NotionConnector(BaseConnector):
             url = blocks_url
             if next_cursor:
                 url += f"?start_cursor={next_cursor}"
-
             blocks_response = await self.client.get(url, headers=headers)
             blocks_response.raise_for_status()
             blocks_data = blocks_response.json()
-
             all_blocks.extend(blocks_data.get("results", []))
             has_more = blocks_data.get("has_more", False)
             next_cursor = blocks_data.get("next_cursor")
 
-        await on_progress(70, "Converting to Markdown...")
-
-        # Convert blocks to Markdown
         markdown_content = self._blocks_to_markdown(all_blocks)
+        content_hash = hashlib.sha256(markdown_content.encode()).hexdigest()[:16]
 
-        await on_progress(80, "Saving to database...")
-
-        # Create content node using create_synced_markdown_node
-        content_node = await self.node_service.create_synced_markdown_node(
-            project_id=task.project_id,
-            name=title,
+        return FetchResult(
             content=markdown_content,
-            created_by=task.user_id,
+            content_hash=content_hash,
+            node_type="markdown",
+            node_name=title,
+            summary=f"Notion page '{title}'",
         )
 
-        return ImportResult(
-            content_node_id=str(content_node.id),
-            items_count=1,
-        )
+    def _get_headers(self, access_token: str) -> dict:
+        """Build Notion API headers."""
+        return {
+            "Authorization": f"Bearer {access_token}",
+            "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json",
+        }
 
     def _extract_notion_id(self, url: str) -> Optional[str]:
         """Extract Notion page or database ID from URL."""
@@ -508,140 +385,3 @@ class NotionConnector(BaseConnector):
     async def close(self):
         """Close the HTTP client."""
         await self.client.aclose()
-
-    # ==================== Preview Functionality ====================
-
-    async def preview(self, url: str, user_id: str) -> PreviewResult:
-        """
-        Get preview data for a Notion URL without importing.
-
-        Supports pages and databases.
-        """
-        access_token = await self._get_access_token(user_id)
-        entity_id = self._extract_notion_id(url)
-        if not entity_id:
-            raise ValueError(f"Could not extract Notion ID from URL: {url}")
-
-        is_database = self._is_database_url(url)
-
-        try:
-            if is_database:
-                return await self._preview_database(entity_id, access_token)
-            else:
-                return await self._preview_page(entity_id, access_token)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 400:
-                error_data = e.response.json()
-                error_message = error_data.get("message", "")
-                if "is a page, not a database" in error_message and is_database:
-                    return await self._preview_page(entity_id, access_token)
-                elif "is a database, not a page" in error_message and not is_database:
-                    return await self._preview_database(entity_id, access_token)
-            elif e.response.status_code in [401, 403]:
-                raise ValueError("Notion authorization failed. Please reconnect.")
-            raise ValueError(f"Notion API error: {e.response.status_code}")
-
-    async def _preview_database(self, database_id: str, access_token: str) -> PreviewResult:
-        """Get preview for a Notion database."""
-        headers = self._get_headers(access_token)
-
-        # Get database metadata
-        meta_url = f"https://api.notion.com/v1/databases/{database_id}"
-        meta_resp = await self.client.get(meta_url, headers=headers)
-        meta_resp.raise_for_status()
-        db_meta = meta_resp.json()
-
-        # Query first few rows
-        query_url = f"https://api.notion.com/v1/databases/{database_id}/query"
-        query_resp = await self.client.post(
-            query_url,
-            headers=headers,
-            json={"page_size": 5}  # Just preview
-        )
-        query_resp.raise_for_status()
-        query_data = query_resp.json()
-
-        # Extract title
-        title = "Untitled Database"
-        title_prop = db_meta.get("title", [])
-        if title_prop:
-            title = self._extract_text(title_prop)
-
-        # Extract properties/fields
-        properties = db_meta.get("properties", {})
-        fields = [
-            {"name": name, "type": prop.get("type", "unknown")}
-            for name, prop in properties.items()
-        ]
-
-        # Convert rows to preview data
-        data = []
-        for page in query_data.get("results", []):
-            row = {}
-            page_props = page.get("properties", {})
-            for prop_name, prop_value in page_props.items():
-                row[prop_name] = self._extract_property_value(prop_value)
-            data.append(row)
-
-        return PreviewResult(
-            source_type="notion_database",
-            title=title,
-            description=db_meta.get("description", [{}])[0].get("plain_text") if db_meta.get("description") else None,
-            data=data,
-            fields=fields,
-            total_items=len(query_data.get("results", [])),
-            structure_info={
-                "type": "database",
-                "id": database_id,
-                "properties_count": len(properties),
-            },
-        )
-
-    async def _preview_page(self, page_id: str, access_token: str) -> PreviewResult:
-        """Get preview for a Notion page."""
-        headers = self._get_headers(access_token)
-
-        # Get page metadata
-        page_url = f"https://api.notion.com/v1/pages/{page_id}"
-        page_resp = await self.client.get(page_url, headers=headers)
-        page_resp.raise_for_status()
-        page_data = page_resp.json()
-
-        # Get first few blocks for preview
-        blocks_url = f"https://api.notion.com/v1/blocks/{page_id}/children"
-        blocks_resp = await self.client.get(blocks_url, headers=headers, params={"page_size": 10})
-        blocks_resp.raise_for_status()
-        blocks_data = blocks_resp.json()
-
-        # Extract title
-        title = "Untitled"
-        props = page_data.get("properties", {})
-        title_prop = props.get("title") or props.get("Name") or props.get("name")
-        if title_prop:
-            title_content = title_prop.get("title", [])
-            if title_content:
-                title = self._extract_text(title_content)
-
-        # Convert blocks to preview text
-        preview_text = []
-        for block in blocks_data.get("results", [])[:5]:
-            block_type = block.get("type")
-            block_data = block.get(block_type, {})
-            if "rich_text" in block_data:
-                text = self._extract_text(block_data["rich_text"])
-                if text:
-                    preview_text.append(text)
-
-        return PreviewResult(
-            source_type="notion_page",
-            title=title,
-            description="\n".join(preview_text[:3]) if preview_text else None,
-            data=[{"title": title, "content_preview": "\n\n".join(preview_text)}],
-            fields=[{"name": "title", "type": "string"}, {"name": "content", "type": "text"}],
-            total_items=1,
-            structure_info={
-                "type": "page",
-                "id": page_id,
-                "blocks_count": len(blocks_data.get("results", [])),
-            },
-        )

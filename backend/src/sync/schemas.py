@@ -41,6 +41,7 @@ class Sync:
     error_message: Optional[str] = None
     remote_hash: Optional[str] = None
     last_sync_version: int = 0
+    created_by: Optional[str] = None  # Who created the sync (audit field)
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

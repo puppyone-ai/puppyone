@@ -2,10 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
-import { AgentSettingView } from './views/AgentSettingView';
 import { AgentEditView } from './views/AgentEditView';
 import { ChatRuntimeView } from './views/ChatRuntimeView';
-import { McpConnectionView } from './views/McpConnectionView';
 import { OpenClawSetupView } from './views/OpenClawSetupView';
 import { AgentDetailView } from './views/AgentDetailView';
 import { SyncDetailView } from './views/SyncDetailView';
@@ -140,16 +138,6 @@ export function AgentViewport({
     >
 
       {/* Content based on Mode */}
-      {sidebarMode === 'setting' && (
-        <AgentSettingView 
-          availableTools={availableTools} 
-          projectTools={projectTools}
-          tableNameById={tableNameById}
-          currentTableId={tableId ? String(tableId) : undefined}
-          projectId={projectId ? String(projectId) : ''}
-        />
-      )}
-
       {sidebarMode === 'editing' && (
         <AgentEditView projectTools={projectTools} />
       )}

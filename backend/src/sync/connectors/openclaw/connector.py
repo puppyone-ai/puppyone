@@ -1,7 +1,7 @@
 """
 OpenClaw Connector — Bidirectional CLI file sync.
 
-Unlike SaaS connectors, OpenClaw doesn't use the import pipeline.
+Unlike SaaS connectors, OpenClaw doesn't use the standard fetch() pipeline.
 Sync is driven by the CLI pushing/pulling files via FolderSyncService.
 The connector exposes spec() and delegates to OpenClawService for lifecycle.
 """
@@ -10,7 +10,7 @@ from typing import Any, Optional, List
 
 from src.sync.connectors._base import (
     BaseConnector, ConnectorSpec, Capability, AuthRequirement, TriggerMode,
-    ImportResult, ProgressCallback,
+    FetchResult, Credentials,
 )
 from src.sync.schemas import Sync, PullResult, PushResult, ResourceInfo
 
@@ -32,19 +32,13 @@ class OpenClawConnector(BaseConnector):
             auth=AuthRequirement.ACCESS_KEY,
         )
 
-    async def import_data(self, task, on_progress: ProgressCallback) -> ImportResult:
+    async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
         raise NotImplementedError(
-            "OpenClaw does not use the import pipeline. "
+            "OpenClaw does not use fetch(). "
             "Use POST /api/v1/sync/syncs/openclaw/bootstrap instead."
         )
 
-    async def pull(self, sync: Sync) -> Optional[PullResult]:
-        # Pull is handled by FolderSyncService.pull(), not the connector directly.
-        # The CLI calls /api/v1/sync/{folder_id}/pull which goes through folder_router.
-        return None
-
     async def push(self, sync: Sync, content: Any, node_type: str) -> PushResult:
-        # Push is handled by FolderSyncService, triggered by CLI push-file endpoint.
         return PushResult(success=False, error="Use CLI push-file endpoint")
 
     async def list_resources(self, sync: Sync) -> List[ResourceInfo]:
