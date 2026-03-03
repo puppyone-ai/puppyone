@@ -167,7 +167,7 @@ const AGENT_TYPE_LABELS: Record<string, string> = {
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
-  openclaw: 'Desktop Folder', gmail: 'Gmail', google_sheets: 'Google Sheets',
+  filesystem: 'Desktop Folder', gmail: 'Gmail', google_sheets: 'Google Sheets',
   google_calendar: 'Google Calendar', google_docs: 'Google Docs', github: 'GitHub',
   supabase: 'Supabase', notion: 'Notion', linear: 'Linear',
   hackernews: 'Hacker News', posthog: 'PostHog',
@@ -210,7 +210,7 @@ function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number
     return <img src={logos[provider]} alt={provider} width={size} height={size} style={{ display: 'block', borderRadius: 2 }} />;
   }
 
-  if (provider === 'openclaw') {
+  if (provider === 'filesystem') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />

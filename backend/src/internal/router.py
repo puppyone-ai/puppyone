@@ -1014,3 +1014,120 @@ async def get_agent_by_mcp_key(
         "accesses": accesses_data,
         "tools": tools_data,
     }
+
+
+@router.get(
+    "/mcp-endpoint-by-key/{api_key}",
+    summary="根据 API key 获取独立 MCP 端点配置",
+    description="MCP Server 调用此端点获取独立 MCP Endpoint 配置",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def get_mcp_endpoint_by_key(api_key: str):
+    from src.mcp_endpoint.repository import McpEndpointRepository
+    from src.content_node.dependencies import get_content_node_repository
+    from src.supabase.client import SupabaseClient
+
+    repo = McpEndpointRepository()
+    endpoint = repo.get_by_api_key(api_key)
+    if not endpoint:
+        raise HTTPException(status_code=404, detail="MCP endpoint not found for this API key")
+    if endpoint.get("status") != "active":
+        raise HTTPException(status_code=403, detail="MCP endpoint is not active")
+
+    node_repo = get_content_node_repository(SupabaseClient())
+    accesses_data = []
+    for a in endpoint.get("accesses", []):
+        entry = {
+            "node_id": a.get("node_id", ""),
+            "bash_enabled": True,
+            "bash_readonly": a.get("readonly", True),
+            "tool_query": True,
+            "tool_create": not a.get("readonly", True),
+            "tool_update": not a.get("readonly", True),
+            "tool_delete": not a.get("readonly", True),
+            "json_path": a.get("json_path", ""),
+            "node_name": "",
+            "node_type": "",
+        }
+        node = node_repo.get_by_id(a.get("node_id", ""))
+        if node:
+            entry["node_name"] = node.name
+            entry["node_type"] = node.type
+        accesses_data.append(entry)
+
+    tool_repo = ToolRepositorySupabase(get_supabase_repository())
+    tools_data = []
+    for t in endpoint.get("tools_config", []):
+        tool = tool_repo.get_by_id(t.get("tool_id", ""))
+        if tool and t.get("enabled", True):
+            tools_data.append({
+                "id": t.get("tool_id"),
+                "tool_id": tool.id,
+                "name": tool.name,
+                "type": tool.type,
+                "description": tool.description,
+                "node_id": tool.node_id,
+                "json_path": tool.json_path,
+                "input_schema": tool.input_schema,
+                "category": tool.category,
+                "enabled": True,
+                "mcp_exposed": True,
+            })
+
+    return {
+        "endpoint": {
+            "id": endpoint["id"],
+            "name": endpoint["name"],
+            "project_id": endpoint["project_id"],
+        },
+        "accesses": accesses_data,
+        "tools": tools_data,
+    }
+
+
+@router.get(
+    "/sandbox-endpoint-by-key/{access_key}",
+    summary="根据 access key 获取独立 Sandbox 端点配置",
+    description="外部消费者调用执行前，先获取 Sandbox 端点的 mounts、runtime 等配置",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def get_sandbox_endpoint_by_key(access_key: str):
+    from src.sandbox_endpoint.repository import SandboxEndpointRepository
+    from src.content_node.dependencies import get_content_node_repository
+    from src.supabase.client import SupabaseClient
+
+    repo = SandboxEndpointRepository()
+    endpoint = repo.get_by_access_key(access_key)
+    if not endpoint:
+        raise HTTPException(status_code=404, detail="Sandbox endpoint not found for this access key")
+    if endpoint.get("status") != "active":
+        raise HTTPException(status_code=403, detail="Sandbox endpoint is not active")
+
+    node_repo = get_content_node_repository(SupabaseClient())
+    mounts_data = []
+    for m in endpoint.get("mounts", []):
+        entry = {
+            "node_id": m.get("node_id", ""),
+            "mount_path": m.get("mount_path", "/workspace"),
+            "permissions": m.get("permissions", {"read": True, "write": False, "exec": False}),
+            "node_name": "",
+            "node_type": "",
+        }
+        node = node_repo.get_by_id(m.get("node_id", ""))
+        if node:
+            entry["node_name"] = node.name
+            entry["node_type"] = node.type
+        mounts_data.append(entry)
+
+    return {
+        "endpoint": {
+            "id": endpoint["id"],
+            "name": endpoint["name"],
+            "project_id": endpoint["project_id"],
+            "runtime": endpoint.get("runtime", "alpine"),
+            "provider": endpoint.get("provider", "docker"),
+            "timeout_seconds": endpoint.get("timeout_seconds", 30),
+            "resource_limits": endpoint.get("resource_limits", {}),
+        },
+        "mounts": mounts_data,
+    }

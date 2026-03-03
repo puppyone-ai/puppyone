@@ -1,11 +1,11 @@
 """
 Unified Sync — Repository
 
-SyncRepository — CRUD for the `syncs` table.
+SyncRepository — CRUD for sync bindings in the `connections` table.
 
-The `syncs` table replaces both the old `sync_sources` table and the
-sync-related fields that used to live on `content_nodes`. Each row in
-`syncs` represents one sync binding between a content_node and an
+The `connections` table is the unified store for all external connections
+(syncs + agents). SyncRepository operates on rows where provider != 'agent'.
+Each sync row represents one sync binding between a content_node and an
 external resource.
 """
 
@@ -16,9 +16,9 @@ from src.sync.schemas import Sync
 
 
 class SyncRepository:
-    """CRUD for the unified `syncs` table."""
+    """CRUD for sync bindings in the `connections` table (provider != 'agent')."""
 
-    TABLE = "syncs"
+    TABLE = "connections"
 
     def __init__(self, supabase_client: SupabaseClient):
         self.client = supabase_client.client
@@ -31,7 +31,7 @@ class SyncRepository:
         return Sync(
             id=row["id"],
             project_id=row["project_id"],
-            node_id=row["node_id"],
+            node_id=row.get("node_id"),
             direction=row.get("direction", "inbound"),
             provider=row.get("provider", ""),
             authority=row.get("authority", "authoritative"),
@@ -141,7 +141,10 @@ class SyncRepository:
     def list_by_project(self, project_id: str) -> List[Sync]:
         response = (
             self.client.table(self.TABLE)
-            .select("*").eq("project_id", project_id).execute()
+            .select("*")
+            .eq("project_id", project_id)
+            .neq("provider", "agent")
+            .execute()
         )
         return [self._to_model(r) for r in response.data]
 
@@ -154,7 +157,7 @@ class SyncRepository:
         return [self._to_model(r) for r in response.data]
 
     def list_active(self, provider: Optional[str] = None) -> List[Sync]:
-        query = self.client.table(self.TABLE).select("*").eq("status", "active")
+        query = self.client.table(self.TABLE).select("*").eq("status", "active").neq("provider", "agent")
         if provider:
             query = query.eq("provider", provider)
         return [self._to_model(r) for r in query.execute().data]

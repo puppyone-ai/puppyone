@@ -25,7 +25,7 @@ from src.sync.connectors.google_drive.connector import GoogleDriveConnector
 from src.sync.connectors.airtable.connector import AirtableConnector
 from src.sync.connectors.linear.connector import LinearConnector
 from src.sync.connectors.url.connector import UrlConnector
-from src.sync.connectors.openclaw.connector import OpenClawConnector
+from src.sync.connectors.filesystem.connector import OpenClawConnector
 from src.sync.connectors.hackernews.connector import HackerNewsConnector
 from src.sync.connectors.posthog.connector import PosthogConnector
 from src.sync.connectors.google_search_console.connector import GoogleSearchConsoleConnector

@@ -70,7 +70,6 @@ function getProviderLogo(provider: string, size: number) {
     case 'notion': return <ProviderImg src="/icons/notion.svg" alt="Notion" size={size} />;
     case 'linear': return <ProviderImg src="/icons/linear.svg" alt="Linear" size={size} />;
     case 'filesystem':
-    case 'openclaw':
       return <span style={{ fontSize: size * 0.65 }}>🦞</span>;
     default:
       return (
@@ -134,7 +133,7 @@ function ConnectionLine({ direction, isActive, status }: { direction: string; co
 // ============================================================
 
 const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'Desktop Folder', openclaw: 'Desktop Folder',
+  filesystem: 'Desktop Folder',
   github: 'GitHub', notion: 'Notion', gmail: 'Gmail',
   google_calendar: 'Google Calendar', google_sheets: 'Google Sheets',
   google_drive: 'Google Drive', google_docs: 'Google Docs',
@@ -339,7 +338,7 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
           </div>
 
           {/* OpenClaw: Access Key */}
-          {sync.provider === 'openclaw' && sync.access_key && (
+          {sync.provider === 'filesystem' && sync.access_key && (
             <AccessKeyRow accessKey={sync.access_key} />
           )}
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState, useRef, useEffect } from 'react';
-import type { ContentType, AgentResource } from './GridView';
+import type { ContentType } from './GridView';
 import { getNodeTypeConfig, getSyncSourceIcon, getSyncSource, isSyncedType } from '@/lib/nodeTypeConfig';
 import { useContentNodes } from '@/lib/hooks/useData';
 import { useSyncExternalStore } from 'react';
@@ -85,9 +85,10 @@ export interface ExplorerSidebarProps {
   onDelete?: (id: string, name: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onSyncClick?: (item: MillerColumnItem, pathToItem: string[]) => void;
+  onEndpointClick?: (item: MillerColumnItem, endpoint: SyncEndpointInfo, pathToItem: string[]) => void;
   activeSyncNodeId?: string | null;
-  agentResources?: AgentResource[];
   syncEndpoints?: Map<string, SyncEndpointInfo>;
+  nodeEndpointMap?: Map<string, SyncEndpointInfo[]>;
   highlightNodeId?: string | null;
   className?: string;
   style?: React.CSSProperties;
@@ -209,8 +210,7 @@ function SyncBadge({ provider, direction, active }: { provider: string; directio
       case 'notion': return <img src="/icons/notion.svg" width={sz} height={sz} style={{ display: 'block' }} />;
       case 'linear': return <img src="/icons/linear.svg" width={sz} height={sz} style={{ display: 'block' }} />;
       case 'airtable': return <img src="/icons/airtable.svg" width={sz} height={sz} style={{ display: 'block' }} />;
-      case 'filesystem':
-      case 'openclaw': return <span style={{ fontSize: 10, lineHeight: 1 }}>🦞</span>;
+      case 'filesystem': return <span style={{ fontSize: 10, lineHeight: 1 }}>🦞</span>;
       default: return <span style={{ color: '#71717a', fontSize: 10 }}>⟳</span>;
     }
   })();
@@ -244,6 +244,177 @@ function SyncBadge({ provider, direction, active }: { provider: string; directio
 }
 
 // === Context Menu (three dots) ===
+// === Endpoint Hover Menu ===
+function EndpointHoverMenu({ 
+  endpoints, 
+  onEndpointClick, 
+  item, 
+  ancestors,
+  defaultClick 
+}: { 
+  endpoints: SyncEndpointInfo[], 
+  onEndpointClick: (item: MillerColumnItem, endpoint: SyncEndpointInfo, pathToItem: string[]) => void, 
+  item: MillerColumnItem, 
+  ancestors: string[],
+  defaultClick: () => void 
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const triggerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (endpoints.length <= 1) return;
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ x: rect.right + 4, y: rect.top });
+    }
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setOpen(false);
+    }, 150);
+  };
+
+  const defaultEndpoint = endpoints[0];
+  const isAgent = defaultEndpoint?.provider.startsWith('agent:');
+  const isMcp = defaultEndpoint?.provider === 'mcp';
+  const isSandbox = defaultEndpoint?.provider === 'sandbox';
+
+  const iconColor = isAgent ? 'rgba(167, 139, 250, 0.7)' 
+    : isMcp ? 'rgba(96, 165, 250, 0.8)' 
+    : isSandbox ? 'rgba(245, 158, 11, 0.8)' 
+    : 'rgba(255, 255, 255, 0.4)';
+
+  const dotColor = isAgent ? '#a78bfa' : isMcp ? '#60a5fa' : isSandbox ? '#f59e0b' : '#10b981';
+
+  return (
+    <div 
+      style={{ display: 'flex', position: 'relative' }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <div
+        ref={triggerRef}
+        title={endpoints.length > 1 ? `Multiple endpoints (${endpoints.length}). Click for default, hover for all.` : `${defaultEndpoint?.provider} (Click to configure)`}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(false);
+          defaultClick();
+        }}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
+          position: 'relative',
+          opacity: 1,
+          background: 'transparent',
+          transition: 'background 0.15s, opacity 0.15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+      >
+        {isAgent ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: iconColor }}>
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        ) : isMcp ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: iconColor }}>
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+            <line x1="6" y1="6" x2="6.01" y2="6" />
+            <line x1="6" y1="18" x2="6.01" y2="18" />
+          </svg>
+        ) : isSandbox ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: iconColor }}>
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" y1="19" x2="20" y2="19" />
+          </svg>
+        ) : (
+          <SyncSourceIcon size={14} />
+        )}
+        <div style={{
+          position: 'absolute', bottom: 3, right: 3,
+          width: 5, height: 5, borderRadius: '50%',
+          background: dotColor,
+          boxShadow: '0 0 0 1.5px #1a1a1a',
+        }} />
+        {endpoints.length > 1 && (
+          <div style={{
+            position: 'absolute', top: -4, right: -4,
+            background: '#f59e0b', color: '#fff',
+            fontSize: 9, fontWeight: 700,
+            width: 14, height: 14, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 0 1.5px #1a1a1a',
+            zIndex: 10
+          }}>
+            {endpoints.length}
+          </div>
+        )}
+      </div>
+
+      {open && pos && endpoints.length > 1 && (
+        <div
+          style={{
+            position: 'fixed', top: pos.y, left: pos.x, zIndex: 10000,
+            background: '#222', border: '1px solid #333', borderRadius: 6,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: 160,
+            padding: '4px', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 2
+          }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          <div style={{ padding: '4px 8px 6px 8px', fontSize: 11, color: '#888', borderBottom: '1px solid #333', marginBottom: 4 }}>
+            Select Endpoint
+          </div>
+          {endpoints.map((ep, i) => {
+            const epIsAgent = ep.provider.startsWith('agent:');
+            const epIsMcp = ep.provider === 'mcp';
+            const epIsSandbox = ep.provider === 'sandbox';
+            const Icon = epIsAgent ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#a78bfa' }}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+            ) : epIsMcp ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#60a5fa' }}><rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" /></svg>
+            ) : epIsSandbox ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#f59e0b' }}><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
+            ) : (
+              <SyncSourceIcon size={14} />
+            );
+
+            return (
+              <div
+                key={ep.syncId}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  onEndpointClick(item, ep, [...ancestors, item.id]);
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '6px 8px', borderRadius: 4, cursor: 'pointer',
+                  color: '#ccc'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                {Icon}
+                <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {epIsAgent ? 'Chat Agent' : epIsMcp ? 'MCP Server' : epIsSandbox ? 'Sandbox' : 'Data Sync'}
+                </span>
+                {i === 0 && <span style={{ fontSize: 10, color: '#666', background: 'rgba(255,255,255,0.05)', padding: '2px 4px', borderRadius: 4 }}>Default</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ItemContextMenu({ itemId, itemName, isSynced, onRename, onDelete, onOpenChange }: {
   itemId: string;
   itemName: string;
@@ -368,14 +539,15 @@ interface TreeItemProps {
   onDelete?: (id: string, name: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onSyncClick?: (item: MillerColumnItem, pathToItem: string[]) => void;
+  onEndpointClick?: (item: MillerColumnItem, endpoint: SyncEndpointInfo, pathToItem: string[]) => void;
   activeSyncNodeId?: string | null;
   ancestors: string[];
-  agentResourceMap?: Map<string, AgentResource>;
   syncEndpoints?: Map<string, SyncEndpointInfo>;
+  nodeEndpointMap?: Map<string, SyncEndpointInfo[]>;
   highlightNodeId?: string | null;
 }
 
-function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, activeSyncNodeId, ancestors, agentResourceMap, syncEndpoints, highlightNodeId }: TreeItemProps) {
+function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, onEndpointClick, activeSyncNodeId, ancestors, syncEndpoints, nodeEndpointMap, highlightNodeId }: TreeItemProps) {
   const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
   const isSynced = item.is_synced;
   const syncEndpoint = syncEndpoints?.get(item.id);
@@ -398,9 +570,6 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
     }
   }, [isHighlighted]);
 
-  const agentResource = agentResourceMap?.get(item.id);
-  const hasAgentAccess = !!agentResource;
-
   const { nodes: children, isLoading: loading } = useContentNodes(
     expanded ? projectId : '',
     expanded ? item.id : undefined
@@ -422,12 +591,12 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
   const childTextPadding = LEFT_STATUS_COL_WIDTH + rowPaddingLeft + 22;
 
   const isSyncActive = activeSyncNodeId === item.id;
+  const isEndpointActive = isSyncActive;
+  const isRowActive = isActive || isEndpointActive;
   const getBackground = (h: boolean) => {
     if (isDropTarget) return 'rgba(59, 130, 246, 0.2)';
     if (isHighlighted) return 'rgba(59, 130, 246, 0.15)';
-    if (isSyncActive) return 'rgba(249, 115, 22, 0.22)';
-    if (isActive) return hasAgentAccess ? 'rgba(249, 115, 22, 0.18)' : '#2a2a2a';
-    if (hasAgentAccess) return h ? 'rgba(249, 115, 22, 0.12)' : 'rgba(249, 115, 22, 0.05)';
+    if (isRowActive) return '#2a2a2a';
     return h ? 'rgba(255,255,255,0.06)' : 'transparent';
   };
 
@@ -462,12 +631,11 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
           height: 30, boxSizing: 'border-box',
           borderRadius: 6,
           background: getBackground(hovered),
-          color: isDropTarget ? '#93c5fd' : isActive ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
+          color: isDropTarget ? '#93c5fd' : isRowActive ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
           fontSize: 13, userSelect: 'none',
           transition: 'background 0.1s, color 0.1s',
-          boxShadow: isDropTarget ? 'inset 3px 0 0 0 rgba(59, 130, 246, 0.7)' : hasAgentAccess ? 'inset 3px 0 0 0 rgba(249, 115, 22, 0.7)' : 'none',
+          boxShadow: isDropTarget ? 'inset 3px 0 0 0 rgba(59, 130, 246, 0.7)' : 'none',
           cursor: 'pointer',
-          overflow: 'hidden' // Ensure the inset shadow follows the border radius
         }}
       >
         {/* Left dedicated status column (sync plug only) */}
@@ -480,10 +648,18 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
             justifyContent: 'center',
             height: '100%',
             boxSizing: 'border-box',
-            background: isSyncActive ? 'rgba(249, 115, 22, 0.08)' : 'transparent',
+            background: 'transparent',
           }}
         >
-          {syncEndpoint && (
+          {syncEndpoint && nodeEndpointMap?.get(item.id) ? (
+            <EndpointHoverMenu
+              endpoints={nodeEndpointMap.get(item.id)!}
+              onEndpointClick={(it, ep, path) => onEndpointClick?.(it, ep, path)}
+              item={item}
+              ancestors={ancestors}
+              defaultClick={() => onSyncClick?.(item, [...ancestors, item.id])}
+            />
+          ) : syncEndpoint ? (
             <div
               title={`${syncEndpoint.provider} (Click to configure)`}
               onClick={(e) => {
@@ -494,12 +670,12 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
                 position: 'relative',
-                opacity: isSyncActive || hovered ? 1 : 0.85,
-                background: isSyncActive ? 'rgba(255,255,255,0.12)' : 'transparent',
+                opacity: isEndpointActive || hovered ? 1 : 0.85,
+                background: isEndpointActive ? 'rgba(255,255,255,0.12)' : 'transparent',
                 transition: 'background 0.15s, opacity 0.15s',
               }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = isSyncActive ? 'rgba(255,255,255,0.12)' : 'transparent'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = isEndpointActive ? 'rgba(255,255,255,0.12)' : 'transparent'; }}
             >
               <SyncSourceIcon size={14} />
               <div style={{
@@ -509,7 +685,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
                 boxShadow: '0 0 0 1.5px #1a1a1a',
               }} />
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* File row content */}
@@ -594,8 +770,8 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
           ) : childItems.length > 0 ? (
             childItems.map(child => (
               <TreeItem key={child.id} item={child} depth={depth + 1} projectId={projectId}
-                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} activeSyncNodeId={activeSyncNodeId}
-                ancestors={[...ancestors, item.id]} agentResourceMap={agentResourceMap} syncEndpoints={syncEndpoints} highlightNodeId={highlightNodeId} />
+                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} onEndpointClick={onEndpointClick} activeSyncNodeId={activeSyncNodeId}
+                ancestors={[...ancestors, item.id]} syncEndpoints={syncEndpoints} nodeEndpointMap={nodeEndpointMap} highlightNodeId={highlightNodeId} />
             ))
           ) : !loading ? (
             <div style={{ paddingLeft: childTextPadding, paddingTop: 4, paddingBottom: 4, color: '#666', fontSize: 12, fontStyle: 'italic' }}>Empty</div>
@@ -607,7 +783,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 }
 
 // === Main Component ===
-export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, activeSyncNodeId, agentResources, syncEndpoints, highlightNodeId, className, style }: ExplorerSidebarProps) {
+export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, onEndpointClick, activeSyncNodeId, syncEndpoints, nodeEndpointMap, highlightNodeId, className, style }: ExplorerSidebarProps) {
   const { nodes: rootNodes, isLoading: loading } = useContentNodes(projectId, null);
 
   const { isDropTarget: isRootDropTarget, dropHandlers: rootDropHandlers } = useNodeDrop({
@@ -628,11 +804,6 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
 
   const pendingId = usePendingActiveId();
   const activeId = pendingId || activeNodeId || (currentPath.length > 0 ? currentPath[currentPath.length - 1].id : null);
-
-  const agentResourceMap = new Map<string, AgentResource>();
-  if (agentResources) {
-    for (const r of agentResources) agentResourceMap.set(r.nodeId, r);
-  }
 
   return (
     <div className={className} style={{ ...style, display: 'flex', flexDirection: 'column' }}>
@@ -736,8 +907,8 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
           ) : (
             rootItems.map(item => (
               <TreeItem key={item.id} item={item} depth={1} projectId={projectId}
-                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} activeSyncNodeId={activeSyncNodeId}
-                ancestors={[]} agentResourceMap={agentResourceMap} syncEndpoints={syncEndpoints} highlightNodeId={highlightNodeId} />
+                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} onEndpointClick={onEndpointClick} activeSyncNodeId={activeSyncNodeId}
+                ancestors={[]} syncEndpoints={syncEndpoints} nodeEndpointMap={nodeEndpointMap} highlightNodeId={highlightNodeId} />
             ))
           )}
         </div>

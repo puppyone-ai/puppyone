@@ -7,7 +7,7 @@
 -- 后端查询改用 project_id 过滤。
 --
 -- 受影响的表：
---   mcp, db_connections, context_publish, syncs, uploads
+--   mcp, db_connections, context_publish, connections, uploads
 -- ============================================================
 
 
@@ -63,16 +63,16 @@ ALTER TABLE context_publish ALTER COLUMN created_by DROP NOT NULL;
 
 
 -- ============================================================
--- 4. syncs: user_id → created_by (already nullable)
+-- 4. connections: user_id → created_by (already nullable)
 -- ============================================================
 
 DO $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'syncs' AND column_name = 'user_id'
+        WHERE table_name = 'connections' AND column_name = 'user_id'
     ) THEN
-        ALTER TABLE syncs RENAME COLUMN user_id TO created_by;
+        ALTER TABLE connections RENAME COLUMN user_id TO created_by;
     END IF;
 END $$;
 
@@ -97,7 +97,7 @@ ALTER TABLE uploads ALTER COLUMN created_by DROP NOT NULL;
 -- ============================================================
 -- 完成!
 --
--- 5 张表: mcp, db_connections, context_publish, syncs, uploads
+-- 5 张表: mcp, db_connections, context_publish, connections, uploads
 -- user_id → created_by (nullable, 审计字段)
 --
 -- 后端代码需要同步修改：

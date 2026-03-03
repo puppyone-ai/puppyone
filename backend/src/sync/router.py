@@ -42,7 +42,7 @@ router = APIRouter(prefix="/sync", tags=["sync"])
 class SyncResponse(BaseModel):
     id: str
     project_id: str
-    node_id: str
+    node_id: Optional[str] = None
     direction: str
     provider: str
     config: dict
@@ -53,12 +53,13 @@ class SyncResponse(BaseModel):
 
 class SyncStatusItem(BaseModel):
     id: str
-    node_id: str
+    node_id: Optional[str] = None
     node_name: Optional[str] = None
     node_type: Optional[str] = None
     provider: str
     direction: str
     status: str
+    name: Optional[str] = None
     access_key: Optional[str] = None
     trigger: Optional[dict] = None
     last_synced_at: Optional[str] = None
@@ -223,12 +224,13 @@ async def get_project_sync_status(
         SyncStatusItem(
             id=s.id,
             node_id=s.node_id,
-            node_name=node_info.get(s.node_id, {}).get("name"),
-            node_type=node_info.get(s.node_id, {}).get("type"),
+            node_name=node_info.get(s.node_id, {}).get("name") if s.node_id else None,
+            node_type=node_info.get(s.node_id, {}).get("type") if s.node_id else None,
             provider=s.provider,
             direction=s.direction,
             status=s.status,
-            access_key=s.access_key if s.provider == "openclaw" else None,
+            name=(s.config or {}).get("name"),
+            access_key=s.access_key if s.provider in ("filesystem", "mcp", "sandbox") else None,
             trigger=s.trigger if s.trigger else None,
             last_synced_at=s.last_synced_at,
             error_message=s.error_message,
@@ -298,6 +300,13 @@ def delete_sync(
         current_user=current_user,
     )
     _notify_folder_source("stop", sync_id)
+
+    try:
+        from src.scheduler.service import get_scheduler_service
+        get_scheduler_service().remove_sync_job(sync_id)
+    except Exception:
+        pass
+
     sync_svc.remove_sync(sync_id)
     return ApiResponse.success(message="Sync deleted")
 
@@ -427,7 +436,7 @@ def bootstrap_openclaw(
     """Create an OpenClaw sync endpoint for a folder. Returns sync with access_key."""
     _ensure_project_access(project_service, current_user, project_id)
 
-    from src.sync.connectors.openclaw.lifecycle import OpenClawService
+    from src.sync.connectors.filesystem.lifecycle import OpenClawService
     from src.supabase.client import SupabaseClient
     svc = OpenClawService(
         supabase=SupabaseClient(),
@@ -451,12 +460,12 @@ def get_openclaw_status_by_sync(
 ):
     """OpenClaw CLI connection status for a sync endpoint (frontend polling)."""
     sync = sync_svc.sync_repo.get_by_id(sync_id)
-    if not sync or sync.provider != "openclaw":
+    if not sync or sync.provider != "filesystem":
         return ApiResponse.success(data={"connected": False})
 
     _ensure_project_access(project_service, current_user, sync.project_id)
 
-    from src.sync.connectors.openclaw.lifecycle import OpenClawService
+    from src.sync.connectors.filesystem.lifecycle import OpenClawService
     from src.supabase.client import SupabaseClient
     svc = OpenClawService(
         supabase=SupabaseClient(),
@@ -799,7 +808,7 @@ def get_sync_changelog(
 
 def _notify_folder_source(action: str, sync_id: str) -> None:
     try:
-        from src.sync.connectors.openclaw.watcher import FolderSourceService
+        from src.sync.connectors.filesystem.watcher import FolderSourceService
         svc = FolderSourceService.get_instance()
         if not svc:
             return

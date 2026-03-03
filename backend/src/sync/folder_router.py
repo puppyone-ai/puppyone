@@ -67,7 +67,7 @@ def _auth(access_key: str, folder_id: str):
     svc, sync_repo = _get_services()
 
     sync = sync_repo.get_by_access_key(access_key)
-    if not sync or sync.provider != "openclaw":
+    if not sync or sync.provider != "filesystem":
         raise HTTPException(status_code=401, detail="Invalid or expired access key")
 
     if sync.node_id != folder_id:

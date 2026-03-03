@@ -20,8 +20,8 @@ class OpenClawConnector(BaseConnector):
 
     def spec(self) -> ConnectorSpec:
         return ConnectorSpec(
-            provider="openclaw",
-            display_name="OpenClaw",
+            provider="filesystem",
+            display_name="Desktop Folder",
             capabilities=(
                 Capability.PULL | Capability.PUSH
                 | Capability.REALTIME | Capability.BOOTSTRAP

@@ -43,7 +43,7 @@ class OpenClawService:
         sync = self._sync_repo.get_by_access_key(access_key)
         if not sync:
             return None
-        if sync.provider != "openclaw":
+        if sync.provider != "filesystem":
             return None
         return sync
 
@@ -62,14 +62,14 @@ class OpenClawService:
         """Create a new OpenClaw sync endpoint bound to a folder.
         Returns the sync with a fresh access_key for CLI auth."""
         existing = self._sync_repo.get_by_node(node_id)
-        if existing and existing.provider == "openclaw":
+        if existing and existing.provider == "filesystem":
             return existing
 
         sync = self._sync_repo.create(
             project_id=project_id,
             node_id=node_id,
             direction="bidirectional",
-            provider="openclaw",
+            provider="filesystem",
             access_key=_generate_cli_key(),
             config={},
             trigger={"type": "cli_push"},

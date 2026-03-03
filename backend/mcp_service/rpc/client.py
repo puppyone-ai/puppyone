@@ -54,39 +54,27 @@ class InternalApiClient:
     # Agent 模式端点（整合后唯一支持的模式）
     # ============================================================
     
+    async def get_mcp_endpoint_by_key(self, api_key: str) -> Optional[Dict[str, Any]]:
+        """Query MCP endpoint from connections table (provider='mcp')."""
+        try:
+            url = f"{self.base_url}/internal/mcp-endpoint-by-key/{api_key}"
+            response = await self._client.get(url)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError:
+            return None
+        except httpx.RequestError:
+            return None
+
     async def get_agent_by_mcp_key(self, mcp_api_key: str) -> Optional[Dict[str, Any]]:
-        """
-        根据 MCP API key 获取 Agent 及其访问权限
-        
-        Args:
-            mcp_api_key: MCP API key（以 "mcp_" 开头）
-            
-        Returns:
-            Agent 数据字典，格式：
-            {
-                "agent": { "id", "name", "project_id", "type" },
-                "accesses": [
-                    {
-                        "node_id": "xxx",
-                        "bash_enabled": true,
-                        "bash_readonly": true,
-                        "tool_query": true,
-                        "tool_create": false,
-                        "tool_update": false,
-                        "tool_delete": false,
-                        "json_path": ""
-                    }
-                ]
-            }
-            如果不存在则返回 None
-        """
+        """Query agent-based MCP config from connections table (provider='agent')."""
         try:
             url = f"{self.base_url}/internal/agent-by-mcp-key/{mcp_api_key}"
             response = await self._client.get(url)
-            
             if response.status_code == 404:
                 return None
-            
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -100,6 +88,23 @@ class InternalApiClient:
         except httpx.RequestError as e:
             print(f"Error fetching Agent by MCP key: request_failed url={e.request.url} error={e}")
             raise RuntimeError(f"获取 Agent 失败: {str(e)}") from e
+
+    async def resolve_mcp_config(self, api_key: str) -> Optional[Dict[str, Any]]:
+        """Dual-source resolution: MCP endpoint first (provider='mcp'), then agent fallback."""
+        result = await self.get_mcp_endpoint_by_key(api_key)
+        if result:
+            ep = result.get("endpoint", {})
+            return {
+                "agent": {
+                    "id": ep.get("id"),
+                    "name": ep.get("name"),
+                    "project_id": ep.get("project_id"),
+                    "type": "mcp_endpoint",
+                },
+                "accesses": result.get("accesses", []),
+                "tools": result.get("tools", []),
+            }
+        return await self.get_agent_by_mcp_key(api_key)
 
     # ============================================================
     # 数据操作端点（Context Data CRUD）

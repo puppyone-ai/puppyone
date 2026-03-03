@@ -1,11 +1,14 @@
 """
-Backward-compatibility re-export.
+OpenClaw CLI 连接生命周期路由
 
-New canonical location: src.sync.connectors.openclaw.router
-New endpoint prefix: /api/v1/sync/openclaw/
+端点设计：
+  POST   /api/v1/sync/openclaw/connect         — CLI 首次连接
+  GET    /api/v1/sync/openclaw/status           — 查询连接状态
+  DELETE /api/v1/sync/openclaw/disconnect       — 断开连接
 
-This file keeps the old /api/v1/access/openclaw/ prefix working for
-existing CLI versions during the migration period.
+认证方式：Header X-Access-Key (cli_xxxx) → syncs.access_key
+
+数据同步端点在 /api/v1/sync/{folder_id}/ (folder_router.py)
 """
 
 from fastapi import APIRouter, Header, HTTPException
@@ -13,19 +16,42 @@ from pydantic import BaseModel, Field
 
 from src.common_schemas import ApiResponse
 
-router = APIRouter(prefix="/api/v1/access/openclaw", tags=["access-openclaw-compat"])
+router = APIRouter(prefix="/api/v1/sync/openclaw", tags=["sync-openclaw"])
 
+
+# ============================================================
+# Schemas
+# ============================================================
 
 class ConnectRequest(BaseModel):
     workspace_path: str = Field(..., description="CLI 本地工作区路径")
 
 
+# ============================================================
+# Dependency
+# ============================================================
+
+_cached_service = None
+
 def _get_service():
-    from src.sync.connectors.openclaw.router import _get_service as _real
-    return _real()
+    global _cached_service
+    if _cached_service is not None:
+        return _cached_service
+
+    from src.sync.repository import SyncRepository
+    from src.supabase.client import SupabaseClient
+    from src.sync.connectors.filesystem.lifecycle import OpenClawService
+
+    supabase = SupabaseClient()
+    _cached_service = OpenClawService(
+        supabase=supabase,
+        sync_repo=SyncRepository(supabase),
+    )
+    return _cached_service
 
 
 def _auth(access_key: str):
+    """Authenticate via syncs.access_key → Sync object."""
     svc = _get_service()
     sync = svc.authenticate(access_key)
     if not sync:
@@ -34,12 +60,16 @@ def _auth(access_key: str):
     return sync, svc
 
 
-@router.post("/connect", response_model=ApiResponse, deprecated=True)
+# ============================================================
+# Endpoints
+# ============================================================
+
+@router.post("/connect", response_model=ApiResponse)
 async def connect(
     request: ConnectRequest,
     x_access_key: str = Header(..., alias="X-Access-Key"),
 ):
-    """DEPRECATED: Use POST /api/v1/sync/openclaw/connect instead."""
+    """CLI 首次连接：更新 workspace_path，返回 folder_id + 文件列表。"""
     sync, svc = _auth(x_access_key)
     svc.connect(sync, request.workspace_path)
 
@@ -61,7 +91,6 @@ async def connect(
     )
 
     return ApiResponse.success(data={
-        "source_id": sync.id,
         "sync_id": sync.id,
         "project_id": sync.project_id,
         "folder_id": folder_id,
@@ -69,21 +98,21 @@ async def connect(
     })
 
 
-@router.get("/status", response_model=ApiResponse, deprecated=True)
+@router.get("/status", response_model=ApiResponse)
 async def status(
     x_access_key: str = Header(..., alias="X-Access-Key"),
 ):
-    """DEPRECATED: Use GET /api/v1/sync/openclaw/status instead."""
+    """查询 CLI 连接状态（前端轮询用）。"""
     sync, svc = _auth(x_access_key)
     data = svc.status(sync)
     return ApiResponse.success(data=data)
 
 
-@router.delete("/disconnect", response_model=ApiResponse, deprecated=True)
+@router.delete("/disconnect", response_model=ApiResponse)
 async def disconnect(
     x_access_key: str = Header(..., alias="X-Access-Key"),
 ):
-    """DEPRECATED: Use DELETE /api/v1/sync/openclaw/disconnect instead."""
+    """断开 CLI 连接。"""
     sync, svc = _auth(x_access_key)
     ok = svc.disconnect(sync)
     if not ok:

@@ -643,15 +643,33 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
       let syncId: string | null = null;
       let nodeId: string = targetNode.nodeId;
 
-      if (params.provider === 'openclaw') {
+      if (params.provider === 'filesystem') {
         const result = await post<{
           sync_id: string;
           access_key: string;
           node_id: string;
           project_id: string;
-        }>(`/api/v1/sync/syncs/openclaw/bootstrap?project_id=${projectId}&node_id=${nodeId}`);
+        }>(`/api/v1/sync/syncs/filesystem/bootstrap?project_id=${projectId}&node_id=${nodeId}`);
         syncId = result.sync_id;
         nodeId = result.node_id;
+      } else if (params.provider === 'mcp') {
+        const result = await post<{ id: string }>('/api/v1/mcp-endpoints', {
+          project_id: projectId,
+          node_id: nodeId,
+          name: (params.config?.name as string) || 'MCP Endpoint',
+          description: (params.config?.description as string) || null,
+          accesses: [{ node_id: nodeId, json_path: '', readonly: false }],
+        });
+        syncId = result.id || null;
+      } else if (params.provider === 'sandbox') {
+        const result = await post<{ id: string }>('/api/v1/sandbox-endpoints', {
+          project_id: projectId,
+          node_id: nodeId,
+          name: (params.config?.name as string) || 'Sandbox',
+          description: (params.config?.description as string) || null,
+          mounts: [{ node_id: nodeId, mount_path: '/workspace', permissions: { read: true, write: true, exec: false } }],
+        });
+        syncId = result.id || null;
       } else {
         const triggerPayload = params.syncMode === 'scheduled' && params.trigger
           ? { type: 'scheduled', schedule: params.trigger.schedule, timezone: params.trigger.timezone }

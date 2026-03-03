@@ -15,7 +15,7 @@ import type { SaasType } from '@/lib/oauthApi';
    ================================================================ */
 
 type SyncProviderId =
-  | 'openclaw' | 'gmail' | 'google_calendar' | 'google_sheets'
+  | 'filesystem' | 'gmail' | 'google_calendar' | 'google_sheets'
   | 'google_docs' | 'github' | 'notion' | 'linear' | 'url'
   | 'hackernews' | 'posthog' | 'google_search_console' | 'script';
 
@@ -64,7 +64,7 @@ const ENDPOINT_OPTIONS: EndpointOptionDef[] = [
 
 const SYNC_PROVIDERS: SyncProviderDef[] = [
   {
-    id: 'openclaw', label: 'Desktop Folder', description: 'Folder-to-PuppyOne sync via desktop CLI',
+    id: 'filesystem', label: 'Desktop Folder', description: 'Folder-to-PuppyOne sync via desktop CLI',
     icon: <span style={{ fontSize: 14 }}>🦞</span>,
     oauthType: 'notion' as SaasType, direction: 'bidirectional', accept: ['folder'],
     configFields: [],
@@ -411,9 +411,9 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
 
       const config: Record<string, unknown> = { ...syncConfigValues };
 
-      if (providerDef.id === 'openclaw') {
+      if (providerDef.id === 'filesystem') {
         await deploySyncEndpoint({
-          provider: 'openclaw',
+          provider: 'filesystem',
           direction: 'bidirectional',
           config,
           uiMode: 'inline',
@@ -542,7 +542,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
   if (selectedSyncProvider) {
     const providerDef = SYNC_PROVIDERS.find(p => p.id === selectedSyncProvider)!;
 
-    if (providerDef.id === 'openclaw') {
+    if (providerDef.id === 'filesystem') {
       return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <PanelHeader title={providerDef.label} onClose={onClose} onBack={handleBack} />
@@ -644,7 +644,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     ['github', 'notion', 'linear'].includes(p.id)
   );
   const dataProviders = SYNC_PROVIDERS.filter(p =>
-    ['openclaw', 'url', 'hackernews', 'posthog', 'script'].includes(p.id)
+    ['filesystem', 'url', 'hackernews', 'posthog', 'script'].includes(p.id)
   );
 
   // Default: show provider picker

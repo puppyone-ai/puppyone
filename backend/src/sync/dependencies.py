@@ -15,7 +15,7 @@ from src.sync.registry import ConnectorRegistry
 from src.sync.engine import SyncEngine
 from src.sync.repository import SyncRepository
 from src.sync.service import SyncService
-from src.sync.connectors.openclaw.watcher import FolderSourceService
+from src.sync.connectors.filesystem.watcher import FolderSourceService
 from src.collaboration.dependencies import get_collaboration_service
 from src.collaboration.service import CollaborationService
 from src.content_node.dependencies import get_content_node_service

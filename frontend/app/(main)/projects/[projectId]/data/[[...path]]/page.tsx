@@ -15,6 +15,8 @@ import useSWR from 'swr';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { get } from '@/lib/apiClient';
+import { getMcpEndpoint, type McpEndpoint } from '@/lib/mcpEndpointsApi';
+import { getSandboxEndpoint, type SandboxEndpoint } from '@/lib/sandboxEndpointsApi';
 import {
   useProjects,
   useTableTools,
@@ -74,12 +76,18 @@ import { EditorArea } from '../components/EditorArea';
 import { BottomBar } from '../components/BottomBar';
 import { DataPageDialogs, type CreateMenuActions } from '../components/DataPageDialogs';
 import { SyncConfigPanel } from '../components/SyncConfigPanel';
+import { ChatRuntimeView } from '@/components/agent/views/ChatRuntimeView';
+import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
+import type { AccessOption } from '@/components/chat/ChatInputArea';
 
-type UrlPanelType = 'none' | 'version_history' | 'sync_config' | 'sync_create';
+type UrlPanelType = 'none' | 'version_history' | 'sync_config' | 'sync_create' | 'agent_chat' | 'mcp_config' | 'sandbox_config';
 
 interface UrlPanelState {
   type: UrlPanelType;
   nodeId?: string;
+  agentId?: string;
+  mcpEndpointId?: string;
+  sandboxEndpointId?: string;
 }
 
 interface EditorTarget {
@@ -115,21 +123,61 @@ export default function DataPage({ params }: DataPageProps) {
   const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id);
   const { tools: projectTools } = useProjectTools(projectId);
 
-  // Sync endpoints for file tree badges
-  const { data: syncStatusData, mutate: mutateSyncStatus } = useSWR<{ syncs: { id: string; node_id: string; provider: string; direction: string; status: string }[] }>(
+  // Agent context (needed early for syncEndpoints merge)
+  const { draftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent } = useAgent();
+
+  // Unified sync status (includes syncs + MCP + Sandbox from connections table)
+  const { data: syncStatusData, mutate: mutateSyncStatus } = useSWR<{ syncs: { id: string; node_id: string | null; provider: string; direction: string; status: string; name?: string; access_key?: string }[] }>(
     projectId ? ['sync-status', projectId] : null,
-    () => get(`/api/v1/connections/status?project_id=${projectId}`),
+    () => get(`/api/v1/sync/status?project_id=${projectId}`),
     { revalidateOnFocus: false },
   );
-  const syncEndpoints = useMemo(() => {
-    const map = new Map<string, SyncEndpointInfo>();
+
+  const nodeEndpointMap = useMemo(() => {
+    const map = new Map<string, SyncEndpointInfo[]>();
+    const append = (nodeId: string, endpoint: SyncEndpointInfo) => {
+      const list = map.get(nodeId) || [];
+      list.push(endpoint);
+      map.set(nodeId, list);
+    };
+
     if (syncStatusData?.syncs) {
       for (const s of syncStatusData.syncs) {
-        if (s.node_id) map.set(s.node_id, { syncId: s.id, provider: s.provider, direction: s.direction, status: s.status });
+        if (s.node_id) append(s.node_id, { syncId: s.id, provider: s.provider, direction: s.direction, status: s.status });
       }
     }
+
+    for (const agent of savedAgents) {
+      if (agent.type === 'chat' && agent.resources) {
+        for (const r of agent.resources) {
+          append(r.nodeId, {
+            syncId: agent.id,
+            provider: `agent:${agent.type}`,
+            direction: 'bidirectional',
+            status: 'active',
+          });
+        }
+      }
+    }
+
     return map;
-  }, [syncStatusData]);
+  }, [syncStatusData, savedAgents]);
+
+  const syncEndpoints = useMemo(() => {
+    const pickPriority = (provider: string): number => {
+      if (provider.startsWith('agent:')) return 1;
+      if (provider === 'mcp') return 2;
+      if (provider === 'sandbox') return 3;
+      return 4;
+    };
+
+    const map = new Map<string, SyncEndpointInfo>();
+    for (const [nodeId, endpoints] of nodeEndpointMap.entries()) {
+      const selected = [...endpoints].sort((a, b) => pickPriority(a.provider) - pickPriority(b.provider))[0];
+      if (selected) map.set(nodeId, selected);
+    }
+    return map;
+  }, [nodeEndpointMap]);
 
   // View & editor type — persisted in localStorage
   const [viewType, setViewTypeState] = useState<ViewType>(() => {
@@ -192,6 +240,7 @@ export default function DataPage({ params }: DataPageProps) {
   const urlPanelState = useMemo<UrlPanelState>(() => {
     const panel = searchParams.get('panel');
     const queryNodeId = searchParams.get('panelNodeId') || undefined;
+    const queryAgentId = searchParams.get('panelAgentId') || undefined;
 
     if (panel === 'history') {
       const nodeId = queryNodeId || effectiveNodeId || undefined;
@@ -204,11 +253,39 @@ export default function DataPage({ params }: DataPageProps) {
     if (panel === 'sync-create') {
       return { type: 'sync_create' };
     }
+    if (panel === 'agent-chat') {
+      const nodeId = queryNodeId || effectiveNodeId || undefined;
+      return nodeId ? { type: 'agent_chat', nodeId, agentId: queryAgentId } : { type: 'none' };
+    }
+    if (panel === 'mcp') {
+      const nodeId = queryNodeId || effectiveNodeId || undefined;
+      const mcpEndpointId = searchParams.get('panelMcpId') || undefined;
+      return nodeId ? { type: 'mcp_config', nodeId, mcpEndpointId } : { type: 'none' };
+    }
+    if (panel === 'sandbox') {
+      const nodeId = queryNodeId || effectiveNodeId || undefined;
+      const sandboxEndpointId = searchParams.get('panelSandboxId') || undefined;
+      return nodeId ? { type: 'sandbox_config', nodeId, sandboxEndpointId } : { type: 'none' };
+    }
     return { type: 'none' };
   }, [searchParams, effectiveNodeId]);
 
   const activeSyncNodeId = urlPanelState.type === 'sync_config' ? urlPanelState.nodeId ?? null : null;
   const activeSyncId = activeSyncNodeId ? (syncEndpoints.get(activeSyncNodeId)?.syncId ?? null) : null;
+
+  // Targeted fetch for MCP/Sandbox detail panels
+  const panelMcpId = urlPanelState.type === 'mcp_config' ? urlPanelState.mcpEndpointId : undefined;
+  const { data: mcpEndpointDetail } = useSWR<McpEndpoint>(
+    panelMcpId ? ['mcp-endpoint-detail', panelMcpId] : null,
+    () => getMcpEndpoint(panelMcpId!),
+    { revalidateOnFocus: false },
+  );
+  const panelSandboxId = urlPanelState.type === 'sandbox_config' ? urlPanelState.sandboxEndpointId : undefined;
+  const { data: sandboxEndpointDetail } = useSWR<SandboxEndpoint>(
+    panelSandboxId ? ['sandbox-endpoint-detail', panelSandboxId] : null,
+    () => getSandboxEndpoint(panelSandboxId!),
+    { revalidateOnFocus: false },
+  );
 
   const navigateWithPanelState = useCallback((
     nextPath: string[],
@@ -220,17 +297,46 @@ export default function DataPage({ params }: DataPageProps) {
     if (nextPanel.type === 'none') {
       params.delete('panel');
       params.delete('panelNodeId');
+      params.delete('panelAgentId');
+      params.delete('panelMcpId');
+      params.delete('panelSandboxId');
     } else if (nextPanel.type === 'version_history') {
       params.set('panel', 'history');
       if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
       else params.delete('panelNodeId');
+      params.delete('panelAgentId');
     } else if (nextPanel.type === 'sync_config') {
       params.set('panel', 'sync');
       if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
       else params.delete('panelNodeId');
+      params.delete('panelAgentId');
     } else if (nextPanel.type === 'sync_create') {
       params.set('panel', 'sync-create');
       params.delete('panelNodeId');
+      params.delete('panelAgentId');
+    } else if (nextPanel.type === 'agent_chat') {
+      params.set('panel', 'agent-chat');
+      if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
+      else params.delete('panelNodeId');
+      if (nextPanel.agentId) params.set('panelAgentId', nextPanel.agentId);
+      else params.delete('panelAgentId');
+      params.delete('panelMcpId');
+    } else if (nextPanel.type === 'mcp_config') {
+      params.set('panel', 'mcp');
+      if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
+      else params.delete('panelNodeId');
+      if (nextPanel.mcpEndpointId) params.set('panelMcpId', nextPanel.mcpEndpointId);
+      else params.delete('panelMcpId');
+      params.delete('panelAgentId');
+      params.delete('panelSandboxId');
+    } else if (nextPanel.type === 'sandbox_config') {
+      params.set('panel', 'sandbox');
+      if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
+      else params.delete('panelNodeId');
+      if (nextPanel.sandboxEndpointId) params.set('panelSandboxId', nextPanel.sandboxEndpointId);
+      else params.delete('panelSandboxId');
+      params.delete('panelAgentId');
+      params.delete('panelMcpId');
     }
 
     const basePath = `/projects/${projectId}/data${nextPath.length > 0 ? `/${nextPath.join('/')}` : ''}`;
@@ -301,10 +407,6 @@ export default function DataPage({ params }: DataPageProps) {
     highlightTimerRef.current = setTimeout(() => setHighlightNodeId(null), 2500);
   }, []);
 
-  // ───── Agent Context ─────
-
-  const { draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId } = useAgent();
-
   const PROVIDER_NODE_TYPE: Record<string, 'json' | 'markdown' | 'folder'> = {
     gmail: 'json', calendar: 'json', sheets: 'json', linear: 'json', supabase: 'json',
     docs: 'markdown', github: 'folder', notion: 'folder',
@@ -351,16 +453,16 @@ export default function DataPage({ params }: DataPageProps) {
       const agent = savedAgents.find(a => a.id === hoveredAgentId);
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
     }
-    if (urlPanelState.type === 'sync_create' || sidebarMode === 'editing') return draftResources.map(toAgentResource);
-    if (sidebarMode === 'deployed' && currentAgentId) {
+    if (urlPanelState.type === 'sync_create' || editingAgentId) return draftResources.map(toAgentResource);
+    if (currentAgentId) {
       const agent = savedAgents.find(a => a.id === currentAgentId);
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
     }
-    if (sidebarMode === 'deployed' && selectedSyncId && selectedSyncNodeId) {
+    if (selectedSyncId && selectedSyncNodeId) {
       return [{ nodeId: selectedSyncNodeId, terminalReadonly: true }];
     }
     return [];
-  }, [draftResources, sidebarMode, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, urlPanelState.type]);
+  }, [draftResources, editingAgentId, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, urlPanelState.type]);
 
   const activeProject = useMemo(
     () => projects.find(p => p.id === projectId) ?? null,
@@ -369,8 +471,13 @@ export default function DataPage({ params }: DataPageProps) {
 
   // ───── Effects ─────
 
-  // (Legacy effect removed — 'setting' mode no longer opens the sidebar.
-  //  Sync/agent creation now happens inline via SyncConfigPanel.)
+  useEffect(() => {
+    if (urlPanelState.type === 'agent_chat' && urlPanelState.agentId) {
+      if (currentAgentId !== urlPanelState.agentId) {
+        selectAgent(urlPanelState.agentId);
+      }
+    }
+  }, [urlPanelState.type, urlPanelState.agentId, currentAgentId, selectAgent]);
 
   // Refresh on external events (SaaS sync, ETL, etc.)
   useEffect(() => {
@@ -788,26 +895,106 @@ export default function DataPage({ params }: DataPageProps) {
           <ExplorerSidebar
             projectId={projectId}
             currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
-            activeNodeId={activeNodeId || undefined}
+            activeNodeId={
+              (urlPanelState.type !== 'none' && urlPanelState.nodeId)
+                ? urlPanelState.nodeId
+                : (activeNodeId || undefined)
+            }
             onNavigate={handleMillerNavigate}
             onCreate={handleMillerCreateClick}
             onRename={nodeActions.handleRename}
             onDelete={nodeActions.handleDelete}
             onMoveNode={nodeActions.handleMoveNode}
             onSyncClick={(item, pathToItem) => {
-              const isAlreadyOpen = urlPanelState.type === 'sync_config' && urlPanelState.nodeId === item.id;
               setPendingActiveId(item.id);
               setEditorTarget(null);
               setIsEditorFullScreen(false);
-              navigateWithPanelState(
-                pathToItem,
-                isAlreadyOpen ? { type: 'none' } : { type: 'sync_config', nodeId: item.id },
-                'push',
-              );
+
+              const endpoint = syncEndpoints.get(item.id);
+              if (endpoint) {
+                if (endpoint.provider.startsWith('agent:')) {
+                  const isAlreadyOpen = urlPanelState.type === 'agent_chat' && urlPanelState.nodeId === item.id;
+                  navigateWithPanelState(
+                    pathToItem,
+                    isAlreadyOpen ? { type: 'none' } : { type: 'agent_chat', nodeId: item.id, agentId: endpoint.syncId },
+                    'push',
+                  );
+                } else if (endpoint.provider === 'mcp') {
+                  const isAlreadyOpen = urlPanelState.type === 'mcp_config' && urlPanelState.nodeId === item.id;
+                  navigateWithPanelState(
+                    pathToItem,
+                    isAlreadyOpen ? { type: 'none' } : { type: 'mcp_config', nodeId: item.id, mcpEndpointId: endpoint.syncId },
+                    'push',
+                  );
+                } else if (endpoint.provider === 'sandbox') {
+                  const isAlreadyOpen = urlPanelState.type === 'sandbox_config' && urlPanelState.nodeId === item.id;
+                  navigateWithPanelState(
+                    pathToItem,
+                    isAlreadyOpen ? { type: 'none' } : { type: 'sandbox_config', nodeId: item.id, sandboxEndpointId: endpoint.syncId },
+                    'push',
+                  );
+                } else {
+                  const isAlreadyOpen = urlPanelState.type === 'sync_config' && urlPanelState.nodeId === item.id;
+                  navigateWithPanelState(
+                    pathToItem,
+                    isAlreadyOpen ? { type: 'none' } : { type: 'sync_config', nodeId: item.id },
+                    'push',
+                  );
+                }
+              } else {
+                const nodeType = getNodeTypeConfig(item.type).renderAs;
+                openSyncSetting('_generic', {
+                  nodeId: item.id,
+                  nodeName: item.name,
+                  nodeType: nodeType === 'folder' ? 'folder' : nodeType === 'json' ? 'json' : 'file',
+                  readonly: true,
+                  jsonPath: '',
+                });
+                navigateWithPanelState(pathToItem, { type: 'sync_create' }, 'push');
+              }
             }}
-            activeSyncNodeId={urlPanelState.type === 'sync_config' ? (urlPanelState.nodeId ?? null) : null}
-            agentResources={agentResources}
+            onEndpointClick={(item, endpoint, pathToItem) => {
+              setPendingActiveId(item.id);
+              setEditorTarget(null);
+              setIsEditorFullScreen(false);
+
+              if (endpoint.provider.startsWith('agent:')) {
+                const isAlreadyOpen = urlPanelState.type === 'agent_chat' && urlPanelState.nodeId === item.id;
+                navigateWithPanelState(
+                  pathToItem,
+                  isAlreadyOpen ? { type: 'none' } : { type: 'agent_chat', nodeId: item.id, agentId: endpoint.syncId },
+                  'push',
+                );
+              } else if (endpoint.provider === 'mcp') {
+                const isAlreadyOpen = urlPanelState.type === 'mcp_config' && urlPanelState.nodeId === item.id;
+                navigateWithPanelState(
+                  pathToItem,
+                  isAlreadyOpen ? { type: 'none' } : { type: 'mcp_config', nodeId: item.id, mcpEndpointId: endpoint.syncId },
+                  'push',
+                );
+              } else if (endpoint.provider === 'sandbox') {
+                const isAlreadyOpen = urlPanelState.type === 'sandbox_config' && urlPanelState.nodeId === item.id;
+                navigateWithPanelState(
+                  pathToItem,
+                  isAlreadyOpen ? { type: 'none' } : { type: 'sandbox_config', nodeId: item.id, sandboxEndpointId: endpoint.syncId },
+                  'push',
+                );
+              } else {
+                const isAlreadyOpen = urlPanelState.type === 'sync_config' && urlPanelState.nodeId === item.id;
+                navigateWithPanelState(
+                  pathToItem,
+                  isAlreadyOpen ? { type: 'none' } : { type: 'sync_config', nodeId: item.id },
+                  'push',
+                );
+              }
+            }}
+            activeSyncNodeId={
+              urlPanelState.type === 'sync_config' || urlPanelState.type === 'agent_chat' || urlPanelState.type === 'mcp_config' || urlPanelState.type === 'sandbox_config'
+                ? (urlPanelState.nodeId ?? null)
+                : null
+            }
             syncEndpoints={syncEndpoints}
+            nodeEndpointMap={nodeEndpointMap}
             highlightNodeId={highlightNodeId}
             style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.06)', background: 'transparent', flexShrink: 0 }}
           />
@@ -989,13 +1176,21 @@ export default function DataPage({ params }: DataPageProps) {
 
             {/* Explorer View - Empty State */}
             {viewType === 'explorer' && isFolderView && !isResolvingPath && (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: '#525252', background: '#0a0a0a' }}>
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.5">
-                  <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" />
-                  <path d="M14 2V8H20" /><path d="M12 18V12" /><path d="M9 15L12 12L15 15" />
-                </svg>
-                <div style={{ fontSize: 14 }}>Select a file to preview</div>
-              </div>
+              <EmptyWorkspaceState
+                project={activeProject}
+                onConnectClick={openSyncCreatePanel}
+                onOpenGuide={() => {
+                  const welcomeNode = contentNodes.find(n => n.name === '01_Welcome.md' || n.name === '01_Welcome');
+                  if (welcomeNode) {
+                    setPendingActiveId(welcomeNode.id);
+                    navigateWithPanelState([welcomeNode.id], urlPanelState, 'push');
+                  } else {
+                    // Fallback if not found
+                    alert('Welcome guide not found in this folder.');
+                  }
+                }}
+                onCreateClick={handleCreateClick}
+              />
             )}
 
             <TaskStatusWidget inline />
@@ -1051,8 +1246,30 @@ export default function DataPage({ params }: DataPageProps) {
             />
           )}
           {!editorTarget && urlPanelState.type === 'sync_config' && !activeSyncId && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#71717a', fontSize: 13 }}>
-              Loading sync details...
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
+              {!syncStatusData ? (
+                <span style={{ color: '#71717a', fontSize: 13 }}>Loading...</span>
+              ) : (
+                <>
+                  <span style={{ color: '#525252', fontSize: 13 }}>No connection configured</span>
+                  <button
+                    onClick={() => {
+                      const nodeId = urlPanelState.nodeId;
+                      if (nodeId) {
+                        openSyncSetting('_generic', { nodeId, nodeName: '', nodeType: 'folder', readonly: true, jsonPath: '' });
+                      }
+                      navigateWithPanelState(path, { type: 'sync_create' }, 'replace');
+                    }}
+                    style={{
+                      padding: '6px 14px', fontSize: 12, fontWeight: 500,
+                      background: '#242424', border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: 6, color: '#e4e4e7', cursor: 'pointer',
+                    }}
+                  >
+                    + New Connection
+                  </button>
+                </>
+              )}
             </div>
           )}
           {!editorTarget && urlPanelState.type === 'sync_create' && (
@@ -1064,6 +1281,188 @@ export default function DataPage({ params }: DataPageProps) {
               onSyncCreated={handleSyncCreated}
             />
           )}
+          {!editorTarget && urlPanelState.type === 'mcp_config' && urlPanelState.mcpEndpointId && (() => {
+            const mcpEp = mcpEndpointDetail;
+            if (!mcpEp) {
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <div style={{ height: 40, minHeight: 40, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>MCP Endpoint</span>
+                    <button onClick={closeRightPanel} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}>x</button>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>Loading...</div>
+                </div>
+              );
+            }
+            const serverUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/mcp/proxy/${mcpEp.api_key}`;
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div style={{ height: 40, minHeight: 40, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{mcpEp.name}</span>
+                  </div>
+                  <button onClick={closeRightPanel} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}>x</button>
+                </div>
+                <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Status</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: mcpEp.status === 'active' ? '#10b981' : '#f59e0b' }} />
+                      <span style={{ fontSize: 13, color: '#e4e4e7' }}>{mcpEp.status}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Server URL</div>
+                    <div style={{ fontSize: 12, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                      {serverUrl}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>API Key</div>
+                    <div style={{ fontSize: 12, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                      {mcpEp.api_key}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Cursor Config</div>
+                    <pre style={{ fontSize: 11, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+{JSON.stringify({
+  mcpServers: {
+    [mcpEp.name.toLowerCase().replace(/\s+/g, '-')]: {
+      url: serverUrl,
+      headers: { 'X-API-KEY': mcpEp.api_key },
+    }
+  }
+}, null, 2)}
+                    </pre>
+                  </div>
+                  {mcpEp.accesses.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Accesses ({mcpEp.accesses.length})</div>
+                      {mcpEp.accesses.map((a: { node_id: string; json_path: string; readonly: boolean }, i: number) => (
+                        <div key={i} style={{ fontSize: 12, color: '#a1a1aa', padding: '4px 0' }}>
+                          {a.node_id} {a.readonly ? '(read-only)' : '(read-write)'}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+          {!editorTarget && urlPanelState.type === 'sandbox_config' && urlPanelState.sandboxEndpointId && (() => {
+            const sbxEp = sandboxEndpointDetail;
+            if (!sbxEp) {
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <div style={{ height: 40, minHeight: 40, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Sandbox</span>
+                    <button onClick={closeRightPanel} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}>x</button>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>Loading...</div>
+                </div>
+              );
+            }
+            const execUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/sandbox-endpoints/${sbxEp.id}/exec`;
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div style={{ height: 40, minHeight: 40, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
+                    </svg>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{sbxEp.name}</span>
+                  </div>
+                  <button onClick={closeRightPanel} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}>x</button>
+                </div>
+                <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Status</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: sbxEp.status === 'active' ? '#10b981' : '#f59e0b' }} />
+                      <span style={{ fontSize: 13, color: '#e4e4e7' }}>{sbxEp.status}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Runtime</div>
+                    <span style={{ fontSize: 13, color: '#e4e4e7' }}>{sbxEp.runtime} ({sbxEp.provider})</span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Access Key</div>
+                    <div style={{ fontSize: 12, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                      {sbxEp.access_key}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Usage</div>
+                    <pre style={{ fontSize: 11, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+{`curl -X POST ${execUrl} \\
+  -H "X-Access-Key: ${sbxEp.access_key}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"command": "ls /workspace"}'`}
+                    </pre>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Resource Limits</div>
+                    <span style={{ fontSize: 12, color: '#a1a1aa' }}>
+                      {sbxEp.resource_limits?.memory_mb ?? 128}MB RAM · {sbxEp.resource_limits?.cpu_shares ?? 0.5} CPU · {sbxEp.timeout_seconds}s timeout
+                    </span>
+                  </div>
+                  {sbxEp.mounts.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Mounts ({sbxEp.mounts.length})</div>
+                      {sbxEp.mounts.map((m, i) => (
+                        <div key={i} style={{ fontSize: 12, color: '#a1a1aa', padding: '4px 0' }}>
+                          {m.mount_path} → {m.node_id} ({m.permissions?.write ? 'read-write' : 'read-only'})
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+          {!editorTarget && urlPanelState.type === 'agent_chat' && (() => {
+            const agentId = urlPanelState.agentId;
+            const chatAgent = agentId ? savedAgents.find(a => a.id === agentId) : null;
+            if (!chatAgent) {
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <div style={{ height: 40, minHeight: 40, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Chat Agent</span>
+                    <button onClick={closeRightPanel} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}>×</button>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>Agent not found</div>
+                </div>
+              );
+            }
+            const tools: AccessOption[] = [];
+            if (chatAgent.resources) {
+              for (const res of chatAgent.resources) {
+                tools.push({
+                  id: `bash:${res.nodeId}`,
+                  label: `${res.nodeName || res.nodeId} · Bash${res.readonly ? ' (Read-only)' : ''}`,
+                  type: 'bash' as const,
+                  tableId: res.nodeId,
+                  tableName: res.nodeName || res.nodeId,
+                });
+              }
+            }
+            return (
+              <ChatRuntimeView
+                availableTools={tools}
+                tableData={currentTableData?.data}
+                tableId={activeNodeId}
+                projectId={projectId}
+                onDataUpdate={async () => { await refreshTable(); }}
+                projectTools={projectTools}
+                onClose={closeRightPanel}
+              />
+            );
+          })()}
         </ResizablePanel>
           </div>
         </div>
