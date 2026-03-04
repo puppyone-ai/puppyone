@@ -778,76 +778,29 @@ class AgentService:
             )
             logger.info(f"[Agent] Total sandbox files: {len(all_files)} from {len(bash_tools)} accesses, path_map={list(node_path_map.keys())}")
 
-        # ========== Workspace Provider 初始化 ==========
-        workspace_provider = None
-        workspace_info = None
-        try:
-            from src.workspace.provider import get_workspace_provider
-            workspace_provider = get_workspace_provider()
-        except Exception as e:
-            logger.warning(f"[Agent] WorkspaceProvider init failed, using traditional sandbox: {e}")
-
         if use_bash and sandbox_service:
-            sandbox_session_id = f"agent-{int(time.time() * 1000)}"
+            from src.sandbox.registry import get_sandbox_registry, build_manifest
+            sandbox_registry = get_sandbox_registry()
             
-            # 尝试使用 WorkspaceProvider（APFS Clone / OverlayFS / Fallback）
-            use_workspace = (
-                workspace_provider is not None
-                and sandbox_data is not None
-                and sandbox_data.node_type in ("folder", "multi")
-                and node_service is not None
-            )
+            chat_key = persisted_session_id or f"agent-{request.agent_id}-{int(time.time() * 1000)}"
+            existing_session = sandbox_registry.get(chat_key)
             
-            if use_workspace:
-                try:
-                    # 获取 project_id
-                    _first_node = node_service.get_by_id_unsafe(bash_tools[0]["node_id"]) if bash_tools else None
-                    _ws_project_id = _first_node.project_id if _first_node else ""
-                    
-                    if _ws_project_id:
-                        # 同步数据到 Lower（后台，供 MergeDaemon 使用）
-                        from src.sync.sync_worker import SyncWorker
-                        sync_worker = SyncWorker(
-                            node_repo=node_service.repo,
-                            s3_service=s3_service,
-                            base_dir=workspace_provider._base_dir if hasattr(workspace_provider, '_base_dir') else "/tmp/contextbase",
-                        )
-                        await sync_worker.sync_project(_ws_project_id)
-                        
-                        # 获取当前 folder_snapshot（作为 base）
-                        _base_snapshot_id = None
-                        if hasattr(node_service, 'version_service') and node_service.version_service:
-                            latest_snapshot = node_service.version_service.snapshot_repo.get_latest_by_folder(
-                                bash_tools[0]["node_id"]
-                            )
-                            if latest_snapshot:
-                                _base_snapshot_id = latest_snapshot.id
-                        
-                        # 创建 Agent 工作区（APFS Clone，后台保留用于 MergeDaemon）
-                        workspace_info = await workspace_provider.create_workspace(
-                            agent_id=sandbox_session_id,
-                            project_id=_ws_project_id,
-                            base_snapshot_id=_base_snapshot_id,
-                        )
-                        
-                        # 使用 prepare_sandbox_data 已准备好的文件启动沙盒
-                        # sandbox_data.files 已按 agent 配置的文件夹正确过滤，
-                        # 且使用人类可读的文件名和文件夹层级结构
-                        start_result = await sandbox_service.start_with_files(
-                            session_id=sandbox_session_id,
-                            files=sandbox_data.files if sandbox_data else [],
-                            readonly=sandbox_readonly,
-                            s3_service=s3_service,
-                        )
-                        logger.info(f"[Agent/Workspace] Started with workspace: {workspace_info.path}, "
-                                   f"sandbox files={len(sandbox_data.files) if sandbox_data else 0}")
-                except Exception as e:
-                    logger.warning(f"[Agent/Workspace] Failed, falling back to traditional: {e}")
-                    use_workspace = False
-                    workspace_info = None
+            if existing_session:
+                sandbox_session_id = existing_session.sandbox_session_id
+                sandbox_registry.touch(chat_key)
+                
+                status = await sandbox_service.status(sandbox_session_id)
+                if status.get("success") and status.get("status") != "stopped":
+                    start_result = {"success": True}
+                    logger.info(f"[Agent] Reusing sandbox {sandbox_session_id} for session {chat_key}")
+                else:
+                    sandbox_registry.remove(chat_key)
+                    existing_session = None
+                    logger.info(f"[Agent] Sandbox {sandbox_session_id} expired, creating new one")
             
-            if not use_workspace:
-                # 传统模式（和之前一样）
+            if not existing_session:
+                sandbox_session_id = f"agent-{int(time.time() * 1000)}"
+                
                 if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
                     json_content = {}
                     if sandbox_data.files:
@@ -866,6 +819,19 @@ class AgentService:
                         files=sandbox_data.files if sandbox_data else [],
                         readonly=sandbox_readonly,
                         s3_service=s3_service,
+                    )
+                
+                if start_result.get("success"):
+                    manifest = build_manifest(
+                        sandbox_data.files if sandbox_data else [],
+                        sandbox_data.node_path_map if sandbox_data else {},
+                    )
+                    sandbox_registry.register(
+                        chat_session_id=chat_key,
+                        sandbox_session_id=sandbox_session_id,
+                        agent_id=request.agent_id,
+                        manifest=manifest,
+                        readonly=sandbox_readonly,
                     )
             
             if not start_result.get("success"):
@@ -1283,10 +1249,12 @@ class AgentService:
             logger.warning(f"[Chat Persist] Skipping assistant message save: should_persist={should_persist}, session_id={persisted_session_id}")
 
         if use_bash and sandbox_service and sandbox_session_id:
-            # 回写修改的数据到数据库（通过 CollaborationService: 乐观锁 + 三方合并 + 版本记录）
-            updated_nodes = []
+            from src.sandbox.registry import get_sandbox_registry, diff_and_writeback
+            sandbox_registry = get_sandbox_registry()
             
-            # 初始化 CollaborationService (Mut Protocol)
+            chat_key = persisted_session_id or f"agent-{request.agent_id}-ephemeral"
+            live_session = sandbox_registry.get(chat_key)
+            
             collab_service = None
             try:
                 from src.collaboration.conflict_service import ConflictService
@@ -1296,7 +1264,6 @@ class AgentService:
                 from src.collaboration.audit_service import AuditService
                 from src.collaboration.audit_repository import AuditRepository
                 from src.collaboration.service import CollaborationService
-                from src.collaboration.schemas import Mutation, MutationType, Operator
                 from src.supabase.client import SupabaseClient
                 from src.s3.service import S3Service
 
@@ -1320,89 +1287,31 @@ class AgentService:
             except Exception as e:
                 logger.warning(f"[Agent] CollaborationService init failed, falling back to direct write: {e}")
             
-            if sandbox_data and sandbox_data.node_path_map and node_service and current_user:
-                for node_id, info in sandbox_data.node_path_map.items():
-                    if info.get("readonly"):
-                        continue
-
-                    node_type = info.get("node_type", "")
-                    sandbox_path = info.get("path", "")
-                    json_path = info.get("json_path", "")
-                    base_version = info.get("base_version", 0)
-                    base_content = info.get("base_content")
-
-                    if node_type not in ("json", "markdown"):
-                        logger.info(f"[Agent] Skipping write-back for unsupported node type: {node_id} (type={node_type})")
-                        continue
-
-                    try:
-                        parse_json = (node_type == "json")
-                        read_result = await sandbox_service.read_file(
-                            sandbox_session_id,
-                            sandbox_path,
-                            parse_json=parse_json
-                        )
-
-                        if not read_result.get("success"):
-                            logger.warning(f"[Agent] Failed to read file from sandbox: {sandbox_path}")
-                            continue
-
-                        sandbox_content = read_result.get("content")
-
-                        if node_type == "json" and json_path:
-                            node = node_service.get_by_id_unsafe(node_id)
-                            if not node:
-                                continue
-                            sandbox_content = merge_data_by_path(
-                                node.preview_json or {}, json_path, sandbox_content
-                            )
-
-                        # Mut Protocol: commit() 统一处理
-                        merge_strategy = "direct"
-                        if collab_service:
-                            mutation = Mutation(
-                                type=MutationType.CONTENT_UPDATE,
-                                operator=Operator(
-                                    type="agent",
-                                    id=request.agent_id,
-                                    session_id=request.session_id,
-                                    summary="Agent write-back via sandbox",
-                                ),
-                                node_id=node_id,
-                                content=sandbox_content,
-                                base_version=base_version,
-                                node_type=node_type,
-                                base_content=base_content,
-                            )
-                            commit_result = await collab_service.commit(mutation)
-                            merge_strategy = commit_result.strategy or "direct"
-                            logger.info(
-                                f"[Agent] Commit result for {node_id}: "
-                                f"status={commit_result.status}, strategy={merge_strategy}, v={commit_result.version}"
-                            )
-                        else:
-                            if node_type == "json":
-                                parsed = sandbox_content if isinstance(sandbox_content, dict) else json.loads(json.dumps(sandbox_content))
-                                node_service.repo.update(node_id=node_id, preview_json=parsed)
-                            elif node_type == "markdown":
-                                md = sandbox_content if isinstance(sandbox_content, str) else str(sandbox_content)
-                                node_service.repo.update(node_id=node_id, preview_md=md)
-                            merge_strategy = "direct_fallback"
-                            logger.warning(f"[Agent] Direct write (no CollaborationService) for {node_id}")
-
-                        _node_for_name = node_service.get_by_id_unsafe(node_id)
-                        updated_nodes.append({
-                            "nodeId": node_id,
-                            "nodeName": _node_for_name.name if _node_for_name else node_id,
-                            "modifiedPath": json_path,
-                            "mergeStrategy": merge_strategy,
-                        })
-                        logger.info(f"[Agent] Write-back completed for {node_id}: strategy={merge_strategy}")
-
-                    except Exception as e:
-                        logger.warning(f"[Agent] Failed to write back data for node {node_id}: {e}")
+            updated_nodes = []
+            if live_session and live_session.manifest.files and node_service and current_user:
+                _project_id = ""
+                _parent_node_id = ""
+                if sandbox_data:
+                    root_node = node_service.get_by_id_unsafe(sandbox_data.root_node_id)
+                    if root_node:
+                        _project_id = root_node.project_id or ""
+                        _parent_node_id = root_node.id if root_node.type == "folder" else (root_node.parent_id or "")
+                operator_info = {
+                    "type": "agent",
+                    "id": request.agent_id,
+                    "session_id": request.session_id,
+                    "project_id": _project_id,
+                    "parent_node_id": _parent_node_id,
+                }
+                updated_nodes = await diff_and_writeback(
+                    sandbox_service=sandbox_service,
+                    sandbox_session_id=sandbox_session_id,
+                    manifest=live_session.manifest,
+                    node_service=node_service,
+                    collab_service=collab_service,
+                    operator_info=operator_info,
+                )
             
-            # 返回结果
             if updated_nodes:
                 yield {
                     "type": "result",
@@ -1412,14 +1321,9 @@ class AgentService:
             else:
                 yield {"type": "result", "success": True}
             
-            await sandbox_service.stop(sandbox_session_id)
+            # Touch the session — sandbox stays alive for future messages
+            sandbox_registry.touch(chat_key)
             
-            # 清理工作区
-            if workspace_provider and workspace_info:
-                try:
-                    await workspace_provider.cleanup(sandbox_session_id)
-                except Exception as e:
-                    logger.warning(f"[Agent/Workspace] Cleanup failed: {e}")
         else:
             yield {"type": "result", "success": True}
 

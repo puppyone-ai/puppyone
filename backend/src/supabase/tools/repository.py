@@ -28,13 +28,13 @@ class ToolRepository:
             data.pop("created_at", None)
             # 生成 UUID v7 作为主键
             data["id"] = generate_uuid_v7()
-            response = self._client.table("tool").insert(data).execute()
+            response = self._client.table("tools").insert(data).execute()
             return ToolResponse(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建 Tool")
 
     def get_by_id(self, tool_id: str) -> Optional[ToolResponse]:
-        response = self._client.table("tool").select("*").eq("id", tool_id).execute()
+        response = self._client.table("tools").select("*").eq("id", tool_id).execute()
         if response.data:
             return ToolResponse(**response.data[0])
         return None
@@ -48,7 +48,7 @@ class ToolRepository:
         node_id: Optional[str] = None,
         project_id: Optional[str] = None,
     ) -> List[ToolResponse]:
-        query = self._client.table("tool").select("*")
+        query = self._client.table("tools").select("*")
         if org_id is not None:
             query = query.eq("org_id", org_id)
         if node_id is not None:
@@ -66,7 +66,7 @@ class ToolRepository:
             data.pop("id", None)
             data.pop("created_at", None)
             response = (
-                self._client.table("tool").update(data).eq("id", tool_id).execute()
+                self._client.table("tools").update(data).eq("id", tool_id).execute()
             )
             if response.data:
                 return ToolResponse(**response.data[0])
@@ -75,5 +75,5 @@ class ToolRepository:
             raise handle_supabase_error(e, "更新 Tool")
 
     def delete(self, tool_id: str) -> bool:
-        response = self._client.table("tool").delete().eq("id", tool_id).execute()
+        response = self._client.table("tools").delete().eq("id", tool_id).execute()
         return len(response.data) > 0

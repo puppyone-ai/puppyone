@@ -26,7 +26,6 @@ class SandboxEndpointCreate(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
     mounts: List[SandboxMountItem] = Field(default_factory=list)
     runtime: Literal["alpine", "python", "node"] = "alpine"
-    provider: Literal["docker", "e2b"] = "docker"
     timeout_seconds: int = Field(default=30, ge=5, le=300)
     resource_limits: SandboxResourceLimits = Field(default_factory=SandboxResourceLimits)
 
@@ -38,7 +37,6 @@ class SandboxEndpointUpdate(BaseModel):
     status: Optional[str] = None
     mounts: Optional[List[SandboxMountItem]] = None
     runtime: Optional[Literal["alpine", "python", "node"]] = None
-    provider: Optional[Literal["docker", "e2b"]] = None
     timeout_seconds: Optional[int] = Field(None, ge=5, le=300)
     resource_limits: Optional[SandboxResourceLimits] = None
 
@@ -52,7 +50,6 @@ class SandboxEndpointOut(BaseModel):
     access_key: str
     mounts: list = Field(default_factory=list)
     runtime: str
-    provider: str
     timeout_seconds: int
     resource_limits: dict = Field(default_factory=dict)
     status: str

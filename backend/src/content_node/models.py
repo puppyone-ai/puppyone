@@ -2,10 +2,13 @@
 
 Unified Sync Architecture: content_nodes 只负责文件系统语义。
 同步相关信息存储在独立的 syncs 表中。
+
+Tree Structure: id_path 是层级关系的唯一 Source of Truth。
+parent_id 作为冗余字段维护（用于 UNIQUE 约束和向后兼容）。
 """
 
 from datetime import datetime
-from typing import Optional, Any
+from typing import Optional, Any, List
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -23,15 +26,21 @@ class ContentNode(BaseModel):
       - preview_json IS NOT NULL → 有 JSON 数据
       - preview_md IS NOT NULL → 有 Markdown 数据
       - s3_key IS NOT NULL → 有 S3 文件
+    
+    层级结构:
+      - id_path: 唯一 Source of Truth（如 /uuid1/uuid2/uuid3）
+      - depth: 由 id_path 自动计算的 generated column
+      - parent_id: 冗余字段，由 move_node_atomic 原子维护
     """
 
     id: str = Field(..., description="节点 ID (UUID)")
     project_id: str = Field(..., description="所属项目 ID")
     created_by: Optional[str] = Field(None, description="创建者用户 ID")
-    parent_id: Optional[str] = Field(None, description="父节点 ID，None 表示根节点")
+    parent_id: Optional[str] = Field(None, description="父节点 ID（冗余，由 id_path 派生）")
     name: str = Field(..., description="节点名称")
     type: str = Field(..., description="节点类型: folder | json | markdown | file")
-    id_path: str = Field(..., description="ID 物化路径，如 /uuid1/uuid2/uuid3")
+    id_path: str = Field(..., description="ID 物化路径（Source of Truth），如 /uuid1/uuid2/uuid3")
+    depth: int = Field(1, description="树深度（generated column，从 id_path 自动计算）")
     
     preview_json: Optional[Any] = Field(None, description="JSON 内容")
     preview_md: Optional[str] = Field(None, description="Markdown 内容")
@@ -48,6 +57,21 @@ class ContentNode(BaseModel):
     updated_at: datetime = Field(..., description="更新时间")
 
     model_config = ConfigDict(from_attributes=True)
+
+    # === id_path 工具属性 ===
+
+    @property
+    def ancestor_ids(self) -> List[str]:
+        """从 id_path 解析出所有祖先 ID（从根到自身）。"""
+        return [s for s in self.id_path.strip("/").split("/") if s]
+
+    @property
+    def parent_id_from_path(self) -> Optional[str]:
+        """从 id_path 推导出父节点 ID（Source of Truth）。"""
+        ids = self.ancestor_ids
+        return ids[-2] if len(ids) >= 2 else None
+
+    # === 类型判断 ===
 
     @property
     def is_folder(self) -> bool:

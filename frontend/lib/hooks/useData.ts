@@ -159,9 +159,8 @@ export function useContentNodes(projectId: string, parentId: string | null | und
     () => listNodes(projectId, parentId ?? undefined).then(r => r.nodes),
     {
       ...defaultConfig,
-      dedupingInterval: 10000,
+      dedupingInterval: 30000,
       keepPreviousData: true,
-      revalidateOnFocus: true,
     }
   );
 
@@ -247,9 +246,7 @@ export function useProjectTools(projectId: string | undefined) {
     () => getToolsByProjectId(projectId!),
     {
       ...defaultConfig,
-      dedupingInterval: 10000,
-      // 用户经常在左侧配置完权限再打开 Chat；允许聚焦时自动刷新一次，避免"第一次不显示"
-      revalidateOnFocus: true,
+      dedupingInterval: 30000,
     }
   );
 

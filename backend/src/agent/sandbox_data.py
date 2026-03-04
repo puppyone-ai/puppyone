@@ -87,17 +87,20 @@ async def prepare_sandbox_data(
         folder_name = node.name or "data"
 
         def build_name_path(target_node) -> str:
-            path_parts = []
-            current = target_node
-            while current and current.id != node.id:
-                path_parts.append(current.name)
-                if current.parent_id and current.parent_id in id_to_node:
-                    current = id_to_node[current.parent_id]
+            """基于 id_path 构建名称路径（无递归，无环风险）。"""
+            all_ids = [s for s in target_node.id_path.strip("/").split("/") if s]
+            root_idx = next((i for i, nid in enumerate(all_ids) if nid == node.id), -1)
+            if root_idx >= 0:
+                relevant_ids = all_ids[root_idx:]
+            else:
+                relevant_ids = all_ids
+            parts = []
+            for nid in relevant_ids:
+                if nid in id_to_node:
+                    parts.append(id_to_node[nid].name)
                 else:
-                    break
-            path_parts.append(folder_name)
-            path_parts.reverse()
-            return "/".join(path_parts)
+                    parts.append(nid)
+            return "/".join(parts) if parts else folder_name
 
         for child in children:
             if child.type == "folder":

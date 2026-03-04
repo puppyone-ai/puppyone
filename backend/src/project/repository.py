@@ -184,9 +184,27 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         1. visibility='org' → org 的任何 member 都可访问
         2. visibility='private' → 只有 org owner 或 project_members 中的人可访问
 
+        Uses per-request contextvar cache to avoid redundant DB lookups
+        when the same project+user pair is checked multiple times.
+
         Returns:
             角色字符串 (org 角色或 project 角色)，无权限则返回 None
         """
+        from src.utils.request_context import project_access_cache_var
+
+        cache_key = f"{project_id}:{user_id}"
+        cache = project_access_cache_var.get()
+        if cache is not None and cache_key in cache:
+            return cache[cache_key]
+
+        result = self._verify_project_access_uncached(project_id, user_id)
+
+        if cache is not None:
+            cache[cache_key] = result
+
+        return result
+
+    def _verify_project_access_uncached(self, project_id: str, user_id: str) -> Optional[str]:
         project = self.get_by_id(project_id)
         if not project:
             return None
@@ -198,11 +216,9 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         if project.visibility == "org":
             return member.role if member else None
 
-        # private project: org owner always has access
         if member and member.role == "owner":
             return "owner"
 
-        # Check project_members
         from src.supabase.dependencies import get_supabase_client
         client = get_supabase_client()
         resp = (

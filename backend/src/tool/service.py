@@ -71,7 +71,7 @@ class ToolService:
         from src.agent.config.repository import AgentRepository
         
         try:
-            response = self._get_supabase_repository()._client.table("connection_tool").select("connection_id").eq("tool_id", tool_id).execute()
+            response = self._get_supabase_repository()._client.table("connection_tools").select("connection_id").eq("tool_id", tool_id).execute()
             if not response.data:
                 return
             
@@ -102,7 +102,7 @@ class ToolService:
         from src.agent.config.repository import AgentRepository
         
         try:
-            response = self._get_supabase_repository()._client.table("connection_tool").select("connection_id").eq("tool_id", tool_id).execute()
+            response = self._get_supabase_repository()._client.table("connection_tools").select("connection_id").eq("tool_id", tool_id).execute()
             if not response.data:
                 return
             

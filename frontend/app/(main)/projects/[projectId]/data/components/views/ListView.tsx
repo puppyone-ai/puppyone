@@ -12,6 +12,7 @@ export interface ListViewItem {
   type: ContentType;  // type 直接决定渲染方式
   description?: string;
   rowCount?: number;
+  id_path?: string;
   onClick: (e: React.MouseEvent) => void;
   // 同步相关字段
   is_synced?: boolean;
@@ -29,7 +30,7 @@ export interface ListViewProps {
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
-  onMove?: (id: string, name: string) => void;
+  onMove?: (id: string, name: string, id_path?: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
   createLabel?: string;
@@ -178,7 +179,7 @@ function ListItem({
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
-  onMove?: (id: string, name: string) => void;
+  onMove?: (id: string, name: string, id_path?: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
 }) {
@@ -309,7 +310,7 @@ function ListItem({
           onRename={onRename}
           onDelete={onDelete}
           onDuplicate={onDuplicate}
-          onMove={onMove}
+          onMove={onMove ? (id, name) => onMove(id, name, item.id_path) : undefined}
           onRefresh={isSyncedType(item.type) ? onRefresh : undefined}
           onCreateTool={onCreateTool}
           syncUrl={item.sync_url}

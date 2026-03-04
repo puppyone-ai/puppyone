@@ -262,7 +262,6 @@ export function registerConnection(program) {
       if (provider === "sandbox") {
         const name = opts.name || source || "Sandbox";
         const body = { name, project_id: projectId };
-        if (opts.type) body.sandbox_provider = opts.type;
         const created = await client.post("/sandbox-endpoints", body);
         out.info(`  Sandbox created: ${created.name} (${created.id})`);
         _showSandboxGuidance(out, created);

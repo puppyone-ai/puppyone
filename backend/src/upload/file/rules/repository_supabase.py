@@ -47,7 +47,7 @@ def _parse_timestamp(
 class RuleRepositorySupabase:
     """Repository for ETL transformation rules (Supabase storage)."""
 
-    TABLE_NAME = "etl_rule"
+    TABLE_NAME = "etl_rules"
 
     def __init__(self, supabase_client, org_id: Optional[str] = None, created_by: Optional[str] = None):
         """

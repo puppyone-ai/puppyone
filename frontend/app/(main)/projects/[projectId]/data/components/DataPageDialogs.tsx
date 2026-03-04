@@ -50,7 +50,7 @@ export interface DataPageDialogsProps {
   onRenameConfirm: (newName: string) => Promise<void>;
 
   // Move
-  moveDialogTarget: { id: string; name: string } | null;
+  moveDialogTarget: { id: string; name: string; id_path?: string } | null;
   onMoveConfirm: (nodeId: string, targetFolderId: string | null) => Promise<void>;
   onCloseMove: () => void;
 
@@ -137,6 +137,7 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
           projectId={projectId}
           nodeId={moveDialogTarget.id}
           nodeName={moveDialogTarget.name}
+          nodeIdPath={moveDialogTarget.id_path}
           onConfirm={async (targetFolderId) => {
             await onMoveConfirm(moveDialogTarget.id, targetFolderId);
           }}
@@ -245,30 +246,7 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
         initialFiles={droppedFiles.length > 0 ? droppedFiles : undefined}
       />
 
-      {/* Tool Creation Panel */}
-      {toolPanelTarget && (
-        <div
-          style={{
-            position: 'fixed', inset: 0,
-            background: 'rgba(0, 0, 0, 0.6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 1000, backdropFilter: 'blur(4px)',
-          }}
-          onClick={onCloseToolPanel}
-        >
-          <div onClick={(e) => e.stopPropagation()}>
-            <NodeAccessPanel
-              nodeId={toolPanelTarget.id}
-              nodeType={toolPanelTarget.type as 'folder' | 'json' | 'file' | 'markdown' | 'pdf' | 'image'}
-              nodeName={toolPanelTarget.name}
-              jsonPath={toolPanelTarget.jsonPath}
-              existingTools={projectTools}
-              onToolsChange={onToolsChange}
-              onClose={onCloseToolPanel}
-            />
-          </div>
-        </div>
-      )}
+      {/* HIDDEN: Tool Creation Panel temporarily disabled */}
     </>
   );
 }

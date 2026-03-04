@@ -35,7 +35,6 @@ class SandboxEndpointService:
         description: Optional[str] = None,
         mounts: Optional[List[SandboxMountItem]] = None,
         runtime: str = "alpine",
-        provider: str = "docker",
         timeout_seconds: int = 30,
         resource_limits: Optional[SandboxResourceLimits] = None,
     ) -> dict:
@@ -46,7 +45,6 @@ class SandboxEndpointService:
             description=description,
             mounts=[m.model_dump() for m in mounts] if mounts else [],
             runtime=runtime,
-            provider=provider,
             timeout_seconds=timeout_seconds,
             resource_limits=resource_limits.model_dump() if resource_limits else None,
         )

@@ -26,7 +26,6 @@ export interface SandboxEndpoint {
   access_key: string;
   mounts: SandboxMount[];
   runtime: 'alpine' | 'python' | 'node';
-  provider: 'docker' | 'e2b';
   timeout_seconds: number;
   resource_limits: SandboxResourceLimits;
   status: string;
@@ -57,7 +56,6 @@ export async function createSandboxEndpoint(params: {
   description?: string;
   mounts?: { node_id: string; mount_path?: string; permissions?: Partial<SandboxMountPermissions> }[];
   runtime?: 'alpine' | 'python' | 'node';
-  provider?: 'docker' | 'e2b';
   timeout_seconds?: number;
   resource_limits?: Partial<SandboxResourceLimits>;
 }): Promise<SandboxEndpoint> {
@@ -71,7 +69,6 @@ export async function updateSandboxEndpoint(id: string, params: Partial<{
   status: string;
   mounts: { node_id: string; mount_path?: string; permissions?: Partial<SandboxMountPermissions> }[];
   runtime: 'alpine' | 'python' | 'node';
-  provider: 'docker' | 'e2b';
   timeout_seconds: number;
   resource_limits: Partial<SandboxResourceLimits>;
 }>): Promise<SandboxEndpoint> {

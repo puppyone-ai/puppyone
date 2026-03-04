@@ -14,7 +14,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { useOrganization } from '@/contexts/OrganizationContext';
-import { get } from '@/lib/apiClient';
 import { getMcpEndpoint, type McpEndpoint } from '@/lib/mcpEndpointsApi';
 import { getSandboxEndpoint, type SandboxEndpoint } from '@/lib/sandboxEndpointsApi';
 import {
@@ -23,10 +22,10 @@ import {
   refreshTableTools,
   refreshProjectTools,
   useTable,
-  useProjectTools,
   useContentNodes,
   refreshAllContentNodes,
 } from '@/lib/hooks/useData';
+import { useDataLayout } from '../DataLayoutContext';
 import {
   ProjectsHeader,
   type EditorType,
@@ -81,17 +80,8 @@ import { SandboxConfigPanel } from '../components/SandboxConfigPanel';
 import { PanelShell } from '../components/PanelShell';
 import { ChatRuntimeView } from '@/components/agent/views/ChatRuntimeView';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
+import { usePanelStore, type PanelState } from '../usePanelStore';
 import type { AccessOption } from '@/components/chat/ChatInputArea';
-
-type UrlPanelType = 'none' | 'version_history' | 'sync_config' | 'sync_create' | 'agent_chat' | 'mcp_config' | 'sandbox_config';
-
-interface UrlPanelState {
-  type: UrlPanelType;
-  nodeId?: string;
-  agentId?: string;
-  mcpEndpointId?: string;
-  sandboxEndpointId?: string;
-}
 
 interface EditorTarget {
   path: string;
@@ -100,6 +90,13 @@ interface EditorTarget {
 
 interface DataPageProps {
   params: Promise<{ projectId: string; path?: string[] }>;
+}
+
+function endpointToPanelState(ep: SyncEndpointInfo, nodeId: string): PanelState {
+  if (ep.provider.startsWith('agent:')) return { type: 'agent_chat', nodeId, agentId: ep.syncId };
+  if (ep.provider === 'mcp') return { type: 'mcp_config', nodeId, mcpEndpointId: ep.syncId };
+  if (ep.provider === 'sandbox') return { type: 'sandbox_config', nodeId, sandboxEndpointId: ep.syncId };
+  return { type: 'sync_config', nodeId };
 }
 
 export default function DataPage({ params }: DataPageProps) {
@@ -124,63 +121,12 @@ export default function DataPage({ params }: DataPageProps) {
 
   // Data fetching
   const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id);
-  const { tools: projectTools } = useProjectTools(projectId);
+
+  // Project-level data from layout (sync status, tools, endpoints)
+  const { syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
   const { draftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent } = useAgent();
-
-  // Unified sync status (includes syncs + MCP + Sandbox from connections table)
-  const { data: syncStatusData, mutate: mutateSyncStatus } = useSWR<{ syncs: { id: string; node_id: string | null; provider: string; direction: string; status: string; name?: string; access_key?: string }[] }>(
-    projectId ? ['sync-status', projectId] : null,
-    () => get(`/api/v1/sync/status?project_id=${projectId}`),
-    { revalidateOnFocus: false },
-  );
-
-  const nodeEndpointMap = useMemo(() => {
-    const map = new Map<string, SyncEndpointInfo[]>();
-    const append = (nodeId: string, endpoint: SyncEndpointInfo) => {
-      const list = map.get(nodeId) || [];
-      list.push(endpoint);
-      map.set(nodeId, list);
-    };
-
-    if (syncStatusData?.syncs) {
-      for (const s of syncStatusData.syncs) {
-        if (s.node_id) append(s.node_id, { syncId: s.id, provider: s.provider, direction: s.direction, status: s.status });
-      }
-    }
-
-    for (const agent of savedAgents) {
-      if (agent.type === 'chat' && agent.resources) {
-        for (const r of agent.resources) {
-          append(r.nodeId, {
-            syncId: agent.id,
-            provider: `agent:${agent.type}`,
-            direction: 'bidirectional',
-            status: 'active',
-          });
-        }
-      }
-    }
-
-    return map;
-  }, [syncStatusData, savedAgents]);
-
-  const syncEndpoints = useMemo(() => {
-    const pickPriority = (provider: string): number => {
-      if (provider.startsWith('agent:')) return 1;
-      if (provider === 'mcp') return 2;
-      if (provider === 'sandbox') return 3;
-      return 4;
-    };
-
-    const map = new Map<string, SyncEndpointInfo>();
-    for (const [nodeId, endpoints] of nodeEndpointMap.entries()) {
-      const selected = [...endpoints].sort((a, b) => pickPriority(a.provider) - pickPriority(b.provider))[0];
-      if (selected) map.set(nodeId, selected);
-    }
-    return map;
-  }, [nodeEndpointMap]);
 
   // View & editor type — persisted in localStorage
   const [viewType, setViewTypeState] = useState<ViewType>(() => {
@@ -240,141 +186,55 @@ export default function DataPage({ params }: DataPageProps) {
   const pendingActiveId = usePendingActiveId();
   const effectiveNodeId = pendingActiveId || activeNodeId;
 
-  const urlPanelState = useMemo<UrlPanelState>(() => {
-    const panel = searchParams.get('panel');
-    const queryNodeId = searchParams.get('panelNodeId') || undefined;
-    const queryAgentId = searchParams.get('panelAgentId') || undefined;
+  // ───── Panel State (Zustand store, fully decoupled from URL) ─────
+  const { panel: panelState, openPanel, closePanel, togglePanel } = usePanelStore();
 
-    if (panel === 'history') {
-      const nodeId = queryNodeId || effectiveNodeId || undefined;
-      return nodeId ? { type: 'version_history', nodeId } : { type: 'none' };
-    }
-    if (panel === 'sync') {
-      const nodeId = queryNodeId || effectiveNodeId || undefined;
-      return nodeId ? { type: 'sync_config', nodeId } : { type: 'none' };
-    }
-    if (panel === 'sync-create') {
-      return { type: 'sync_create' };
-    }
-    if (panel === 'agent-chat') {
-      const nodeId = queryNodeId || effectiveNodeId || undefined;
-      return nodeId ? { type: 'agent_chat', nodeId, agentId: queryAgentId } : { type: 'none' };
-    }
-    if (panel === 'mcp') {
-      const nodeId = queryNodeId || effectiveNodeId || undefined;
-      const mcpEndpointId = searchParams.get('panelMcpId') || undefined;
-      return nodeId ? { type: 'mcp_config', nodeId, mcpEndpointId } : { type: 'none' };
-    }
-    if (panel === 'sandbox') {
-      const nodeId = queryNodeId || effectiveNodeId || undefined;
-      const sandboxEndpointId = searchParams.get('panelSandboxId') || undefined;
-      return nodeId ? { type: 'sandbox_config', nodeId, sandboxEndpointId } : { type: 'none' };
-    }
-    return { type: 'none' };
-  }, [searchParams, effectiveNodeId]);
-
-  const activeSyncNodeId = urlPanelState.type === 'sync_config' ? urlPanelState.nodeId ?? null : null;
+  const activeSyncNodeId = panelState.type === 'sync_config' ? panelState.nodeId ?? null : null;
   const activeSyncId = activeSyncNodeId ? (syncEndpoints.get(activeSyncNodeId)?.syncId ?? null) : null;
 
-  // Targeted fetch for MCP/Sandbox detail panels
-  const panelMcpId = urlPanelState.type === 'mcp_config' ? urlPanelState.mcpEndpointId : undefined;
+  const panelMcpId = panelState.type === 'mcp_config' ? panelState.mcpEndpointId : undefined;
   const { data: mcpEndpointDetail } = useSWR<McpEndpoint>(
     panelMcpId ? ['mcp-endpoint-detail', panelMcpId] : null,
     () => getMcpEndpoint(panelMcpId!),
     { revalidateOnFocus: false },
   );
-  const panelSandboxId = urlPanelState.type === 'sandbox_config' ? urlPanelState.sandboxEndpointId : undefined;
+  const panelSandboxId = panelState.type === 'sandbox_config' ? panelState.sandboxEndpointId : undefined;
   const { data: sandboxEndpointDetail } = useSWR<SandboxEndpoint>(
     panelSandboxId ? ['sandbox-endpoint-detail', panelSandboxId] : null,
     () => getSandboxEndpoint(panelSandboxId!),
     { revalidateOnFocus: false },
   );
 
-  const navigateWithPanelState = useCallback((
-    nextPath: string[],
-    nextPanel: UrlPanelState,
-    navigation: 'push' | 'replace' = 'replace',
-  ) => {
-    const params = new URLSearchParams(searchParams.toString());
+  // ───── Navigation (path only, panel state is independent) ─────
 
-    if (nextPanel.type === 'none') {
-      params.delete('panel');
-      params.delete('panelNodeId');
-      params.delete('panelAgentId');
-      params.delete('panelMcpId');
-      params.delete('panelSandboxId');
-    } else if (nextPanel.type === 'version_history') {
-      params.set('panel', 'history');
-      if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
-      else params.delete('panelNodeId');
-      params.delete('panelAgentId');
-    } else if (nextPanel.type === 'sync_config') {
-      params.set('panel', 'sync');
-      if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
-      else params.delete('panelNodeId');
-      params.delete('panelAgentId');
-    } else if (nextPanel.type === 'sync_create') {
-      params.set('panel', 'sync-create');
-      params.delete('panelNodeId');
-      params.delete('panelAgentId');
-    } else if (nextPanel.type === 'agent_chat') {
-      params.set('panel', 'agent-chat');
-      if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
-      else params.delete('panelNodeId');
-      if (nextPanel.agentId) params.set('panelAgentId', nextPanel.agentId);
-      else params.delete('panelAgentId');
-      params.delete('panelMcpId');
-    } else if (nextPanel.type === 'mcp_config') {
-      params.set('panel', 'mcp');
-      if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
-      else params.delete('panelNodeId');
-      if (nextPanel.mcpEndpointId) params.set('panelMcpId', nextPanel.mcpEndpointId);
-      else params.delete('panelMcpId');
-      params.delete('panelAgentId');
-      params.delete('panelSandboxId');
-    } else if (nextPanel.type === 'sandbox_config') {
-      params.set('panel', 'sandbox');
-      if (nextPanel.nodeId) params.set('panelNodeId', nextPanel.nodeId);
-      else params.delete('panelNodeId');
-      if (nextPanel.sandboxEndpointId) params.set('panelSandboxId', nextPanel.sandboxEndpointId);
-      else params.delete('panelSandboxId');
-      params.delete('panelAgentId');
-      params.delete('panelMcpId');
-    }
-
+  const navigateTo = useCallback((nextPath: string[]) => {
     const basePath = `/projects/${projectId}/data${nextPath.length > 0 ? `/${nextPath.join('/')}` : ''}`;
-    const query = params.toString();
-    const url = query ? `${basePath}?${query}` : basePath;
-    if (navigation === 'push') {
-      router.push(url);
-      return;
-    }
-    router.replace(url);
-  }, [projectId, router, searchParams]);
+    router.push(basePath);
+  }, [projectId, router]);
 
   const closeRightPanel = useCallback(() => {
     setEditorTarget(null);
     setIsEditorFullScreen(false);
-    navigateWithPanelState(path, { type: 'none' }, 'replace');
-  }, [navigateWithPanelState, path]);
+    closePanel();
+  }, [closePanel]);
 
   const openVersionHistoryPanel = useCallback(() => {
     if (!effectiveNodeId) return;
     setEditorTarget(null);
     setIsEditorFullScreen(false);
-    navigateWithPanelState(path, { type: 'version_history', nodeId: effectiveNodeId }, 'replace');
-  }, [effectiveNodeId, navigateWithPanelState, path]);
+    openPanel({ type: 'version_history', nodeId: effectiveNodeId });
+  }, [effectiveNodeId, openPanel]);
 
   const openSyncCreatePanel = useCallback(() => {
     setEditorTarget(null);
     setIsEditorFullScreen(false);
-    navigateWithPanelState(path, { type: 'sync_create' }, 'replace');
-  }, [navigateWithPanelState, path]);
+    openPanel({ type: 'sync_create' });
+  }, [openPanel]);
 
   const handleSyncCreated = useCallback(async (nodeId: string) => {
     await mutateSyncStatus();
-    navigateWithPanelState(path, { type: 'sync_config', nodeId }, 'replace');
-  }, [mutateSyncStatus, navigateWithPanelState, path]);
+    openPanel({ type: 'sync_config', nodeId });
+  }, [mutateSyncStatus, openPanel]);
 
   // ───── Table & Tools ─────
 
@@ -456,7 +316,7 @@ export default function DataPage({ params }: DataPageProps) {
       const agent = savedAgents.find(a => a.id === hoveredAgentId);
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
     }
-    if (urlPanelState.type === 'sync_create' || editingAgentId) return draftResources.map(toAgentResource);
+    if (panelState.type === 'sync_create' || editingAgentId) return draftResources.map(toAgentResource);
     if (currentAgentId) {
       const agent = savedAgents.find(a => a.id === currentAgentId);
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
@@ -465,7 +325,7 @@ export default function DataPage({ params }: DataPageProps) {
       return [{ nodeId: selectedSyncNodeId, terminalReadonly: true }];
     }
     return [];
-  }, [draftResources, editingAgentId, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, urlPanelState.type]);
+  }, [draftResources, editingAgentId, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, panelState.type]);
 
   const activeProject = useMemo(
     () => projects.find(p => p.id === projectId) ?? null,
@@ -475,12 +335,12 @@ export default function DataPage({ params }: DataPageProps) {
   // ───── Effects ─────
 
   useEffect(() => {
-    if (urlPanelState.type === 'agent_chat' && urlPanelState.agentId) {
-      if (currentAgentId !== urlPanelState.agentId) {
-        selectAgent(urlPanelState.agentId);
+    if (panelState.type === 'agent_chat' && panelState.agentId) {
+      if (currentAgentId !== panelState.agentId) {
+        selectAgent(panelState.agentId);
       }
     }
-  }, [urlPanelState.type, urlPanelState.agentId, currentAgentId, selectAgent]);
+  }, [panelState.type, panelState.agentId, currentAgentId, selectAgent]);
 
   // Refresh on external events (SaaS sync, ETL, etc.)
   useEffect(() => {
@@ -607,6 +467,7 @@ export default function DataPage({ params }: DataPageProps) {
     id: node.id,
     name: node.name,
     type: node.type as ContentType,
+    id_path: node.id_path,
     description: node.type === 'folder' ? 'Folder' :
                  node.type === 'json' ? 'JSON' :
                  node.type === 'markdown' ? 'Markdown' :
@@ -634,7 +495,7 @@ export default function DataPage({ params }: DataPageProps) {
       if (node.type !== 'folder') setPendingActiveId(node.id);
       const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
       const newPath = currentPath ? `${currentPath}/${node.id}` : node.id;
-      navigateWithPanelState(newPath.split('/').filter(Boolean), urlPanelState, 'push');
+      navigateTo(newPath.split('/').filter(Boolean));
     },
   }));
 
@@ -656,7 +517,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   const handleMillerNavigate = (item: MillerColumnItem, pathToItem: string[]) => {
     setPendingActiveId(item.id);
-    navigateWithPanelState(pathToItem, urlPanelState, 'push');
+    navigateTo(pathToItem);
   };
 
   const handleRefresh = async (id: string) => {
@@ -775,7 +636,7 @@ export default function DataPage({ params }: DataPageProps) {
           if (result?.id) {
             highlightCreatedNode(result.id);
             const navPath = result.id_path?.replace(/^\//, '') || result.id;
-            navigateWithPanelState(navPath.split('/').filter(Boolean), urlPanelState, 'push');
+            navigateTo(navPath.split('/').filter(Boolean));
           }
         } catch (err) { console.error('Failed to create JSON:', err); }
       },
@@ -788,7 +649,7 @@ export default function DataPage({ params }: DataPageProps) {
           if (result?.id) {
             highlightCreatedNode(result.id);
             const navPath = result.id_path?.replace(/^\//, '') || result.id;
-            navigateWithPanelState(navPath.split('/').filter(Boolean), urlPanelState, 'push');
+            navigateTo(navPath.split('/').filter(Boolean));
           }
         } catch (err) { console.error('Failed to create markdown:', err); }
       },
@@ -804,7 +665,7 @@ export default function DataPage({ params }: DataPageProps) {
       onConnectSupabase: () => { handleCreateAndSync('supabase'); },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, currentFolderId, createInFolderId, highlightCreatedNode, openSyncSetting, openSyncCreatePanel, handleCreateAndSync, navigateWithPanelState, urlPanelState]);
+  }, [projectId, currentFolderId, createInFolderId, highlightCreatedNode, openSyncSetting, openSyncCreatePanel, handleCreateAndSync, navigateTo]);
 
   // ───── Render ─────
 
@@ -899,8 +760,8 @@ export default function DataPage({ params }: DataPageProps) {
             projectId={projectId}
             currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
             activeNodeId={
-              (urlPanelState.type !== 'none' && urlPanelState.nodeId)
-                ? urlPanelState.nodeId
+              (panelState.type !== 'none' && panelState.nodeId)
+                ? panelState.nodeId
                 : (activeNodeId || undefined)
             }
             onNavigate={handleMillerNavigate}
@@ -908,42 +769,14 @@ export default function DataPage({ params }: DataPageProps) {
             onRename={nodeActions.handleRename}
             onDelete={nodeActions.handleDelete}
             onMoveNode={nodeActions.handleMoveNode}
-            onSyncClick={(item, pathToItem) => {
-              setPendingActiveId(item.id);
+            onSyncClick={(item) => {
               setEditorTarget(null);
               setIsEditorFullScreen(false);
 
               const endpoint = syncEndpoints.get(item.id);
               if (endpoint) {
-                if (endpoint.provider.startsWith('agent:')) {
-                  const isAlreadyOpen = urlPanelState.type === 'agent_chat' && urlPanelState.nodeId === item.id;
-                  navigateWithPanelState(
-                    pathToItem,
-                    isAlreadyOpen ? { type: 'none' } : { type: 'agent_chat', nodeId: item.id, agentId: endpoint.syncId },
-                    'push',
-                  );
-                } else if (endpoint.provider === 'mcp') {
-                  const isAlreadyOpen = urlPanelState.type === 'mcp_config' && urlPanelState.nodeId === item.id;
-                  navigateWithPanelState(
-                    pathToItem,
-                    isAlreadyOpen ? { type: 'none' } : { type: 'mcp_config', nodeId: item.id, mcpEndpointId: endpoint.syncId },
-                    'push',
-                  );
-                } else if (endpoint.provider === 'sandbox') {
-                  const isAlreadyOpen = urlPanelState.type === 'sandbox_config' && urlPanelState.nodeId === item.id;
-                  navigateWithPanelState(
-                    pathToItem,
-                    isAlreadyOpen ? { type: 'none' } : { type: 'sandbox_config', nodeId: item.id, sandboxEndpointId: endpoint.syncId },
-                    'push',
-                  );
-                } else {
-                  const isAlreadyOpen = urlPanelState.type === 'sync_config' && urlPanelState.nodeId === item.id;
-                  navigateWithPanelState(
-                    pathToItem,
-                    isAlreadyOpen ? { type: 'none' } : { type: 'sync_config', nodeId: item.id },
-                    'push',
-                  );
-                }
+                const ps = endpointToPanelState(endpoint, item.id);
+                togglePanel(ps);
               } else {
                 const nodeType = getNodeTypeConfig(item.type).renderAs;
                 openSyncSetting('_generic', {
@@ -953,47 +786,18 @@ export default function DataPage({ params }: DataPageProps) {
                   readonly: true,
                   jsonPath: '',
                 });
-                navigateWithPanelState(pathToItem, { type: 'sync_create' }, 'push');
+                openPanel({ type: 'sync_create' });
               }
             }}
-            onEndpointClick={(item, endpoint, pathToItem) => {
-              setPendingActiveId(item.id);
+            onEndpointClick={(item, endpoint) => {
               setEditorTarget(null);
               setIsEditorFullScreen(false);
-
-              if (endpoint.provider.startsWith('agent:')) {
-                const isAlreadyOpen = urlPanelState.type === 'agent_chat' && urlPanelState.nodeId === item.id;
-                navigateWithPanelState(
-                  pathToItem,
-                  isAlreadyOpen ? { type: 'none' } : { type: 'agent_chat', nodeId: item.id, agentId: endpoint.syncId },
-                  'push',
-                );
-              } else if (endpoint.provider === 'mcp') {
-                const isAlreadyOpen = urlPanelState.type === 'mcp_config' && urlPanelState.nodeId === item.id;
-                navigateWithPanelState(
-                  pathToItem,
-                  isAlreadyOpen ? { type: 'none' } : { type: 'mcp_config', nodeId: item.id, mcpEndpointId: endpoint.syncId },
-                  'push',
-                );
-              } else if (endpoint.provider === 'sandbox') {
-                const isAlreadyOpen = urlPanelState.type === 'sandbox_config' && urlPanelState.nodeId === item.id;
-                navigateWithPanelState(
-                  pathToItem,
-                  isAlreadyOpen ? { type: 'none' } : { type: 'sandbox_config', nodeId: item.id, sandboxEndpointId: endpoint.syncId },
-                  'push',
-                );
-              } else {
-                const isAlreadyOpen = urlPanelState.type === 'sync_config' && urlPanelState.nodeId === item.id;
-                navigateWithPanelState(
-                  pathToItem,
-                  isAlreadyOpen ? { type: 'none' } : { type: 'sync_config', nodeId: item.id },
-                  'push',
-                );
-              }
+              const ps = endpointToPanelState(endpoint, item.id);
+              togglePanel(ps);
             }}
             activeSyncNodeId={
-              urlPanelState.type === 'sync_config' || urlPanelState.type === 'agent_chat' || urlPanelState.type === 'mcp_config' || urlPanelState.type === 'sandbox_config'
-                ? (urlPanelState.nodeId ?? null)
+              panelState.type === 'sync_config' || panelState.type === 'agent_chat' || panelState.type === 'mcp_config' || panelState.type === 'sandbox_config'
+                ? (panelState.nodeId ?? null)
                 : null
             }
             syncEndpoints={syncEndpoints}
@@ -1104,7 +908,7 @@ export default function DataPage({ params }: DataPageProps) {
                 onActiveTableChange={(id: string) => {
                   const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
                   const nodePath = currentPath ? `${currentPath}/${id}` : id;
-                  navigateWithPanelState(nodePath.split('/').filter(Boolean), urlPanelState, 'push');
+                  navigateTo(nodePath.split('/').filter(Boolean));
                 }}
                 onAccessPointChange={(apPath: string, permissions: McpToolPermissions) => {
                   const hasAnyPermission = Object.values(permissions).some(Boolean);
@@ -1137,7 +941,7 @@ export default function DataPage({ params }: DataPageProps) {
                 onOpenDocument={(docPath: string, value: string) => {
                   setEditorTarget({ path: docPath, value });
                   setIsEditorFullScreen(false);
-                  navigateWithPanelState(path, { type: 'none' }, 'replace');
+                  closePanel();
                 }}
                 onCreateTool={(path: string) => {
                   if (!activeNodeId) return;
@@ -1186,7 +990,7 @@ export default function DataPage({ params }: DataPageProps) {
                   const welcomeNode = contentNodes.find(n => n.name === '01_Welcome.md' || n.name === '01_Welcome');
                   if (welcomeNode) {
                     setPendingActiveId(welcomeNode.id);
-                    navigateWithPanelState([welcomeNode.id], urlPanelState, 'push');
+                    navigateTo([welcomeNode.id]);
                   } else {
                     // Fallback if not found
                     alert('Welcome guide not found in this folder.');
@@ -1211,13 +1015,13 @@ export default function DataPage({ params }: DataPageProps) {
             activeProject={activeProject}
             currentTableData={currentTableData}
             markdownContent={markdownContent}
-            isVersionHistoryOpen={urlPanelState.type === 'version_history'}
+            isVersionHistoryOpen={panelState.type === 'version_history'}
             onOpenVersionHistory={openVersionHistoryPanel}
           />
             </div>
 
             {/* Right Panel */}
-            <ResizablePanel isVisible={!!editorTarget || urlPanelState.type !== 'none'}>
+            <ResizablePanel isVisible={!!editorTarget || panelState.type !== 'none'}>
           {editorTarget && (
             <DocumentEditor
               path={editorTarget.path}
@@ -1232,15 +1036,15 @@ export default function DataPage({ params }: DataPageProps) {
               onToggleFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
             />
           )}
-          {!editorTarget && urlPanelState.type === 'version_history' && urlPanelState.nodeId && (
+          {!editorTarget && panelState.type === 'version_history' && panelState.nodeId && (
             <VersionHistoryPanel
-              nodeId={urlPanelState.nodeId}
+              nodeId={panelState.nodeId}
               projectId={projectId}
               onClose={closeRightPanel}
               onRollbackComplete={() => { refreshTable(); refreshCurrentNodes(); }}
             />
           )}
-          {!editorTarget && urlPanelState.type === 'sync_config' && activeSyncId && (
+          {!editorTarget && panelState.type === 'sync_config' && activeSyncId && (
             <SyncConfigPanel
               mode="detail"
               syncId={activeSyncId}
@@ -1248,7 +1052,7 @@ export default function DataPage({ params }: DataPageProps) {
               onClose={closeRightPanel}
             />
           )}
-          {!editorTarget && urlPanelState.type === 'sync_config' && !activeSyncId && (
+          {!editorTarget && panelState.type === 'sync_config' && !activeSyncId && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
               {!syncStatusData ? (
                 <span style={{ color: '#71717a', fontSize: 13 }}>Loading...</span>
@@ -1257,11 +1061,11 @@ export default function DataPage({ params }: DataPageProps) {
                   <span style={{ color: '#525252', fontSize: 13 }}>No connection configured</span>
                   <button
                     onClick={() => {
-                      const nodeId = urlPanelState.nodeId;
+                      const nodeId = panelState.nodeId;
                       if (nodeId) {
                         openSyncSetting('_generic', { nodeId, nodeName: '', nodeType: 'folder', readonly: true, jsonPath: '' });
                       }
-                      navigateWithPanelState(path, { type: 'sync_create' }, 'replace');
+                      openPanel({ type: 'sync_create' });
                     }}
                     style={{
                       padding: '6px 14px', fontSize: 12, fontWeight: 500,
@@ -1275,7 +1079,7 @@ export default function DataPage({ params }: DataPageProps) {
               )}
             </div>
           )}
-          {!editorTarget && urlPanelState.type === 'sync_create' && (
+          {!editorTarget && panelState.type === 'sync_create' && (
             <SyncConfigPanel
               mode="create"
               syncId={null}
@@ -1284,21 +1088,21 @@ export default function DataPage({ params }: DataPageProps) {
               onSyncCreated={handleSyncCreated}
             />
           )}
-          {!editorTarget && urlPanelState.type === 'mcp_config' && urlPanelState.mcpEndpointId && (
+          {!editorTarget && panelState.type === 'mcp_config' && panelState.mcpEndpointId && (
             <McpConfigPanel endpoint={mcpEndpointDetail} onClose={closeRightPanel} />
           )}
-          {!editorTarget && urlPanelState.type === 'sandbox_config' && urlPanelState.sandboxEndpointId && (
+          {!editorTarget && panelState.type === 'sandbox_config' && panelState.sandboxEndpointId && (
             <SandboxConfigPanel endpoint={sandboxEndpointDetail} onClose={closeRightPanel} />
           )}
-          {!editorTarget && urlPanelState.type === 'agent_chat' && (() => {
-            const agentId = urlPanelState.agentId;
+          {panelState.type === 'agent_chat' && (() => {
+            const agentId = panelState.agentId;
             const chatAgent = agentId ? savedAgents.find(a => a.id === agentId) : null;
             if (!chatAgent) {
-              return (
+              return !editorTarget ? (
                 <PanelShell title="Chat Agent" onClose={closeRightPanel}>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>Agent not found</div>
                 </PanelShell>
-              );
+              ) : null;
             }
             const tools: AccessOption[] = [];
             if (chatAgent.resources) {
@@ -1313,15 +1117,17 @@ export default function DataPage({ params }: DataPageProps) {
               }
             }
             return (
-              <ChatRuntimeView
-                availableTools={tools}
-                tableData={currentTableData?.data}
-                tableId={activeNodeId}
-                projectId={projectId}
-                onDataUpdate={async () => { await refreshTable(); }}
-                projectTools={projectTools}
-                onClose={closeRightPanel}
-              />
+              <div style={{ display: editorTarget ? 'none' : 'contents' }}>
+                <ChatRuntimeView
+                  availableTools={tools}
+                  tableData={currentTableData?.data}
+                  tableId={activeNodeId}
+                  projectId={projectId}
+                  onDataUpdate={async () => { await refreshTable(); }}
+                  projectTools={projectTools}
+                  onClose={closeRightPanel}
+                />
+              </div>
             );
           })()}
         </ResizablePanel>

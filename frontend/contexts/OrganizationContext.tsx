@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import useSWR from 'swr';
 import {
   getOrganizations,
   getMembers,
@@ -24,55 +25,52 @@ const OrganizationContext = createContext<OrganizationContextValue | null>(null)
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const { session, userId } = useAuth();
-  const [orgs, setOrgs] = useState<OrganizationInfo[]>([]);
   const [currentOrgId, setCurrentOrgId] = useState<string | null>(null);
-  const [members, setMembers] = useState<OrgMember[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const {
+    data: orgs = [],
+    isLoading: isOrgsLoading,
+    mutate: mutateOrgs,
+  } = useSWR(
+    session ? 'organizations' : null,
+    () => getOrganizations(),
+    { dedupingInterval: 30000, revalidateOnFocus: false }
+  );
+
+  // Auto-select org when orgs load
+  useEffect(() => {
+    if (orgs.length > 0 && !currentOrgId) {
+      const stored = typeof window !== 'undefined'
+        ? localStorage.getItem('puppyone_current_org')
+        : null;
+      const target = orgs.find(o => o.id === stored) ?? orgs[0];
+      setCurrentOrgId(target.id);
+    }
+  }, [orgs, currentOrgId]);
+
+  const {
+    data: members = [],
+    mutate: mutateMembers,
+  } = useSWR(
+    currentOrgId ? ['org-members', currentOrgId] : null,
+    ([, orgId]) => getMembers(orgId),
+    { dedupingInterval: 30000, revalidateOnFocus: false }
+  );
 
   const currentOrg = orgs.find(o => o.id === currentOrgId) ?? null;
-
   const myRole = members.find(m => m.user_id === userId)?.role ?? null;
 
   const refreshOrgs = useCallback(async () => {
-    if (!session) return;
-    try {
-      const data = await getOrganizations();
-      setOrgs(data);
-      if (data.length > 0 && !currentOrgId) {
-        const stored = typeof window !== 'undefined'
-          ? localStorage.getItem('puppyone_current_org')
-          : null;
-        const target = data.find(o => o.id === stored) ?? data[0];
-        setCurrentOrgId(target.id);
-      }
-    } catch (err) {
-      console.error('Failed to load organizations:', err);
-    }
-  }, [session, currentOrgId]);
+    await mutateOrgs();
+  }, [mutateOrgs]);
 
   const refreshMembers = useCallback(async () => {
-    if (!currentOrgId) return;
-    try {
-      const data = await getMembers(currentOrgId);
-      setMembers(data);
-    } catch (err) {
-      console.error('Failed to load members:', err);
-    }
-  }, [currentOrgId]);
+    await mutateMembers();
+  }, [mutateMembers]);
 
   useEffect(() => {
-    if (session) {
-      setIsLoading(true);
-      refreshOrgs().finally(() => setIsLoading(false));
-    }
-  }, [session]);
-
-  useEffect(() => {
-    if (currentOrgId) {
-      refreshMembers();
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('puppyone_current_org', currentOrgId);
-      }
+    if (currentOrgId && typeof window !== 'undefined') {
+      localStorage.setItem('puppyone_current_org', currentOrgId);
     }
   }, [currentOrgId]);
 
@@ -87,7 +85,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         currentOrg,
         members,
         myRole,
-        isLoading,
+        isLoading: isOrgsLoading,
         switchOrg,
         refreshOrgs,
         refreshMembers,

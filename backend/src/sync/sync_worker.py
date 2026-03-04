@@ -48,43 +48,20 @@ class SyncWorker:
 
     def _build_path_map(self, nodes: List[ContentNode]) -> Dict[str, str]:
         """
-        构建 node_id → 文件系统路径 的映射（保持文件夹层级和人类可读名称）
+        基于 id_path 构建 node_id → 文件系统路径 的映射（无递归，无环风险）。
 
-        例如:
-          Tool_Configs/              (folder)
-            config.json              (json)
-            SubFolder/               (folder)
-              data.json              (json)
-
-        生成:
-          {node_id_of_config: "Tool_Configs/config.json"}
-          {node_id_of_data: "Tool_Configs/SubFolder/data.json"}
+        通过解析每个节点的 id_path 获取祖先 ID 链，
+        从预加载的 id→name 映射中直接拼接出人类可读路径。O(N) 时间复杂度。
         """
-        id_to_node: Dict[str, ContentNode] = {n.id: n for n in nodes}
-        path_cache: Dict[str, str] = {}
-
-        def _get_path(node: ContentNode) -> str:
-            if node.id in path_cache:
-                return path_cache[node.id]
-
-            name = node.name or node.id
-
-            if node.parent_id and node.parent_id in id_to_node:
-                parent_path = _get_path(id_to_node[node.parent_id])
-                full_path = f"{parent_path}/{name}"
-            else:
-                full_path = name
-
-            path_cache[node.id] = full_path
-            return full_path
+        id_to_name: Dict[str, str] = {n.id: (n.name or n.id) for n in nodes}
 
         result: Dict[str, str] = {}
         for node in nodes:
             if node.type == "folder":
-                _get_path(node)
                 continue
-            path = _get_path(node)
-            result[node.id] = path
+            segments = [s for s in node.id_path.strip("/").split("/") if s]
+            name_parts = [id_to_name.get(seg, seg) for seg in segments]
+            result[node.id] = "/".join(name_parts)
 
         return result
 

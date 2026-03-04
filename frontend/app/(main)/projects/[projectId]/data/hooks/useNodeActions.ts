@@ -11,7 +11,7 @@ export function useNodeActions(projectId: string, currentFolderId: string | null
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
 
-  const [moveDialogTarget, setMoveDialogTarget] = useState<{ id: string; name: string } | null>(null);
+  const [moveDialogTarget, setMoveDialogTarget] = useState<{ id: string; name: string; id_path?: string } | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -100,8 +100,8 @@ export function useNodeActions(projectId: string, currentFolderId: string | null
     }
   }, [projectId, currentFolderId, showToast]);
 
-  const handleMoveRequest = useCallback((id: string, name: string) => {
-    setMoveDialogTarget({ id, name });
+  const handleMoveRequest = useCallback((id: string, name: string, id_path?: string) => {
+    setMoveDialogTarget({ id, name, id_path });
   }, []);
 
   const handleCreateTool = useCallback((id: string, name: string, type: string, jsonPath?: string) => {

@@ -104,8 +104,8 @@ NOTION_CLIENT_SECRET=your-notion-client-secret
 NOTION_REDIRECT_URI=https://your-frontend.com/oauth/callback/notion
 
 # --- Google (统一配置，Gmail/Drive/Calendar/Sheets/Docs 共用) ---
-GOOGLE_SHEETS_CLIENT_ID=your-google-client-id
-GOOGLE_SHEETS_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 GOOGLE_SHEETS_REDIRECT_URI=https://your-frontend.com/oauth/google-sheets/callback
 GMAIL_REDIRECT_URI=https://your-frontend.com/oauth/gmail/callback
 GOOGLE_DRIVE_REDIRECT_URI=https://your-frontend.com/oauth/google-drive/callback

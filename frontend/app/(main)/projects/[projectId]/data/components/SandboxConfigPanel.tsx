@@ -15,7 +15,6 @@ interface SandboxEndpointData {
   access_key: string;
   status: string;
   runtime: string;
-  provider: string;
   timeout_seconds: number;
   resource_limits?: { memory_mb?: number; cpu_shares?: number };
   mounts: SandboxMount[];
@@ -128,7 +127,7 @@ export function SandboxConfigPanel({ endpoint, onClose }: SandboxConfigPanelProp
         </div>
         <div>
           <SectionLabel>Runtime</SectionLabel>
-          <span style={{ fontSize: 13, color: '#e4e4e7' }}>{endpoint.runtime} ({endpoint.provider})</span>
+          <span style={{ fontSize: 13, color: '#e4e4e7' }}>{endpoint.runtime}</span>
         </div>
         <div>
           <SectionLabel>Access Key</SectionLabel>

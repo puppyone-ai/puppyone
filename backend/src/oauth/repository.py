@@ -54,7 +54,7 @@ class OAuthRepository:
             "metadata": connection_create.metadata,
         }
 
-        response = self.supabase.table("oauth_connection").insert(data).execute()
+        response = self.supabase.table("oauth_connections").insert(data).execute()
 
         if not response.data:
             raise Exception("Failed to create OAuth connection")
@@ -64,7 +64,7 @@ class OAuthRepository:
     async def get_by_id(self, connection_id: int) -> Optional[OAuthConnection]:
         """Get OAuth connection by ID."""
         response = (
-            self.supabase.table("oauth_connection")
+            self.supabase.table("oauth_connections")
             .select("*")
             .eq("id", connection_id)
             .execute()
@@ -80,7 +80,7 @@ class OAuthRepository:
     ) -> Optional[OAuthConnection]:
         """Get OAuth connection by user ID and provider."""
         response = (
-            self.supabase.table("oauth_connection")
+            self.supabase.table("oauth_connections")
             .select("*")
             .eq("user_id", user_id)
             .eq("provider", provider)
@@ -116,7 +116,7 @@ class OAuthRepository:
             data["metadata"] = update_data.metadata
 
         response = (
-            self.supabase.table("oauth_connection")
+            self.supabase.table("oauth_connections")
             .update(data)
             .eq("id", connection_id)
             .execute()
@@ -130,7 +130,7 @@ class OAuthRepository:
     async def delete(self, connection_id: int) -> bool:
         """Delete OAuth connection."""
         response = (
-            self.supabase.table("oauth_connection")
+            self.supabase.table("oauth_connections")
             .delete()
             .eq("id", connection_id)
             .execute()
@@ -140,7 +140,7 @@ class OAuthRepository:
     async def delete_by_user_and_provider(self, user_id: str, provider: str) -> bool:
         """Delete OAuth connection by user ID and provider."""
         response = (
-            self.supabase.table("oauth_connection")
+            self.supabase.table("oauth_connections")
             .delete()
             .eq("user_id", user_id)
             .eq("provider", provider)

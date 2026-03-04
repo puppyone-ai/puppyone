@@ -663,43 +663,77 @@ class FolderSyncService:
     def _list_all_files_recursive(
         self, project_id: str, folder_id: str, prefix: str = "",
     ) -> list[dict]:
-        """Recursively list all files under folder tree with relative paths."""
+        """
+        列出文件夹下所有文件（基于 id_path 前缀，非递归，无环风险）。
+        """
+        folder = self._node_repo.get_by_id(folder_id)
+        if not folder:
+            return []
+        descendants = self._node_repo.list_descendants(project_id, folder.id_path)
+
+        id_to_name = {folder.id: folder.name}
+        for d in descendants:
+            id_to_name[d.id] = d.name
+
         result: list[dict] = []
-        children = self._node_repo.list_children(
-            project_id=project_id, parent_id=folder_id,
-        )
-        for node in children:
+        for node in descendants:
             if node.type == "folder":
-                sub_prefix = f"{prefix}{node.name}/"
-                result.extend(
-                    self._list_all_files_recursive(project_id, node.id, sub_prefix)
-                )
-            else:
-                entry = self._serialize_file(node)
-                entry["name"] = f"{prefix}{self._node_to_filename(node)}"
-                result.append(entry)
+                continue
+            rel_path = self._build_relative_path_from_id_path(
+                node, folder_id, id_to_name,
+            )
+            entry = self._serialize_file(node)
+            entry["name"] = f"{prefix}{rel_path}"
+            result.append(entry)
         return result
 
     def _build_relative_path(self, node, root_folder_id: str) -> str:
-        """Build relative path from sync root to this node."""
-        parts = [self._node_to_filename(node)]
-        current_parent_id = node.parent_id
-        while current_parent_id and current_parent_id != root_folder_id:
-            parent = self._node_repo.get_by_id(current_parent_id)
-            if not parent:
-                break
-            parts.insert(0, parent.name)
-            current_parent_id = parent.parent_id
+        """
+        基于 id_path 构建从 sync root 到节点的相对路径（无递归，无环风险）。
+        """
+        all_ids = [s for s in node.id_path.strip("/").split("/") if s]
+        root_idx = next((i for i, nid in enumerate(all_ids) if nid == root_folder_id), -1)
+        if root_idx >= 0:
+            relevant_ids = all_ids[root_idx + 1:]
+        else:
+            relevant_ids = all_ids
+
+        if not relevant_ids:
+            return self._node_to_filename(node)
+
+        ancestor_nodes = self._node_repo.get_by_ids(relevant_ids)
+        id_to_name = {n.id: n.name for n in ancestor_nodes}
+
+        parts = []
+        for nid in relevant_ids[:-1]:
+            parts.append(id_to_name.get(nid, nid))
+        parts.append(self._node_to_filename(node))
+        return "/".join(parts)
+
+    def _build_relative_path_from_id_path(
+        self, node, root_folder_id: str, id_to_name: dict,
+    ) -> str:
+        """Build relative path using pre-loaded id_to_name map (batch-optimized)."""
+        all_ids = [s for s in node.id_path.strip("/").split("/") if s]
+        root_idx = next((i for i, nid in enumerate(all_ids) if nid == root_folder_id), -1)
+        if root_idx >= 0:
+            relevant_ids = all_ids[root_idx + 1:]
+        else:
+            relevant_ids = all_ids
+
+        if not relevant_ids:
+            return self._node_to_filename(node)
+
+        parts = []
+        for nid in relevant_ids[:-1]:
+            parts.append(id_to_name.get(nid, nid))
+        parts.append(self._node_to_filename(node))
         return "/".join(parts)
 
     def _get_all_descendant_ids(self, project_id: str, folder_id: str) -> set[str]:
-        """Recursively get IDs of all descendants (files + sub-folders)."""
-        ids: set[str] = set()
-        children = self._node_repo.list_children(
-            project_id=project_id, parent_id=folder_id,
-        )
-        for child in children:
-            ids.add(child.id)
-            if child.type == "folder":
-                ids.update(self._get_all_descendant_ids(project_id, child.id))
-        return ids
+        """获取所有子孙 ID（基于 id_path 前缀，非递归，无环风险）。"""
+        folder = self._node_repo.get_by_id(folder_id)
+        if not folder:
+            return set()
+        ids = self._node_repo.get_descendant_ids(project_id, folder.id_path)
+        return set(ids)

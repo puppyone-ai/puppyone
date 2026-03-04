@@ -17,20 +17,20 @@ class ChatRepositorySupabase:
     def __init__(self, client: Client):
         self._client = client
 
-    def create_session(self, input: ChatSessionCreate) -> ChatSession:
+    # ── Sessions ──
+
+    def create_session(self, data: ChatSessionCreate) -> ChatSession:
         try:
             resp = (
                 self._client.table("chat_sessions")
-                .insert(input.model_dump(exclude_none=True))
+                .insert(data.model_dump(exclude_none=True))
                 .execute()
             )
             return ChatSession(**resp.data[0])
         except Exception as e:
-            raise handle_supabase_error(e, "创建 chat session")
+            raise handle_supabase_error(e, "create chat session")
 
-    def get_session_for_user(
-        self, *, session_id: str, user_id: str
-    ) -> Optional[ChatSession]:
+    def get_session(self, *, session_id: str, user_id: str) -> Optional[ChatSession]:
         try:
             resp = (
                 self._client.table("chat_sessions")
@@ -39,53 +39,76 @@ class ChatRepositorySupabase:
                 .eq("user_id", user_id)
                 .execute()
             )
-            data = None
-            if isinstance(resp.data, list):
-                data = resp.data[0] if resp.data else None
-            elif isinstance(resp.data, dict):
-                data = resp.data
-            if not data:
+            rows = resp.data if isinstance(resp.data, list) else [resp.data] if resp.data else []
+            if not rows:
                 return None
-            return ChatSession(**data)
+            return ChatSession(**rows[0])
         except Exception as e:
-            raise handle_supabase_error(e, "获取 chat session")
+            raise handle_supabase_error(e, "get chat session")
 
-    def update_session_title(
-        self, *, session_id: str, user_id: str, title: str
-    ) -> None:
+    def list_sessions(
+        self, *, user_id: str, agent_id: Optional[str] = None, limit: int = 50
+    ) -> list[ChatSession]:
         try:
-            (
+            q = (
                 self._client.table("chat_sessions")
-                .update({"title": title})
+                .select("*")
+                .eq("user_id", user_id)
+            )
+            if agent_id is not None:
+                q = q.eq("agent_id", agent_id)
+            resp = q.order("updated_at", desc=True).limit(limit).execute()
+            return [ChatSession(**row) for row in (resp.data or [])]
+        except Exception as e:
+            raise handle_supabase_error(e, "list chat sessions")
+
+    def update_session(
+        self, *, session_id: str, user_id: str, updates: dict[str, Any]
+    ) -> Optional[ChatSession]:
+        try:
+            resp = (
+                self._client.table("chat_sessions")
+                .update(updates)
                 .eq("id", session_id)
                 .eq("user_id", user_id)
                 .execute()
             )
+            rows = resp.data or []
+            if not rows:
+                return None
+            return ChatSession(**rows[0])
         except Exception as e:
-            raise handle_supabase_error(e, "更新 chat session title")
+            raise handle_supabase_error(e, "update chat session")
 
-    def create_message(self, input: ChatMessageCreate) -> ChatMessage:
+    def delete_session(self, *, session_id: str, user_id: str) -> bool:
         try:
-            payload: dict[str, Any] = input.model_dump(exclude_none=True)
+            resp = (
+                self._client.table("chat_sessions")
+                .delete()
+                .eq("id", session_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            return bool(resp.data)
+        except Exception as e:
+            raise handle_supabase_error(e, "delete chat session")
+
+    # ── Messages ──
+
+    def create_message(self, data: ChatMessageCreate) -> ChatMessage:
+        try:
             resp = (
                 self._client.table("chat_messages")
-                .insert(payload)
+                .insert(data.model_dump(exclude_none=True))
                 .execute()
             )
             return ChatMessage(**resp.data[0])
         except Exception as e:
-            raise handle_supabase_error(e, "创建 chat message")
+            raise handle_supabase_error(e, "create chat message")
 
-    def list_messages_for_user(
-        self, *, session_id: str, user_id: str, limit: int = 100
+    def list_messages(
+        self, *, session_id: str, limit: int = 200
     ) -> list[ChatMessage]:
-        """
-        Load messages for a session, but only if that session belongs to the user.
-        This is important because the backend may use a service role Supabase key (bypassing RLS).
-        """
-        session = self.get_session_for_user(session_id=session_id, user_id=user_id)
-        if session is None:
-            return []
         try:
             resp = (
                 self._client.table("chat_messages")
@@ -97,4 +120,4 @@ class ChatRepositorySupabase:
             )
             return [ChatMessage(**row) for row in (resp.data or [])]
         except Exception as e:
-            raise handle_supabase_error(e, "获取 chat messages")
+            raise handle_supabase_error(e, "list chat messages")

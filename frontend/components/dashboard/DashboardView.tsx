@@ -42,7 +42,7 @@ export function DashboardView({
               Projects
             </h1>
             <p className='text-sm text-[#666] mt-1'>
-              Manage your projects and workspaces
+              Manage your projects
             </p>
           </div>
 

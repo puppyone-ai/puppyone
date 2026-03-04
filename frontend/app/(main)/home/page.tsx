@@ -178,6 +178,7 @@ function DashboardPageContent() {
           onClose={() => setCreateProjectOpen(false)}
         />
       )}
+
     </div>
   );
 }

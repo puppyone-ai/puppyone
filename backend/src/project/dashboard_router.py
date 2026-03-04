@@ -144,7 +144,7 @@ def get_project_dashboard(
 
     # 3. Tools + search index status (LEFT JOIN via two queries)
     tool_rows = (
-        sb.table("tool")
+        sb.table("tools")
         .select("id, name, type")
         .eq("project_id", project_id)
         .execute()

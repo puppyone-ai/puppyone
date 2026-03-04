@@ -352,13 +352,10 @@ async def google_sheets_authorize(
 ):
     """Get Google Sheets OAuth authorization URL."""
     try:
-        if (
-            not settings.GOOGLE_SHEETS_CLIENT_ID
-            or not settings.GOOGLE_SHEETS_CLIENT_SECRET
-        ):
+        if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
             raise HTTPException(
                 status_code=500,
-                detail="Google Sheets OAuth is not configured. Please set GOOGLE_SHEETS_CLIENT_ID and GOOGLE_SHEETS_CLIENT_SECRET environment variables.",
+                detail="Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.",
             )
 
         authorization_url, _ = await google_sheets_service.get_authorization_url()
@@ -766,13 +763,10 @@ async def gmail_authorize(
 ):
     """Get Gmail OAuth authorization URL."""
     try:
-        client_id = settings.GMAIL_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID
-        client_secret = settings.GMAIL_CLIENT_SECRET or settings.GOOGLE_SHEETS_CLIENT_SECRET
-        
-        if not client_id or not client_secret:
+        if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
             raise HTTPException(
                 status_code=500,
-                detail="Gmail OAuth is not configured. Please set GMAIL_CLIENT_ID/SECRET or GOOGLE_SHEETS_CLIENT_ID/SECRET environment variables.",
+                detail="Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.",
             )
 
         authorization_url, _ = await gmail_service.get_authorization_url()
@@ -897,13 +891,10 @@ async def google_drive_authorize(
 ):
     """Get Google Drive OAuth authorization URL."""
     try:
-        client_id = settings.GOOGLE_DRIVE_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID
-        client_secret = settings.GOOGLE_DRIVE_CLIENT_SECRET or settings.GOOGLE_SHEETS_CLIENT_SECRET
-        
-        if not client_id or not client_secret:
+        if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
             raise HTTPException(
                 status_code=500,
-                detail="Google Drive OAuth is not configured. Please set GOOGLE_DRIVE_CLIENT_ID/SECRET or GOOGLE_SHEETS_CLIENT_ID/SECRET environment variables.",
+                detail="Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.",
             )
 
         authorization_url, _ = await google_drive_service.get_authorization_url()
@@ -1028,13 +1019,10 @@ async def google_calendar_authorize(
 ):
     """Get Google Calendar OAuth authorization URL."""
     try:
-        client_id = settings.GOOGLE_CALENDAR_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID
-        client_secret = settings.GOOGLE_CALENDAR_CLIENT_SECRET or settings.GOOGLE_SHEETS_CLIENT_SECRET
-        
-        if not client_id or not client_secret:
+        if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
             raise HTTPException(
                 status_code=500,
-                detail="Google Calendar OAuth is not configured. Please set GOOGLE_CALENDAR_CLIENT_ID/SECRET or GOOGLE_SHEETS_CLIENT_ID/SECRET environment variables.",
+                detail="Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.",
             )
 
         authorization_url, _ = await google_calendar_service.get_authorization_url()

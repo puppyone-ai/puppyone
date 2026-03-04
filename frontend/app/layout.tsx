@@ -2,6 +2,7 @@ import './globals.css';
 import type { ReactNode } from 'react';
 import { SupabaseAuthProvider } from './supabase/SupabaseAuthProvider';
 import { BackgroundTaskNotifier } from '../components/BackgroundTaskNotifier';
+import { SWRGlobalProvider } from './SWRProvider';
 
 export const metadata = {
   title: 'puppyone | Context base for AI agents',
@@ -24,10 +25,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body>
-        <SupabaseAuthProvider>
-          {children}
-          <BackgroundTaskNotifier />
-        </SupabaseAuthProvider>
+        <SWRGlobalProvider>
+          <SupabaseAuthProvider>
+            {children}
+            <BackgroundTaskNotifier />
+          </SupabaseAuthProvider>
+        </SWRGlobalProvider>
       </body>
     </html>
   );

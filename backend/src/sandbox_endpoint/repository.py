@@ -30,7 +30,6 @@ def _row_to_endpoint(row: dict) -> dict:
         "access_key": row.get("access_key", ""),
         "mounts": config.get("mounts", []),
         "runtime": config.get("runtime", "alpine"),
-        "provider": config.get("sandbox_provider", "docker"),
         "timeout_seconds": config.get("timeout_seconds", 30),
         "resource_limits": config.get("resource_limits", {"memory_mb": 128, "cpu_shares": 0.5}),
         "status": row.get("status", "active"),
@@ -82,7 +81,6 @@ class SandboxEndpointRepository:
         description: Optional[str] = None,
         mounts: Optional[list] = None,
         runtime: str = "alpine",
-        provider: str = "docker",
         timeout_seconds: int = 30,
         resource_limits: Optional[dict] = None,
     ) -> dict:
@@ -91,7 +89,6 @@ class SandboxEndpointRepository:
             "description": description,
             "mounts": mounts or [],
             "runtime": runtime,
-            "sandbox_provider": provider,
             "timeout_seconds": timeout_seconds,
             "resource_limits": resource_limits or {"memory_mb": 128, "cpu_shares": 0.5},
         }
@@ -123,9 +120,7 @@ class SandboxEndpointRepository:
             if key in kwargs and kwargs[key] is not None:
                 config[key] = kwargs[key]
 
-        if "provider" in kwargs and kwargs["provider"] is not None:
-            config["sandbox_provider"] = kwargs["provider"]
-
+        config.pop("sandbox_provider", None)
         update_data["config"] = config
 
         if "access_key" in kwargs:

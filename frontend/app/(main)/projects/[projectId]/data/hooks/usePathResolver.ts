@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getNode, getDownloadUrl } from '@/lib/contentNodesApi';
+import { getNode, getNodesBatch, getDownloadUrl } from '@/lib/contentNodesApi';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import { setPendingActiveId } from '../components/views';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
@@ -16,6 +16,43 @@ export async function getCachedNode(nodeId: string, projectId: string) {
   const node = await getNode(nodeId, projectId);
   nodeCache.set(key, { data: node, ts: Date.now() });
   return node;
+}
+
+async function getCachedNodesBatch(nodeIds: string[], projectId: string) {
+  const now = Date.now();
+  const result: Record<string, any> = {};
+  const missingIds: string[] = [];
+
+  for (const id of nodeIds) {
+    const key = `${projectId}:${id}`;
+    const cached = nodeCache.get(key);
+    if (cached && now - cached.ts < NODE_CACHE_TTL) {
+      result[id] = cached.data;
+    } else {
+      missingIds.push(id);
+    }
+  }
+
+  if (missingIds.length > 0) {
+    try {
+      const fetched = await getNodesBatch(missingIds, projectId);
+      const ts = Date.now();
+      for (const node of fetched) {
+        nodeCache.set(`${projectId}:${node.id}`, { data: node, ts });
+        result[node.id] = node;
+      }
+    } catch (err) {
+      console.error('Batch node fetch failed, falling back to individual:', err);
+      const fallback = await Promise.all(
+        missingIds.map(id => getCachedNode(id, projectId).catch(() => null))
+      );
+      for (const node of fallback) {
+        if (node) result[node.id] = node;
+      }
+    }
+  }
+
+  return result;
 }
 
 export function usePathResolver(projectId: string, path: string[]) {
@@ -52,14 +89,8 @@ export function usePathResolver(projectId: string, path: string[]) {
           return;
         }
 
-        const results = await Promise.all(
-          path.map(nodeId =>
-            getCachedNode(nodeId, projectId).catch(err => {
-              console.error(`Failed to get node ${nodeId}:`, err);
-              return null;
-            })
-          )
-        );
+        const nodeMap = await getCachedNodesBatch(path, projectId);
+        const results = path.map(id => nodeMap[id] ?? null);
         if (cancelled) return;
 
         const pathNodes = results
