@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/public/puppyonetitle.png" alt="PuppyOne"  />
+  <img src="frontend/public/puppyonetitle.png" alt="puppyone"  />
 </p>
 
 # puppyone
@@ -20,91 +20,129 @@
   <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat&logo=discord&logoColor=white" alt="Discord" height="22" />
 </a>
 
+**The Agent-Native File System.**
 
-The File System for Agent Context.
+puppyone is an open-source context infrastructure that gives AI agents an agent native file system.
 
-Puppyone is the file-based context infrastructure for AI agents. Connect fragmented context, transform raw data into a unified file system, and enable Agents to access all context via Bash and MCP.
+- **Connected** — Pull context from SaaS tools (Notion, GitHub, Gmail, Google Drive, Airtable…), databases, and the web into agent-friendly, accessible files.
+- **Collaborative** — A file system rebuilt for agents: agent-level auth, versioning & rollback, conflict resolution, backup, audit logs, and traceability. Traditional file systems never had any of this.
+- **Accessible** — Your agents can access the file system via SSH, Bash, MCP, REST API, or sandboxed containers.
 
-
-<img src="assert/puppy-filesystem-demo.png" alt="PuppyOne Context Filesystem" width="100%" />
-
-In 2026, with the rise of agents such as OpenClaw and Claude Code, "Bash and Files" has become the new standard. Yet, today's context infrastructure is still built for humans, creating a bottleneck for agents:
-
-1. SaaS Silos: Deep context is locked away in fragmented softwares, making it inaccessible for agents.
-
-2. Collaboration Friction: Traditional file systems weren't built for the demands of multi-agent teamwork.
-
-3. The Auth Gap: Production-ready agents require security, but legacy protocols like SSH are too stupid for agents management.
-
-Therefore, puppyone (Born Feb 2026) is reimagining context infrastructure for the agentic age. We provide a virtual file system engineered specifically for the next generation of intelligence.
-
-
-## Connect. Convert. File.
-
-**Connect Notion, GitHub, Airtable, Google Drive, and local files.** We turn your scattered SaaS silos into a unified file tree.
-
-<img src="assert/connect-demo.gif" alt="Supported Data Sources" width="100%" />
-
-## File Level Security (FLS)
-
-**Think of it as Row Level Security (RLS), but for Agent context.**
-
-PuppyOne enforces strict isolation by dynamically mounting only authorized files into the Agent's sandbox. **If an Agent doesn't have permission, the file physically doesn't exist in its environment.**
-
-<img src="assert/auth-demo.gif" alt="File Level Security Demo" width="100%" />
-
-## Quick Start
-
-### 1. Cloud (Hosted) — No Setup
-
-Create an account at [puppyone.ai](https://www.puppyone.ai) and mount your first data source in minutes.
-
-### 2. Self-Hosted (Local)
-
-Run the backend locally using Docker or Python.
-
-See docs for detailed steps:
-- [Getting Started](docs/getting-started.md)
-- [Configuration](docs/configuration.md)
-- [Docker Compose](docs/deployment/docker-compose.md)
+<img src="assert/puppy-filesystem-demo.png" alt="puppyone file system" width="100%" />
 
 ---
 
+## Why puppyone?
+
+Today's context infrastructure was built for humans. Agents need something different:
+
+- **SaaS silos** — Deep context is locked inside Notion, GitHub, Google Drive, Airtable, Gmail, and dozens of other tools. Agents can't reach it without custom integrations for each one.
+- **No collaboration layer** — Traditional file systems have no concept of agent-level permissions, version history, or audit trails. Multi-agent teamwork is impossible without them.
+- **No distribution** — Getting context *into* an agent's environment (Cursor, Claude Desktop, a sandbox, your own scripts) requires glue code every time.
+
+puppyone solves all three.
+
+---
+
+## Connected
+
+Connect context from SaaS tools, databases, and the web into agent-friendly files.
+
+puppyone provides OAuth connectors for **15+ platforms** — including Notion, GitHub, Gmail, Google Drive, Linear, Airtable, Google Sheets, Google Calendar, and more. It also supports URL scraping, database connections, local folder sync, and custom scripts.
+
+All data is transformed into agent-friendly formats (Markdown, JSON, raw files) and stored in your **Context Space** — a cloud file system that any agent can browse like a local directory.
+
+<img src="assert/connect-demo.gif" alt="Connect data sources" width="100%" />
+
+---
+
+## Collaborative
+
+Agent-level auth, versioning, audit, and collaboration — built for agents, not humans.
+
+- **File Level Security (FLS)** — Per-agent file permissions enforced at the filesystem layer. If an agent doesn't have access, the file physically doesn't exist in its environment. Think Row Level Security (RLS), but for files.
+- **Version history & rollback** — File-level versioning with diff comparison and one-click rollback. Folder-level snapshots for bulk recovery.
+- **Audit logs** — Every read and write operation is recorded: who did what, to which file, and when.
+- **Checkout / commit workflow** — Locking, conflict detection, and resolution for concurrent agent edits.
+
+<img src="assert/auth-demo.gif" alt="File Level Security" width="100%" />
+
+---
+
+## Accessible
+
+One Context Space, many ways in. Your agents access it however they work best:
+
+- **MCP (Model Context Protocol)** — Auto-generated MCP endpoints for each agent. Connect Cursor, Claude Desktop, Windsurf, Cline, or any MCP-compatible client in seconds.
+- **Sandbox** — Isolated Docker/E2B containers with only the authorized files mounted. Agents execute code securely without seeing anything they shouldn't.
+- **REST API** — Full programmatic access. Read, write, query, and manage everything.
+- **CLI** — Every operation available via `puppyone` command line, so AI coding tools like Claude Code can drive the platform directly.
+- **Local folder sync** — Real-time bidirectional sync between local directories and the cloud Context Space via the OpenClaw protocol.
+
+---
 
 ## Architecture
 
-We bridge the gap between SaaS APIs and File System calls.
+```
+         ┌──────────────────────────────────────────────┐
+         │       Data Sources (Connected)               │
+         │  Notion · GitHub · Gmail · Drive · Airtable  │
+         │  Linear · URLs · Databases · Local Folders   │
+         └─────────────────────┬────────────────────────┘
+                               │
+                    ╔══════════▼══════════╗
+                    ║     puppyone        ║
+                    ║  Context Space      ║
+                    ║  (Files / JSON /    ║
+                    ║   Markdown / Raw)   ║
+                    ╠═════════════════════╣
+                    ║  Auth · Versioning  ║
+                    ║  Audit · Collab     ║
+                    ╚══════════▲══════════╝
+                               │
+         ┌─────────────────────┼─────────────────────┐
+         │                     │                     │
+    ┌────▼────┐          ┌─────▼─────┐         ┌────▼────┐
+    │   MCP   │          │  Sandbox  │         │   API   │
+    └────┬────┘          └─────┬─────┘         └────┬────┘
+         │                     │                     │
+   ┌─────▼─────┐        ┌─────▼─────┐        ┌──────▼──────┐
+   │  Cursor   │        │  Docker   │        │  Python     │
+   │  Claude   │        │  E2B      │        │  Scripts    │
+   │  Windsurf │        │  Agents   │        │  Claude Code│
+   └───────────┘        └───────────┘        └─────────────┘
+```
 
+---
+
+## Quick Start
+
+### Cloud (Hosted) — No Setup
+
+Create an account at [puppyone.ai](https://www.puppyone.ai) and connect your first data source in minutes.
+
+### Self-Hosted
+
+```bash
+git clone https://github.com/puppyone-ai/puppyone.git
+cd puppyone/backend
+cp .env.example .env   # fill in your credentials
+uv sync
+uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload
 ```
-┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
-│  Notion  │  │  GitHub  │  │ Airtable │  │  Files   │
-└─────┬────┘  └─────┬────┘  └─────┬────┘  └─────┬────┘
-      │             │             │             │
-      └─────────────▼─────────────▼─────────────┘
-                    │
-            ╔═══════▼═══════╗
-            ║   puppyone    ║  ◄── Virtual File System Layer
-            ║  Files / JSON ║      (The "Mount" Point)
-            ╚═══════▲═══════╝
-                    │
-      ┌─────────────┼─────────────┐
-      │             │             │
-  ┌───▼───┐     ┌───▼───┐     ┌───▼───┐
-  │  MCP  │     │  API  │     │Sandbox│
-  └───┬───┘     └───┬───┘     └───┬───┘
-      │             │             │
-┌─────▼────┐  ┌─────▼────┐  ┌─────▼────┐
-│ Cursor   │  │ Python   │  │ E2B      │
-│ Claude   │  │ Scripts  │  │ Agents   │
-└──────────┘  └──────────┘  └──────────┘
-```
+
+See the [documentation](https://www.puppyone.ai/doc) for full setup guides.
 
 ---
 
 ## Contributing
 
-- Issues and feature requests are welcome.
-- Please open a PR for small fixes; for larger changes, file an issue first to discuss the design.
+We welcome issues, feature requests, and pull requests.
+
+- For small fixes, open a PR directly.
+- For larger changes, [file an issue](https://github.com/puppyone-ai/puppyone/issues/new/choose) first to discuss the design.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ---
 
@@ -112,10 +150,11 @@ We bridge the gap between SaaS APIs and File System calls.
 
 This repository uses the Puppyone Sustainable Use License (SUL).
 
-Summary (for convenience; the License controls):
-1. Personal use (individual): Allowed, free.
-2. Internal business use (single-tenant, per organization): Allowed, free.
-3. Self-hosted multi-tenant: Not allowed.
-4. Commercial redistribution: Not allowed.
+| Use case | Allowed |
+|----------|---------|
+| Personal use (individual) | Yes, free |
+| Internal business use (single-tenant) | Yes, free |
+| Self-hosted multi-tenant | No |
+| Commercial redistribution | No |
 
-See `LICENSE` for full terms.
+See [`LICENSE`](LICENSE) for full terms.
