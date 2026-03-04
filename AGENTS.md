@@ -111,8 +111,44 @@ backend/
 - **Fully async**: All I/O operations use `async/await`
 - **Pydantic models**: All request/response defined with Pydantic schemas
 - **Naming conventions**: Files `snake_case.py`, classes `PascalCase`, functions/variables `snake_case`
+- **DB table naming**: All table names use **plural snake_case** (e.g. `projects`, `content_nodes`, `connections`)
 - **Route prefix**: Business APIs under `/api/v1`, internal APIs under `/internal`
 - **Module structure**: Each module typically contains `router.py`, `service.py`, `repository.py`, `schemas.py`
+
+### Database Tables
+
+All tables use plural snake_case names. The "unified connections" architecture stores agents, MCP endpoints, sandbox endpoints, and sync connections in a single `connections` table differentiated by `provider`/`direction`.
+
+| Table | Repository | Description |
+|-------|-----------|-------------|
+| `projects` | `supabase/projects/repository.py` | Projects |
+| `project_members` | `project/repository.py`, `project/service.py` | Project membership |
+| `organizations` | `organization/repository.py` | Organizations |
+| `org_members` | `organization/repository.py` | Organization membership |
+| `org_invitations` | `organization/repository.py` | Organization invitations |
+| `profiles` | `profile/repository.py` | User profiles |
+| `connections` | `connection/router.py`, `agent/config/repository.py` | Unified connections (agents/MCP/sandbox/sync) |
+| `connection_accesses` | `agent/config/repository.py` | Agent ↔ content node access bindings |
+| `connection_tools` | `agent/config/repository.py`, `tool/service.py` | Agent ↔ tool bindings |
+| `content_nodes` | `content_node/repository.py` | Content tree (folder/JSON/MD/file) |
+| `tools` | `supabase/tools/repository.py` | Registered tools |
+| `mcps` | `supabase/mcps/repository.py`, `supabase/mcp_v2/repository.py` | MCP server instances |
+| `mcp_bindings` | `supabase/mcp_binding/repository.py` | MCP ↔ tool bindings |
+| `chunks` | `chunking/repository.py` | Text chunks for search |
+| `uploads` | `upload/file/tasks/repository.py` | File upload/ingest tasks |
+| `etl_rules` | `upload/file/rules/repository_supabase.py` | ETL transformation rules |
+| `context_publishes` | `supabase/context_publish/repository.py` | Public JSON short links |
+| `oauth_connections` | `oauth/repository.py` | OAuth integrations |
+| `chat_sessions` | `agent/chat/repository.py` | Agent chat sessions |
+| `chat_messages` | `agent/chat/repository.py` | Agent chat messages |
+| `agent_execution_logs` | `agent/config/repository.py`, `scheduler/jobs/agent_job.py` | Scheduled agent execution logs |
+| `file_versions` | `collaboration/version_repository.py` | File version history |
+| `folder_snapshots` | `collaboration/version_repository.py` | Folder snapshots |
+| `audit_logs` | `collaboration/audit_repository.py` | Audit trail |
+| `search_index_tasks` | `project/dashboard_router.py` | Search indexing tasks |
+| `ingest_tasks` | `project/dashboard_router.py` | Ingestion tasks |
+| `agent_logs` | `analytics/service.py` | Agent usage analytics |
+| `access_logs` | `analytics/service.py`, `analytics/router.py` | API access analytics |
 
 ### API Routes
 

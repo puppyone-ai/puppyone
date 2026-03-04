@@ -249,26 +249,7 @@ export default function ToolsLayout({
           {/* Content */}
           {!isCollapsed ? (
             <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
-              {/* Library Section */}
-              <div style={{ marginBottom: 4 }}>
-                <div
-                  style={{
-                    padding: '2px 8px 4px 8px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1,
-                  }}
-                >
-                  <NavItem
-                    href='/tools-and-server/tools-list'
-                    active={pathname?.startsWith(
-                      '/tools-and-server/tools-list'
-                    )}
-                    label='Tools List'
-                    count={tools.length}
-                  />
-                </div>
-              </div>
+              {/* HIDDEN: Tools List nav item temporarily disabled */}
 
               {/* Servers Section */}
               <div
@@ -421,21 +402,7 @@ export default function ToolsLayout({
                 gap: 4,
               }}
             >
-              <CollapsedNavItem
-                href='/tools-and-server/tools-list'
-                active={pathname?.startsWith('/tools-and-server/tools-list')}
-                title='Tools List'
-                icon={
-                  <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
-                    <path
-                      d='M8.5 3.5a1 1 0 0 0 0 1l1 1a1 1 0 0 0 1 0l2.5-2.5a4 4 0 0 1-5.3 5.3L4 12a1.4 1.4 0 0 1-2-2l3.7-3.7a4 4 0 0 1 5.3-5.3L8.5 3.5z'
-                      stroke='currentColor'
-                      strokeWidth='1.2'
-                      strokeLinejoin='round'
-                    />
-                  </svg>
-                }
-              />
+              {/* HIDDEN: Tools List collapsed nav item temporarily disabled */}
               {instances.map(mcp => (
                 <CollapsedNavItem
                   key={mcp.api_key}

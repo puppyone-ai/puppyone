@@ -27,14 +27,14 @@ class McpBindingRepository:
             payload = data.model_dump(exclude_none=True)
             payload.pop("id", None)
             payload.pop("created_at", None)
-            response = self._client.table("mcp_binding").insert(payload).execute()
+            response = self._client.table("mcp_bindings").insert(payload).execute()
             return McpBindingResponse(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建 MCP Binding")
 
     def get_by_id(self, binding_id: int) -> Optional[McpBindingResponse]:
         response = (
-            self._client.table("mcp_binding").select("*").eq("id", binding_id).execute()
+            self._client.table("mcp_bindings").select("*").eq("id", binding_id).execute()
         )
         if response.data:
             return McpBindingResponse(**response.data[0])
@@ -44,7 +44,7 @@ class McpBindingRepository:
         self, mcp_id: int, tool_id: str
     ) -> Optional[McpBindingResponse]:
         response = (
-            self._client.table("mcp_binding")
+            self._client.table("mcp_bindings")
             .select("*")
             .eq("mcp_id", mcp_id)
             .eq("tool_id", tool_id)
@@ -62,7 +62,7 @@ class McpBindingRepository:
         limit: int = 1000,
     ) -> List[McpBindingResponse]:
         response = (
-            self._client.table("mcp_binding")
+            self._client.table("mcp_bindings")
             .select("*")
             .eq("mcp_id", mcp_id)
             .range(skip, skip + limit - 1)
@@ -78,7 +78,7 @@ class McpBindingRepository:
         limit: int = 1000,
     ) -> List[McpBindingResponse]:
         response = (
-            self._client.table("mcp_binding")
+            self._client.table("mcp_bindings")
             .select("*")
             .eq("tool_id", tool_id)
             .range(skip, skip + limit - 1)
@@ -94,7 +94,7 @@ class McpBindingRepository:
             if not payload:
                 return self.get_by_id(binding_id)
             response = (
-                self._client.table("mcp_binding")
+                self._client.table("mcp_bindings")
                 .update(payload)
                 .eq("id", binding_id)
                 .execute()
@@ -107,6 +107,6 @@ class McpBindingRepository:
 
     def delete(self, binding_id: int) -> bool:
         response = (
-            self._client.table("mcp_binding").delete().eq("id", binding_id).execute()
+            self._client.table("mcp_bindings").delete().eq("id", binding_id).execute()
         )
         return len(response.data) > 0

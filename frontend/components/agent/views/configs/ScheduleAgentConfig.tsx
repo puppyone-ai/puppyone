@@ -530,65 +530,7 @@ export function ScheduleAgentConfig({ projectTools }: AgentConfigProps) {
         </div>
       </div>
 
-      {/* Tools */}
-      <div style={{ position: 'relative', zIndex: isToolsOpen ? 50 : 20 }} ref={toolsRef}>
-        <label style={labelStyle}>Agent's tools</label>
-        <button onClick={() => setIsToolsOpen(!isToolsOpen)}
-          style={{ width: '100%', height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#161616', border: `1px solid ${isToolsOpen ? '#525252' : '#2a2a2a'}`, borderRadius: 6, padding: '0 10px', color: '#e5e5e5', cursor: 'pointer', fontSize: 14, textAlign: 'left' }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><PlusIcon /><span style={{ color: '#737373' }}>Add a tool...</span></div>
-          <ChevronDownIcon open={isToolsOpen} />
-        </button>
-        {isToolsOpen && (
-          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', zIndex: 100, maxHeight: 240, overflowY: 'auto' }}>
-            {(!projectTools || projectTools.length === 0) ? (
-              <div style={{ padding: '16px 12px', textAlign: 'center', color: '#525252', fontSize: 13 }}>
-                <div style={{ marginBottom: 4 }}>No tools configured</div>
-                <div style={{ fontSize: 11 }}>Add tools in Toolkit</div>
-              </div>
-            ) : projectTools.map((tool) => {
-              const typeInfo = toolTypeLabels[tool.type] || { label: tool.type, desc: '' };
-              const isSelected = selectedToolIds.has(tool.id);
-              return (
-                <button key={tool.id} onClick={() => handleAddTool(tool.id)}
-                  style={{ width: '100%', height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', gap: 8, background: isSelected ? 'rgba(34,197,94,0.1)' : 'transparent', border: 'none', borderBottom: '1px solid #1f1f1f', cursor: 'pointer', textAlign: 'left', fontSize: 13 }}
-                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#1f1f1f'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = isSelected ? 'rgba(34,197,94,0.1)' : 'transparent'; }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, color: isSelected ? '#22c55e' : '#737373' }}>
-                    <div style={{ width: 14, height: 14, flexShrink: 0, borderRadius: 3, border: isSelected ? 'none' : '1px solid #525252', background: isSelected ? '#22c55e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {isSelected && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>}
-                    </div>
-                    <ToolIcon type={tool.type} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tool.name || typeInfo.label}</span>
-                  </div>
-                  <span style={{ fontSize: 11, color: '#525252', flexShrink: 0 }}>{tool.description || typeInfo.desc}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {selectedTools.length > 0 && (
-          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {selectedTools.map((tool) => {
-              const typeInfo = toolTypeLabels[tool.type] || { label: tool.type, desc: '' };
-              return (
-                <div key={tool.id} style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6, fontSize: 13 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#a3a3a3', flex: 1, minWidth: 0 }}>
-                    <ToolIcon type={tool.type} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tool.name || typeInfo.label}</span>
-                  </div>
-                  <button onClick={() => handleAddTool(tool.id)}
-                    style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', color: '#525252', flexShrink: 0 }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#2a2a2a'; e.currentTarget.style.color = '#ef4444'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#525252'; }}
-                  ><CloseIcon /></button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* HIDDEN: Agent's tools section temporarily disabled */}
     </>
   );
 }

@@ -85,7 +85,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
             }
         }
         
-        log_result = db_client.table("agent_execution_log").insert(execution_data).execute()
+        log_result = db_client.table("agent_execution_logs").insert(execution_data).execute()
         if log_result.data:
             execution_id = log_result.data[0].get("id")
             log_info(f"📝 Created execution log: {execution_id}")
@@ -121,7 +121,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         
         if exec_result.get("status") == "success":
             if execution_id:
-                db_client.table("agent_execution_log").update({
+                db_client.table("agent_execution_logs").update({
                     "status": "success",
                     "finished_at": finished_at.isoformat(),
                     "duration_ms": duration_ms,
@@ -137,7 +137,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         else:
             error_msg = exec_result.get("error", "Unknown error")
             if execution_id:
-                db_client.table("agent_execution_log").update({
+                db_client.table("agent_execution_logs").update({
                     "status": "failed",
                     "finished_at": finished_at.isoformat(),
                     "duration_ms": duration_ms,
@@ -166,7 +166,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
                 finished_at = datetime.now(timezone.utc)
                 duration_ms = int((finished_at - started_at).total_seconds() * 1000)
                 
-                client.table("agent_execution_log").update({
+                client.table("agent_execution_logs").update({
                     "status": "failed",
                     "finished_at": finished_at.isoformat(),
                     "duration_ms": duration_ms,

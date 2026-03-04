@@ -10,8 +10,8 @@
 import React, { use, useState, useMemo, useCallback } from 'react';
 import useSWR from 'swr';
 import { get, post, del } from '@/lib/apiClient';
-import { useAgent } from '@/contexts/AgentContext';
-import { getProviderDisplayLabel } from '@/lib/syncTriggerPolicy';
+import { getProviderDisplayLabel, SYNC_MODE_META, type SyncModeType } from '@/lib/syncTriggerPolicy';
+import { getProviderLogo } from '@/components/agent/views/SyncDetailView';
 
 /* ================================================================
    Types
@@ -30,6 +30,7 @@ interface SyncStatusItem {
   last_synced_at: string | null;
   error_message: string | null;
   config?: Record<string, unknown>;
+  trigger?: { type?: string; schedule?: string; timezone?: string } | null;
 }
 
 interface ProjectSyncStatus {
@@ -38,7 +39,7 @@ interface ProjectSyncStatus {
 }
 
 /* ================================================================
-   Provider Icons
+   Provider Icons & UI Helpers
    ================================================================ */
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -66,10 +67,7 @@ function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number
     return <img src={logos[provider]} alt={provider} width={size} height={size} style={{ display: 'block', borderRadius: 2 }} />;
   }
 
-  if (provider === 'filesystem') {
-    return <span style={{ fontSize: size * 0.85 }}>🦞</span>;
-  }
-
+  if (provider === 'filesystem') return <span style={{ fontSize: size * 0.85 }}>🦞</span>;
   if (provider === 'agent') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -77,7 +75,6 @@ function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number
       </svg>
     );
   }
-
   if (provider === 'mcp') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -85,7 +82,6 @@ function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number
       </svg>
     );
   }
-
   if (provider === 'sandbox') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -93,7 +89,6 @@ function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number
       </svg>
     );
   }
-
   if (provider === 'url') return <span style={{ fontSize: size * 0.85 }}>🌐</span>;
   if (provider === 'hackernews') return <span style={{ fontSize: size * 0.85 }}>🟠</span>;
   if (provider === 'posthog') return <span style={{ fontSize: size * 0.85 }}>🦔</span>;
@@ -107,10 +102,6 @@ function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number
     </svg>
   );
 }
-
-/* ================================================================
-   Status helpers
-   ================================================================ */
 
 const STATUS_COLORS: Record<string, string> = {
   active: '#4ade80', syncing: '#60a5fa', error: '#ef4444',
@@ -130,6 +121,65 @@ function timeAgo(dateStr: string | null): string {
   if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
   if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
   return `${Math.floor(secs / 86400)}d ago`;
+}
+
+function normalizeMode(raw?: string): SyncModeType {
+  if (!raw) return 'import_once';
+  if (raw === 'cli_push' || raw === 'realtime') return 'realtime';
+  if (raw === 'cron' || raw === 'scheduled') return 'scheduled';
+  if (raw === 'manual') return 'manual';
+  return 'import_once';
+}
+
+function MiniDocShell({ type }: { type: 'json' | 'markdown' | 'file' }) {
+  const accentColor = type === 'json' ? '#4ade80' : type === 'markdown' ? '#60a5fa' : '#a3a3a3';
+  const label = type === 'json' ? '{ }' : type === 'markdown' ? 'MD' : 'FILE';
+  return (
+    <svg width="36" height="40" viewBox="0 0 36 40" fill="none">
+      <path d="M4 2C4 1.44772 4.44772 1 5 1H23L32 10V38C32 38.5523 31.5523 39 31 39H5C4.44772 39 4 38.5523 4 38V2Z" fill="#222225" stroke="#3a3a3d" strokeWidth="0.75" />
+      <path d="M23 1V10H32" stroke="#3a3a3d" strokeWidth="0.75" strokeLinejoin="round" />
+      <path d="M23 1V10H32L23 1Z" fill="#2a2a2d" />
+      <text x="18" y="28" textAnchor="middle" fontSize="7" fontWeight="600" fill={accentColor} fontFamily="'SF Mono', 'JetBrains Mono', monospace">{label}</text>
+    </svg>
+  );
+}
+
+function ConnectionLine({ direction, isActive, status }: { direction: string; isActive: boolean; status: string }) {
+  if (!isActive) {
+    const label = status === 'error' ? 'Sync error'
+      : status === 'paused' ? 'Paused'
+      : status === 'pending' || status === 'waiting' ? 'Waiting'
+      : 'Not connected';
+    const labelColor = status === 'error' ? '#ef4444' : status === 'paused' ? '#f59e0b' : '#525252';
+    const lineColor = status === 'error' ? 'rgba(239,68,68,0.3)' : status === 'paused' ? 'rgba(245,158,11,0.2)' : '#333';
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', margin: '0 4px' }}>
+        <div style={{ width: '100%', textAlign: 'center', position: 'relative', borderTop: `1px dashed ${lineColor}` }}>
+          <span style={{ position: 'relative', top: -7, background: '#0e0e0e', padding: '0 6px', fontSize: 9, fontWeight: 500, color: labelColor, whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>
+            {label}
+          </span>
+        </div>
+      </div>
+    );
+  }
+  const arrowColor = '#4ade80';
+  return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 4px' }}>
+      {direction === 'bidirectional' ? (
+        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 5h44M6 2L2 5l4 3" /><path d="M42 8l4 3-4 3M2 11h44" />
+        </svg>
+      ) : direction === 'outbound' ? (
+        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M46 8H2M6 4L2 8l4 4" />
+        </svg>
+      ) : (
+        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 8h44M42 4l4 4-4 4" />
+        </svg>
+      )}
+    </div>
+  );
 }
 
 /* ================================================================
@@ -161,27 +211,51 @@ export default function ConnectionsPage({ params }: { params: Promise<{ projectI
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0a0a0a' }}>
       {/* Header */}
       <div style={{
-        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.1)',
+        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', alignItems: 'center', padding: '0 16px',
         background: '#0e0e0e', fontSize: 13, fontWeight: 500, color: '#e4e4e7',
       }}>
         Connections
       </div>
 
-      {/* List */}
-      <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-        {connections.length === 0 && (
-          <div style={{ textAlign: 'center', color: '#525252', fontSize: 13, padding: '40px 0' }}>
-            No connections yet
+      {/* Centered Form-like List */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '32px 16px', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column' }}>
+          
+          <div style={{ marginBottom: 24 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 600, color: '#e4e4e7', letterSpacing: '-0.01em' }}>
+              Connections
+            </h1>
+            <p style={{ fontSize: 13, color: '#71717a', marginTop: 4 }}>
+              Manage your active data integrations, MCP servers, and sandbox environments.
+            </p>
           </div>
-        )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {connections.map(conn => (
-            <ConnectionRow key={conn.id} connection={conn} onClick={() => setSelectedId(conn.id)} />
-          ))}
+
+          <div style={{
+            background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 8, overflow: 'hidden'
+          }}>
+            {connections.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#525252', fontSize: 13, padding: '60px 0' }}>
+                No connections yet
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {connections.map((conn, idx) => (
+                  <ConnectionRow 
+                    key={conn.id} 
+                    connection={conn} 
+                    onClick={() => setSelectedId(conn.id)} 
+                    isLast={idx === connections.length - 1}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
     </div>
@@ -192,7 +266,7 @@ export default function ConnectionsPage({ params }: { params: Promise<{ projectI
    ConnectionRow
    ================================================================ */
 
-function ConnectionRow({ connection: c, onClick }: { connection: SyncStatusItem; onClick: () => void }) {
+function ConnectionRow({ connection: c, onClick, isLast }: { connection: SyncStatusItem; onClick: () => void; isLast: boolean }) {
   const [hovered, setHovered] = useState(false);
   const label = getProviderDisplayLabel(c.provider) || PROVIDER_LABELS[c.provider] || c.provider;
   const name = c.name || c.node_name || label;
@@ -204,29 +278,34 @@ function ConnectionRow({ connection: c, onClick }: { connection: SyncStatusItem;
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+        display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px',
         background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
-        border: 'none', borderRadius: 6, cursor: 'pointer', width: '100%',
+        border: 'none', 
+        borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.04)',
+        cursor: 'pointer', width: '100%',
         textAlign: 'left', transition: 'background 0.15s',
       }}
     >
       <div style={{
         width: 32, height: 32, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(255,255,255,0.04)', flexShrink: 0,
+        background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)', flexShrink: 0,
       }}>
         <ProviderIcon provider={c.provider} size={16} />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {name}
         </div>
-        <div style={{ fontSize: 12, color: '#71717a', lineHeight: 1.3 }}>
+        <div style={{ fontSize: 12, color: '#71717a' }}>
           {label} · {DIRECTION_LABELS[c.direction] || c.direction}
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 12, color: '#525252' }}>{timeAgo(c.last_synced_at)}</span>
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <span style={{ fontSize: 12, color: '#525252', width: 60, textAlign: 'right' }}>{timeAgo(c.last_synced_at)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: 70, justifyContent: 'flex-end' }}>
+          <span style={{ fontSize: 12, color: '#71717a', textTransform: 'capitalize' }}>{c.status}</span>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
+        </div>
       </div>
     </button>
   );
@@ -248,7 +327,6 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
 
   const label = getProviderDisplayLabel(c.provider) || PROVIDER_LABELS[c.provider] || c.provider;
   const name = c.name || c.node_name || label;
-  const statusColor = STATUS_COLORS[c.status] || '#71717a';
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
@@ -287,90 +365,120 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Header */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0a0a0a' }}>
+      
+      {/* Top action bar: Back button on left */}
       <div style={{
-        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.1)',
-        display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px',
+        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px',
         background: '#0e0e0e',
       }}>
         <button onClick={onBack} style={{
-          background: 'none', border: 'none', color: '#71717a', cursor: 'pointer',
-          fontSize: 13, display: 'flex', alignItems: 'center', gap: 4,
-        }}>
-          <span>←</span> <span style={{ color: '#525252' }}>Back</span>
+          background: 'none', border: 'none', color: '#a1a1aa', cursor: 'pointer',
+          fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, transition: 'color 0.15s'
+        }}
+        onMouseEnter={e => e.currentTarget.style.color = '#e4e4e7'}
+        onMouseLeave={e => e.currentTarget.style.color = '#a1a1aa'}
+        >
+          <span>←</span> <span style={{ fontWeight: 500 }}>Back to connections</span>
         </button>
-        <span style={{ color: '#333', margin: '0 4px' }}>/</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <ProviderIcon provider={c.provider} size={14} />
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{name}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
-          <span style={{ fontSize: 12, color: '#71717a', textTransform: 'capitalize' }}>{c.status}</span>
-        </div>
-        <div style={{ flex: 1 }} />
-        {showSyncActions && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={handlePause}
-              disabled={pausing}
-              style={{
-                height: 28, padding: '0 10px', fontSize: 12, background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#a1a1aa',
-                cursor: pausing ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {c.status === 'paused' ? 'Resume' : 'Pause'}
-            </button>
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              style={{
-                height: 28, padding: '0 10px', fontSize: 12, background: 'rgba(59,130,246,0.1)',
-                border: '1px solid rgba(59,130,246,0.2)', borderRadius: 5, color: '#60a5fa',
-                cursor: syncing ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {syncing ? 'Syncing...' : 'Sync now'}
-            </button>
+      </div>
+
+      {/* Main detail content area (Centered) */}
+      <div style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', padding: '32px 16px' }}>
+        <div style={{ width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column' }}>
+          
+          {/* Title Area */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)'
+              }}>
+                <ProviderIcon provider={c.provider} size={20} />
+              </div>
+              <div>
+                <h1 style={{ fontSize: 20, fontWeight: 600, color: '#e4e4e7', margin: 0, letterSpacing: '-0.01em' }}>
+                  {name}
+                </h1>
+                <div style={{ fontSize: 13, color: '#71717a', marginTop: 4 }}>
+                  {label} connection
+                </div>
+              </div>
+            </div>
+
+            {showSyncActions && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={handlePause}
+                  disabled={pausing}
+                  style={{
+                    height: 32, padding: '0 12px', fontSize: 13, background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, color: '#a1a1aa',
+                    cursor: pausing ? 'not-allowed' : 'pointer', fontWeight: 500,
+                    transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={e => { if(!pausing) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                  onMouseLeave={e => { if(!pausing) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {c.status === 'paused' ? 'Resume' : 'Pause'}
+                </button>
+                <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  style={{
+                    height: 32, padding: '0 14px', fontSize: 13, background: '#e4e4e7',
+                    border: 'none', borderRadius: 6, color: '#000',
+                    cursor: syncing ? 'not-allowed' : 'pointer', fontWeight: 500,
+                    transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={e => { if(!syncing) e.currentTarget.style.background = '#fff'; }}
+                  onMouseLeave={e => { if(!syncing) e.currentTarget.style.background = '#e4e4e7'; }}
+                >
+                  {syncing ? 'Syncing...' : 'Sync now'}
+                </button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Tabs */}
-      <div style={{
-        display: 'flex', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.06)',
-        padding: '0 16px',
-      }}>
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key)}
-            style={{
-              padding: '8px 12px', fontSize: 12, fontWeight: 500,
-              color: activeTab === t.key ? '#e4e4e7' : '#525252',
-              background: 'none', border: 'none', cursor: 'pointer',
-              borderBottom: activeTab === t.key ? '1px solid #e4e4e7' : '1px solid transparent',
-              marginBottom: -1,
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+          {/* Tabs */}
+          <div style={{
+            display: 'flex', gap: 24, borderBottom: '1px solid rgba(255,255,255,0.06)',
+            marginBottom: 24
+          }}>
+            {tabs.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                style={{
+                  padding: '0 0 10px 0', fontSize: 13, fontWeight: 500,
+                  color: activeTab === t.key ? '#e4e4e7' : '#71717a',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  borderBottom: activeTab === t.key ? '2px solid #e4e4e7' : '2px solid transparent',
+                  marginBottom: -1, transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => { if(activeTab !== t.key) e.currentTarget.style.color = '#a1a1aa'; }}
+                onMouseLeave={e => { if(activeTab !== t.key) e.currentTarget.style.color = '#71717a'; }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-      {/* Tab content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
-        {activeTab === 'overview' && (
-          <OverviewTab connection={c} projectId={projectId} />
-        )}
-        {activeTab === 'history' && (
-          <HistoryTab connectionId={c.id} projectId={projectId} />
-        )}
-        {activeTab === 'settings' && (
-          <SettingsTab connection={c} onRefresh={onRefresh} />
-        )}
+          {/* Tab content */}
+          <div>
+            {activeTab === 'overview' && (
+              <OverviewTab connection={c} projectId={projectId} />
+            )}
+            {activeTab === 'history' && (
+              <HistoryTab connectionId={c.id} projectId={projectId} />
+            )}
+            {activeTab === 'settings' && (
+              <SettingsTab connection={c} onRefresh={onRefresh} />
+            )}
+          </div>
+
+        </div>
       </div>
     </div>
   );
@@ -382,72 +490,78 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
 
 function OverviewTab({ connection: c, projectId }: { connection: SyncStatusItem; projectId: string }) {
   const label = getProviderDisplayLabel(c.provider) || PROVIDER_LABELS[c.provider] || c.provider;
+  const isActive = c.status === 'active' || c.status === 'syncing';
 
   if (c.provider === 'mcp') {
     return <McpOverviewTab connection={c} />;
   }
-
   if (c.provider === 'sandbox') {
     return <SandboxOverviewTab connection={c} />;
   }
 
   return (
-    <div style={{ maxWidth: 720 }}>
-      {/* Pipeline visualization */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Connection visualization (borrowed from SyncDetailView) */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16,
-        padding: '20px 24px', background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.04)', borderRadius: 8,
-        marginBottom: 24,
+        borderRadius: 10, padding: '24px 32px',
+        background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex', flexDirection: 'column', gap: 20,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <ProviderIcon provider={c.provider} size={20} />
-          <span style={{ fontSize: 13, color: '#a1a1aa' }}>{label}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {(c.direction === 'inbound' || c.direction === 'bidirectional') && (
-            <svg width={16} height={8} viewBox="0 0 16 8"><path d="M0 4h14M10 0l4 4-4 4" stroke="#4ade80" strokeWidth="1.5" fill="none" /></svg>
-          )}
-          {c.direction === 'bidirectional' && (
-            <svg width={16} height={8} viewBox="0 0 16 8" style={{ transform: 'rotate(180deg)' }}><path d="M0 4h14M10 0l4 4-4 4" stroke="#4ade80" strokeWidth="1.5" fill="none" /></svg>
-          )}
-          {c.direction === 'outbound' && (
-            <svg width={16} height={8} viewBox="0 0 16 8" style={{ transform: 'rotate(180deg)' }}><path d="M0 4h14M10 0l4 4-4 4" stroke="#4ade80" strokeWidth="1.5" fill="none" /></svg>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: '#a1a1aa' }}>{c.node_name || 'Node'}</span>
-        </div>
-      </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: 100 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 8,
+              background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {getProviderLogo(c.provider, 24)}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>
+              {label}
+            </div>
+          </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 24 }}>
-        <StatCard label="Status" value={c.status} color={STATUS_COLORS[c.status]} />
-        <StatCard label="Direction" value={DIRECTION_LABELS[c.direction] || c.direction} />
-        <StatCard label="Last synced" value={timeAgo(c.last_synced_at)} />
+          <div style={{ flex: 1, padding: '0 16px' }}>
+            <ConnectionLine
+              direction={c.direction}
+              isActive={isActive}
+              status={c.status}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: 100 }}>
+            {c.node_type === 'folder' || !c.node_type
+              ? <img src="/icons/folder.svg" alt="Folder" width={40} height={40} style={{ display: 'block' }} />
+              : <MiniDocShell type={c.node_type as 'json' | 'markdown' | 'file'} />
+            }
+            <div style={{ fontSize: 12, fontWeight: 500, color: '#a3a3a3', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>
+              {c.node_name || 'Workspace'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS[c.status] || '#71717a' }} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: '#a1a1aa', textTransform: 'capitalize' }}>
+            {c.status === 'syncing' ? 'Syncing...' : c.status}
+          </span>
+          {c.last_synced_at && (
+            <span style={{ fontSize: 12, color: '#525252' }}>
+              · Last synced {timeAgo(c.last_synced_at)}
+            </span>
+          )}
+        </div>
       </div>
 
       {c.error_message && (
         <div style={{
-          padding: '10px 14px', background: 'rgba(239,68,68,0.06)',
-          border: '1px solid rgba(239,68,68,0.15)', borderRadius: 6,
-          fontSize: 12, color: '#f87171', lineHeight: 1.5,
+          padding: '12px 16px', background: 'rgba(239,68,68,0.06)',
+          border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8,
+          fontSize: 13, color: '#f87171', lineHeight: 1.5,
         }}>
           {c.error_message}
         </div>
       )}
-    </div>
-  );
-}
-
-function StatCard({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div style={{
-      padding: '12px 14px', background: 'rgba(255,255,255,0.02)',
-      border: '1px solid rgba(255,255,255,0.04)', borderRadius: 6,
-    }}>
-      <div style={{ fontSize: 11, color: '#525252', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: color || '#e4e4e7', textTransform: 'capitalize' }}>{value}</div>
     </div>
   );
 }
@@ -470,22 +584,26 @@ function McpOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
   };
 
   return (
-    <div style={{ maxWidth: 720 }}>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 12, color: '#71717a', marginBottom: 6 }}>MCP Endpoint URL</div>
-        <CopyField value={mcpUrl} copied={copied === 'url'} onCopy={() => copy(mcpUrl, 'url')} />
-      </div>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 12, color: '#71717a', marginBottom: 6 }}>API Key</div>
-        <CopyField value={apiKey} masked copied={copied === 'key'} onCopy={() => copy(apiKey, 'key')} />
-      </div>
-      <div>
-        <div style={{ fontSize: 12, color: '#71717a', marginBottom: 6 }}>Client configuration</div>
-        <pre style={{
-          padding: '12px 14px', background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-          borderRadius: 6, fontSize: 12, color: '#a1a1aa', lineHeight: 1.6, overflow: 'auto',
-          whiteSpace: 'pre-wrap',
-        }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{
+        padding: '24px', background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
+        borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 20
+      }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>MCP Endpoint URL</div>
+          <CopyField value={mcpUrl} copied={copied === 'url'} onCopy={() => copy(mcpUrl, 'url')} />
+        </div>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>API Key</div>
+          <CopyField value={apiKey} masked copied={copied === 'key'} onCopy={() => copy(apiKey, 'key')} />
+        </div>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Client Configuration</div>
+          <pre style={{
+            padding: '16px', background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.04)',
+            borderRadius: 6, fontSize: 12, color: '#a1a1aa', lineHeight: 1.6, overflow: 'auto',
+            whiteSpace: 'pre-wrap', margin: 0, fontFamily: "'JetBrains Mono', monospace"
+          }}>
 {JSON.stringify({
   mcpServers: {
     puppyone: {
@@ -494,7 +612,8 @@ function McpOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
     },
   },
 }, null, 2)}
-        </pre>
+          </pre>
+        </div>
       </div>
     </div>
   );
@@ -503,16 +622,20 @@ function McpOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
 function CopyField({ value, masked, copied, onCopy }: { value: string; masked?: boolean; copied: boolean; onCopy: () => void }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-      background: '#111113', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 6,
+      display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
+      background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 6,
     }}>
-      <span style={{ flex: 1, fontSize: 12, color: '#a1a1aa', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ flex: 1, fontSize: 13, color: '#d4d4d8', fontFamily: "'JetBrains Mono', monospace", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {masked ? '•'.repeat(Math.min(value.length, 32)) : value}
       </span>
       <button onClick={onCopy} style={{
-        background: 'none', border: 'none', color: copied ? '#4ade80' : '#525252',
-        cursor: 'pointer', fontSize: 12, flexShrink: 0,
-      }}>
+        background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, 
+        color: copied ? '#4ade80' : '#a1a1aa', padding: '4px 10px',
+        cursor: 'pointer', fontSize: 11, fontWeight: 500, flexShrink: 0, transition: 'all 0.15s'
+      }}
+      onMouseEnter={e => { if(!copied) { e.currentTarget.style.color = '#e4e4e7'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; } }}
+      onMouseLeave={e => { if(!copied) { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; } }}
+      >
         {copied ? 'Copied' : 'Copy'}
       </button>
     </div>
@@ -528,23 +651,32 @@ function SandboxOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
   const apiKey = c.access_key || '';
 
   return (
-    <div style={{ maxWidth: 720 }}>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 12, color: '#71717a', marginBottom: 6 }}>Sandbox API Key</div>
-        <CopyField value={apiKey} masked copied={copied} onCopy={() => {
-          navigator.clipboard.writeText(apiKey);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        }} />
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{
-        padding: '12px 14px', background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.04)', borderRadius: 6,
-        fontSize: 12, color: '#71717a', lineHeight: 1.5,
+        padding: '24px', background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
+        borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 20
       }}>
-        Use the Sandbox API to execute commands in an isolated environment.
-        Send requests to <code style={{ color: '#a1a1aa' }}>/api/v1/sandbox/sessions/start</code> with
-        your API key in the <code style={{ color: '#a1a1aa' }}>X-API-KEY</code> header.
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sandbox API Key</div>
+          <CopyField value={apiKey} masked copied={copied} onCopy={() => {
+            navigator.clipboard.writeText(apiKey);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Usage</div>
+          <div style={{
+            padding: '14px 16px', background: '#0a0a0a',
+            border: '1px solid rgba(255,255,255,0.04)', borderRadius: 6,
+            fontSize: 13, color: '#a1a1aa', lineHeight: 1.6,
+          }}>
+            Use the Sandbox API to execute commands in an isolated environment.
+            <br/><br/>
+            Send requests to <code style={{ color: '#d4d4d8', background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>/api/v1/sandbox/sessions/start</code> with
+            your API key in the <code style={{ color: '#d4d4d8', background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>X-API-KEY</code> header.
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -563,26 +695,31 @@ function HistoryTab({ connectionId, projectId }: { connectionId: string; project
   const entries = logs?.logs || [];
 
   return (
-    <div style={{ maxWidth: 720 }}>
-      {entries.length === 0 && (
-        <div style={{ textAlign: 'center', color: '#525252', fontSize: 13, padding: '32px 0' }}>
-          No activity recorded yet
-        </div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {entries.map((log, i) => (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0',
-            borderBottom: '1px solid rgba(255,255,255,0.03)',
-          }}>
-            <div style={{ fontSize: 12, color: '#525252', width: 120, flexShrink: 0 }}>
-              {log.created_at ? new Date(log.created_at).toLocaleString() : '—'}
-            </div>
-            <div style={{ fontSize: 12, color: '#a1a1aa' }}>
-              {log.action || 'Activity'}
-            </div>
+    <div>
+      <div style={{
+        background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
+        borderRadius: 8, overflow: 'hidden'
+      }}>
+        {entries.length === 0 && (
+          <div style={{ textAlign: 'center', color: '#525252', fontSize: 13, padding: '60px 0' }}>
+            No activity recorded yet
           </div>
-        ))}
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {entries.map((log, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 24, padding: '14px 20px',
+              borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+            }}>
+              <div style={{ fontSize: 12, color: '#71717a', width: 140, flexShrink: 0, fontFamily: "'JetBrains Mono', monospace" }}>
+                {log.created_at ? new Date(log.created_at).toLocaleString() : '—'}
+              </div>
+              <div style={{ fontSize: 13, color: '#d4d4d8' }}>
+                {log.action || 'Activity'}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -610,72 +747,145 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
     }
   };
 
+  const syncMode = normalizeMode(c.trigger?.type);
+  const syncModeLabel = SYNC_MODE_META[syncMode]?.label || syncMode;
+
   return (
-    <div style={{ maxWidth: 720 }}>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 8 }}>Connection info</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+      
+      {/* General Settings Box */}
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 12 }}>Configuration</div>
+        <div style={{
+          background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
+          borderRadius: 8, display: 'flex', flexDirection: 'column'
+        }}>
           <InfoRow label="Provider" value={getProviderDisplayLabel(c.provider) || c.provider} />
           <InfoRow label="Direction" value={DIRECTION_LABELS[c.direction] || c.direction} />
-          <InfoRow label="Status" value={c.status} />
-          <InfoRow label="ID" value={c.id} mono />
+          
+          {c.provider !== 'mcp' && c.provider !== 'sandbox' && c.provider !== 'agent' && (
+            <InfoRow label="Sync Mode" value={
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: 4, color: '#d4d4d8' }}>
+                  {syncModeLabel}
+                </span>
+                {c.provider === 'filesystem' && (
+                  <span style={{ fontSize: 11, color: '#71717a' }}>Fixed for Desktop Folder</span>
+                )}
+              </div>
+            } />
+          )}
+
+          {/* Render Mount Paths for Sandbox */}
+          {c.provider === 'sandbox' && c.config?.mounts && Array.isArray(c.config.mounts) && (
+            <InfoRow label="Mount Paths" value={
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {c.config.mounts.map((m: any, i: number) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                    <code style={{ background: '#0a0a0a', padding: '2px 6px', borderRadius: 4, color: '#a1a1aa', border: '1px solid rgba(255,255,255,0.04)' }}>
+                      {m.mount_path}
+                    </code>
+                    <span style={{ color: '#525252' }}>→</span>
+                    <span style={{ color: '#d4d4d8' }}>{m.node_id}</span>
+                    <span style={{ color: '#71717a' }}>({m.permissions?.write ? 'read-write' : 'read-only'})</span>
+                  </div>
+                ))}
+              </div>
+            } />
+          )}
+
+          {/* Render Accesses for MCP */}
+          {c.provider === 'mcp' && c.config?.accesses && Array.isArray(c.config.accesses) && (
+            <InfoRow label="Access Points" value={
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {c.config.accesses.map((a: any, i: number) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                    <span style={{ color: '#d4d4d8' }}>{a.node_id}</span>
+                    <span style={{ color: '#71717a' }}>({a.readonly ? 'read-only' : 'read-write'})</span>
+                  </div>
+                ))}
+              </div>
+            } />
+          )}
+
+          <InfoRow label="Connection ID" value={c.id} mono isLast />
         </div>
       </div>
 
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: '#ef4444', marginBottom: 8 }}>Danger zone</div>
-        {!confirming ? (
-          <button
-            onClick={() => setConfirming(true)}
-            style={{
-              height: 32, padding: '0 14px', fontSize: 12, background: 'transparent',
-              border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#ef4444',
-              cursor: 'pointer',
-            }}
-          >
-            Disconnect
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: '#a1a1aa' }}>Are you sure?</span>
-            <button
-              onClick={handleDisconnect}
-              style={{
-                height: 32, padding: '0 14px', fontSize: 12, background: 'rgba(239,68,68,0.1)',
-                border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444',
-                cursor: 'pointer',
-              }}
-            >
-              Confirm
-            </button>
-            <button
-              onClick={() => setConfirming(false)}
-              style={{
-                height: 32, padding: '0 14px', fontSize: 12, background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#71717a',
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
+      {/* Danger Zone */}
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: '#ef4444', marginBottom: 12 }}>Danger Zone</div>
+        <div style={{
+          background: 'rgba(239,68,68,0.02)', border: '1px solid rgba(239,68,68,0.1)',
+          borderRadius: 8, padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Delete Connection</div>
+            <div style={{ fontSize: 12, color: '#71717a', marginTop: 4 }}>This action cannot be undone. Data already imported will remain.</div>
           </div>
-        )}
+          
+          {!confirming ? (
+            <button
+              onClick={() => setConfirming(true)}
+              style={{
+                height: 32, padding: '0 16px', fontSize: 13, fontWeight: 500, background: 'transparent',
+                border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444',
+                cursor: 'pointer', transition: 'all 0.15s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.05)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              Disconnect
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: '#a1a1aa', marginRight: 8 }}>Are you sure?</span>
+              <button
+                onClick={() => setConfirming(false)}
+                style={{
+                  height: 32, padding: '0 14px', fontSize: 13, fontWeight: 500, background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#a1a1aa',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#e4e4e7'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#a1a1aa'; }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDisconnect}
+                style={{
+                  height: 32, padding: '0 16px', fontSize: 13, fontWeight: 500, background: '#ef4444',
+                  border: 'none', borderRadius: 6, color: '#fff',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#dc2626'}
+                onMouseLeave={e => e.currentTarget.style.background = '#ef4444'}
+              >
+                Confirm Delete
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
     </div>
   );
 }
 
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function InfoRow({ label, value, mono, isLast }: { label: string; value: React.ReactNode; mono?: boolean; isLast?: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 12, color: '#525252', width: 80, flexShrink: 0 }}>{label}</span>
-      <span style={{
-        fontSize: 12, color: '#a1a1aa',
-        fontFamily: mono ? 'monospace' : 'inherit',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    <div style={{ 
+      display: 'flex', gap: 24, padding: '16px 20px',
+      borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.04)'
+    }}>
+      <div style={{ fontSize: 13, color: '#71717a', width: 140, flexShrink: 0 }}>{label}</div>
+      <div style={{
+        fontSize: 13, color: '#e4e4e7', flex: 1, minWidth: 0,
+        fontFamily: mono ? "'JetBrains Mono', monospace" : 'inherit',
       }}>
         {value}
-      </span>
+      </div>
     </div>
   );
 }

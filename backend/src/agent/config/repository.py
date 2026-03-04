@@ -300,7 +300,7 @@ class AgentRepository:
         if not agent:
             return False
         response = (
-            self._client.table("project")
+            self._client.table("projects")
             .select("org_id")
             .eq("id", agent.project_id)
             .execute()
@@ -321,7 +321,7 @@ class AgentRepository:
 
     def get_bash_by_agent_id(self, agent_id: str) -> List[AgentBash]:
         response = (
-            self._client.table("connection_access")
+            self._client.table("connection_accesses")
             .select("*")
             .eq("connection_id", agent_id)
             .order("created_at")
@@ -331,7 +331,7 @@ class AgentRepository:
 
     def get_bash_by_id(self, bash_id: str) -> Optional[AgentBash]:
         response = (
-            self._client.table("connection_access")
+            self._client.table("connection_accesses")
             .select("*")
             .eq("id", bash_id)
             .execute()
@@ -355,7 +355,7 @@ class AgentRepository:
             "json_path": json_path,
             "permission": "r" if readonly else "rw",
         }
-        response = self._client.table("connection_access").insert(data).execute()
+        response = self._client.table("connection_accesses").insert(data).execute()
         return _row_to_bash(response.data[0])
 
     def update_bash(
@@ -373,7 +373,7 @@ class AgentRepository:
             return self.get_bash_by_id(bash_id)
 
         response = (
-            self._client.table("connection_access")
+            self._client.table("connection_accesses")
             .update(data)
             .eq("id", bash_id)
             .execute()
@@ -384,7 +384,7 @@ class AgentRepository:
 
     def delete_bash(self, bash_id: str) -> bool:
         response = (
-            self._client.table("connection_access")
+            self._client.table("connection_accesses")
             .delete()
             .eq("id", bash_id)
             .execute()
@@ -393,7 +393,7 @@ class AgentRepository:
 
     def delete_bash_by_agent_id(self, agent_id: str) -> int:
         response = (
-            self._client.table("connection_access")
+            self._client.table("connection_accesses")
             .delete()
             .eq("connection_id", agent_id)
             .execute()
@@ -416,7 +416,7 @@ class AgentRepository:
             "permission": "r" if readonly else "rw",
         }
         response = (
-            self._client.table("connection_access")
+            self._client.table("connection_accesses")
             .upsert(data, on_conflict="connection_id,node_id,json_path")
             .execute()
         )
@@ -471,7 +471,7 @@ class AgentRepository:
 
     def get_tools_by_agent_id(self, agent_id: str) -> List[AgentTool]:
         response = (
-            self._client.table("connection_tool")
+            self._client.table("connection_tools")
             .select("*")
             .eq("connection_id", agent_id)
             .order("created_at")
@@ -481,7 +481,7 @@ class AgentRepository:
 
     def get_tools_by_agent_id_for_mcp(self, agent_id: str) -> List[AgentTool]:
         response = (
-            self._client.table("connection_tool")
+            self._client.table("connection_tools")
             .select("*")
             .eq("connection_id", agent_id)
             .eq("enabled", True)
@@ -493,7 +493,7 @@ class AgentRepository:
 
     def get_tool_binding_by_id(self, binding_id: str) -> Optional[AgentTool]:
         response = (
-            self._client.table("connection_tool")
+            self._client.table("connection_tools")
             .select("*")
             .eq("id", binding_id)
             .execute()
@@ -517,7 +517,7 @@ class AgentRepository:
             "enabled": enabled,
             "mcp_exposed": mcp_exposed,
         }
-        response = self._client.table("connection_tool").insert(data).execute()
+        response = self._client.table("connection_tools").insert(data).execute()
         return _row_to_tool(response.data[0])
 
     def update_tool_binding(
@@ -535,7 +535,7 @@ class AgentRepository:
             return self.get_tool_binding_by_id(binding_id)
 
         response = (
-            self._client.table("connection_tool")
+            self._client.table("connection_tools")
             .update(data)
             .eq("id", binding_id)
             .execute()
@@ -546,7 +546,7 @@ class AgentRepository:
 
     def delete_tool_binding(self, binding_id: str) -> bool:
         response = (
-            self._client.table("connection_tool")
+            self._client.table("connection_tools")
             .delete()
             .eq("id", binding_id)
             .execute()
@@ -555,7 +555,7 @@ class AgentRepository:
 
     def delete_tools_by_agent_id(self, agent_id: str) -> int:
         response = (
-            self._client.table("connection_tool")
+            self._client.table("connection_tools")
             .delete()
             .eq("connection_id", agent_id)
             .execute()
@@ -566,7 +566,7 @@ class AgentRepository:
         self, agent_id: str, tool_id: str
     ) -> Optional[AgentTool]:
         response = (
-            self._client.table("connection_tool")
+            self._client.table("connection_tools")
             .select("*")
             .eq("connection_id", agent_id)
             .eq("tool_id", tool_id)
@@ -592,7 +592,7 @@ class AgentRepository:
             "mcp_exposed": mcp_exposed,
         }
         response = (
-            self._client.table("connection_tool")
+            self._client.table("connection_tools")
             .upsert(data, on_conflict="connection_id,tool_id")
             .execute()
         )
@@ -604,7 +604,7 @@ class AgentRepository:
 
     def get_execution_history(self, agent_id: str, limit: int = 10) -> list[dict]:
         response = (
-            self._client.table("agent_execution_log")
+            self._client.table("agent_execution_logs")
             .select("*")
             .eq("agent_id", agent_id)
             .order("started_at", desc=True)

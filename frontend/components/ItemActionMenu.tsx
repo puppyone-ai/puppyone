@@ -263,24 +263,19 @@ export function ItemActionMenu({
     });
   }
 
-  // 3. Tool Actions (Special / Advanced)
-  if (onCreateTool) {
-    // Add separator if there were previous items
-    if (menuItems.length > 0 && menuItems[menuItems.length - 1].type !== 'separator') {
-      menuItems.push({ type: 'separator' });
-    }
-
-    menuItems.push({
-      type: 'item',
-      icon: <ToolIcon />,
-      label: 'Create Tool',
-      highlightColor: '#f97316', // Orange-500
-      onClick: () => {
-        handleClose();
-        onCreateTool(itemId, itemName, itemType);
-      },
-    });
-  }
+  // HIDDEN: Create Tool action temporarily disabled
+  // if (onCreateTool) {
+  //   if (menuItems.length > 0 && menuItems[menuItems.length - 1].type !== 'separator') {
+  //     menuItems.push({ type: 'separator' });
+  //   }
+  //   menuItems.push({
+  //     type: 'item',
+  //     icon: <ToolIcon />,
+  //     label: 'Create Tool',
+  //     highlightColor: '#f97316',
+  //     onClick: () => { handleClose(); onCreateTool(itemId, itemName, itemType); },
+  //   });
+  // }
 
   // 4. Delete (Always last)
   if (onDelete) {
