@@ -54,8 +54,16 @@ export function registerMcp(program) {
       out.info(`MCP endpoint created: ${created.name ?? name} (${created.id})`);
 
       if (created.api_key) {
+        const apiUrl = client.baseUrl || "https://api.puppyone.ai";
+        out.info("");
         out.info(`  API Key: ${created.api_key}`);
         out.info("  (save this key — it won't be shown again)");
+        out.info("");
+        out.info("  Connect from Claude Desktop / Cursor:");
+        out.info(`    npx -y mcp-remote ${apiUrl}/mcp?api_key=${created.api_key}`);
+        out.info("");
+        out.info("  Or use in Claude Code (.mcp.json):");
+        out.info(`    { "mcpServers": { "${name}": { "command": "npx", "args": ["-y", "mcp-remote", "${apiUrl}/mcp?api_key=${created.api_key}"] } } }`);
       }
 
       out.success({ endpoint: created });

@@ -25,6 +25,7 @@ from src.sync.connectors._base import (
     TriggerMode,
     FetchResult,
     Credentials,
+    ConfigField,
 )
 from src.oauth.gmail_service import GmailOAuthService
 from src.s3.service import S3Service
@@ -52,6 +53,10 @@ class GmailConnector(BaseConnector):
             oauth_type="gmail",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
+            config_fields=(
+                ConfigField(key="max_results", label="Max emails to fetch", type="number", default=50),
+                ConfigField(key="query", label="Gmail search query", type="text", placeholder='is:unread, from:alice@example.com, after:2026/01/01'),
+            ),
         )
 
     def __init__(

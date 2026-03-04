@@ -389,6 +389,20 @@ class ContentNodeRepository:
             return self._row_to_model(response.data[0])
         return None
 
+    def count_by_project(self, project_id: str) -> dict[str, int]:
+        """Count nodes by type for a project. Returns e.g. {"folder": 5, "json": 10, "markdown": 3}."""
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("type")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        counts: dict[str, int] = {}
+        for row in response.data:
+            t = row["type"]
+            counts[t] = counts.get(t, 0) + 1
+        return counts
+
     def name_exists_in_parent(
         self,
         project_id: str,

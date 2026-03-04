@@ -180,14 +180,14 @@ function hasFileExtension(name: string): boolean {
 }
 
 // === Sync Source Icon (left column) ===
-function SyncSourceIcon({ size = 14 }: { size?: number }) {
+function SyncSourceIcon({ size = 16, isEmpty = false }: { size?: number, isEmpty?: boolean }) {
   // 极简的“插头”图标 (Plug)，类似 Supabase 的连接隐喻
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isEmpty ? "1.5" : "2"} strokeLinecap="round" strokeLinejoin="round" style={{ color: isEmpty ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.8)' }}>
       <path d="M12 22v-5" />
       <path d="M9 8V2" />
       <path d="M15 8V2" />
-      <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+      <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" strokeDasharray={isEmpty ? "2 2" : "none"} />
     </svg>
   );
 }
@@ -243,7 +243,46 @@ function SyncBadge({ provider, direction, active }: { provider: string; directio
   );
 }
 
+function EndpointIconRenderer({ ep, size = 14 }: { ep: SyncEndpointInfo, size?: number }) {
+  const isAgent = ep.provider.startsWith('agent:');
+  const isMcp = ep.provider === 'mcp';
+  const isSandbox = ep.provider === 'sandbox';
+  const color = isAgent ? 'rgba(167, 139, 250, 0.8)' : isMcp ? 'rgba(96, 165, 250, 0.8)' : isSandbox ? 'rgba(245, 158, 11, 0.8)' : 'rgba(255, 255, 255, 0.6)';
+  const dotColor = isAgent ? '#a78bfa' : isMcp ? '#60a5fa' : isSandbox ? '#f59e0b' : '#10b981';
+
+  return (
+    <>
+      {isAgent ? (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      ) : isMcp ? (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
+          <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+          <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+          <line x1="6" y1="6" x2="6.01" y2="6" />
+          <line x1="6" y1="18" x2="6.01" y2="18" />
+        </svg>
+      ) : isSandbox ? (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
+          <polyline points="4 17 10 11 4 5" />
+          <line x1="12" y1="19" x2="20" y2="19" />
+        </svg>
+      ) : (
+        <SyncSourceIcon size={size} />
+      )}
+      <div style={{
+        position: 'absolute', bottom: 2, right: 2,
+        width: 6, height: 6, borderRadius: '50%',
+        background: dotColor,
+        boxShadow: '0 0 0 2px rgba(24, 24, 27, 0.8)', // Semi-transparent dark border to create a cutout effect
+      }} />
+    </>
+  );
+}
+
 // === Context Menu (three dots) ===
+// === Endpoint Hover Menu ===
 // === Endpoint Hover Menu ===
 function EndpointHoverMenu({ 
   endpoints, 
@@ -268,7 +307,8 @@ function EndpointHoverMenu({
     if (endpoints.length <= 1) return;
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setPos({ x: rect.right + 4, y: rect.top });
+      // "在下面的一横行排开" (Expand downwards and horizontally)
+      setPos({ x: rect.left, y: rect.bottom + 2 });
     }
     setOpen(true);
   };
@@ -281,16 +321,6 @@ function EndpointHoverMenu({
   };
 
   const defaultEndpoint = endpoints[0];
-  const isAgent = defaultEndpoint?.provider.startsWith('agent:');
-  const isMcp = defaultEndpoint?.provider === 'mcp';
-  const isSandbox = defaultEndpoint?.provider === 'sandbox';
-
-  const iconColor = isAgent ? 'rgba(167, 139, 250, 0.7)' 
-    : isMcp ? 'rgba(96, 165, 250, 0.8)' 
-    : isSandbox ? 'rgba(245, 158, 11, 0.8)' 
-    : 'rgba(255, 255, 255, 0.4)';
-
-  const dotColor = isAgent ? '#a78bfa' : isMcp ? '#60a5fa' : isSandbox ? '#f59e0b' : '#10b981';
 
   return (
     <div 
@@ -300,7 +330,7 @@ function EndpointHoverMenu({
     >
       <div
         ref={triggerRef}
-        title={endpoints.length > 1 ? `Multiple endpoints (${endpoints.length}). Click for default, hover for all.` : `${defaultEndpoint?.provider} (Click to configure)`}
+        title={endpoints.length > 1 ? `${endpoints.length} endpoints (Click for default, hover for all)` : `${defaultEndpoint?.provider} (Click to configure)`}
         onClick={(e) => {
           e.stopPropagation();
           setOpen(false);
@@ -311,49 +341,33 @@ function EndpointHoverMenu({
           width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
           position: 'relative',
           opacity: 1,
-          background: 'transparent',
+          background: open ? 'rgba(255,255,255,0.1)' : 'transparent',
           transition: 'background 0.15s, opacity 0.15s',
         }}
         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.background = 'transparent'; }}
       >
-        {isAgent ? (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: iconColor }}>
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        ) : isMcp ? (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: iconColor }}>
-            <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
-            <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
-            <line x1="6" y1="6" x2="6.01" y2="6" />
-            <line x1="6" y1="18" x2="6.01" y2="18" />
-          </svg>
-        ) : isSandbox ? (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: iconColor }}>
-            <polyline points="4 17 10 11 4 5" />
-            <line x1="12" y1="19" x2="20" y2="19" />
+        {open ? (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
           </svg>
         ) : (
-          <SyncSourceIcon size={14} />
-        )}
-        <div style={{
-          position: 'absolute', bottom: 3, right: 3,
-          width: 5, height: 5, borderRadius: '50%',
-          background: dotColor,
-          boxShadow: '0 0 0 1.5px #1a1a1a',
-        }} />
-        {endpoints.length > 1 && (
-          <div style={{
-            position: 'absolute', top: -4, right: -4,
-            background: '#f59e0b', color: '#fff',
-            fontSize: 9, fontWeight: 700,
-            width: 14, height: 14, borderRadius: '50%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 0 1.5px #1a1a1a',
-            zIndex: 10
-          }}>
-            {endpoints.length}
-          </div>
+          <>
+            <EndpointIconRenderer ep={defaultEndpoint} size={16} />
+            {endpoints.length > 1 && (
+              <div style={{
+                position: 'absolute', top: -4, right: -4,
+                background: '#f59e0b', color: '#fff',
+                fontSize: 9, fontWeight: 700,
+                width: 14, height: 14, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 0 1.5px #111111',
+                zIndex: 10
+              }}>
+                {endpoints.length}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -361,51 +375,43 @@ function EndpointHoverMenu({
         <div
           style={{
             position: 'fixed', top: pos.y, left: pos.x, zIndex: 10000,
-            background: '#222', border: '1px solid #333', borderRadius: 6,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: 160,
-            padding: '4px', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 2
+            background: 'rgba(26, 26, 28, 0.95)', // dark slightly transparent
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: 8, // Rounded rectangle
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            height: 28,
+            padding: '0 4px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4,
+            pointerEvents: 'auto',
           }}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          <div style={{ padding: '4px 8px 6px 8px', fontSize: 11, color: '#888', borderBottom: '1px solid #333', marginBottom: 4 }}>
-            Select Endpoint
-          </div>
           {endpoints.map((ep, i) => {
             const epIsAgent = ep.provider.startsWith('agent:');
             const epIsMcp = ep.provider === 'mcp';
             const epIsSandbox = ep.provider === 'sandbox';
-            const Icon = epIsAgent ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#a78bfa' }}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-            ) : epIsMcp ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#60a5fa' }}><rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" /></svg>
-            ) : epIsSandbox ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#f59e0b' }}><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
-            ) : (
-              <SyncSourceIcon size={14} />
-            );
+            const label = epIsAgent ? 'Chat Agent' : epIsMcp ? 'MCP Server' : epIsSandbox ? 'Sandbox' : 'Data Sync';
 
             return (
               <div
                 key={ep.syncId}
+                title={label}
                 onClick={(e) => {
                   e.stopPropagation();
                   setOpen(false);
                   onEndpointClick(item, ep, [...ancestors, item.id]);
                 }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '6px 8px', borderRadius: 4, cursor: 'pointer',
-                  color: '#ccc'
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
+                  color: '#e4e4e7', transition: 'background 0.1s'
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >
-                {Icon}
-                <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {epIsAgent ? 'Chat Agent' : epIsMcp ? 'MCP Server' : epIsSandbox ? 'Sandbox' : 'Data Sync'}
-                </span>
-                {i === 0 && <span style={{ fontSize: 10, color: '#666', background: 'rgba(255,255,255,0.05)', padding: '2px 4px', borderRadius: 4 }}>Default</span>}
+                <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                  <EndpointIconRenderer ep={ep} size={16} />
+                </div>
               </div>
             );
           })}
@@ -414,6 +420,8 @@ function EndpointHoverMenu({
     </div>
   );
 }
+
+// === Item Context Menu ===
 
 function ItemContextMenu({ itemId, itemName, isSynced, onRename, onDelete, onOpenChange }: {
   itemId: string;
@@ -607,6 +615,12 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 
   const showActions = (hovered || menuOpen) && (onCreate || onRename || onDelete);
 
+  const endpoints = nodeEndpointMap?.get(item.id) || (syncEndpoint ? [syncEndpoint] : []);
+  const hasMultipleEndpoints = endpoints.length > 1;
+  const defaultEndpoint = endpoints[0];
+  const [endpointsExpanded, setEndpointsExpanded] = useState(false);
+  const [statusHovered, setStatusHovered] = useState(false);
+
   return (
     <div>
       <div
@@ -677,13 +691,25 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = isEndpointActive ? 'rgba(255,255,255,0.12)' : 'transparent'; }}
             >
-              <SyncSourceIcon size={14} />
-              <div style={{
-                position: 'absolute', bottom: 3, right: 3,
-                width: 5, height: 5, borderRadius: '50%',
-                background: '#10b981',
-                boxShadow: '0 0 0 1.5px #1a1a1a',
-              }} />
+              <EndpointIconRenderer ep={syncEndpoint} size={16} />
+            </div>
+          ) : hovered ? (
+            <div
+              title="Add connection"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSyncClick?.(item, [...ancestors, item.id]);
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
+                position: 'relative',
+                transition: 'background 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <SyncSourceIcon size={16} isEmpty={true} />
             </div>
           ) : null}
         </div>

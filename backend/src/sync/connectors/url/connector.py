@@ -18,6 +18,7 @@ from src.sync.connectors._base import (
     TriggerMode,
     FetchResult,
     Credentials,
+    ConfigField,
 )
 from src.sync.utils.url_parser import UrlParser
 
@@ -36,6 +37,9 @@ class UrlConnector(BaseConnector):
             auth=AuthRequirement.NONE,
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
+            config_fields=(
+                ConfigField(key="source_url", label="URL to scrape", type="url", required=True, placeholder="https://example.com"),
+            ),
         )
 
     def __init__(

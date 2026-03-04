@@ -6,7 +6,7 @@
  */
 
 import { registerAgentSubcommands } from "./openclaw.js";
-import { lsAction, psAction, statusAction } from "./global.js";
+import { lsAction, psAction, accessStatusAction } from "./global.js";
 
 export function registerAccess(program) {
   const access = program
@@ -29,5 +29,5 @@ export function registerAccess(program) {
     .command("status")
     .description("Show detailed status for a connection (or all)")
     .argument("[path]", "workspace path (omit for all)")
-    .action(statusAction);
+    .action(accessStatusAction);
 }

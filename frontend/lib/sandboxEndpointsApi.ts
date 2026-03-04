@@ -34,26 +34,17 @@ export interface SandboxEndpoint {
   updated_at: string;
 }
 
-interface ApiResponse<T> {
-  code: number;
-  message: string;
-  data: T;
-}
-
 export async function listSandboxEndpoints(projectId: string): Promise<SandboxEndpoint[]> {
-  const resp = await get<ApiResponse<SandboxEndpoint[]>>(`/api/v1/sandbox-endpoints?project_id=${projectId}`);
-  return resp.data ?? [];
+  return get<SandboxEndpoint[]>(`/api/v1/sandbox-endpoints?project_id=${projectId}`);
 }
 
 export async function getSandboxEndpoint(id: string): Promise<SandboxEndpoint> {
-  const resp = await get<ApiResponse<SandboxEndpoint>>(`/api/v1/sandbox-endpoints/${id}`);
-  return resp.data;
+  return get<SandboxEndpoint>(`/api/v1/sandbox-endpoints/${id}`);
 }
 
 export async function getSandboxEndpointByNode(nodeId: string): Promise<SandboxEndpoint | null> {
   try {
-    const resp = await get<ApiResponse<SandboxEndpoint>>(`/api/v1/sandbox-endpoints/by-node/${nodeId}`);
-    return resp.data;
+    return await get<SandboxEndpoint>(`/api/v1/sandbox-endpoints/by-node/${nodeId}`);
   } catch {
     return null;
   }
@@ -70,8 +61,7 @@ export async function createSandboxEndpoint(params: {
   timeout_seconds?: number;
   resource_limits?: Partial<SandboxResourceLimits>;
 }): Promise<SandboxEndpoint> {
-  const resp = await post<ApiResponse<SandboxEndpoint>>('/api/v1/sandbox-endpoints', params);
-  return resp.data;
+  return post<SandboxEndpoint>('/api/v1/sandbox-endpoints', params);
 }
 
 export async function updateSandboxEndpoint(id: string, params: Partial<{
@@ -85,8 +75,7 @@ export async function updateSandboxEndpoint(id: string, params: Partial<{
   timeout_seconds: number;
   resource_limits: Partial<SandboxResourceLimits>;
 }>): Promise<SandboxEndpoint> {
-  const resp = await put<ApiResponse<SandboxEndpoint>>(`/api/v1/sandbox-endpoints/${id}`, params);
-  return resp.data;
+  return put<SandboxEndpoint>(`/api/v1/sandbox-endpoints/${id}`, params);
 }
 
 export async function deleteSandboxEndpoint(id: string): Promise<void> {
@@ -94,6 +83,5 @@ export async function deleteSandboxEndpoint(id: string): Promise<void> {
 }
 
 export async function regenerateSandboxEndpointKey(id: string): Promise<SandboxEndpoint> {
-  const resp = await post<ApiResponse<SandboxEndpoint>>(`/api/v1/sandbox-endpoints/${id}/regenerate-key`, {});
-  return resp.data;
+  return post<SandboxEndpoint>(`/api/v1/sandbox-endpoints/${id}/regenerate-key`, {});
 }

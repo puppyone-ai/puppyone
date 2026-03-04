@@ -49,6 +49,12 @@ export async function GET(request: Request) {
   try {
     const token = data.session.access_token;
 
+    // Idempotent initialization: ensures profile + org + membership exist
+    await fetch(`${apiUrl}/api/v1/auth/initialize`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
     const statusRes = await fetch(`${apiUrl}/api/v1/profile/onboarding/status`, {
       headers: { Authorization: `Bearer ${token}` },
     });

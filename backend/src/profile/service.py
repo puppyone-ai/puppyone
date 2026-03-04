@@ -4,14 +4,19 @@ Profile Service
 处理用户 Profile 和 Onboarding 的业务逻辑
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from src.profile.models import Profile, ProfileUpdate
 from src.profile.repository import ProfileRepositorySupabase
 from src.project.service import ProjectService
 from src.content_node.service import ContentNodeService
 from src.utils.logger import log_info, log_error
+
+if TYPE_CHECKING:
+    from src.auth.initialization import UserInitializationService
 
 
 # Demo Project 配置
@@ -28,10 +33,12 @@ class ProfileService:
     def __init__(
         self,
         profile_repository: ProfileRepositorySupabase,
+        initialization_service: Optional[UserInitializationService] = None,
         project_service: Optional[ProjectService] = None,
         content_node_service: Optional[ContentNodeService] = None,
     ):
         self._profile_repo = profile_repository
+        self._init_service = initialization_service
         self._project_service = project_service
         self._content_node_service = content_node_service
 
@@ -47,7 +54,7 @@ class ProfileService:
         self, user_id: str, email: Optional[str] = None
     ) -> Tuple[bool, Optional[int], str]:
         """
-        检查用户 Onboarding 状态
+        检查用户 Onboarding 状态，同时幂等地确保 org 已初始化。
 
         Args:
             user_id: 用户ID
@@ -63,15 +70,23 @@ class ProfileService:
             profile = self._profile_repo.get_by_user_id(user_id)
 
         if profile is None:
-            # Profile 仍然不存在（创建失败或未提供 email）
             log_error(f"Profile not found for user {user_id}, and unable to create")
             return False, None, "/home"
 
+        # 幂等初始化：确保 org + membership 存在
+        if self._init_service:
+            try:
+                self._init_service.ensure_initialized(
+                    user_id=user_id,
+                    email=email or profile.email,
+                    display_name=profile.display_name,
+                )
+            except Exception as e:
+                log_error(f"User initialization failed for {user_id}: {e}")
+
         if profile.has_onboarded:
-            # 已完成 Onboarding，跳转到 Dashboard
             return True, profile.demo_project_id, "/home"
         else:
-            # 未完成 Onboarding，需要创建 Demo Project
             return False, None, "/home"
 
     async def complete_onboarding(
@@ -99,6 +114,17 @@ class ProfileService:
         if profile is None:
             log_error(f"Profile not found for user {user_id}, and unable to create")
             return False, "/home", None
+
+        # 幂等初始化：确保 org 存在（_create_demo_project 需要 org）
+        if self._init_service:
+            try:
+                self._init_service.ensure_initialized(
+                    user_id=user_id,
+                    email=email or profile.email,
+                    display_name=profile.display_name,
+                )
+            except Exception as e:
+                log_error(f"User initialization failed for {user_id}: {e}")
 
         if profile.has_onboarded:
             # 已经完成过 Onboarding

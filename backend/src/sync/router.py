@@ -425,7 +425,80 @@ def resume_sync(
     return ApiResponse.success(message="Sync resumed")
 
 
-@router.post("/syncs/openclaw/bootstrap", response_model=ApiResponse)
+# ============================================================
+# Sync run history
+# ============================================================
+
+class SyncRunResponse(BaseModel):
+    id: str
+    sync_id: str
+    status: str
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    duration_ms: Optional[int] = None
+    exit_code: Optional[int] = None
+    stdout: Optional[str] = None
+    error: Optional[str] = None
+    trigger_type: Optional[str] = None
+    result_summary: Optional[str] = None
+
+
+def _get_run_repo():
+    from src.sync.run_repository import SyncRunRepository
+    from src.supabase.client import SupabaseClient
+    return SyncRunRepository(SupabaseClient())
+
+
+@router.get("/syncs/{sync_id}/runs", response_model=ApiResponse[list[SyncRunResponse]])
+def list_sync_runs(
+    sync_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """List execution history for a sync connection."""
+    _get_sync_with_access(
+        sync_id=sync_id,
+        sync_svc=sync_svc,
+        project_service=project_service,
+        current_user=current_user,
+    )
+    run_repo = _get_run_repo()
+    runs = run_repo.list_by_sync(sync_id, limit=limit, offset=offset)
+    return ApiResponse.success(data=[
+        SyncRunResponse(
+            id=r.id, sync_id=r.sync_id, status=r.status,
+            started_at=r.started_at, finished_at=r.finished_at,
+            duration_ms=r.duration_ms, exit_code=r.exit_code,
+            error=r.error, trigger_type=r.trigger_type,
+            result_summary=r.result_summary,
+        )
+        for r in runs
+    ])
+
+
+@router.get("/runs/{run_id}", response_model=ApiResponse[SyncRunResponse])
+def get_sync_run(
+    run_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Get details of a single sync run (including stdout)."""
+    run_repo = _get_run_repo()
+    run = run_repo.get_by_id(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return ApiResponse.success(data=SyncRunResponse(
+        id=run.id, sync_id=run.sync_id, status=run.status,
+        started_at=run.started_at, finished_at=run.finished_at,
+        duration_ms=run.duration_ms, exit_code=run.exit_code,
+        stdout=run.stdout, error=run.error,
+        trigger_type=run.trigger_type, result_summary=run.result_summary,
+    ))
+
+
+@router.post("/syncs/openclaw/bootstrap", response_model=ApiResponse, deprecated=True)
 def bootstrap_openclaw(
     project_id: str = Query(...),
     node_id: str = Query(...),
@@ -433,10 +506,10 @@ def bootstrap_openclaw(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Create an OpenClaw sync endpoint for a folder. Returns sync with access_key."""
+    """DEPRECATED: Use POST /api/v1/filesystem/bootstrap instead."""
     _ensure_project_access(project_service, current_user, project_id)
 
-    from src.sync.connectors.filesystem.lifecycle import OpenClawService
+    from src.filesystem.lifecycle import OpenClawService
     from src.supabase.client import SupabaseClient
     svc = OpenClawService(
         supabase=SupabaseClient(),
@@ -451,21 +524,21 @@ def bootstrap_openclaw(
     })
 
 
-@router.get("/syncs/{sync_id}/openclaw-status", response_model=ApiResponse)
+@router.get("/syncs/{sync_id}/openclaw-status", response_model=ApiResponse, deprecated=True)
 def get_openclaw_status_by_sync(
     sync_id: str,
     sync_svc: SyncService = Depends(get_sync_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """OpenClaw CLI connection status for a sync endpoint (frontend polling)."""
+    """DEPRECATED: Use GET /api/v1/filesystem/{sync_id}/connection-status instead."""
     sync = sync_svc.sync_repo.get_by_id(sync_id)
     if not sync or sync.provider != "filesystem":
         return ApiResponse.success(data={"connected": False})
 
     _ensure_project_access(project_service, current_user, sync.project_id)
 
-    from src.sync.connectors.filesystem.lifecycle import OpenClawService
+    from src.filesystem.lifecycle import OpenClawService
     from src.supabase.client import SupabaseClient
     svc = OpenClawService(
         supabase=SupabaseClient(),
@@ -808,7 +881,7 @@ def get_sync_changelog(
 
 def _notify_folder_source(action: str, sync_id: str) -> None:
     try:
-        from src.sync.connectors.filesystem.watcher import FolderSourceService
+        from src.filesystem.watcher import FolderSourceService
         svc = FolderSourceService.get_instance()
         if not svc:
             return

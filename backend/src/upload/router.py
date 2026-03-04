@@ -495,10 +495,12 @@ async def submit_saas_ingest(
             if connector:
                 sync_svc.register_connector(connector)
 
+        from src.sync.run_repository import SyncRunRepository
         engine = SyncEngine(
             registry=registry,
             collab_service=collab_service,
             sync_repo=sync_repo,
+            run_repo=SyncRunRepository(supabase),
         )
 
         config = {"source_url": url}

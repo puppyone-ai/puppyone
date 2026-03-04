@@ -8,6 +8,7 @@ import { ChatAgentConfig, type AgentConfigProps } from '@/components/agent/views
 import { OpenClawAgentConfig } from '@/components/agent/views/configs/OpenClawAgentConfig';
 import { SaaSyncConfig, type SaaSConfigField } from '@/components/agent/views/configs/SaaSyncConfig';
 import type { AcceptedNodeType } from '@/components/agent/views/configs/SyncPreview';
+import { PanelShell } from './PanelShell';
 import type { SaasType } from '@/lib/oauthApi';
 
 /* ================================================================
@@ -256,12 +257,7 @@ interface SyncConfigPanelProps {
 export function SyncConfigPanel({ mode, syncId, projectId, onClose, onSyncCreated }: SyncConfigPanelProps) {
   if (mode === 'detail' && syncId) {
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <PanelHeader title="Connection details" onClose={onClose} />
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <SyncDetailView syncId={syncId} projectId={projectId} />
-        </div>
-      </div>
+      <SyncDetailView syncId={syncId} projectId={projectId} onClose={onClose} />
     );
   }
 
@@ -271,31 +267,6 @@ export function SyncConfigPanel({ mode, syncId, projectId, onClose, onSyncCreate
 /* ================================================================
    PanelHeader
    ================================================================ */
-
-function PanelHeader({ title, onClose, onBack }: { title: string; onClose: () => void; onBack?: () => void }) {
-  return (
-    <div style={{
-      height: 40, minHeight: 40, display: 'flex', alignItems: 'center', gap: 8,
-      padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)',
-    }}>
-      {onBack && (
-        <button onClick={onBack} style={{
-          background: 'none', border: 'none', color: '#a1a1aa', cursor: 'pointer',
-          padding: '2px 4px', fontSize: 13, display: 'flex', alignItems: 'center',
-        }}>
-          ←
-        </button>
-      )}
-      <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{title}</span>
-      <button onClick={onClose} style={{
-        background: 'none', border: 'none', color: '#71717a', cursor: 'pointer',
-        padding: '2px 6px', fontSize: 16, lineHeight: 1,
-      }}>
-        ×
-      </button>
-    </div>
-  );
-}
 
 /* ================================================================
    CreateView — unified creation panel for agents & syncs
@@ -451,9 +422,8 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
   if (selectedAgentType) {
     const ConfigComponent = AGENT_CONFIG_MAP[selectedAgentType];
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <PanelHeader title="Chat Agent" onClose={onClose} onBack={handleBack} />
-        <div style={{ flex: 1, overflow: 'auto', padding: '12px 12px 40px' }}>
+      <PanelShell title="Chat Agent" onClose={onClose} onBack={handleBack}>
+        <div style={{ padding: '12px 12px 40px' }}>
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4, display: 'block' }}>Name</label>
             <input
@@ -483,7 +453,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
             </button>
           </div>
         </div>
-      </div>
+      </PanelShell>
     );
   }
 
@@ -491,9 +461,8 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
   if (selectedEndpointType) {
     const endpointDef = ENDPOINT_OPTIONS.find(e => e.id === selectedEndpointType)!;
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <PanelHeader title={endpointDef.label} onClose={onClose} onBack={handleBack} />
-        <div style={{ flex: 1, overflow: 'auto', padding: '12px 12px 40px' }}>
+      <PanelShell title={endpointDef.label} onClose={onClose} onBack={handleBack}>
+        <div style={{ padding: '12px 12px 40px' }}>
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4, display: 'block' }}>Name</label>
             <input
@@ -534,7 +503,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
             </button>
           </div>
         </div>
-      </div>
+      </PanelShell>
     );
   }
 
@@ -544,9 +513,8 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
 
     if (providerDef.id === 'filesystem') {
       return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <PanelHeader title={providerDef.label} onClose={onClose} onBack={handleBack} />
-          <div style={{ flex: 1, overflow: 'auto', padding: '12px 12px 40px' }}>
+        <PanelShell title={providerDef.label} onClose={onClose} onBack={handleBack}>
+          <div style={{ padding: '12px 12px 40px' }}>
             <OpenClawAgentConfig />
             <div style={{ marginTop: 16 }}>
               <button
@@ -563,14 +531,13 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
               </button>
             </div>
           </div>
-        </div>
+        </PanelShell>
       );
     }
 
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <PanelHeader title={providerDef.label} onClose={onClose} onBack={handleBack} />
-        <div style={{ flex: 1, overflow: 'auto', padding: '12px 12px 40px' }}>
+      <PanelShell title={providerDef.label} onClose={onClose} onBack={handleBack}>
+        <div style={{ padding: '12px 12px 40px' }}>
           <SaaSyncConfig
             provider={providerDef.id}
             providerLabel={providerDef.label}
@@ -632,7 +599,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
             </button>
           </div>
         </div>
-      </div>
+      </PanelShell>
     );
   }
 
@@ -649,9 +616,8 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
 
   // Default: show provider picker
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <PanelHeader title="New connection" onClose={onClose} />
-      <div style={{ flex: 1, overflow: 'auto', padding: '12px 12px 40px' }}>
+    <PanelShell title="New connection" onClose={onClose}>
+      <div style={{ padding: '12px 12px 40px' }}>
         {/* Agents & Endpoints */}
         <SectionLabel>Agent & Endpoints</SectionLabel>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 16 }}>
@@ -702,7 +668,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
           ))}
         </div>
       </div>
-    </div>
+    </PanelShell>
   );
 }
 

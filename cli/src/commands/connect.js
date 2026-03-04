@@ -85,7 +85,7 @@ async function connectOpenClaw(absPath, folder, opts, cmd, out) {
     out.info(`\nConnecting ${absPath} to PuppyOne via OpenClaw...`);
     out.step("Registering connection...");
 
-    const data = await api.post("/sync/openclaw/connect", {
+    const data = await api.post("/filesystem/connect", {
       workspace_path: absPath,
     });
 
@@ -167,7 +167,7 @@ async function connectOpenClaw(absPath, folder, opts, cmd, out) {
 async function executeMerge(api, folder, cloudNodes, localFiles, out, folderId) {
   const fileMap = {};
   let pulled = 0, pushed = 0, skipped = 0, conflicts = 0;
-  const syncBase = folderId ? `/sync/${folderId}` : null;
+  const syncBase = folderId ? `/filesystem/${folderId}` : null;
 
   out.info("\nMerging...\n");
 

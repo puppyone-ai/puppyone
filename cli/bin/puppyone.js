@@ -19,6 +19,8 @@ import { registerPublish } from "../src/commands/publish.js";
 import { registerDb } from "../src/commands/db.js";
 import { registerSandbox } from "../src/commands/sandbox.js";
 import { registerAccess } from "../src/commands/access.js";
+import { registerConnection } from "../src/commands/connection.js";
+import { registerInit } from "../src/commands/init.js";
 
 // Backward-compat aliases
 import { registerOpenClaw } from "../src/commands/openclaw.js";
@@ -53,6 +55,8 @@ registerPublish(program);
 registerDb(program);
 registerSandbox(program);
 registerAccess(program);
+registerConnection(program);
+registerInit(program);
 
 // ─── Backward Compatibility ──────────────────────────────
 registerOpenClaw(program);

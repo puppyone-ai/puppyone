@@ -23,6 +23,7 @@ from src.sync.connectors._base import (
     TriggerMode,
     FetchResult,
     Credentials,
+    ConfigField,
 )
 from src.oauth.google_sheets_service import GoogleSheetsOAuthService
 from src.s3.service import S3Service
@@ -46,6 +47,9 @@ class GoogleSheetsConnector(BaseConnector):
             oauth_type="sheets",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
+            config_fields=(
+                ConfigField(key="source_url", label="Google Sheets URL", type="url", required=True, placeholder="https://docs.google.com/spreadsheets/d/.../edit"),
+            ),
         )
 
     def __init__(

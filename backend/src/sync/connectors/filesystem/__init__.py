@@ -1,13 +1,5 @@
-"""
-Filesystem Connector — CLI bidirectional file sync (Desktop Folder).
-
-- connector.py      ConnectorSpec + BaseConnector stub
-- lifecycle.py      Connection lifecycle (bootstrap, connect, status, disconnect)
-- folder_access.py  File push/pull logic (PuppyOne <-> CLI workspace)
-- watcher.py        Folder watcher (filesystem events)
-- router.py         HTTP endpoints for CLI daemon
-"""
-from src.sync.connectors.filesystem.connector import OpenClawConnector
-from src.sync.connectors.filesystem.lifecycle import OpenClawService
+"""Backward-compat re-export — canonical locations: src.filesystem.*"""
+from src.sync.connectors.filesystem.connector import OpenClawConnector  # noqa: F401
+from src.filesystem.lifecycle import OpenClawService  # noqa: F401
 
 __all__ = ["OpenClawConnector", "OpenClawService"]

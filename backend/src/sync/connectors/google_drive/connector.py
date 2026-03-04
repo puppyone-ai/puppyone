@@ -19,6 +19,7 @@ from src.sync.connectors._base import (
     TriggerMode,
     FetchResult,
     Credentials,
+    ConfigField,
 )
 from src.oauth.google_drive_service import GoogleDriveOAuthService
 from src.s3.service import S3Service
@@ -58,6 +59,10 @@ class GoogleDriveConnector(BaseConnector):
             oauth_type="drive",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="manual",
+            config_fields=(
+                ConfigField(key="source_url", label="Drive folder or file URL (omit for recent files)", type="url", placeholder="https://drive.google.com/drive/folders/..."),
+                ConfigField(key="max_results", label="Max files to list", type="number", default=50),
+            ),
         )
 
     def __init__(

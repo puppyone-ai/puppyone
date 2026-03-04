@@ -49,11 +49,12 @@ export async function getProject(projectId: string): Promise<ProjectInfo> {
 export async function createProject(
   name: string,
   description?: string,
-  orgId?: string
+  orgId?: string,
+  seed?: boolean
 ): Promise<ProjectInfo> {
   return apiRequest<ProjectInfo>('/api/v1/projects/', {
     method: 'POST',
-    body: JSON.stringify({ name, description, org_id: orgId }),
+    body: JSON.stringify({ name, description, org_id: orgId, seed: seed ?? false }),
   });
 }
 

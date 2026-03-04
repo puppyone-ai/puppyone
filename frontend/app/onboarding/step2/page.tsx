@@ -252,7 +252,7 @@ export default function Step2Page() {
         const name = projectName || `onboarding_${Date.now()}`;
         const orgs = await getOrganizations();
         const defaultOrgId = orgs.length > 0 ? orgs[0].id : undefined;
-        const project = await createProject(name, undefined, defaultOrgId);
+        const project = await createProject(name, undefined, defaultOrgId, true);
         currentProjectId = String(project.id);
         setProjectId(currentProjectId);
       }

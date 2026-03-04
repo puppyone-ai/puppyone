@@ -278,8 +278,8 @@ async def app_lifespan(app: FastAPI):
     sync_init_start = time.time()
     try:
         log_info("🔄 初始化 Folder Sync Services...")
-        from src.sync.connectors.filesystem.watcher import FolderSourceService
-        from src.sync.connectors.filesystem.folder_access import FolderAccessService
+        from src.filesystem.watcher import FolderSourceService
+        from src.filesystem.folder_access import FolderAccessService
         from src.sync.repository import SyncRepository
         from src.collaboration.service import CollaborationService
         from src.collaboration.lock_service import LockService
@@ -363,8 +363,8 @@ async def app_lifespan(app: FastAPI):
 
     # 停止 Folder Sync Services
     try:
-        from src.sync.connectors.filesystem.watcher import FolderSourceService
-        from src.sync.connectors.filesystem.folder_access import FolderAccessService
+        from src.filesystem.watcher import FolderSourceService
+        from src.filesystem.folder_access import FolderAccessService
         fs = FolderSourceService.get_instance()
         if fs:
             await fs.stop()
@@ -449,12 +449,14 @@ def create_app() -> FastAPI:
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
     from src.sync.router import router as sync_router
     app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
-    from src.sync.folder_router import router as folder_sync_router
-    app.include_router(folder_sync_router, tags=["folder-sync"])
-    from src.sync.connectors.filesystem.router import router as filesystem_router
-    app.include_router(filesystem_router, tags=["sync-filesystem"])
-    from src.access.filesystem.router import router as filesystem_compat_router
-    app.include_router(filesystem_compat_router, tags=["access-filesystem-compat"])
+    from src.filesystem.router import router as filesystem_router
+    app.include_router(filesystem_router, tags=["filesystem"])
+    from src.sync.folder_router import router as folder_sync_compat_router
+    app.include_router(folder_sync_compat_router, tags=["folder-sync-compat"])
+    from src.sync.connectors.filesystem.router import router as openclaw_compat_router
+    app.include_router(openclaw_compat_router, tags=["sync-openclaw-compat"])
+    from src.access.filesystem.router import router as access_compat_router
+    app.include_router(access_compat_router, tags=["access-openclaw-compat"])
     from src.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
@@ -465,6 +467,10 @@ def create_app() -> FastAPI:
     app.include_router(mcp_endpoint_router, prefix="/api/v1", tags=["mcp-endpoints"])
     from src.sandbox_endpoint.router import router as sandbox_endpoint_router
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
+    from src.project.dashboard_router import router as dashboard_router
+    app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])
+    from src.connection.router import router as connection_router
+    app.include_router(connection_router, prefix="/api/v1", tags=["connections"])
     router_register_duration = time.time() - router_register_start
 
     # 注册异常处理器

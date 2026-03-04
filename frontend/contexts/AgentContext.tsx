@@ -105,22 +105,19 @@ interface AgentContextValue {
   // Agent 状态
   savedAgents: SavedAgent[];
   currentAgentId: string | null; 
-  hoveredAgentId: string | null; // 鼠标悬停的 Agent ID
+  hoveredAgentId: string | null;
   setHoveredAgentId: (id: string | null) => void;
   
-  // 🆕 侧边栏状态
-  sidebarMode: SidebarMode;
-  
-  // 🆕 配置态状态 (Draft)
+  // 配置态状态 (Draft)
   draftType: AgentType;
-  draftCapabilities: Set<string>;  // 保留向后兼容
-  draftResources: AccessResource[];  // 新：资源访问配置
+  draftCapabilities: Set<string>;
+  draftResources: AccessResource[];
   
   // Sync frequency mode
   draftSyncMode: 'import_once' | 'manual' | 'scheduled';
   setDraftSyncMode: (mode: 'import_once' | 'manual' | 'scheduled') => void;
 
-  // Schedule Agent 新增 draft 状态
+  // Schedule Agent draft 状态
   draftTriggerType: TriggerType;
   draftTriggerConfig: TriggerConfig | null;
   draftTaskContent: string;
@@ -132,20 +129,17 @@ interface AgentContextValue {
   
   // Actions
   selectAgent: (agentId: string | null) => void;
-  
-  // Deprecated signature, but keeping for compatibility if needed elsewhere
   saveAgent: (name: string, icon: string, capabilities: string[]) => void;
   deleteAgent: (agentId: string) => void;
   updateAgentInfo: (agentId: string, name: string, icon: string) => Promise<void>;
   updateAgentResources: (agentId: string, resources: AccessResource[]) => Promise<void>;
   
-  // New Actions
   openSetting: () => void;
   openSyncSetting: (provider: string, preBindResource?: AccessResource) => void;
   pendingSyncProvider: string | null;
-  editAgent: (agentId: string) => void;  // 编辑已有 agent
-  editingAgentId: string | null;  // 正在编辑的 agent ID
-  cancelSetting: () => void;  // 取消设置，返回聊天界面
+  editAgent: (agentId: string) => void;
+  editingAgentId: string | null;
+  cancelSetting: () => void;
   deployAgent: (name: string, icon: string) => void;
   deploySyncEndpoint: (params: {
     provider: string;
@@ -156,11 +150,10 @@ interface AgentContextValue {
     trigger?: { type: string; schedule?: string; timezone?: string };
     uiMode?: 'sidebar' | 'inline';
   }) => Promise<void>;
-  closeSidebar: () => void;
   setDraftType: (type: AgentType) => void;
   toggleDraftCapability: (id: string) => void;
   
-  // 新：资源管理
+  // 资源管理
   addDraftResource: (resource: AccessResource) => void;
   updateDraftResource: (nodeId: string, updates: Partial<AccessResource>) => void;
   removeDraftResource: (nodeId: string) => void;
@@ -183,11 +176,6 @@ interface AgentContextValue {
   setHoveredSyncNodeId: (nodeId: string | null) => void;
   selectSync: (syncId: string | null, nodeId?: string | null) => void;
 
-  // Legacy support
-  isChatOpen: boolean; 
-  toggleChat: () => void;
-  openChat: () => void;
-  closeChat: () => void;
   setSelectedCapabilities: (caps: Set<string>) => void;
 }
 
@@ -230,7 +218,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   // Runtime State (for Deployed/Playground Mode)
   const [selectedCapabilities, setSelectedCapabilities] = useState<Set<string>>(new Set());
 
-  // Legacy isChatOpen computed from sidebarMode
+  // Legacy isChatOpen computed from sidebarMode (internal only)
   const isChatOpen = sidebarMode !== 'closed';
 
   // 页面加载时从数据库获取 agents（按 project_id 过滤）
@@ -649,7 +637,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           access_key: string;
           node_id: string;
           project_id: string;
-        }>(`/api/v1/sync/syncs/filesystem/bootstrap?project_id=${projectId}&node_id=${nodeId}`);
+        }>(`/api/v1/filesystem/bootstrap?project_id=${projectId}&node_id=${nodeId}`);
         syncId = result.sync_id;
         nodeId = result.node_id;
       } else if (params.provider === 'mcp') {
@@ -804,30 +792,12 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     }
   }, [sidebarMode, editingAgentId, currentAgentId]);
 
-  // Close Sidebar
+  // Close Sidebar (internal — used by cancelSetting workflow)
   const closeSidebar = useCallback(() => {
     setSidebarMode('closed');
     setSelectedSyncId(null);
     setSelectedSyncNodeId(null);
   }, []);
-
-  // Legacy Toggle Chat
-  const toggleChat = useCallback(() => {
-    setSidebarMode(prev => {
-      if (prev !== 'closed') {
-        setSelectedSyncId(null);
-        setSelectedSyncNodeId(null);
-        return 'closed';
-      }
-      return 'deployed';
-    });
-  }, []);
-
-  const openChat = useCallback(() => {
-    if (sidebarMode === 'closed') setSidebarMode('deployed');
-  }, [sidebarMode]);
-
-  const closeChat = closeSidebar;
 
   // Toggle Draft Capability
   const toggleDraftCapability = useCallback((id: string) => {
@@ -880,12 +850,10 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         currentAgentId,
         hoveredAgentId,
         setHoveredAgentId,
-        sidebarMode,
         draftType,
         draftCapabilities,
         draftResources,
         selectedCapabilities,
-        isChatOpen,
         
         // Sync frequency mode
         draftSyncMode,
@@ -916,7 +884,6 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         deleteAgent,
         updateAgentInfo,
         updateAgentResources,
-        closeSidebar,
         
         setDraftType,
         toggleDraftCapability,
@@ -933,10 +900,6 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         setDraftTaskNodeId,
         setDraftExternalConfig,
         
-        // Legacy
-        toggleChat,
-        openChat,
-        closeChat,
         setSelectedCapabilities,
       }}
     >

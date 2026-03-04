@@ -76,6 +76,9 @@ import { EditorArea } from '../components/EditorArea';
 import { BottomBar } from '../components/BottomBar';
 import { DataPageDialogs, type CreateMenuActions } from '../components/DataPageDialogs';
 import { SyncConfigPanel } from '../components/SyncConfigPanel';
+import { McpConfigPanel } from '../components/McpConfigPanel';
+import { SandboxConfigPanel } from '../components/SandboxConfigPanel';
+import { PanelShell } from '../components/PanelShell';
 import { ChatRuntimeView } from '@/components/agent/views/ChatRuntimeView';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
 import type { AccessOption } from '@/components/chat/ChatInputArea';
@@ -181,10 +184,10 @@ export default function DataPage({ params }: DataPageProps) {
 
   // View & editor type — persisted in localStorage
   const [viewType, setViewTypeState] = useState<ViewType>(() => {
-    if (typeof window === 'undefined') return 'grid';
+    if (typeof window === 'undefined') return 'explorer';
     const saved = localStorage.getItem('puppyone-view-type');
     if (saved === 'grid' || saved === 'explorer') return saved;
-    return 'grid';
+    return 'explorer';
   });
 
   const [editorType, setEditorTypeState] = useState<EditorType>(() => {
@@ -1072,8 +1075,8 @@ export default function DataPage({ params }: DataPageProps) {
           <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
             
             {/* Content Column */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* Explorer loading state */}
             {viewType === 'explorer' && isResolvingPath && !isEditorView && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', background: '#0a0a0a' }}>
@@ -1281,162 +1284,20 @@ export default function DataPage({ params }: DataPageProps) {
               onSyncCreated={handleSyncCreated}
             />
           )}
-          {!editorTarget && urlPanelState.type === 'mcp_config' && urlPanelState.mcpEndpointId && (() => {
-            const mcpEp = mcpEndpointDetail;
-            if (!mcpEp) {
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <div style={{ height: 40, minHeight: 40, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>MCP Endpoint</span>
-                    <button onClick={closeRightPanel} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}>x</button>
-                  </div>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>Loading...</div>
-                </div>
-              );
-            }
-            const serverUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/mcp/proxy/${mcpEp.api_key}`;
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <div style={{ height: 40, minHeight: 40, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
-                    </svg>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{mcpEp.name}</span>
-                  </div>
-                  <button onClick={closeRightPanel} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}>x</button>
-                </div>
-                <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Status</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: mcpEp.status === 'active' ? '#10b981' : '#f59e0b' }} />
-                      <span style={{ fontSize: 13, color: '#e4e4e7' }}>{mcpEp.status}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Server URL</div>
-                    <div style={{ fontSize: 12, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
-                      {serverUrl}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>API Key</div>
-                    <div style={{ fontSize: 12, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
-                      {mcpEp.api_key}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Cursor Config</div>
-                    <pre style={{ fontSize: 11, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-{JSON.stringify({
-  mcpServers: {
-    [mcpEp.name.toLowerCase().replace(/\s+/g, '-')]: {
-      url: serverUrl,
-      headers: { 'X-API-KEY': mcpEp.api_key },
-    }
-  }
-}, null, 2)}
-                    </pre>
-                  </div>
-                  {mcpEp.accesses.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Accesses ({mcpEp.accesses.length})</div>
-                      {mcpEp.accesses.map((a: { node_id: string; json_path: string; readonly: boolean }, i: number) => (
-                        <div key={i} style={{ fontSize: 12, color: '#a1a1aa', padding: '4px 0' }}>
-                          {a.node_id} {a.readonly ? '(read-only)' : '(read-write)'}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-          {!editorTarget && urlPanelState.type === 'sandbox_config' && urlPanelState.sandboxEndpointId && (() => {
-            const sbxEp = sandboxEndpointDetail;
-            if (!sbxEp) {
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <div style={{ height: 40, minHeight: 40, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Sandbox</span>
-                    <button onClick={closeRightPanel} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}>x</button>
-                  </div>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>Loading...</div>
-                </div>
-              );
-            }
-            const execUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/sandbox-endpoints/${sbxEp.id}/exec`;
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <div style={{ height: 40, minHeight: 40, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
-                    </svg>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{sbxEp.name}</span>
-                  </div>
-                  <button onClick={closeRightPanel} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}>x</button>
-                </div>
-                <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Status</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: sbxEp.status === 'active' ? '#10b981' : '#f59e0b' }} />
-                      <span style={{ fontSize: 13, color: '#e4e4e7' }}>{sbxEp.status}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Runtime</div>
-                    <span style={{ fontSize: 13, color: '#e4e4e7' }}>{sbxEp.runtime} ({sbxEp.provider})</span>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Access Key</div>
-                    <div style={{ fontSize: 12, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
-                      {sbxEp.access_key}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Usage</div>
-                    <pre style={{ fontSize: 11, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-{`curl -X POST ${execUrl} \\
-  -H "X-Access-Key: ${sbxEp.access_key}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"command": "ls /workspace"}'`}
-                    </pre>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Resource Limits</div>
-                    <span style={{ fontSize: 12, color: '#a1a1aa' }}>
-                      {sbxEp.resource_limits?.memory_mb ?? 128}MB RAM · {sbxEp.resource_limits?.cpu_shares ?? 0.5} CPU · {sbxEp.timeout_seconds}s timeout
-                    </span>
-                  </div>
-                  {sbxEp.mounts.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Mounts ({sbxEp.mounts.length})</div>
-                      {sbxEp.mounts.map((m, i) => (
-                        <div key={i} style={{ fontSize: 12, color: '#a1a1aa', padding: '4px 0' }}>
-                          {m.mount_path} → {m.node_id} ({m.permissions?.write ? 'read-write' : 'read-only'})
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+          {!editorTarget && urlPanelState.type === 'mcp_config' && urlPanelState.mcpEndpointId && (
+            <McpConfigPanel endpoint={mcpEndpointDetail} onClose={closeRightPanel} />
+          )}
+          {!editorTarget && urlPanelState.type === 'sandbox_config' && urlPanelState.sandboxEndpointId && (
+            <SandboxConfigPanel endpoint={sandboxEndpointDetail} onClose={closeRightPanel} />
+          )}
           {!editorTarget && urlPanelState.type === 'agent_chat' && (() => {
             const agentId = urlPanelState.agentId;
             const chatAgent = agentId ? savedAgents.find(a => a.id === agentId) : null;
             if (!chatAgent) {
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <div style={{ height: 40, minHeight: 40, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Chat Agent</span>
-                    <button onClick={closeRightPanel} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}>×</button>
-                  </div>
+                <PanelShell title="Chat Agent" onClose={closeRightPanel}>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>Agent not found</div>
-                </div>
+                </PanelShell>
               );
             }
             const tools: AccessOption[] = [];

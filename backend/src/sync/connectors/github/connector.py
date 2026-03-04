@@ -29,6 +29,7 @@ from src.sync.connectors._base import (
     TriggerMode,
     FetchResult,
     Credentials,
+    ConfigField,
 )
 
 
@@ -47,6 +48,9 @@ class GithubConnector(BaseConnector):
             oauth_type="github",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
+            config_fields=(
+                ConfigField(key="source_url", label="GitHub repository URL", type="url", required=True, placeholder="https://github.com/org/repo"),
+            ),
         )
 
     def __init__(

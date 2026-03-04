@@ -24,6 +24,7 @@ from src.sync.connectors._base import (
     TriggerMode,
     FetchResult,
     Credentials,
+    ConfigField,
 )
 from src.oauth.google_calendar_service import GoogleCalendarOAuthService
 from src.s3.service import S3Service
@@ -48,6 +49,11 @@ class GoogleCalendarConnector(BaseConnector):
             oauth_type="calendar",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
+            config_fields=(
+                ConfigField(key="days_past", label="Days of past events", type="number", default=30),
+                ConfigField(key="days_future", label="Days of future events", type="number", default=30),
+                ConfigField(key="max_results", label="Max events per calendar", type="number", default=100),
+            ),
         )
 
     def __init__(

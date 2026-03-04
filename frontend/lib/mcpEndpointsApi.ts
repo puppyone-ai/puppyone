@@ -15,26 +15,17 @@ export interface McpEndpoint {
   updated_at: string;
 }
 
-interface ApiResponse<T> {
-  code: number;
-  message: string;
-  data: T;
-}
-
 export async function listMcpEndpoints(projectId: string): Promise<McpEndpoint[]> {
-  const resp = await get<ApiResponse<McpEndpoint[]>>(`/api/v1/mcp-endpoints?project_id=${projectId}`);
-  return resp.data ?? [];
+  return get<McpEndpoint[]>(`/api/v1/mcp-endpoints?project_id=${projectId}`);
 }
 
 export async function getMcpEndpoint(id: string): Promise<McpEndpoint> {
-  const resp = await get<ApiResponse<McpEndpoint>>(`/api/v1/mcp-endpoints/${id}`);
-  return resp.data;
+  return get<McpEndpoint>(`/api/v1/mcp-endpoints/${id}`);
 }
 
 export async function getMcpEndpointByNode(nodeId: string): Promise<McpEndpoint | null> {
   try {
-    const resp = await get<ApiResponse<McpEndpoint>>(`/api/v1/mcp-endpoints/by-node/${nodeId}`);
-    return resp.data;
+    return await get<McpEndpoint>(`/api/v1/mcp-endpoints/by-node/${nodeId}`);
   } catch {
     return null;
   }
@@ -48,8 +39,7 @@ export async function createMcpEndpoint(params: {
   accesses?: { node_id: string; json_path?: string; readonly?: boolean }[];
   tools_config?: { tool_id: string; enabled?: boolean }[];
 }): Promise<McpEndpoint> {
-  const resp = await post<ApiResponse<McpEndpoint>>('/api/v1/mcp-endpoints', params);
-  return resp.data;
+  return post<McpEndpoint>('/api/v1/mcp-endpoints', params);
 }
 
 export async function updateMcpEndpoint(id: string, params: Partial<{
@@ -60,8 +50,7 @@ export async function updateMcpEndpoint(id: string, params: Partial<{
   accesses: { node_id: string; json_path?: string; readonly?: boolean }[];
   tools_config: { tool_id: string; enabled?: boolean }[];
 }>): Promise<McpEndpoint> {
-  const resp = await put<ApiResponse<McpEndpoint>>(`/api/v1/mcp-endpoints/${id}`, params);
-  return resp.data;
+  return put<McpEndpoint>(`/api/v1/mcp-endpoints/${id}`, params);
 }
 
 export async function deleteMcpEndpoint(id: string): Promise<void> {
@@ -69,6 +58,5 @@ export async function deleteMcpEndpoint(id: string): Promise<void> {
 }
 
 export async function regenerateMcpEndpointKey(id: string): Promise<McpEndpoint> {
-  const resp = await post<ApiResponse<McpEndpoint>>(`/api/v1/mcp-endpoints/${id}/regenerate-key`, {});
-  return resp.data;
+  return post<McpEndpoint>(`/api/v1/mcp-endpoints/${id}/regenerate-key`, {});
 }

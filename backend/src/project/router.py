@@ -117,13 +117,14 @@ def get_project(
     "/",
     response_model=ApiResponse[ProjectOut],
     summary="创建项目",
-    description="创建一个新项目。项目将自动关联到当前用户。",
+    description="创建一个新项目。项目将自动关联到当前用户。seed=true 时写入默认内容。",
     response_description="返回创建成功的项目信息",
     status_code=status.HTTP_201_CREATED,
 )
-def create_project(
+async def create_project(
     payload: ProjectCreate,
     project_service: ProjectService = Depends(get_project_service),
+    content_node_service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     resolved_org_id = resolve_org_id(payload.org_id, current_user.user_id)
@@ -134,8 +135,19 @@ def create_project(
         org_id=resolved_org_id,
         created_by=current_user.user_id,
     )
+
+    nodes = []
+    if payload.seed:
+        from src.project.seed_content import seed_default_content
+        await seed_default_content(
+            service=content_node_service,
+            project_id=str(project.id),
+            created_by=current_user.user_id,
+        )
+        nodes = content_node_service.list_root_nodes(str(project.id))
+
     return ApiResponse.success(
-        data=_convert_to_project_out(project, []), message="项目创建成功"
+        data=_convert_to_project_out(project, nodes), message="项目创建成功"
     )
 
 
@@ -182,6 +194,27 @@ def delete_project(
 ):
     project_service.delete(project.id)
     return ApiResponse.success(message="项目删除成功")
+
+
+@router.post(
+    "/{project_id}/seed",
+    response_model=ApiResponse[dict],
+    summary="写入默认种子内容",
+    description="为已有项目写入 Getting Started + Guides 默认内容。",
+    status_code=status.HTTP_201_CREATED,
+)
+async def seed_project(
+    project: Project = Depends(get_verified_project),
+    content_node_service: ContentNodeService = Depends(get_content_node_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    from src.project.seed_content import seed_default_content
+    result = await seed_default_content(
+        service=content_node_service,
+        project_id=str(project.id),
+        created_by=current_user.user_id,
+    )
+    return ApiResponse.success(data=result, message="Seed content created")
 
 
 # ── Project Members ──
