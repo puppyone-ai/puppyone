@@ -129,3 +129,6 @@ json_received.json
 
 
 agfs-master/
+
+# Internal todo files (not for public consumption)
+todo/
