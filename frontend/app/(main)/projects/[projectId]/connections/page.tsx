@@ -777,7 +777,7 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
           )}
 
           {/* Render Mount Paths for Sandbox */}
-          {c.provider === 'sandbox' && c.config?.mounts && Array.isArray(c.config.mounts) && (
+          {c.provider === 'sandbox' && !!c.config?.mounts && Array.isArray(c.config.mounts) && (
             <InfoRow label="Mount Paths" value={
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {c.config.mounts.map((m: any, i: number) => (
@@ -795,7 +795,7 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
           )}
 
           {/* Render Accesses for MCP */}
-          {c.provider === 'mcp' && c.config?.accesses && Array.isArray(c.config.accesses) && (
+          {c.provider === 'mcp' && !!c.config?.accesses && Array.isArray(c.config.accesses) && (
             <InfoRow label="Access Points" value={
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {c.config.accesses.map((a: any, i: number) => (
