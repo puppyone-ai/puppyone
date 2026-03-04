@@ -1,0 +1,80 @@
+name: "Feature Request"
+description: Suggest a new feature or improvement for puppyone.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature!
+
+        Before submitting, please check:
+        - [Existing feature requests](https://github.com/puppyone-ai/puppyone/issues?q=label%3Aenhancement)
+        - [Documentation](https://www.puppyone.ai/doc)
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight Checklist
+      options:
+        - label: I searched existing issues and didn't find a similar request.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of puppyone does this relate to?
+      options:
+        - Connectors (new data source or sync improvement)
+        - MCP (Model Context Protocol)
+        - File system (nodes, folders, versioning)
+        - Collaboration (permissions, audit, FLS)
+        - CLI
+        - Frontend (Web UI)
+        - Sandbox (code execution)
+        - API
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use Case
+      description: What problem are you trying to solve? Why do you need this?
+      placeholder: |
+        I'm building a multi-agent workflow that needs to...
+        Currently there's no way to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How do you think this should work? Be as specific as you'd like.
+      placeholder: |
+        It would be great if puppyone could...
+
+        Example usage:
+        ```
+        puppyone fs watch /project --on-change "notify agent"
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What workarounds have you tried? Are there other tools that solve this?
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Screenshots, links, related issues, or anything else that helps explain the request.
+    validations:
+      required: false

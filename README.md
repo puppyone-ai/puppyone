@@ -8,8 +8,8 @@
   <img src="https://img.shields.io/badge/Web-puppyone.ai-39BC66?style=flat&logo=google-chrome&logoColor=white" alt="Homepage" height="22" />
 </a>
 &nbsp;
-<a href="https://doc.puppyagent.com" target="_blank">
-  <img src="https://img.shields.io/badge/Docs-doc.puppyagent.com-D7F3FF?style=flat&logo=readthedocs&logoColor=white" alt="Docs" height="22" />
+<a href="https://www.puppyone.ai/doc" target="_blank">
+  <img src="https://img.shields.io/badge/Docs-puppyone.ai/doc-D7F3FF?style=flat&logo=readthedocs&logoColor=white" alt="Docs" height="22" />
 </a>
 &nbsp;
 <a href="https://x.com/puppyone_ai" target="_blank">
