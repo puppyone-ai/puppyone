@@ -37,16 +37,20 @@ CREATE TABLE IF NOT EXISTS content_nodes (
     project_id          TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
     created_by          UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     sync_oauth_user_id  TEXT,
-    parent_id           TEXT REFERENCES content_nodes(id) ON DELETE CASCADE,
     name                TEXT NOT NULL,
     type                TEXT NOT NULL,
     id_path             TEXT NOT NULL DEFAULT '/',
+    depth               INT GENERATED ALWAYS AS (
+                            array_length(string_to_array(trim(both '/' from id_path), '/'), 1)
+                        ) STORED,
     preview_json        JSONB,
     preview_md          TEXT,
     s3_key              TEXT,
     mime_type           TEXT,
     size_bytes          BIGINT NOT NULL DEFAULT 0,
     permissions         JSONB NOT NULL DEFAULT '{"inherit": true}'::JSONB,
+    current_version     INT NOT NULL DEFAULT 0,
+    content_hash        TEXT,
     sync_url            TEXT,
     sync_id             TEXT,
     sync_config         JSONB,
@@ -57,14 +61,16 @@ CREATE TABLE IF NOT EXISTS content_nodes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_content_nodes_project_id ON content_nodes(project_id);
-CREATE INDEX IF NOT EXISTS idx_content_nodes_parent_id ON content_nodes(parent_id);
 CREATE INDEX IF NOT EXISTS idx_content_nodes_type ON content_nodes(type);
 CREATE INDEX IF NOT EXISTS idx_content_nodes_id_path ON content_nodes(id_path);
+CREATE INDEX IF NOT EXISTS idx_content_nodes_project_depth
+    ON content_nodes(project_id, depth);
+CREATE INDEX IF NOT EXISTS idx_content_nodes_children_lookup
+    ON content_nodes(project_id, depth, id_path text_pattern_ops);
 
--- POSIX 语义: 同目录下名称唯一约束
--- COALESCE(parent_id, '__root__') 将根节点的 NULL parent_id 映射为固定值
-CREATE UNIQUE INDEX IF NOT EXISTS idx_content_nodes_unique_name
-ON content_nodes (project_id, COALESCE(parent_id, '__root__'), name);
+-- POSIX 语义: 同目录下名称唯一约束 (基于 id_path, 不依赖 parent_id)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_content_nodes_unique_name_v2
+ON content_nodes (project_id, parent_path(id_path), name);
 
 -- 4. tool — 工具注册表
 CREATE TABLE IF NOT EXISTS tool (

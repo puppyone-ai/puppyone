@@ -1,7 +1,7 @@
 # Content Node 树结构架构分析与方案设计
 
-> **日期**: 2026-03-04
-> **状态**: Implemented (Phase 1 完成)
+> **日期**: 2026-03-04 (Phase 1) / 2026-03-05 (Phase 2a+2b)
+> **状态**: Implemented (Phase 2b 完成 — parent_id 已从数据库彻底移除)
 > **作者**: Architecture Review
 
 ---
@@ -477,18 +477,33 @@ Closure Table 的空间开销约为其他方案的 2 倍。
 
 ### 分阶段实施路线
 
-**Phase 1（止血）**：方案 D — 最小改动加固
+**Phase 1（止血）**：方案 D — 最小改动加固 ✅ 2026-03-04
 
 - 添加 DB trigger 防环
 - 添加 `move_node_atomic` RPC
 - 为所有无保护的遍历函数添加 visited 检测
 
-**Phase 2（迁移）**：方案 A — 结构性解决
+**Phase 2a（查询迁移）**：方案 A — 结构性解决 ✅ 2026-03-05
 
 - 添加 `depth` generated column
-- 迁移所有 `parent_id` 查询到 `id_path` + `depth`
-- 保留 `parent_id` 为 computed column（兼容过渡）
-- 最终移除 `parent_id`
+- 迁移所有 `parent_id` 查询到 `id_path` + `depth`（repository 层 5 个核心函数）
+- 添加 `auto_set_parent_id` trigger 从 id_path 自动维护 parent_id
+- 更新 `move_node_atomic` RPC 不再显式设置 parent_id（由 trigger 处理）
+- 替换环检测 trigger 为 id_path 前缀检测（不再依赖 parent_id 链遍历）
+- 添加 `count_children_batch` RPC（基于 id_path + depth JOIN）
+- 添加 `(project_id, depth, id_path text_pattern_ops)` 复合索引
+- SQL: `backend/sql/migrations/2026-03-05_phase2_idpath_sole_sot.sql`
+
+**Phase 2b（清理）** ✅ 2026-03-05：
+
+- 从 `repo.create()` 和 `repo.update()` 中移除 `parent_id` 参数
+- 创建 `parent_path()` immutable SQL 函数（从 id_path 提取父路径）
+- 将 UNIQUE 约束从 `(project_id, COALESCE(parent_id, '__root__'), name)` 迁移到 `(project_id, parent_path(id_path), name)`
+- 删除 `auto_set_parent_id` trigger（不再需要）
+- 从数据库彻底移除 `parent_id` 列（同时移除 FK 和索引）
+- 更新 `move_node_atomic()` RPC 移除 `p_new_parent_id` 参数
+- Model 通过 `model_validator` 从 `id_path` 自动派生 `parent_id`，保证 API 向后兼容
+- SQL: `backend/sql/migrations/2026-03-05_phase2b_drop_parent_id.sql`
 
 ---
 

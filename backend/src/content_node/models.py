@@ -4,12 +4,13 @@ Unified Sync Architecture: content_nodes 只负责文件系统语义。
 同步相关信息存储在独立的 syncs 表中。
 
 Tree Structure: id_path 是层级关系的唯一 Source of Truth。
-parent_id 作为冗余字段维护（用于 UNIQUE 约束和向后兼容）。
+parent_id 不再存在于数据库中，由 model validator 从 id_path 自动派生，
+保证 API 响应的向后兼容。
 """
 
 from datetime import datetime
 from typing import Optional, Any, List
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ContentNode(BaseModel):
@@ -30,17 +31,31 @@ class ContentNode(BaseModel):
     层级结构:
       - id_path: 唯一 Source of Truth（如 /uuid1/uuid2/uuid3）
       - depth: 由 id_path 自动计算的 generated column
-      - parent_id: 冗余字段，由 move_node_atomic 原子维护
+      - parent_id: 由 id_path 派生（不在数据库中）
     """
 
     id: str = Field(..., description="节点 ID (UUID)")
     project_id: str = Field(..., description="所属项目 ID")
     created_by: Optional[str] = Field(None, description="创建者用户 ID")
-    parent_id: Optional[str] = Field(None, description="父节点 ID（冗余，由 id_path 派生）")
+    parent_id: Optional[str] = Field(None, description="父节点 ID（由 id_path 自动派生，不存储于 DB）")
     name: str = Field(..., description="节点名称")
     type: str = Field(..., description="节点类型: folder | json | markdown | file")
     id_path: str = Field(..., description="ID 物化路径（Source of Truth），如 /uuid1/uuid2/uuid3")
     depth: int = Field(1, description="树深度（generated column，从 id_path 自动计算）")
+
+    @model_validator(mode='before')
+    @classmethod
+    def _derive_parent_id(cls, data: Any) -> Any:
+        """从 id_path 自动派生 parent_id（DB 不再存储此列）。"""
+        if not isinstance(data, dict):
+            return data
+        if data.get('parent_id') is not None:
+            return data
+        id_path = data.get('id_path', '')
+        ids = [s for s in id_path.strip('/').split('/') if s]
+        if len(ids) >= 2:
+            data['parent_id'] = ids[-2]
+        return data
     
     preview_json: Optional[Any] = Field(None, description="JSON 内容")
     preview_md: Optional[str] = Field(None, description="Markdown 内容")
@@ -70,6 +85,17 @@ class ContentNode(BaseModel):
         """从 id_path 推导出父节点 ID（Source of Truth）。"""
         ids = self.ancestor_ids
         return ids[-2] if len(ids) >= 2 else None
+
+    @property
+    def parent_id_path(self) -> Optional[str]:
+        """从 id_path 推导出父节点的 id_path。根节点返回 None。"""
+        parent_path = self.id_path.rsplit("/", 1)[0]
+        return parent_path if parent_path else None
+
+    @property
+    def parent_depth(self) -> int:
+        """父节点的 depth。根节点返回 0。"""
+        return self.depth - 1 if self.depth > 1 else 0
 
     # === 类型判断 ===
 

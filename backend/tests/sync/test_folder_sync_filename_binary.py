@@ -16,13 +16,27 @@ class FakeS3Service:
 
 
 class FakeNodeRepo:
-    def __init__(self, existing=None):
+    def __init__(self, existing=None, folder_id="folder-1", project_id="project-1"):
         self._existing = dict(existing or {})
         self.lookup_names: list[str] = []
         self.created: list[dict] = []
+        self._folder_node = SimpleNamespace(
+            id=folder_id,
+            project_id=project_id,
+            id_path=f"/{folder_id}",
+            depth=1,
+            type="folder",
+            name="root",
+        )
 
-    def get_child_by_name(self, project_id: str, parent_id: str, name: str):
+    def get_by_id(self, node_id: str):
+        if node_id == self._folder_node.id:
+            return self._folder_node
+        return None
+
+    def get_child_by_name(self, project_id: str, parent_id_path: str | None, parent_depth: int, name: str):
         self.lookup_names.append(name)
+        parent_id = parent_id_path.strip("/").split("/")[-1] if parent_id_path else None
         return self._existing.get((project_id, parent_id, name))
 
     def create(
@@ -32,7 +46,6 @@ class FakeNodeRepo:
         name: str,
         node_type: str,
         id_path: str,
-        parent_id: str,
         created_by: str,
         s3_key: str,
         mime_type: str,
@@ -47,10 +60,11 @@ class FakeNodeRepo:
             s3_key=s3_key,
             current_version=0,
         )
+        parent_node_id = id_path.rsplit("/", 1)[0].split("/")[-1] if "/" in id_path.strip("/") else None
         self.created.append(
             {
                 "project_id": project_id,
-                "parent_id": parent_id,
+                "parent_id": parent_node_id,
                 "name": name,
                 "node_type": node_type,
                 "s3_key": s3_key,
@@ -58,7 +72,7 @@ class FakeNodeRepo:
                 "size_bytes": size_bytes,
             }
         )
-        self._existing[(project_id, parent_id, name)] = node
+        self._existing[(project_id, parent_node_id, name)] = node
         return node
 
 

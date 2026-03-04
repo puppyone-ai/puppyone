@@ -14,12 +14,11 @@ class ContentNodeRepository:
         self.client = supabase_client.client
 
     def _row_to_model(self, row: dict) -> ContentNode:
-        """将数据库行转换为模型"""
+        """将数据库行转换为模型（parent_id 由 model validator 从 id_path 自动派生）"""
         return ContentNode(
             id=row["id"],
             project_id=row["project_id"],
             created_by=str(row["created_by"]) if row.get("created_by") else None,
-            parent_id=row.get("parent_id"),
             name=row["name"],
             type=row["type"],
             id_path=row["id_path"],
@@ -108,20 +107,26 @@ class ContentNodeRepository:
         return count + len(response2.data)
 
     def list_children(
-        self, project_id: str, parent_id: Optional[str] = None
+        self,
+        project_id: str,
+        parent_id_path: Optional[str] = None,
+        parent_depth: int = 0,
     ) -> List[ContentNode]:
-        """列出子节点（仅按 project_id 过滤）"""
+        """列出直接子节点（基于 id_path + depth，不依赖 parent_id）。
+
+        Args:
+            parent_id_path: 父节点的 id_path。None 表示列出根节点。
+            parent_depth: 父节点的 depth（根的父 depth 为 0）。
+        """
         query = (
             self.client.table(self.TABLE_NAME)
             .select("*")
             .eq("project_id", project_id)
+            .eq("depth", parent_depth + 1)
         )
-        if parent_id is None:
-            query = query.is_("parent_id", "null")
-        else:
-            query = query.eq("parent_id", parent_id)
-        
-        # 按 type 和 name 排序（folder 排在前面）
+        if parent_id_path is not None:
+            query = query.like("id_path", f"{parent_id_path}/%")
+
         response = query.order("type").order("name").execute()
         return [self._row_to_model(row) for row in response.data]
 
@@ -144,7 +149,6 @@ class ContentNodeRepository:
         name: str,
         node_type: str,  # folder | json | markdown | file
         id_path: str,
-        parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
         preview_json: Optional[dict] = None,
         preview_md: Optional[str] = None,
@@ -152,10 +156,9 @@ class ContentNodeRepository:
         mime_type: Optional[str] = None,
         size_bytes: int = 0,
     ) -> ContentNode:
-        """创建节点"""
+        """创建节点（parent_id 已从 DB 移除，层级关系完全由 id_path 决定）"""
         data = {
             "project_id": project_id,
-            "parent_id": parent_id,
             "name": name,
             "type": node_type,
             "id_path": id_path,
@@ -179,7 +182,6 @@ class ContentNodeRepository:
         preview_json: Optional[dict] = None,
         preview_md: Optional[str] = None,
         id_path: Optional[str] = None,
-        parent_id: Optional[str] = None,
         s3_key: Optional[str] = None,
         size_bytes: Optional[int] = None,
         clear_preview_json: bool = False,
@@ -198,12 +200,6 @@ class ContentNodeRepository:
             expected_version: 乐观锁 — 如果指定，只在数据库中 current_version 
                              等于此值时才更新。返回 None 表示版本冲突。
         """
-        if parent_id is not None and id_path is None:
-            raise ValueError(
-                "parent_id and id_path must be updated together. "
-                "Use ContentNodeService.move_node() to change parent."
-            )
-
         data = {}
         if name is not None:
             data["name"] = name
@@ -217,8 +213,6 @@ class ContentNodeRepository:
             data["preview_md"] = None
         if id_path is not None:
             data["id_path"] = id_path
-        if parent_id is not None:
-            data["parent_id"] = parent_id
         if s3_key is not None:
             data["s3_key"] = s3_key
         if size_bytes is not None:
@@ -237,7 +231,6 @@ class ContentNodeRepository:
             .eq("id", node_id)
         )
         
-        # 乐观锁：额外检查 current_version
         if expected_version is not None:
             query = query.eq("current_version", expected_version)
         
@@ -298,30 +291,13 @@ class ContentNodeRepository:
         return len(response.data) > 0
 
     def count_children_batch(self, parent_ids: List[str]) -> dict[str, int]:
-        """批量统计多个父节点的直接子节点数量"""
+        """批量统计多个父节点的直接子节点数量（通过 RPC 使用 id_path + depth）。"""
         if not parent_ids:
             return {}
-        response = (
-            self.client.table(self.TABLE_NAME)
-            .select("parent_id")
-            .in_("parent_id", parent_ids)
-            .execute()
-        )
-        counts: dict[str, int] = {}
-        for row in response.data:
-            pid = row["parent_id"]
-            counts[pid] = counts.get(pid, 0) + 1
-        return counts
-
-    def get_children_ids(self, node_id: str) -> List[str]:
-        """获取所有子节点 ID"""
-        response = (
-            self.client.table(self.TABLE_NAME)
-            .select("id")
-            .eq("parent_id", node_id)
-            .execute()
-        )
-        return [row["id"] for row in response.data]
+        response = self.client.rpc("count_children_batch", {
+            "p_parent_ids": parent_ids,
+        }).execute()
+        return {row["parent_id"]: int(row["child_count"]) for row in response.data}
 
     # === 原子操作（基于 id_path Source of Truth） ===
 
@@ -329,18 +305,16 @@ class ContentNodeRepository:
         self,
         node_id: str,
         project_id: str,
-        new_parent_id: Optional[str],
         new_id_path: str,
     ) -> None:
         """
         原子移动节点：通过 Supabase RPC 在单个事务中更新节点及其所有子孙的 id_path。
         
-        对应 SQL function: move_node_atomic(p_node_id, p_project_id, p_new_parent_id, p_new_id_path)
+        对应 SQL function: move_node_atomic(p_node_id, p_project_id, p_new_id_path)
         """
         self.client.rpc("move_node_atomic", {
             "p_node_id": node_id,
             "p_project_id": project_id,
-            "p_new_parent_id": new_parent_id,
             "p_new_id_path": new_id_path,
         }).execute()
 
@@ -400,47 +374,42 @@ class ContentNodeRepository:
     def find_names_with_prefix(
         self,
         project_id: str,
-        parent_id: Optional[str],
+        parent_id_path: Optional[str],
+        parent_depth: int,
         name_prefix: str,
     ) -> List[str]:
-        """查找同一目录下以指定前缀开头的所有名称（用于生成唯一名称）"""
+        """查找同一目录下以指定前缀开头的所有名称（基于 id_path + depth）。"""
         query = (
             self.client.table(self.TABLE_NAME)
             .select("name")
             .eq("project_id", project_id)
+            .eq("depth", parent_depth + 1)
             .ilike("name", f"{name_prefix}%")
         )
-        if parent_id is None:
-            query = query.is_("parent_id", "null")
-        else:
-            query = query.eq("parent_id", parent_id)
-        
+        if parent_id_path is not None:
+            query = query.like("id_path", f"{parent_id_path}/%")
+
         response = query.execute()
         return [row["name"] for row in response.data]
 
     def get_child_by_name(
         self,
         project_id: str,
-        parent_id: Optional[str],
+        parent_id_path: Optional[str],
+        parent_depth: int,
         name: str,
     ) -> Optional[ContentNode]:
-        """
-        按名称精确查找子节点（大小写敏感）。
-        
-        由于 POSIX 唯一名约束 (project_id, parent_id, name)，
-        同一目录下最多一个匹配结果。
-        """
+        """按名称精确查找直接子节点（基于 id_path + depth，大小写敏感）。"""
         query = (
             self.client.table(self.TABLE_NAME)
             .select("*")
             .eq("project_id", project_id)
+            .eq("depth", parent_depth + 1)
             .eq("name", name)
         )
-        if parent_id is None:
-            query = query.is_("parent_id", "null")
-        else:
-            query = query.eq("parent_id", parent_id)
-        
+        if parent_id_path is not None:
+            query = query.like("id_path", f"{parent_id_path}/%")
+
         response = query.limit(1).execute()
         if response.data:
             return self._row_to_model(response.data[0])
@@ -463,29 +432,24 @@ class ContentNodeRepository:
     def name_exists_in_parent(
         self,
         project_id: str,
-        parent_id: Optional[str],
+        parent_id_path: Optional[str],
+        parent_depth: int,
         name: str,
         exclude_node_id: Optional[str] = None,
     ) -> bool:
-        """
-        检查同目录下是否已存在同名节点（精确匹配，大小写敏感）。
-        
-        Args:
-            exclude_node_id: 排除的节点 ID（用于 rename 场景，排除自身）
-        """
+        """检查同目录下是否已存在同名节点（基于 id_path + depth）。"""
         query = (
             self.client.table(self.TABLE_NAME)
             .select("id")
             .eq("project_id", project_id)
+            .eq("depth", parent_depth + 1)
             .eq("name", name)
         )
-        if parent_id is None:
-            query = query.is_("parent_id", "null")
-        else:
-            query = query.eq("parent_id", parent_id)
-        
+        if parent_id_path is not None:
+            query = query.like("id_path", f"{parent_id_path}/%")
+
         if exclude_node_id is not None:
             query = query.neq("id", exclude_node_id)
-        
+
         response = query.limit(1).execute()
         return len(response.data) > 0
