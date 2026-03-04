@@ -43,7 +43,6 @@ def _to_out(row: dict) -> SandboxEndpointOut:
         access_key=row["access_key"],
         mounts=row.get("mounts", []),
         runtime=row.get("runtime", "alpine"),
-        provider=row.get("provider", "docker"),
         timeout_seconds=row.get("timeout_seconds", 30),
         resource_limits=row.get("resource_limits", {}),
         status=row["status"],
@@ -211,7 +210,6 @@ def create_endpoint(
         description=payload.description,
         mounts=payload.mounts,
         runtime=payload.runtime,
-        provider=payload.provider,
         timeout_seconds=payload.timeout_seconds,
         resource_limits=payload.resource_limits,
     )

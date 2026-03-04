@@ -128,7 +128,7 @@ export function SandboxConfigPanel({ endpoint, onClose }: SandboxConfigPanelProp
         </div>
         <div>
           <SectionLabel>Runtime</SectionLabel>
-          <span style={{ fontSize: 13, color: '#e4e4e7' }}>{endpoint.runtime} ({endpoint.provider})</span>
+          <span style={{ fontSize: 13, color: '#e4e4e7' }}>{endpoint.runtime}</span>
         </div>
         <div>
           <SectionLabel>Access Key</SectionLabel>

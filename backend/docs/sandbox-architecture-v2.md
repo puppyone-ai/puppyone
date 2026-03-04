@@ -100,6 +100,18 @@ chat_session 创建
 └──────────────────────────────────────────────────┘
 ```
 
+## Backend Selection
+
+Sandbox backend is determined **globally per deployment** via the `SANDBOX_TYPE` environment variable:
+
+| `SANDBOX_TYPE` | Behavior |
+|----------------|----------|
+| `docker` | Always use local Docker |
+| `e2b` | Always use E2B cloud (requires `E2B_API_KEY`) |
+| `auto` (default) | If `E2B_API_KEY` is set → E2B, otherwise → Docker |
+
+One deployment instance = one sandbox backend. There is no per-endpoint backend selection.
+
 ## File Structure
 
 ```
