@@ -273,7 +273,61 @@ puppyone access logs <path>          Show daemon logs (-f follow, -n lines)
 puppyone access trigger <path>       Force immediate sync
 ```
 
-Top-level shortcuts: `puppyone ps` = `access ps`, `puppyone status` = `access status`
+Top-level shortcuts: `puppyone ps` = `access ps`
+
+### `status` — Project Dashboard
+
+When run without arguments (or with `-p <project-id>`), shows an aggregated project dashboard including node counts, all connections, tools, and active uploads. When a local workspace path is given, falls back to access daemon status.
+
+```
+puppyone status                      Project dashboard (requires active project)
+puppyone status ~/workspace          Local workspace daemon status (fallback)
+```
+
+### `connection` (alias: `conn`) — Unified Connection Management
+
+**The single entry point for creating and managing ALL connections** — syncs, agents, MCP endpoints, sandbox environments, and filesystem mounts. Everything flows through the unified `connections` table.
+
+```
+puppyone conn add <type> [source]    Create any connection (see types below)
+puppyone conn ls                     List all connections (--provider, --status)
+puppyone conn info <id>              Detailed info + type-specific guidance
+puppyone conn pause <id>             Pause a connection
+puppyone conn resume <id>            Resume a paused connection
+puppyone conn rm <id>                Delete any connection
+puppyone conn key <id>               Show access key (--regenerate to rotate)
+puppyone conn refresh <id>           Trigger a manual sync refresh
+puppyone conn trigger <id> <mode>    Set trigger mode (manual|import_once|scheduled|realtime)
+```
+
+**`conn add` types:**
+
+| Type | Aliases | Example |
+|------|---------|---------|
+| `notion` | — | `conn add notion https://notion.so/db-id --folder /docs` |
+| `github` | `gh` | `conn add github https://github.com/org/repo` |
+| `gmail` | — | `conn add gmail` |
+| `gdrive` | `google-drive` | `conn add gdrive https://drive.google.com/...` |
+| `url` | `web` | `conn add url https://example.com/feed` |
+| `agent` | — | `conn add agent "My Bot" --model gpt-4o` |
+| `mcp` | — | `conn add mcp "My Endpoint"` |
+| `sandbox` | — | `conn add sandbox "My Sandbox" --type e2b` |
+| `folder` | `filesystem`, `local` | `conn add folder ~/workspace --name "Dev Sync"` |
+| `posthog` | `ph` | `conn add posthog --api-key phx_... --config '{...}'` |
+| ... | | All 15+ sync providers supported |
+
+**Options for `conn add`:**
+
+```
+--name <name>             Connection name
+--folder <folder>         Target folder in project (for syncs)
+--mode <mode>             Sync mode: import_once | manual | scheduled
+--model <model>           LLM model (for agent type)
+--system-prompt <prompt>  System prompt (for agent type)
+--type <subtype>          Sub-type: chat|devbox (agent), e2b|docker (sandbox)
+--api-key <key>           Provider API key (for posthog, etc.)
+--config <json>           Provider-specific config as JSON
+```
 
 ## Configuration
 
@@ -311,7 +365,7 @@ puppyone sync ls --json | jq '.syncs[] | {id, provider, status}'
 
 ## Typical Workflows
 
-### Setup project with multiple data sources
+### Setup project with multiple data sources (unified via `conn add`)
 
 ```bash
 puppyone auth login
@@ -319,19 +373,72 @@ puppyone org use "My Company"
 puppyone project create "Knowledge Base" && puppyone project use "Knowledge Base"
 puppyone fs mkdir /docs
 
-# OAuth sources
-puppyone sync auth notion && puppyone sync add notion https://notion.so/db-id --folder /docs
-puppyone sync auth github && puppyone sync add github https://github.com/org/repo --folder /code
+# OAuth sources (auth first, then add)
+puppyone sync auth notion
+puppyone conn add notion https://notion.so/db-id --folder /docs
+puppyone sync auth github
+puppyone conn add github https://github.com/org/repo --folder /code
 
 # No-auth sources
-puppyone sync add url https://example.com/api/feed --folder /imports
-puppyone sync add hn topstories --folder /news --mode scheduled
+puppyone conn add url https://example.com/api/feed --folder /imports
+puppyone conn add hn topstories --folder /news --mode scheduled
 
 # API-key source
-puppyone sync add posthog --api-key phx_xxx --config '{"project_id":"123","mode":"events"}'
+puppyone conn add posthog --api-key phx_xxx --config '{"project_id":"123","mode":"events"}'
 
-# Custom script
-puppyone sync add script --runtime python --script ./my_crawler.py --folder /scraped
+# View everything
+puppyone conn ls
+puppyone status
+```
+
+### Mount a local folder
+
+```bash
+# Option 1: one-step — auto-creates agent + starts daemon
+puppyone conn add folder ~/workspace --name "My Dev Folder"
+puppyone access up ~/workspace
+
+# Option 2: zero-friction — just start syncing (auto-creates agent)
+puppyone access up ~/workspace
+```
+
+### Create an MCP endpoint
+
+```bash
+# Create the endpoint — shows API key + connection instructions
+puppyone conn add mcp "Context API"
+# Output includes:
+#   npx -y mcp-remote https://api.puppyone.com/mcp?api_key=<key>
+#   .mcp.json snippet for Claude / Cursor
+
+# Manage later
+puppyone conn ls --provider mcp
+puppyone conn key <id>
+puppyone conn rm <id>
+```
+
+### Create a sandbox environment
+
+```bash
+# Create — shows access key + exec instructions
+puppyone conn add sandbox "Python Runner" --type e2b
+
+# Execute commands
+puppyone sandbox exec <id> "pip install pandas && python script.py"
+
+# Manage later
+puppyone conn ls --provider sandbox
+puppyone conn pause <id>
+puppyone conn rm <id>
+```
+
+### Agent + tools workflow
+
+```bash
+puppyone conn add agent "Research Bot" --model gpt-4o --system-prompt "Research assistant"
+puppyone tool create "docs-search" --type search --node <folder-id>
+puppyone mcp bind <agent-id> <tool-id>
+puppyone agent chat <agent-id>
 ```
 
 ### File system operations
@@ -346,11 +453,14 @@ puppyone fs rollback /notes/meeting.md 2
 puppyone fs download /exports/data.json ./
 ```
 
-### Agent + tools workflow
+### Manage all connections from one place
 
 ```bash
-puppyone tool create "docs-search" --type search --node <folder-id>
-puppyone agent create "Research Bot" --model gpt-4o --system-prompt "Research assistant"
-puppyone mcp bind <agent-id> <tool-id>
-puppyone agent chat <agent-id>
+puppyone conn ls                           # see everything
+puppyone conn ls --provider notion         # filter by type
+puppyone conn ls --status error            # find broken ones
+puppyone conn info <id>                    # details + guidance
+puppyone conn pause <id>                   # pause any connection
+puppyone conn key <id> --regenerate        # rotate access key
+puppyone conn rm <id>                      # delete any connection
 ```

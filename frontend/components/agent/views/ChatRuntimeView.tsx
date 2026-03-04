@@ -53,6 +53,7 @@ interface ChatRuntimeViewProps {
   projectId?: number | string;
   onDataUpdate?: (newData: unknown) => void;
   projectTools?: DbTool[];
+  onClose?: () => void;
 }
 
 function getAgentTypeIcon(type?: string): React.ReactNode {
@@ -139,6 +140,7 @@ export function ChatRuntimeView({
   projectId,
   onDataUpdate,
   projectTools,
+  onClose,
 }: ChatRuntimeViewProps) {
   const { 
     selectedCapabilities, 
@@ -619,10 +621,11 @@ export function ChatRuntimeView({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#141414' }}>
-      {/* Header - 48px height (47px + 1px border) */}
+      {/* Header */}
       <div style={{ 
-        height: 47,
-        padding: '0 16px', 
+        height: 40,
+        minHeight: 40,
+        padding: '0 12px', 
         borderBottom: '1px solid rgba(255,255,255,0.06)', 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -866,6 +869,31 @@ export function ChatRuntimeView({
                 <circle cx="12" cy="12" r="3"></circle>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
               </svg>
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              title="Close panel"
+              style={{
+                width: 28,
+                height: 28,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#71717a',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 4,
+                transition: 'all 0.15s',
+                fontSize: 16,
+                lineHeight: 1,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = '#252525'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#71717a'; e.currentTarget.style.background = 'transparent'; }}
+            >
+              ×
             </button>
           )}
         </div>

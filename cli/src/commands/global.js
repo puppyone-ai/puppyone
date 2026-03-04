@@ -219,7 +219,7 @@ export function psAction(opts, cmd) {
   out.info("");
 }
 
-export function statusAction(path, opts, cmd) {
+export function accessStatusAction(path, opts, cmd) {
   const out = createOutput(cmd);
 
   if (path) {
@@ -244,6 +244,165 @@ export function statusAction(path, opts, cmd) {
   }
 }
 
+// For backward compat: `access status` still uses the old logic
+export { accessStatusAction as statusAction };
+
+// ── Provider display helpers ─────────────────────────────────
+
+const STATUS_ICONS = { active: "\u25CF", syncing: "\u25CF", paused: "\u25CB", error: "\u2717" };
+
+function statusLabel(s) {
+  const icon = STATUS_ICONS[s] || "\u25CF";
+  return `${icon} ${s}`;
+}
+
+function maskKey(key) {
+  if (!key || key.length < 8) return key || "\u2014";
+  const idx = key.indexOf("_");
+  const pre = idx > 0 ? idx + 1 : 4;
+  return key.slice(0, pre) + "..." + key.slice(-4);
+}
+
+// ── Project dashboard (new global status) ────────────────────
+
+export async function dashboardAction(path, opts, cmd) {
+  // If a local path is given, fall back to access agent status
+  if (path && (path.startsWith("/") || path.startsWith("~") || path.startsWith("."))) {
+    return accessStatusAction(path, opts, cmd);
+  }
+
+  const out = createOutput(cmd);
+
+  let client;
+  let projectId;
+  try {
+    const { createClient } = await import("../api.js");
+    client = createClient(cmd);
+    const { requireProject } = await import("../helpers.js");
+    projectId = requireProject(cmd);
+  } catch (e) {
+    // Not logged in or no project — fall back to access status
+    return accessStatusAction(path, opts, cmd);
+  }
+
+  try {
+    const d = await client.get(`/projects/${projectId}/dashboard`);
+
+    // --json mode
+    out.success?.({ dashboard: d });
+
+    // Human-readable
+    out.info("");
+    out.info(`  PuppyOne \u2014 ${d.project.name} (${d.project.id.slice(0, 12)}...)`);
+    out.info(`  ${"─".repeat(50)}`);
+    out.info("");
+
+    // Content
+    out.info("  Content");
+    out.info(`    ${d.nodes.total} nodes (${d.nodes.folders} folders, ${d.nodes.files} files)`);
+    out.info("");
+
+    // Connections
+    if (d.connections.length > 0) {
+      out.info(`  Connections (${d.connections.length})`);
+
+      const connCols = [
+        { key: "provider", label: "PROVIDER" },
+        { key: "name", label: "NAME" },
+        { key: "status", label: "STATUS" },
+        { key: "lastSync", label: "LAST SYNC" },
+      ];
+      const connRows = d.connections.map(c => ({
+        provider: c.provider,
+        name: (c.name || "").slice(0, 30),
+        status: statusLabel(c.status),
+        lastSync: c.last_synced_at ? timeAgo(c.last_synced_at) : "\u2014",
+      }));
+      out.table(connRows, connCols);
+
+      const errConns = d.connections.filter(c => c.status === "error");
+      if (errConns.length > 0) {
+        out.info("");
+        out.warn(`  ${errConns.length} connection(s) in error:`);
+        for (const c of errConns) {
+          out.info(`    - ${c.provider}/${c.name}: ${c.error_message || "unknown"}`);
+        }
+      }
+    } else {
+      out.info("  Connections: (none)");
+      out.info("    Run `puppyone sync add <provider> ...` to connect a data source.");
+    }
+    out.info("");
+
+    // Tools
+    if (d.tools.length > 0) {
+      out.info(`  Tools (${d.tools.length})`);
+      const toolCols = [
+        { key: "name", label: "NAME" },
+        { key: "type", label: "TYPE" },
+        { key: "index", label: "INDEX" },
+      ];
+      const toolRows = d.tools.map(t => {
+        let idx = "\u2014";
+        if (t.type === "search") {
+          if (t.index_status === "ready") {
+            idx = `\u2713 ready (${t.chunks_count ?? 0} chunks)`;
+          } else if (t.index_status === "indexing") {
+            const pct = t.total_files && t.indexed_files != null
+              ? ` (${t.indexed_files}/${t.total_files})`
+              : "";
+            idx = `\u21BB indexing${pct}`;
+          } else if (t.index_status === "error") {
+            idx = `\u2717 error`;
+          } else if (t.index_status === "pending") {
+            idx = `\u25CB pending`;
+          }
+        }
+        return { name: t.name, type: t.type || "\u2014", index: idx };
+      });
+      out.table(toolRows, toolCols);
+    } else {
+      out.info("  Tools: (none)");
+    }
+    out.info("");
+
+    // Uploads
+    const activeUploads = d.uploads || [];
+    if (activeUploads.length > 0) {
+      out.info(`  Uploads (${activeUploads.length} in progress)`);
+      for (const u of activeUploads) {
+        out.info(`    - ${u.type} ${u.status} ${u.progress}%${u.message ? " — " + u.message : ""}`);
+      }
+      out.info("");
+    }
+
+    // Local access daemons
+    const workspaces = getAllWorkspaces();
+    const activeWs = workspaces.filter(w => w.running);
+    if (workspaces.length > 0) {
+      out.info(`  Access Daemons (${activeWs.length}/${workspaces.length} running)`);
+      for (const w of workspaces) {
+        const icon = w.running ? "\u25CF" : "\u25CB";
+        const label = w.running ? "syncing" : "stopped";
+        const last = w.last_sync ? timeAgo(w.last_sync) : "\u2014";
+        out.info(`    ${icon} ${shortenPath(w.path)}  ${label}  ${w.files_tracked} files  ${last}`);
+      }
+      out.info("");
+    }
+  } catch (e) {
+    // If dashboard fails (e.g. old backend), fall back to access status
+    if (e.status === 404) {
+      return accessStatusAction(path, opts, cmd);
+    }
+    const { ApiError } = await import("../api.js");
+    if (e instanceof ApiError) {
+      out.error(e.code, e.message, e.hint);
+    } else {
+      out.error("UNEXPECTED", e.message);
+    }
+  }
+}
+
 // ============================================================
 // Register top-level shortcuts (backward compat)
 // ============================================================
@@ -256,7 +415,7 @@ export function registerGlobalCommands(program) {
 
   program
     .command("status")
-    .description("Show agent workspace status (shortcut for `access status`)")
-    .argument("[path]", "workspace path (omit for all)")
-    .action(statusAction);
+    .description("Project dashboard — or access status if path given")
+    .argument("[path]", "workspace path (omit for project dashboard)")
+    .action(dashboardAction);
 }

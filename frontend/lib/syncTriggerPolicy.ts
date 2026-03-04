@@ -13,8 +13,8 @@ interface TriggerPolicy {
 }
 
 const PROVIDER_POLICIES: Record<string, TriggerPolicy> = {
-  openclaw: {
-    supportedModes: ['manual', 'realtime'],
+  filesystem: {
+    supportedModes: ['realtime'],
     defaultMode: 'realtime',
   },
   gmail: {
@@ -77,7 +77,7 @@ export function getSyncTriggerPolicy(provider: string): TriggerPolicy {
 }
 
 const PROVIDER_DISPLAY_LABELS: Record<string, string> = {
-  openclaw: 'Desktop Folder',
+  filesystem: 'Desktop Folder',
   gmail: 'Gmail',
   google_calendar: 'Google Calendar',
   google_sheets: 'Google Sheets',

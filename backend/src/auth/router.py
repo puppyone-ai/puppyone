@@ -1,17 +1,20 @@
 """
 Auth router — for CLI / external clients
 
-POST   /auth/login    Sign in with email + password, returns access_token
-POST   /auth/refresh  Refresh access_token
-GET    /auth/config   Public Supabase config (URL + anon key) for Realtime
+POST   /auth/login       Sign in with email + password, returns access_token
+POST   /auth/refresh     Refresh access_token
+POST   /auth/initialize  Idempotent user initialization (profile + org)
+GET    /auth/config      Public Supabase config (URL + anon key) for Realtime
 """
 
 import os
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from supabase import create_client
 from src.common_schemas import ApiResponse
+from src.auth.dependencies import get_current_user, get_initialization_service, CurrentUser
+from src.auth.initialization import UserInitializationService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -114,3 +117,22 @@ def refresh_token(body: RefreshRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Refresh failed: {str(e)}")
+
+
+class InitializeResponse(BaseModel):
+    org_id: str
+    is_new_org: bool
+
+
+@router.post("/initialize", response_model=ApiResponse[InitializeResponse])
+def initialize_user(
+    current_user: CurrentUser = Depends(get_current_user),
+    init_service: UserInitializationService = Depends(get_initialization_service),
+):
+    """Idempotent user initialization: ensures profile + default org + membership exist."""
+    result = init_service.ensure_initialized(
+        user_id=current_user.user_id,
+        email=current_user.email,
+        display_name=current_user.user_metadata.get("full_name") if current_user.user_metadata else None,
+    )
+    return ApiResponse.success(data=InitializeResponse(**result))

@@ -4,6 +4,7 @@ from fastapi import Depends
 from src.organization.repository import OrganizationRepository
 from src.organization.service import OrganizationService
 from src.exceptions import PermissionException, ErrorCode
+from src.utils.logger import log_info
 
 _org_repository = None
 _org_service = None
@@ -23,6 +24,15 @@ def get_org_service() -> OrganizationService:
     return _org_service
 
 
+def _auto_init_org(user_id: str) -> str:
+    """Safety net: auto-initialize org when user has none."""
+    from src.auth.dependencies import get_initialization_service
+    init_service = get_initialization_service()
+    result = init_service.ensure_initialized(user_id=user_id, email="")
+    log_info(f"Safety net: auto-initialized org {result['org_id']} for user {user_id}")
+    return result["org_id"]
+
+
 def resolve_org_id(org_id: Optional[str], user_id: str) -> str:
     """Resolve org_id: if provided, verify membership; otherwise fall back to user's first org."""
     repo = get_org_repository()
@@ -34,7 +44,7 @@ def resolve_org_id(org_id: Optional[str], user_id: str) -> str:
         return org_id
     user_orgs = repo.list_by_user(user_id)
     if not user_orgs:
-        raise PermissionException("User has no organization", code=ErrorCode.FORBIDDEN)
+        return _auto_init_org(user_id)
     return user_orgs[0].id
 
 
@@ -49,5 +59,5 @@ def resolve_org_ids(org_id: Optional[str], user_id: str) -> List[str]:
         return [org_id]
     user_orgs = repo.list_by_user(user_id)
     if not user_orgs:
-        raise PermissionException("User has no organization", code=ErrorCode.FORBIDDEN)
+        return [_auto_init_org(user_id)]
     return [o.id for o in user_orgs]

@@ -1,19 +1,27 @@
-# Connect Your Data 🔗
+# Connect Your Data
 
-PuppyOne connects to your real work apps.
+PuppyOne connects to your real work apps and data sources. Everything you connect becomes part of your context space as regular files and folders that both you and your agents can read.
 
-## See it in action
+## Supported Sources
 
-Look at the files below in the sidebar:
+### Cloud Services (OAuth)
+These require a one-time authorization through your browser:
+- **Gmail** — email threads, summarized by date
+- **Google Calendar** — upcoming and past events
+- **Google Drive** — documents, spreadsheets, files
+- **Notion** — pages and databases
+- **GitHub** — repositories, issues, code
+- **Linear** — issues and projects
+- **Airtable** — bases and tables
 
-- **Gmail - Connect Your Inbox**: Click to connect your Gmail (marked "Not Connected")
-- **Google Sheets - Connect**: Click to connect your Sheets (marked "Not Connected")
-- `Q1_Budget_Data.json`: Sample JSON data for reference
+### Local Sources
+- **Folder sync** — mount a local directory and keep it in sync
+- **File upload** — drag-and-drop or CLI upload for PDFs, CSVs, and more
 
-## Why Placeholders?
+### Web & API Sources
+- **URL** — pull content from any public webpage
+- **Custom scripts** — write Python or Node.js scripts that fetch data from any API
 
-The yellow "Not Connected" badge shows you **what types of data you can import**.
-Click any placeholder to start the OAuth connection flow.
+## Try it now
 
-👉 **Try it yourself**: Click on a placeholder node, or use the **+** button to import other sources.
-
+Use the **+ Add Connection** button in the sidebar to connect your first data source, or upload files directly using drag-and-drop.

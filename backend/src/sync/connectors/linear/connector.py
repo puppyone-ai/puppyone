@@ -23,6 +23,7 @@ from src.sync.connectors._base import (
     TriggerMode,
     FetchResult,
     Credentials,
+    ConfigField,
 )
 from src.oauth.linear_service import LinearOAuthService
 from src.s3.service import S3Service
@@ -45,6 +46,9 @@ class LinearConnector(BaseConnector):
             oauth_type="linear",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="manual",
+            config_fields=(
+                ConfigField(key="source_url", label="Linear issue, project, or team URL (omit for assigned issues)", type="url", placeholder="https://linear.app/team/issue/TEAM-123"),
+            ),
         )
 
     def __init__(

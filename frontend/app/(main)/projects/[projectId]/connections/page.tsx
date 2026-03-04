@@ -9,7 +9,7 @@
 
 import React, { use, useState, useMemo, useCallback } from 'react';
 import useSWR from 'swr';
-import { get, post } from '@/lib/apiClient';
+import { get, post, del } from '@/lib/apiClient';
 import { useAgent } from '@/contexts/AgentContext';
 import { getProviderDisplayLabel } from '@/lib/syncTriggerPolicy';
 
@@ -19,12 +19,13 @@ import { getProviderDisplayLabel } from '@/lib/syncTriggerPolicy';
 
 interface SyncStatusItem {
   id: string;
-  node_id: string;
+  node_id: string | null;
   node_name: string | null;
   node_type: string | null;
   provider: string;
   direction: string;
   status: string;
+  name?: string | null;
   access_key?: string | null;
   last_synced_at: string | null;
   error_message: string | null;
@@ -41,7 +42,7 @@ interface ProjectSyncStatus {
    ================================================================ */
 
 const PROVIDER_LABELS: Record<string, string> = {
-  openclaw: 'Desktop Folder', gmail: 'Gmail', google_sheets: 'Google Sheets',
+  filesystem: 'Desktop Folder', gmail: 'Gmail', google_sheets: 'Google Sheets',
   google_calendar: 'Google Calendar', google_docs: 'Google Docs', github: 'GitHub',
   supabase: 'Supabase', notion: 'Notion', linear: 'Linear',
   agent: 'Agent', mcp: 'MCP Server', sandbox: 'Sandbox',
@@ -65,7 +66,7 @@ function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number
     return <img src={logos[provider]} alt={provider} width={size} height={size} style={{ display: 'block', borderRadius: 2 }} />;
   }
 
-  if (provider === 'openclaw') {
+  if (provider === 'filesystem') {
     return <span style={{ fontSize: size * 0.85 }}>🦞</span>;
   }
 
@@ -140,7 +141,7 @@ export default function ConnectionsPage({ params }: { params: Promise<{ projectI
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { data: syncData, mutate: mutateSyncs } = useSWR<ProjectSyncStatus>(
-    projectId ? `/api/v1/connections/status?project_id=${projectId}` : null,
+    projectId ? `/api/v1/sync/status?project_id=${projectId}` : null,
     (url: string) => get<ProjectSyncStatus>(url),
     { refreshInterval: 15000 },
   );
@@ -194,7 +195,7 @@ export default function ConnectionsPage({ params }: { params: Promise<{ projectI
 function ConnectionRow({ connection: c, onClick }: { connection: SyncStatusItem; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
   const label = getProviderDisplayLabel(c.provider) || PROVIDER_LABELS[c.provider] || c.provider;
-  const name = (c.config as Record<string, unknown>)?.name as string || c.node_name || label;
+  const name = c.name || c.node_name || label;
   const statusColor = STATUS_COLORS[c.status] || '#71717a';
 
   return (
@@ -246,13 +247,13 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
   const [pausing, setPausing] = useState(false);
 
   const label = getProviderDisplayLabel(c.provider) || PROVIDER_LABELS[c.provider] || c.provider;
-  const name = (c.config as Record<string, unknown>)?.name as string || c.node_name || label;
+  const name = c.name || c.node_name || label;
   const statusColor = STATUS_COLORS[c.status] || '#71717a';
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
     try {
-      await post(`/api/v1/connections/syncs/${c.id}/refresh`);
+      await post(`/api/v1/sync/syncs/${c.id}/refresh`);
       onRefresh();
     } catch (err) {
       console.error('Sync failed:', err);
@@ -265,7 +266,7 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
     setPausing(true);
     try {
       const action = c.status === 'paused' ? 'resume' : 'pause';
-      await post(`/api/v1/connections/syncs/${c.id}/${action}`);
+      await post(`/api/v1/sync/syncs/${c.id}/${action}`);
       onRefresh();
     } catch (err) {
       console.error('Pause/resume failed:', err);
@@ -602,7 +603,7 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
 
   const handleDisconnect = async () => {
     try {
-      await post(`/api/v1/connections/syncs/${c.id}/disconnect`);
+      await del(`/api/v1/sync/syncs/${c.id}`);
       onRefresh();
     } catch (err) {
       console.error('Disconnect failed:', err);

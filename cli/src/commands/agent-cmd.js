@@ -61,6 +61,19 @@ export function registerAgent(program) {
 
       const created = await client.post("/agent-config", body);
       out.info(`Agent created: ${created.name ?? name} (${created.id})`);
+
+      if (created.mcp_api_key) {
+        out.info("");
+        out.info(`  Access Key: ${created.mcp_api_key}`);
+        out.info("  (save this key — it won't be shown again)");
+        out.info("");
+        out.info("  To sync a local folder:");
+        out.info(`    puppyone access up ~/workspace --key ${created.mcp_api_key}`);
+        out.info("");
+        out.info("  To connect from Claude Desktop / Cursor:");
+        out.info(`    npx -y mcp-remote <API_URL>/mcp?api_key=${created.mcp_api_key}`);
+      }
+
       out.success({ agent: created });
     }));
 
@@ -79,10 +92,18 @@ export function registerAgent(program) {
         ["ID:", info.id],
         ["Type:", info.type ?? "-"],
         ["Model:", info.model ?? "-"],
+        ["Access Key:", info.mcp_api_key ?? "(none)"],
         ["System Prompt:", (info.system_prompt ?? "(none)").slice(0, 100)],
         ["Created:", formatDate(info.created_at)],
         ["Updated:", formatDate(info.updated_at)],
       ]);
+
+      if (info.accesses?.length) {
+        out.info("\n  Node access:");
+        for (const a of info.accesses) {
+          out.info(`    - ${a.node_name ?? a.node_id ?? a.id}`);
+        }
+      }
 
       if (info.tools?.length) {
         out.info("\n  Bound tools:");

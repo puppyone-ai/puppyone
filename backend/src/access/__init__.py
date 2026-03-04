@@ -1,10 +1,10 @@
 """
-Backward-compatibility shim — 代码已迁移至以下位置：
+Backward-compatibility shim — code has been migrated to:
 
-- agent/config/    Agent 配置 CRUD (agents / agent_bash / agent_tool)
-- agent/chat/      Agent 聊天 (SSE 流式对话) + 核心编排
-- agent/mcp/       MCP 协议运行时 (工具绑定 & 代理转发)
-- sync/providers/openclaw/  OpenClaw CLI 同步 (连接管理 + 文件夹双向同步)
+- agent/config/    Agent config CRUD
+- agent/chat/      Agent chat (SSE streaming) + orchestration
+- agent/mcp/       MCP protocol runtime (tool binding & proxy)
+- sync/connectors/filesystem/  Filesystem CLI sync (Desktop Folder)
 
-本目录仅保留 re-export 以兼容旧 import 路径。
+This directory only keeps re-exports for backward-compatible import paths.
 """

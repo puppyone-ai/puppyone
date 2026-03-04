@@ -1,9 +1,10 @@
 """
-Script Connector — runs user-provided scripts in a sandboxed environment.
+Script Connector — hosted script execution in sandboxed environments.
 
 Users upload a script (Python / Node / Shell) via CLI or Web UI.
 The platform stores it, triggers execution on schedule/manual/webhook,
-captures structured stdout, and commits the result through CollaborationService.
+installs dependencies, captures structured stdout, and commits the
+result through CollaborationService.
 
 Output protocol:
   The script MUST print a single JSON object to stdout:
@@ -22,8 +23,9 @@ Config stored in connections.config:
     "script_s3_key": "...",      # S3 key for larger scripts
     "runtime": "python",         # "python" | "node" | "shell"
     "timeout": 60,               # max execution time in seconds
-    "env": { "API_KEY": "..." }, # optional environment variables
-    "entrypoint": "main.py"      # optional filename override
+    "requirements": "requests,beautifulsoup4",  # auto-installed deps
+    "env": { "API_KEY": "..." }, # environment variables (secrets)
+    "entrypoint": "main.py"      # filename override
   }
 """
 
@@ -54,6 +56,11 @@ RUNTIME_EXTENSIONS = {
     "python": ".py",
     "node": ".js",
     "shell": ".sh",
+}
+
+DEP_INSTALL_COMMANDS = {
+    "python": "pip install -q {deps}",
+    "node": "npm install --silent {deps}",
 }
 
 MAX_INLINE_SIZE = 64 * 1024  # 64KB
@@ -87,10 +94,16 @@ class ScriptConnector(BaseConnector):
                 ),
                 ConfigField(
                     key="script_content",
-                    label="Script",
+                    label="Script content or file path (CLI reads file automatically)",
                     type="text",
                     required=True,
-                    placeholder="Paste your script here, or use CLI: puppyone connect add script --file ./my-script.py",
+                    placeholder="import requests; ...",
+                ),
+                ConfigField(
+                    key="requirements",
+                    label="Dependencies (comma-separated, auto-installed before run)",
+                    type="text",
+                    placeholder="requests,beautifulsoup4",
                 ),
                 ConfigField(
                     key="timeout",
@@ -98,8 +111,19 @@ class ScriptConnector(BaseConnector):
                     type="number",
                     default=60,
                 ),
+                ConfigField(
+                    key="entrypoint",
+                    label="Entry filename override",
+                    type="text",
+                    placeholder="main.py",
+                ),
+                ConfigField(
+                    key="env",
+                    label="Environment variables as JSON",
+                    type="text",
+                    placeholder='{"API_KEY": "xxx"}',
+                ),
             ),
-            icon="📜",
         )
 
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
@@ -107,7 +131,13 @@ class ScriptConnector(BaseConnector):
         script_content = config.get("script_content", "")
         script_s3_key = config.get("script_s3_key")
         timeout = min(int(config.get("timeout", 60)), 300)
+        requirements = config.get("requirements", "")
         env_vars = config.get("env") or {}
+        if isinstance(env_vars, str):
+            try:
+                env_vars = json.loads(env_vars)
+            except json.JSONDecodeError:
+                env_vars = {}
         entrypoint = config.get("entrypoint") or f"script{RUNTIME_EXTENSIONS.get(runtime, '.py')}"
 
         if not script_content and not script_s3_key:
@@ -122,6 +152,7 @@ class ScriptConnector(BaseConnector):
             entrypoint=entrypoint,
             timeout=timeout,
             env_vars=env_vars,
+            requirements=requirements,
         )
 
         return self._parse_output(stdout)
@@ -133,6 +164,7 @@ class ScriptConnector(BaseConnector):
         entrypoint: str,
         timeout: int,
         env_vars: dict,
+        requirements: str = "",
     ) -> str:
         from src.sandbox.service import SandboxService
 
@@ -141,6 +173,10 @@ class ScriptConnector(BaseConnector):
 
         try:
             await sandbox.start(session_id, data=None, readonly=False)
+
+            # Install dependencies if declared
+            if requirements:
+                await self._install_deps(sandbox, session_id, runtime, requirements)
 
             write_cmd = f"cat > /workspace/{entrypoint} << 'PUPPYONE_SCRIPT_EOF'\n{script_content}\nPUPPYONE_SCRIPT_EOF"
             await sandbox.exec(session_id, write_cmd)
@@ -168,6 +204,23 @@ class ScriptConnector(BaseConnector):
                 await sandbox.stop(session_id)
             except Exception:
                 pass
+
+    async def _install_deps(
+        self, sandbox, session_id: str, runtime: str, requirements: str,
+    ) -> None:
+        template = DEP_INSTALL_COMMANDS.get(runtime)
+        if not template:
+            return
+        deps = " ".join(d.strip() for d in requirements.split(",") if d.strip())
+        if not deps:
+            return
+        cmd = template.format(deps=deps)
+        log_info(f"[ScriptConnector] Installing deps: {cmd}")
+        result = await sandbox.exec(session_id, cmd)
+        exit_code = result.get("exit_code", -1)
+        if exit_code != 0:
+            output = result.get("output", "")
+            raise RuntimeError(f"Dependency install failed (exit {exit_code}): {output[-300:]}")
 
     def _parse_output(self, stdout: str) -> FetchResult:
         stdout = stdout.strip()

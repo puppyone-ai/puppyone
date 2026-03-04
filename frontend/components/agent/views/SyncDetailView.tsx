@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import useSWR from 'swr';
-import { get, post } from '@/lib/apiClient';
-import { useAgent } from '@/contexts/AgentContext';
-import { SYNC_MODE_META, getProviderDisplayLabel } from '@/lib/syncTriggerPolicy';
+import { get, post, patch } from '@/lib/apiClient';
+import { SYNC_MODE_META, getProviderDisplayLabel, getSyncTriggerPolicy } from '@/lib/syncTriggerPolicy';
 import type { SyncModeType } from '@/lib/syncTriggerPolicy';
+import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
 
 interface SyncDetail {
   id: string;
@@ -41,6 +41,7 @@ function MiniDocShell({ type }: { type: 'json' | 'markdown' | 'file' }) {
 interface SyncDetailViewProps {
   syncId: string;
   projectId?: number | string;
+  onClose?: () => void;
 }
 
 // ============================================================
@@ -70,7 +71,6 @@ function getProviderLogo(provider: string, size: number) {
     case 'notion': return <ProviderImg src="/icons/notion.svg" alt="Notion" size={size} />;
     case 'linear': return <ProviderImg src="/icons/linear.svg" alt="Linear" size={size} />;
     case 'filesystem':
-    case 'openclaw':
       return <span style={{ fontSize: size * 0.65 }}>🦞</span>;
     default:
       return (
@@ -134,7 +134,7 @@ function ConnectionLine({ direction, isActive, status }: { direction: string; co
 // ============================================================
 
 const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'Desktop Folder', openclaw: 'Desktop Folder',
+  filesystem: 'Desktop Folder',
   github: 'GitHub', notion: 'Notion', gmail: 'Gmail',
   google_calendar: 'Google Calendar', google_sheets: 'Google Sheets',
   google_drive: 'Google Drive', google_docs: 'Google Docs',
@@ -164,8 +164,9 @@ function relativeTime(iso: string | null): string {
 // SyncDetailView
 // ============================================================
 
-export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
-  const { closeSidebar } = useAgent();
+export { getProviderLogo, PROVIDER_LABELS };
+
+export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewProps) {
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: syncData, mutate } = useSWR<{ syncs: SyncDetail[] }>(
@@ -197,12 +198,11 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
 
   if (!sync) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <ViewHeader name="Sync" onClose={closeSidebar} />
-        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 12 }}>
+      <PanelShell title="Connection" onClose={onClose || (() => {})}>
+        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 12, height: '100%' }}>
           Sync endpoint not found
         </div>
-      </div>
+      </PanelShell>
     );
   }
 
@@ -218,24 +218,27 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
   const statusLabel = isError ? 'Error' : sync.status === 'syncing' ? 'Syncing' : isActive ? 'Sync active' : isPaused ? 'Paused' : sync.status || 'Inactive';
   const statusTextColor = isError ? '#fca5a5' : isActive ? '#e5e5e5' : '#a3a3a3';
 
+  const normalizedMode = normalizeMode(sync.trigger?.type);
+
   return (
     <>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <ViewHeader name={sync.node_name || providerLabel} icon={getProviderLogo(sync.provider, 18)} onClose={closeSidebar} />
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <PanelShell
+        title={sync.node_name || providerLabel}
+        icon={getProviderLogo(sync.provider, 14)}
+        onClose={onClose || (() => {})}
+      >
+        <div style={{ padding: '20px 24px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* Sync visualization */}
           <div style={{
-            borderRadius: 10, padding: '28px 24px 20px',
+            borderRadius: 10, padding: '24px 24px 16px',
             display: 'flex', flexDirection: 'column', gap: 14,
           }}>
             {/* Icons + connection */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              {/* External source (LEFT) */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 8,
@@ -249,14 +252,12 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
                 </div>
               </div>
 
-              {/* Connection line */}
               <ConnectionLine
                 direction={sync.direction}
                 isActive={isActive}
                 status={sync.status}
               />
 
-              {/* PuppyOne target node (RIGHT) */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
                 {sync.node_type === 'folder' || !sync.node_type
                   ? <img src="/icons/folder.svg" alt="Folder" width={36} height={36} style={{ display: 'block' }} />
@@ -313,17 +314,21 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
             </div>
           )}
 
-          {/* Sync mode info */}
-          {sync.trigger && sync.trigger.type && sync.trigger.type !== 'import_once' && (
-            <SyncModeInfo trigger={sync.trigger} lastSyncedAt={sync.last_synced_at} />
-          )}
+          {/* Trigger mode selector */}
+          <TriggerModeSelector
+            syncId={sync.id}
+            provider={sync.provider}
+            currentMode={normalizedMode}
+            currentTrigger={sync.trigger}
+            onUpdated={mutate}
+          />
 
-          {/* Actions — Linear style: 28px, minimal */}
+          {/* Actions */}
           <div style={{ display: 'flex', gap: 6 }}>
-            {sync.trigger?.type === 'manual' && (
+            {normalizedMode === 'manual' && (
               <ActionButton label={refreshing ? 'Refreshing...' : 'Refresh now'} icon="retry" onClick={handleSyncRefresh} />
             )}
-            {sync.trigger?.type === 'scheduled' && (
+            {normalizedMode === 'scheduled' && (
               <ActionButton label={refreshing ? 'Syncing...' : 'Sync now'} icon="retry" onClick={handleSyncRefresh} />
             )}
             {isActive && (
@@ -339,38 +344,361 @@ export function SyncDetailView({ syncId, projectId }: SyncDetailViewProps) {
           </div>
 
           {/* OpenClaw: Access Key */}
-          {sync.provider === 'openclaw' && sync.access_key && (
+          {sync.provider === 'filesystem' && sync.access_key && (
             <AccessKeyRow accessKey={sync.access_key} />
           )}
 
-          {/* Details section */}
+          {/* Details — minimal */}
           <div style={{ padding: '0 4px' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
               Details
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <DetailRow label="Provider" value={providerLabel} />
-              <DetailRow label="Direction" value={dirLabel} />
-              <DetailRow label="Sync mode" value={getSyncModeLabel(sync.trigger?.type || 'import_once')} />
-              {sync.node_name && <DetailRow label="Folder" value={sync.node_name} />}
-              <DetailRow label="Last synced" value={sync.last_synced_at ? relativeTime(sync.last_synced_at) : 'Never'} />
               <DetailRow label="Sync ID" value={sync.id} mono />
             </div>
           </div>
 
         </div>
-      </div>
+      </PanelShell>
     </>
   );
 }
 
 // ============================================================
-// Sync Mode Info
+// PanelHeader — consistent with PanelShell
 // ============================================================
 
-function getSyncModeLabel(mode: string): string {
-  return SYNC_MODE_META[mode as SyncModeType]?.label || mode;
+function PanelHeader({ title, icon, onClose }: { title: string; icon?: React.ReactNode; onClose?: () => void }) {
+  return (
+    <div style={{
+      height: 40, minHeight: 40, display: 'flex', alignItems: 'center', gap: 8,
+      padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
+    }}>
+      {icon && <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</span>}
+      <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#e4e4e7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {title}
+      </span>
+      {onClose && (
+        <button
+          onClick={onClose}
+          title="Close panel"
+          style={{
+            background: 'none', border: 'none', color: '#71717a', cursor: 'pointer',
+            padding: '4px 6px', fontSize: 16, lineHeight: 1, borderRadius: 4,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'color 0.12s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#e4e4e7'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#71717a'; }}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
 }
+
+// ============================================================
+// normalizeMode — map backend values to canonical SyncModeType
+// ============================================================
+
+function normalizeMode(raw?: string): SyncModeType {
+  if (!raw) return 'import_once';
+  if (raw === 'cli_push' || raw === 'realtime') return 'realtime';
+  if (raw === 'cron' || raw === 'scheduled') return 'scheduled';
+  if (raw === 'manual') return 'manual';
+  return 'import_once';
+}
+
+// ============================================================
+// TriggerModeSelector
+// ============================================================
+
+function TriggerModeSelector({
+  syncId,
+  provider,
+  currentMode,
+  currentTrigger,
+  onUpdated,
+}: {
+  syncId: string;
+  provider: string;
+  currentMode: SyncModeType;
+  currentTrigger: SyncDetail['trigger'];
+  onUpdated: () => void;
+}) {
+  const policy = getSyncTriggerPolicy(provider);
+  const [saving, setSaving] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [pendingMode, setPendingMode] = useState<SyncModeType>(currentMode);
+  const [scheduleConfig, setScheduleConfig] = useState<{ schedule?: string; timezone?: string } | null>(
+    currentTrigger?.schedule ? { schedule: currentTrigger.schedule, timezone: currentTrigger.timezone || 'Asia/Shanghai' } : null,
+  );
+
+  const isLocked = policy.supportedModes.length <= 1;
+
+  useEffect(() => {
+    setPendingMode(currentMode);
+    setScheduleConfig(
+      currentTrigger?.schedule ? { schedule: currentTrigger.schedule, timezone: currentTrigger.timezone || 'Asia/Shanghai' } : null,
+    );
+  }, [currentMode, currentTrigger]);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      const trigger: Record<string, string> = { type: pendingMode };
+      if (pendingMode === 'scheduled' && scheduleConfig?.schedule) {
+        trigger.schedule = scheduleConfig.schedule;
+        trigger.timezone = scheduleConfig.timezone || 'Asia/Shanghai';
+      }
+      await patch(`/api/v1/sync/syncs/${syncId}/trigger`, {
+        sync_mode: pendingMode,
+        trigger,
+      });
+      onUpdated();
+      setEditMode(false);
+    } catch (err) {
+      console.error('Failed to update trigger:', err);
+    } finally {
+      setSaving(false);
+    }
+  }, [syncId, pendingMode, scheduleConfig, onUpdated]);
+
+  const handleCancel = useCallback(() => {
+    setPendingMode(currentMode);
+    setScheduleConfig(
+      currentTrigger?.schedule ? { schedule: currentTrigger.schedule, timezone: currentTrigger.timezone || 'Asia/Shanghai' } : null,
+    );
+    setEditMode(false);
+  }, [currentMode, currentTrigger]);
+
+  const modeLabel = SYNC_MODE_META[currentMode]?.label || currentMode;
+
+  return (
+    <div style={{ padding: '0 4px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          Sync Mode
+        </div>
+        {!isLocked && !editMode && (
+          <button
+            onClick={() => setEditMode(true)}
+            style={{
+              background: 'none', border: 'none', color: '#525252', cursor: 'pointer',
+              fontSize: 11, padding: '2px 6px', borderRadius: 4, transition: 'color 0.12s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#a3a3a3'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#525252'; }}
+          >
+            Edit
+          </button>
+        )}
+      </div>
+
+      {!editMode ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 6,
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 500, color: '#e4e4e7' }}>{modeLabel}</span>
+          {currentMode === 'scheduled' && currentTrigger?.schedule && (
+            <span style={{ fontSize: 11, color: '#525252' }}>· {describeCron(currentTrigger.schedule)}</span>
+          )}
+          {isLocked && (
+            <span style={{ fontSize: 10, color: '#525252', marginLeft: 'auto' }}>Fixed</span>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Mode buttons */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            {policy.supportedModes.map(mode => (
+              <button
+                key={mode}
+                onClick={() => setPendingMode(mode)}
+                style={{
+                  flex: 1, height: 32, borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  cursor: 'pointer', transition: 'all 0.12s',
+                  background: pendingMode === mode ? 'rgba(59,130,246,0.12)' : 'transparent',
+                  border: pendingMode === mode ? '1px solid rgba(59,130,246,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                  color: pendingMode === mode ? '#60a5fa' : '#a3a3a3',
+                }}
+              >
+                {SYNC_MODE_META[mode]?.label || mode}
+              </button>
+            ))}
+          </div>
+
+          {/* Description */}
+          <div style={{ fontSize: 11, color: '#525252', padding: '0 2px' }}>
+            {SYNC_MODE_META[pendingMode]?.desc}
+          </div>
+
+          {/* Schedule config when "scheduled" is selected */}
+          {pendingMode === 'scheduled' && (
+            <ScheduleEditor
+              config={scheduleConfig}
+              onChange={setScheduleConfig}
+            />
+          )}
+
+          {/* Save / Cancel */}
+          <div style={{ display: 'flex', gap: 6, paddingTop: 4 }}>
+            <button
+              onClick={handleSave}
+              disabled={saving || (pendingMode === 'scheduled' && !scheduleConfig?.schedule)}
+              style={{
+                flex: 1, height: 28, borderRadius: 6, fontSize: 12, fontWeight: 500,
+                background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)',
+                color: '#60a5fa', cursor: saving ? 'not-allowed' : 'pointer',
+                opacity: saving || (pendingMode === 'scheduled' && !scheduleConfig?.schedule) ? 0.5 : 1,
+              }}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={handleCancel}
+              style={{
+                flex: 1, height: 28, borderRadius: 6, fontSize: 12, fontWeight: 500,
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
+                color: '#a3a3a3', cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// ScheduleEditor — lightweight inline cron builder
+// ============================================================
+
+function ScheduleEditor({
+  config,
+  onChange,
+}: {
+  config: { schedule?: string; timezone?: string } | null;
+  onChange: (c: { schedule?: string; timezone?: string }) => void;
+}) {
+  const [hour, setHour] = useState(9);
+  const [minute, setMinute] = useState(0);
+  const [repeatType, setRepeatType] = useState<'daily' | 'weekly'>('daily');
+  const [weekday, setWeekday] = useState(1);
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    if (!config?.schedule) {
+      onChange({ schedule: `0 9 * * *`, timezone: 'Asia/Shanghai' });
+      return;
+    }
+    const parts = config.schedule.split(' ');
+    if (parts.length < 5) return;
+    const m = parseInt(parts[0], 10);
+    const h = parseInt(parts[1], 10);
+    if (!isNaN(m)) setMinute(m);
+    if (!isNaN(h)) setHour(h);
+    if (parts[4] !== '*' && parts[2] === '*') {
+      setRepeatType('weekly');
+      const d = parseInt(parts[4], 10);
+      if (!isNaN(d)) setWeekday(d);
+    } else {
+      setRepeatType('daily');
+    }
+  }, [config, onChange]);
+
+  const buildCron = useCallback((h: number, m: number, rpt: typeof repeatType, wd: number) => {
+    const cron = rpt === 'weekly' ? `${m} ${h} * * ${wd}` : `${m} ${h} * * *`;
+    onChange({ schedule: cron, timezone: 'Asia/Shanghai' });
+  }, [onChange]);
+
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const selectStyle: React.CSSProperties = {
+    height: 28, padding: '0 6px', borderRadius: 4, fontSize: 12,
+    background: '#161616', border: '1px solid rgba(255,255,255,0.1)', color: '#e4e4e7',
+    cursor: 'pointer', outline: 'none',
+  };
+
+  return (
+    <div style={{
+      padding: '10px 12px', borderRadius: 6,
+      background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+      display: 'flex', flexDirection: 'column', gap: 8,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <select
+          value={repeatType}
+          onChange={e => {
+            const v = e.target.value as typeof repeatType;
+            setRepeatType(v);
+            buildCron(hour, minute, v, weekday);
+          }}
+          style={selectStyle}
+        >
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
+        {repeatType === 'weekly' && (
+          <select
+            value={weekday}
+            onChange={e => {
+              const d = parseInt(e.target.value, 10);
+              setWeekday(d);
+              buildCron(hour, minute, repeatType, d);
+            }}
+            style={selectStyle}
+          >
+            {dayLabels.map((label, i) => (
+              <option key={i} value={i}>{label}</option>
+            ))}
+          </select>
+        )}
+        <span style={{ fontSize: 12, color: '#525252' }}>at</span>
+        <select
+          value={hour}
+          onChange={e => {
+            const h = parseInt(e.target.value, 10);
+            setHour(h);
+            buildCron(h, minute, repeatType, weekday);
+          }}
+          style={{ ...selectStyle, width: 52 }}
+        >
+          {Array.from({ length: 24 }, (_, i) => (
+            <option key={i} value={i}>{i.toString().padStart(2, '0')}</option>
+          ))}
+        </select>
+        <span style={{ fontSize: 12, color: '#525252' }}>:</span>
+        <select
+          value={minute}
+          onChange={e => {
+            const m = parseInt(e.target.value, 10);
+            setMinute(m);
+            buildCron(hour, m, repeatType, weekday);
+          }}
+          style={{ ...selectStyle, width: 52 }}
+        >
+          {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => (
+            <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>
+          ))}
+        </select>
+      </div>
+      <div style={{ fontSize: 11, color: '#525252' }}>
+        {repeatType === 'daily' ? `Every day at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}` : `Every ${dayLabels[weekday]} at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Helpers
+// ============================================================
 
 function describeCron(schedule: string): string {
   const parts = schedule.split(' ');
@@ -384,64 +712,9 @@ function describeCron(schedule: string): string {
   return `At ${time}`;
 }
 
-function SyncModeInfo({ trigger, lastSyncedAt }: {
-  trigger: { type?: string; schedule?: string; timezone?: string };
-  lastSyncedAt: string | null;
-}) {
-  const mode = trigger.type || 'import_once';
-  const modeLabel = getSyncModeLabel(mode);
-
-  return (
-    <div style={{
-      padding: '10px 12px', borderRadius: 6,
-      background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
-      display: 'flex', flexDirection: 'column', gap: 4,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3' }}>{modeLabel}</span>
-        {mode === 'scheduled' && trigger.schedule && (
-          <span style={{ fontSize: 11, color: '#525252' }}>· {describeCron(trigger.schedule)}</span>
-        )}
-      </div>
-      {lastSyncedAt && (
-        <div style={{ fontSize: 11, color: '#525252' }}>
-          Last synced: {relativeTime(lastSyncedAt)}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ============================================================
 // Sub-components
 // ============================================================
-
-function ViewHeader({ name, icon, onClose }: { name: string; icon?: React.ReactNode; onClose: () => void }) {
-  return (
-    <div style={{
-      height: 48, padding: '0 16px', borderBottom: '1px solid #222', background: '#0d0d0d',
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {icon && <span style={{ display: 'flex' }}>{icon}</span>}
-        <span style={{ fontSize: 14, fontWeight: 500, color: '#ededed' }}>{name}</span>
-      </div>
-      <button
-        onClick={onClose}
-        style={{
-          background: 'transparent', border: 'none', cursor: 'pointer',
-          color: '#666', display: 'flex', padding: 6, borderRadius: 4, transition: 'color 0.15s',
-        }}
-        onMouseEnter={e => e.currentTarget.style.color = '#ededed'}
-        onMouseLeave={e => e.currentTarget.style.color = '#666'}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-    </div>
-  );
-}
 
 function ActionButton({ label, icon, variant = 'default', onClick }: {
   label: string; icon: string; variant?: 'default' | 'danger'; onClick: () => void;

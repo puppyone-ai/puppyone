@@ -316,7 +316,7 @@ async def complete_workspace(
     # 5. PUSH: 将已提交的变更推送到关联的 folder access 工作区
     if committed_items:
         try:
-            from src.sync.connectors.openclaw.folder_access import FolderAccessService
+            from src.filesystem.folder_access import FolderAccessService
             fa = FolderAccessService.get_instance()
             if fa:
                 for item in committed_items:

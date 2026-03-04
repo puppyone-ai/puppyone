@@ -107,7 +107,7 @@ function updateSyncStats(state) {
 
 function makeClient(accessKey, apiUrl, folderId) {
   const baseUrl = apiUrl.replace(/\/+$/, "");
-  const syncBase = `/api/v1/sync/${folderId}`;
+  const syncBase = `/api/v1/filesystem/${folderId}`;
 
   async function request(method, path, body, { timeoutMs } = {}) {
     const url = `${baseUrl}${path}`;

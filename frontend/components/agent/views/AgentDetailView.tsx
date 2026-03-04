@@ -158,7 +158,7 @@ function parseScheduleInfo(triggerConfig: { schedule?: string; timezone?: string
 }
 
 export function AgentDetailView({ agent }: AgentDetailViewProps) {
-  const { editAgent, deleteAgent, closeSidebar } = useAgent();
+  const { editAgent, deleteAgent } = useAgent();
   const [isPaused, setIsPaused] = useState(false);
   const [executions, setExecutions] = useState<ExecutionLog[]>([]);
   const [loadingExecutions, setLoadingExecutions] = useState(false);
@@ -198,7 +198,6 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
   const handleDelete = () => {
     if (confirm(`Delete "${agent.name}"? This cannot be undone.`)) {
       deleteAgent(agent.id);
-      closeSidebar();
     }
   };
 

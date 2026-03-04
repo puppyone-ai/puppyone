@@ -67,7 +67,7 @@ async function watchOpenClaw(opts, cmd, out) {
     out.error("NO_FOLDER_ID", "No folder_id found. Re-run `puppyone connect` to update your connection.");
     return;
   }
-  const syncBase = `/sync/${folderId}`;
+  const syncBase = `/filesystem/${folderId}`;
 
   out.info(`\nWatching ${conn.folder} ↔ PuppyOne`);
   out.info(`  API:  ${conn.api_url ?? "http://localhost:9090"}`);

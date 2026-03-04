@@ -6,47 +6,24 @@ import type { ProjectInfo } from '../lib/projectsApi';
 import type { OrganizationInfo } from '../lib/organizationsApi';
 import { SidebarLayout, type NavItem } from './sidebar/SidebarLayout';
 
-type UtilityNavItem = {
-  id: string;
-  label: string;
-  path: string;
-  isAvailable: boolean;
-};
-
 type AppSidebarProps = {
   projects: ProjectInfo[];
   activeBaseId: string;
-  expandedBaseIds: Set<string>;
-  activeTableId: string;
   activeView?: string;
-  onBaseClick: (projectId: string) => void;
-  onTableClick: (projectId: string, tableId: string) => void;
-  utilityNav: UtilityNavItem[];
-  onUtilityNavClick: (path: string) => void;
   userInitial: string;
   userAvatarUrl?: string;
   environmentLabel?: string;
-  onProjectsChange?: (projects: ProjectInfo[]) => void;
-  loading?: boolean;
   isCollapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
   sidebarWidth?: number;
   onSidebarWidthChange?: (width: number) => void;
-  toolsCount?: number;
   currentOrg?: OrganizationInfo | null;
-  orgs?: OrganizationInfo[];
-  onSwitchOrg?: (orgId: string) => void;
 };
 
 export function AppSidebar({
   projects,
   activeBaseId,
-  // expandedBaseIds,
-  activeTableId,
   activeView = 'projects',
-  // onBaseClick,
-  // onTableClick,
-  onUtilityNavClick,
   userInitial,
   userAvatarUrl,
   environmentLabel = 'Local Dev',
@@ -54,26 +31,20 @@ export function AppSidebar({
   onCollapsedChange,
   sidebarWidth,
   onSidebarWidthChange,
-  toolsCount = 0,
   currentOrg,
-  orgs = [],
-  onSwitchOrg,
 }: AppSidebarProps) {
   const router = useRouter();
 
-  // 判断是否在 Project Context
   const activeProject = activeBaseId
     ? projects.find(p => p.id === activeBaseId)
     : null;
 
-  // Convert projects to ProjectOption format
   const projectOptions = projects.map((p) => ({
     id: p.id,
     name: p.name,
   }));
 
   if (activeProject) {
-    // Project View Nav Items
     const projectNavItems: NavItem[] = [
       {
         id: 'data',
@@ -161,9 +132,6 @@ export function AppSidebar({
     );
   }
 
-  // Global Dashboard View Nav Items
-  // Note: Tools are project-scoped, not global - they appear under each project's sidebar
-  // Note: Integrations/Connections moved to User Menu (per-user settings, not organization)
   const globalNavItems: NavItem[] = [
     {
       id: 'home',

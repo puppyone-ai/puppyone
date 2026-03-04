@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState, useRef, useEffect } from 'react';
-import type { ContentType, AgentResource } from './GridView';
+import type { ContentType } from './GridView';
 import { getNodeTypeConfig, getSyncSourceIcon, getSyncSource, isSyncedType } from '@/lib/nodeTypeConfig';
 import { useContentNodes } from '@/lib/hooks/useData';
 import { useSyncExternalStore } from 'react';
@@ -85,9 +85,10 @@ export interface ExplorerSidebarProps {
   onDelete?: (id: string, name: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onSyncClick?: (item: MillerColumnItem, pathToItem: string[]) => void;
+  onEndpointClick?: (item: MillerColumnItem, endpoint: SyncEndpointInfo, pathToItem: string[]) => void;
   activeSyncNodeId?: string | null;
-  agentResources?: AgentResource[];
   syncEndpoints?: Map<string, SyncEndpointInfo>;
+  nodeEndpointMap?: Map<string, SyncEndpointInfo[]>;
   highlightNodeId?: string | null;
   className?: string;
   style?: React.CSSProperties;
@@ -179,14 +180,14 @@ function hasFileExtension(name: string): boolean {
 }
 
 // === Sync Source Icon (left column) ===
-function SyncSourceIcon({ size = 14 }: { size?: number }) {
+function SyncSourceIcon({ size = 16, isEmpty = false }: { size?: number, isEmpty?: boolean }) {
   // 极简的“插头”图标 (Plug)，类似 Supabase 的连接隐喻
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isEmpty ? "1.5" : "2"} strokeLinecap="round" strokeLinejoin="round" style={{ color: isEmpty ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.8)' }}>
       <path d="M12 22v-5" />
       <path d="M9 8V2" />
       <path d="M15 8V2" />
-      <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+      <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" strokeDasharray={isEmpty ? "2 2" : "none"} />
     </svg>
   );
 }
@@ -209,8 +210,7 @@ function SyncBadge({ provider, direction, active }: { provider: string; directio
       case 'notion': return <img src="/icons/notion.svg" width={sz} height={sz} style={{ display: 'block' }} />;
       case 'linear': return <img src="/icons/linear.svg" width={sz} height={sz} style={{ display: 'block' }} />;
       case 'airtable': return <img src="/icons/airtable.svg" width={sz} height={sz} style={{ display: 'block' }} />;
-      case 'filesystem':
-      case 'openclaw': return <span style={{ fontSize: 10, lineHeight: 1 }}>🦞</span>;
+      case 'filesystem': return <span style={{ fontSize: 10, lineHeight: 1 }}>🦞</span>;
       default: return <span style={{ color: '#71717a', fontSize: 10 }}>⟳</span>;
     }
   })();
@@ -243,7 +243,186 @@ function SyncBadge({ provider, direction, active }: { provider: string; directio
   );
 }
 
+function EndpointIconRenderer({ ep, size = 14 }: { ep: SyncEndpointInfo, size?: number }) {
+  const isAgent = ep.provider.startsWith('agent:');
+  const isMcp = ep.provider === 'mcp';
+  const isSandbox = ep.provider === 'sandbox';
+  const color = isAgent ? 'rgba(167, 139, 250, 0.8)' : isMcp ? 'rgba(96, 165, 250, 0.8)' : isSandbox ? 'rgba(245, 158, 11, 0.8)' : 'rgba(255, 255, 255, 0.6)';
+  const dotColor = isAgent ? '#a78bfa' : isMcp ? '#60a5fa' : isSandbox ? '#f59e0b' : '#10b981';
+
+  return (
+    <>
+      {isAgent ? (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      ) : isMcp ? (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
+          <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+          <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+          <line x1="6" y1="6" x2="6.01" y2="6" />
+          <line x1="6" y1="18" x2="6.01" y2="18" />
+        </svg>
+      ) : isSandbox ? (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
+          <polyline points="4 17 10 11 4 5" />
+          <line x1="12" y1="19" x2="20" y2="19" />
+        </svg>
+      ) : (
+        <SyncSourceIcon size={size} />
+      )}
+      <div style={{
+        position: 'absolute', bottom: 2, right: 2,
+        width: 6, height: 6, borderRadius: '50%',
+        background: dotColor,
+        boxShadow: '0 0 0 2px rgba(24, 24, 27, 0.8)', // Semi-transparent dark border to create a cutout effect
+      }} />
+    </>
+  );
+}
+
 // === Context Menu (three dots) ===
+// === Endpoint Hover Menu ===
+// === Endpoint Hover Menu ===
+function EndpointHoverMenu({ 
+  endpoints, 
+  onEndpointClick, 
+  item, 
+  ancestors,
+  defaultClick 
+}: { 
+  endpoints: SyncEndpointInfo[], 
+  onEndpointClick: (item: MillerColumnItem, endpoint: SyncEndpointInfo, pathToItem: string[]) => void, 
+  item: MillerColumnItem, 
+  ancestors: string[],
+  defaultClick: () => void 
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const triggerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (endpoints.length <= 1) return;
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      // "在下面的一横行排开" (Expand downwards and horizontally)
+      setPos({ x: rect.left, y: rect.bottom + 2 });
+    }
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setOpen(false);
+    }, 150);
+  };
+
+  const defaultEndpoint = endpoints[0];
+
+  return (
+    <div 
+      style={{ display: 'flex', position: 'relative' }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <div
+        ref={triggerRef}
+        title={endpoints.length > 1 ? `${endpoints.length} endpoints (Click for default, hover for all)` : `${defaultEndpoint?.provider} (Click to configure)`}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(false);
+          defaultClick();
+        }}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
+          position: 'relative',
+          opacity: 1,
+          background: open ? 'rgba(255,255,255,0.1)' : 'transparent',
+          transition: 'background 0.15s, opacity 0.15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.background = 'transparent'; }}
+      >
+        {open ? (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        ) : (
+          <>
+            <EndpointIconRenderer ep={defaultEndpoint} size={16} />
+            {endpoints.length > 1 && (
+              <div style={{
+                position: 'absolute', top: -4, right: -4,
+                background: '#f59e0b', color: '#fff',
+                fontSize: 9, fontWeight: 700,
+                width: 14, height: 14, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 0 1.5px #111111',
+                zIndex: 10
+              }}>
+                {endpoints.length}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {open && pos && endpoints.length > 1 && (
+        <div
+          style={{
+            position: 'fixed', top: pos.y, left: pos.x, zIndex: 10000,
+            background: 'rgba(26, 26, 28, 0.95)', // dark slightly transparent
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: 8, // Rounded rectangle
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            height: 28,
+            padding: '0 4px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4,
+            pointerEvents: 'auto',
+          }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          {endpoints.map((ep, i) => {
+            const epIsAgent = ep.provider.startsWith('agent:');
+            const epIsMcp = ep.provider === 'mcp';
+            const epIsSandbox = ep.provider === 'sandbox';
+            const label = epIsAgent ? 'Chat Agent' : epIsMcp ? 'MCP Server' : epIsSandbox ? 'Sandbox' : 'Data Sync';
+
+            return (
+              <div
+                key={ep.syncId}
+                title={label}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  onEndpointClick(item, ep, [...ancestors, item.id]);
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
+                  color: '#e4e4e7', transition: 'background 0.1s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                  <EndpointIconRenderer ep={ep} size={16} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === Item Context Menu ===
+
 function ItemContextMenu({ itemId, itemName, isSynced, onRename, onDelete, onOpenChange }: {
   itemId: string;
   itemName: string;
@@ -368,14 +547,15 @@ interface TreeItemProps {
   onDelete?: (id: string, name: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onSyncClick?: (item: MillerColumnItem, pathToItem: string[]) => void;
+  onEndpointClick?: (item: MillerColumnItem, endpoint: SyncEndpointInfo, pathToItem: string[]) => void;
   activeSyncNodeId?: string | null;
   ancestors: string[];
-  agentResourceMap?: Map<string, AgentResource>;
   syncEndpoints?: Map<string, SyncEndpointInfo>;
+  nodeEndpointMap?: Map<string, SyncEndpointInfo[]>;
   highlightNodeId?: string | null;
 }
 
-function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, activeSyncNodeId, ancestors, agentResourceMap, syncEndpoints, highlightNodeId }: TreeItemProps) {
+function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, onEndpointClick, activeSyncNodeId, ancestors, syncEndpoints, nodeEndpointMap, highlightNodeId }: TreeItemProps) {
   const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
   const isSynced = item.is_synced;
   const syncEndpoint = syncEndpoints?.get(item.id);
@@ -398,9 +578,6 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
     }
   }, [isHighlighted]);
 
-  const agentResource = agentResourceMap?.get(item.id);
-  const hasAgentAccess = !!agentResource;
-
   const { nodes: children, isLoading: loading } = useContentNodes(
     expanded ? projectId : '',
     expanded ? item.id : undefined
@@ -422,12 +599,12 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
   const childTextPadding = LEFT_STATUS_COL_WIDTH + rowPaddingLeft + 22;
 
   const isSyncActive = activeSyncNodeId === item.id;
+  const isEndpointActive = isSyncActive;
+  const isRowActive = isActive || isEndpointActive;
   const getBackground = (h: boolean) => {
     if (isDropTarget) return 'rgba(59, 130, 246, 0.2)';
     if (isHighlighted) return 'rgba(59, 130, 246, 0.15)';
-    if (isSyncActive) return 'rgba(249, 115, 22, 0.22)';
-    if (isActive) return hasAgentAccess ? 'rgba(249, 115, 22, 0.18)' : '#2a2a2a';
-    if (hasAgentAccess) return h ? 'rgba(249, 115, 22, 0.12)' : 'rgba(249, 115, 22, 0.05)';
+    if (isRowActive) return '#2a2a2a';
     return h ? 'rgba(255,255,255,0.06)' : 'transparent';
   };
 
@@ -437,6 +614,12 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
   }));
 
   const showActions = (hovered || menuOpen) && (onCreate || onRename || onDelete);
+
+  const endpoints = nodeEndpointMap?.get(item.id) || (syncEndpoint ? [syncEndpoint] : []);
+  const hasMultipleEndpoints = endpoints.length > 1;
+  const defaultEndpoint = endpoints[0];
+  const [endpointsExpanded, setEndpointsExpanded] = useState(false);
+  const [statusHovered, setStatusHovered] = useState(false);
 
   return (
     <div>
@@ -462,12 +645,11 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
           height: 30, boxSizing: 'border-box',
           borderRadius: 6,
           background: getBackground(hovered),
-          color: isDropTarget ? '#93c5fd' : isActive ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
+          color: isDropTarget ? '#93c5fd' : isRowActive ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
           fontSize: 13, userSelect: 'none',
           transition: 'background 0.1s, color 0.1s',
-          boxShadow: isDropTarget ? 'inset 3px 0 0 0 rgba(59, 130, 246, 0.7)' : hasAgentAccess ? 'inset 3px 0 0 0 rgba(249, 115, 22, 0.7)' : 'none',
+          boxShadow: isDropTarget ? 'inset 3px 0 0 0 rgba(59, 130, 246, 0.7)' : 'none',
           cursor: 'pointer',
-          overflow: 'hidden' // Ensure the inset shadow follows the border radius
         }}
       >
         {/* Left dedicated status column (sync plug only) */}
@@ -480,10 +662,18 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
             justifyContent: 'center',
             height: '100%',
             boxSizing: 'border-box',
-            background: isSyncActive ? 'rgba(249, 115, 22, 0.08)' : 'transparent',
+            background: 'transparent',
           }}
         >
-          {syncEndpoint && (
+          {syncEndpoint && nodeEndpointMap?.get(item.id) ? (
+            <EndpointHoverMenu
+              endpoints={nodeEndpointMap.get(item.id)!}
+              onEndpointClick={(it, ep, path) => onEndpointClick?.(it, ep, path)}
+              item={item}
+              ancestors={ancestors}
+              defaultClick={() => onSyncClick?.(item, [...ancestors, item.id])}
+            />
+          ) : syncEndpoint ? (
             <div
               title={`${syncEndpoint.provider} (Click to configure)`}
               onClick={(e) => {
@@ -494,22 +684,34 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
                 position: 'relative',
-                opacity: isSyncActive || hovered ? 1 : 0.85,
-                background: isSyncActive ? 'rgba(255,255,255,0.12)' : 'transparent',
+                opacity: isEndpointActive || hovered ? 1 : 0.85,
+                background: isEndpointActive ? 'rgba(255,255,255,0.12)' : 'transparent',
                 transition: 'background 0.15s, opacity 0.15s',
               }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = isSyncActive ? 'rgba(255,255,255,0.12)' : 'transparent'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = isEndpointActive ? 'rgba(255,255,255,0.12)' : 'transparent'; }}
             >
-              <SyncSourceIcon size={14} />
-              <div style={{
-                position: 'absolute', bottom: 3, right: 3,
-                width: 5, height: 5, borderRadius: '50%',
-                background: '#10b981',
-                boxShadow: '0 0 0 1.5px #1a1a1a',
-              }} />
+              <EndpointIconRenderer ep={syncEndpoint} size={16} />
             </div>
-          )}
+          ) : hovered ? (
+            <div
+              title="Add connection"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSyncClick?.(item, [...ancestors, item.id]);
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
+                position: 'relative',
+                transition: 'background 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <SyncSourceIcon size={16} isEmpty={true} />
+            </div>
+          ) : null}
         </div>
 
         {/* File row content */}
@@ -594,8 +796,8 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
           ) : childItems.length > 0 ? (
             childItems.map(child => (
               <TreeItem key={child.id} item={child} depth={depth + 1} projectId={projectId}
-                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} activeSyncNodeId={activeSyncNodeId}
-                ancestors={[...ancestors, item.id]} agentResourceMap={agentResourceMap} syncEndpoints={syncEndpoints} highlightNodeId={highlightNodeId} />
+                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} onEndpointClick={onEndpointClick} activeSyncNodeId={activeSyncNodeId}
+                ancestors={[...ancestors, item.id]} syncEndpoints={syncEndpoints} nodeEndpointMap={nodeEndpointMap} highlightNodeId={highlightNodeId} />
             ))
           ) : !loading ? (
             <div style={{ paddingLeft: childTextPadding, paddingTop: 4, paddingBottom: 4, color: '#666', fontSize: 12, fontStyle: 'italic' }}>Empty</div>
@@ -607,7 +809,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 }
 
 // === Main Component ===
-export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, activeSyncNodeId, agentResources, syncEndpoints, highlightNodeId, className, style }: ExplorerSidebarProps) {
+export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, onEndpointClick, activeSyncNodeId, syncEndpoints, nodeEndpointMap, highlightNodeId, className, style }: ExplorerSidebarProps) {
   const { nodes: rootNodes, isLoading: loading } = useContentNodes(projectId, null);
 
   const { isDropTarget: isRootDropTarget, dropHandlers: rootDropHandlers } = useNodeDrop({
@@ -628,11 +830,6 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
 
   const pendingId = usePendingActiveId();
   const activeId = pendingId || activeNodeId || (currentPath.length > 0 ? currentPath[currentPath.length - 1].id : null);
-
-  const agentResourceMap = new Map<string, AgentResource>();
-  if (agentResources) {
-    for (const r of agentResources) agentResourceMap.set(r.nodeId, r);
-  }
 
   return (
     <div className={className} style={{ ...style, display: 'flex', flexDirection: 'column' }}>
@@ -736,8 +933,8 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
           ) : (
             rootItems.map(item => (
               <TreeItem key={item.id} item={item} depth={1} projectId={projectId}
-                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} activeSyncNodeId={activeSyncNodeId}
-                ancestors={[]} agentResourceMap={agentResourceMap} syncEndpoints={syncEndpoints} highlightNodeId={highlightNodeId} />
+                activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} onEndpointClick={onEndpointClick} activeSyncNodeId={activeSyncNodeId}
+                ancestors={[]} syncEndpoints={syncEndpoints} nodeEndpointMap={nodeEndpointMap} highlightNodeId={highlightNodeId} />
             ))
           )}
         </div>

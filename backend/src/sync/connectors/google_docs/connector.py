@@ -18,6 +18,7 @@ from src.sync.connectors._base import (
     TriggerMode,
     FetchResult,
     Credentials,
+    ConfigField,
 )
 from src.oauth.google_docs_service import GoogleDocsOAuthService
 from src.s3.service import S3Service
@@ -41,6 +42,9 @@ class GoogleDocsConnector(BaseConnector):
             oauth_type="docs",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="manual",
+            config_fields=(
+                ConfigField(key="source_url", label="Google Docs document URL", type="url", required=True, placeholder="https://docs.google.com/document/d/.../edit"),
+            ),
         )
 
     def __init__(

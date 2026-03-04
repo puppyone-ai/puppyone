@@ -22,6 +22,7 @@ from src.sync.connectors._base import (
     TriggerMode,
     FetchResult,
     Credentials,
+    ConfigField,
 )
 
 
@@ -40,6 +41,9 @@ class NotionConnector(BaseConnector):
             oauth_type="notion",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="manual",
+            config_fields=(
+                ConfigField(key="source_url", label="Notion page or database URL", type="url", required=True, placeholder="https://notion.so/my-page-abc123"),
+            ),
         )
 
     def __init__(

@@ -2,8 +2,9 @@
 Unified Sync — Data Models
 
 Sync — A single sync binding between a content_node and an external resource.
-       Stored in the `syncs` table. Replaces the old `sync_sources` +
-       content_nodes sync fields with one unified row per sync relationship.
+       Stored in the `connections` table (provider != 'agent'). Replaces the
+       old `sync_sources` + content_nodes sync fields with one unified row
+       per sync relationship.
 """
 
 from dataclasses import dataclass, field
@@ -18,7 +19,7 @@ from pydantic import BaseModel
 @dataclass
 class Sync:
     """
-    Unified sync binding. Maps to the `syncs` table.
+    Unified sync binding. Maps to the `connections` table (provider != 'agent').
 
     Each row represents one sync relationship between a content_node
     and an external resource, carrying both connection config and
@@ -26,9 +27,9 @@ class Sync:
     """
     id: str
     project_id: str
-    node_id: str
-    direction: str                          # inbound | outbound | bidirectional
-    provider: str                           # filesystem | github | notion | ...
+    node_id: Optional[str] = None
+    direction: str = "inbound"              # inbound | outbound | bidirectional
+    provider: str = ""                      # filesystem | github | notion | ...
     authority: str = "authoritative"        # authoritative | mirror
     config: Dict[str, Any] = field(default_factory=dict)
     credentials_ref: Optional[str] = None

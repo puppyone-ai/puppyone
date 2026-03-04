@@ -97,17 +97,28 @@ class SchedulerService:
             
             client = SupabaseClient().client
             
-            # Query all schedule type agents with cron trigger
-            result = client.table("agents").select("*").eq("type", "schedule").eq("trigger_type", "cron").execute()
+            result = (
+                client.table("connections")
+                .select("*")
+                .eq("provider", "agent")
+                .eq("status", "active")
+                .execute()
+            )
             
-            agents = result.data or []
+            agents = [
+                row for row in (result.data or [])
+                if (row.get("config") or {}).get("type") == "schedule"
+                and (row.get("trigger") or {}).get("type") == "cron"
+            ]
             log_info(f"📋 Found {len(agents)} schedule agents to load")
             
             for agent in agents:
+                config = agent.get("config") or {}
+                trigger = agent.get("trigger") or {}
                 await self.add_agent_job(
                     agent_id=agent["id"],
-                    trigger_config=agent.get("trigger_config") or {},
-                    agent_name=agent.get("name", "Unknown")
+                    trigger_config=trigger.get("config") or {},
+                    agent_name=config.get("name", "Unknown")
                 )
             
             log_info(f"✅ Loaded {len(agents)} agent jobs")
@@ -173,7 +184,7 @@ class SchedulerService:
 
             client = SupabaseClient().client
             result = (
-                client.table("syncs")
+                client.table("connections")
                 .select("id, provider, trigger, status")
                 .eq("status", "active")
                 .execute()

@@ -1,3 +1,3 @@
-"""Backward-compatibility re-export — see sync/providers/openclaw/router.py."""
-from src.access.openclaw.router import *  # noqa: F401,F403
-from src.access.openclaw.router import router
+"""Backward-compatibility re-export — see sync/connectors/filesystem/router.py."""
+from src.access.filesystem.router import *  # noqa: F401,F403
+from src.access.filesystem.router import router

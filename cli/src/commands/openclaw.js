@@ -102,7 +102,7 @@ function isDangerousPath(absPath) {
 // ============================================================
 
 function makeSyncApi(baseApi, folderId) {
-  const prefix = `/sync/${folderId}`;
+  const prefix = `/filesystem/${folderId}`;
   return {
     pull: (cursor) => baseApi.get(`${prefix}/pull?cursor=${cursor}`),
     push: (body) => baseApi.post(`${prefix}/push`, body),
@@ -292,8 +292,41 @@ export function registerAgentSubcommands(oc) {
       let accessKey = opts.key || process.env.PUPPYONE_ACCESS_KEY || null;
 
       if (!hasConnection && !accessKey) {
-        out.error("MISSING_KEY", "No existing connection and no --key provided.", "Usage: puppyone access up <path> --key <access-key>");
-        return;
+        // Auto-provision: create filesystem connection (folder + bootstrap) if user is logged in with a project
+        try {
+          const { createClient } = await import("../api.js");
+          const { requireProject } = await import("../helpers.js");
+          const jwtClient = createClient(cmd);
+          const projectId = requireProject(cmd);
+
+          const folderName = absPath.split("/").pop() || "workspace";
+          out.step(`Creating folder "${folderName}"...`);
+          const folder = await jwtClient.post("/nodes/folders", {
+            project_id: projectId,
+            name: folderName,
+          });
+          const nodeId = folder.id;
+          out.done(`node ${nodeId.slice(0, 8)}...`);
+
+          out.step("Bootstrapping filesystem connection...");
+          const sync = await jwtClient.post(`/filesystem/bootstrap?project_id=${projectId}&node_id=${nodeId}`);
+          accessKey = sync.access_key;
+          if (!accessKey) {
+            out.done("");
+            out.error("NO_KEY", "Filesystem connection created but no access key returned.", "Try creating manually via the web UI.");
+            return;
+          }
+          out.done(`key ${accessKey.slice(0, 8)}...`);
+        } catch (e) {
+          const { ApiError } = await import("../api.js");
+          if (e instanceof ApiError && (e.code === "NOT_AUTHENTICATED" || e.code === "NO_PROJECT")) {
+            out.error("MISSING_KEY", "No --key provided and cannot auto-create connection.",
+              "Either:\n  1. puppyone access up <path> --key <access-key>\n  2. puppyone auth login && puppyone project use <name> && puppyone access up <path>");
+          } else {
+            out.error("AUTO_PROVISION_FAILED", e.message, "Provide --key manually: puppyone access up <path> --key <key>");
+          }
+          return;
+        }
       }
 
       out.info("");
@@ -520,7 +553,7 @@ async function doRemove(folder, opts, cmd) {
   }
 
   try {
-    const data = await api.del("/sync/openclaw/disconnect");
+    const data = await api.del("/filesystem/disconnect");
     out.info(`  ${data.message ?? "Disconnected"}`);
 
     unregisterWorkspace(absPath);
@@ -548,7 +581,7 @@ async function doConnect(absPath, accessKey, cmd, state, out, opts = {}) {
     api = createOpenClawClient(accessKey, cmd);
 
     out.step("Authenticating...");
-    const data = await api.post("/sync/openclaw/connect", { workspace_path: absPath });
+    const data = await api.post("/filesystem/connect", { workspace_path: absPath });
 
     if (!data.folder_id) {
       out.done("");

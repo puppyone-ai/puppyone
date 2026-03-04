@@ -4,6 +4,9 @@ OpenClaw Connector — Bidirectional CLI file sync.
 Unlike SaaS connectors, OpenClaw doesn't use the standard fetch() pipeline.
 Sync is driven by the CLI pushing/pulling files via FolderSyncService.
 The connector exposes spec() and delegates to OpenClawService for lifecycle.
+
+NOTE: This stays in sync/connectors/ to avoid circular imports with the
+ConnectorRegistry. The actual sync logic lives in src.filesystem.
 """
 
 from typing import Any, Optional, List
@@ -20,8 +23,8 @@ class OpenClawConnector(BaseConnector):
 
     def spec(self) -> ConnectorSpec:
         return ConnectorSpec(
-            provider="openclaw",
-            display_name="OpenClaw",
+            provider="filesystem",
+            display_name="Desktop Folder",
             capabilities=(
                 Capability.PULL | Capability.PUSH
                 | Capability.REALTIME | Capability.BOOTSTRAP
@@ -35,7 +38,7 @@ class OpenClawConnector(BaseConnector):
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
         raise NotImplementedError(
             "OpenClaw does not use fetch(). "
-            "Use POST /api/v1/sync/syncs/openclaw/bootstrap instead."
+            "Use POST /api/v1/filesystem/bootstrap instead."
         )
 
     async def push(self, sync: Sync, content: Any, node_type: str) -> PushResult:

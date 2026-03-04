@@ -27,6 +27,7 @@ from typing import Optional, TYPE_CHECKING
 from src.sync.connectors._base import FetchResult
 from src.sync.registry import ConnectorRegistry
 from src.sync.repository import SyncRepository
+from src.sync.run_repository import SyncRunRepository
 from src.sync.schemas import Sync
 from src.collaboration.schemas import Mutation, MutationType, Operator
 from src.utils.logger import log_info, log_error, log_debug
@@ -46,14 +47,19 @@ class SyncEngine:
         registry: ConnectorRegistry,
         collab_service: "CollaborationService",
         sync_repo: SyncRepository,
+        run_repo: Optional[SyncRunRepository] = None,
     ):
         self.registry = registry
         self.collab = collab_service
         self.sync_repo = sync_repo
+        self.run_repo = run_repo
 
-    async def execute(self, sync_id: str) -> Optional[dict]:
+    async def execute(
+        self, sync_id: str, trigger_type: str = "manual",
+    ) -> Optional[dict]:
         """
         Execute a sync: fetch data → compare → write if changed.
+        Records execution in sync_runs if run_repo is available.
 
         Returns a result dict on successful write, None if skipped
         (no changes or error).
@@ -71,6 +77,14 @@ class SyncEngine:
         if not connector:
             log_error(f"[SyncEngine] No connector registered for provider: {sync.provider}")
             return None
+
+        # Start a run record
+        run = None
+        if self.run_repo:
+            try:
+                run = self.run_repo.create(sync_id, trigger_type=trigger_type)
+            except Exception as e:
+                log_debug(f"[SyncEngine] Could not create run record: {e}")
 
         try:
             self.sync_repo.update_status(sync_id, "syncing")
@@ -92,6 +106,11 @@ class SyncEngine:
                 log_debug(
                     f"[SyncEngine] No changes for {sync.provider} sync {sync_id}"
                 )
+                if run and self.run_repo:
+                    self.run_repo.complete(
+                        run.id, status="skipped",
+                        result_summary="No changes detected",
+                    )
                 return None
 
             # Construct mutation and commit through CollaborationService
@@ -130,6 +149,13 @@ class SyncEngine:
                 f"node {sync.node_id} v{commit_result.version} ({commit_result.status})"
             )
 
+            # Complete run record
+            if run and self.run_repo:
+                self.run_repo.complete(
+                    run.id, status="success",
+                    result_summary=result.summary,
+                )
+
             return {
                 "sync_id": sync.id,
                 "node_id": sync.node_id,
@@ -137,11 +163,16 @@ class SyncEngine:
                 "version": commit_result.version,
                 "status": commit_result.status,
                 "summary": result.summary,
+                "run_id": run.id if run else None,
             }
 
         except Exception as e:
             log_error(f"[SyncEngine] Failed for sync {sync_id}: {e}")
             self.sync_repo.update_error(sync_id, str(e))
+            if run and self.run_repo:
+                self.run_repo.complete(
+                    run.id, status="failed", error=str(e),
+                )
             return None
 
     async def execute_all(

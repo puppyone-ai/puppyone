@@ -15,7 +15,7 @@ from src.sync.registry import ConnectorRegistry
 from src.sync.engine import SyncEngine
 from src.sync.repository import SyncRepository
 from src.sync.service import SyncService
-from src.sync.connectors.openclaw.watcher import FolderSourceService
+from src.filesystem.watcher import FolderSourceService
 from src.collaboration.dependencies import get_collaboration_service
 from src.collaboration.service import CollaborationService
 from src.content_node.dependencies import get_content_node_service
@@ -245,10 +245,12 @@ def get_sync_engine(
     collab_service: CollaborationService = Depends(get_collaboration_service),
     supabase: SupabaseClient = Depends(_get_supabase_client),
 ) -> SyncEngine:
+    from src.sync.run_repository import SyncRunRepository
     return SyncEngine(
         registry=registry,
         collab_service=collab_service,
         sync_repo=SyncRepository(supabase),
+        run_repo=SyncRunRepository(supabase),
     )
 
 
@@ -291,12 +293,16 @@ def create_sync_engine() -> SyncEngine:
     """
     from src.collaboration.dependencies import create_collaboration_service
 
+    from src.sync.run_repository import SyncRunRepository
+
     registry = get_connector_registry()
     collab_service = create_collaboration_service()
-    sync_repo = SyncRepository(SupabaseClient())
+    supabase = SupabaseClient()
+    sync_repo = SyncRepository(supabase)
 
     return SyncEngine(
         registry=registry,
         collab_service=collab_service,
         sync_repo=sync_repo,
+        run_repo=SyncRunRepository(supabase),
     )

@@ -45,7 +45,7 @@ export function registerPull(program) {
         out.info(`\nPulling data to ${conn.folder}...\n`);
 
         const cursor = state.cursor ?? 0;
-        const data = await api.get(`/sync/${folderId}/pull?cursor=${cursor}`);
+        const data = await api.get(`/filesystem/${folderId}/pull?cursor=${cursor}`);
         const files = data.files ?? [];
 
         if (files.length === 0) {

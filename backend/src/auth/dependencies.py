@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from src.auth.service import AuthService
+from src.auth.initialization import UserInitializationService
 from src.auth.models import CurrentUser
 from src.supabase.dependencies import get_supabase_client
 from src.exceptions import AuthException
@@ -19,6 +20,19 @@ security = HTTPBearer(auto_error=False)
 # 使用全局变量存储单例，而不是 lru_cache
 # 这样可以避免 reload 时的缓存问题
 _auth_service = None
+_initialization_service = None
+
+
+def get_initialization_service() -> UserInitializationService:
+    global _initialization_service
+    if _initialization_service is None:
+        from src.profile.repository import ProfileRepositorySupabase
+        from src.organization.repository import OrganizationRepository
+        _initialization_service = UserInitializationService(
+            profile_repo=ProfileRepositorySupabase(),
+            org_repo=OrganizationRepository(),
+        )
+    return _initialization_service
 
 
 def get_auth_service() -> AuthService:

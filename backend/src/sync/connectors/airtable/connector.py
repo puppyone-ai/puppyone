@@ -23,6 +23,7 @@ from src.sync.connectors._base import (
     TriggerMode,
     FetchResult,
     Credentials,
+    ConfigField,
 )
 from src.oauth.airtable_service import AirtableOAuthService
 from src.s3.service import S3Service
@@ -47,6 +48,9 @@ class AirtableConnector(BaseConnector):
             oauth_type="airtable",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="manual",
+            config_fields=(
+                ConfigField(key="source_url", label="Airtable base URL", type="url", required=True, placeholder="https://airtable.com/appXXX/tblYYY"),
+            ),
         )
 
     def __init__(

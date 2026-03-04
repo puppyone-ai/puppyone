@@ -86,7 +86,7 @@ function getProviderLogo(provider: string, size: number) {
         <defs><linearGradient id="sp0s" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse"><stop stopColor="#249361"/><stop offset="1" stopColor="#3ECF8E"/></linearGradient></defs>
       </svg>
     );
-    case 'filesystem': case 'openclaw':
+    case 'filesystem':
       return <span style={{ fontSize: size * 0.65 }}>🦞</span>;
     default: return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none">

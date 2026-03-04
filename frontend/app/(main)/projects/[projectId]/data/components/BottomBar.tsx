@@ -67,17 +67,17 @@ export function BottomBar({
     }}>
       {/* Left: view toggle + editor type toggles */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {/* View type: Grid / Explorer */}
+        {/* View type: Explorer / Grid */}
         <div style={toggleGroupStyle}>
+          <ToggleButton active={viewType === 'explorer'} onClick={() => setViewType('explorer')} title="Explorer view">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
+          </ToggleButton>
           <ToggleButton active={viewType === 'grid'} onClick={() => setViewType('grid')} title="Grid view">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
               <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
-            </svg>
-          </ToggleButton>
-          <ToggleButton active={viewType === 'explorer'} onClick={() => setViewType('explorer')} title="Explorer view">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="9" y1="3" x2="9" y2="21" />
             </svg>
           </ToggleButton>
         </div>
