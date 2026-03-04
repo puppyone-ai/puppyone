@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { type SavedAgent, type AgentType, type TriggerType, type TriggerConfig, type ExternalConfig } from '@/components/AgentRail';
 import { post, get, put, del } from '@/lib/apiClient';
+import { getNodesBatch } from '@/lib/contentNodesApi';
 
 /**
  * Sidebar state machine:
@@ -26,52 +27,51 @@ import { post, get, put, del } from '@/lib/apiClient';
  */
 export type SidebarMode = 'closed' | 'setting' | 'editing' | 'deployed';
 
-// 节点信息类型（从后端 /api/v1/nodes/{id} 返回）
 interface NodeInfo {
   id: string;
   name: string;
   type: 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file';
 }
 
-/**
- * 批量获取节点信息
- * 通过 node IDs 获取对应的 name 和 type
- */
 async function fetchNodeInfoBatch(nodeIds: string[], projectId: string): Promise<Map<string, NodeInfo>> {
   const nodeMap = new Map<string, NodeInfo>();
-  if (nodeIds.length === 0) return nodeMap;
+  if (nodeIds.length === 0 || !projectId) return nodeMap;
 
-  // 去重
   const uniqueIds = [...new Set(nodeIds)];
-  
-  // 并行获取所有节点信息
-  const results = await Promise.allSettled(
-    uniqueIds.map(async (nodeId) => {
-      try {
-        const node = await get<{
-          id: string;
-          name: string;
-          type: string;
-        }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`);
-        return node;
-      } catch (error) {
-        console.warn(`Failed to fetch node info for ${nodeId}:`, error);
-        return null;
-      }
-    })
-  );
 
-  // 处理结果
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled' && result.value) {
-      const node = result.value;
+  try {
+    const nodes = await getNodesBatch(uniqueIds, projectId);
+    for (const node of nodes) {
       nodeMap.set(node.id, {
         id: node.id,
         name: node.name,
         type: node.type as NodeInfo['type'],
       });
     }
-  });
+  } catch (error) {
+    console.warn('Batch node fetch failed, falling back to individual:', error);
+    const results = await Promise.allSettled(
+      uniqueIds.map(async (nodeId) => {
+        try {
+          return await get<{ id: string; name: string; type: string }>(
+            `/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`
+          );
+        } catch {
+          return null;
+        }
+      })
+    );
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        const node = result.value;
+        nodeMap.set(node.id, {
+          id: node.id,
+          name: node.name,
+          type: node.type as NodeInfo['type'],
+        });
+      }
+    }
+  }
 
   return nodeMap;
 }

@@ -23,6 +23,7 @@ class ContentNodeRepository:
             name=row["name"],
             type=row["type"],
             id_path=row["id_path"],
+            depth=row.get("depth") or 1,
             preview_json=row.get("preview_json"),
             preview_md=row.get("preview_md"),
             s3_key=row.get("s3_key"),
@@ -197,6 +198,12 @@ class ContentNodeRepository:
             expected_version: 乐观锁 — 如果指定，只在数据库中 current_version 
                              等于此值时才更新。返回 None 表示版本冲突。
         """
+        if parent_id is not None and id_path is None:
+            raise ValueError(
+                "parent_id and id_path must be updated together. "
+                "Use ContentNodeService.move_node() to change parent."
+            )
+
         data = {}
         if name is not None:
             data["name"] = name
@@ -307,7 +314,7 @@ class ContentNodeRepository:
         return counts
 
     def get_children_ids(self, node_id: str) -> List[str]:
-        """获取所有子节点 ID（用于递归删除）"""
+        """获取所有子节点 ID"""
         response = (
             self.client.table(self.TABLE_NAME)
             .select("id")
@@ -316,29 +323,79 @@ class ContentNodeRepository:
         )
         return [row["id"] for row in response.data]
 
-    def update_children_id_path_prefix(
-        self, 
-        project_id: str, 
-        old_prefix: str, 
-        new_prefix: str
-    ) -> int:
-        """批量更新子节点的 id_path 前缀（用于移动操作）"""
-        # 获取所有需要更新的节点
+    # === 原子操作（基于 id_path Source of Truth） ===
+
+    def move_node_atomic(
+        self,
+        node_id: str,
+        project_id: str,
+        new_parent_id: Optional[str],
+        new_id_path: str,
+    ) -> None:
+        """
+        原子移动节点：通过 Supabase RPC 在单个事务中更新节点及其所有子孙的 id_path。
+        
+        对应 SQL function: move_node_atomic(p_node_id, p_project_id, p_new_parent_id, p_new_id_path)
+        """
+        self.client.rpc("move_node_atomic", {
+            "p_node_id": node_id,
+            "p_project_id": project_id,
+            "p_new_parent_id": new_parent_id,
+            "p_new_id_path": new_id_path,
+        }).execute()
+
+    def collect_subtree_s3_keys(self, project_id: str, id_path_prefix: str) -> List[str]:
+        """收集子树中所有 S3 文件的 key（用于删除前清理 S3）。"""
         response = (
             self.client.table(self.TABLE_NAME)
-            .select("id, id_path")
+            .select("s3_key")
             .eq("project_id", project_id)
-            .like("id_path", f"{old_prefix}/%")
+            .like("id_path", f"{id_path_prefix}/%")
+            .not_.is_("s3_key", "null")
             .execute()
         )
-        
-        count = 0
-        for row in response.data:
-            new_id_path = new_prefix + row["id_path"][len(old_prefix):]
-            self.client.table(self.TABLE_NAME).update({"id_path": new_id_path}).eq("id", row["id"]).execute()
-            count += 1
-        
-        return count
+        root_resp = (
+            self.client.table(self.TABLE_NAME)
+            .select("s3_key")
+            .eq("project_id", project_id)
+            .eq("id_path", id_path_prefix)
+            .not_.is_("s3_key", "null")
+            .execute()
+        )
+        keys = [row["s3_key"] for row in response.data]
+        keys.extend(row["s3_key"] for row in root_resp.data)
+        return keys
+
+    def collect_subtree_info(self, project_id: str, id_path_prefix: str) -> List[dict]:
+        """收集子树中所有非文件夹节点的信息（用于删除时的 changelog 通知）。"""
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("id, name, type, s3_key")
+            .eq("project_id", project_id)
+            .like("id_path", f"{id_path_prefix}/%")
+            .neq("type", "folder")
+            .execute()
+        )
+        root_resp = (
+            self.client.table(self.TABLE_NAME)
+            .select("id, name, type, s3_key")
+            .eq("project_id", project_id)
+            .eq("id_path", id_path_prefix)
+            .neq("type", "folder")
+            .execute()
+        )
+        return response.data + root_resp.data
+
+    def get_descendant_ids(self, project_id: str, id_path_prefix: str) -> List[str]:
+        """获取子树中所有节点的 ID（基于 id_path 前缀，无递归）。"""
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("id")
+            .eq("project_id", project_id)
+            .like("id_path", f"{id_path_prefix}/%")
+            .execute()
+        )
+        return [row["id"] for row in response.data]
 
     def find_names_with_prefix(
         self,

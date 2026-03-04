@@ -50,7 +50,7 @@ export interface DataPageDialogsProps {
   onRenameConfirm: (newName: string) => Promise<void>;
 
   // Move
-  moveDialogTarget: { id: string; name: string } | null;
+  moveDialogTarget: { id: string; name: string; id_path?: string } | null;
   onMoveConfirm: (nodeId: string, targetFolderId: string | null) => Promise<void>;
   onCloseMove: () => void;
 
@@ -137,6 +137,7 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
           projectId={projectId}
           nodeId={moveDialogTarget.id}
           nodeName={moveDialogTarget.name}
+          nodeIdPath={moveDialogTarget.id_path}
           onConfirm={async (targetFolderId) => {
             await onMoveConfirm(moveDialogTarget.id, targetFolderId);
           }}

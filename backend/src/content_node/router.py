@@ -160,6 +160,28 @@ def list_nodes(
 
 
 @router.get(
+    "/batch",
+    response_model=ApiResponse[List[NodeDetail]],
+    summary="批量获取节点详情",
+    description="通过逗号分隔的 ID 列表一次获取多个节点，最多 50 个",
+)
+def get_nodes_batch(
+    ids: str = Query(..., description="逗号分隔的节点 ID 列表"),
+    project_id: str = Query(..., description="项目 ID"),
+    service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_project_access(project_service, current_user, project_id)
+    node_ids = [nid.strip() for nid in ids.split(",") if nid.strip()]
+    if len(node_ids) > 50:
+        node_ids = node_ids[:50]
+    nodes = service.repo.get_by_ids(node_ids)
+    nodes = [n for n in nodes if n.project_id == project_id]
+    return ApiResponse.success(data=[_node_to_detail(n) for n in nodes])
+
+
+@router.get(
     "/{node_id}",
     response_model=ApiResponse[NodeDetail],
     summary="获取节点详情",

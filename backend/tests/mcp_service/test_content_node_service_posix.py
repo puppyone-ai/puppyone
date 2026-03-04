@@ -130,15 +130,20 @@ class _Repo:
         self.nodes[node_id] = updated
         return updated
 
-    def update_children_id_path_prefix(self, project_id: str, old_prefix: str, new_prefix: str):
-        updated = 0
-        for node_id, node in list(self.nodes.items()):
-            if node.project_id == project_id and node.id_path.startswith(old_prefix + "/"):
-                self.nodes[node_id] = node.model_copy(
-                    update={"id_path": new_prefix + node.id_path[len(old_prefix):]}
+    def get_by_ids(self, node_ids: list[str]) -> list[ContentNode]:
+        return [self.nodes[nid] for nid in node_ids if nid in self.nodes]
+
+    def move_node_atomic(self, node_id: str, project_id: str, new_parent_id: str | None, new_id_path: str):
+        old = self.nodes[node_id]
+        old_id_path = old.id_path
+        self.nodes[node_id] = old.model_copy(
+            update={"parent_id": new_parent_id, "id_path": new_id_path}
+        )
+        for nid, node in list(self.nodes.items()):
+            if nid != node_id and node.project_id == project_id and node.id_path.startswith(old_id_path + "/"):
+                self.nodes[nid] = node.model_copy(
+                    update={"id_path": new_id_path + node.id_path[len(old_id_path):]}
                 )
-                updated += 1
-        return updated
 
 
 class _S3:

@@ -122,9 +122,39 @@ class AgentRepository:
 
     def get_by_project_id_with_accesses(self, project_id: str) -> List[Agent]:
         agents = self.get_by_project_id(project_id)
+        if not agents:
+            return agents
+
+        agent_ids = [a.id for a in agents]
+
+        all_bash = (
+            self._client.table("connection_accesses")
+            .select("*")
+            .in_("connection_id", agent_ids)
+            .order("created_at")
+            .execute()
+        ).data
+        bash_by_agent: dict[str, list[AgentBash]] = {}
+        for row in all_bash:
+            cid = row.get("connection_id", "")
+            bash_by_agent.setdefault(cid, []).append(_row_to_bash(row))
+
+        all_tools = (
+            self._client.table("connection_tools")
+            .select("*")
+            .in_("connection_id", agent_ids)
+            .order("created_at")
+            .execute()
+        ).data
+        tools_by_agent: dict[str, list[AgentTool]] = {}
+        for row in all_tools:
+            cid = row.get("connection_id", "")
+            tools_by_agent.setdefault(cid, []).append(_row_to_tool(row))
+
         for agent in agents:
-            agent.bash_accesses = self.get_bash_by_agent_id(agent.id)
-            agent.tools = self.get_tools_by_agent_id(agent.id)
+            agent.bash_accesses = bash_by_agent.get(agent.id, [])
+            agent.tools = tools_by_agent.get(agent.id, [])
+
         return agents
 
     def get_default_agent(self, project_id: str) -> Optional[Agent]:

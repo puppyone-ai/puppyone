@@ -7,11 +7,13 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
 
 from src.scheduler.config import scheduler_settings
 from src.scheduler.jobs import execute_agent_task, execute_sync_pull
+from src.scheduler.jobs.sandbox_reaper import reap_idle_sandboxes
 from src.utils.logger import log_info, log_error, log_warning
 
 
@@ -76,6 +78,15 @@ class SchedulerService:
         # Load existing schedule agents from database
         await self._load_scheduled_agents()
         await self._load_scheduled_syncs()
+        
+        # Register sandbox idle reaper (runs every 60s)
+        self.scheduler.add_job(
+            reap_idle_sandboxes,
+            trigger=IntervalTrigger(seconds=60),
+            id="sandbox-reaper",
+            name="Sandbox Idle Reaper",
+            replace_existing=True,
+        )
         
         log_info(f"✅ APScheduler started with {scheduler_settings.max_workers} workers")
     

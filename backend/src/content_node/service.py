@@ -343,11 +343,11 @@ class ContentNodeService:
         root_accesses: List[dict],
     ) -> str:
         """
-        从节点向上回溯构建人类可读路径。
+        基于 id_path 构建人类可读路径（无递归，无环风险）。
         
         例: node.name="readme.md", parent.name="docs" -> "/docs/readme.md"
         
-        终止条件: 遇到 root_accesses 中的节点时停止回溯。
+        通过解析 id_path 获取祖先 ID，批量查询名称，O(1) DB 调用。
         """
         root_node_ids = {a["node_id"] for a in root_accesses}
         is_single_root = (
@@ -355,25 +355,29 @@ class ContentNodeService:
             and root_accesses[0].get("node_type") == "folder"
         )
 
-        parts: list[str] = []
-        current = node
+        all_ids = node.ancestor_ids
 
-        while current is not None:
-            if current.id in root_node_ids:
-                if is_single_root:
-                    # 单根模式：根节点不出现在路径中
-                    break
-                else:
-                    # 多根模式：根节点名作为第一段
-                    parts.append(current.name)
-                    break
-            parts.append(current.name)
-            if current.parent_id:
-                current = self.repo.get_by_id(current.parent_id)
-            else:
+        root_idx = -1
+        for i, nid in enumerate(all_ids):
+            if nid in root_node_ids:
+                root_idx = i
                 break
 
-        parts.reverse()
+        if root_idx >= 0:
+            if is_single_root:
+                relevant_ids = all_ids[root_idx + 1:]
+            else:
+                relevant_ids = all_ids[root_idx:]
+        else:
+            relevant_ids = all_ids
+
+        if not relevant_ids:
+            return "/"
+
+        ancestor_nodes = self.repo.get_by_ids(relevant_ids)
+        id_to_name = {n.id: n.name for n in ancestor_nodes}
+
+        parts = [id_to_name.get(nid, nid) for nid in relevant_ids]
         return "/" + "/".join(parts)
 
     # === 创建操作 ===
@@ -1010,26 +1014,44 @@ class ContentNodeService:
         project_id: str,
         new_parent_id: Optional[str],
     ) -> ContentNode:
-        """移动节点"""
+        """
+        原子移动节点。
+        
+        通过 move_node_atomic RPC 在单个 DB 事务中完成：
+        - 更新节点的 parent_id 和 id_path
+        - 更新所有子孙的 id_path
+        
+        环检测基于 id_path 前缀（结构性安全）+ DB trigger 双重保护。
+        """
         node = self.get_by_id(node_id, project_id)
-        old_id_path = node.id_path
-        
-        # 移动时检查目标目录是否有同名节点
+
+        if new_parent_id:
+            if new_parent_id == node_id:
+                raise BusinessException(
+                    "Cannot move a node into itself",
+                    code=ErrorCode.BAD_REQUEST,
+                )
+            target = self.repo.get_by_id(new_parent_id)
+            if not target or target.project_id != project_id:
+                raise NotFoundException(f"Target parent not found: {new_parent_id}", code=ErrorCode.NOT_FOUND)
+            if target.id_path.startswith(node.id_path + "/") or target.id_path == node.id_path:
+                raise BusinessException(
+                    "Cannot move a node into its own descendant (would create a cycle)",
+                    code=ErrorCode.BAD_REQUEST,
+                )
+
         self._check_name_conflict(project_id, new_parent_id, node.name, exclude_node_id=node_id)
-        
+
         new_id_path = self._build_id_path(project_id, new_parent_id, node_id)
-        
-        updated = self.repo.update(
+
+        self.repo.move_node_atomic(
             node_id=node_id,
-            parent_id=new_parent_id if new_parent_id else None,
-            id_path=new_id_path,
+            project_id=project_id,
+            new_parent_id=new_parent_id,
+            new_id_path=new_id_path,
         )
-        
-        # 如果是文件夹，更新所有子节点的 id_path
-        if node.is_folder:
-            self.repo.update_children_id_path_prefix(node.project_id, old_id_path, new_id_path)
-        
-        return updated
+
+        return self.repo.get_by_id(node_id)
 
     # === 废纸篓（软删除） ===
 
@@ -1074,8 +1096,15 @@ class ContentNodeService:
         """
         import uuid as uuid_mod
 
-        trash = self.get_or_create_trash_folder(project_id, user_id)
         node = self.get_by_id(node_id, project_id)
+
+        if node.name == self.TRASH_FOLDER_NAME:
+            raise BusinessException(
+                "Cannot delete the trash folder itself",
+                code=ErrorCode.BAD_REQUEST,
+            )
+
+        trash = self.get_or_create_trash_folder(project_id, user_id)
 
         # 追加时间戳(微秒) + UUID 短后缀，完全消除碰撞
         timestamp = datetime.now().strftime("%Y%m%dT%H%M%S_%f")
@@ -1088,13 +1117,35 @@ class ContentNodeService:
     # === 删除操作（硬删除） ===
 
     async def delete_node(self, node_id: str, project_id: str) -> None:
-        """删除节点（递归删除子节点和 S3 文件），并通知 sync changelog"""
+        """
+        删除节点及其所有子孙（基于 id_path 前缀，非递归）。
+        
+        流程：
+        1. 收集子树文件信息（用于 changelog）
+        2. 收集 S3 keys 并批量删除
+        3. 一次性删除所有子孙 + 自身（id_path 前缀匹配）
+        """
         node = self.get_by_id(node_id, project_id)
 
-        node_info_list: list[dict] = []
-        self._collect_node_info(node_id, node_info_list)
+        node_info_rows = self.repo.collect_subtree_info(project_id, node.id_path)
+        node_info_list = []
+        for row in node_info_rows:
+            name = row["name"]
+            ntype = row["type"]
+            if ntype == "json" and not name.endswith(".json"):
+                name = f"{name}.json"
+            elif ntype == "markdown" and not name.endswith(".md"):
+                name = f"{name}.md"
+            node_info_list.append({"id": row["id"], "type": ntype, "filename": name})
 
-        await self._delete_recursive(node_id)
+        s3_keys = self.repo.collect_subtree_s3_keys(project_id, node.id_path)
+        for key in s3_keys:
+            try:
+                await self.s3.delete_file(key)
+            except Exception:
+                pass
+
+        self.repo.delete_by_id_path_prefix(project_id, node.id_path)
 
         if self.version_service and node_info_list:
             for info in node_info_list:
@@ -1108,35 +1159,6 @@ class ContentNodeService:
                     )
                 except Exception:
                     pass
-
-    def _collect_node_info(self, node_id: str, result: list) -> None:
-        """Collect id/name/type for a node and its descendants BEFORE deletion."""
-        children_ids = self.repo.get_children_ids(node_id)
-        for child_id in children_ids:
-            self._collect_node_info(child_id, result)
-        node = self.repo.get_by_id(node_id)
-        if node and node.type != "folder":
-            name = node.name
-            if node.type == "json" and not name.endswith(".json"):
-                name = f"{name}.json"
-            elif node.type == "markdown" and not name.endswith(".md"):
-                name = f"{name}.md"
-            result.append({"id": node.id, "type": node.type, "filename": name})
-
-    async def _delete_recursive(self, node_id: str) -> None:
-        """递归删除节点"""
-        children_ids = self.repo.get_children_ids(node_id)
-        for child_id in children_ids:
-            await self._delete_recursive(child_id)
-        
-        node = self.repo.get_by_id(node_id)
-        if node and node.s3_key:
-            try:
-                await self.s3.delete_file(node.s3_key)
-            except Exception:
-                pass
-        
-        self.repo.delete(node_id)
 
     # === 下载操作 ===
 

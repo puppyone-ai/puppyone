@@ -9,6 +9,7 @@ interface MoveToDialogProps {
   projectId: string;
   nodeId: string;
   nodeName: string;
+  nodeIdPath?: string;
   onConfirm: (targetFolderId: string | null) => void;
   onClose: () => void;
 }
@@ -19,6 +20,7 @@ function FolderTreeItem({
   depth,
   projectId,
   excludeId,
+  excludeIdPath,
   selectedId,
   onSelect,
 }: {
@@ -27,6 +29,7 @@ function FolderTreeItem({
   depth: number;
   projectId: string;
   excludeId: string;
+  excludeIdPath?: string;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }) {
@@ -38,9 +41,12 @@ function FolderTreeItem({
     expanded ? id : undefined,
   );
 
-  const childFolders = children.filter(
-    (n) => n.type === 'folder' && n.id !== excludeId,
-  );
+  const childFolders = children.filter((n) => {
+    if (n.type !== 'folder') return false;
+    if (n.id === excludeId) return false;
+    if (excludeIdPath && n.id_path?.startsWith(excludeIdPath + '/')) return false;
+    return true;
+  });
 
   const handleClick = useCallback(() => {
     onSelect(id);
@@ -158,6 +164,7 @@ function FolderTreeItem({
               depth={depth + 1}
               projectId={projectId}
               excludeId={excludeId}
+              excludeIdPath={excludeIdPath}
               selectedId={selectedId}
               onSelect={onSelect}
             />
@@ -188,6 +195,7 @@ export function MoveToDialog({
   projectId,
   nodeId,
   nodeName,
+  nodeIdPath,
   onConfirm,
   onClose,
 }: MoveToDialogProps) {
@@ -199,9 +207,12 @@ export function MoveToDialog({
     isOpen ? null : undefined,
   );
 
-  const rootFolders = rootNodes.filter(
-    (n) => n.type === 'folder' && n.id !== nodeId,
-  );
+  const rootFolders = rootNodes.filter((n) => {
+    if (n.type !== 'folder') return false;
+    if (n.id === nodeId) return false;
+    if (nodeIdPath && n.id_path?.startsWith(nodeIdPath + '/')) return false;
+    return true;
+  });
 
   const handleSelect = useCallback((id: string | null) => {
     setSelectedFolderId(id);
@@ -359,6 +370,7 @@ export function MoveToDialog({
                 depth={0}
                 projectId={projectId}
                 excludeId={nodeId}
+                excludeIdPath={nodeIdPath}
                 selectedId={selectedFolderId}
                 onSelect={handleSelect}
               />

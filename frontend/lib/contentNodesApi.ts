@@ -177,6 +177,18 @@ export async function getNode(nodeId: string, projectId: string): Promise<NodeDe
 }
 
 /**
+ * 批量获取节点详情（单次请求，最多 50 个）
+ */
+export async function getNodesBatch(nodeIds: string[], projectId: string): Promise<NodeDetail[]> {
+  if (nodeIds.length === 0) return [];
+  const params = new URLSearchParams({
+    ids: nodeIds.join(','),
+    project_id: projectId,
+  });
+  return apiRequest<NodeDetail[]>(`/api/v1/nodes/batch?${params.toString()}`);
+}
+
+/**
  * 按 id_path 获取节点
  */
 export async function getNodeByIdPath(
