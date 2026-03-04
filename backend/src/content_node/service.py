@@ -106,7 +106,8 @@ class ContentNodeService:
     def _check_name_conflict(
         self,
         project_id: str,
-        parent_id: Optional[str],
+        parent_id_path: Optional[str],
+        parent_depth: int,
         name: str,
         exclude_node_id: Optional[str] = None,
     ) -> None:
@@ -115,7 +116,7 @@ class ContentNodeService:
         
         用于 rename / move 场景（创建时使用 _generate_unique_name 自动追加序号）。
         """
-        if self.repo.name_exists_in_parent(project_id, parent_id, name, exclude_node_id):
+        if self.repo.name_exists_in_parent(project_id, parent_id_path, parent_depth, name, exclude_node_id):
             raise NameConflictException(
                 f"A node with name '{name}' already exists in this folder"
             )
@@ -146,17 +147,17 @@ class ContentNodeService:
     def list_children(
         self, project_id: str, parent_id: Optional[str] = None
     ) -> List[ContentNode]:
-        """列出子节点（仅按 project_id 过滤）"""
+        """列出子节点（内部使用 id_path + depth 查询）。"""
         if parent_id:
-            # 验证父节点存在且属于该项目
             parent = self.repo.get_by_id(parent_id)
             if not parent or parent.project_id != project_id:
                 raise NotFoundException(f"Parent not found: {parent_id}", code=ErrorCode.NOT_FOUND)
-        return self.repo.list_children(project_id, parent_id)
+            return self.repo.list_children(project_id, parent.id_path, parent.depth)
+        return self.repo.list_children(project_id, None, 0)
 
     def list_root_nodes(self, project_id: str) -> List[ContentNode]:
         """列出项目根节点"""
-        return self.repo.list_children(project_id, None)
+        return self.repo.list_children(project_id, None, 0)
 
     def list_descendants(self, project_id: str, node_id: str) -> List[ContentNode]:
         """列出某节点的所有子孙（用于导出到沙盒）"""
@@ -184,10 +185,30 @@ class ContentNodeService:
     TRASH_FOLDER_NAME = ".trash"
 
     def get_child_by_name(
-        self, project_id: str, parent_id: Optional[str], name: str
+        self,
+        project_id: str,
+        parent_id: Optional[str],
+        name: str,
+        *,
+        parent_id_path: Optional[str] = ...,
+        parent_depth: Optional[int] = None,
     ) -> Optional[ContentNode]:
-        """根据名称在指定目录下查找子节点"""
-        return self.repo.get_child_by_name(project_id, parent_id, name)
+        """根据名称在指定目录下查找子节点。
+
+        优先使用 parent_id_path/parent_depth（免去额外查询）。
+        如果未提供，则通过 parent_id 查询父节点以获取 id_path/depth。
+        """
+        if parent_id_path is ... or parent_depth is None:
+            if parent_id:
+                parent = self.repo.get_by_id(parent_id)
+                if not parent:
+                    return None
+                parent_id_path = parent.id_path
+                parent_depth = parent.depth
+            else:
+                parent_id_path = None
+                parent_depth = 0
+        return self.repo.get_child_by_name(project_id, parent_id_path, parent_depth, name)
 
     def resolve_path(
         self,
@@ -245,7 +266,7 @@ class ContentNodeService:
                         code=ErrorCode.NOT_FOUND,
                     )
                 child = self.repo.get_child_by_name(
-                    project_id, current_node.id, segment
+                    project_id, current_node.id_path, current_node.depth, segment
                 )
                 if not child:
                     raise NotFoundException(
@@ -277,7 +298,7 @@ class ContentNodeService:
                         code=ErrorCode.NOT_FOUND,
                     )
                 child = self.repo.get_child_by_name(
-                    project_id, current_node.id, segment
+                    project_id, current_node.id_path, current_node.depth, segment
                 )
                 if not child:
                     raise NotFoundException(
@@ -382,22 +403,28 @@ class ContentNodeService:
 
     # === 创建操作 ===
 
-    def _build_id_path(self, project_id: str, parent_id: Optional[str], new_node_id: str) -> str:
-        """构建节点的 id_path"""
+    def _build_id_path(
+        self, project_id: str, parent_id: Optional[str], new_node_id: str
+    ) -> tuple[str, Optional[str], int]:
+        """构建节点的 id_path，同时返回父节点的路径信息。
+
+        Returns:
+            (id_path, parent_id_path, parent_depth)
+        """
         if parent_id:
             parent = self.repo.get_by_id(parent_id)
             if not parent or parent.project_id != project_id:
                 raise NotFoundException(f"Parent not found: {parent_id}", code=ErrorCode.NOT_FOUND)
-            return f"{parent.id_path}/{new_node_id}"
-        return f"/{new_node_id}"
+            return f"{parent.id_path}/{new_node_id}", parent.id_path, parent.depth
+        return f"/{new_node_id}", None, 0
 
     def _generate_unique_name(
-        self, project_id: str, parent_id: Optional[str], base_name: str
+        self, project_id: str, parent_id_path: Optional[str], parent_depth: int, base_name: str
     ) -> str:
         """生成唯一名称，如 'Untitled', 'Untitled (1)', 'Untitled (2)'"""
         import re
         
-        existing_names = self.repo.find_names_with_prefix(project_id, parent_id, base_name)
+        existing_names = self.repo.find_names_with_prefix(project_id, parent_id_path, parent_depth, base_name)
         
         if base_name not in existing_names:
             return base_name
@@ -424,15 +451,14 @@ class ContentNodeService:
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="folder",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
         )
 
@@ -448,8 +474,8 @@ class ContentNodeService:
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         # 计算 JSON 内容的字节大小
         size_bytes = None
@@ -462,7 +488,6 @@ class ContentNodeService:
             name=unique_name,
             node_type="json",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             preview_json=content,
             mime_type="application/json",
@@ -489,8 +514,8 @@ class ContentNodeService:
         name = self._validate_name(name)
         
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         placeholder_content = {
             "_status": "not_connected",
@@ -503,7 +528,6 @@ class ContentNodeService:
             name=unique_name,
             node_type="json",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             preview_json=placeholder_content,
             mime_type="application/json",
@@ -542,15 +566,14 @@ class ContentNodeService:
         name = self._validate_name(name)
         
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="json",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             preview_json=content,
             mime_type="application/json",
@@ -572,15 +595,14 @@ class ContentNodeService:
         name = self._validate_name(name)
         
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="file",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             preview_json=metadata,
             s3_key=s3_prefix,
@@ -601,15 +623,14 @@ class ContentNodeService:
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type="file",  # pending 是 file 类型
+            node_type="file",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             s3_key=s3_key,
             mime_type=mime_type or "application/octet-stream",
@@ -630,15 +651,14 @@ class ContentNodeService:
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="file",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             s3_key=s3_key,
             mime_type=mime_type or "application/octet-stream",
@@ -659,8 +679,8 @@ class ContentNodeService:
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         content_bytes = content.encode('utf-8')
         
@@ -669,9 +689,8 @@ class ContentNodeService:
             name=unique_name,
             node_type="markdown",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
-            preview_md=content,  # 直接存数据库
+            preview_md=content,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
         )
@@ -690,8 +709,8 @@ class ContentNodeService:
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         content_bytes = content.encode('utf-8')
         
@@ -700,7 +719,6 @@ class ContentNodeService:
             name=unique_name,
             node_type="markdown",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             preview_md=content,
             mime_type="text/markdown",
@@ -748,10 +766,9 @@ class ContentNodeService:
                     
                     # 名称校验 + 唯一名称生成
                     validated_name = self._validate_name(node["name"])
-                    unique_name = self._generate_unique_name(project_id, real_parent_id, validated_name)
-                    
                     new_id = str(uuid.uuid4())
-                    id_path = self._build_id_path(project_id, real_parent_id, new_id)
+                    id_path, p_id_path, p_depth = self._build_id_path(project_id, real_parent_id, new_id)
+                    unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, validated_name)
                     
                     # node["type"]: folder | json | markdown | file
                     node_type = node["type"]
@@ -782,7 +799,6 @@ class ContentNodeService:
                         name=unique_name,
                         node_type=node_type,
                         id_path=id_path,
-                        parent_id=real_parent_id,
                         created_by=created_by,
                         preview_json=preview_json,
                         preview_md=preview_md,
@@ -824,8 +840,8 @@ class ContentNodeService:
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         # 确定节点类型
         node_type = self._get_node_type_from_mime(content_type)
@@ -833,13 +849,11 @@ class ContentNodeService:
         # 生成 S3 key（使用 project_id）
         s3_key = f"projects/{project_id}/content/{uuid.uuid4()}"
         
-        # 创建节点记录
         node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type=node_type,
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             s3_key=s3_key,
             mime_type=content_type,
@@ -922,7 +936,10 @@ class ContentNodeService:
             name = self._validate_name(name)
             # 只有名字真正改变时才检查冲突
             if name != node.name:
-                self._check_name_conflict(project_id, node.parent_id, name, exclude_node_id=node_id)
+                self._check_name_conflict(
+                    project_id, node.parent_id_path, node.parent_depth,
+                    name, exclude_node_id=node_id,
+                )
 
         if preview_md is not None:
             content_bytes = preview_md.encode("utf-8")
@@ -1018,8 +1035,7 @@ class ContentNodeService:
         原子移动节点。
         
         通过 move_node_atomic RPC 在单个 DB 事务中完成：
-        - 更新节点的 parent_id 和 id_path
-        - 更新所有子孙的 id_path
+        - 更新节点及所有子孙的 id_path
         
         环检测基于 id_path 前缀（结构性安全）+ DB trigger 双重保护。
         """
@@ -1040,14 +1056,20 @@ class ContentNodeService:
                     code=ErrorCode.BAD_REQUEST,
                 )
 
-        self._check_name_conflict(project_id, new_parent_id, node.name, exclude_node_id=node_id)
+        if new_parent_id:
+            t_id_path, t_depth = target.id_path, target.depth
+        else:
+            t_id_path, t_depth = None, 0
+        self._check_name_conflict(
+            project_id, t_id_path, t_depth,
+            node.name, exclude_node_id=node_id,
+        )
 
-        new_id_path = self._build_id_path(project_id, new_parent_id, node_id)
+        new_id_path, _, _ = self._build_id_path(project_id, new_parent_id, node_id)
 
         self.repo.move_node_atomic(
             node_id=node_id,
             project_id=project_id,
-            new_parent_id=new_parent_id,
             new_id_path=new_id_path,
         )
 
@@ -1064,14 +1086,12 @@ class ContentNodeService:
         import uuid
 
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, None, new_id)
-        # 系统文件夹不走 _validate_name（允许 . 开头），也不走 _generate_unique_name
+        id_path, _, _ = self._build_id_path(project_id, None, new_id)
         return self.repo.create(
             project_id=project_id,
             name=name,
             node_type="folder",
             id_path=id_path,
-            parent_id=None,
             created_by=created_by,
         )
 
@@ -1079,7 +1099,7 @@ class ContentNodeService:
         self, project_id: str, created_by: str
     ) -> ContentNode:
         """获取或惰性创建项目的废纸篓文件夹（根级隐藏文件夹 .trash）"""
-        children = self.repo.list_children(project_id, parent_id=None)
+        children = self.repo.list_children(project_id, None, 0)
         for child in children:
             if child.name == self.TRASH_FOLDER_NAME:
                 return child

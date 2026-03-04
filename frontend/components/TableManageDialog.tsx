@@ -106,6 +106,7 @@ export function TableManageDialog({
   }, [selectedFiles, startOption]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const dropzoneRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -347,6 +348,13 @@ export function TableManageDialog({
                   <input
                     ref={fileInputRef}
                     type='file'
+                    multiple
+                    onChange={handleFileSelect}
+                    style={{ display: 'none' }}
+                  />
+                  <input
+                    ref={folderInputRef}
+                    type='file'
                     {...({ webkitdirectory: '', directory: '' } as any)}
                     multiple
                     onChange={handleFileSelect}
@@ -373,15 +381,13 @@ export function TableManageDialog({
                     <div
                       ref={dropzoneRef}
                       onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleDrop}
-                      onClick={() => fileInputRef.current?.click()}
                       style={{
-                        padding: '32px 24px',
+                        padding: '24px',
                         border: '1px dashed',
                         borderColor: isDragging ? '#3B82F6' : '#3F3F46',
                         borderRadius: 8,
                         background: isDragging ? 'rgba(59,130,246,0.1)' : '#27272A',
-                        cursor: 'pointer',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
                         transition: 'all 0.15s'
                       }}
                     >
@@ -390,7 +396,45 @@ export function TableManageDialog({
                         <polyline points="17 8 12 3 7 8"></polyline>
                         <line x1="12" y1="3" x2="12" y2="15"></line>
                       </svg>
-                      <div style={{ fontSize: 16, color: '#E4E4E7' }}>Drop files here or click to upload</div>
+                      <div style={{ fontSize: 14, color: '#A1A1AA' }}>Drag and drop files or folders here</div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          style={{
+                            padding: '7px 16px',
+                            borderRadius: 6,
+                            border: '1px solid #3F3F46',
+                            background: '#18181B',
+                            color: '#E4E4E7',
+                            fontSize: 13,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#27272A'; e.currentTarget.style.borderColor = '#52525B'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = '#18181B'; e.currentTarget.style.borderColor = '#3F3F46'; }}
+                        >
+                          Upload Files
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => folderInputRef.current?.click()}
+                          style={{
+                            padding: '7px 16px',
+                            borderRadius: 6,
+                            border: '1px solid #3F3F46',
+                            background: '#18181B',
+                            color: '#E4E4E7',
+                            fontSize: 13,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#27272A'; e.currentTarget.style.borderColor = '#52525B'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = '#18181B'; e.currentTarget.style.borderColor = '#3F3F46'; }}
+                        >
+                          Upload Folder
+                        </button>
+                      </div>
                       <div style={{ fontSize: 12, color: '#71717A' }}>Supports PDF, MD, CSV, JSON</div>
                     </div>
                   )}

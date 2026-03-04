@@ -3,7 +3,7 @@ Folder-level file sync service.
 
 Implements the "Daemon Stateless Mirror" architecture:
 - All operations use filename as identity (no node_id exposed)
-- Backend resolves filename → node_id internally via (project_id, parent_id, name) lookup
+- Backend resolves filename → node internally via id_path + depth + name lookup
 - Push auto-detects create vs update
 """
 
@@ -212,9 +212,11 @@ class FolderSyncService:
         if invalid_path:
             return invalid_path
 
-        parent_id, leaf = self._resolve_parent(project_id, folder_id, filename)
+        parent_node, leaf = self._resolve_parent(project_id, folder_id, filename)
         name = self._leaf_to_node_name(leaf, node_type)
-        existing = self._node_repo.get_child_by_name(project_id, parent_id, name)
+        existing = self._node_repo.get_child_by_name(
+            project_id, parent_node.id_path, parent_node.depth, name,
+        )
 
         if existing:
             return self._do_update(
@@ -222,7 +224,7 @@ class FolderSyncService:
                 operator_id, operator_name, source_id, filename,
             )
         return self._do_create(
-            project_id, parent_id, name, filename, content,
+            project_id, parent_node.id, name, filename, content,
             node_type, operator_id, operator_name, source_id,
         )
 
@@ -385,9 +387,11 @@ class FolderSyncService:
         if invalid_path:
             return invalid_path
 
-        parent_id, leaf = self._resolve_parent(project_id, folder_id, filename)
+        parent_node, leaf = self._resolve_parent(project_id, folder_id, filename)
         name = self._leaf_to_node_name(leaf, "file")
-        existing = self._node_repo.get_child_by_name(project_id, parent_id, name)
+        existing = self._node_repo.get_child_by_name(
+            project_id, parent_node.id_path, parent_node.depth, name,
+        )
 
         if existing:
             node_id = existing.id
@@ -401,8 +405,7 @@ class FolderSyncService:
                 project_id=project_id,
                 name=name,
                 node_type="file",
-                id_path=f"{project_id}/{node_id}",
-                parent_id=parent_id,
+                id_path=f"{parent_node.id_path}/{node_id}",
                 created_by=created_by,
                 s3_key=s3_key,
                 mime_type=content_type,
@@ -590,15 +593,17 @@ class FolderSyncService:
 
     def _ensure_folder_path(
         self, project_id: str, root_folder_id: str, dir_segments: list[str],
-    ) -> str:
-        """Walk/create intermediate folders. Returns deepest folder ID."""
-        current_parent = root_folder_id
+    ):
+        """Walk/create intermediate folders. Returns deepest folder node."""
+        parent_node = self._node_repo.get_by_id(root_folder_id)
+        if not parent_node:
+            raise ValueError(f"Root folder not found: {root_folder_id}")
         for segment in dir_segments:
             existing = self._node_repo.get_child_by_name(
-                project_id, current_parent, segment,
+                project_id, parent_node.id_path, parent_node.depth, segment,
             )
             if existing and existing.type == "folder":
-                current_parent = existing.id
+                parent_node = existing
             else:
                 import asyncio
                 collab_svc = self._build_collab_service()
@@ -606,7 +611,7 @@ class FolderSyncService:
                     type=MutationType.NODE_CREATE,
                     operator=Operator(type="agent", id="system"),
                     project_id=project_id,
-                    parent_id=current_parent,
+                    parent_id=parent_node.id,
                     name=segment,
                     node_type="folder",
                 )
@@ -617,29 +622,37 @@ class FolderSyncService:
                         result = pool.submit(asyncio.run, collab_svc.commit(mutation)).result()
                 else:
                     result = asyncio.run(collab_svc.commit(mutation))
-                current_parent = result.node_id
+                created = self._node_repo.get_by_id(result.node_id)
+                if created:
+                    parent_node = created
                 log_info(f"[FolderSync] Auto-created folder '{segment}' ({result.node_id})")
-        return current_parent
+        return parent_node
 
-    def _resolve_parent(self, project_id: str, folder_id: str, filename: str) -> tuple[str, str]:
-        """Resolve filename with path to (parent_id, leaf_filename)."""
+    def _resolve_parent(self, project_id: str, folder_id: str, filename: str):
+        """Resolve filename with path to (parent_node, leaf_filename)."""
         dirs, leaf = self._parse_path(filename)
         if dirs:
-            parent_id = self._ensure_folder_path(project_id, folder_id, dirs)
+            parent_node = self._ensure_folder_path(project_id, folder_id, dirs)
         else:
-            parent_id = folder_id
-        return parent_id, leaf
+            parent_node = self._node_repo.get_by_id(folder_id)
+        return parent_node, leaf
 
     def _find_node_by_path(self, project_id: str, root_folder_id: str, rel_path: str):
         """Find a node by relative path from sync root. Returns node or None."""
         dirs, leaf = self._parse_path(rel_path)
-        current_parent = root_folder_id
+        parent_node = self._node_repo.get_by_id(root_folder_id)
+        if not parent_node:
+            return None
         for seg in dirs:
-            folder = self._node_repo.get_child_by_name(project_id, current_parent, seg)
+            folder = self._node_repo.get_child_by_name(
+                project_id, parent_node.id_path, parent_node.depth, seg,
+            )
             if not folder or folder.type != "folder":
                 return None
-            current_parent = folder.id
-        exact = self._node_repo.get_child_by_name(project_id, current_parent, leaf)
+            parent_node = folder
+        exact = self._node_repo.get_child_by_name(
+            project_id, parent_node.id_path, parent_node.depth, leaf,
+        )
         if exact:
             return exact
 
@@ -648,7 +661,7 @@ class FolderSyncService:
             return None
 
         legacy = self._node_repo.get_child_by_name(
-            project_id, current_parent, legacy_name,
+            project_id, parent_node.id_path, parent_node.depth, legacy_name,
         )
         if not legacy or legacy.type not in INLINE_TYPES:
             return None

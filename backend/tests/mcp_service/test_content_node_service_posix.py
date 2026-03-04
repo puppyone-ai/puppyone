@@ -17,30 +17,25 @@ def _node(
     project_id: str = "proj-1",
     name: str,
     node_type: str,
-    parent_id: str | None,
     id_path: str,
+    parent_id: str | None = None,
 ) -> ContentNode:
     now = datetime.now(UTC)
+    depth = len([s for s in id_path.strip("/").split("/") if s])
     return ContentNode(
         id=node_id,
         project_id=project_id,
         created_by="u1",
-        sync_oauth_user_id=None,
-        parent_id=parent_id,
         name=name,
         type=node_type,
         id_path=id_path,
+        depth=depth,
         preview_json=None,
         preview_md=None,
         s3_key=None,
         mime_type=None,
         size_bytes=0,
         permissions={"inherit": True},
-        sync_url=None,
-        sync_id=None,
-        sync_config=None,
-        sync_status="idle",
-        last_synced_at=None,
         created_at=now,
         updated_at=now,
     )
@@ -59,34 +54,64 @@ class _Repo:
                 return node
         return None
 
-    def list_children(self, project_id: str, parent_id: str | None = None):
+    def _is_direct_child(self, node: ContentNode, parent_id_path: str | None, parent_depth: int) -> bool:
+        if parent_id_path is None:
+            return node.depth == parent_depth + 1
+        return (
+            node.id_path.startswith(parent_id_path + "/")
+            and node.depth == parent_depth + 1
+        )
+
+    def list_children(self, project_id: str, parent_id_path: str | None = None, parent_depth: int = 0):
         return [
             node
             for node in self.nodes.values()
-            if node.project_id == project_id and node.parent_id == parent_id
+            if node.project_id == project_id
+            and self._is_direct_child(node, parent_id_path, parent_depth)
         ]
 
-    def get_child_by_name(self, project_id: str, parent_id: str | None, name: str):
+    def get_child_by_name(self, project_id: str, parent_id_path: str | None, parent_depth: int, name: str):
         for node in self.nodes.values():
             if (
                 node.project_id == project_id
-                and node.parent_id == parent_id
+                and self._is_direct_child(node, parent_id_path, parent_depth)
                 and node.name == name
             ):
                 return node
         return None
 
-    def name_exists_in_parent(self, project_id: str, parent_id: str | None, name: str, exclude_node_id: str | None = None):
+    def name_exists_in_parent(self, project_id: str, parent_id_path: str | None, parent_depth: int, name: str, exclude_node_id: str | None = None):
         for node in self.nodes.values():
             if exclude_node_id and node.id == exclude_node_id:
                 continue
             if (
                 node.project_id == project_id
-                and node.parent_id == parent_id
+                and self._is_direct_child(node, parent_id_path, parent_depth)
                 and node.name == name
             ):
                 return True
         return False
+
+    def find_names_with_prefix(self, project_id: str, parent_id_path: str | None, parent_depth: int, name_prefix: str):
+        return [
+            node.name
+            for node in self.nodes.values()
+            if node.project_id == project_id
+            and self._is_direct_child(node, parent_id_path, parent_depth)
+            and node.name.startswith(name_prefix)
+        ]
+
+    def count_children_batch(self, parent_ids: list[str]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for pid in parent_ids:
+            parent = self.nodes.get(pid)
+            if parent:
+                counts[pid] = sum(
+                    1 for n in self.nodes.values()
+                    if self._is_direct_child(n, parent.id_path, parent.depth)
+                    and n.project_id == parent.project_id
+                )
+        return counts
 
     def create(
         self,
@@ -94,7 +119,6 @@ class _Repo:
         name: str,
         node_type: str,
         id_path: str,
-        parent_id: str | None = None,
         created_by: str | None = None,
         **kwargs,
     ):
@@ -104,7 +128,6 @@ class _Repo:
             project_id=project_id,
             name=name,
             node_type=node_type,
-            parent_id=parent_id,
             id_path=id_path,
         )
         self.nodes[node.id] = node
@@ -115,35 +138,32 @@ class _Repo:
         node_id: str,
         name: str | None = None,
         id_path: str | None = None,
-        parent_id: str | None = None,
         **kwargs,
     ):
         old = self.nodes[node_id]
-        updated = old.model_copy(
-            update={
-                "name": old.name if name is None else name,
-                "id_path": old.id_path if id_path is None else id_path,
-                "parent_id": old.parent_id if parent_id is None else parent_id,
-                "updated_at": datetime.now(UTC),
-            }
-        )
+        updates: dict = {"updated_at": datetime.now(UTC)}
+        if name is not None:
+            updates["name"] = name
+        if id_path is not None:
+            updates["id_path"] = id_path
+        updated = old.model_copy(update=updates)
         self.nodes[node_id] = updated
         return updated
 
     def get_by_ids(self, node_ids: list[str]) -> list[ContentNode]:
         return [self.nodes[nid] for nid in node_ids if nid in self.nodes]
 
-    def move_node_atomic(self, node_id: str, project_id: str, new_parent_id: str | None, new_id_path: str):
+    def move_node_atomic(self, node_id: str, project_id: str, new_id_path: str):
         old = self.nodes[node_id]
         old_id_path = old.id_path
-        self.nodes[node_id] = old.model_copy(
-            update={"parent_id": new_parent_id, "id_path": new_id_path}
-        )
+        d = {k: v for k, v in old.model_dump().items() if k != "parent_id"}
+        d["id_path"] = new_id_path
+        self.nodes[node_id] = ContentNode.model_validate(d)
         for nid, node in list(self.nodes.items()):
             if nid != node_id and node.project_id == project_id and node.id_path.startswith(old_id_path + "/"):
-                self.nodes[nid] = node.model_copy(
-                    update={"id_path": new_id_path + node.id_path[len(old_id_path):]}
-                )
+                nd = {k: v for k, v in node.model_dump().items() if k != "parent_id"}
+                nd["id_path"] = new_id_path + node.id_path[len(old_id_path):]
+                self.nodes[nid] = ContentNode.model_validate(nd)
 
 
 class _S3:
