@@ -426,6 +426,8 @@ def create_app() -> FastAPI:
     app.include_router(mcp_v3_router, prefix="/api/v1", tags=["mcp"])
     app.include_router(agent_router, prefix="/api/v1", tags=["agents"])
     app.include_router(agent_config_router, prefix="/api/v1", tags=["agent-config"])
+    from src.agent.chat.router import router as chat_router
+    app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
     app.include_router(context_publish_router, prefix="/api/v1", tags=["publishes"])
     # public short link: /p/{publish_key}
     app.include_router(context_publish_public_router, tags=["publishes"])

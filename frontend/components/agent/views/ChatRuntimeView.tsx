@@ -12,11 +12,11 @@ import {
   useChatMessages,
   refreshChatSessions,
   refreshChatMessages,
+  createSession,
   type MessagePart,
 } from '../../../lib/hooks/useChat';
+import { sendChatMessage } from '../../../lib/chatApi';
 import { useMention } from '../../../lib/hooks/useMention';
-import { API_BASE_URL } from '../../../config/api';
-import { getApiAccessToken } from '../../../lib/apiClient';
 import { useAgent } from '@/contexts/AgentContext';
 
 // 时间格式化
@@ -345,9 +345,9 @@ export function ChatRuntimeView({
     messages[messages.length - 1]?.parts?.length,
   ]);
 
-  // Send message
+  // Send message — explicit session creation, all via backend API
   const handleSend = useCallback(async () => {
-    if (!inputValue.trim() || isLoading) return;
+    if (!inputValue.trim() || isLoading || !currentAgentId) return;
 
     const currentInput = inputValue;
     setInputValue('');
@@ -374,24 +374,20 @@ export function ChatRuntimeView({
       },
     ]);
 
-    let finalParts: MessagePart[] = [];
     let effectiveSessionId: string | null = currentSessionId;
 
     try {
-      const chatHistory = messages
-        .filter(m => m.role === 'user' || m.role === 'assistant')
-        .map(m => {
-          let textContent = m.content || '';
-          if (!textContent && m.parts) {
-            textContent = m.parts
-              .filter(p => p.type === 'text' && p.content)
-              .map(p => p.content)
-              .join('\n');
-          }
-          return { role: m.role as 'user' | 'assistant', content: textContent };
-        })
-        .filter(m => m.content);
+      // Step 1: Ensure session exists (create explicitly if needed)
+      if (!effectiveSessionId) {
+        const session = await createSession(currentAgentId, currentInput);
+        effectiveSessionId = session.id;
+        prevSessionIdRef.current = session.id;
+        hasLoadedForSessionRef.current = session.id;
+        setCurrentSessionId(session.id);
+        setIsNewChatMode(false);
+      }
 
+      // Step 2: Collect active tool IDs
       const activeToolIds: string[] = [];
       for (const optionId of selectedCapabilities) {
         const match = optionId.match(/^tool:(.+)$/);
@@ -400,23 +396,13 @@ export function ChatRuntimeView({
         }
       }
 
-      const token = await getApiAccessToken();
-
-      const response = await fetch(`${API_BASE_URL}/api/v1/agents`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          prompt: currentInput,
-          session_id: effectiveSessionId,
-          agent_id: currentAgentId || undefined,
-          chatHistory,
-          active_tool_ids: activeToolIds.length > 0 ? activeToolIds : undefined,
-        }),
-        signal: abortControllerRef.current.signal,
-      });
+      // Step 3: Send message via SSE (backend handles persistence)
+      const response = await sendChatMessage(
+        effectiveSessionId,
+        currentAgentId,
+        currentInput,
+        { activeToolIds: activeToolIds.length > 0 ? activeToolIds : undefined },
+      );
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const reader = response.body?.getReader();
@@ -441,17 +427,8 @@ export function ChatRuntimeView({
           try {
             const event = JSON.parse(data);
 
-            if (event.type === 'session') {
-              if (event.sessionId && typeof event.sessionId === 'string') {
-                effectiveSessionId = event.sessionId;
-                prevSessionIdRef.current = event.sessionId;
-                hasLoadedForSessionRef.current = event.sessionId;
-                setCurrentSessionId(event.sessionId);
-                setIsNewChatMode(false); // 新 session 创建成功，重置新建聊天模式
-                refreshChatSessions(currentAgentId);
-              }
-              continue;
-            }
+            // Skip session event (we already created the session explicitly)
+            if (event.type === 'session') continue;
 
             setMessages(prev => {
               const newMessages = [...prev];
@@ -487,18 +464,13 @@ export function ChatRuntimeView({
                   parts.push({ type: 'text', content: event.content });
                   break;
                 case 'text_delta': {
-                  // 关键修复：只有当最后一个 part 是 text 类型时才追加
-                  // 如果最后一个是 tool 类型，则创建新的 text part
-                  // 这样可以保证 text 和 tool 按照正确的时间顺序交错显示
                   const lastPart = parts[parts.length - 1];
                   if (lastPart && lastPart.type === 'text') {
-                    // 最后一个是 text，追加到它
                     parts[parts.length - 1] = {
                       ...lastPart,
                       content: (lastPart.content || '') + event.content,
                     };
                   } else {
-                    // 最后一个不是 text（是 tool 或 parts 为空），创建新的 text part
                     parts.push({ type: 'text', content: event.content });
                   }
                   break;
@@ -517,13 +489,13 @@ export function ChatRuntimeView({
                 .filter(p => p.type === 'text')
                 .map(p => p.content)
                 .join('\n\n');
-              finalParts = parts;
               return [...newMessages.slice(0, -1), { ...last, content, parts }];
             });
           } catch {}
         }
       }
 
+      // Mark stream as complete
       setMessages(prev => {
         const newMessages = [...prev];
         const last = newMessages[newMessages.length - 1];
@@ -536,11 +508,11 @@ export function ChatRuntimeView({
           });
           last.parts = parts;
           last.isStreaming = false;
-          finalParts = parts;
         }
         return newMessages;
       });
 
+      // Refresh from DB to get persisted state
       if (effectiveSessionId) {
         refreshChatMessages(effectiveSessionId);
         refreshChatSessions(currentAgentId);
@@ -571,14 +543,10 @@ export function ChatRuntimeView({
   }, [
     inputValue,
     isLoading,
-    tableData,
-    tableId,
-    onDataUpdate,
+    currentAgentId,
     currentSessionId,
-    messages.length,
     selectedCapabilities,
-    projectId,
-    projectTools?.length,
+    onDataUpdate,
   ]);
 
   // Input handling with mention

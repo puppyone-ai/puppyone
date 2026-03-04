@@ -37,13 +37,9 @@ class GoogleDocsOAuthService:
         if not state:
             state = secrets.token_urlsafe(32)
 
-        # Use Google Sheets client ID/secret (same Google Cloud project)
-        client_id = settings.GOOGLE_DOCS_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID
-        redirect_uri = settings.GOOGLE_DOCS_REDIRECT_URI or settings.GOOGLE_SHEETS_REDIRECT_URI
-
         params = {
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "redirect_uri": settings.GOOGLE_DOCS_REDIRECT_URI,
             "response_type": "code",
             "scope": " ".join(self.DEFAULT_SCOPES),
             "state": state,
@@ -57,15 +53,11 @@ class GoogleDocsOAuthService:
 
     async def exchange_code_for_token(self, code: str) -> dict:
         """Exchange authorization code for access token."""
-        client_id = settings.GOOGLE_DOCS_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID
-        client_secret = settings.GOOGLE_DOCS_CLIENT_SECRET or settings.GOOGLE_SHEETS_CLIENT_SECRET
-        redirect_uri = settings.GOOGLE_DOCS_REDIRECT_URI or settings.GOOGLE_SHEETS_REDIRECT_URI
-
         payload = {
-            "client_id": client_id,
-            "client_secret": client_secret,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
             "code": code,
-            "redirect_uri": redirect_uri,
+            "redirect_uri": settings.GOOGLE_DOCS_REDIRECT_URI,
             "grant_type": "authorization_code",
         }
 
@@ -173,12 +165,9 @@ class GoogleDocsOAuthService:
         if not connection or not connection.refresh_token:
             return connection
 
-        client_id = settings.GOOGLE_DOCS_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID
-        client_secret = settings.GOOGLE_DOCS_CLIENT_SECRET or settings.GOOGLE_SHEETS_CLIENT_SECRET
-
         payload = {
-            "client_id": client_id,
-            "client_secret": client_secret,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
             "grant_type": "refresh_token",
             "refresh_token": connection.refresh_token,
         }

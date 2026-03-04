@@ -162,29 +162,13 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_SECRET: str = ""
     GITHUB_REDIRECT_URI: str = "http://localhost:3000/oauth/github/callback"
 
-    # Google Sheets OAuth 配置 (所有 Google 服务共用 Client ID/Secret)
-    GOOGLE_SHEETS_CLIENT_ID: str = ""
-    GOOGLE_SHEETS_CLIENT_SECRET: str = ""
+    # Google OAuth 配置 (所有 Google 服务共用同一个 OAuth Client)
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_SHEETS_REDIRECT_URI: str = "http://localhost:3000/oauth/google-sheets/callback"
-
-    # Gmail OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
-    GMAIL_CLIENT_ID: Optional[str] = None
-    GMAIL_CLIENT_SECRET: Optional[str] = None
     GMAIL_REDIRECT_URI: str = "http://localhost:3000/oauth/gmail/callback"
-
-    # Google Drive OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
-    GOOGLE_DRIVE_CLIENT_ID: Optional[str] = None
-    GOOGLE_DRIVE_CLIENT_SECRET: Optional[str] = None
     GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:3000/oauth/google-drive/callback"
-
-    # Google Calendar OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
-    GOOGLE_CALENDAR_CLIENT_ID: Optional[str] = None
-    GOOGLE_CALENDAR_CLIENT_SECRET: Optional[str] = None
     GOOGLE_CALENDAR_REDIRECT_URI: str = "http://localhost:3000/oauth/google-calendar/callback"
-
-    # Google Docs OAuth 配置 (自动复用 Google Sheets 的 Client ID/Secret)
-    GOOGLE_DOCS_CLIENT_ID: Optional[str] = None
-    GOOGLE_DOCS_CLIENT_SECRET: Optional[str] = None
     GOOGLE_DOCS_REDIRECT_URI: str = "http://localhost:3000/oauth/google-docs/callback"
 
     # Linear OAuth 配置

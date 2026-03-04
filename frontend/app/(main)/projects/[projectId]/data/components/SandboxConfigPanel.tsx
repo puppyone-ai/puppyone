@@ -15,7 +15,6 @@ interface SandboxEndpointData {
   access_key: string;
   status: string;
   runtime: string;
-  provider: string;
   timeout_seconds: number;
   resource_limits?: { memory_mb?: number; cpu_shares?: number };
   mounts: SandboxMount[];
