@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="frontend/public/puppyonetitle.png" alt="puppyone"  />
+  <img src="assets/title-puppyone.jpg" alt="PuppyOne — The context file system built for agents" width="100%" />
 </p>
-
-<h1 align="center">PuppyOne</h1>
 
 <p align="center">
   <b>The context file system for agents.</b><br>
@@ -27,13 +25,18 @@
   </a>
 </p>
 
+---
+
+
+## Why agents need a new file system
+
 Most capable agents today are file-based: they read, write, and execute through Bash and local file systems. However, **traditional file systems were never built to be a context infra for agents.**
 
 - **No connectors.** Your data lives in Notion, GitHub, Google Drive, and dozens of other tools. Your agent can't see any of it.
 - **No backup and rollback.** A hallucinating agent overwrites a critical file. The previous version is gone.
 - **No file-level auth for agents.** Controlling per-agent read/write access with chmod and SSH keys doesn't scale.
 
-## Why PuppyOne?
+## Why PuppyOne? <a href="https://github.com/puppyone-ai/puppyone"><img src="https://img.shields.io/github/stars/puppyone-ai/puppyone?style=flat&logo=github&color=yellow" alt="GitHub Stars" /></a>
 
 PuppyOne is a context file system built only for agents. It directly solves all of the above:
 
@@ -44,7 +47,7 @@ PuppyOne is a context file system built only for agents. It directly solves all 
 - **Audit Logs** — Full traceability: which agent read, wrote, or deleted which file, and when.
 
 
-<img src="assert/puppy-filesystem-demo.png" alt="puppyone file system" width="100%" />
+<img src="assets/puppy-filesystem-demo.png" alt="puppyone file system" width="100%" />
 
 ---
 
@@ -56,7 +59,7 @@ puppyone provides OAuth connectors for **15+ platforms** — including Notion, G
 
 All data is transformed into agent-friendly formats (Markdown, JSON, raw files) and stored in your **Context Space** — a cloud file system that any agent can browse like a local directory.
 
-<img src="assert/connect-demo.gif" alt="Connect data sources" width="100%" />
+<img src="assets/connect-demo.gif" alt="Connect data sources" width="100%" />
 
 ---
 
@@ -69,7 +72,7 @@ Agent-level auth, versioning, audit, and collaboration — built for agents, not
 - **Audit logs** — Every read and write operation is recorded: who did what, to which file, and when.
 - **Checkout / commit workflow** — Locking, conflict detection, and resolution for concurrent agent edits.
 
-<img src="assert/auth-demo.gif" alt="File Level Security" width="100%" />
+<img src="assets/auth-demo.gif" alt="File Level Security" width="100%" />
 
 ---
 
@@ -82,40 +85,6 @@ One Context Space, many ways in. Your agents access it however they work best:
 - **REST API** — Full programmatic access. Read, write, query, and manage everything.
 - **CLI** — Every operation available via `puppyone` command line, so AI coding tools like Claude Code can drive the platform directly.
 - **Local folder sync** — Real-time bidirectional sync between local directories and the cloud Context Space via the OpenClaw protocol.
-
----
-
-## Architecture
-
-```
-         ┌──────────────────────────────────────────────┐
-         │       Data Sources (Connected)               │
-         │  Notion · GitHub · Gmail · Drive · Airtable  │
-         │  Linear · URLs · Databases · Local Folders   │
-         └─────────────────────┬────────────────────────┘
-                               │
-                    ╔══════════▼══════════╗
-                    ║     puppyone        ║
-                    ║  Context Space      ║
-                    ║  (Files / JSON /    ║
-                    ║   Markdown / Raw)   ║
-                    ╠═════════════════════╣
-                    ║  Auth · Versioning  ║
-                    ║  Audit · Collab     ║
-                    ╚══════════▲══════════╝
-                               │
-         ┌─────────────────────┼─────────────────────┐
-         │                     │                     │
-    ┌────▼────┐          ┌─────▼─────┐         ┌────▼────┐
-    │   MCP   │          │  Sandbox  │         │   API   │
-    └────┬────┘          └─────┬─────┘         └────┬────┘
-         │                     │                     │
-   ┌─────▼─────┐        ┌─────▼─────┐        ┌──────▼──────┐
-   │  Cursor   │        │  Docker   │        │  Python     │
-   │  Claude   │        │  E2B      │        │  Scripts    │
-   │  Windsurf │        │  Agents   │        │  Claude Code│
-   └───────────┘        └───────────┘        └─────────────┘
-```
 
 ---
 
