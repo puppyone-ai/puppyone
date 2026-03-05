@@ -118,24 +118,50 @@ export function SaaSyncConfig({
         isActive={!!targetRes && isConnected}
       />
 
-      {/* ─── 2. Drag zone (ChatAgentConfig style) ─── */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-          <label style={{ fontSize: 12, fontWeight: 500, color: '#666' }}>Sync target</label>
-          <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
-        </div>
+      {/* ─── 2. Drag zone in styled callout bubble ─── */}
+      <div style={{ position: 'relative', marginTop: 16 }}>
+        {/* CSS Triangle pointing up to the Workspace logo */}
+        <div style={{
+          position: 'absolute',
+          top: '-8px',
+          left: 'calc(50% - 76px)', // Aligned to center of 72px left node in the new layout: 50% - (80/2 + 72/2) = 50% - 76
+          width: '16px',
+          height: '16px',
+          background: '#18181b',
+          borderLeft: '1px solid rgba(255,255,255,0.08)',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          transform: 'rotate(45deg)',
+          zIndex: 3,
+          marginLeft: '-8px'
+        }} />
 
-        <div
-          style={{
-            minHeight: 72,
-            background: isDragging ? 'rgba(255,255,255,0.03)' : 'transparent',
-            border: isDragging ? '1px dashed #525252' : targetRes ? '1px solid #2a2a2a' : '1px dashed #2a2a2a',
-            borderRadius: 6, transition: 'all 0.15s',
-          }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
+        <div style={{
+          position: 'relative',
+          background: '#18181b',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '8px',
+          padding: '16px',
+          zIndex: 2
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', paddingLeft: 2 }}>Workspace Sync Target</label>
+            <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
+          </div>
+          <div style={{ color: '#a1a1aa', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
+            Drag and drop a folder or database here to set it as the destination for this connection.
+          </div>
+
+          <div
+            style={{
+              minHeight: 72,
+              background: isDragging ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
+              border: isDragging ? '1px dashed #71717a' : targetRes ? '1px solid rgba(255,255,255,0.15)' : '1px dashed rgba(255,255,255,0.15)',
+              borderRadius: 6, transition: 'all 0.15s',
+            }}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
           {targetRes && (
             <div style={{ padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
               {(() => {
@@ -177,18 +203,19 @@ export function SaaSyncConfig({
             <div style={{
               minHeight: 72, display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center', gap: 6,
-              color: isDragging ? '#a1a1aa' : '#525252',
+              color: isDragging ? '#a1a1aa' : '#71717a',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {accept.includes('folder') && <div style={{ color: isDragging ? '#d4d4d4' : '#a1a1aa' }}><FolderIcon /></div>}
                 {accept.includes('json') && <div style={{ color: isDragging ? '#6ee7b7' : '#34d399' }}><JsonIcon /></div>}
                 {accept.includes('markdown') && <div style={{ color: isDragging ? '#93c5fd' : '#60a5fa' }}><MarkdownIcon /></div>}
               </div>
-              <span style={{ fontSize: 12 }}>
-                {isDragging ? 'Drop here' : `Drag ${TYPE_ARTICLE[primaryType]} into this`}
+              <span style={{ fontSize: 13 }}>
+                {isDragging ? 'Drop here' : `Drag ${TYPE_ARTICLE[primaryType]} into this zone`}
               </span>
             </div>
           )}
+        </div>
         </div>
       </div>
 
@@ -197,33 +224,33 @@ export function SaaSyncConfig({
         {requiresAuth && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: -2 }}>
-              <span style={{ fontSize: 12, fontWeight: 500, color: '#666' }}>{providerLabel} account</span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{providerLabel} account</span>
               {!oauthStatus?.connected && <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />}
             </div>
 
             {checking ? (
-              <div style={{ textAlign: 'center', color: '#525252', fontSize: 12, padding: '8px 0' }}>
+              <div style={{ textAlign: 'center', color: '#a1a1aa', fontSize: 13, padding: '8px 0' }}>
                 Checking account...
               </div>
             ) : oauthStatus?.connected ? (
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '6px 10px', borderRadius: 6,
-                background: 'transparent', border: '1px solid #2a2a2a',
+                padding: '8px 12px', borderRadius: 6,
+                background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#525252" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  <span style={{ fontSize: 11, color: '#666', fontWeight: 400 }}>
+                  <span style={{ fontSize: 13, color: '#e4e4e7', fontWeight: 400 }}>
                     {oauthStatus?.email || 'Signed in'}
                   </span>
                 </div>
                 <button
                   onClick={handleConnect}
-                  style={{ background: 'transparent', border: 'none', color: '#3a3a3a', fontSize: 10, cursor: 'pointer', padding: '2px 0' }}
-                  onMouseEnter={e => e.currentTarget.style.color = '#a3a3a3'}
-                  onMouseLeave={e => e.currentTarget.style.color = '#3a3a3a'}
+                  style={{ background: 'transparent', border: 'none', color: '#71717a', fontSize: 12, cursor: 'pointer', padding: '2px 0' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#e4e4e7'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#71717a'}
                 >
                   Switch
                 </button>
@@ -232,17 +259,17 @@ export function SaaSyncConfig({
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '12px 14px', borderRadius: 8,
-                background: '#161616', border: '1px solid #252525',
+                background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
               }}>
                 <span style={{ display: 'flex', flexShrink: 0 }}>{icon}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: '#a3a3a3' }}>Sign in to {providerLabel}</div>
-                  <div style={{ fontSize: 11, color: '#525252', marginTop: 2 }}>{description}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Sign in to {providerLabel}</div>
+                  <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 2 }}>{description}</div>
                 </div>
                 <button
                   onClick={handleConnect} disabled={connecting}
                   style={{
-                    height: 28, padding: '0 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                    height: 28, padding: '0 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                     background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
                     color: connecting ? '#525252' : '#e5e5e5', cursor: connecting ? 'not-allowed' : 'pointer',
                     transition: 'all 0.12s', flexShrink: 0, whiteSpace: 'nowrap',
@@ -255,43 +282,51 @@ export function SaaSyncConfig({
               </div>
             )}
 
-            {error && <div style={{ fontSize: 11, color: '#ef4444', padding: '0 2px' }}>{error}</div>}
+            {error && <div style={{ fontSize: 12, color: '#ef4444', padding: '0 2px' }}>{error}</div>}
           </>
         )}
 
         {/* Config fields — show when connected (or always for no-auth providers) */}
         {isConnected && configFields.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
             {configFields.map(field => (
-              <div key={field.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <label style={{ fontSize: 12, color: '#525252', minWidth: 80, flexShrink: 0 }}>{field.label}</label>
-                {field.type === 'select' && field.options && (
-                  <select
-                    id={`sync-cfg-${provider}-${field.key}`}
-                    defaultValue={field.defaultValue}
-                    style={{
-                      flex: 1, height: 28, padding: '0 8px',
-                      background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6,
-                      color: '#e5e5e5', fontSize: 12, outline: 'none',
-                      appearance: 'none',
-                      backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'10\' height=\'6\' viewBox=\'0 0 10 6\' fill=\'none\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M1 1L5 5L9 1\' stroke=\'%23525252\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'/%3E%3C/svg%3E")',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 8px center',
-                      paddingRight: 24,
-                    }}
-                  >
-                    {field.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                )}
-                {field.type === 'text' && (
+              <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{field.label}</label>
+                {field.type === 'select' && field.options ? (
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      id={`sync-cfg-${provider}-${field.key}`}
+                      defaultValue={field.defaultValue}
+                      style={{
+                        width: '100%', height: 36, padding: '0 12px', fontSize: 13,
+                        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 6, color: '#e4e4e7', outline: 'none', appearance: 'none',
+                        cursor: 'pointer', transition: 'border-color 0.2s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                    >
+                      <option value="">Select...</option>
+                      {field.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ position: 'absolute', right: 12, top: 15, pointerEvents: 'none' }}>
+                      <path d="M1 1L5 5L9 1" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                ) : (
                   <input
                     id={`sync-cfg-${provider}-${field.key}`}
                     type="text" placeholder={field.placeholder || field.label} defaultValue={field.defaultValue}
                     style={{
-                      flex: 1, height: 28, padding: '0 8px',
-                      background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6,
-                      color: '#e5e5e5', fontSize: 12, outline: 'none',
+                      width: '100%', height: 36, padding: '0 12px', fontSize: 13,
+                      background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: 6, color: '#e4e4e7', outline: 'none',
+                      transition: 'border-color 0.2s',
                     }}
+                    onFocus={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}
+                    onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                    onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
+                    onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
                   />
                 )}
               </div>
@@ -344,52 +379,54 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <label style={{ fontSize: 12, fontWeight: 500, color: '#666' }}>Sync frequency</label>
+        <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Sync frequency</label>
       </div>
 
       <div style={{ position: 'relative' }}>
         <button
           onClick={() => setIsOpen(!isOpen)}
           style={{
-            width: '100%', height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: '#161616', border: `1px solid ${isOpen ? '#525252' : '#2a2a2a'}`, borderRadius: 6,
-            padding: '0 10px', color: '#e5e5e5', cursor: 'pointer', fontSize: 12, textAlign: 'left',
+            width: '100%', height: 36, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: 'rgba(255,255,255,0.02)', border: `1px solid ${isOpen ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 6,
+            padding: '0 12px', color: '#e4e4e7', cursor: 'pointer', fontSize: 13, textAlign: 'left',
+            transition: 'border-color 0.2s',
           }}
         >
           <span>{selected.label}</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none"
             style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-            <path d="M1 1L5 5L9 1" stroke="#525252" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M1 1L5 5L9 1" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
 
         {isOpen && (
           <div style={{
             position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
-            background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6,
-            overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+            background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6,
+            overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
           }}>
             {options.map((opt, idx) => (
               <button
                 key={opt.value}
                 onClick={() => handleSelect(opt.value)}
                 style={{
-                  width: '100%', display: 'flex', flexDirection: 'column', gap: 1,
-                  padding: '8px 10px', textAlign: 'left', cursor: 'pointer',
+                  width: '100%', display: 'flex', flexDirection: 'column', gap: 2,
+                  padding: '10px 12px', textAlign: 'left', cursor: 'pointer',
                   background: draftSyncMode === opt.value ? 'rgba(255,255,255,0.06)' : 'transparent',
                   border: 'none',
-                  borderBottom: idx !== options.length - 1 ? '1px solid #1f1f1f' : 'none',
+                  borderBottom: idx !== options.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => { if (draftSyncMode !== opt.value) e.currentTarget.style.background = '#1f1f1f'; }}
+                onMouseEnter={e => { if (draftSyncMode !== opt.value) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = draftSyncMode === opt.value ? 'rgba(255,255,255,0.06)' : 'transparent'; }}
               >
                 <span style={{
-                  fontSize: 12, fontWeight: draftSyncMode === opt.value ? 500 : 400,
-                  color: draftSyncMode === opt.value ? '#e5e5e5' : '#a3a3a3',
+                  fontSize: 13, fontWeight: 500,
+                  color: draftSyncMode === opt.value ? '#e4e4e7' : '#a1a1aa',
                 }}>{opt.label}</span>
-                <span style={{ fontSize: 11, color: '#525252' }}>{opt.desc}</span>
+                <span style={{ fontSize: 12, color: '#71717a' }}>{opt.desc}</span>
               </button>
             ))}
 
@@ -401,7 +438,7 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
       {draftSyncMode === 'scheduled' && (
         <div style={{
           padding: '12px', marginTop: 4,
-          background: '#141414', border: '1px solid #2a2a2a', borderRadius: 8,
+          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
         }}>
           <ScheduleTriggerSection
             draftTriggerConfig={draftTriggerConfig}
@@ -412,7 +449,7 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
       )}
 
       {/* Mode description */}
-      <div style={{ fontSize: 11, color: '#3a3a3a', padding: '0 2px', lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: '#a1a1aa', padding: '0 2px', lineHeight: 1.5 }}>
         {draftSyncMode === 'import_once' && 'Data will be imported once. No sync binding will be created.'}
         {draftSyncMode === 'manual' && 'A sync binding will be created. Click "Refresh" anytime to pull the latest data.'}
         {draftSyncMode === 'scheduled' && 'Data will be automatically refreshed on the schedule above.'}

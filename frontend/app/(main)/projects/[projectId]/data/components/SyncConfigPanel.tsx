@@ -8,6 +8,7 @@ import { ChatAgentConfig, type AgentConfigProps } from '@/components/agent/views
 import { OpenClawAgentConfig } from '@/components/agent/views/configs/OpenClawAgentConfig';
 import { SaaSyncConfig, type SaaSConfigField } from '@/components/agent/views/configs/SaaSyncConfig';
 import type { AcceptedNodeType } from '@/components/agent/views/configs/SyncPreview';
+import { SyncPreview } from '@/components/agent/views/configs/SyncPreview';
 import { PanelShell } from './PanelShell';
 import type { SaasType } from '@/lib/oauthApi';
 
@@ -17,8 +18,8 @@ import type { SaasType } from '@/lib/oauthApi';
 
 type SyncProviderId =
   | 'filesystem' | 'gmail' | 'google_calendar' | 'google_sheets'
-  | 'google_docs' | 'github' | 'notion' | 'linear' | 'url'
-  | 'hackernews' | 'posthog' | 'google_search_console' | 'script';
+  | 'google_docs' | 'github' | 'url'
+  | 'google_search_console';
 
 type AgentTypeId = 'chat';
 
@@ -102,7 +103,7 @@ const SYNC_PROVIDERS: SyncProviderDef[] = [
   {
     id: 'github', label: 'GitHub', description: 'Sync repos, issues, or PRs',
     icon: <GitHubMini />,
-    oauthType: 'github', requiresAuth: true, direction: 'bidirectional', accept: ['json', 'folder'],
+    oauthType: 'github', requiresAuth: true, direction: 'inbound', accept: ['json', 'folder'],
     configFields: [
       { key: 'repo', label: 'Repository', type: 'text', placeholder: 'owner/repo' },
       { key: 'content_type', label: 'Content type', type: 'select', options: [
@@ -112,51 +113,11 @@ const SYNC_PROVIDERS: SyncProviderDef[] = [
     ],
   },
   {
-    id: 'notion', label: 'Notion', description: 'Sync Notion pages and databases',
-    icon: <ProviderImg src="https://www.notion.so/images/favicon.ico" />,
-    oauthType: 'notion', requiresAuth: true, direction: 'bidirectional', accept: ['json', 'markdown'],
-    configFields: [],
-  },
-  {
-    id: 'linear', label: 'Linear', description: 'Sync Linear issues',
-    icon: <LinearMini />,
-    oauthType: 'linear', requiresAuth: true, direction: 'inbound', accept: ['json'],
-    configFields: [],
-  },
-  {
     id: 'url', label: 'Web Page', description: 'Import content from a URL',
     icon: <span style={{ fontSize: 14 }}>🌐</span>,
     oauthType: 'notion' as SaasType, direction: 'inbound', accept: ['markdown'],
     configFields: [
       { key: 'source_url', label: 'URL', type: 'text', placeholder: 'https://example.com/page' },
-    ],
-  },
-  {
-    id: 'hackernews', label: 'Hacker News', description: 'Pull top/new/best stories from HN',
-    icon: <span style={{ fontSize: 14 }}>🟠</span>,
-    oauthType: 'notion' as SaasType, direction: 'inbound', accept: ['json'],
-    configFields: [
-      { key: 'feed_type', label: 'Feed type', type: 'select', options: [
-        { value: 'topstories', label: 'Top Stories' }, { value: 'newstories', label: 'New Stories' },
-        { value: 'beststories', label: 'Best Stories' }, { value: 'askstories', label: 'Ask HN' },
-        { value: 'showstories', label: 'Show HN' },
-      ], defaultValue: 'topstories' },
-      { key: 'limit', label: 'Max stories', type: 'text', placeholder: '30' },
-    ],
-  },
-  {
-    id: 'posthog', label: 'PostHog', description: 'Sync events, persons, or insights',
-    icon: <span style={{ fontSize: 14 }}>🦔</span>,
-    oauthType: 'notion' as SaasType, direction: 'inbound', accept: ['json'],
-    configFields: [
-      { key: 'api_key', label: 'Personal API Key', type: 'text', placeholder: 'phx_...' },
-      { key: 'project_id', label: 'PostHog Project ID', type: 'text', placeholder: '12345' },
-      { key: 'host', label: 'PostHog Host', type: 'text', placeholder: 'https://app.posthog.com' },
-      { key: 'mode', label: 'Data to sync', type: 'select', options: [
-        { value: 'events', label: 'Recent Events' }, { value: 'persons', label: 'Persons' },
-        { value: 'insights', label: 'Saved Insights' },
-      ], defaultValue: 'events' },
-      { key: 'limit', label: 'Max records', type: 'text', placeholder: '100' },
     ],
   },
   {
@@ -174,19 +135,6 @@ const SYNC_PROVIDERS: SyncProviderDef[] = [
         { value: 'query,page', label: 'Queries + Pages' }, { value: 'country', label: 'Countries' },
       ], defaultValue: 'query' },
       { key: 'row_limit', label: 'Max rows', type: 'text', placeholder: '500' },
-    ],
-  },
-  {
-    id: 'script', label: 'Custom Script', description: 'Run your own script in a sandbox',
-    icon: <span style={{ fontSize: 14 }}>📜</span>,
-    oauthType: 'notion' as SaasType, direction: 'inbound', accept: ['json', 'markdown'],
-    configFields: [
-      { key: 'runtime', label: 'Runtime', type: 'select', options: [
-        { value: 'python', label: 'Python 3' }, { value: 'node', label: 'Node.js' },
-        { value: 'shell', label: 'Shell (bash)' },
-      ], defaultValue: 'python' },
-      { key: 'script_content', label: 'Script', type: 'text', placeholder: 'Paste script or use CLI: puppyone connect script --file ./my-script.py' },
-      { key: 'timeout', label: 'Timeout (seconds)', type: 'text', placeholder: '60' },
     ],
   },
 ];
@@ -289,6 +237,19 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
   const [displayName, setDisplayName] = useState('');
   const [deploying, setDeploying] = useState(false);
   const [syncConfigValues, setSyncConfigValues] = useState<Record<string, string>>({});
+
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    inbound: true,
+    bidirectional: false,
+    outbound: false,
+  });
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
 
   // Auto-select if pendingSyncProvider is set
   useEffect(() => {
@@ -423,30 +384,52 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     const ConfigComponent = AGENT_CONFIG_MAP[selectedAgentType];
     return (
       <PanelShell title="Chat Agent" onClose={onClose} onBack={handleBack}>
-        <div style={{ padding: '12px 12px 40px' }}>
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4, display: 'block' }}>Name</label>
-            <input
-              value={displayName}
-              onChange={e => setDisplayName(e.target.value)}
-              placeholder="Chat Agent"
-              style={{
-                width: '100%', padding: '6px 10px', fontSize: 13, background: '#1a1a1c',
-                border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#e4e4e7',
-                outline: 'none',
-              }}
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px' }}>
+            <SyncPreview
+              provider="agent"
+              providerLabel="Chat Agent"
+              direction="outbound"
+              targetName={draftResources[0]?.nodeName || null}
+              targetType={(draftResources[0]?.nodeType as AcceptedNodeType) || 'folder'}
+              isActive={draftResources.length > 0}
             />
+            <div style={{ marginBottom: 12, marginTop: 12 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 6, display: 'block' }}>Name</label>
+              <input
+                value={displayName}
+                onChange={e => setDisplayName(e.target.value)}
+                placeholder="Chat Agent"
+                style={{
+                  width: '100%', height: 36, padding: '0 12px', fontSize: 13, background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#e4e4e7',
+                  outline: 'none', transition: 'border-color 0.2s'
+                }}
+                onFocus={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}
+                onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
+                onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+              />
+            </div>
+            <ConfigComponent />
           </div>
-          <ConfigComponent />
-          <div style={{ marginTop: 16 }}>
+          
+          <div style={{ 
+            padding: '12px', 
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            background: '#09090b',
+            flexShrink: 0
+          }}>
             <button
               onClick={handleAgentDeploy}
-              disabled={deploying}
+              disabled={deploying || draftResources.length === 0}
               style={{
-                width: '100%', height: 32, background: '#3b82f6', color: '#fff',
+                width: '100%', height: 36,
+                background: (deploying || draftResources.length === 0) ? '#27272a' : '#3b82f6',
+                color: (deploying || draftResources.length === 0) ? '#71717a' : '#fff',
                 border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500,
-                cursor: deploying ? 'not-allowed' : 'pointer',
-                opacity: deploying ? 0.6 : 1,
+                cursor: (deploying || draftResources.length === 0) ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s',
               }}
             >
               {deploying ? 'Creating...' : 'Create agent'}
@@ -462,41 +445,63 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     const endpointDef = ENDPOINT_OPTIONS.find(e => e.id === selectedEndpointType)!;
     return (
       <PanelShell title={endpointDef.label} onClose={onClose} onBack={handleBack}>
-        <div style={{ padding: '12px 12px 40px' }}>
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4, display: 'block' }}>Name</label>
-            <input
-              value={displayName}
-              onChange={e => setDisplayName(e.target.value)}
-              placeholder={endpointDef.label}
-              style={{
-                width: '100%', padding: '6px 10px', fontSize: 13, background: '#1a1a1c',
-                border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#e4e4e7',
-                outline: 'none',
-              }}
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px' }}>
+            <SyncPreview
+              provider={selectedEndpointType === 'mcp' ? 'mcp' : 'sandbox'}
+              providerLabel={endpointDef.label}
+              direction="bidirectional"
+              targetName={draftResources[0]?.nodeName || null}
+              targetType={(draftResources[0]?.nodeType as AcceptedNodeType) || 'folder'}
+              isActive={draftResources.length > 0}
             />
-          </div>
-          <div style={{ padding: '12px', background: '#141414', border: '1px solid #252525', borderRadius: 8, marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              {endpointDef.icon}
-              <span style={{ fontSize: 12, fontWeight: 500, color: '#a1a1aa' }}>{endpointDef.label}</span>
+            <div style={{ marginBottom: 12, marginTop: 12 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 6, display: 'block' }}>Name</label>
+              <input
+                value={displayName}
+                onChange={e => setDisplayName(e.target.value)}
+                placeholder={endpointDef.label}
+                style={{
+                  width: '100%', height: 36, padding: '0 12px', fontSize: 13, background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#e4e4e7',
+                  outline: 'none', transition: 'border-color 0.2s'
+                }}
+                onFocus={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}
+                onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
+                onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+              />
             </div>
-            <p style={{ fontSize: 12, color: '#525252', lineHeight: 1.5, margin: 0 }}>
-              {selectedEndpointType === 'mcp'
-                ? 'Creates a Model Context Protocol endpoint. Configure tool bindings and node access from the detail page after creation.'
-                : 'Creates an isolated sandbox environment. Configure mounted nodes and execution permissions from the detail page after creation.'}
-            </p>
+            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                {endpointDef.icon}
+                <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{endpointDef.label}</span>
+              </div>
+              <p style={{ fontSize: 12, color: '#a1a1aa', lineHeight: 1.5, margin: 0 }}>
+                {selectedEndpointType === 'mcp'
+                  ? 'Creates a Model Context Protocol endpoint. Configure tool bindings and node access from the detail page after creation.'
+                  : 'Creates an isolated sandbox environment. Configure mounted nodes and execution permissions from the detail page after creation.'}
+              </p>
+            </div>
+            <ChatAgentConfig />
           </div>
-          <ChatAgentConfig />
-          <div style={{ marginTop: 16 }}>
+          
+          <div style={{ 
+            padding: '12px', 
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            background: '#09090b',
+            flexShrink: 0
+          }}>
             <button
               onClick={handleEndpointDeploy}
               disabled={deploying || draftResources.length === 0}
               style={{
-                width: '100%', height: 32, background: '#3b82f6', color: '#fff',
+                width: '100%', height: 36,
+                background: (deploying || draftResources.length === 0) ? '#27272a' : '#3b82f6',
+                color: (deploying || draftResources.length === 0) ? '#71717a' : '#fff',
                 border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500,
                 cursor: (deploying || draftResources.length === 0) ? 'not-allowed' : 'pointer',
-                opacity: (deploying || draftResources.length === 0) ? 0.6 : 1,
+                transition: 'all 0.2s',
               }}
             >
               {deploying ? 'Creating...' : `Create ${endpointDef.label.toLowerCase()}`}
@@ -514,17 +519,37 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     if (providerDef.id === 'filesystem') {
       return (
         <PanelShell title={providerDef.label} onClose={onClose} onBack={handleBack}>
-          <div style={{ padding: '12px 12px 40px' }}>
-            <OpenClawAgentConfig />
-            <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px' }}>
+              <SyncPreview
+                provider="filesystem"
+                providerLabel="Desktop Folder"
+                direction="bidirectional"
+                targetName={draftResources[0]?.nodeName || null}
+                targetType="folder"
+                isActive={draftResources.length > 0}
+              />
+              <div style={{ marginTop: 12 }}>
+                <OpenClawAgentConfig />
+              </div>
+            </div>
+            
+            <div style={{ 
+              padding: '12px', 
+              borderTop: '1px solid rgba(255,255,255,0.06)',
+              background: '#09090b',
+              flexShrink: 0
+            }}>
               <button
                 onClick={handleSyncDeploy}
                 disabled={deploying || draftResources.length === 0}
                 style={{
-                  width: '100%', height: 32, background: '#3b82f6', color: '#fff',
+                  width: '100%', height: 36,
+                  background: (deploying || draftResources.length === 0) ? '#27272a' : '#3b82f6',
+                  color: (deploying || draftResources.length === 0) ? '#71717a' : '#fff',
                   border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500,
                   cursor: (deploying || draftResources.length === 0) ? 'not-allowed' : 'pointer',
-                  opacity: (deploying || draftResources.length === 0) ? 0.6 : 1,
+                  transition: 'all 0.2s',
                 }}
               >
                 {deploying ? 'Creating...' : 'Create connection'}
@@ -535,9 +560,10 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
       );
     }
 
-    return (
-      <PanelShell title={providerDef.label} onClose={onClose} onBack={handleBack}>
-        <div style={{ padding: '12px 12px 40px' }}>
+  return (
+    <PanelShell title={providerDef.label} onClose={onClose} onBack={handleBack}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px' }}>
           <SaaSyncConfig
             provider={providerDef.id}
             providerLabel={providerDef.label}
@@ -550,122 +576,179 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
             direction={providerDef.direction}
           />
           {providerDef.configFields.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
               {providerDef.configFields.map(field => (
-                <div key={field.key}>
-                  <label style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4, display: 'block' }}>{field.label}</label>
+                <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{field.label}</label>
                   {field.type === 'select' && field.options ? (
-                    <select
-                      value={syncConfigValues[field.key] || field.defaultValue || ''}
-                      onChange={e => setSyncConfigValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-                      style={{
-                        width: '100%', padding: '6px 10px', fontSize: 13, background: '#1a1a1c',
-                        border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#e4e4e7',
-                      }}
-                    >
-                      <option value="">Select...</option>
-                      {field.options.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value={syncConfigValues[field.key] || field.defaultValue || ''}
+                        onChange={e => setSyncConfigValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                        style={{
+                          width: '100%', height: 36, padding: '0 12px', fontSize: 13,
+                          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: 6, color: '#e4e4e7', outline: 'none', appearance: 'none',
+                          cursor: 'pointer', transition: 'border-color 0.2s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                      >
+                        <option value="">Select...</option>
+                        {field.options.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ position: 'absolute', right: 12, top: 15, pointerEvents: 'none' }}>
+                        <path d="M1 1L5 5L9 1" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
                   ) : (
                     <input
                       value={syncConfigValues[field.key] || ''}
                       onChange={e => setSyncConfigValues(prev => ({ ...prev, [field.key]: e.target.value }))}
                       placeholder={field.placeholder || ''}
                       style={{
-                        width: '100%', padding: '6px 10px', fontSize: 13, background: '#1a1a1c',
-                        border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#e4e4e7',
-                        outline: 'none',
+                        width: '100%', height: 36, padding: '0 12px', fontSize: 13,
+                        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 6, color: '#e4e4e7', outline: 'none',
+                        transition: 'border-color 0.2s',
                       }}
+                      onFocus={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}
+                      onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                      onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
+                      onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
                     />
                   )}
                 </div>
               ))}
             </div>
           )}
-          <div style={{ marginTop: 16 }}>
-            <button
-              onClick={handleSyncDeploy}
-              disabled={deploying}
-              style={{
-                width: '100%', height: 32, background: '#3b82f6', color: '#fff',
-                border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500,
-                cursor: deploying ? 'not-allowed' : 'pointer',
-                opacity: deploying ? 0.6 : 1,
-              }}
-            >
-              {deploying ? 'Creating...' : 'Create connection'}
-            </button>
-          </div>
         </div>
-      </PanelShell>
+        
+        <div style={{ 
+          padding: '12px', 
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          background: '#09090b', // Match panel background to prevent transparency issues when scrolling
+          flexShrink: 0
+        }}>
+          <button
+            onClick={handleSyncDeploy}
+            disabled={deploying || draftResources.length === 0}
+            style={{
+              width: '100%', height: 36,
+              background: (deploying || draftResources.length === 0) ? '#27272a' : '#3b82f6',
+              color: (deploying || draftResources.length === 0) ? '#71717a' : '#fff',
+              border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500,
+              cursor: (deploying || draftResources.length === 0) ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            {deploying ? 'Creating...' : 'Create connection'}
+          </button>
+        </div>
+      </div>
+    </PanelShell>
     );
   }
 
-  // Categorize sync providers
-  const googleProviders = SYNC_PROVIDERS.filter(p =>
-    ['gmail', 'google_calendar', 'google_sheets', 'google_docs', 'google_search_console'].includes(p.id)
+  // Categorize sync providers by data flow
+  const inboundProviders = SYNC_PROVIDERS.filter(p =>
+    ['gmail', 'google_calendar', 'google_sheets', 'google_docs', 'google_search_console', 'url', 'github'].includes(p.id)
   );
-  const devProviders = SYNC_PROVIDERS.filter(p =>
-    ['github', 'notion', 'linear'].includes(p.id)
-  );
-  const dataProviders = SYNC_PROVIDERS.filter(p =>
-    ['filesystem', 'url', 'hackernews', 'posthog', 'script'].includes(p.id)
+  const bidirectionalProviders = SYNC_PROVIDERS.filter(p =>
+    ['filesystem'].includes(p.id)
   );
 
   // Default: show provider picker
   return (
     <PanelShell title="New connection" onClose={onClose}>
-      <div style={{ padding: '12px 12px 40px' }}>
-        {/* Agents & Endpoints */}
-        <SectionLabel>Agent & Endpoints</SectionLabel>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 16 }}>
-          {AGENT_OPTIONS.map(opt => (
-            <ProviderRow
-              key={opt.id}
-              icon={opt.icon}
-              label={opt.label}
-              description={opt.description}
-              onClick={() => handleSelectAgentType(opt.id)}
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          
+          {/* Inbound */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <DirectionalSectionLabel 
+              type="inbound" 
+              title="Import to PuppyOne" 
+              isExpanded={expandedSections.inbound}
+              onClick={() => toggleSection('inbound')}
             />
-          ))}
-          {ENDPOINT_OPTIONS.map(opt => (
-            <ProviderRow
-              key={opt.id}
-              icon={opt.icon}
-              label={opt.label}
-              description={opt.description}
-              onClick={() => handleSelectEndpointType(opt.id)}
+            {expandedSections.inbound && (
+              <div style={{ 
+                display: 'flex', flexDirection: 'column', gap: 2, 
+                paddingLeft: 38, 
+                paddingBottom: 12,
+                paddingTop: 4
+              }}>
+                {inboundProviders.map(p => (
+                  <ProviderRow key={p.id} icon={p.icon} label={p.label} description={p.description}
+                    onClick={() => handleSelectSyncProvider(p.id)} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Bidirectional */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <DirectionalSectionLabel 
+              type="bidirectional" 
+              title="Two-way Workspace Sync" 
+              isExpanded={expandedSections.bidirectional}
+              onClick={() => toggleSection('bidirectional')}
             />
-          ))}
-        </div>
+            {expandedSections.bidirectional && (
+              <div style={{ 
+                display: 'flex', flexDirection: 'column', gap: 2, 
+                paddingLeft: 38, 
+                paddingBottom: 12,
+                paddingTop: 4
+              }}>
+                {bidirectionalProviders.map(p => (
+                  <ProviderRow key={p.id} icon={p.icon} label={p.label} description={p.description}
+                    onClick={() => handleSelectSyncProvider(p.id)} />
+                ))}
+              </div>
+            )}
+          </div>
 
-        {/* Google */}
-        <SectionLabel>Google</SectionLabel>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 16 }}>
-          {googleProviders.map(p => (
-            <ProviderRow key={p.id} icon={p.icon} label={p.label} description={p.description}
-              onClick={() => handleSelectSyncProvider(p.id)} />
-          ))}
-        </div>
+          {/* Outbound / AI Endpoints */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <DirectionalSectionLabel 
+              type="outbound" 
+              title="AI Data Access" 
+              isExpanded={expandedSections.outbound}
+              onClick={() => toggleSection('outbound')}
+            />
+            {expandedSections.outbound && (
+              <div style={{ 
+                display: 'flex', flexDirection: 'column', gap: 2, 
+                paddingLeft: 38, 
+                paddingBottom: 12,
+                paddingTop: 4
+              }}>
+                {AGENT_OPTIONS.map(opt => (
+                  <ProviderRow
+                    key={opt.id}
+                    icon={opt.icon}
+                    label={opt.label}
+                    description={opt.description}
+                    onClick={() => handleSelectAgentType(opt.id)}
+                  />
+                ))}
+                {ENDPOINT_OPTIONS.map(opt => (
+                  <ProviderRow
+                    key={opt.id}
+                    icon={opt.icon}
+                    label={opt.label}
+                    description={opt.description}
+                    onClick={() => handleSelectEndpointType(opt.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
 
-        {/* Dev & Productivity */}
-        <SectionLabel>Productivity</SectionLabel>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 16 }}>
-          {devProviders.map(p => (
-            <ProviderRow key={p.id} icon={p.icon} label={p.label} description={p.description}
-              onClick={() => handleSelectSyncProvider(p.id)} />
-          ))}
-        </div>
-
-        {/* Data Sources */}
-        <SectionLabel>Data Sources</SectionLabel>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {dataProviders.map(p => (
-            <ProviderRow key={p.id} icon={p.icon} label={p.label} description={p.description}
-              onClick={() => handleSelectSyncProvider(p.id)} />
-          ))}
         </div>
       </div>
     </PanelShell>
@@ -684,6 +767,76 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     }}>
       {children}
     </div>
+  );
+}
+
+function DirectionalSectionLabel({ type, title, isExpanded, onClick }: { 
+  type: 'inbound' | 'bidirectional' | 'outbound', 
+  title: string, 
+  isExpanded: boolean,
+  onClick: () => void 
+}) {
+  const [hovered, setHovered] = useState(false);
+  let iconContent;
+
+  if (type === 'inbound') {
+    iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
+  } else if (type === 'bidirectional') {
+    iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>;
+  } else {
+    iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>;
+  }
+
+  // Capitalize title
+  const displayTitle = title.charAt(0).toUpperCase() + title.slice(1).toLowerCase();
+
+  return (
+    <button 
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ 
+        display: 'flex', alignItems: 'center', width: '100%', gap: 12,
+        background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
+        border: 'none', cursor: 'pointer',
+        padding: '8px 8px', textAlign: 'left',
+        borderRadius: 6,
+        transition: 'background 0.15s ease',
+        marginLeft: '-8px' // Offset the padding to keep alignment
+      }}
+    >
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        flexShrink: 0
+      }}>
+        <div style={{ 
+          color: hovered ? '#a1a1aa' : '#71717a', display: 'flex', 
+          transition: 'all 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+          opacity: isExpanded ? 0.8 : 0.5 
+        }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </div>
+        <div style={{ 
+          color: (isExpanded || hovered) ? '#e4e4e7' : '#71717a', 
+          display: 'flex', transition: 'all 0.2s' 
+        }}>
+          {iconContent}
+        </div>
+        <div style={{
+          fontSize: 13, fontWeight: 500, 
+          color: (isExpanded || hovered) ? '#e4e4e7' : '#71717a', 
+          transition: 'color 0.2s'
+        }}>
+          {displayTitle}
+        </div>
+      </div>
+      <div style={{ 
+        flex: 1, 
+        height: '1px', 
+        backgroundColor: (isExpanded || hovered) ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+        transition: 'background-color 0.2s'
+      }} />
+    </button>
   );
 }
 
@@ -713,7 +866,7 @@ function ProviderRow({ icon, label, description, onClick }: {
         {icon}
       </div>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', lineHeight: 1.3 }}>{label}</div>
+        <div style={{ fontSize: 13, fontWeight: hovered ? 500 : 400, color: hovered ? '#ffffff' : '#e4e4e7', transition: 'all 0.15s', lineHeight: 1.3 }}>{label}</div>
         <div style={{ fontSize: 12, color: '#71717a', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {description}
         </div>

@@ -22,25 +22,13 @@
 
 **The Agent-Native File System.**
 
-puppyone is an open-source context infrastructure that gives AI agents an agent native file system.
+puppyone is an open-source agent-native file system.
 
 - **Connected** — Pull context from SaaS tools (Notion, GitHub, Gmail, Google Drive, Airtable…), databases, and the web into agent-friendly, accessible files.
 - **Collaborative** — A file system rebuilt for agents: agent-level auth, versioning & rollback, conflict resolution, backup, audit logs, and traceability. Traditional file systems never had any of this.
 - **Accessible** — Your agents can access the file system via SSH, Bash, MCP, REST API, or sandboxed containers.
 
 <img src="assert/puppy-filesystem-demo.png" alt="puppyone file system" width="100%" />
-
----
-
-## Why puppyone?
-
-Today's context infrastructure was built for humans. Agents need something different:
-
-- **SaaS silos** — Deep context is locked inside Notion, GitHub, Google Drive, Airtable, Gmail, and dozens of other tools. Agents can't reach it without custom integrations for each one.
-- **No collaboration layer** — Traditional file systems have no concept of agent-level permissions, version history, or audit trails. Multi-agent teamwork is impossible without them.
-- **No distribution** — Getting context *into* an agent's environment (Cursor, Claude Desktop, a sandbox, your own scripts) requires glue code every time.
-
-puppyone solves all three.
 
 ---
 

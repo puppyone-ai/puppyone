@@ -88,25 +88,51 @@ export function ChatAgentConfig({ projectTools }: AgentConfigProps) {
 
   return (
     <>
-      {/* Agent's bash access */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-          <label style={{ ...labelStyle, marginBottom: 0 }}>Agent's workspace</label>
-          <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
-        </div>
+      {/* Agent's bash access wrapped in a styled callout bubble */}
+      <div style={{ position: 'relative', marginTop: 16 }}>
+        {/* CSS Triangle pointing up to the Workspace logo */}
+        <div style={{
+          position: 'absolute',
+          top: '-8px',
+          left: 'calc(50% - 76px)',
+          width: '16px',
+          height: '16px',
+          background: '#18181b',
+          borderLeft: '1px solid rgba(255,255,255,0.08)',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          transform: 'rotate(45deg)',
+          zIndex: 3,
+          marginLeft: '-8px'
+        }} />
 
-        <div
-          style={{
-            minHeight: 88,
-            background: isDragging ? 'rgba(255,255,255,0.03)' : 'transparent',
-            border: isDragging ? '1px dashed #525252' : '1px dashed #2a2a2a',
-            borderRadius: 6,
-            transition: 'all 0.15s',
-          }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
+        <div style={{
+          position: 'relative',
+          background: '#18181b',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '8px',
+          padding: '16px',
+          zIndex: 2
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+            <label style={{ ...labelStyle, marginBottom: 0, paddingLeft: 2, color: '#e4e4e7' }}>Agent Access Target</label>
+            <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
+          </div>
+          <div style={{ color: '#a1a1aa', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
+            Drag and drop a folder to define the workspace scope this agent can interact with.
+          </div>
+
+          <div
+            style={{
+              minHeight: 88,
+              background: isDragging ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
+              border: isDragging ? '1px dashed #71717a' : draftResources.length > 0 ? '1px solid rgba(255,255,255,0.15)' : '1px dashed rgba(255,255,255,0.15)',
+              borderRadius: 6,
+              transition: 'all 0.15s',
+            }}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
           <div style={{ padding: draftResources.length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
             {draftResources.map((resource) => {
               const { icon, color } = getNodeIcon(resource.nodeType);
@@ -158,7 +184,7 @@ export function ChatAgentConfig({ projectTools }: AgentConfigProps) {
           <div style={{
             minHeight: draftResources.length > 0 ? 32 : 88,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
-            color: isDragging ? '#a1a1aa' : '#525252',
+            color: isDragging ? '#a1a1aa' : '#71717a',
           }}>
             {draftResources.length === 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -172,6 +198,7 @@ export function ChatAgentConfig({ projectTools }: AgentConfigProps) {
             </span>
           </div>
         </div>
+      </div>
       </div>
 
       {/* HIDDEN: Agent's tools section temporarily disabled */}

@@ -13,7 +13,7 @@ interface PanelShellProps {
 
 export function PanelShell({ title, icon, onClose, onBack, headerRight, children }: PanelShellProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{
         height: 40, minHeight: 40, display: 'flex', alignItems: 'center', gap: 8,
         padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)',
