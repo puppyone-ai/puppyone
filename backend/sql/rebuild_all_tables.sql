@@ -183,12 +183,12 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id);
 
--- 11. mcp — MCP 实例
-CREATE TABLE IF NOT EXISTS mcp (
+-- 11. mcps — MCP 实例
+CREATE TABLE IF NOT EXISTS mcps (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     api_key         TEXT NOT NULL,
     user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    project_id      TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+    project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     table_id        TEXT REFERENCES content_nodes(id) ON DELETE SET NULL,
     name            TEXT,
     json_path       TEXT NOT NULL DEFAULT '',
@@ -202,16 +202,16 @@ CREATE TABLE IF NOT EXISTS mcp (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 12. mcp_binding — MCP 工具绑定
-CREATE TABLE IF NOT EXISTS mcp_binding (
+-- 12. mcp_bindings — MCP 工具绑定
+CREATE TABLE IF NOT EXISTS mcp_bindings (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    mcp_id      BIGINT NOT NULL REFERENCES mcp(id) ON DELETE CASCADE,
-    tool_id     TEXT NOT NULL REFERENCES tool(id) ON DELETE CASCADE,
+    mcp_id      BIGINT NOT NULL REFERENCES mcps(id) ON DELETE CASCADE,
+    tool_id     TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
     status      BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_mcp_binding_mcp_id ON mcp_binding(mcp_id);
+CREATE INDEX IF NOT EXISTS idx_mcp_bindings_mcp_id ON mcp_bindings(mcp_id);
 
 -- 13. oauth_connection — OAuth 连接
 CREATE TABLE IF NOT EXISTS oauth_connection (

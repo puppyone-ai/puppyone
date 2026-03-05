@@ -38,23 +38,25 @@ function ConnectionLine({ direction, isActive }: { direction: string; isActive: 
 
   if (direction === 'bidirectional') {
     return (
-      <svg width="36" height="16" viewBox="0 0 36 16" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2 5h32M6 2L2 5l4 3M30 8l4 3-4 3M2 11h32" />
+      <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 5h76M6 2L2 5l4 3M74 8l4 3-4 3M2 11h76" />
       </svg>
     );
   }
 
-  if (direction === 'outbound') {
+  // inbound: External(Right) -> PuppyOne(Left)
+  if (direction === 'inbound') {
     return (
-      <svg width="36" height="16" viewBox="0 0 36 16" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M34 8H2M6 4L2 8l4 4" />
+      <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 8h76M6 4L2 8l4 4" />
       </svg>
     );
   }
 
+  // outbound: PuppyOne(Left) -> External(Right)
   return (
-    <svg width="36" height="16" viewBox="0 0 36 16" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 8h32M30 4l4 4-4 4" />
+    <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 8h76M74 4l4 4-4 4" />
     </svg>
   );
 }
@@ -88,6 +90,20 @@ function getProviderLogo(provider: string, size: number) {
     );
     case 'filesystem':
       return <span style={{ fontSize: size * 0.65 }}>🦞</span>;
+    case 'agent':
+      return <span style={{ fontSize: size * 0.65 }}>💬</span>;
+    case 'mcp':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+        </svg>
+      );
+    case 'sandbox':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
+        </svg>
+      );
     default: return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
         <rect x="2" y="2" width="20" height="20" rx="4" fill="#333"/>
@@ -115,12 +131,44 @@ export function SyncPreview({ provider, providerLabel, direction, targetName, ta
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', gap: 14, position: 'relative',
-      paddingBottom: 24, borderBottom: '1px solid rgba(255,255,255,0.06)'
+      display: 'flex', flexDirection: 'column', gap: 6, position: 'relative',
+      paddingBottom: 4
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        {/* External source (LEFT) */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: 80 }}>
+      {/* Fixed-width row: icon(48) + gap + arrow(80) + gap + icon(48) centered */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 0 }}>
+        {/* PuppyOne target node (LEFT) */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12,
+            background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+            position: 'relative', zIndex: 4
+          }}>
+            {targetType === 'folder'
+              ? <img src="/icons/folder.svg" alt="Folder" width={24} height={24} style={{ display: 'block' }} />
+              : <div style={{ transform: 'scale(0.8)' }}><MiniDocShell type={targetType as 'json' | 'markdown' | 'file'} /></div>
+            }
+          </div>
+          <div style={{
+            fontSize: 11, fontWeight: 500, color: hasTarget ? '#d4d4d4' : '#71717a',
+            textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap', maxWidth: 72,
+          }}>
+            {targetName || 'Workspace'}
+          </div>
+        </div>
+
+        {/* Arrow area - fixed width, vertically centered to icons */}
+        <div style={{ 
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          width: 80, flexShrink: 0, paddingTop: 16 // centers arrow vertically with the 48px icons
+        }}>
+          <ConnectionLine direction={direction} isActive={ready} />
+        </div>
+
+        {/* External source (RIGHT) */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
           <div style={{
             width: 48, height: 48, borderRadius: 12,
             background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
@@ -129,47 +177,22 @@ export function SyncPreview({ provider, providerLabel, direction, targetName, ta
           }}>
             {getProviderLogo(provider, 24)}
           </div>
-          <div style={{ fontSize: 12, fontWeight: 500, color: '#d4d4d4', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 90 }}>
+          <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
             {providerLabel}
           </div>
         </div>
+      </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 100, marginBottom: 12 }}>
-          <ConnectionLine direction={direction} isActive={ready} />
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: ready ? '#4ade80' : '#525252',
-              display: 'inline-block', flexShrink: 0,
-            }} />
-            <span style={{ fontSize: 11, fontWeight: 500, color: ready ? '#e5e5e5' : '#737373' }}>
-              {ready ? DIR_LABELS[direction] : !hasTarget ? 'Waiting for sync target' : 'Waiting for account'}
-            </span>
-          </div>
-        </div>
-
-        {/* PuppyOne target node (RIGHT) */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: 80 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 12,
-            background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-          }}>
-            {targetType === 'folder'
-              ? <img src="/icons/folder.svg" alt="Folder" width={24} height={24} style={{ display: 'block' }} />
-              : <div style={{ transform: 'scale(0.8)' }}><MiniDocShell type={targetType as 'json' | 'markdown' | 'file'} /></div>
-            }
-          </div>
-          <div style={{
-            fontSize: 12, fontWeight: 500, color: hasTarget ? '#d4d4d4' : '#525252',
-            textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap', maxWidth: 90,
-          }}>
-            {targetName || 'Workspace'}
-          </div>
-        </div>
+      {/* Status line below the diagram */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 2 }}>
+        <span style={{
+          width: 5, height: 5, borderRadius: '50%',
+          background: ready ? '#4ade80' : '#525252',
+          display: 'inline-block', flexShrink: 0,
+        }} />
+        <span style={{ fontSize: 11, fontWeight: 500, color: ready ? '#e5e5e5' : '#71717a' }}>
+          {ready ? DIR_LABELS[direction] : !hasTarget ? 'Waiting for sync target' : 'Waiting for account'}
+        </span>
       </div>
     </div>
   );

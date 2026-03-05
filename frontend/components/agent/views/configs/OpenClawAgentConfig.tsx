@@ -48,34 +48,59 @@ export function OpenClawAgentConfig({}: AgentConfigProps) {
 
   return (
     <>
-      {/* Workspace folder */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-          <label style={{ ...labelStyle, marginBottom: 0 }}>Workspace folder</label>
-          <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
-          {/* 约束提示 — 明确告知用户只能拖 1 个 folder */}
-          <span style={{ fontSize: 11, color: '#525252', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 4, padding: '1px 6px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
-            folder only · max 1
-          </span>
-        </div>
+      {/* Workspace folder in a styled callout bubble */}
+      <div style={{ position: 'relative', marginTop: 16 }}>
+        {/* CSS Triangle pointing up to the Workspace logo */}
+        <div style={{
+          position: 'absolute',
+          top: '-8px',
+          left: 'calc(50% - 76px)',
+          width: '16px',
+          height: '16px',
+          background: '#18181b',
+          borderLeft: '1px solid rgba(255,255,255,0.08)',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          transform: 'rotate(45deg)',
+          zIndex: 3,
+          marginLeft: '-8px'
+        }} />
 
-        <div
-          style={{
-            minHeight: 88,
-            background: isDragging ? 'rgba(255,255,255,0.03)' : 'transparent',
-            border: isDragging
-              ? '1px dashed #525252'
-              : draftResources.length > 0
-                ? '1px solid #2a2a2a'   // solid when full — no more drop
-                : '1px dashed #2a2a2a',
-            borderRadius: 6,
-            transition: 'all 0.15s',
-            opacity: draftResources.length > 0 ? 1 : 1,
-          }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
+        <div style={{
+          position: 'relative',
+          background: '#18181b',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '8px',
+          padding: '16px',
+          zIndex: 2
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <label style={{ ...labelStyle, marginBottom: 0, paddingLeft: 2, color: '#e4e4e7' }}>Workspace Folder</label>
+            <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
+            <span style={{ fontSize: 11, color: '#525252', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 4, padding: '1px 6px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+              folder only · max 1
+            </span>
+          </div>
+          <div style={{ color: '#a1a1aa', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
+            Drag and drop a folder from the left sidebar to sync it with your local desktop.
+          </div>
+
+          <div
+            style={{
+              minHeight: 88,
+              background: isDragging ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
+              border: isDragging
+                ? '1px dashed #71717a'
+                : draftResources.length > 0
+                  ? '1px solid rgba(255,255,255,0.15)'
+                  : '1px dashed rgba(255,255,255,0.15)',
+              borderRadius: 6,
+              transition: 'all 0.15s',
+              opacity: draftResources.length > 0 ? 1 : 1,
+            }}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
           <div style={{ padding: draftResources.length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
             {draftResources.map((resource) => {
               const { icon, color } = getNodeIcon(resource.nodeType);
@@ -112,15 +137,16 @@ export function OpenClawAgentConfig({}: AgentConfigProps) {
             <div style={{
               minHeight: 88,
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
-              color: isDragging ? '#a1a1aa' : '#525252',
+              color: isDragging ? '#a1a1aa' : '#71717a',
             }}>
               <div style={{ color: isDragging ? '#d4d4d4' : '#a1a1aa' }}><FolderIcon /></div>
-              <span style={{ fontSize: 12 }}>
-                {isDragging ? 'Drop folder here' : 'Drag a folder into this'}
+              <span style={{ fontSize: 13 }}>
+                {isDragging ? 'Drop folder here' : 'Drag a folder into this zone'}
               </span>
             </div>
           )}
         </div>
+      </div>
       </div>
     </>
   );
