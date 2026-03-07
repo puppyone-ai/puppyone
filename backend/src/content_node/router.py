@@ -199,6 +199,24 @@ def get_node(
 
 
 @router.get(
+    "/by-path",
+    response_model=ApiResponse[NodeInfo],
+    summary="按人类可读路径获取节点",
+    description="根据 project_id 和路径（如 /docs/notion）解析到节点",
+)
+def get_node_by_path(
+    project_id: str = Query(..., description="项目 ID"),
+    path: str = Query(..., description="人类可读路径，如 /docs/notion"),
+    service: ContentNodeService = Depends(get_content_node_service),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_project_access(project_service, current_user, project_id)
+    node = service.resolve_path_from_root(project_id, path)
+    return ApiResponse.success(data=_node_to_info(node))
+
+
+@router.get(
     "/by-id-path/",
     response_model=ApiResponse[NodeDetail],
     summary="按 id_path 获取节点",

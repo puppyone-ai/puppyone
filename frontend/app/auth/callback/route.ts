@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import {
+  getServerApiBaseUrl,
+  getServerSupabaseUrl,
+  getSupabaseAnonKey,
+} from '@/lib/server-env';
 
 /**
  * Supabase Auth Callback - Route Handler (服务端)
@@ -13,7 +18,7 @@ export async function GET(request: Request) {
   const { origin } = requestUrl;
   const code = requestUrl.searchParams.get('code');
   const next = requestUrl.searchParams.get('next') ?? '/home';
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
+  const apiUrl = getServerApiBaseUrl();
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login`);
@@ -22,8 +27,8 @@ export async function GET(request: Request) {
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getServerSupabaseUrl(),
+    getSupabaseAnonKey(),
     {
       cookies: {
         get(name: string) {

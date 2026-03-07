@@ -1,4 +1,4 @@
-import { resolveAuth, loadConfig, saveConfig } from "./config.js";
+import { resolveAuth, loadConfig, saveConfig, getTargetAuth, saveTargetAuth } from "./config.js";
 
 export class ApiError extends Error {
   constructor(status, code, message, hint) {
@@ -44,13 +44,13 @@ export function collectOpts(cmd) {
 
 const REFRESH_BUFFER_SECONDS = 300;
 
-async function _tryRefreshToken(baseUrl) {
-  const config = loadConfig();
-  const refreshToken = config.refresh_token;
+async function _tryRefreshToken(targetUrl) {
+  const targetAuth = getTargetAuth(targetUrl);
+  const refreshToken = targetAuth?.refresh_token;
   if (!refreshToken) return null;
 
   try {
-    const res = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
+    const res = await fetch(`${targetUrl}/api/v1/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -64,7 +64,7 @@ async function _tryRefreshToken(baseUrl) {
     const { access_token, refresh_token: newRefresh, expires_in } = json.data;
     const tokenExpiresAt = Math.floor(Date.now() / 1000) + (expires_in || 3600);
 
-    saveConfig({
+    saveTargetAuth(targetUrl, {
       api_key: access_token,
       refresh_token: newRefresh || refreshToken,
       token_expires_at: tokenExpiresAt,
@@ -95,8 +95,8 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
   async function getAuthHeaders() {
     if (!autoRefresh) return authHeaders;
 
-    const config = loadConfig();
-    const expiresAt = config.token_expires_at;
+    const targetAuth = getTargetAuth(baseUrl);
+    const expiresAt = targetAuth?.token_expires_at;
 
     if (expiresAt && (Date.now() / 1000) > (expiresAt - REFRESH_BUFFER_SECONDS)) {
       const newToken = await _tryRefreshToken(baseUrl);

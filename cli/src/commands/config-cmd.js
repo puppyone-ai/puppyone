@@ -1,6 +1,22 @@
-import { loadConfig, saveConfig, clearConfig, CONFIG_DIR, CONFIG_FILE } from "../config.js";
+import {
+  loadConfig,
+  saveConfig,
+  clearConfig,
+  listTargets,
+  switchTarget,
+  CONFIG_DIR,
+  CONFIG_FILE,
+  CLOUD_API_URL,
+  LOCAL_API_URL,
+} from "../config.js";
 import { createOutput } from "../output.js";
 import { withErrors } from "../helpers.js";
+
+function _targetLabel(url) {
+  if (url === CLOUD_API_URL) return `PuppyOne Cloud (${url})`;
+  if (url === LOCAL_API_URL) return `Local (${url})`;
+  return url;
+}
 
 export function registerConfig(program) {
   const cfg = program
@@ -14,20 +30,30 @@ export function registerConfig(program) {
     .action(withErrors(async (opts, cmd) => {
       const out = createOutput(cmd);
       const config = loadConfig();
+      const targets = listTargets();
 
       const safe = { ...config };
       if (safe.api_key) safe.api_key = safe.api_key.slice(0, 20) + "...";
       if (safe.refresh_token) safe.refresh_token = "(set)";
 
       out.kv([
-        ["API URL:", safe.api_url],
-        ["API Key:", safe.api_key ?? "(not set)"],
+        ["Target:", safe.api_url ? _targetLabel(safe.api_url) : "(not set — run `auth login`)"],
         ["User:", safe.user_email ?? "(not logged in)"],
         ["Org:", safe.active_org ? `${safe.active_org.name} (${safe.active_org.id})` : "(not set)"],
         ["Project:", safe.active_project ? `${safe.active_project.name} (${safe.active_project.id})` : "(not set)"],
         ["Config:", CONFIG_FILE],
       ]);
-      out.success({ config: safe });
+
+      if (targets.length > 1) {
+        out.info("");
+        out.info("  Saved targets:");
+        for (const t of targets) {
+          const marker = t.active ? "→ " : "  ";
+          out.info(`    ${marker}${_targetLabel(t.url)} — ${t.user_email ?? "no session"}`);
+        }
+      }
+
+      out.success({ config: safe, targets });
     }));
 
   // ── set ───────────────────────────────────────────────────
@@ -49,8 +75,19 @@ export function registerConfig(program) {
         return;
       }
 
-      saveConfig({ [key]: value });
-      out.info(`Config updated: ${key} = ${value}`);
+      if (key === "api_url") {
+        const cached = switchTarget(value);
+        out.info(`Switched target to: ${value}`);
+        if (cached?.api_key) {
+          out.info(`  Session: ${cached.user_email ?? "unknown"} (cached)`);
+        } else {
+          out.info(`  No cached session — run \`puppyone auth login\` to authenticate.`);
+        }
+      } else {
+        saveConfig({ [key]: value });
+        out.info(`Config updated: ${key} = ${value}`);
+      }
+
       out.success({ key, value });
     }));
 
@@ -70,11 +107,11 @@ export function registerConfig(program) {
   // ── reset ─────────────────────────────────────────────────
   cfg
     .command("reset")
-    .description("Reset configuration to defaults")
+    .description("Reset configuration to defaults (clears all targets)")
     .action(withErrors(async (opts, cmd) => {
       const out = createOutput(cmd);
       clearConfig();
-      out.info("Configuration reset to defaults.");
+      out.info("Configuration reset to defaults. All saved targets cleared.");
       out.success({ reset: true });
     }));
 }

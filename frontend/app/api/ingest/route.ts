@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerApiBaseUrl } from '@/lib/server-env';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
+const API_BASE_URL = getServerApiBaseUrl();
 
 /**
  * Proxy for ingest endpoints to the Python backend.
