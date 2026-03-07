@@ -28,7 +28,7 @@
 ---
 
 
-## Why agents need a new file system
+## Your agents need more than a file system for context
 
 Most capable agents today are file-based: they read, write, and execute through Bash and local file systems. However, **traditional file systems were never built to be a context infra for agents.**
 
@@ -51,19 +51,118 @@ PuppyOne is a context file system built only for agents. It directly solves all 
 
 ---
 
-## Connected
+## Get Started
+
+### 1. Install / Deploy
+
+#### Option A: Cloud (Hosted)
+
+The fastest way — no infrastructure to manage.
+
+Create an account at [puppyone.ai](https://www.puppyone.ai).
+
+#### Option B: Self-Hosted (Docker)
+
+Run the full stack locally with Docker. The only prerequisite is [Docker](https://www.docker.com/).
+
+```bash
+git clone https://github.com/puppyone-ai/puppyone.git
+cd puppyone/docker
+cp .env.example .env
+docker compose up -d
+```
+
+This starts everything — PostgreSQL, Auth, API gateway, Redis, MinIO, backend, and frontend — in a single command. The database schema is applied automatically on first run.
+
+The Docker defaults already separate browser-facing URLs (`localhost`) from container-internal service URLs (`api`, `kong`), so the same setup works for both client-side and Next.js server-side requests.
+
+The backend container also mounts the host Docker socket and a dedicated sandbox temp directory, so agent bash and sandbox endpoints work out of the box in the local Compose stack without changing the backend's global temp directory behavior.
+
+| Service | URL |
+|---------|-----|
+| Frontend | `http://localhost:3000` |
+| Backend API | `http://localhost:9090` |
+| Supabase API | `http://localhost:8000` |
+| MinIO Console | `http://localhost:9001` |
+
+> **Security note:** The local Docker stack enables Docker-backed sandboxes by sharing the host Docker daemon with the backend container. This is convenient for local self-hosting, but for remote or multi-tenant deployments you should prefer `SANDBOX_TYPE=e2b` with an `E2B_API_KEY`.
+
+The first startup may take 1-2 minutes. Then open `http://localhost:3000`. If the web app is not reachable yet, run `docker compose ps`.
+
+Optional: to enable agent chat in the self-hosted stack, add your `ANTHROPIC_API_KEY` to `docker/.env` and restart:
+
+```bash
+cd docker
+docker compose up -d
+```
+
+Optional: OAuth connectors such as GitHub, Gmail, and Google Drive require provider credentials in `docker/.env` (for example `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` and `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`).
+
+### 2. First Run (for both cloud and self-host)
+
+The product flow is the same for Cloud and self-hosted once the stack is running. Start by opening the web app and signing in:
+
+- Cloud: [puppyone.ai](https://www.puppyone.ai)
+- Self-Hosted: `http://localhost:3000`
+
+If you want to manage your workspace from the CLI, install it and sign in:
+
+```bash
+npm install -g puppyone
+puppyone auth login          # first run asks: Cloud / Local / Custom URL
+```
+
+For self-hosted, choose `Local` at the prompt or pass `-u http://localhost:9090`.
+
+The CLI stores sessions per target, so you can switch between Cloud and self-hosted without re-entering credentials (`puppyone auth targets switch <url>`).
+
+**1. Create your first Context Space**
+
+```bash
+puppyone init "My Project"
+```
+
+This creates a project with starter guides and sets it as active. You can also create your first project directly from the web app.
+
+**2. Add your first content**
+
+Start with something that works immediately in both Cloud and self-hosted:
+
+| Source | Command |
+|--------|---------|
+| Webpage | `puppyone conn add url https://example.com --folder /refs` |
+| Local folder | `puppyone conn add folder ./my-docs --folder /docs` |
+
+You can also upload files directly from the web app. Use `--folder` to organize synced content into any path in your Context Space.
+
+### 3. Optional: Enable More Features
+
+- **Agent chat** — In self-hosted deployments, add `ANTHROPIC_API_KEY` to `docker/.env` and restart the stack.
+- **OAuth connectors** — In self-hosted deployments, configure provider credentials before using GitHub, Gmail, Google Drive, and other OAuth-based connectors.
+- **Distribute via MCP** — Create an MCP endpoint when you want agents in Cursor, Claude Desktop, or other MCP clients to read your Context Space:
+
+```bash
+puppyone conn add mcp "My Context"
+# → outputs MCP endpoint URL and API key
+```
+
+See the [full connector guide](https://www.puppyone.ai/doc) for all 15+ supported platforms and advanced setup details.
+
+---
+
+## Features
+
+### Connected
 
 Connect context from SaaS tools, databases, and the web into agent-friendly files.
 
-puppyone provides OAuth connectors for **15+ platforms** — including Notion, GitHub, Gmail, Google Drive, Linear, Airtable, Google Sheets, Google Calendar, and more. It also supports URL scraping, database connections, local folder sync, and custom scripts.
+PuppyOne provides OAuth connectors for **15+ platforms** — including Notion, GitHub, Gmail, Google Drive, Linear, Airtable, Google Sheets, Google Calendar, and more. It also supports URL scraping, database connections, local folder sync, and custom scripts.
 
 All data is transformed into agent-friendly formats (Markdown, JSON, raw files) and stored in your **Context Space** — a cloud file system that any agent can browse like a local directory.
 
 <img src="assets/connect-demo.gif" alt="Connect data sources" width="100%" />
 
----
-
-## Collaborative
+### Collaborative
 
 Agent-level auth, versioning, audit, and collaboration — built for agents, not humans.
 
@@ -74,9 +173,7 @@ Agent-level auth, versioning, audit, and collaboration — built for agents, not
 
 <img src="assets/auth-demo.gif" alt="File Level Security" width="100%" />
 
----
-
-## Accessible
+### Accessible
 
 One Context Space, many ways in. Your agents access it however they work best:
 
@@ -88,23 +185,18 @@ One Context Space, many ways in. Your agents access it however they work best:
 
 ---
 
-## Quick Start
+## Tech Stack
 
-### Cloud (Hosted) — No Setup
-
-Create an account at [puppyone.ai](https://www.puppyone.ai) and connect your first data source in minutes.
-
-### Self-Hosted
-
-```bash
-git clone https://github.com/puppyone-ai/puppyone.git
-cd puppyone/backend
-cp .env.example .env   # fill in your credentials
-uv sync
-uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload
-```
-
-See the [documentation](https://www.puppyone.ai/doc) for full setup guides.
+| Layer | Technology |
+|-------|-----------|
+| Backend | [Python 3.12+](https://www.python.org/) / [FastAPI](https://fastapi.tiangolo.com/) |
+| Frontend | [Next.js 15](https://nextjs.org/) / React 18 / TypeScript / Tailwind CSS |
+| CLI | Node.js / [Commander.js](https://github.com/tj/commander.js) |
+| Database | [Supabase](https://supabase.com/) (PostgreSQL) |
+| Auth | Supabase Auth (JWT + Access Key) |
+| Storage | AWS S3 / MinIO / LocalStack |
+| Task Queue | [ARQ](https://github.com/samuelcolvin/arq) (Redis) |
+| Sandbox | Docker / [E2B](https://e2b.dev/) |
 
 ---
 
@@ -121,7 +213,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-This repository uses the Puppyone Sustainable Use License (SUL).
+This repository uses the PuppyOne Sustainable Use License (SUL).
 
 | Use case | Allowed |
 |----------|---------|

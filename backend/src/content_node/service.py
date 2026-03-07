@@ -308,6 +308,56 @@ class ContentNodeService:
                 current_node = child
             return current_node
 
+    def resolve_path_from_root(
+        self,
+        project_id: str,
+        path: str,
+    ) -> ContentNode:
+        """
+        从项目根目录开始，按人类可读路径解析到节点。
+
+        不依赖 root_accesses，适用于公开 API（用户通过项目权限校验即可）。
+        路径示例: "/docs/notion", "docs/notion"
+
+        Raises:
+            NotFoundException: 路径中任一段不存在
+        """
+        path = path.strip()
+        if not path or path == "/":
+            raise BusinessException(
+                "Cannot resolve project root — use list_children instead",
+                code=ErrorCode.BAD_REQUEST,
+            )
+
+        segments = [s for s in path.strip("/").split("/") if s]
+        if not segments:
+            raise BusinessException(
+                "Empty path",
+                code=ErrorCode.BAD_REQUEST,
+            )
+
+        current_id_path = None
+        current_depth = 0
+        current_node = None
+        resolved_so_far = []
+
+        for segment in segments:
+            child = self.repo.get_child_by_name(
+                project_id, current_id_path, current_depth, segment
+            )
+            if not child:
+                resolved_prefix = "/" + "/".join(resolved_so_far) if resolved_so_far else "/"
+                raise NotFoundException(
+                    f"No such file or directory: '{segment}' under {resolved_prefix}",
+                    code=ErrorCode.NOT_FOUND,
+                )
+            current_node = child
+            current_id_path = child.id_path
+            current_depth = child.depth
+            resolved_so_far.append(segment)
+
+        return current_node
+
     def resolve_parent_and_name(
         self,
         project_id: str,

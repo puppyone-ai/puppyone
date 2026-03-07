@@ -117,6 +117,8 @@ class Settings(BaseSettings):
     # - "docker": 使用本地 Docker 容器沙盒
     # - "auto": 自动选择（有 E2B_API_KEY 用 E2B，否则用 Docker）
     SANDBOX_TYPE: Literal["e2b", "docker", "auto"] = "auto"
+    # Docker 沙盒专用临时目录；仅在容器化后端控制宿主机 Docker 时需要设置
+    SANDBOX_TMPDIR: Optional[str] = None
     # 沙盒文件下载并发数
     SANDBOX_DOWNLOAD_CONCURRENCY: int = 10
     # 大文件流式处理阈值（字节），超过此大小使用流式传输

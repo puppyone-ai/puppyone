@@ -11,6 +11,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from src.config import settings
+
 from .base import SandboxBase, SandboxSession
 
 
@@ -51,6 +53,36 @@ class DockerSandbox(SandboxBase):
         self._docker_available: Optional[bool] = None
         self._docker_check_time: float = 0  # 上次检查时间
         self._docker_cache_ttl: float = 60.0  # 缓存有效期（秒）
+
+    def _get_sandbox_temp_root(self) -> str:
+        """
+        返回 Docker 沙盒专用临时目录。
+
+        当 SANDBOX_TMPDIR 未配置时，回退到系统默认临时目录，
+        以兼容本地直接运行 backend 的场景。
+        """
+        sandbox_tmpdir = (settings.SANDBOX_TMPDIR or "").strip()
+        if sandbox_tmpdir:
+            os.makedirs(sandbox_tmpdir, exist_ok=True)
+            return sandbox_tmpdir
+        return tempfile.gettempdir()
+
+    def _create_temp_json_file(self, session_id: str) -> str:
+        """为单文件沙盒创建宿主机可见的临时 JSON 文件。"""
+        fd, temp_file_path = tempfile.mkstemp(
+            prefix=f"sandbox-{session_id}-",
+            suffix=".json",
+            dir=self._get_sandbox_temp_root(),
+        )
+        os.close(fd)
+        return temp_file_path
+
+    def _create_temp_workspace_dir(self, session_id: str) -> str:
+        """为多文件沙盒创建宿主机可见的临时工作目录。"""
+        return tempfile.mkdtemp(
+            prefix=f"sandbox-{session_id}-",
+            dir=self._get_sandbox_temp_root(),
+        )
     
     async def _check_docker_available(self, force_recheck: bool = False) -> bool:
         """
@@ -278,8 +310,7 @@ class DockerSandbox(SandboxBase):
                 await self._stop_internal(session_id)
         
         # 创建临时 JSON 文件
-        temp_dir = tempfile.gettempdir()
-        temp_file_path = os.path.join(temp_dir, f"sandbox-{session_id}.json")
+        temp_file_path = self._create_temp_json_file(session_id)
         
         try:
             json_content = json.dumps(data, ensure_ascii=False, indent=2)
@@ -359,7 +390,7 @@ class DockerSandbox(SandboxBase):
                 await self._stop_internal(session_id)
         
         # 创建临时目录存放所有文件
-        temp_dir = tempfile.mkdtemp(prefix=f"sandbox-{session_id}-")
+        temp_dir = self._create_temp_workspace_dir(session_id)
         workspace_dir = os.path.join(temp_dir, "workspace")
         os.makedirs(workspace_dir, exist_ok=True)
         

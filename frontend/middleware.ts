@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { getServerSupabaseUrl, getSupabaseAnonKey } from '@/lib/server-env';
 
 /**
  * Next.js Middleware - 统一处理认证和路由保护
@@ -22,8 +23,8 @@ export async function middleware(request: NextRequest) {
 
   // 创建 Supabase 服务端客户端
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getServerSupabaseUrl(),
+    getSupabaseAnonKey(),
     {
       cookies: {
         get(name: string) {

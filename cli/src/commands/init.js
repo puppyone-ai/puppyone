@@ -110,7 +110,7 @@ async function ensureOrg(client, out) {
 export function registerInit(program) {
   program
     .command("init")
-    .description("Set up PuppyOne — log in, create a project, and get started")
+    .description("Initialize a new project with starter content")
     .argument("[name]", "project name", "My Context Space")
     .option("-d, --description <desc>", "project description")
     .option("--no-seed", "skip creating default Getting Started content")
@@ -122,9 +122,12 @@ export function registerInit(program) {
       out.info("  ─────────────────────────────────────────");
       out.info("");
 
-      // 1. Auth
-      const authed = await ensureAuth(out, cmd);
-      if (!authed) return;
+      // 1. Verify auth
+      const config = loadConfig();
+      if (!config.api_key) {
+        out.error("NOT_AUTHENTICATED", "Not logged in.", "Run `puppyone auth login` first.");
+        return;
+      }
 
       let client;
       try {
@@ -139,7 +142,6 @@ export function registerInit(program) {
       if (!orgId) return;
 
       // 3. Create project with seed content
-      out.info("");
       out.step("Creating project...");
 
       try {
@@ -153,7 +155,6 @@ export function registerInit(program) {
         saveConfig({ active_project: { id: project.id, name: project.name } });
         out.done("done");
 
-        // 4. Print summary
         out.info("");
         out.info(`  Project:  ${project.name}`);
         out.info(`  ID:       ${project.id}`);
@@ -161,11 +162,12 @@ export function registerInit(program) {
           out.info(`  Content:  ${project.nodes.length} nodes created`);
         }
 
-        // 5. Next steps
         out.info("");
-        out.info("  Next step — sync a local folder:");
+        out.info("  Next steps:");
         out.info("");
-        out.info("    puppyone access up <folder>");
+        out.info("    puppyone conn add notion --folder /notion");
+        out.info("    puppyone conn add url https://news.ycombinator.com --folder /feeds");
+        out.info("    puppyone conn add mcp \"My Context\"");
         out.info("");
 
         out.success({
