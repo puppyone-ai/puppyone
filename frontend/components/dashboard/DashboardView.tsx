@@ -33,22 +33,23 @@ export function DashboardView({
   }
 
   return (
-    <div className='flex-1 p-8 overflow-y-auto'>
-      {/* Header Section */}
-      <div className='flex items-center justify-between mb-8'>
-        <div>
-          <h1 className='text-xl font-semibold text-[#eee] tracking-tight'>
-            Organization Overview
-          </h1>
-          <p className='text-sm text-[#666] mt-1'>
-            Manage your projects and workspaces
-          </p>
-        </div>
+    <div className='flex-1 p-8 overflow-y-auto flex justify-center'>
+      <div className='w-full max-w-4xl'>
+        {/* Header Section */}
+        <div className='flex items-center justify-between mb-8'>
+          <div>
+            <h1 className='text-xl font-semibold text-[#eee] tracking-tight'>
+              Projects
+            </h1>
+            <p className='text-sm text-[#666] mt-1'>
+              Manage your projects
+            </p>
+          </div>
 
-        <button
-          onClick={onCreateClick}
-          className='flex items-center gap-2 rounded-md bg-white text-black px-3 py-1.5 text-xs font-medium hover:bg-gray-200 transition-all'
-        >
+          <button
+            onClick={onCreateClick}
+            className='flex items-center gap-2 rounded-md bg-white text-black px-3 h-8 text-sm font-medium hover:bg-gray-200 transition-all'
+          >
           <svg
             width='12'
             height='12'
@@ -79,6 +80,7 @@ export function DashboardView({
             onClick={() => onProjectClick(project.id)}
           />
         ))}
+      </div>
       </div>
     </div>
   );

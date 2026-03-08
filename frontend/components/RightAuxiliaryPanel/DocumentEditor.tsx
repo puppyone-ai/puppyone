@@ -62,7 +62,7 @@ export function DocumentEditor({
       {/* Header */}
       <div
         style={{
-          height: 48,
+          height: 40,
           padding: '0 16px',
           borderBottom: '1px solid #1a1a1c',
           display: 'flex',

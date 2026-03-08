@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://www.puppyone.ai/doc
+    about: Check the docs — your question might already be answered.
+  - name: Discord Community
+    url: https://discord.gg/zwJ9Y3Uvpd
+    about: Ask questions and chat with the community.
+  - name: Security Vulnerability
+    url: https://github.com/puppyone-ai/puppyone/security/advisories/new
+    about: Report security issues privately (do NOT use a public issue).

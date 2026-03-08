@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ContextPublishBase(BaseModel):
-    user_id: Optional[str] = None
+    created_by: Optional[str] = None
     table_id: Optional[int] = None
     json_path: Optional[str] = None
     publish_key: Optional[str] = None

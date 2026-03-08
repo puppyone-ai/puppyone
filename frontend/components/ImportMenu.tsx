@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
-import { ImportModal } from './editors/tree/components/ImportModal';
+import { ImportModal } from './editors/table/components/ImportModal';
 import { uploadAndSubmit } from '../lib/etlApi';
 import {
   addPendingTasks,

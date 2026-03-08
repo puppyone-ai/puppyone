@@ -128,3 +128,7 @@ json_received.json
 *llms-full.txt
 
 
+agfs-master/
+
+# Internal todo files (not for public consumption)
+todo/

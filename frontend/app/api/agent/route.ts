@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
+import { getServerApiBaseUrl } from '@/lib/server-env';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
+const API_BASE_URL = getServerApiBaseUrl();
 
 export async function POST(request: NextRequest) {
   const requestBody = await request.text();

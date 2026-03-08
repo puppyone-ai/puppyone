@@ -12,6 +12,7 @@ import { RouterWizardLayout } from '../../../components/onboarding/components/Ro
 import { createProject, createTable } from '../../../lib/projectsApi';
 import { uploadAndSubmit, batchGetETLTaskStatus } from '../../../lib/etlApi';
 import { getApiAccessToken } from '../../../lib/apiClient';
+import { getOrganizations } from '../../../lib/organizationsApi';
 
 // --- Icons & Assets ---
 const IconImg = ({
@@ -249,7 +250,9 @@ export default function Step2Page() {
       let currentProjectId = projectId;
       if (!currentProjectId) {
         const name = projectName || `onboarding_${Date.now()}`;
-        const project = await createProject(name);
+        const orgs = await getOrganizations();
+        const defaultOrgId = orgs.length > 0 ? orgs[0].id : undefined;
+        const project = await createProject(name, undefined, defaultOrgId, true);
         currentProjectId = String(project.id);
         setProjectId(currentProjectId);
       }

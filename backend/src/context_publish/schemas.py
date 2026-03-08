@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
+
 from pydantic import BaseModel, Field
 
 
@@ -23,7 +24,7 @@ class PublishOut(BaseModel):
     id: int
     created_at: datetime
     updated_at: datetime
-    user_id: str
+    created_by: Optional[str] = None
     table_id: str
     json_path: str
     publish_key: str

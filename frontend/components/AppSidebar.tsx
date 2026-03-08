@@ -3,46 +3,27 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { ProjectInfo } from '../lib/projectsApi';
+import type { OrganizationInfo } from '../lib/organizationsApi';
 import { SidebarLayout, type NavItem } from './sidebar/SidebarLayout';
-
-type UtilityNavItem = {
-  id: string;
-  label: string;
-  path: string;
-  isAvailable: boolean;
-};
 
 type AppSidebarProps = {
   projects: ProjectInfo[];
   activeBaseId: string;
-  expandedBaseIds: Set<string>;
-  activeTableId: string;
   activeView?: string;
-  onBaseClick: (projectId: string) => void;
-  onTableClick: (projectId: string, tableId: string) => void;
-  utilityNav: UtilityNavItem[];
-  onUtilityNavClick: (path: string) => void;
   userInitial: string;
   userAvatarUrl?: string;
   environmentLabel?: string;
-  onProjectsChange?: (projects: ProjectInfo[]) => void;
-  loading?: boolean;
   isCollapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
   sidebarWidth?: number;
   onSidebarWidthChange?: (width: number) => void;
-  toolsCount?: number;
+  currentOrg?: OrganizationInfo | null;
 };
 
 export function AppSidebar({
   projects,
   activeBaseId,
-  // expandedBaseIds,
-  activeTableId,
   activeView = 'projects',
-  // onBaseClick,
-  // onTableClick,
-  onUtilityNavClick,
   userInitial,
   userAvatarUrl,
   environmentLabel = 'Local Dev',
@@ -50,26 +31,23 @@ export function AppSidebar({
   onCollapsedChange,
   sidebarWidth,
   onSidebarWidthChange,
-  toolsCount = 0,
+  currentOrg,
 }: AppSidebarProps) {
   const router = useRouter();
 
-  // 判断是否在 Project Context
   const activeProject = activeBaseId
     ? projects.find(p => p.id === activeBaseId)
     : null;
 
-  // Convert projects to ProjectOption format
   const projectOptions = projects.map((p) => ({
     id: p.id,
     name: p.name,
   }));
 
   if (activeProject) {
-    // Project View Nav Items
     const projectNavItems: NavItem[] = [
       {
-        id: 'data', // Maps to Data/Files view
+        id: 'data',
         label: 'Context',
         icon: (
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap="round" strokeLinejoin="round">
@@ -78,43 +56,36 @@ export function AppSidebar({
         ),
       },
       {
-        id: 'toolkit',
-        label: 'Toolkit',
+        id: 'connections',
+        label: 'Connections',
         icon: (
-          // Wrench icon for tools
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-            <path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22v-5" />
+            <path d="M9 8V2" />
+            <path d="M15 8V2" />
+            <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
           </svg>
         ),
       },
       {
-        id: 'tools',
-        label: 'Context Access',
+        id: 'monitor',
+        label: 'Monitor',
         icon: (
-          // Dashboard / Grid Icon - 4 squares, standard for "Dashboard"
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
           </svg>
         ),
       },
-      {
-        id: 'logs',
-        label: 'Logs',
-        icon: (
-          // List / Timeline Icon - Lines with bullets, standard for "Logs/Activity"
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-            <line x1="8" y1="6" x2="21" y2="6"></line>
-            <line x1="8" y1="12" x2="21" y2="12"></line>
-            <line x1="8" y1="18" x2="21" y2="18"></line>
-            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-            <line x1="3" y1="18" x2="3.01" y2="18"></line>
-          </svg>
-        ),
-      },
+      // HIDDEN: Toolkit nav item temporarily disabled
+      // {
+      //   id: 'toolkit',
+      //   label: 'Toolkit',
+      //   icon: (
+      //     <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
+      //       <path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' />
+      //     </svg>
+      //   ),
+      // },
       {
         id: 'settings',
         label: 'Settings',
@@ -140,12 +111,12 @@ export function AppSidebar({
         onNavigate={(viewId) => {
           if (viewId === 'projects' || viewId === 'data') {
             router.push(`/projects/${activeProject.id}/data`);
+          } else if (viewId === 'connections') {
+            router.push(`/projects/${activeProject.id}/connections`);
+          } else if (viewId === 'monitor') {
+            router.push(`/projects/${activeProject.id}/monitor`);
           } else if (viewId === 'toolkit') {
             router.push(`/projects/${activeProject.id}/toolkit`);
-          } else if (viewId === 'tools') {
-            router.push(`/projects/${activeProject.id}/tools`);
-          } else if (viewId === 'logs') {
-            router.push(`/projects/${activeProject.id}/logs`);
           } else if (viewId === 'settings') {
             router.push(`/projects/${activeProject.id}/settings`);
           }
@@ -162,9 +133,6 @@ export function AppSidebar({
     );
   }
 
-  // Global Dashboard View Nav Items
-  // Note: Tools are project-scoped, not global - they appear under each project's sidebar
-  // Note: Integrations/Connections moved to User Menu (per-user settings, not organization)
   const globalNavItems: NavItem[] = [
     {
       id: 'home',
@@ -204,7 +172,7 @@ export function AppSidebar({
 
   return (
     <SidebarLayout
-      title="puppyone"
+      title={currentOrg?.name ?? 'puppyone'}
       context="global"
       currentProjectId={null}
       projects={projectOptions}

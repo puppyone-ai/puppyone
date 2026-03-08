@@ -25,7 +25,7 @@ export const NotionIcon = ({ size = 12 }: { size?: number }) => (
     alt="Notion" 
     width={size} 
     height={size} 
-    style={{ display: 'block' }}
+    style={{ display: 'block', width: size, height: size, objectFit: 'contain' }}
   />
 );
 
@@ -35,7 +35,7 @@ export const AirtableIcon = ({ size = 12 }: { size?: number }) => (
     alt="Airtable" 
     width={size} 
     height={size} 
-    style={{ display: 'block', borderRadius: 2 }}
+    style={{ display: 'block', width: size, height: size, objectFit: 'contain', borderRadius: 2 }}
   />
 );
 
@@ -45,7 +45,7 @@ export const LinearIcon = ({ size = 12 }: { size?: number }) => (
     alt="Linear" 
     width={size} 
     height={size} 
-    style={{ display: 'block' }}
+    style={{ display: 'block', width: size, height: size, objectFit: 'contain' }}
   />
 );
 
@@ -55,7 +55,7 @@ export const SheetsIcon = ({ size = 12 }: { size?: number }) => (
     alt="Google Sheets" 
     width={size} 
     height={size} 
-    style={{ display: 'block' }}
+    style={{ display: 'block', width: size, height: size, objectFit: 'contain' }}
   />
 );
 
@@ -65,7 +65,7 @@ export const GmailIcon = ({ size = 12 }: { size?: number }) => (
     alt="Gmail" 
     width={size} 
     height={size} 
-    style={{ display: 'block' }}
+    style={{ display: 'block', width: size, height: size, objectFit: 'contain' }}
   />
 );
 
@@ -75,7 +75,7 @@ export const GoogleDriveIcon = ({ size = 12 }: { size?: number }) => (
     alt="Google Drive" 
     width={size} 
     height={size} 
-    style={{ display: 'block' }}
+    style={{ display: 'block', width: size, height: size, objectFit: 'contain' }}
   />
 );
 
@@ -85,7 +85,7 @@ export const GoogleCalendarIcon = ({ size = 12 }: { size?: number }) => (
     alt="Google Calendar" 
     width={size} 
     height={size} 
-    style={{ display: 'block' }}
+    style={{ display: 'block', width: size, height: size, objectFit: 'contain' }}
   />
 );
 
@@ -95,7 +95,7 @@ export const GoogleDocsIcon = ({ size = 12 }: { size?: number }) => (
     alt="Google Docs" 
     width={size} 
     height={size} 
-    style={{ display: 'block' }}
+    style={{ display: 'block', width: size, height: size, objectFit: 'contain' }}
   />
 );
 

@@ -47,8 +47,9 @@ def get_my_profile(
         data=ProfileResponse(
             user_id=profile.user_id,
             email=profile.email,
-            role=profile.role,
-            plan=profile.plan,
+            display_name=profile.display_name,
+            avatar_url=profile.avatar_url,
+            default_org_id=profile.default_org_id,
             has_onboarded=profile.has_onboarded,
             onboarded_at=profile.onboarded_at,
             demo_project_id=profile.demo_project_id,

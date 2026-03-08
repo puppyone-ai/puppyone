@@ -633,3 +633,20 @@ def sync_accesses(
         message="访问权限同步成功",
     )
 
+
+# ============================================================
+# OpenClaw Connection Status (for frontend polling)
+# ============================================================
+
+@router.get(
+    "/{agent_id}/openclaw-status",
+    response_model=ApiResponse,
+    summary="获取 OpenClaw 连接状态 (DEPRECATED — use /sync/syncs/{sync_id}/openclaw-status)",
+    deprecated=True,
+)
+def get_openclaw_status(
+    agent_id: str,
+    agent: Agent = Depends(get_verified_agent),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    return ApiResponse.success(data={"connected": False, "deprecated": True})

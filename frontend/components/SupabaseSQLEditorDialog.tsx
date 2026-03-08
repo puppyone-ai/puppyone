@@ -25,17 +25,27 @@ export function SupabaseSQLEditorDialog({ projectId, connectionId, onClose, onSa
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [tablesLoading, setTablesLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [manualTableInput, setManualTableInput] = useState('');
   const [preview, setPreview] = useState<TablePreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [copySqlStatus, setCopySqlStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   // Load tables on mount
   useEffect(() => {
     listTables(connectionId)
       .then(t => { setTables(t); setTablesLoading(false); })
-      .catch(err => { setError(String(err)); setTablesLoading(false); });
+      .catch(err => {
+        const message = String(err);
+        if (message.includes('ANON_INTROSPECTION_RESTRICTED')) {
+          setError('当前项目限制了 anon key 自动列出表。你仍可在下方手动输入表名并预览。');
+        } else {
+          setError(message);
+        }
+        setTablesLoading(false);
+      });
   }, [connectionId]);
 
   // Load preview when table selected
@@ -67,6 +77,45 @@ export function SupabaseSQLEditorDialog({ projectId, connectionId, onClose, onSa
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleManualPreview = () => {
+    const table = manualTableInput.trim();
+    if (!table) return;
+    setSelectedTable(table);
+  };
+
+  const rlsSuggestionSql = selectedTable
+    ? `ALTER TABLE ${selectedTable} ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow anon read" ON ${selectedTable}
+  FOR SELECT
+  TO anon
+  USING (true);`
+    : '';
+
+  const handleCopySql = async () => {
+    if (!rlsSuggestionSql) return;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(rlsSuggestionSql);
+      } else {
+        // Fallback for environments without Clipboard API
+        const textarea = document.createElement('textarea');
+        textarea.value = rlsSuggestionSql;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopySqlStatus('copied');
+    } catch {
+      setCopySqlStatus('failed');
+    }
+    setTimeout(() => setCopySqlStatus('idle'), 1800);
   };
 
   // Get column info for selected table
@@ -123,6 +172,42 @@ export function SupabaseSQLEditorDialog({ projectId, connectionId, onClose, onSa
             <div style={{ padding: '10px 14px 6px', fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Tables ({tables.length})
             </div>
+            <div style={{ padding: '0 12px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <input
+                type="text"
+                value={manualTableInput}
+                onChange={e => setManualTableInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleManualPreview(); }}
+                placeholder="Manual table name"
+                style={{
+                  width: '100%',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 6,
+                  padding: '7px 8px',
+                  color: '#e4e4e7',
+                  fontSize: 12,
+                  outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleManualPreview}
+                disabled={!manualTableInput.trim()}
+                style={{
+                  marginTop: 8,
+                  width: '100%',
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(62, 207, 142, 0.4)',
+                  background: manualTableInput.trim() ? 'rgba(62, 207, 142, 0.12)' : 'rgba(62, 207, 142, 0.05)',
+                  color: manualTableInput.trim() ? '#86efac' : '#4b5563',
+                  cursor: manualTableInput.trim() ? 'pointer' : 'not-allowed',
+                  fontSize: 12,
+                }}
+              >
+                Preview manual table
+              </button>
+            </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {tablesLoading && (
                 <div style={{ padding: '12px 14px', fontSize: 13, color: '#525252' }}>Loading...</div>
@@ -152,7 +237,11 @@ export function SupabaseSQLEditorDialog({ projectId, connectionId, onClose, onSa
                 </div>
               ))}
               {!tablesLoading && tables.length === 0 && (
-                <div style={{ padding: '12px 14px', fontSize: 13, color: '#525252' }}>No tables found</div>
+                <div style={{ padding: '12px 14px', fontSize: 13, color: '#525252', lineHeight: 1.5 }}>
+                  No auto-discovered tables.
+                  <br />
+                  Try manual table name above.
+                </div>
               )}
             </div>
           </div>
@@ -188,6 +277,74 @@ export function SupabaseSQLEditorDialog({ projectId, connectionId, onClose, onSa
                           {c.name} <span style={{ color: '#3f3f46' }}>{c.type}</span>
                         </span>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty rows guidance */}
+                {preview.row_count === 0 && (
+                  <div
+                    style={{
+                      margin: '12px 16px 0',
+                      padding: '12px',
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#93c5fd', marginBottom: 6 }}>
+                      No rows returned (possible RLS policy issue)
+                    </div>
+                    <div style={{ fontSize: 12, color: '#cbd5e1', lineHeight: 1.5, marginBottom: 8 }}>
+                      The table may contain data, but anon access can still return 0 rows when RLS is enabled
+                      and no SELECT policy exists for role <code>anon</code>.
+                    </div>
+                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>
+                      Try this in Supabase SQL Editor (replace with your final secure policy later):
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        onClick={handleCopySql}
+                        aria-label="Copy SQL"
+                        title="Copy SQL"
+                        style={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          zIndex: 1,
+                          width: 24,
+                          height: 24,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: 6,
+                          border: '1px solid rgba(148, 163, 184, 0.35)',
+                          background: 'rgba(2, 6, 23, 0.72)',
+                          color: '#94a3b8',
+                          cursor: 'pointer',
+                          fontSize: 12,
+                        }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <rect x="9" y="9" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+                          <path d="M5 15V7a2 2 0 0 1 2-2h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                      <pre
+                        style={{
+                          background: 'rgba(0,0,0,0.55)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: 6,
+                          padding: '38px 10px 10px',
+                          margin: 0,
+                          fontSize: 11,
+                          color: '#e2e8f0',
+                          overflow: 'auto',
+                        }}
+                      >{rlsSuggestionSql}</pre>
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: 12, color: copySqlStatus === 'failed' ? '#fca5a5' : '#93c5fd' }}>
+                      {copySqlStatus === 'copied' ? 'Copied' : copySqlStatus === 'failed' ? 'Copy failed' : ''}
                     </div>
                   </div>
                 )}

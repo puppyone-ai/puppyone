@@ -19,6 +19,7 @@ import {
   getToolsByNodeId,
   type Tool,
 } from '../mcpApi';
+import { listNodes, type NodeInfo } from '../contentNodesApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
 const defaultConfig = {
@@ -34,13 +35,18 @@ const defaultConfig = {
  * - 自动缓存，多个组件共享同一份数据
  * - 30秒内不重复请求
  */
-export function useProjects() {
+export function useProjects(orgId?: string | null) {
+  const key = orgId ? ['projects', orgId] : 'projects';
   const {
     data,
     error,
     isLoading,
     mutate: revalidate,
-  } = useSWR<ProjectInfo[]>('projects', getProjects, defaultConfig);
+  } = useSWR<ProjectInfo[]>(
+    key,
+    () => getProjects(orgId ?? undefined),
+    defaultConfig
+  );
 
   return {
     projects: data ?? [],
@@ -72,6 +78,7 @@ export function useTable(projectId: string, tableId: string | undefined) {
     {
       ...defaultConfig,
       dedupingInterval: 10000, // 表数据 10 秒去重
+      keepPreviousData: true,  // 切换节点时保留旧数据直到新数据到达
     }
   );
 
@@ -107,14 +114,12 @@ export function useOrphanTables() {
  * 
  * @returns Promise that resolves when the data is actually fetched
  */
-export async function refreshProjects() {
-  // 同时刷新孤儿 tables
+export async function refreshProjects(orgId?: string | null) {
   mutate('orphan-tables');
-  // Force revalidation and wait for the actual data to be fetched
-  // Setting the second param to undefined and third to { revalidate: true }
-  // ensures we actually fetch fresh data from the server
-  const result = await mutate('projects', undefined, { revalidate: true });
-  return result;
+  if (orgId) {
+    return mutate(['projects', orgId], undefined, { revalidate: true });
+  }
+  return mutate('projects', undefined, { revalidate: true });
 }
 
 /**
@@ -133,6 +138,58 @@ export function updateTableCache(
   newData: TableData
 ) {
   return mutate(['table', projectId, tableId], newData, { revalidate: false });
+}
+
+/**
+ * 获取指定文件夹下的子节点列表（SWR 缓存）
+ *
+ * - 全局缓存：ExplorerSidebar / GridView / ListView 共享同一份数据
+ * - 组件重挂后瞬间返回缓存，不显示 Loading
+ * - keepPreviousData: 切换文件夹时保留旧列表直到新数据到达
+ */
+export function useContentNodes(projectId: string, parentId: string | null | undefined) {
+  const key = projectId ? ['nodes', projectId, parentId ?? '__root__'] : null;
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: revalidate,
+  } = useSWR<NodeInfo[]>(
+    key,
+    () => listNodes(projectId, parentId ?? undefined).then(r => r.nodes),
+    {
+      ...defaultConfig,
+      dedupingInterval: 30000,
+      keepPreviousData: true,
+    }
+  );
+
+  return {
+    nodes: data ?? [],
+    isLoading,
+    error,
+    refresh: revalidate,
+  };
+}
+
+/**
+ * 手动刷新指定文件夹下的节点列表
+ * parentId = null 表示项目根目录
+ */
+export function refreshContentNodes(projectId: string, parentId: string | null) {
+  return mutate(['nodes', projectId, parentId ?? '__root__']);
+}
+
+/**
+ * 刷新整个项目的所有文件夹缓存（用于外部变更：MCP/Bot/Sync）
+ * 使用 SWR 的 key matcher 匹配所有 ['nodes', projectId, *] 的缓存
+ */
+export function refreshAllContentNodes(projectId: string) {
+  return mutate(
+    key => Array.isArray(key) && key[0] === 'nodes' && key[1] === projectId,
+    undefined,
+    { revalidate: true }
+  );
 }
 
 /**
@@ -189,9 +246,7 @@ export function useProjectTools(projectId: string | undefined) {
     () => getToolsByProjectId(projectId!),
     {
       ...defaultConfig,
-      dedupingInterval: 10000,
-      // 用户经常在左侧配置完权限再打开 Chat；允许聚焦时自动刷新一次，避免"第一次不显示"
-      revalidateOnFocus: true,
+      dedupingInterval: 30000,
     }
   );
 

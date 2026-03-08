@@ -1,19 +1,125 @@
 """Content Node Service - 业务逻辑层"""
 
+import re
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional, List, Any, TYPE_CHECKING
 from src.content_node.models import ContentNode
 from src.content_node.repository import ContentNodeRepository
 from src.s3.service import S3Service
-from src.exceptions import NotFoundException, BusinessException, ErrorCode
+from src.exceptions import NotFoundException, BusinessException, NameConflictException, ErrorCode
+
+# === POSIX 名称校验常量 ===
+MAX_NAME_LENGTH = 255
+FORBIDDEN_CHARS_RE = re.compile(r'[/\x00-\x1f]')  # 斜杠 + 控制字符
+RESERVED_NAMES = {'.', '..'}
+
+if TYPE_CHECKING:
+    from src.content_node.version_service import VersionService
 
 
 class ContentNodeService:
     """Content Node 业务逻辑"""
 
-    def __init__(self, repo: ContentNodeRepository, s3_service: S3Service):
+    def __init__(
+        self,
+        repo: ContentNodeRepository,
+        s3_service: S3Service,
+        version_service: Optional["VersionService"] = None,
+    ):
         self.repo = repo
         self.s3 = s3_service
+        self.version_service = version_service
+
+    def _track_version(
+        self,
+        node_id: str,
+        operation: str,
+        content_json: Optional[Any] = None,
+        content_text: Optional[str] = None,
+        s3_key: Optional[str] = None,
+        size_bytes: int = 0,
+        operator_type: str = "user",
+        operator_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        summary: Optional[str] = None,
+    ) -> None:
+        """
+        内部方法：为写操作创建版本记录。
+        
+        如果 version_service 未注入，静默跳过（向后兼容）。
+        失败不阻塞主流程。
+        """
+        if not self.version_service:
+            return
+        try:
+            self.version_service.create_version(
+                node_id=node_id,
+                operator_type=operator_type,
+                operation=operation,
+                content_json=content_json,
+                content_text=content_text,
+                s3_key=s3_key,
+                size_bytes=size_bytes,
+                operator_id=operator_id,
+                session_id=session_id,
+                summary=summary,
+            )
+        except Exception:
+            pass  # 版本记录失败不阻塞主流程
+
+    # === 名称校验 ===
+
+    @staticmethod
+    def _validate_name(name: str) -> str:
+        """
+        校验并清理节点名称（POSIX 语义），返回 strip 后的名称。
+        
+        规则：
+        - 不能为空
+        - 不能超过 255 字符
+        - 不能是保留名 '.' 或 '..'
+        - 不能包含 '/' 或控制字符 (0x00-0x1f)
+        """
+        name = name.strip()
+        if not name:
+            raise BusinessException(
+                "Name cannot be empty",
+                code=ErrorCode.VALIDATION_ERROR
+            )
+        if len(name) > MAX_NAME_LENGTH:
+            raise BusinessException(
+                f"Name exceeds maximum length of {MAX_NAME_LENGTH} characters",
+                code=ErrorCode.VALIDATION_ERROR
+            )
+        if name in RESERVED_NAMES:
+            raise BusinessException(
+                f"'{name}' is a reserved name",
+                code=ErrorCode.VALIDATION_ERROR
+            )
+        if FORBIDDEN_CHARS_RE.search(name):
+            raise BusinessException(
+                "Name contains forbidden characters (/ or control characters)",
+                code=ErrorCode.VALIDATION_ERROR
+            )
+        return name
+
+    def _check_name_conflict(
+        self,
+        project_id: str,
+        parent_id_path: Optional[str],
+        parent_depth: int,
+        name: str,
+        exclude_node_id: Optional[str] = None,
+    ) -> None:
+        """
+        检查同目录下是否已存在同名节点，存在则抛出 NameConflictException。
+        
+        用于 rename / move 场景（创建时使用 _generate_unique_name 自动追加序号）。
+        """
+        if self.repo.name_exists_in_parent(project_id, parent_id_path, parent_depth, name, exclude_node_id):
+            raise NameConflictException(
+                f"A node with name '{name}' already exists in this folder"
+            )
 
     # === 查询操作 ===
 
@@ -41,17 +147,17 @@ class ContentNodeService:
     def list_children(
         self, project_id: str, parent_id: Optional[str] = None
     ) -> List[ContentNode]:
-        """列出子节点（仅按 project_id 过滤）"""
+        """列出子节点（内部使用 id_path + depth 查询）。"""
         if parent_id:
-            # 验证父节点存在且属于该项目
             parent = self.repo.get_by_id(parent_id)
             if not parent or parent.project_id != project_id:
                 raise NotFoundException(f"Parent not found: {parent_id}", code=ErrorCode.NOT_FOUND)
-        return self.repo.list_children(project_id, parent_id)
+            return self.repo.list_children(project_id, parent.id_path, parent.depth)
+        return self.repo.list_children(project_id, None, 0)
 
     def list_root_nodes(self, project_id: str) -> List[ContentNode]:
         """列出项目根节点"""
-        return self.repo.list_children(project_id, None)
+        return self.repo.list_children(project_id, None, 0)
 
     def list_descendants(self, project_id: str, node_id: str) -> List[ContentNode]:
         """列出某节点的所有子孙（用于导出到沙盒）"""
@@ -74,24 +180,301 @@ class ContentNodeService:
         all_descendants = self.list_descendants(project_id, node_id)
         return [node for node in all_descendants if node.is_indexable]
 
+    # === 路径解析（POSIX 风格） ===
+
+    TRASH_FOLDER_NAME = ".trash"
+
+    def get_child_by_name(
+        self,
+        project_id: str,
+        parent_id: Optional[str],
+        name: str,
+        *,
+        parent_id_path: Optional[str] = ...,
+        parent_depth: Optional[int] = None,
+    ) -> Optional[ContentNode]:
+        """根据名称在指定目录下查找子节点。
+
+        优先使用 parent_id_path/parent_depth（免去额外查询）。
+        如果未提供，则通过 parent_id 查询父节点以获取 id_path/depth。
+        """
+        if parent_id_path is ... or parent_depth is None:
+            if parent_id:
+                parent = self.repo.get_by_id(parent_id)
+                if not parent:
+                    return None
+                parent_id_path = parent.id_path
+                parent_depth = parent.depth
+            else:
+                parent_id_path = None
+                parent_depth = 0
+        return self.repo.get_child_by_name(project_id, parent_id_path, parent_depth, name)
+
+    def resolve_path(
+        self,
+        project_id: str,
+        root_accesses: List[dict],
+        path: str,
+    ) -> ContentNode:
+        """
+        解析人类可读路径到节点。
+        
+        Args:
+            project_id: 项目 ID
+            root_accesses: Agent 的 bash 访问列表，每项包含 node_id, node_name, node_type
+            path: 人类可读路径（如 "/docs/readme.md"）
+            
+        路径规则:
+        - "/" 返回虚拟根（多根模式）或根文件夹节点（单根模式）
+        - 绝对路径以 "/" 开头
+        - 每个段按 name 匹配子节点
+        
+        挂载规则:
+        - 单根模式（1 个 folder access）: 该节点就是 /
+        - 多根模式（多个 access）: 各 access 以名称挂载在 / 下
+        """
+        # 规范化路径
+        path = path.strip()
+        if not path or path == "/":
+            # 根目录请求 — 在 ls 中处理虚拟根
+            # 对于单根模式，返回该根节点
+            if len(root_accesses) == 1 and root_accesses[0].get("node_type") == "folder":
+                return self.get_by_id_unsafe(root_accesses[0]["node_id"])
+            # 多根模式下 "/" 没有对应的真实节点，抛出特定错误
+            raise BusinessException(
+                "VIRTUAL_ROOT",
+                code=ErrorCode.BAD_REQUEST,
+            )
+
+        # 去掉开头的 /，拆分路径段
+        segments = [s for s in path.strip("/").split("/") if s]
+        if not segments:
+            return self.resolve_path(project_id, root_accesses, "/")
+
+        is_single_root = (
+            len(root_accesses) == 1
+            and root_accesses[0].get("node_type") == "folder"
+        )
+
+        if is_single_root:
+            # 单根模式：从唯一的根文件夹开始逐层解析
+            current_node = self.get_by_id_unsafe(root_accesses[0]["node_id"])
+            for segment in segments:
+                if not current_node.is_folder:
+                    raise NotFoundException(
+                        f"Not a directory: {current_node.name}",
+                        code=ErrorCode.NOT_FOUND,
+                    )
+                child = self.repo.get_child_by_name(
+                    project_id, current_node.id_path, current_node.depth, segment
+                )
+                if not child:
+                    raise NotFoundException(
+                        f"No such file or directory: {segment}",
+                        code=ErrorCode.NOT_FOUND,
+                    )
+                current_node = child
+            return current_node
+        else:
+            # 多根模式：第一段在 root_accesses 中按名称匹配
+            first_segment = segments[0]
+            matched_access = None
+            for access in root_accesses:
+                if access.get("node_name") == first_segment:
+                    matched_access = access
+                    break
+            if not matched_access:
+                raise NotFoundException(
+                    f"No such file or directory: {first_segment}",
+                    code=ErrorCode.NOT_FOUND,
+                )
+
+            current_node = self.get_by_id_unsafe(matched_access["node_id"])
+            # 后续段逐层解析
+            for segment in segments[1:]:
+                if not current_node.is_folder:
+                    raise NotFoundException(
+                        f"Not a directory: {current_node.name}",
+                        code=ErrorCode.NOT_FOUND,
+                    )
+                child = self.repo.get_child_by_name(
+                    project_id, current_node.id_path, current_node.depth, segment
+                )
+                if not child:
+                    raise NotFoundException(
+                        f"No such file or directory: {segment}",
+                        code=ErrorCode.NOT_FOUND,
+                    )
+                current_node = child
+            return current_node
+
+    def resolve_path_from_root(
+        self,
+        project_id: str,
+        path: str,
+    ) -> ContentNode:
+        """
+        从项目根目录开始，按人类可读路径解析到节点。
+
+        不依赖 root_accesses，适用于公开 API（用户通过项目权限校验即可）。
+        路径示例: "/docs/notion", "docs/notion"
+
+        Raises:
+            NotFoundException: 路径中任一段不存在
+        """
+        path = path.strip()
+        if not path or path == "/":
+            raise BusinessException(
+                "Cannot resolve project root — use list_children instead",
+                code=ErrorCode.BAD_REQUEST,
+            )
+
+        segments = [s for s in path.strip("/").split("/") if s]
+        if not segments:
+            raise BusinessException(
+                "Empty path",
+                code=ErrorCode.BAD_REQUEST,
+            )
+
+        current_id_path = None
+        current_depth = 0
+        current_node = None
+        resolved_so_far = []
+
+        for segment in segments:
+            child = self.repo.get_child_by_name(
+                project_id, current_id_path, current_depth, segment
+            )
+            if not child:
+                resolved_prefix = "/" + "/".join(resolved_so_far) if resolved_so_far else "/"
+                raise NotFoundException(
+                    f"No such file or directory: '{segment}' under {resolved_prefix}",
+                    code=ErrorCode.NOT_FOUND,
+                )
+            current_node = child
+            current_id_path = child.id_path
+            current_depth = child.depth
+            resolved_so_far.append(segment)
+
+        return current_node
+
+    def resolve_parent_and_name(
+        self,
+        project_id: str,
+        root_accesses: List[dict],
+        path: str,
+    ) -> tuple[Optional[str], str]:
+        """
+        解析路径的父节点 ID 和文件名。
+        
+        用于 write/mkdir/create 场景：目标文件可能不存在，
+        但其父目录必须存在。
+        
+        Returns:
+            (parent_node_id, file_name)
+        """
+        path = path.strip().rstrip("/")
+        segments = [s for s in path.strip("/").split("/") if s]
+        if not segments:
+            raise BusinessException(
+                "Path cannot be empty",
+                code=ErrorCode.VALIDATION_ERROR,
+            )
+
+        file_name = segments[-1]
+        parent_segments = segments[:-1]
+
+        if not parent_segments:
+            # 直接在根目录下创建
+            is_single_root = (
+                len(root_accesses) == 1
+                and root_accesses[0].get("node_type") == "folder"
+            )
+            if is_single_root:
+                return root_accesses[0]["node_id"], file_name
+            else:
+                raise BusinessException(
+                    "Cannot create files at virtual root in multi-root mode",
+                    code=ErrorCode.BAD_REQUEST,
+                )
+        else:
+            # 解析父路径
+            parent_path = "/" + "/".join(parent_segments)
+            parent_node = self.resolve_path(project_id, root_accesses, parent_path)
+            if not parent_node.is_folder:
+                raise BusinessException(
+                    f"Not a directory: {parent_node.name}",
+                    code=ErrorCode.BAD_REQUEST,
+                )
+            return parent_node.id, file_name
+
+    def build_display_path(
+        self,
+        node: ContentNode,
+        root_accesses: List[dict],
+    ) -> str:
+        """
+        基于 id_path 构建人类可读路径（无递归，无环风险）。
+        
+        例: node.name="readme.md", parent.name="docs" -> "/docs/readme.md"
+        
+        通过解析 id_path 获取祖先 ID，批量查询名称，O(1) DB 调用。
+        """
+        root_node_ids = {a["node_id"] for a in root_accesses}
+        is_single_root = (
+            len(root_accesses) == 1
+            and root_accesses[0].get("node_type") == "folder"
+        )
+
+        all_ids = node.ancestor_ids
+
+        root_idx = -1
+        for i, nid in enumerate(all_ids):
+            if nid in root_node_ids:
+                root_idx = i
+                break
+
+        if root_idx >= 0:
+            if is_single_root:
+                relevant_ids = all_ids[root_idx + 1:]
+            else:
+                relevant_ids = all_ids[root_idx:]
+        else:
+            relevant_ids = all_ids
+
+        if not relevant_ids:
+            return "/"
+
+        ancestor_nodes = self.repo.get_by_ids(relevant_ids)
+        id_to_name = {n.id: n.name for n in ancestor_nodes}
+
+        parts = [id_to_name.get(nid, nid) for nid in relevant_ids]
+        return "/" + "/".join(parts)
+
     # === 创建操作 ===
 
-    def _build_id_path(self, project_id: str, parent_id: Optional[str], new_node_id: str) -> str:
-        """构建节点的 id_path"""
+    def _build_id_path(
+        self, project_id: str, parent_id: Optional[str], new_node_id: str
+    ) -> tuple[str, Optional[str], int]:
+        """构建节点的 id_path，同时返回父节点的路径信息。
+
+        Returns:
+            (id_path, parent_id_path, parent_depth)
+        """
         if parent_id:
             parent = self.repo.get_by_id(parent_id)
             if not parent or parent.project_id != project_id:
                 raise NotFoundException(f"Parent not found: {parent_id}", code=ErrorCode.NOT_FOUND)
-            return f"{parent.id_path}/{new_node_id}"
-        return f"/{new_node_id}"
+            return f"{parent.id_path}/{new_node_id}", parent.id_path, parent.depth
+        return f"/{new_node_id}", None, 0
 
     def _generate_unique_name(
-        self, project_id: str, parent_id: Optional[str], base_name: str
+        self, project_id: str, parent_id_path: Optional[str], parent_depth: int, base_name: str
     ) -> str:
         """生成唯一名称，如 'Untitled', 'Untitled (1)', 'Untitled (2)'"""
         import re
         
-        existing_names = self.repo.find_names_with_prefix(project_id, parent_id, base_name)
+        existing_names = self.repo.find_names_with_prefix(project_id, parent_id_path, parent_depth, base_name)
         
         if base_name not in existing_names:
             return base_name
@@ -116,16 +499,16 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建文件夹"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="folder",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
         )
 
@@ -139,20 +522,29 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建 JSON 节点"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
-        return self.repo.create(
+        # 计算 JSON 内容的字节大小
+        size_bytes = None
+        if content is not None:
+            import json as _json
+            size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8"))
+
+        node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="json",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             preview_json=content,
             mime_type="application/json",
+            size_bytes=size_bytes,
         )
+        self._track_version(node.id, "create", content_json=content, operator_id=created_by)
+        return node
 
     def create_placeholder_node(
         self,
@@ -163,169 +555,108 @@ class ContentNodeService:
         created_by: Optional[str] = None,
     ) -> ContentNode:
         """
-        创建占位符节点（未连接状态）
+        创建占位符节点（未连接状态）。
         
-        用于 Onboarding 等场景，展示"可以连接但尚未连接"的数据源。
-        用户点击后可以触发 OAuth 授权流程。
-        
-        Args:
-            placeholder_type: 平台类型（gmail, sheets, calendar, notion, github 等）
-        
-        注意：占位符节点的 sync_oauth_user_id 为 None，授权后才会填充。
+        在 Unified Sync 架构下，节点只是普通 json 节点。
+        同步关系通过 syncs 表单独管理。
         """
         import uuid
-        
-        # placeholder_type → (node_type, import_type) 映射
-        TYPE_MAP = {
-            'gmail': ('gmail', 'inbox'),
-            'sheets': ('google_sheets', 'spreadsheet'),
-            'calendar': ('google_calendar', 'events'),
-            'docs': ('google_drive', 'file'),
-            'notion': ('notion', 'page'),
-            'github': ('github', 'repo'),
-            'airtable': ('airtable', 'base'),
-            'linear': ('linear', 'assigned_issues'),
-        }
-        
-        node_type, import_type = TYPE_MAP.get(placeholder_type, (placeholder_type, 'default'))
+        name = self._validate_name(name)
         
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
-        # 占位符的默认内容
         placeholder_content = {
             "_status": "not_connected",
             "_placeholder_type": placeholder_type,
             "_message": f"Click to connect your {placeholder_type.replace('_', ' ').title()} account",
         }
         
-        # 占位符不设 sync_oauth_user_id，因为还没授权
-        # 数据库约束 chk_sync_oauth_user 只要求 sync_status != 'not_connected' 时必须有
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type=node_type,
+            node_type="json",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             preview_json=placeholder_content,
             mime_type="application/json",
-            sync_status="not_connected",
-            sync_config={"import_type": import_type},
         )
 
     async def convert_placeholder_to_synced(
         self,
         node_id: str,
         project_id: str,
-        sync_oauth_user_id: str,  # 授权后必须提供
         content: Any,
-        sync_url: str,
-        sync_id: str,
-        sync_config: Optional[dict] = None,
     ) -> ContentNode:
-        """将占位符节点转换为已同步的节点"""
+        """将占位符节点更新为有内容的节点（同步关系由 syncs 表管理）"""
         node = self.get_by_id(node_id, project_id)
         
-        if node.sync_status != "not_connected":
-            raise BusinessException(
-                f"Node is not a placeholder: {node.sync_status}",
-                code=ErrorCode.BAD_REQUEST
-            )
-        
-        # 更新同步信息，并设置 sync_oauth_user_id
-        return self.repo.update_sync_info(
+        updated = self.repo.update(
             node_id=node_id,
-            sync_url=sync_url,
-            sync_id=sync_id,
-            sync_status="idle",
-            sync_config=sync_config,
-            last_synced_at=datetime.utcnow(),
             preview_json=content,
-            sync_oauth_user_id=sync_oauth_user_id,
         )
+        self._track_version(node_id, "update", content_json=content, operator_type="sync")
+        return updated
 
     async def create_synced_node(
         self,
         project_id: str,
-        sync_oauth_user_id: str,  # 同步节点必须提供
         name: str,
-        node_type: str,  # 如 github_repo, notion_page, gmail_thread 等
-        sync_url: str,
         content: Any,
         parent_id: Optional[str] = None,
-        sync_id: Optional[str] = None,
-        sync_config: Optional[dict] = None,
         created_by: Optional[str] = None,
     ) -> ContentNode:
         """
-        创建同步节点（从 SaaS 平台导入的结构化数据）
+        创建用于同步的 JSON 节点。
         
-        JSON 数据直接存 JSONB（preview_json 字段）。
-        sync_oauth_user_id 用于标识使用哪个用户的 OAuth 凭证进行同步。
+        同步关系（provider、direction 等）通过 syncs 表单独管理。
         """
         import uuid
+        name = self._validate_name(name)
         
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
-        return self.repo.create(
+        node = self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type=node_type,
+            node_type="json",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
-            sync_oauth_user_id=sync_oauth_user_id,
             preview_json=content,
             mime_type="application/json",
-            sync_url=sync_url,
-            sync_id=sync_id,
-            sync_config=sync_config,
-            sync_status="idle",
-            last_synced_at=datetime.utcnow(),
         )
+        self._track_version(node.id, "create", content_json=content, operator_type="sync", operator_id=created_by)
+        return node
 
     async def create_github_repo_node(
         self,
         project_id: str,
-        sync_oauth_user_id: str,  # GitHub 同步节点必须提供
         name: str,
-        sync_url: str,
-        sync_id: str,
         s3_prefix: str,
         metadata: dict,
         parent_id: Optional[str] = None,
-        sync_config: Optional[dict] = None,
         created_by: Optional[str] = None,
     ) -> ContentNode:
-        """创建 GitHub repo 节点（单节点模式）"""
+        """创建 GitHub repo 节点（文件类型，同步关系由 syncs 表管理）"""
         import uuid
+        name = self._validate_name(name)
         
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
-        
-        # 合并 sync_config，添加 import_type
-        merged_config = {"import_type": "repo", **(sync_config or {})}
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type="github",
+            node_type="file",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
-            sync_oauth_user_id=sync_oauth_user_id,
             preview_json=metadata,
             s3_key=s3_prefix,
             mime_type="application/x-github-repo",
-            sync_url=sync_url,
-            sync_id=sync_id,
-            sync_config=merged_config,
-            last_synced_at=datetime.utcnow(),
         )
 
     def create_pending_node(
@@ -340,16 +671,16 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建待处理节点（ETL 处理前的占位符）"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type="file",  # pending 是 file 类型
+            node_type="file",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             s3_key=s3_key,
             mime_type=mime_type or "application/octet-stream",
@@ -368,22 +699,23 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建文件节点（二进制文件，存 S3，无预览）"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
-        return self.repo.create(
+        node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="file",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             s3_key=s3_key,
             mime_type=mime_type or "application/octet-stream",
             size_bytes=size_bytes,
-            # preview_type=NULL, 无预览
         )
+        self._track_version(node.id, "create", s3_key=s3_key, size_bytes=size_bytes, operator_id=created_by)
+        return node
 
     async def create_markdown_node(
         self, 
@@ -395,61 +727,55 @@ class ContentNodeService:
     ) -> ContentNode:
         """创建 Markdown 节点（内容直接存 preview_md，不存 S3）"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         content_bytes = content.encode('utf-8')
         
-        return self.repo.create(
+        node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="markdown",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
-            preview_md=content,  # 直接存数据库
+            preview_md=content,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
         )
+        self._track_version(node.id, "create", content_text=content, size_bytes=len(content_bytes), operator_id=created_by)
+        return node
 
     async def create_synced_markdown_node(
         self, 
         project_id: str,
-        sync_oauth_user_id: str,  # 同步 Markdown 节点必须提供
         name: str, 
         content: str,
-        node_type: str,  # 如 notion_page
-        sync_url: str,
-        sync_id: Optional[str] = None,
-        sync_config: Optional[dict] = None,
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> ContentNode:
-        """创建同步的 Markdown 节点（如 Notion Page），内容直接存 preview_md，不存 S3"""
+        """创建用于同步的 Markdown 节点（同步关系由 syncs 表管理）"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         content_bytes = content.encode('utf-8')
         
-        return self.repo.create(
+        node = self.repo.create(
             project_id=project_id,
             name=unique_name,
-            node_type=node_type,
+            node_type="markdown",
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
-            sync_oauth_user_id=sync_oauth_user_id,
-            preview_md=content,  # 直接存数据库
+            preview_md=content,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
-            sync_url=sync_url,
-            sync_id=sync_id,
-            sync_config=sync_config,
-            last_synced_at=datetime.utcnow(),
         )
+        self._track_version(node.id, "create", content_text=content, size_bytes=len(content_bytes), operator_type="sync", operator_id=created_by)
+        return node
 
     async def bulk_create_nodes(
         self,
@@ -488,8 +814,11 @@ class ContentNodeService:
                     else:
                         real_parent_id = temp_to_real.get(parent_temp_id)
                     
+                    # 名称校验 + 唯一名称生成
+                    validated_name = self._validate_name(node["name"])
                     new_id = str(uuid.uuid4())
-                    id_path = self._build_id_path(project_id, real_parent_id, new_id)
+                    id_path, p_id_path, p_depth = self._build_id_path(project_id, real_parent_id, new_id)
+                    unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, validated_name)
                     
                     # node["type"]: folder | json | markdown | file
                     node_type = node["type"]
@@ -517,10 +846,9 @@ class ContentNodeService:
                     
                     created = self.repo.create(
                         project_id=project_id,
-                        name=node["name"],
+                        name=unique_name,
                         node_type=node_type,
                         id_path=id_path,
-                        parent_id=real_parent_id,
                         created_by=created_by,
                         preview_json=preview_json,
                         preview_md=preview_md,
@@ -560,9 +888,10 @@ class ContentNodeService:
     ) -> tuple[ContentNode, str]:
         """准备文件上传（返回节点和预签名 URL）"""
         import uuid
+        name = self._validate_name(name)
         new_id = str(uuid.uuid4())
-        id_path = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, parent_id, name)
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
         # 确定节点类型
         node_type = self._get_node_type_from_mime(content_type)
@@ -570,13 +899,11 @@ class ContentNodeService:
         # 生成 S3 key（使用 project_id）
         s3_key = f"projects/{project_id}/content/{uuid.uuid4()}"
         
-        # 创建节点记录
         node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type=node_type,
             id_path=id_path,
-            parent_id=parent_id,
             created_by=created_by,
             s3_key=s3_key,
             mime_type=content_type,
@@ -637,6 +964,7 @@ class ContentNodeService:
             size_bytes=len(content_bytes),
             # mime_type 保持原始文件的 MIME（如 image/png），不改成 text/markdown
         )
+        self._track_version(node_id, "update", content_text=content, size_bytes=len(content_bytes), operator_type="system")
         return updated
 
     def update_node(
@@ -646,9 +974,22 @@ class ContentNodeService:
         name: Optional[str] = None,
         preview_json: Optional[Any] = None,
         preview_md: Optional[str] = None,
+        operator_type: str = "user",
+        operator_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> ContentNode:
         """更新节点（重命名只改 name，id_path 不变）"""
-        self.get_by_id(node_id, project_id)
+        node = self.get_by_id(node_id, project_id)
+
+        # 重命名时进行名称校验和冲突检查
+        if name is not None:
+            name = self._validate_name(name)
+            # 只有名字真正改变时才检查冲突
+            if name != node.name:
+                self._check_name_conflict(
+                    project_id, node.parent_id_path, node.parent_depth,
+                    name, exclude_node_id=node_id,
+                )
 
         if preview_md is not None:
             content_bytes = preview_md.encode("utf-8")
@@ -659,28 +1000,39 @@ class ContentNodeService:
                 size_bytes=len(content_bytes),
                 clear_preview_json=True,
             )
+            self._track_version(
+                node_id, "update", content_text=preview_md,
+                size_bytes=len(content_bytes),
+                operator_type=operator_type, operator_id=operator_id, session_id=session_id,
+            )
         else:
+            size_bytes = None
+            if preview_json is not None:
+                import json as _json
+                size_bytes = len(_json.dumps(preview_json, ensure_ascii=False).encode("utf-8"))
             updated = self.repo.update(
                 node_id=node_id,
                 name=name,
                 preview_json=preview_json,
+                size_bytes=size_bytes,
             )
+            if preview_json is not None:
+                self._track_version(
+                    node_id, "update", content_json=preview_json,
+                    operator_type=operator_type, operator_id=operator_id, session_id=session_id,
+                )
         
         return updated
 
     def update_sync_content(self, node_id: str, content: Any) -> ContentNode:
-        """
-        更新同步节点的 preview_json 数据（用于定时重跑 SQL 等场景）。
-        
-        同时更新 last_synced_at 时间戳。
-        """
-        updated = self.repo.update_sync_info(
+        """更新节点的 preview_json 数据（用于同步更新等场景）"""
+        updated = self.repo.update(
             node_id=node_id,
             preview_json=content,
-            last_synced_at=datetime.utcnow(),
         )
         if not updated:
             raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)
+        self._track_version(node_id, "update", content_json=content, operator_type="sync")
         return updated
 
     async def update_markdown_content(
@@ -688,6 +1040,9 @@ class ContentNodeService:
         node_id: str,
         project_id: str,
         content: str,
+        operator_type: str = "user",
+        operator_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> ContentNode:
         """更新 markdown 节点的内容（直接存数据库，不存 S3）"""
         import logging
@@ -712,6 +1067,12 @@ class ContentNodeService:
         )
         logger.info(f"[ContentNode] Markdown saved to DB: {node_id}")
         
+        self._track_version(
+            node_id, "update", content_text=content,
+            size_bytes=len(content_bytes),
+            operator_type=operator_type, operator_id=operator_id, session_id=session_id,
+        )
+        
         return updated
 
     def move_node(
@@ -720,45 +1081,154 @@ class ContentNodeService:
         project_id: str,
         new_parent_id: Optional[str],
     ) -> ContentNode:
-        """移动节点"""
+        """
+        原子移动节点。
+        
+        通过 move_node_atomic RPC 在单个 DB 事务中完成：
+        - 更新节点及所有子孙的 id_path
+        
+        环检测基于 id_path 前缀（结构性安全）+ DB trigger 双重保护。
+        """
         node = self.get_by_id(node_id, project_id)
-        old_id_path = node.id_path
-        
-        new_id_path = self._build_id_path(project_id, new_parent_id, node_id)
-        
-        updated = self.repo.update(
-            node_id=node_id,
-            parent_id=new_parent_id if new_parent_id else None,
-            id_path=new_id_path,
-        )
-        
-        # 如果是文件夹，更新所有子节点的 id_path
-        if node.is_folder:
-            self.repo.update_children_id_path_prefix(node.project_id, old_id_path, new_id_path)
-        
-        return updated
 
-    # === 删除操作 ===
+        if new_parent_id:
+            if new_parent_id == node_id:
+                raise BusinessException(
+                    "Cannot move a node into itself",
+                    code=ErrorCode.BAD_REQUEST,
+                )
+            target = self.repo.get_by_id(new_parent_id)
+            if not target or target.project_id != project_id:
+                raise NotFoundException(f"Target parent not found: {new_parent_id}", code=ErrorCode.NOT_FOUND)
+            if target.id_path.startswith(node.id_path + "/") or target.id_path == node.id_path:
+                raise BusinessException(
+                    "Cannot move a node into its own descendant (would create a cycle)",
+                    code=ErrorCode.BAD_REQUEST,
+                )
+
+        if new_parent_id:
+            t_id_path, t_depth = target.id_path, target.depth
+        else:
+            t_id_path, t_depth = None, 0
+        self._check_name_conflict(
+            project_id, t_id_path, t_depth,
+            node.name, exclude_node_id=node_id,
+        )
+
+        new_id_path, _, _ = self._build_id_path(project_id, new_parent_id, node_id)
+
+        self.repo.move_node_atomic(
+            node_id=node_id,
+            project_id=project_id,
+            new_id_path=new_id_path,
+        )
+
+        return self.repo.get_by_id(node_id)
+
+    # === 废纸篓（软删除） ===
+
+    def _create_system_folder(
+        self, project_id: str, name: str, created_by: str
+    ) -> ContentNode:
+        """
+        创建系统级隐藏文件夹（如 .trash），绕过 _validate_name 限制。
+        """
+        import uuid
+
+        new_id = str(uuid.uuid4())
+        id_path, _, _ = self._build_id_path(project_id, None, new_id)
+        return self.repo.create(
+            project_id=project_id,
+            name=name,
+            node_type="folder",
+            id_path=id_path,
+            created_by=created_by,
+        )
+
+    def get_or_create_trash_folder(
+        self, project_id: str, created_by: str
+    ) -> ContentNode:
+        """获取或惰性创建项目的废纸篓文件夹（根级隐藏文件夹 .trash）"""
+        children = self.repo.list_children(project_id, None, 0)
+        for child in children:
+            if child.name == self.TRASH_FOLDER_NAME:
+                return child
+        return self._create_system_folder(project_id, self.TRASH_FOLDER_NAME, created_by)
+
+    def soft_delete_node(
+        self, node_id: str, project_id: str, user_id: str
+    ) -> ContentNode:
+        """
+        软删除：将节点移入 .trash 文件夹。
+        
+        为避免 .trash 内名称冲突，移入时追加时间戳 + UUID 短后缀。
+        使用微秒精度 + 8 位 UUID 确保即使同一微秒内删除同名文件也不碰撞。
+        """
+        import uuid as uuid_mod
+
+        node = self.get_by_id(node_id, project_id)
+
+        if node.name == self.TRASH_FOLDER_NAME:
+            raise BusinessException(
+                "Cannot delete the trash folder itself",
+                code=ErrorCode.BAD_REQUEST,
+            )
+
+        trash = self.get_or_create_trash_folder(project_id, user_id)
+
+        # 追加时间戳(微秒) + UUID 短后缀，完全消除碰撞
+        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S_%f")
+        short_uuid = uuid_mod.uuid4().hex[:8]
+        new_name = f"{node.name}_{timestamp}_{short_uuid}"
+        self.repo.update(node_id=node_id, name=new_name)
+
+        return self.move_node(node_id, project_id, trash.id)
+
+    # === 删除操作（硬删除） ===
 
     async def delete_node(self, node_id: str, project_id: str) -> None:
-        """删除节点（递归删除子节点和 S3 文件）"""
-        node = self.get_by_id(node_id, project_id)
-        await self._delete_recursive(node_id)
-
-    async def _delete_recursive(self, node_id: str) -> None:
-        """递归删除节点"""
-        children_ids = self.repo.get_children_ids(node_id)
-        for child_id in children_ids:
-            await self._delete_recursive(child_id)
+        """
+        删除节点及其所有子孙（基于 id_path 前缀，非递归）。
         
-        node = self.repo.get_by_id(node_id)
-        if node and node.s3_key:
+        流程：
+        1. 收集子树文件信息（用于 changelog）
+        2. 收集 S3 keys 并批量删除
+        3. 一次性删除所有子孙 + 自身（id_path 前缀匹配）
+        """
+        node = self.get_by_id(node_id, project_id)
+
+        node_info_rows = self.repo.collect_subtree_info(project_id, node.id_path)
+        node_info_list = []
+        for row in node_info_rows:
+            name = row["name"]
+            ntype = row["type"]
+            if ntype == "json" and not name.endswith(".json"):
+                name = f"{name}.json"
+            elif ntype == "markdown" and not name.endswith(".md"):
+                name = f"{name}.md"
+            node_info_list.append({"id": row["id"], "type": ntype, "filename": name})
+
+        s3_keys = self.repo.collect_subtree_s3_keys(project_id, node.id_path)
+        for key in s3_keys:
             try:
-                await self.s3.delete_file(node.s3_key)
+                await self.s3.delete_file(key)
             except Exception:
                 pass
-        
-        self.repo.delete(node_id)
+
+        self.repo.delete_by_id_path_prefix(project_id, node.id_path)
+
+        if self.version_service and node_info_list:
+            for info in node_info_list:
+                try:
+                    self.version_service._emit_changelog(
+                        project_id=project_id,
+                        node_id=info["id"],
+                        action="delete",
+                        node_type=info["type"],
+                        content_hash=info["filename"],
+                    )
+                except Exception:
+                    pass
 
     # === 下载操作 ===
 

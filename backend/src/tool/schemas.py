@@ -85,7 +85,8 @@ class ToolOut(BaseModel):
     id: str
     created_at: datetime
 
-    user_id: str
+    created_by: Optional[str] = None
+    org_id: str
     project_id: Optional[str] = None  # 所属项目 ID
     node_id: Optional[str] = None
     json_path: str = ""

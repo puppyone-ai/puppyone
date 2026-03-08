@@ -14,8 +14,9 @@ class ProfileResponse(BaseModel):
 
     user_id: str
     email: str
-    role: str
-    plan: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    default_org_id: Optional[str] = None
     has_onboarded: bool
     onboarded_at: Optional[datetime] = None
     demo_project_id: Optional[int] = None

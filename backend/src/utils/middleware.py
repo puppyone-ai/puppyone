@@ -14,6 +14,7 @@ from src.utils.request_context import (
     method_var,
     path_var,
     request_id_var,
+    project_access_cache_var,
 )
 
 
@@ -63,12 +64,11 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         token_m = method_var.set(request.method)
         token_p = path_var.set(_sanitize_path_for_access_log(request))
         token_ip = client_ip_var.set(request.client.host if request.client else None)
+        token_pac = project_access_cache_var.set({})
 
         try:
             response = await call_next(request)
         finally:
-            # 这里不要打异常堆栈：统一交给 FastAPI 的 exception_handler，
-            # 避免重复记录同一异常的 traceback。
             pass
 
         elapsed_ms = (time.perf_counter() - start) * 1000
@@ -84,5 +84,6 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         method_var.reset(token_m)
         path_var.reset(token_p)
         client_ip_var.reset(token_ip)
+        project_access_cache_var.reset(token_pac)
 
         return response

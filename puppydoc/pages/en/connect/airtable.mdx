@@ -1,0 +1,61 @@
+# Airtable
+
+Sync Airtable bases and tables into structured JSON.
+
+| | |
+|---|---|
+| **Direction** | Pull (Airtable → PuppyOne) |
+| **Trigger** | Full sync |
+| **Auth** | Airtable OAuth |
+| **Output** | JSON |
+
+---
+
+## Data Structure
+
+Each Airtable record becomes a JSON object:
+
+```json
+[
+  {
+    "id": "rec123abc",
+    "Name": "Widget Pro",
+    "Status": "Active",
+    "Assignee": ["Alice Chen"],
+    "Tags": ["hardware", "featured"],
+    "Created": "2026-01-15T09:00:00Z"
+  }
+]
+```
+
+---
+
+## Setup
+
+### Step 1: Authorize Airtable
+
+1. Open your Project → **Add Connector** → **Airtable**
+2. Click **Connect with Airtable** and complete OAuth
+3. Select which bases PuppyOne can access
+
+### Step 2: Select Table
+
+Choose the base and specific table to sync.
+
+| Option | Description |
+|--------|-------------|
+| **Base** | Which Airtable base |
+| **Table** | Which table within the base |
+| **View** | Optionally use a filtered view |
+
+### Step 3: Start Sync
+
+Click **Start Sync**. Airtable syncs are full pulls — all records are refreshed each time.
+
+---
+
+## Notes
+
+- Linked record fields are stored as arrays of record IDs, not expanded
+- Attachment fields store file metadata only, not the files themselves
+- Airtable API rate limits may slow large table syncs

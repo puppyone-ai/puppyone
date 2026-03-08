@@ -328,8 +328,7 @@ Notion / GitHub / Google Sheets / Gmail / Google Drive / Google Calendar / Googl
 | 服务 | SERVICE_ROLE | 说明 |
 |------|-------------|------|
 | API Server | `api` (默认) | 主 API 服务 |
-| File Worker | `file_worker` | 文件 ETL 处理 Worker |
-| SaaS Worker | `saas_worker` | SaaS 数据同步 Worker |
+| File Worker | `file_worker` | 文件 ETL / OCR Worker |
 | MCP Server | `mcp_server` | MCP 协议服务 |
 
 通过环境变量 `SERVICE_ROLE` 区分服务角色，详见 `railway.toml`。
@@ -340,11 +339,8 @@ Notion / GitHub / Google Sheets / Gmail / Google Drive / Google Calendar / Googl
 # API 服务
 uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --no-access-log
 
-# File Worker
-uv run arq src.ingest.file.jobs.worker.WorkerSettings
-
-# SaaS Worker
-uv run arq src.ingest.saas.jobs.worker.WorkerSettings
+# File Worker (文件 ETL / OCR)
+uv run arq src.upload.file.jobs.worker.WorkerSettings
 
 # MCP Server
 uv run uvicorn mcp_service.server:app --host 0.0.0.0 --port 8080 --no-access-log

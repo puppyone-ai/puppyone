@@ -7,18 +7,31 @@ import { createBrowserClient } from '@supabase/ssr';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
-// 创建一个独立的 Supabase 客户端用于获取 Token
-// 它会自动读取 Cookie，无需等待 AuthProvider
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function _initSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error(
+      'NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set'
+    );
+  }
+  return createBrowserClient(url, key);
+}
+
+let _supabase: ReturnType<typeof _initSupabase> | null = null;
+
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = _initSupabase();
+  }
+  return _supabase;
+}
 
 /**
  * 获取当前 access token
  */
 async function getAuthToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
+  const { data } = await getSupabase().auth.getSession();
   return data.session?.access_token ?? null;
 }
 
@@ -115,4 +128,14 @@ export function put<T>(endpoint: string, body?: unknown): Promise<T> {
  */
 export function del<T>(endpoint: string): Promise<T> {
   return apiRequest<T>(endpoint, { method: 'DELETE' });
+}
+
+/**
+ * PATCH 请求
+ */
+export function patch<T>(endpoint: string, body?: unknown): Promise<T> {
+  return apiRequest<T>(endpoint, {
+    method: 'PATCH',
+    body: body ? JSON.stringify(body) : undefined,
+  });
 }

@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect, CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { parseImportUrl } from '../../../../lib/importApi';
 
 interface DataImportDialogProps {
   visible: boolean;
@@ -182,14 +181,12 @@ export function DataImportDialog({
     setIsLoading(true);
     setError(null);
     try {
-      const result = await parseImportUrl(url);
-      if (result && result.sample_data) {
-        setParsedData(result.sample_data);
-        if (currentValue && typeof currentValue === 'object') {
-          setStrategy('merge');
-        }
-      } else {
-        throw new Error('No data found');
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
+      const data = await response.json();
+      setParsedData(data);
+      if (currentValue && typeof currentValue === 'object') {
+        setStrategy('merge');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse URL');

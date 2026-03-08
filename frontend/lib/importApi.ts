@@ -1,15 +1,13 @@
 /**
- * Import API - Now forwards to unified Ingest API
+ * Import API - SaaS/URL imports via Bootstrap + SyncEngine
  *
- * This file is kept for backward compatibility.
- * All new code should use ingestApi.ts directly.
+ * The backend now processes imports synchronously through the unified
+ * SyncEngine pipeline. No polling needed — submit returns completed status.
  */
 
 import { getAccessToken } from './apiClient';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
-
-// === Enums ===
+// === Types ===
 
 export type ImportType =
   | 'github'
@@ -32,16 +30,11 @@ export type ImportStatus =
   | 'failed'
   | 'cancelled';
 
-// === Request Types ===
-
 export interface ImportSubmitRequest {
   project_id: string;
   name?: string;
   url?: string;
-  file_key?: string;
-  etl_rule_id?: number;
   crawl_options?: CrawlOptions;
-  sync_config?: Record<string, unknown>;
 }
 
 export interface CrawlOptions {
@@ -56,17 +49,11 @@ export interface CrawlOptions {
   delay?: number;
 }
 
-export interface ImportParseRequest {
-  url: string;
-  crawl_options?: CrawlOptions;
-}
-
-// === Response Types ===
-
 export interface ImportSubmitResponse {
   task_id: string;
   status: ImportStatus;
   import_type: ImportType;
+  node_id?: string;
 }
 
 export interface ImportTaskResponse {
@@ -77,21 +64,12 @@ export interface ImportTaskResponse {
   progress: number;
   message?: string;
   content_node_id?: string;
+  node_id?: string;
   items_count?: number;
   error?: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
   completed_at?: string;
-}
-
-export interface ImportParseResponse {
-  url: string;
-  import_type: ImportType;
-  title?: string;
-  description?: string;
-  fields: Array<{ name: string; type: string }>;
-  sample_data: Record<string, any>[];
-  total_items: number;
 }
 
 // === Utility Functions ===
@@ -165,7 +143,7 @@ export function formatBytes(bytes: number): string {
 // === API Functions ===
 
 /**
- * Submit an import task (via unified ingest endpoint)
+ * Submit an import (synchronous — returns completed result directly).
  */
 export async function submitImport(
   request: ImportSubmitRequest
@@ -184,7 +162,7 @@ export async function submitImport(
     formData.append('name', request.name);
   }
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/submit/saas`, {
+  const response = await fetch('/api/ingest?path=submit/saas', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -194,104 +172,40 @@ export async function submitImport(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Import submit failed: ${errorText}`);
+    throw new Error(`Import failed: ${errorText}`);
   }
 
   const data = await response.json();
-  // Convert unified response to legacy format
   const item = data.items?.[0];
   return {
-    task_id: item?.task_id || data.task_id,
-    status: item?.status || 'pending',
+    task_id: item?.task_id || '',
+    status: item?.status || 'completed',
     import_type: item?.ingest_type || 'url',
+    node_id: item?.node_id,
   };
 }
 
 /**
- * Get import task status (via unified ingest endpoint)
+ * Import from URL — returns the created node ID.
  */
-export async function getImportTask(taskId: string): Promise<ImportTaskResponse> {
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
-    throw new Error('Not authenticated');
-  }
-
-  const response = await fetch(`${API_URL}/api/v1/ingest/tasks/${taskId}?source_type=saas`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Get task failed: ${errorText}`);
-  }
-
-  return await response.json();
-}
-
-/**
- * List import tasks (not directly supported by new API)
- * @deprecated Use batchGetIngestTasks with specific task IDs
- */
-export async function listImportTasks(
-  projectId?: string,
-  limit: number = 50
-): Promise<ImportTaskResponse[]> {
-  // This endpoint is not directly supported in the new unified API
-  // For now, return empty array - callers should migrate to task-specific queries
-  console.warn('listImportTasks is deprecated - use specific task queries');
-  return [];
-}
-
-/**
- * Cancel an import task (via unified ingest endpoint)
- */
-export async function cancelImportTask(taskId: string): Promise<void> {
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
-    throw new Error('Not authenticated');
-  }
-
-  const response = await fetch(`${API_URL}/api/v1/ingest/tasks/${taskId}?source_type=saas`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Cancel task failed: ${errorText}`);
-  }
-}
-
-/**
- * Parse URL for preview
- * Note: This endpoint may need to be added to the unified API
- */
-export async function parseImportUrl(
+export async function importFromUrl(
+  projectId: string,
   url: string,
-  crawlOptions?: CrawlOptions
-): Promise<ImportParseResponse> {
-  // For now, return a stub response - actual implementation depends on backend
-  console.warn('parseImportUrl may need backend implementation');
-  return {
+  options?: { name?: string; crawlOptions?: CrawlOptions }
+): Promise<string> {
+  const response = await submitImport({
+    project_id: projectId,
     url,
-    import_type: detectImportType(url),
-    title: undefined,
-    description: undefined,
-    fields: [],
-    sample_data: [],
-    total_items: 0,
-  };
+    name: options?.name,
+    crawl_options: options?.crawlOptions,
+  });
+  return response.node_id || response.task_id;
 }
 
 /**
- * Detect import type from URL
+ * Detect import type from URL (client-side).
  */
-function detectImportType(url: string): ImportType {
+export function detectImportType(url: string): ImportType {
   const urlLower = url.toLowerCase();
   if (urlLower.includes('github.com')) return 'github';
   if (urlLower.includes('notion.so') || urlLower.includes('notion.site')) return 'notion';
@@ -305,71 +219,39 @@ function detectImportType(url: string): ImportType {
   return 'web_page';
 }
 
-// === Polling Helper ===
+// === Deprecated stubs (kept for compatibility during migration) ===
 
+/** @deprecated Import is now synchronous, no polling needed. */
 export async function pollImportTask(
   taskId: string,
   onProgress?: (task: ImportTaskResponse) => void,
-  intervalMs: number = 1000
 ): Promise<ImportTaskResponse> {
-  return new Promise((resolve, reject) => {
-    const poll = async () => {
-      try {
-        const task = await getImportTask(taskId);
-        onProgress?.(task);
-
-        if (isTerminalStatus(task.status)) {
-          if (task.status === 'completed') {
-            resolve(task);
-          } else if (task.status === 'failed') {
-            reject(new Error(task.error || 'Import failed'));
-          } else {
-            resolve(task); // cancelled
-          }
-        } else {
-          setTimeout(poll, intervalMs);
-        }
-      } catch (error) {
-        reject(error);
-      }
-    };
-
-    poll();
-  });
+  const result: ImportTaskResponse = {
+    task_id: taskId,
+    source_type: 'saas',
+    ingest_type: 'url',
+    status: 'completed',
+    progress: 100,
+  };
+  onProgress?.(result);
+  return result;
 }
 
-// === Convenience Functions ===
-
-export async function importFromUrl(
-  projectId: string,
-  url: string,
-  options?: {
-    name?: string;
-    crawlOptions?: CrawlOptions;
-  }
-): Promise<string> {
-  const response = await submitImport({
-    project_id: projectId,
-    url,
-    name: options?.name,
-    crawl_options: options?.crawlOptions,
-  });
-  return response.task_id;
+/** @deprecated Use submitImport directly. */
+export async function getImportTask(taskId: string): Promise<ImportTaskResponse> {
+  return {
+    task_id: taskId,
+    source_type: 'saas',
+    ingest_type: 'url',
+    status: 'completed',
+    progress: 100,
+  };
 }
 
-export async function importFromFile(
-  projectId: string,
-  fileKey: string,
-  options?: {
-    name?: string;
-    etlRuleId?: number;
-  }
-): Promise<string> {
-  const response = await submitImport({
-    project_id: projectId,
-    file_key: fileKey,
-    name: options?.name,
-    etl_rule_id: options?.etlRuleId,
-  });
-  return response.task_id;
+/** @deprecated No longer supported. */
+export async function cancelImportTask(_taskId: string): Promise<void> {}
+
+/** @deprecated No longer supported. */
+export async function listImportTasks(): Promise<ImportTaskResponse[]> {
+  return [];
 }

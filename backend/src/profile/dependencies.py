@@ -9,6 +9,7 @@ from typing import Optional
 
 from src.profile.repository import ProfileRepositorySupabase
 from src.profile.service import ProfileService
+from src.auth.dependencies import get_initialization_service
 from src.project.dependencies import get_project_service
 from src.supabase.client import SupabaseClient
 from src.s3.service import S3Service
@@ -23,11 +24,6 @@ def get_profile_repository() -> ProfileRepositorySupabase:
 
 
 def _create_content_node_service() -> ContentNodeService:
-    """
-    手动创建 ContentNodeService 实例
-    
-    由于不在 FastAPI 请求上下文中，需要手动创建依赖
-    """
     supabase = SupabaseClient()
     repo = ContentNodeRepository(supabase)
     s3_service = S3Service()
@@ -38,6 +34,7 @@ def get_profile_service() -> ProfileService:
     """获取 Profile Service"""
     return ProfileService(
         profile_repository=get_profile_repository(),
+        initialization_service=get_initialization_service(),
         project_service=get_project_service(),
         content_node_service=_create_content_node_service(),
     )

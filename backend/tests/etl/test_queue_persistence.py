@@ -12,9 +12,9 @@ import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus, ETLTaskResult
-from src.ingest.file.tasks.queue import ETLQueue
-from src.ingest.file.tasks.repository import ETLTaskRepositorySupabase
+from src.upload.file.tasks.models import ETLTask, ETLTaskStatus, ETLTaskResult
+from src.upload.file.tasks.queue import ETLQueue
+from src.upload.file.tasks.repository import ETLTaskRepositorySupabase
 
 
 # 需要真实 Supabase 环境变量；未配置时跳过，避免本地/CI 失败
@@ -46,8 +46,8 @@ def sample_task():
     """创建测试用的任务"""
     return ETLTask(
         task_id=None,
-        user_id=1,
-        project_id=1,
+        created_by="user-1",
+        project_id="proj-1",
         filename="test_queue.pdf",
         rule_id=1,
     )
@@ -183,26 +183,26 @@ async def test_get_task_from_memory_and_db(queue, repository, sample_task):
 @pytest.mark.asyncio
 async def test_list_tasks_uses_memory_cache(queue, repository):
     """测试列表任务使用内存缓存"""
-    # Create multiple tasks
+    # Create multiple tasks for different projects
     task1 = await queue.submit(ETLTask(
-        task_id=None, user_id=1, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-1",
         filename="test1.pdf", rule_id=1
     ))
     task2 = await queue.submit(ETLTask(
-        task_id=None, user_id=2, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-2",
         filename="test2.pdf", rule_id=1
     ))
     
-    # List tasks for user 1
-    user1_tasks = queue.list_tasks(user_id=1)
+    # List tasks for project 1
+    proj1_tasks = queue.list_tasks(project_id="proj-1")
     
     # Verify correct filtering
-    assert len(user1_tasks) > 0
-    for task in user1_tasks:
-        assert task.user_id == 1
+    assert len(proj1_tasks) > 0
+    for task in proj1_tasks:
+        assert task.project_id == "proj-1"
     
     # Verify task1 is in list
-    task_ids = [t.task_id for t in user1_tasks]
+    task_ids = [t.task_id for t in proj1_tasks]
     assert task1.task_id in task_ids
     assert task2.task_id not in task_ids
     
@@ -269,11 +269,11 @@ async def test_queue_task_count(queue):
     
     # Submit tasks
     task1 = await queue.submit(ETLTask(
-        task_id=None, user_id=1, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-1",
         filename="test1.pdf", rule_id=1
     ))
     task2 = await queue.submit(ETLTask(
-        task_id=None, user_id=1, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-1",
         filename="test2.pdf", rule_id=1
     ))
     
@@ -308,7 +308,7 @@ async def test_multiple_tasks_persistence(queue, repository):
     tasks = []
     for i in range(3):
         task = await queue.submit(ETLTask(
-            task_id=None, user_id=1, project_id=1,
+            task_id=None, created_by="user-1", project_id="proj-1",
             filename=f"test{i}.pdf", rule_id=1
         ))
         tasks.append(task)

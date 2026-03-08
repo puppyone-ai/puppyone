@@ -19,7 +19,7 @@ const darkThemeStyles = `
     font-size: 14px;
     line-height: 24px;
     padding: 24px 32px;
-    min-height: 100%;
+    box-sizing: border-box;
     outline: none;
     max-width: 800px;
     margin: 0 auto;
@@ -294,7 +294,7 @@ const darkThemeStyles = `
   
   /* Ensure clicking anywhere focuses the editor */
   .milkdown-editor .ProseMirror {
-    min-height: calc(100vh - 150px);
+    min-height: 100%;
     cursor: text;
   }
 

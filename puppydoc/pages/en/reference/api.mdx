@@ -1,0 +1,113 @@
+# API Reference
+
+Full REST API documentation for PuppyOne.
+
+---
+
+## Base URL
+
+```
+https://api.puppyone.ai/api/v1
+```
+
+Self-hosted:
+```
+http://localhost:9090/api/v1
+```
+
+---
+
+## Authentication
+
+All requests require a Bearer token:
+
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  https://api.puppyone.ai/api/v1/projects
+```
+
+---
+
+## Endpoints
+
+### Projects
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/projects` | List all projects |
+| `POST` | `/projects` | Create a project |
+| `GET` | `/projects/{id}` | Get a project |
+| `PATCH` | `/projects/{id}` | Update a project |
+| `DELETE` | `/projects/{id}` | Delete a project |
+
+### Tables (Data)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/tables/{id}/data` | Get all data |
+| `POST` | `/tables/{id}/query` | Query with filter |
+| `POST` | `/tables/{id}/data` | Create entry |
+| `PUT` | `/tables/{id}/data` | Update entry |
+| `DELETE` | `/tables/{id}/data` | Delete entry |
+
+### Sync
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/sync` | List sync connectors |
+| `POST` | `/sync` | Create a sync connector |
+| `POST` | `/sync/{id}/pull` | Trigger a manual pull |
+
+### MCP
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/mcp` | List MCP configurations |
+| `GET` | `/mcp/server/{api_key}` | MCP Server SSE endpoint |
+
+---
+
+## Response Format
+
+Success:
+```json
+{
+  "data": { ... },
+  "error": null
+}
+```
+
+Error:
+```json
+{
+  "data": null,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Project not found"
+  }
+}
+```
+
+---
+
+## Error Codes
+
+| Code | HTTP Status | Meaning |
+|------|-------------|---------|
+| `UNAUTHORIZED` | 401 | Invalid or missing API Key |
+| `FORBIDDEN` | 403 | Insufficient FLS permissions |
+| `NOT_FOUND` | 404 | Resource does not exist |
+| `VALIDATION_ERROR` | 422 | Invalid request body |
+| `RATE_LIMITED` | 429 | Too many requests |
+| `INTERNAL_ERROR` | 500 | Server error |
+
+---
+
+## Rate Limits
+
+| Plan | Limit |
+|------|-------|
+| Free | 100 req/min |
+| Pro | 1,000 req/min |
+| Team | Unlimited |
+| Self-hosted | No limits |

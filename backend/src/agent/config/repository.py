@@ -1,7 +1,9 @@
 """
 Agent Config 数据仓库
 
-定义 Agent 和 AgentBash 的数据访问实现
+统一架构：Agent 数据存储在 connections 表中 (provider='agent')。
+AgentRepository 是 connections 表上的一个领域视图，专门处理 agent 类型的记录。
+connection_access / connection_tool 为共享权限表，FK 指向 connections.id。
 """
 
 from typing import List, Optional
@@ -11,40 +13,98 @@ from src.agent.config.models import Agent, AgentBash, AgentTool
 from src.utils.id_generator import generate_uuid_v7
 
 
+AGENT_PROVIDER = "agent"
+
+
+def _row_to_bash(row: dict) -> AgentBash:
+    """Map connection_access DB row to AgentBash model."""
+    permission = row.get("permission", "r")
+    return AgentBash(
+        id=row["id"],
+        agent_id=row.get("connection_id", row.get("agent_id", "")),
+        node_id=row["node_id"],
+        json_path=row.get("json_path", ""),
+        readonly=(permission == "r"),
+        created_at=row["created_at"],
+    )
+
+
+def _row_to_tool(row: dict) -> AgentTool:
+    """Map connection_tool DB row to AgentTool model."""
+    return AgentTool(
+        id=row["id"],
+        agent_id=row.get("connection_id", row.get("agent_id", "")),
+        tool_id=row["tool_id"],
+        enabled=row.get("enabled", True),
+        mcp_exposed=row.get("mcp_exposed", False),
+        created_at=row["created_at"],
+    )
+
+
+def generate_access_key(agent_type: str = "chat") -> str:
+    prefix = "cli" if agent_type == "devbox" else "mcp"
+    return f"{prefix}_{secrets.token_urlsafe(32)}"
+
+
 def generate_mcp_api_key() -> str:
-    """Generate a secure MCP API key"""
-    return f"mcp_{secrets.token_urlsafe(32)}"
+    return generate_access_key("chat")
+
+
+def _row_to_agent(row: dict) -> Agent:
+    """Convert a syncs row to an Agent model."""
+    config = row.get("config") or {}
+    trigger = row.get("trigger") or {}
+    return Agent(
+        id=row["id"],
+        project_id=row["project_id"],
+        name=config.get("name", ""),
+        icon=config.get("icon", "✨"),
+        type=config.get("type", "chat"),
+        description=config.get("description"),
+        is_default=config.get("is_default", False),
+        mcp_api_key=row.get("access_key"),
+        trigger_type=trigger.get("type", "manual"),
+        trigger_config=trigger.get("config"),
+        task_content=config.get("task_content"),
+        task_node_id=config.get("task_node_id"),
+        external_config=config.get("external_config"),
+        llm_model=config.get("llm_model"),
+        system_prompt=config.get("system_prompt"),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
 
 
 class AgentRepository:
-    """Agent 数据仓库"""
+    """Agent 数据仓库 — 读写 connections 表 (provider='agent')"""
+
+    TABLE = "connections"
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:
             from src.supabase.dependencies import get_supabase_client
-
             self._client = get_supabase_client()
         else:
             self._client = supabase_client
+
+    def _query(self):
+        return self._client.table(self.TABLE).select("*").eq("provider", AGENT_PROVIDER)
 
     # ============================================
     # Agent CRUD
     # ============================================
 
     def get_by_id(self, agent_id: str) -> Optional[Agent]:
-        """根据 ID 获取 Agent"""
         response = (
-            self._client.table("agents")
-            .select("*")
+            self._query()
             .eq("id", agent_id)
             .execute()
         )
         if response.data:
-            return Agent(**response.data[0])
+            return _row_to_agent(response.data[0])
         return None
 
     def get_by_id_with_accesses(self, agent_id: str) -> Optional[Agent]:
-        """根据 ID 获取 Agent，包含 Bash 访问权限和 Tools"""
         agent = self.get_by_id(agent_id)
         if agent:
             agent.bash_accesses = self.get_bash_by_agent_id(agent_id)
@@ -52,55 +112,77 @@ class AgentRepository:
         return agent
 
     def get_by_project_id(self, project_id: str) -> List[Agent]:
-        """根据项目 ID 获取 Agent 列表"""
         response = (
-            self._client.table("agents")
-            .select("*")
+            self._query()
             .eq("project_id", project_id)
             .order("created_at", desc=True)
             .execute()
         )
-        return [Agent(**row) for row in response.data]
+        return [_row_to_agent(row) for row in response.data]
 
     def get_by_project_id_with_accesses(self, project_id: str) -> List[Agent]:
-        """根据项目 ID 获取 Agent 列表，包含 Bash 访问权限和 Tools"""
         agents = self.get_by_project_id(project_id)
+        if not agents:
+            return agents
+
+        agent_ids = [a.id for a in agents]
+
+        all_bash = (
+            self._client.table("connection_accesses")
+            .select("*")
+            .in_("connection_id", agent_ids)
+            .order("created_at")
+            .execute()
+        ).data
+        bash_by_agent: dict[str, list[AgentBash]] = {}
+        for row in all_bash:
+            cid = row.get("connection_id", "")
+            bash_by_agent.setdefault(cid, []).append(_row_to_bash(row))
+
+        all_tools = (
+            self._client.table("connection_tools")
+            .select("*")
+            .in_("connection_id", agent_ids)
+            .order("created_at")
+            .execute()
+        ).data
+        tools_by_agent: dict[str, list[AgentTool]] = {}
+        for row in all_tools:
+            cid = row.get("connection_id", "")
+            tools_by_agent.setdefault(cid, []).append(_row_to_tool(row))
+
         for agent in agents:
-            agent.bash_accesses = self.get_bash_by_agent_id(agent.id)
-            agent.tools = self.get_tools_by_agent_id(agent.id)
+            agent.bash_accesses = bash_by_agent.get(agent.id, [])
+            agent.tools = tools_by_agent.get(agent.id, [])
+
         return agents
 
     def get_default_agent(self, project_id: str) -> Optional[Agent]:
-        """获取项目的默认 Agent"""
         response = (
-            self._client.table("agents")
-            .select("*")
+            self._query()
             .eq("project_id", project_id)
-            .eq("is_default", True)
             .execute()
         )
-        if response.data:
-            return Agent(**response.data[0])
+        for row in response.data:
+            config = row.get("config") or {}
+            if config.get("is_default"):
+                return _row_to_agent(row)
         return None
 
     def get_by_mcp_api_key(self, mcp_api_key: str) -> Optional[Agent]:
-        """根据 MCP API key 获取 Agent"""
         response = (
-            self._client.table("agents")
-            .select("*")
-            .eq("mcp_api_key", mcp_api_key)
+            self._query()
+            .eq("access_key", mcp_api_key)
             .execute()
         )
         if response.data:
-            return Agent(**response.data[0])
+            return _row_to_agent(response.data[0])
         return None
 
     def get_by_mcp_api_key_with_accesses(self, mcp_api_key: str) -> Optional[Agent]:
-        """根据 MCP API key 获取 Agent，包含 Bash 访问权限和 MCP 暴露的 Tools"""
         agent = self.get_by_mcp_api_key(mcp_api_key)
         if agent:
             agent.bash_accesses = self.get_bash_by_agent_id(agent.id)
-            # MCP 访问只返回 mcp_exposed=True 的 Tools
             agent.tools = self.get_tools_by_agent_id_for_mcp(agent.id)
         return agent
 
@@ -112,33 +194,47 @@ class AgentRepository:
         type: str = "chat",
         description: Optional[str] = None,
         is_default: bool = False,
-        # Schedule Agent 新字段
         trigger_type: Optional[str] = "manual",
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,
         task_node_id: Optional[str] = None,
         external_config: Optional[dict] = None,
+        llm_model: Optional[str] = None,
+        system_prompt: Optional[str] = None,
     ) -> Agent:
-        """创建 Agent (自动生成 mcp_api_key)"""
         agent_id = generate_uuid_v7()
-        mcp_api_key = generate_mcp_api_key()
-        data = {
-            "id": agent_id,
-            "project_id": project_id,
+        access_key = generate_access_key(type)
+
+        config = {
             "name": name,
             "icon": icon,
             "type": type,
             "description": description,
             "is_default": is_default,
-            "mcp_api_key": mcp_api_key,
-            "trigger_type": trigger_type,
-            "trigger_config": trigger_config,
             "task_content": task_content,
             "task_node_id": task_node_id,
             "external_config": external_config,
+            "llm_model": llm_model,
+            "system_prompt": system_prompt,
         }
-        response = self._client.table("agents").insert(data).execute()
-        return Agent(**response.data[0])
+        trigger = {
+            "type": trigger_type or "manual",
+            "config": trigger_config,
+        }
+
+        data = {
+            "id": agent_id,
+            "project_id": project_id,
+            "node_id": task_node_id,  # nullable
+            "direction": "bidirectional",
+            "provider": AGENT_PROVIDER,
+            "config": config,
+            "access_key": access_key,
+            "trigger": trigger,
+            "status": "active",
+        }
+        response = self._client.table(self.TABLE).insert(data).execute()
+        return _row_to_agent(response.data[0])
 
     def update(
         self,
@@ -148,102 +244,130 @@ class AgentRepository:
         type: Optional[str] = None,
         description: Optional[str] = None,
         is_default: Optional[bool] = None,
-        # Schedule Agent 新字段
+        mcp_api_key: Optional[str] = None,
         trigger_type: Optional[str] = None,
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,
         task_node_id: Optional[str] = None,
         external_config: Optional[dict] = None,
+        llm_model: Optional[str] = None,
+        system_prompt: Optional[str] = None,
     ) -> Optional[Agent]:
-        """更新 Agent"""
-        data = {}
-        if name is not None:
-            data["name"] = name
-        if icon is not None:
-            data["icon"] = icon
-        if type is not None:
-            data["type"] = type
-        if description is not None:
-            data["description"] = description
-        if is_default is not None:
-            data["is_default"] = is_default
-        # Schedule Agent 新字段
-        if trigger_type is not None:
-            data["trigger_type"] = trigger_type
-        if trigger_config is not None:
-            data["trigger_config"] = trigger_config
-        if task_content is not None:
-            data["task_content"] = task_content
-        if task_node_id is not None:
-            data["task_node_id"] = task_node_id
-        if external_config is not None:
-            data["external_config"] = external_config
+        current = self.get_by_id(agent_id)
+        if not current:
+            return None
 
-        if not data:
-            return self.get_by_id(agent_id)
-
-        data["updated_at"] = "now()"
+        # Rebuild config JSONB by merging updates
         response = (
-            self._client.table("agents")
-            .update(data)
+            self._client.table(self.TABLE)
+            .select("config, trigger")
             .eq("id", agent_id)
             .execute()
         )
-        if response.data:
-            return Agent(**response.data[0])
+        if not response.data:
+            return None
+
+        config = dict(response.data[0].get("config") or {})
+        trigger = dict(response.data[0].get("trigger") or {})
+
+        if name is not None:
+            config["name"] = name
+        if icon is not None:
+            config["icon"] = icon
+        if type is not None:
+            config["type"] = type
+        if description is not None:
+            config["description"] = description
+        if is_default is not None:
+            config["is_default"] = is_default
+        if task_content is not None:
+            config["task_content"] = task_content
+        if task_node_id is not None:
+            config["task_node_id"] = task_node_id
+        if external_config is not None:
+            config["external_config"] = external_config
+        if llm_model is not None:
+            config["llm_model"] = llm_model if llm_model != "" else None
+        if system_prompt is not None:
+            config["system_prompt"] = system_prompt if system_prompt != "" else None
+        if trigger_type is not None:
+            trigger["type"] = trigger_type
+        if trigger_config is not None:
+            trigger["config"] = trigger_config
+
+        update_data: dict = {
+            "config": config,
+            "trigger": trigger,
+            "updated_at": "now()",
+        }
+        if mcp_api_key is not None:
+            update_data["access_key"] = mcp_api_key
+        if task_node_id is not None:
+            update_data["node_id"] = task_node_id
+
+        resp = (
+            self._client.table(self.TABLE)
+            .update(update_data)
+            .eq("id", agent_id)
+            .execute()
+        )
+        if resp.data:
+            return _row_to_agent(resp.data[0])
         return None
 
     def delete(self, agent_id: str) -> bool:
-        """删除 Agent（会级联删除 agent_bash）"""
         response = (
-            self._client.table("agents")
+            self._client.table(self.TABLE)
             .delete()
             .eq("id", agent_id)
+            .eq("provider", AGENT_PROVIDER)
             .execute()
         )
         return len(response.data) > 0
 
     def verify_access(self, agent_id: str, user_id: str) -> bool:
-        """验证用户是否有权限访问指定的 Agent（通过 project 检查）"""
         agent = self.get_by_id(agent_id)
         if not agent:
             return False
-        # 通过 project_id 查询 project，检查 project.user_id
         response = (
-            self._client.table("project")
-            .select("user_id")
+            self._client.table("projects")
+            .select("org_id")
             .eq("id", agent.project_id)
             .execute()
         )
         if not response.data:
             return False
-        return str(response.data[0]["user_id"]) == user_id
+        org_id = response.data[0].get("org_id")
+        if not org_id:
+            return False
+        from src.organization.repository import OrganizationRepository
+        org_repo = OrganizationRepository(supabase_client=self._client)
+        member = org_repo.get_member(org_id, user_id)
+        return member is not None
 
     # ============================================
-    # AgentBash CRUD (Bash 终端访问权限)
+    # AgentBash CRUD
     # ============================================
 
     def get_bash_by_agent_id(self, agent_id: str) -> List[AgentBash]:
-        """获取 Agent 的所有 Bash 访问权限"""
         response = (
-            self._client.table("agent_bash")
+            self._client.table("connection_accesses")
             .select("*")
-            .eq("agent_id", agent_id)
+            .eq("connection_id", agent_id)
             .order("created_at")
             .execute()
         )
-        return [AgentBash(**row) for row in response.data]
+        return [_row_to_bash(row) for row in response.data]
 
     def get_bash_by_id(self, bash_id: str) -> Optional[AgentBash]:
-        """根据 ID 获取单个 AgentBash"""
         response = (
-            self._client.table("agent_bash")
+            self._client.table("connection_accesses")
             .select("*")
             .eq("id", bash_id)
             .execute()
         )
         if response.data:
-            return AgentBash(**response.data[0])
+            return _row_to_bash(response.data[0])
         return None
 
     def create_bash(
@@ -253,17 +377,16 @@ class AgentRepository:
         json_path: str = "",
         readonly: bool = True,
     ) -> AgentBash:
-        """创建 AgentBash"""
         bash_id = generate_uuid_v7()
         data = {
             "id": bash_id,
-            "agent_id": agent_id,
+            "connection_id": agent_id,
             "node_id": node_id,
             "json_path": json_path,
-            "readonly": readonly,
+            "permission": "r" if readonly else "rw",
         }
-        response = self._client.table("agent_bash").insert(data).execute()
-        return AgentBash(**response.data[0])
+        response = self._client.table("connection_accesses").insert(data).execute()
+        return _row_to_bash(response.data[0])
 
     def update_bash(
         self,
@@ -271,30 +394,27 @@ class AgentRepository:
         json_path: Optional[str] = None,
         readonly: Optional[bool] = None,
     ) -> Optional[AgentBash]:
-        """更新 AgentBash"""
         data = {}
         if json_path is not None:
             data["json_path"] = json_path
         if readonly is not None:
-            data["readonly"] = readonly
-
+            data["permission"] = "r" if readonly else "rw"
         if not data:
             return self.get_bash_by_id(bash_id)
 
         response = (
-            self._client.table("agent_bash")
+            self._client.table("connection_accesses")
             .update(data)
             .eq("id", bash_id)
             .execute()
         )
         if response.data:
-            return AgentBash(**response.data[0])
+            return _row_to_bash(response.data[0])
         return None
 
     def delete_bash(self, bash_id: str) -> bool:
-        """删除单个 AgentBash"""
         response = (
-            self._client.table("agent_bash")
+            self._client.table("connection_accesses")
             .delete()
             .eq("id", bash_id)
             .execute()
@@ -302,11 +422,10 @@ class AgentRepository:
         return len(response.data) > 0
 
     def delete_bash_by_agent_id(self, agent_id: str) -> int:
-        """删除 Agent 的所有 Bash 访问权限"""
         response = (
-            self._client.table("agent_bash")
+            self._client.table("connection_accesses")
             .delete()
-            .eq("agent_id", agent_id)
+            .eq("connection_id", agent_id)
             .execute()
         )
         return len(response.data)
@@ -318,37 +437,31 @@ class AgentRepository:
         json_path: str = "",
         readonly: bool = True,
     ) -> AgentBash:
-        """
-        Upsert AgentBash（根据 agent_id + node_id + json_path 唯一约束）
-        如果存在则更新，不存在则创建
-        """
         bash_id = generate_uuid_v7()
         data = {
             "id": bash_id,
-            "agent_id": agent_id,
+            "connection_id": agent_id,
             "node_id": node_id,
             "json_path": json_path,
-            "readonly": readonly,
+            "permission": "r" if readonly else "rw",
         }
         response = (
-            self._client.table("agent_bash")
-            .upsert(data, on_conflict="agent_id,node_id,json_path")
+            self._client.table("connection_accesses")
+            .upsert(data, on_conflict="connection_id,node_id,json_path")
             .execute()
         )
-        return AgentBash(**response.data[0])
-    
+        return _row_to_bash(response.data[0])
+
     # ============================================
-    # 向后兼容的别名方法
+    # Backward-compatible aliases
     # ============================================
-    
+
     def get_accesses_by_agent_id(self, agent_id: str) -> List[AgentBash]:
-        """获取 Agent 的所有访问权限（向后兼容）"""
         return self.get_bash_by_agent_id(agent_id)
-    
+
     def get_access_by_id(self, access_id: str) -> Optional[AgentBash]:
-        """根据 ID 获取单个访问权限（向后兼容）"""
         return self.get_bash_by_id(access_id)
-    
+
     def create_access(
         self,
         agent_id: str,
@@ -360,11 +473,9 @@ class AgentRepository:
         can_delete: bool = False,
         json_path: str = "",
     ) -> AgentBash:
-        """创建访问权限（向后兼容）"""
-        # 新表结构只有 readonly 字段
         readonly = terminal_readonly if terminal else True
         return self.create_bash(agent_id, node_id, json_path, readonly)
-    
+
     def update_access(
         self,
         access_id: str,
@@ -375,56 +486,50 @@ class AgentRepository:
         can_delete: Optional[bool] = None,
         json_path: Optional[str] = None,
     ) -> Optional[AgentBash]:
-        """更新访问权限（向后兼容）"""
         readonly = terminal_readonly
         return self.update_bash(access_id, json_path, readonly)
-    
+
     def delete_access(self, access_id: str) -> bool:
-        """删除访问权限（向后兼容）"""
         return self.delete_bash(access_id)
-    
+
     def delete_accesses_by_agent_id(self, agent_id: str) -> int:
-        """删除 Agent 的所有访问权限（向后兼容）"""
         return self.delete_bash_by_agent_id(agent_id)
 
     # ============================================
-    # AgentTool CRUD (Tool 关联)
+    # AgentTool CRUD
     # ============================================
 
     def get_tools_by_agent_id(self, agent_id: str) -> List[AgentTool]:
-        """获取 Agent 关联的所有 Tools"""
         response = (
-            self._client.table("agent_tool")
+            self._client.table("connection_tools")
             .select("*")
-            .eq("agent_id", agent_id)
+            .eq("connection_id", agent_id)
             .order("created_at")
             .execute()
         )
-        return [AgentTool(**row) for row in response.data]
+        return [_row_to_tool(row) for row in response.data]
 
     def get_tools_by_agent_id_for_mcp(self, agent_id: str) -> List[AgentTool]:
-        """获取 Agent 关联的可通过 MCP 暴露的 Tools"""
         response = (
-            self._client.table("agent_tool")
+            self._client.table("connection_tools")
             .select("*")
-            .eq("agent_id", agent_id)
+            .eq("connection_id", agent_id)
             .eq("enabled", True)
             .eq("mcp_exposed", True)
             .order("created_at")
             .execute()
         )
-        return [AgentTool(**row) for row in response.data]
+        return [_row_to_tool(row) for row in response.data]
 
     def get_tool_binding_by_id(self, binding_id: str) -> Optional[AgentTool]:
-        """根据 ID 获取单个 AgentTool"""
         response = (
-            self._client.table("agent_tool")
+            self._client.table("connection_tools")
             .select("*")
             .eq("id", binding_id)
             .execute()
         )
         if response.data:
-            return AgentTool(**response.data[0])
+            return _row_to_tool(response.data[0])
         return None
 
     def create_tool_binding(
@@ -434,17 +539,16 @@ class AgentRepository:
         enabled: bool = True,
         mcp_exposed: bool = False,
     ) -> AgentTool:
-        """创建 AgentTool 关联"""
         binding_id = generate_uuid_v7()
         data = {
             "id": binding_id,
-            "agent_id": agent_id,
+            "connection_id": agent_id,
             "tool_id": tool_id,
             "enabled": enabled,
             "mcp_exposed": mcp_exposed,
         }
-        response = self._client.table("agent_tool").insert(data).execute()
-        return AgentTool(**response.data[0])
+        response = self._client.table("connection_tools").insert(data).execute()
+        return _row_to_tool(response.data[0])
 
     def update_tool_binding(
         self,
@@ -452,30 +556,27 @@ class AgentRepository:
         enabled: Optional[bool] = None,
         mcp_exposed: Optional[bool] = None,
     ) -> Optional[AgentTool]:
-        """更新 AgentTool 关联"""
         data = {}
         if enabled is not None:
             data["enabled"] = enabled
         if mcp_exposed is not None:
             data["mcp_exposed"] = mcp_exposed
-
         if not data:
             return self.get_tool_binding_by_id(binding_id)
 
         response = (
-            self._client.table("agent_tool")
+            self._client.table("connection_tools")
             .update(data)
             .eq("id", binding_id)
             .execute()
         )
         if response.data:
-            return AgentTool(**response.data[0])
+            return _row_to_tool(response.data[0])
         return None
 
     def delete_tool_binding(self, binding_id: str) -> bool:
-        """删除单个 AgentTool 关联"""
         response = (
-            self._client.table("agent_tool")
+            self._client.table("connection_tools")
             .delete()
             .eq("id", binding_id)
             .execute()
@@ -483,11 +584,10 @@ class AgentRepository:
         return len(response.data) > 0
 
     def delete_tools_by_agent_id(self, agent_id: str) -> int:
-        """删除 Agent 的所有 Tool 关联"""
         response = (
-            self._client.table("agent_tool")
+            self._client.table("connection_tools")
             .delete()
-            .eq("agent_id", agent_id)
+            .eq("connection_id", agent_id)
             .execute()
         )
         return len(response.data)
@@ -495,16 +595,15 @@ class AgentRepository:
     def get_tool_binding_by_agent_and_tool(
         self, agent_id: str, tool_id: str
     ) -> Optional[AgentTool]:
-        """根据 agent_id 和 tool_id 获取 AgentTool"""
         response = (
-            self._client.table("agent_tool")
+            self._client.table("connection_tools")
             .select("*")
-            .eq("agent_id", agent_id)
+            .eq("connection_id", agent_id)
             .eq("tool_id", tool_id)
             .execute()
         )
         if response.data:
-            return AgentTool(**response.data[0])
+            return _row_to_tool(response.data[0])
         return None
 
     def upsert_tool_binding(
@@ -514,33 +613,28 @@ class AgentRepository:
         enabled: bool = True,
         mcp_exposed: bool = False,
     ) -> AgentTool:
-        """
-        Upsert AgentTool（根据 agent_id + tool_id 唯一约束）
-        如果存在则更新，不存在则创建
-        """
         binding_id = generate_uuid_v7()
         data = {
             "id": binding_id,
-            "agent_id": agent_id,
+            "connection_id": agent_id,
             "tool_id": tool_id,
             "enabled": enabled,
             "mcp_exposed": mcp_exposed,
         }
         response = (
-            self._client.table("agent_tool")
-            .upsert(data, on_conflict="agent_id,tool_id")
+            self._client.table("connection_tools")
+            .upsert(data, on_conflict="connection_id,tool_id")
             .execute()
         )
-        return AgentTool(**response.data[0])
+        return _row_to_tool(response.data[0])
 
     # ============================================
     # Execution History
     # ============================================
 
     def get_execution_history(self, agent_id: str, limit: int = 10) -> list[dict]:
-        """获取 Agent 的执行历史"""
         response = (
-            self._client.table("agent_execution_log")
+            self._client.table("agent_execution_logs")
             .select("*")
             .eq("agent_id", agent_id)
             .order("started_at", desc=True)
@@ -548,4 +642,3 @@ class AgentRepository:
             .execute()
         )
         return response.data or []
-

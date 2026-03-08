@@ -51,4 +51,3 @@ def get_verified_agent(
     return agent
 
 
-

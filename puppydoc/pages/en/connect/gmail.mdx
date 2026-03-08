@@ -1,0 +1,79 @@
+# Gmail
+
+Sync Gmail emails into your Context File System, so agents can query and analyze your inbox.
+
+| | |
+|---|---|
+| **Direction** | Pull (Gmail → PuppyOne) |
+| **Trigger** | Scheduled poll |
+| **Auth** | Google OAuth |
+| **Output** | JSON |
+
+---
+
+## Data Structure
+
+Emails are stored in a single JSON node:
+
+```json
+{
+  "emails": [
+    {
+      "id": "18b2c3d4e5f6",
+      "subject": "Q4 Product Planning Meeting",
+      "from": "alice@example.com",
+      "to": ["bob@example.com"],
+      "date": "2026-02-20T10:30:00Z",
+      "snippet": "Meeting next Wednesday, agenda below...",
+      "body": "...",
+      "labels": ["INBOX", "IMPORTANT"],
+      "thread_id": "18b2c3d4e5f6"
+    }
+  ],
+  "total": 150,
+  "synced_at": "2026-02-26T08:00:00Z"
+}
+```
+
+---
+
+## Setup
+
+### Step 1: Authorize Google
+
+1. Open your Project → **Add Connector** → **Gmail**
+2. Click **Connect with Google** and complete the OAuth flow
+
+### Step 2: Configure Sync Scope
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| **Label filter** | Only sync emails with specific labels | `INBOX`, `IMPORTANT` |
+| **Date range** | How far back to sync | Last 90 days |
+| **Max emails** | Cap on emails per sync | 500 |
+
+### Step 3: Start Sync
+
+Click **Start Sync**. The first run pulls historical emails; subsequent runs are incremental.
+
+---
+
+## Agent Usage Example
+
+```
+User: Find all emails from @acme.com last week and summarize them
+
+Agent: [calls query_data]
+       Found 8 emails from acme.com:
+       1. "Partnership Proposal" - Feb 20, Alice Chen
+       2. "Quote Confirmation" - Feb 21, Bob Wang
+       ...
+```
+
+---
+
+## Notes
+
+- Gmail sync pulls email metadata and body only — **attachments are not included**
+- HTML is stripped from email bodies, plain text only
+- Default sync interval is 1 hour, adjustable in settings

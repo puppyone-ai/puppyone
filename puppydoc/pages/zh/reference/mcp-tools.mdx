@@ -1,0 +1,231 @@
+# MCP Tools
+
+通过 MCP 协议，Agent 可以调用以下 Tools 与 Context File System 交互。
+
+每个 Tool 的可用性由 [File Level Security (FLS)](/zh/access) 配置决定。
+
+---
+
+## Tools 总览
+
+| Tool | 默认名称 | 功能 | 风险等级 |
+|------|----------|------|----------|
+| `get_data_schema` | `get_data_schema` | 获取数据结构 | 🟢 只读 |
+| `get_all_data` | `get_all_data` | 读取全部数据 | 🟢 只读 |
+| `query_data` | `query_data` | 带条件过滤查询 | 🟢 只读 |
+| `preview` | `preview_data` | 快速预览部分数据 | 🟢 只读 |
+| `select` | `select_data` | 返回指定字段 | 🟢 只读 |
+| `create` | `create_element` | 创建新条目 | 🟡 写入 |
+| `update` | `update_element` | 修改现有条目 | 🟡 写入 |
+| `delete` | `delete_element` | 删除条目 | 🔴 破坏性 |
+
+---
+
+## 只读 Tools
+
+### `get_data_schema`
+
+返回当前数据的结构定义，让 Agent 了解有哪些字段、字段类型是什么。Agent 在查询前通常会先调用这个 Tool。
+
+**输入参数**：无
+
+**返回示例**：
+```json
+{
+  "schema": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
+      }
+    }
+  }
+}
+```
+
+---
+
+### `get_all_data`
+
+返回数据的全部内容，不做任何过滤。适合数据量较小的场景。
+
+**输入参数**：无
+
+**返回示例**：
+```json
+[
+  { "id": "1", "name": "Widget Pro", "price": 99.99 },
+  { "id": "2", "name": "Widget Mini", "price": 59.99 }
+]
+```
+
+---
+
+### `query_data`
+
+带条件的查询，支持过滤、排序和限制返回数量。
+
+**输入参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `filter` | object | 过滤条件（见下方语法） |
+| `limit` | number | 最多返回多少条 |
+| `offset` | number | 跳过前 N 条（分页） |
+
+**过滤器语法**：
+
+```json
+// 等于
+{ "status": { "$eq": "active" } }
+
+// 大于
+{ "price": { "$gt": 50 } }
+
+// 包含在数组中
+{ "category": { "$in": ["electronics", "accessories"] } }
+
+// 组合条件（AND）
+{
+  "$and": [
+    { "status": { "$eq": "active" } },
+    { "price": { "$lt": 100 } }
+  ]
+}
+
+// 组合条件（OR）
+{
+  "$or": [
+    { "priority": { "$eq": "urgent" } },
+    { "priority": { "$eq": "high" } }
+  ]
+}
+```
+
+**支持的操作符**：`$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`
+
+---
+
+### `preview`
+
+快速预览数据的前几条，用于让 Agent 快速了解数据样貌，不需要拉取全量数据。
+
+**输入参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `limit` | number | 预览条数，默认 5 |
+
+---
+
+### `select`
+
+只返回指定字段，减少 Token 消耗，适合数据字段多但 Agent 只需要其中几个的场景。
+
+**输入参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `fields` | string[] | 要返回的字段名列表 |
+| `filter` | object | 可选，同 `query_data` 的过滤条件 |
+
+**示例**：
+```json
+{
+  "fields": ["id", "name", "price"],
+  "filter": { "status": { "$eq": "active" } }
+}
+```
+
+---
+
+## 写入 Tools
+
+> 写入 Tools 需要在 [FLS 配置](/zh/access)中明确开启才能使用。
+
+### `create`
+
+在数据中创建一个新条目。
+
+**输入参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `data` | object | 要创建的数据对象 |
+| `path` | string | 可选，插入到 JSON 中的哪个路径 |
+
+**示例**：
+```json
+{
+  "data": {
+    "name": "New Widget",
+    "price": 79.99,
+    "status": "active"
+  }
+}
+```
+
+---
+
+### `update`
+
+修改现有条目的字段值。
+
+**输入参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `filter` | object | 定位要修改的条目（同 query_data 过滤语法） |
+| `data` | object | 要更新的字段和值 |
+
+**示例**：
+```json
+{
+  "filter": { "id": { "$eq": "123" } },
+  "data": { "price": 89.99, "status": "active" }
+}
+```
+
+---
+
+### `delete`
+
+删除符合条件的条目。**此操作不可撤销**，请谨慎授权。
+
+**输入参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `filter` | object | 定位要删除的条目 |
+
+**示例**：
+```json
+{
+  "filter": { "status": { "$eq": "archived" } }
+}
+```
+
+---
+
+## Tool 名称自定义
+
+Tool 的默认名称（如 `create_element`）可以在 MCP 配置中自定义，方便 Agent 理解上下文：
+
+```json
+{
+  "tools_definition": {
+    "create": {
+      "name": "add_product",
+      "description": "向产品目录中添加新产品"
+    },
+    "query_data": {
+      "name": "search_products",
+      "description": "按条件搜索产品"
+    }
+  }
+}
+```

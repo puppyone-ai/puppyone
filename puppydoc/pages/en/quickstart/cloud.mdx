@@ -1,40 +1,96 @@
 # Cloud Quick Start
 
-Get started with PuppyOne Cloud in 2 minutes.
+Get your agent reading real context in 5 minutes.
+
+---
 
 ## Step 1: Create Account
 
 Visit [puppyone.ai](https://puppyone.ai) and sign up.
 
-## Step 2: Create Project
+---
 
-Click **New Project** and give it a name.
+## Step 2: Create a Project
 
-## Step 3: Import Data
+1. Click **New Project**
+2. Give it a name (e.g. "Product Knowledge Base")
+3. Click **Create**
 
-Upload your first document or connect a data source.
+---
 
-## Step 4: Connect Your Agent
+## Step 3: Connect a Data Source
 
-Copy the MCP endpoint and add it to your agent config:
+### Option A: Upload files
+
+1. Click **Import** → **Upload Files**
+2. Drag and drop files (PDF, Word, Excel, Markdown…)
+3. Wait for processing to complete
+
+### Option B: Connect Notion
+
+1. Click **Add Connector** → **Notion**
+2. Complete the OAuth flow
+3. Select the pages or databases to sync
+4. Click **Start Sync**
+
+### Option C: Type data manually
+
+Open the JSON editor and add data directly.
+
+---
+
+## Step 4: Set Up File Level Security
+
+1. Go to the **Access** tab of your Project
+2. Create an API Key
+3. Configure which Tools the key can use (`query_data`, `get_all_data`, etc.)
+4. Optionally restrict to specific JSON paths
+
+For a quick start, you can skip this step — the default key has read access.
+
+---
+
+## Step 5: Connect Your Agent
+
+### Cursor
+
+1. Click **Connect Agent** → **Cursor** in the dashboard
+2. Copy the generated config
+3. Open Cursor Settings → MCP → paste the config
+4. Restart Cursor
 
 ```json
 {
   "mcpServers": {
     "puppyone": {
-      "command": "npx -y mcp-remote https://api.puppyone.ai/mcp?api_key=YOUR_KEY"
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/YOUR_API_KEY"]
     }
   }
 }
 ```
 
-Done! Your agent now has access to structured context.
+### Claude Desktop
 
+1. Click **Connect Agent** → **Claude Desktop**
+2. Copy the config
+3. Add it to `~/Library/Application Support/Claude/claude_desktop_config.json`
+4. Restart Claude Desktop
 
+---
 
+## Step 6: Test It
 
+Ask your agent:
 
+> "What data do you have access to?"
 
+The agent will call `get_data_schema` and describe the structure of your data.
 
+---
 
+## Next Steps
 
+- [Add more data sources](/en/connect)
+- [Configure permissions](/en/access)
+- [Full Agent Access guide](/en/agents)

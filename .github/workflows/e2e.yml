@@ -1,0 +1,102 @@
+name: E2E Visual Tests
+
+on:
+  push:
+    branches: [main, newmu]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'e2e/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'e2e/**'
+  workflow_dispatch:
+
+env:
+  APP_URL: http://localhost:3000
+  NEXT_PUBLIC_API_URL: http://localhost:9090
+
+jobs:
+  e2e:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-e2e') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Backend ---
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install backend deps
+        working-directory: backend
+        run: uv sync
+
+      - name: Start backend
+        working-directory: backend
+        run: |
+          uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 &
+          sleep 5
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      # --- Frontend ---
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Start frontend
+        working-directory: frontend
+        run: |
+          npm start &
+          sleep 5
+
+      # --- E2E ---
+      - name: Install e2e deps
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: e2e
+        run: npx playwright install chromium
+
+      - name: Create auth session
+        working-directory: e2e
+        run: |
+          mkdir -p auth
+          echo '${{ secrets.E2E_SESSION_JSON }}' > auth/session.json
+
+      - name: Run E2E scenarios
+        working-directory: e2e
+        run: node run.mjs
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-${{ github.sha }}
+          path: e2e/results/
+          retention-days: 30

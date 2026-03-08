@@ -38,7 +38,7 @@ class GoogleCalendarOAuthService:
             state = secrets.token_urlsafe(32)
 
         params = {
-            "client_id": settings.GOOGLE_CALENDAR_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID,
+            "client_id": settings.GOOGLE_CLIENT_ID,
             "redirect_uri": settings.GOOGLE_CALENDAR_REDIRECT_URI,
             "response_type": "code",
             "scope": " ".join(self.DEFAULT_SCOPES),
@@ -54,8 +54,8 @@ class GoogleCalendarOAuthService:
     async def exchange_code_for_token(self, code: str) -> dict:
         """Exchange authorization code for access token."""
         payload = {
-            "client_id": settings.GOOGLE_CALENDAR_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID,
-            "client_secret": settings.GOOGLE_CALENDAR_CLIENT_SECRET or settings.GOOGLE_SHEETS_CLIENT_SECRET,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
             "code": code,
             "redirect_uri": settings.GOOGLE_CALENDAR_REDIRECT_URI,
             "grant_type": "authorization_code",
@@ -166,8 +166,8 @@ class GoogleCalendarOAuthService:
             return connection
 
         payload = {
-            "client_id": settings.GOOGLE_CALENDAR_CLIENT_ID or settings.GOOGLE_SHEETS_CLIENT_ID,
-            "client_secret": settings.GOOGLE_CALENDAR_CLIENT_SECRET or settings.GOOGLE_SHEETS_CLIENT_SECRET,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
             "grant_type": "refresh_token",
             "refresh_token": connection.refresh_token,
         }

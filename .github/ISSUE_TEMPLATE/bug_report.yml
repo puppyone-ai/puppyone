@@ -1,0 +1,101 @@
+name: "Bug Report"
+description: Something isn't working as expected. Help us fix it.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+
+        Before submitting, please check:
+        - [Documentation](https://www.puppyone.ai/doc)
+        - [Existing issues](https://github.com/puppyone-ai/puppyone/issues)
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight Checklist
+      options:
+        - label: I searched existing issues and didn't find a duplicate.
+          required: true
+        - label: I am using the latest version of puppyone.
+          required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of puppyone is affected?
+      options:
+        - Backend (API)
+        - Frontend (Web UI)
+        - CLI
+        - Connector (Notion / GitHub / Gmail / Drive / etc.)
+        - MCP (Model Context Protocol)
+        - Sandbox (Docker / E2B)
+        - OpenClaw (local folder sync)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      description: How are you running puppyone?
+      options:
+        - Cloud (puppyone.ai)
+        - Self-hosted
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug. What did you expect vs what actually happened?
+      placeholder: |
+        **Expected:** When I connect my Notion workspace, all pages sync within 60 seconds.
+        **Actual:** Sync starts but hangs at 50% and never completes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to reproduce the issue. The more specific, the faster we can fix it.
+      placeholder: |
+        1. Run `puppyone conn add notion <url>`
+        2. Wait for sync to complete
+        3. Run `puppyone fs ls /notion`
+        4. See error "..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs
+      description: Paste relevant error messages or stack traces here.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        Please share your environment info. For self-hosted, include:
+        - OS and version
+        - Python version
+        - Node.js version (if using CLI/frontend)
+        - Browser (if frontend issue)
+      placeholder: |
+        - OS: macOS 15.2 / Ubuntu 24.04
+        - Python: 3.12.3
+        - Node.js: 22.x
+        - Browser: Chrome 130
+    validations:
+      required: false

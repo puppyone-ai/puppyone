@@ -3,55 +3,75 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { type SavedAgent, type AgentType, type TriggerType, type TriggerConfig, type ExternalConfig } from '@/components/AgentRail';
 import { post, get, put, del } from '@/lib/apiClient';
+import { getNodesBatch } from '@/lib/contentNodesApi';
 
-export type SidebarMode = 'closed' | 'setting' | 'deployed';
+/**
+ * Sidebar state machine:
+ *
+ *   closed ──[+ Access]──▸ setting ──[Save]──▸ deployed
+ *     ▴                        │                  │
+ *     └───[close]──────────────┘                  │
+ *                                                 │
+ *   deployed ──[⚙️ edit]──▸ editing ──[Save]──▸ deployed
+ *       ▴                      │
+ *       └───[cancel / X]───────┘
+ *
+ *   From ANY state:
+ *     [+ Access]  → setting  (interrupts editing / deployed)
+ *     [agent chip] → deployed (selects that agent)
+ *
+ * 'setting'  — creating a brand-new access point  (+ Access highlighted)
+ * 'editing'  — editing an existing access point   (agent chip highlighted)
+ * 'deployed' — viewing agent runtime              (agent chip highlighted)
+ * 'closed'   — sidebar hidden
+ */
+export type SidebarMode = 'closed' | 'setting' | 'editing' | 'deployed';
 
-// 节点信息类型（从后端 /api/v1/nodes/{id} 返回）
 interface NodeInfo {
   id: string;
   name: string;
   type: 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file';
 }
 
-/**
- * 批量获取节点信息
- * 通过 node IDs 获取对应的 name 和 type
- */
 async function fetchNodeInfoBatch(nodeIds: string[], projectId: string): Promise<Map<string, NodeInfo>> {
   const nodeMap = new Map<string, NodeInfo>();
-  if (nodeIds.length === 0) return nodeMap;
+  if (nodeIds.length === 0 || !projectId) return nodeMap;
 
-  // 去重
   const uniqueIds = [...new Set(nodeIds)];
-  
-  // 并行获取所有节点信息
-  const results = await Promise.allSettled(
-    uniqueIds.map(async (nodeId) => {
-      try {
-        const node = await get<{
-          id: string;
-          name: string;
-          type: string;
-        }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`);
-        return node;
-      } catch (error) {
-        console.warn(`Failed to fetch node info for ${nodeId}:`, error);
-        return null;
-      }
-    })
-  );
 
-  // 处理结果
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled' && result.value) {
-      const node = result.value;
+  try {
+    const nodes = await getNodesBatch(uniqueIds, projectId);
+    for (const node of nodes) {
       nodeMap.set(node.id, {
         id: node.id,
         name: node.name,
         type: node.type as NodeInfo['type'],
       });
     }
-  });
+  } catch (error) {
+    console.warn('Batch node fetch failed, falling back to individual:', error);
+    const results = await Promise.allSettled(
+      uniqueIds.map(async (nodeId) => {
+        try {
+          return await get<{ id: string; name: string; type: string }>(
+            `/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`
+          );
+        } catch {
+          return null;
+        }
+      })
+    );
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        const node = result.value;
+        nodeMap.set(node.id, {
+          id: node.id,
+          name: node.name,
+          type: node.type as NodeInfo['type'],
+        });
+      }
+    }
+  }
 
   return nodeMap;
 }
@@ -85,18 +105,19 @@ interface AgentContextValue {
   // Agent 状态
   savedAgents: SavedAgent[];
   currentAgentId: string | null; 
-  hoveredAgentId: string | null; // 鼠标悬停的 Agent ID
+  hoveredAgentId: string | null;
   setHoveredAgentId: (id: string | null) => void;
   
-  // 🆕 侧边栏状态
-  sidebarMode: SidebarMode;
-  
-  // 🆕 配置态状态 (Draft)
+  // 配置态状态 (Draft)
   draftType: AgentType;
-  draftCapabilities: Set<string>;  // 保留向后兼容
-  draftResources: AccessResource[];  // 新：资源访问配置
+  draftCapabilities: Set<string>;
+  draftResources: AccessResource[];
   
-  // Schedule Agent 新增 draft 状态
+  // Sync frequency mode
+  draftSyncMode: 'import_once' | 'manual' | 'scheduled';
+  setDraftSyncMode: (mode: 'import_once' | 'manual' | 'scheduled') => void;
+
+  // Schedule Agent draft 状态
   draftTriggerType: TriggerType;
   draftTriggerConfig: TriggerConfig | null;
   draftTaskContent: string;
@@ -108,24 +129,31 @@ interface AgentContextValue {
   
   // Actions
   selectAgent: (agentId: string | null) => void;
-  
-  // Deprecated signature, but keeping for compatibility if needed elsewhere
   saveAgent: (name: string, icon: string, capabilities: string[]) => void;
   deleteAgent: (agentId: string) => void;
   updateAgentInfo: (agentId: string, name: string, icon: string) => Promise<void>;
   updateAgentResources: (agentId: string, resources: AccessResource[]) => Promise<void>;
   
-  // New Actions
   openSetting: () => void;
-  editAgent: (agentId: string) => void;  // 编辑已有 agent
-  editingAgentId: string | null;  // 正在编辑的 agent ID
-  cancelSetting: () => void;  // 取消设置，返回聊天界面
+  openSyncSetting: (provider: string, preBindResource?: AccessResource) => void;
+  pendingSyncProvider: string | null;
+  editAgent: (agentId: string) => void;
+  editingAgentId: string | null;
+  cancelSetting: () => void;
   deployAgent: (name: string, icon: string) => void;
-  closeSidebar: () => void;
+  deploySyncEndpoint: (params: {
+    provider: string;
+    direction: string;
+    config?: Record<string, unknown>;
+    credentialsRef?: string;
+    syncMode?: 'import_once' | 'manual' | 'scheduled';
+    trigger?: { type: string; schedule?: string; timezone?: string };
+    uiMode?: 'sidebar' | 'inline';
+  }) => Promise<void>;
   setDraftType: (type: AgentType) => void;
   toggleDraftCapability: (id: string) => void;
   
-  // 新：资源管理
+  // 资源管理
   addDraftResource: (resource: AccessResource) => void;
   updateDraftResource: (nodeId: string, updates: Partial<AccessResource>) => void;
   removeDraftResource: (nodeId: string) => void;
@@ -141,11 +169,13 @@ interface AgentContextValue {
   // Runtime Actions
   toggleCapability: (id: string) => void;
   
-  // Legacy support
-  isChatOpen: boolean; 
-  toggleChat: () => void;
-  openChat: () => void;
-  closeChat: () => void;
+  // Sync sidebar
+  selectedSyncId: string | null;
+  selectedSyncNodeId: string | null;
+  hoveredSyncNodeId: string | null;
+  setHoveredSyncNodeId: (nodeId: string | null) => void;
+  selectSync: (syncId: string | null, nodeId?: string | null) => void;
+
   setSelectedCapabilities: (caps: Set<string>) => void;
 }
 
@@ -171,6 +201,9 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   const [draftResources, setDraftResources] = useState<AccessResource[]>([]);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   
+  // Sync frequency mode
+  const [draftSyncMode, setDraftSyncMode] = useState<'import_once' | 'manual' | 'scheduled'>('import_once');
+
   // Schedule Agent 新增 draft 状态
   const [draftTriggerType, setDraftTriggerType] = useState<TriggerType>('manual');
   const [draftTriggerConfig, setDraftTriggerConfig] = useState<TriggerConfig | null>(null);
@@ -178,10 +211,14 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   const [draftTaskNodeId, setDraftTaskNodeId] = useState<string | null>(null);
   const [draftExternalConfig, setDraftExternalConfig] = useState<ExternalConfig | null>(null);
   
+  // Sync sidebar state
+  const [selectedSyncId, setSelectedSyncId] = useState<string | null>(null);
+  const [pendingSyncProvider, setPendingSyncProvider] = useState<string | null>(null);
+
   // Runtime State (for Deployed/Playground Mode)
   const [selectedCapabilities, setSelectedCapabilities] = useState<Set<string>>(new Set());
 
-  // Legacy isChatOpen computed from sidebarMode
+  // Legacy isChatOpen computed from sidebarMode (internal only)
   const isChatOpen = sidebarMode !== 'closed';
 
   // 页面加载时从数据库获取 agents（按 project_id 过滤）
@@ -300,36 +337,46 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     loadAgents();
   }, [projectId]);
 
-  // 切换 Agent (Triggers Deployed Mode)
+  // Select agent — callable from ANY state → always goes to deployed
   const selectAgent = useCallback((agentId: string | null) => {
+    setEditingAgentId(null);
+    setSelectedSyncId(null);
+
     if (!agentId) {
-      // 没有 agent，关闭 sidebar
       setCurrentAgentId(null);
       setSelectedCapabilities(new Set());
       setSidebarMode('closed');
       return;
     }
-    
+
     setCurrentAgentId(agentId);
     const agent = savedAgents.find(a => a.id === agentId);
-    if (agent) {
-      setSelectedCapabilities(new Set(agent.capabilities));
-      setSidebarMode('deployed');
-    } else {
-      setSelectedCapabilities(new Set());
-      setSidebarMode('deployed');
-    }
+    setSelectedCapabilities(new Set(agent?.capabilities ?? []));
+    setSidebarMode('deployed');
   }, [savedAgents]);
 
-  // 打开设置模式（新建）
-  const openSetting = useCallback(() => {
-    setSidebarMode('setting');
+  const [selectedSyncNodeId, setSelectedSyncNodeId] = useState<string | null>(null);
+  const [hoveredSyncNodeId, setHoveredSyncNodeId] = useState<string | null>(null);
+
+  const selectSync = useCallback((syncId: string | null, nodeId?: string | null) => {
     setEditingAgentId(null);
-    // Reset draft state defaults
+    if (!syncId) {
+      setSelectedSyncId(null);
+      setSelectedSyncNodeId(null);
+      setSidebarMode('closed');
+      return;
+    }
+    setCurrentAgentId(null);
+    setSelectedSyncId(syncId);
+    setSelectedSyncNodeId(nodeId ?? null);
+    setSidebarMode('deployed');
+  }, []);
+
+  const resetDraftState = useCallback(() => {
+    setEditingAgentId(null);
     setDraftType('chat');
     setDraftCapabilities(new Set());
     setDraftResources([]);
-    // Reset Schedule Agent draft states
     setDraftTriggerType('manual');
     setDraftTriggerConfig(null);
     setDraftTaskContent('');
@@ -337,12 +384,28 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     setDraftExternalConfig(null);
   }, []);
 
+  // Create new access — callable from ANY state
+  const openSetting = useCallback(() => {
+    resetDraftState();
+    setPendingSyncProvider(null);
+    setSidebarMode('setting');
+  }, [resetDraftState]);
+
+  const openSyncSetting = useCallback((provider: string, preBindResource?: AccessResource) => {
+    resetDraftState();
+    if (preBindResource) {
+      setDraftResources([preBindResource]);
+    }
+    setPendingSyncProvider(provider);
+    setSidebarMode('setting');
+  }, [resetDraftState]);
+
   // 编辑已有 Agent
   const editAgent = useCallback(async (agentId: string) => {
     // 先从本地 state 查找
     const agent = savedAgents.find(a => a.id === agentId);
     if (agent) {
-      setSidebarMode('setting');
+      setSidebarMode('editing'); // stays "inside" the agent, doesn't jump to new-access flow
       setEditingAgentId(agentId);
       setDraftType(agent.type || 'chat');
       setDraftCapabilities(new Set(agent.capabilities.filter(c => !c.startsWith('resource:'))));
@@ -546,6 +609,89 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     }
   }, [draftType, draftCapabilities, draftResources, editingAgentId, draftTriggerType, draftTriggerConfig, draftTaskContent, draftTaskNodeId, draftExternalConfig, projectId]);
 
+  // Deploy a sync endpoint (creates a sync record, NOT an agent)
+  const deploySyncEndpoint = useCallback(async (params: {
+    provider: string;
+    direction: string;
+    config?: Record<string, unknown>;
+    credentialsRef?: string;
+    syncMode?: 'import_once' | 'manual' | 'scheduled';
+    trigger?: { type: string; schedule?: string; timezone?: string };
+    uiMode?: 'sidebar' | 'inline';
+  }) => {
+    if (!projectId) {
+      throw new Error('projectId is required to create sync endpoint');
+    }
+    const targetNode = draftResources[0];
+    if (!targetNode) {
+      throw new Error('target node is required');
+    }
+
+    try {
+      let syncId: string | null = null;
+      let nodeId: string = targetNode.nodeId;
+
+      if (params.provider === 'filesystem') {
+        const result = await post<{
+          sync_id: string;
+          access_key: string;
+          node_id: string;
+          project_id: string;
+        }>(`/api/v1/filesystem/bootstrap?project_id=${projectId}&node_id=${nodeId}`);
+        syncId = result.sync_id;
+        nodeId = result.node_id;
+      } else if (params.provider === 'mcp') {
+        const result = await post<{ id: string }>('/api/v1/mcp-endpoints', {
+          project_id: projectId,
+          node_id: nodeId,
+          name: (params.config?.name as string) || 'MCP Endpoint',
+          description: (params.config?.description as string) || null,
+          accesses: [{ node_id: nodeId, json_path: '', readonly: false }],
+        });
+        syncId = result.id || null;
+      } else if (params.provider === 'sandbox') {
+        const result = await post<{ id: string }>('/api/v1/sandbox-endpoints', {
+          project_id: projectId,
+          node_id: nodeId,
+          name: (params.config?.name as string) || 'Sandbox',
+          description: (params.config?.description as string) || null,
+          mounts: [{ node_id: nodeId, mount_path: '/workspace', permissions: { read: true, write: true, exec: false } }],
+        });
+        syncId = result.id || null;
+      } else {
+        const triggerPayload = params.syncMode === 'scheduled' && params.trigger
+          ? { type: 'scheduled', schedule: params.trigger.schedule, timezone: params.trigger.timezone }
+          : params.syncMode === 'manual'
+            ? { type: 'manual' }
+            : undefined;
+
+        await post<{ syncs_created: number }>('/api/v1/sync/bootstrap', {
+          project_id: projectId,
+          provider: params.provider,
+          config: params.config || {},
+          target_folder_node_id: nodeId,
+          credentials_ref: params.credentialsRef,
+          direction: params.direction,
+          conflict_strategy: 'three_way_merge',
+          sync_mode: params.syncMode || 'import_once',
+          trigger: triggerPayload,
+        });
+      }
+
+      if (params.uiMode !== 'inline') {
+        if (syncId) {
+          selectSync(syncId, nodeId);
+        }
+        setSidebarMode('deployed');
+      }
+      setDraftResources([]);
+      setEditingAgentId(null);
+    } catch (error) {
+      console.error('Failed to create sync endpoint:', error);
+      alert('Failed to create sync endpoint. Please try again.');
+    }
+  }, [projectId, draftResources]);
+
   // Legacy saveAgent (maps to deploy with current selected capabilities if possible, or simple save)
   const saveAgent = useCallback((name: string, icon: string, capabilities: string[]) => {
     const newAgent: SavedAgent = {
@@ -630,36 +776,28 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     }
   }, []);
 
-  // 取消设置，返回聊天界面
+  // Cancel / X — go back to the previous sensible state
   const cancelSetting = useCallback(() => {
-    if (editingAgentId) {
-      // 编辑模式：返回到聊天界面，保持当前 agent
-      setSidebarMode('deployed');
+    if (sidebarMode === 'editing' && editingAgentId) {
+      // Editing → back to deployed view of the same agent
       setEditingAgentId(null);
-    } else if (currentAgentId) {
-      // 新建模式但有当前 agent：返回到聊天界面
+      setCurrentAgentId(editingAgentId);
+      setSidebarMode('deployed');
+    } else if (sidebarMode === 'setting' && currentAgentId) {
+      // Creating new but an agent was already selected → back to it
       setSidebarMode('deployed');
     } else {
-      // 新建模式且没有当前 agent：关闭 sidebar
+      // Creating new with nothing selected → close
       setSidebarMode('closed');
     }
-  }, [editingAgentId, currentAgentId]);
+  }, [sidebarMode, editingAgentId, currentAgentId]);
 
-  // Close Sidebar
+  // Close Sidebar (internal — used by cancelSetting workflow)
   const closeSidebar = useCallback(() => {
     setSidebarMode('closed');
+    setSelectedSyncId(null);
+    setSelectedSyncNodeId(null);
   }, []);
-
-  // Legacy Toggle Chat
-  const toggleChat = useCallback(() => {
-    setSidebarMode(prev => prev === 'closed' ? 'deployed' : 'closed');
-  }, []);
-
-  const openChat = useCallback(() => {
-    if (sidebarMode === 'closed') setSidebarMode('deployed');
-  }, [sidebarMode]);
-
-  const closeChat = closeSidebar;
 
   // Toggle Draft Capability
   const toggleDraftCapability = useCallback((id: string) => {
@@ -712,13 +850,15 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         currentAgentId,
         hoveredAgentId,
         setHoveredAgentId,
-        sidebarMode,
         draftType,
         draftCapabilities,
         draftResources,
         selectedCapabilities,
-        isChatOpen,
         
+        // Sync frequency mode
+        draftSyncMode,
+        setDraftSyncMode,
+
         // Schedule Agent draft states
         draftTriggerType,
         draftTriggerConfig,
@@ -726,17 +866,24 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         draftTaskNodeId,
         draftExternalConfig,
         
+        selectedSyncId,
+        selectedSyncNodeId,
+        hoveredSyncNodeId,
+        setHoveredSyncNodeId,
+        selectSync,
         selectAgent,
         openSetting,
+        openSyncSetting,
+        pendingSyncProvider,
         editAgent,
         editingAgentId,
         cancelSetting,
         deployAgent,
+        deploySyncEndpoint,
         saveAgent,
         deleteAgent,
         updateAgentInfo,
         updateAgentResources,
-        closeSidebar,
         
         setDraftType,
         toggleDraftCapability,
@@ -753,10 +900,6 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         setDraftTaskNodeId,
         setDraftExternalConfig,
         
-        // Legacy
-        toggleChat,
-        openChat,
-        closeChat,
         setSelectedCapabilities,
       }}
     >

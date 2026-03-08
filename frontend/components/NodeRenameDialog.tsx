@@ -2,11 +2,26 @@
 
 import { useState, useEffect } from 'react';
 
+/** POSIX 名称校验常量 */
+const MAX_NAME_LENGTH = 255;
+const FORBIDDEN_CHARS_RE = /[/\x00-\x1f]/;
+const RESERVED_NAMES = new Set(['.', '..']);
+
+function validateName(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return 'Name cannot be empty';
+  if (trimmed.length > MAX_NAME_LENGTH) return `Name exceeds maximum length of ${MAX_NAME_LENGTH} characters`;
+  if (RESERVED_NAMES.has(trimmed)) return `"${trimmed}" is a reserved name`;
+  if (FORBIDDEN_CHARS_RE.test(trimmed)) return 'Name contains forbidden characters (/ or control characters)';
+  return null;
+}
+
 type NodeRenameDialogProps = {
   isOpen: boolean;
   currentName: string;
   onClose: () => void;
-  onConfirm: (newName: string) => void;
+  onConfirm: (newName: string) => Promise<void> | void;
+  error?: string | null;
 };
 
 export function NodeRenameDialog({
@@ -14,23 +29,55 @@ export function NodeRenameDialog({
   currentName,
   onClose,
   onConfirm,
+  error: externalError,
 }: NodeRenameDialogProps) {
   const [name, setName] = useState(currentName);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // 合并外部错误和本地校验错误
+  const displayError = externalError || localError;
 
   useEffect(() => {
     if (isOpen) {
       setName(currentName);
+      setLocalError(null);
+      setSubmitting(false);
     }
   }, [isOpen, currentName]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleNameChange = (value: string) => {
+    setName(value);
+    // 清除之前的错误提示
+    if (localError) setLocalError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim() && name.trim() !== currentName) {
-      onConfirm(name.trim());
+    const trimmed = name.trim();
+
+    // 本地校验
+    const validationError = validateName(trimmed);
+    if (validationError) {
+      setLocalError(validationError);
+      return;
     }
-    onClose();
+
+    if (trimmed === currentName) {
+      onClose();
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await onConfirm(trimmed);
+    } catch {
+      // 错误由外部 error prop 传入
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -128,13 +175,13 @@ export function NodeRenameDialog({
             <input
               type='text'
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={e => handleNameChange(e.target.value)}
               placeholder='Enter new name'
               style={{
                 width: '100%',
                 padding: '10px 12px',
                 background: '#1a1a1a',
-                border: '1px solid #333',
+                border: displayError ? '1px solid #e53e3e' : '1px solid #333',
                 borderRadius: 6,
                 fontSize: 16,
                 color: '#EDEDED',
@@ -142,7 +189,20 @@ export function NodeRenameDialog({
                 boxSizing: 'border-box',
               }}
               autoFocus
+              disabled={submitting}
             />
+            {displayError && (
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 13,
+                  color: '#e53e3e',
+                  lineHeight: 1.4,
+                }}
+              >
+                {displayError}
+              </div>
+            )}
           </div>
 
           <div
@@ -155,18 +215,18 @@ export function NodeRenameDialog({
               gap: 12,
             }}
           >
-            <button type='button' onClick={onClose} style={buttonStyle(false)}>
+            <button type='button' onClick={onClose} style={buttonStyle(false)} disabled={submitting}>
               Cancel
             </button>
             <button
               type='submit'
-              disabled={!name.trim() || name.trim() === currentName}
+              disabled={!name.trim() || name.trim() === currentName || submitting}
               style={{
                 ...buttonStyle(true),
-                opacity: !name.trim() || name.trim() === currentName ? 0.5 : 1,
+                opacity: !name.trim() || name.trim() === currentName || submitting ? 0.5 : 1,
               }}
             >
-              Rename
+              {submitting ? 'Renaming...' : 'Rename'}
             </button>
           </div>
         </form>

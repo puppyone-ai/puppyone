@@ -45,7 +45,7 @@ class ProjectRepository:
             # 确保不包含 created_at（由数据库自动生成）
             # 注意：id 现在由后端生成，所以需要包含在 insert 数据中
             data.pop("created_at", None)
-            response = self._client.table("project").insert(data).execute()
+            response = self._client.table("projects").insert(data).execute()
             return ProjectResponse(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建项目")
@@ -61,7 +61,7 @@ class ProjectRepository:
             项目数据，如果不存在则返回 None
         """
         response = (
-            self._client.table("project")
+            self._client.table("projects")
             .select("*")
             .eq("id", project_id)
             .execute()
@@ -74,7 +74,7 @@ class ProjectRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
         name: Optional[str] = None,
     ) -> List[ProjectResponse]:
         """
@@ -83,16 +83,16 @@ class ProjectRepository:
         Args:
             skip: 跳过记录数
             limit: 返回记录数
-            user_id: 可选，按用户 ID 过滤
+            org_id: 可选，按组织 ID 过滤
             name: 可选，按名称过滤
 
         Returns:
             项目列表
         """
-        query = self._client.table("project").select("*")
+        query = self._client.table("projects").select("*")
 
-        if user_id is not None:
-            query = query.eq("user_id", user_id)
+        if org_id is not None:
+            query = query.eq("org_id", org_id)
 
         if name:
             query = query.eq("name", name)
@@ -126,7 +126,7 @@ class ProjectRepository:
             data.pop("created_at", None)
 
             response = (
-                self._client.table("project")
+                self._client.table("projects")
                 .update(data)
                 .eq("id", project_id)
                 .execute()
@@ -157,7 +157,7 @@ class ProjectRepository:
             self._client.table("content_nodes").delete().eq("project_id", project_id).execute()
             
             # 2. 删除 project（etl_task 历史记录保留，project_id 保持原值）
-            response = self._client.table("project").delete().eq("id", project_id).execute()
+            response = self._client.table("projects").delete().eq("id", project_id).execute()
             return len(response.data) > 0
         except Exception as e:
             raise handle_supabase_error(e, "删除项目")

@@ -1,138 +1,121 @@
-# 访问控制
+# File Level Security (FLS)
 
-控制 Agent 能访问什么数据、能做什么操作。
-
----
-
-## 为什么需要访问控制
-
-不同的 Agent 应该有不同的权限：
-
-| Agent | 需要的权限 |
-|-------|-----------|
-| 客服 Agent | 只读产品目录和 FAQ |
-| 研发 Agent | 读写需求文档 |
-| 销售 Agent | 读取报价，不能修改 |
-
-**没有访问控制的风险**：
-- Agent 可能误删重要数据
-- 敏感信息可能泄露
-- 难以追踪谁做了什么
+精确控制每个 Agent 能看到什么、能做什么操作。
 
 ---
 
-## 权限模型
+## 什么是 FLS
 
-PuppyOne 的访问控制有两层：
+**File Level Security（FLS）** 是 puppyone 的权限控制系统。
+
+类比数据库的行级权限（Row Level Security），FLS 把权限精确到文件路径级别。每个 API Key 对应一组权限规则，决定：
+
+1. **Tool 权限**：这个 Key 能调用哪些操作（查询 / 创建 / 修改 / 删除）
+2. **路径权限**：每个操作能访问哪些 JSON 路径
+
+没有被授权的路径，**对 Agent 来说物理上不存在**——它看到的文件系统就是一个干净的、只包含它能访问的内容的视图。
+
+---
+
+## 两层权限模型
 
 ```
-┌─────────────────────────────────────────────┐
-│              Tool 权限                       │
-│  Agent 能调用哪些操作（查询/创建/修改/删除） │
-└─────────────────────────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────┐
-│              路径权限                        │
-│  每个 Tool 能访问哪些 JSON 路径              │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────┐
+│           Tool 权限                   │
+│  Agent 能调用哪些操作？               │
+│  query_data ✅  create ✅  delete ❌  │
+└──────────────────────────────────────┘
+                  │
+                  ▼
+┌──────────────────────────────────────┐
+│           路径权限                    │
+│  每个操作能访问哪些路径？             │
+│  /products ✅  /internal ❌          │
+└──────────────────────────────────────┘
 ```
 
-### Tool 权限
+---
 
-决定 Agent 能**做什么**：
+## Tool 权限
 
 | Tool | 能力 | 风险等级 |
 |------|------|----------|
-| `query_data` | 查询数据（带过滤） | 🟢 低 |
-| `get_all_data` | 获取全部数据 | 🟢 低 |
+| `get_data_schema` | 获取数据结构 | 🟢 低 |
+| `get_all_data` | 读取全部数据 | 🟢 低 |
+| `query_data` | 带条件过滤查询 | 🟢 低 |
+| `preview` | 快速预览部分数据 | 🟢 低 |
+| `select` | 返回指定字段 | 🟢 低 |
 | `create` | 创建新条目 | 🟡 中 |
 | `update` | 修改现有条目 | 🟡 中 |
 | `delete` | 删除条目 | 🔴 高 |
 
-### 路径权限
-
-决定 Agent 能访问**哪些数据**：
-
-```
-/                    → 整个 Table
-/products            → 只有 products 数组
-/products/*/price    → 只有产品价格
-/internal            → 内部数据（可设为禁止访问）
-```
-
 ---
 
-## 快速配置
+## 路径权限
 
-### 只读 Agent
+使用 JSON Path 语法指定允许或禁止的路径：
 
-适合客服、查询类 Agent：
-
-1. 打开 Table → **Access** 标签
-2. 只勾选 `query_data` 和 `get_all_data`
-3. 保存
-
-### 读写 Agent
-
-适合需要编辑数据的 Agent：
-
-1. 勾选全部 Tool
-2. （可选）限制可写的路径
-
-### 受限 Agent
-
-只能访问特定数据：
-
-1. 勾选需要的 Tool
-2. 点击 **Add Path Rule**
-3. 配置允许的路径
+```
+/                    → 整个数据（根路径）
+/products            → products 数组
+/products/*/price    → 所有产品的价格字段
+/internal            → internal 路径（可设为禁止）
+```
 
 ---
 
 ## 配置示例
 
-### 示例 1：客服 Agent
+### 客服 Agent（只读）
+
+```yaml
+Tools:
+  - get_data_schema: ✅
+  - get_all_data:    ✅
+  - query_data:      ✅
+  - preview:         ✅
+  - create:          ❌
+  - update:          ❌
+  - delete:          ❌
+
+Paths:
+  /products: 允许
+  /faq:      允许
+  /internal: 禁止
+```
+
+### 研发 Agent（读写，禁止删除）
 
 ```yaml
 Tools:
   - query_data: ✅
-  - get_all_data: ✅
-  - create: ❌
-  - update: ❌
-  - delete: ❌
+  - create:     ✅
+  - update:     ✅
+  - delete:     ❌
 
 Paths:
-  - /products: 允许
-  - /faq: 允许
-  - /internal: 禁止
+  /specs:     允许
+  /code_docs: 允许
 ```
 
-### 示例 2：研发 Agent
-
-```yaml
-Tools:
-  - query_data: ✅
-  - get_all_data: ✅
-  - create: ✅
-  - update: ✅
-  - delete: ❌  # 禁止删除，防止误操作
-
-Paths:
-  - /specs: 允许
-  - /code_docs: 允许
-```
-
-### 示例 3：管理员 Agent
+### 管理员 Agent
 
 ```yaml
 Tools: 全部允许
-Paths: / (根路径，无限制)
+Paths: /（根路径，无限制）
 ```
 
 ---
 
-## 下一步
+## 配置方式
+
+1. 打开 Project → **Access** 标签页
+2. 选择一个 API Key（或新建一个）
+3. 勾选允许的 Tool
+4. 点击 **Add Path Rule** 配置路径权限
+5. 保存
+
+---
 
 import { Cards, Card } from 'nextra/components'
 
@@ -141,7 +124,3 @@ import { Cards, Card } from 'nextra/components'
   <Card title="路径权限详解" href="/zh/access/paths" />
   <Card title="API Key 管理" href="/zh/access/api-keys" />
 </Cards>
-
-
-
-

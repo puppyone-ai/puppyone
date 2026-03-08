@@ -30,7 +30,7 @@ class TableOut(BaseModel):
     id: str = Field(..., description="Table ID (UUID)")
     name: Optional[str] = Field(None, description="Table名称")
     project_id: Optional[str] = Field(None, description="项目ID (UUID)")
-    user_id: Optional[str] = Field(None, description="用户ID")
+    created_by: Optional[str] = Field(None, description="创建者用户ID")
     description: Optional[str] = Field(None, description="Table描述")
     data: Optional[Any] = Field(
         None, description="Table数据（JSON数据，可以是Dict、List或其他JSON类型）"
@@ -96,7 +96,8 @@ class ProjectWithTables(BaseModel):
     id: str = Field(..., description="项目ID (UUID)")
     name: Optional[str] = Field(None, description="项目名称")
     description: Optional[str] = Field(None, description="项目描述")
-    user_id: Optional[str] = Field(None, description="用户ID")
+    org_id: Optional[str] = Field(None, description="所属组织ID")
+    created_by: Optional[str] = Field(None, description="创建者用户ID")
     created_at: datetime = Field(..., description="创建时间")
     tables: List[TableOut] = Field(
         default_factory=list, description="该项目下的所有表格列表"

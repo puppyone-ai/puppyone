@@ -1,0 +1,70 @@
+# GitHub
+
+Sync GitHub repositories, Issues, and Pull Requests into your Context File System.
+
+| | |
+|---|---|
+| **Direction** | Pull (GitHub → PuppyOne) |
+| **Trigger** | Incremental sync |
+| **Auth** | GitHub OAuth |
+| **Output** | JSON |
+
+---
+
+## What Gets Synced
+
+| GitHub Content | Output |
+|----------------|--------|
+| Issues | JSON (title, body, labels, assignees, status) |
+| Pull Requests | JSON (title, diff summary, reviews, status) |
+| Repository metadata | JSON (description, topics, stars) |
+| README / Markdown files | Markdown |
+
+---
+
+## Setup
+
+### Step 1: Authorize GitHub
+
+1. Open your Project → **Add Connector** → **GitHub**
+2. Click **Connect with GitHub** and complete OAuth
+3. Select which repositories PuppyOne can access
+
+### Step 2: Configure Sync Scope
+
+| Option | Description |
+|--------|-------------|
+| **Repository** | Which repo to sync |
+| **Content type** | Issues / PRs / Files (select one or more) |
+| **State filter** | `open`, `closed`, or `all` |
+
+### Step 3: Start Sync
+
+Click **Start Sync**. Incremental updates pick up changes since the last sync.
+
+---
+
+## Data Structure Example
+
+```json
+{
+  "issues": [
+    {
+      "number": 42,
+      "title": "Add dark mode support",
+      "state": "open",
+      "labels": ["enhancement", "frontend"],
+      "assignee": "alice",
+      "created_at": "2026-02-15T09:00:00Z",
+      "body": "We should add dark mode..."
+    }
+  ]
+}
+```
+
+---
+
+## Notes
+
+- Private repositories require the appropriate OAuth scopes
+- Large repositories (1000+ issues) may take several minutes on first sync

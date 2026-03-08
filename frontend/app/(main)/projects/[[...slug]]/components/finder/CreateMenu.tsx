@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 
 export type CreateType = 'folder' | 'blank-json' | 'blank-markdown' | 'import-files' | 'import-url' | 'import-saas';
 
 export interface CreateMenuProps {
   x: number;
   y: number;
+  /** Left edge of the trigger button, used to flip menu to left side when right side overflows */
+  anchorLeft?: number;
   onClose: () => void;
   onCreateFolder: () => void;
   onCreateBlankJson: () => void;
@@ -144,6 +146,7 @@ const SupabaseIcon = () => (
 export function CreateMenu({
   x,
   y,
+  anchorLeft,
   onClose,
   onCreateFolder,
   onCreateBlankJson,
@@ -162,54 +165,42 @@ export function CreateMenu({
   // onImportLinear, // Linear temporarily disabled
   onConnectSupabase,
 }: CreateMenuProps) {
-  const [adjustedPosition, setAdjustedPosition] = useState<{ top: number; left: number }>({ top: y, left: x });
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Adjust menu position to prevent overflow
-  useEffect(() => {
-    if (menuRef.current) {
-      const rect = menuRef.current.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
-      const padding = 12; // Minimum distance from viewport edge
-      
-      let newTop = y;
-      let newLeft = x;
-      
-      // Check bottom overflow - if menu would go below viewport, position it above the click point
-      if (y + rect.height > viewportHeight - padding) {
-        // Position menu so its bottom is at the click point (or as close as possible)
-        newTop = Math.max(padding, y - rect.height);
-      }
-      
-      // Check right overflow
-      if (x + rect.width > viewportWidth - padding) {
-        newLeft = Math.max(padding, viewportWidth - rect.width - padding);
-      }
-      
-      // Check left overflow
-      if (newLeft < padding) {
-        newLeft = padding;
-      }
-      
-      // Check top overflow (in case we moved it up too much)
-      if (newTop < padding) {
-        newTop = padding;
-      }
-      
-      if (newTop !== adjustedPosition.top || newLeft !== adjustedPosition.left) {
-        setAdjustedPosition({ top: newTop, left: newLeft });
-      }
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    const mw = el.scrollWidth;
+    const mh = el.scrollHeight;
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const pad = 12;
+    const gap = 4;
+
+    // Horizontal: prefer right of trigger; flip left if overflow
+    let left = x; // x = trigger.right + gap
+    if (left + mw > vw - pad && anchorLeft != null) {
+      left = anchorLeft - gap - mw;
     }
-  }, [x, y]); // Only run when initial position changes
+    if (left < pad) left = pad;
+
+    // Vertical: start at trigger top; push up if overflow bottom
+    let top = y;
+    if (top + mh > vh - pad) {
+      top = Math.max(pad, vh - mh - pad);
+    }
+
+    setPosition({ top, left });
+  }, [x, y, anchorLeft]);
 
   return (
     <div
       ref={menuRef}
       style={{
         position: 'fixed',
-        top: adjustedPosition.top,
-        left: adjustedPosition.left,
+        top: position?.top ?? y,
+        left: position?.left ?? x,
         zIndex: 1000,
         background: 'rgba(28, 28, 30, 0.98)',
         backdropFilter: 'blur(20px)',
@@ -220,13 +211,14 @@ export function CreateMenu({
         maxHeight: 'calc(100vh - 24px)',
         overflowY: 'auto',
         boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        visibility: position ? 'visible' : 'hidden',
       }}
     >
+      {/* Section 1: Create Blank */}
       <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 600, color: '#71717a', letterSpacing: '0.05em' }}>
-        Create
+        Create Blank
       </div>
 
-      {/* Create Folder */}
       <MenuItem
         icon={
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -239,7 +231,7 @@ export function CreateMenu({
             />
           </svg>
         }
-        label="Create Folder"
+        label="Folder"
         onClick={() => { onCreateFolder(); onClose(); }}
       />
 
@@ -250,10 +242,10 @@ export function CreateMenu({
             <path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
           </svg>
         }
-        label="Create Blank JSON"
+        label="JSON"
         onClick={() => { onCreateBlankJson(); onClose(); }}
       />
-      
+
       <MenuItem
         icon={
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -262,14 +254,15 @@ export function CreateMenu({
             <path d="M17 12l-2 3h4l-2-3v-3" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         }
-        label="Create Blank Markdown"
+        label="Markdown"
         onClick={() => { onCreateBlankMarkdown(); onClose(); }}
       />
 
       <Divider />
 
+      {/* Section 2: Upload */}
       <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 600, color: '#71717a', letterSpacing: '0.05em' }}>
-        Import from
+        Upload
       </div>
 
       <MenuItem
@@ -283,7 +276,7 @@ export function CreateMenu({
         sublabel="PDF, MD, CSV"
         onClick={() => { onImportFromFiles(); onClose(); }}
       />
-      
+
       <MenuItem
         icon={
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -297,7 +290,13 @@ export function CreateMenu({
         onClick={() => { onImportFromUrl(); onClose(); }}
       />
 
-      {/* Quick SaaS shortcuts */}
+      <Divider />
+
+      {/* Section 3: Synchronize From */}
+      <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 600, color: '#71717a', letterSpacing: '0.05em' }}>
+        Synchronize From
+      </div>
+
       {/* Notion temporarily hidden - still in development */}
       {/* {onImportNotion && (
         <MenuItem
@@ -307,7 +306,7 @@ export function CreateMenu({
           onClick={() => { onImportNotion(); onClose(); }}
         />
       )} */}
-      
+
       {onImportGitHub && (
         <MenuItem
           icon={<GitHubIcon />}
@@ -316,7 +315,7 @@ export function CreateMenu({
           onClick={() => { onImportGitHub(); onClose(); }}
         />
       )}
-      
+
       {onImportGmail && (
         <MenuItem
           icon={<GmailIcon />}
@@ -325,7 +324,7 @@ export function CreateMenu({
           onClick={() => { onImportGmail(); onClose(); }}
         />
       )}
-      
+
       {/* Google Drive temporarily disabled */}
       {/* {onImportDrive && (
         <MenuItem
@@ -335,7 +334,7 @@ export function CreateMenu({
           onClick={() => { onImportDrive(); onClose(); }}
         />
       )} */}
-      
+
       {onImportDocs && (
         <MenuItem
           icon={<DocsIcon />}
@@ -344,7 +343,7 @@ export function CreateMenu({
           onClick={() => { onImportDocs(); onClose(); }}
         />
       )}
-      
+
       {onImportCalendar && (
         <MenuItem
           icon={<CalendarIcon />}
@@ -353,7 +352,7 @@ export function CreateMenu({
           onClick={() => { onImportCalendar(); onClose(); }}
         />
       )}
-      
+
       {onImportSheets && (
         <MenuItem
           icon={<SheetsIcon />}
@@ -364,18 +363,12 @@ export function CreateMenu({
       )}
 
       {onConnectSupabase && (
-        <>
-          <Divider />
-          <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 600, color: '#71717a', letterSpacing: '0.05em' }}>
-            Connect Database
-          </div>
-          <MenuItem
-            icon={<SupabaseIcon />}
-            label="Supabase"
-            sublabel="Database"
-            onClick={() => { onConnectSupabase(); onClose(); }}
-          />
-        </>
+        <MenuItem
+          icon={<SupabaseIcon />}
+          label="Supabase"
+          sublabel="Database"
+          onClick={() => { onConnectSupabase(); onClose(); }}
+        />
       )}
     </div>
   );

@@ -13,7 +13,8 @@ class Tool(BaseModel):
     id: str
     created_at: datetime
 
-    user_id: str
+    created_by: Optional[str] = None
+    org_id: str
     project_id: Optional[str] = None  # 所属项目 ID（用于按项目过滤）
     node_id: Optional[str] = None  # 绑定的 content_nodes 节点 ID
     json_path: str = ""  # JSON 内部路径（如 /users/0）

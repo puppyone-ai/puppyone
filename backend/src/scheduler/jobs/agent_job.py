@@ -45,25 +45,31 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
     try:
         db_client = SupabaseClient().client
         
-        # 1. Load agent configuration (agent 通过 project_id 关联 user)
-        agent_result = db_client.table("agents").select("*, project:project_id(user_id)").eq("id", agent_id).single().execute()
+        agent_result = (
+            db_client.table("connections")
+            .select("*, project:project_id(created_by)")
+            .eq("id", agent_id)
+            .eq("provider", "agent")
+            .single()
+            .execute()
+        )
         agent = agent_result.data
         
         if not agent:
             log_error(f"Agent {agent_id} not found")
             return {"status": "failed", "error": "Agent not found"}
         
-        # 从关联的 project 获取 user_id
+        config = agent.get("config") or {}
         project_data = agent.get("project")
-        user_id = project_data.get("user_id") if project_data else None
+        user_id = project_data.get("created_by") if project_data else None
         if not user_id:
             log_error(f"Agent {agent_id} has no associated project or user")
             return {"status": "failed", "error": "Agent has no associated project"}
         
-        agent_name = agent.get("name", "Unknown")
-        task_content = agent.get("task_content", "")
+        agent_name = config.get("name", "Unknown")
+        task_content = config.get("task_content", "")
         
-        log_info(f"📋 Agent loaded: {agent_name} (type: {agent.get('type')})")
+        log_info(f"📋 Agent loaded: {agent_name} (type: {config.get('type')})")
         log_info(f"📋 Task content: {task_content[:100]}..." if len(task_content) > 100 else f"📋 Task content: {task_content}")
         
         # 2. Create execution log entry
@@ -75,11 +81,11 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
             "started_at": started_at.isoformat(),
             "input_snapshot": {
                 "task_content": task_content,
-                "trigger_config": agent.get("trigger_config"),
+                "trigger_config": (agent.get("trigger") or {}).get("config"),
             }
         }
         
-        log_result = db_client.table("agent_execution_log").insert(execution_data).execute()
+        log_result = db_client.table("agent_execution_logs").insert(execution_data).execute()
         if log_result.data:
             execution_id = log_result.data[0].get("id")
             log_info(f"📝 Created execution log: {execution_id}")
@@ -115,7 +121,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         
         if exec_result.get("status") == "success":
             if execution_id:
-                db_client.table("agent_execution_log").update({
+                db_client.table("agent_execution_logs").update({
                     "status": "success",
                     "finished_at": finished_at.isoformat(),
                     "duration_ms": duration_ms,
@@ -131,7 +137,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         else:
             error_msg = exec_result.get("error", "Unknown error")
             if execution_id:
-                db_client.table("agent_execution_log").update({
+                db_client.table("agent_execution_logs").update({
                     "status": "failed",
                     "finished_at": finished_at.isoformat(),
                     "duration_ms": duration_ms,
@@ -160,7 +166,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
                 finished_at = datetime.now(timezone.utc)
                 duration_ms = int((finished_at - started_at).total_seconds() * 1000)
                 
-                client.table("agent_execution_log").update({
+                client.table("agent_execution_logs").update({
                     "status": "failed",
                     "finished_at": finished_at.isoformat(),
                     "duration_ms": duration_ms,

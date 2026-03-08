@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
 
-export type EditorType = 'treeline-virtual' | 'monaco' | 'table';
+export type EditorType = 'table' | 'monaco';
 export type ViewType = 'grid' | 'list' | 'explorer';
 
 export type BreadcrumbSegment = {
@@ -11,8 +11,6 @@ export type BreadcrumbSegment = {
   href?: string;
   icon?: React.ReactNode;
 };
-
-// Agent controls are now in AgentRailVertical
 
 type ProjectsHeaderProps = {
   pathSegments: BreadcrumbSegment[];
@@ -26,7 +24,6 @@ export function ProjectsHeader({
   pathSegments,
   onBack,
 }: ProjectsHeaderProps) {
-  // Agent controls have moved to AgentRailVertical
 
   return (
     <header style={headerStyle}>
@@ -157,22 +154,20 @@ export function ProjectsHeader({
           })}
         </div>
       </div>
-
-      {/* Agent controls moved to AgentRailVertical */}
     </header>
   );
 }
 
 // Styles
 const headerStyle: CSSProperties = {
-  height: 48,
+  height: 40,
   paddingLeft: 16,
   paddingRight: 16,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  borderBottom: '1px solid rgba(255,255,255,0.06)',
-  background: '#141414',
+  borderBottom: '1px solid rgba(255,255,255,0.1)',
+  background: '#0e0e0e',
   position: 'relative',
   zIndex: 10,
 };
@@ -186,7 +181,7 @@ const headerLeftStyle: CSSProperties = {
 const pathStyle: CSSProperties = {
   fontFamily:
     "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 500,
   color: '#CDCDCD',
 };

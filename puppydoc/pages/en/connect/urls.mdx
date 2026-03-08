@@ -1,0 +1,60 @@
+# Web Crawl
+
+Crawl public web pages and sync the content into your Context File System.
+
+| | |
+|---|---|
+| **Direction** | Pull (web → PuppyOne) |
+| **Trigger** | One-time import |
+| **Auth** | None |
+| **Output** | Markdown |
+
+---
+
+## How It Works
+
+PuppyOne uses [Firecrawl](https://firecrawl.dev) to fetch and clean web content. The raw HTML is stripped down to readable Markdown, removing navigation, ads, and boilerplate.
+
+---
+
+## Setup
+
+1. Open your Project → **Import** → **URL**
+2. Paste one or more URLs
+3. Configure crawl options
+4. Click **Start Crawl**
+
+---
+
+## Crawl Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| **Mode** | `single` (one page) or `crawl` (follow links) | `single` |
+| **Max depth** | How many link levels to follow | 1 |
+| **Max pages** | Cap on total pages crawled | 10 |
+| **Include paths** | Only crawl URLs matching these patterns | — |
+| **Exclude paths** | Skip URLs matching these patterns | — |
+
+---
+
+## Output Example
+
+```markdown
+# Getting Started with PuppyOne
+
+PuppyOne is the Context File System for AI agents...
+
+## Quick Start
+1. Connect a data source
+2. Configure permissions
+...
+```
+
+---
+
+## Notes
+
+- Only **public** pages can be crawled — authentication-protected pages are not supported
+- JavaScript-heavy pages (SPAs) are rendered before extraction
+- Crawling respects `robots.txt` — pages that disallow crawling will be skipped

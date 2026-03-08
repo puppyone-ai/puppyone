@@ -7,8 +7,6 @@
 
 import { getAccessToken } from './apiClient';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
-
 // ============= Types =============
 
 export type ETLStatus =
@@ -82,9 +80,6 @@ export interface ETLHealthResponse {
     task_count: number;
     worker_count: number;
   };
-  saas_worker: {
-    status: string;
-  };
 }
 
 // ============= Helper Functions =============
@@ -120,7 +115,7 @@ export function getStatusDisplayText(status: ETLStatus | 'uploading'): string {
 export async function getETLHealth(): Promise<ETLHealthResponse> {
   const accessToken = await getAccessToken();
   
-  const response = await fetch(`${API_URL}/api/v1/ingest/health`, {
+  const response = await fetch('/api/ingest?path=health', {
     method: 'GET',
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
   });
@@ -133,7 +128,10 @@ export async function getETLHealth(): Promise<ETLHealthResponse> {
 }
 
 /**
- * Upload and submit file ingest task (via unified ingest endpoint)
+ * Upload and submit file ingest task (via Next.js proxy → backend ingest endpoint).
+ *
+ * The request is routed through /api/ingest (same-origin) to avoid CORS and
+ * system-proxy issues that can break cross-origin multipart uploads.
  */
 export async function uploadAndSubmit(
   params: UploadAndSubmitParams,
@@ -167,7 +165,8 @@ export async function uploadAndSubmit(
     formData.append('files', file);
   }
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/submit/file`, {
+  // Route through same-origin Next.js proxy to avoid CORS / system-proxy issues
+  const response = await fetch('/api/ingest?path=submit/file', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -197,7 +196,7 @@ export async function batchGetETLTaskStatus(
 
   const tasks = taskIds.map((task_id) => ({ task_id, source_type: 'file' }));
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/tasks/batch`, {
+  const response = await fetch('/api/ingest?path=tasks/batch', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -226,7 +225,7 @@ export async function getETLTaskStatus(
     throw new Error('Not authenticated');
   }
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/tasks/${taskId}?source_type=file`, {
+  const response = await fetch(`/api/ingest?path=tasks/${taskId}&source_type=file`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,

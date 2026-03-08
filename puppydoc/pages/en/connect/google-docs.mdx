@@ -1,0 +1,67 @@
+# Google Docs
+
+Sync Google Docs as Markdown so agents can read and reference document content.
+
+| | |
+|---|---|
+| **Direction** | Pull (Google Docs → PuppyOne) |
+| **Trigger** | Manual / Scheduled |
+| **Auth** | Google OAuth |
+| **Output** | Markdown |
+
+---
+
+## Use Cases
+
+- Sync PRDs and specs for your Dev Agent
+- Company wikis and SOPs for your Support Agent
+- Meeting notes for cross-functional agents
+
+---
+
+## Setup
+
+### Step 1: Authorize Google
+
+1. Open your Project → **Add Connector** → **Google Docs**
+2. Click **Connect with Google** and complete OAuth
+
+### Step 2: Select Documents
+
+**Option A — Paste a link**
+
+Copy the Google Docs share link and paste it:
+```
+https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit
+```
+
+**Option B — Browse Drive**
+
+Browse your Google Drive and select documents to sync.
+
+### Step 3: Start Sync
+
+Content is converted to Markdown with headings, lists, and tables preserved.
+
+---
+
+## Output Example
+
+```markdown
+# Product Requirements v2.1
+
+## Background
+This iteration focuses on...
+
+## Feature List
+- Feature A: ...
+- Feature B: ...
+```
+
+---
+
+## Notes
+
+- Images inside documents are not synced — text content only
+- Tables are converted to Markdown table format
+- Updates require a manual re-sync or a scheduled sync interval

@@ -26,7 +26,6 @@ JWT_ALGORITHM=HS256
 
 # Redis (必需 - 从 Railway Redis 获取 Internal URL)
 ETL_REDIS_URL=redis://default:xxx@redis.railway.internal:6379
-IMPORT_REDIS_URL=redis://default:xxx@redis.railway.internal:6379
 
 # 应用配置
 DEBUG=False
@@ -38,16 +37,19 @@ PUBLIC_URL=https://your-api.railway.app
 # ==================== API 服务专用 ====================
 # SERVICE_ROLE=api  (或不设置，默认值)
 
-# ==================== ETL Worker 专用 ====================
-# SERVICE_ROLE=etl_worker
+# ==================== File Worker 专用 ====================
+# SERVICE_ROLE=file_worker
 
-# OCR Provider 选择 (可选，默认: mineru)
-# OCR_PROVIDER=mineru  # 可选: mineru, reducto
+# OCR Provider 选择 (推荐: deepseek)
+OCR_PROVIDER=deepseek
 
-# MineRU API (文件 OCR)
-MINERU_API_KEY=your-mineru-api-key
+# DeepSeek OCR (通过 DeepInfra，推荐)
+DEEPINFRA_API_KEY=your-deepinfra-api-key
 
-# Reducto API (可选，替代 MineRU)
+# MineRU API (备选 OCR，注意 Key 每 14 天过期)
+# MINERU_API_KEY=your-mineru-api-key
+
+# Reducto API (备选 OCR)
 # REDUCTO_API_KEY=your-reducto-api-key
 
 # ETL 配置 (可选)
@@ -56,13 +58,10 @@ MINERU_API_KEY=your-mineru-api-key
 # ETL_TASK_TIMEOUT=600
 # ETL_ARQ_QUEUE_NAME=etl
 
-# ==================== Import Worker 专用 ====================
-# SERVICE_ROLE=import_worker
+# ==================== MCP Server 专用 (可选) ====================
+# SERVICE_ROLE=mcp_server
 
-# Import 配置 (可选)
-# IMPORT_ARQ_QUEUE_NAME=import:queue
-# IMPORT_JOB_TIMEOUT_SECONDS=1800
-# IMPORT_MAX_JOBS=10
+# ==================== OAuth 配置（按需启用）====================
 
 # --- GitHub OAuth ---
 GITHUB_CLIENT_ID=your-github-client-id
@@ -75,8 +74,8 @@ NOTION_CLIENT_SECRET=your-notion-client-secret
 NOTION_REDIRECT_URI=https://your-frontend.com/oauth/callback/notion
 
 # --- Google OAuth (Gmail/Drive/Calendar/Sheets/Docs 共用) ---
-GOOGLE_SHEETS_CLIENT_ID=your-google-client-id
-GOOGLE_SHEETS_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 GOOGLE_SHEETS_REDIRECT_URI=https://your-frontend.com/oauth/google-sheets/callback
 GMAIL_REDIRECT_URI=https://your-frontend.com/oauth/gmail/callback
 GOOGLE_DRIVE_REDIRECT_URI=https://your-frontend.com/oauth/google-drive/callback
@@ -92,4 +91,3 @@ LINEAR_REDIRECT_URI=https://your-frontend.com/oauth/callback/linear
 AIRTABLE_CLIENT_ID=your-airtable-client-id
 AIRTABLE_CLIENT_SECRET=your-airtable-client-secret
 AIRTABLE_REDIRECT_URI=https://your-frontend.com/oauth/callback/airtable
-

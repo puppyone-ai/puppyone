@@ -40,14 +40,14 @@ class ContextPublishRepository:
             payload.pop("created_at", None)
             payload.pop("updated_at", None)
             payload = self._normalize_payload(payload)
-            response = self._client.table("context_publish").insert(payload).execute()
+            response = self._client.table("context_publishes").insert(payload).execute()
             return ContextPublishResponse(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建 ContextPublish")
 
     def get_by_id(self, publish_id: int) -> Optional[ContextPublishResponse]:
         response = (
-            self._client.table("context_publish")
+            self._client.table("context_publishes")
             .select("*")
             .eq("id", publish_id)
             .execute()
@@ -58,7 +58,7 @@ class ContextPublishRepository:
 
     def get_by_publish_key(self, publish_key: str) -> Optional[ContextPublishResponse]:
         response = (
-            self._client.table("context_publish")
+            self._client.table("context_publishes")
             .select("*")
             .eq("publish_key", publish_key)
             .execute()
@@ -72,11 +72,11 @@ class ContextPublishRepository:
         *,
         skip: int = 0,
         limit: int = 100,
-        user_id: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> List[ContextPublishResponse]:
-        query = self._client.table("context_publish").select("*")
-        if user_id is not None:
-            query = query.eq("user_id", user_id)
+        query = self._client.table("context_publishes").select("*")
+        if created_by is not None:
+            query = query.eq("created_by", created_by)
         response = query.range(skip, skip + limit - 1).execute()
         return [ContextPublishResponse(**item) for item in response.data]
 
@@ -92,7 +92,7 @@ class ContextPublishRepository:
             payload.pop("updated_at", None)
             payload = self._normalize_payload(payload)
             response = (
-                self._client.table("context_publish")
+                self._client.table("context_publishes")
                 .update(payload)
                 .eq("id", publish_id)
                 .execute()
@@ -105,7 +105,7 @@ class ContextPublishRepository:
 
     def delete(self, publish_id: int) -> bool:
         response = (
-            self._client.table("context_publish")
+            self._client.table("context_publishes")
             .delete()
             .eq("id", publish_id)
             .execute()

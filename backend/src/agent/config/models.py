@@ -86,4 +86,3 @@ class Agent(BaseModel):
         self.bash_accesses = value
 
     model_config = ConfigDict(from_attributes=True)
-

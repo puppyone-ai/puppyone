@@ -1,258 +1,386 @@
 # PuppyOne (ContextBase)
 
-## 项目简介
+## Overview
 
-PuppyOne 是一个为 LLM Agent 提供结构化上下文管理的全栈平台，包含数据摄取 ETL、向量搜索、MCP 协议集成、多平台 OAuth 和代码沙盒执行等能力。
+PuppyOne is a **cloud file system built for AI Agents**, centered around two core pillars: **Connect** and **Collaborate**.
 
-## 活跃开发目录
+It aggregates information scattered across various sources into a unified Context Space, while providing a complete infrastructure for multi-party collaboration between humans and agents — authentication, access control, version history, audit logging, and backup/rollback. Through the file system, bash, and the MCP protocol, any agent can read and write this ContextBase just like a local file system.
 
-当前仓库的开发工作集中在以下三个目录：
+### Connect
 
-- **`backend/`** — Python (FastAPI) 后端服务
-- **`frontend/`** — Next.js 前端应用
-- **`sandbox/`** — Docker 沙盒环境（JSON 编辑 / 代码执行）
+- **Multi-source data connectors** — OAuth connectors for 15+ platforms including Notion, GitHub, Gmail, Google Drive, Linear, Airtable, and more; also supports URL scraping, database connections, and custom scripts
+- **Bidirectional local folder sync** — Real-time sync between local directories and the cloud Context Space (OpenClaw protocol), powered by a background daemon
+- **MCP protocol exposure** — Generates standard MCP interfaces for each agent or endpoint; any MCP-compatible client (Claude Desktop, Cursor, etc.) can connect directly
+- **Code sandbox** — Securely execute code in isolated Docker/E2B containers; agents can invoke sandbox endpoints remotely
 
-## 废弃目录（请勿修改）
+### Collaborate
 
-以下目录已废弃，不再维护，请忽略：
+- **Authentication & access control** — JWT for human users + Access Key for machine authentication; agent-level node access permissions
+- **Version history & rollback** — File-level version management, arbitrary version diff comparison, one-click rollback; folder-level snapshots
+- **Audit logging** — Records all operations (who did what to which node, and when), fully traceable
+- **Collaborative editing** — Checkout/commit workflow, locking mechanism, conflict detection and resolution
+- **Structured data management** — Cloud file system (folders/JSON/Markdown/files), JSON Pointer table operations
 
-- `PuppyEngine`
-- `PuppyFlow`
-- `PuppyStorage`
-- `tools`
+### Platform
+
+- **Agent management** — Create agents, bind tools, control access scope, SSE streaming chat
+- **Full CLI coverage** — Every operation available via command line, enabling AI coding tools like Claude Code to drive the platform directly
+- **Unified connection management** — All connection types (sync/agent/MCP/sandbox/filesystem) consolidated into a single `connections` table with a single entry point
+
+## Active Development Directories
+
+- **`backend/`** — Python (FastAPI) backend service
+- **`frontend/`** — Next.js frontend application
+- **`cli/`** — Node.js command-line tool (Commander.js)
+- **`sandbox/`** — Docker sandbox environment (JSON editing / code execution)
+
+## Deprecated Directories (do not modify)
+
+- `PuppyEngine`, `PuppyFlow`, `PuppyStorage`, `tools`
 
 ---
 
-## Backend（后端）
+## Backend
 
-- **语言**: Python 3.12+
-- **框架**: FastAPI + Uvicorn (ASGI)
-- **包管理**: uv (`pyproject.toml`)
-- **数据库**: Supabase (PostgreSQL)
-- **存储**: AWS S3 / LocalStack
-- **向量搜索**: Turbopuffer
-- **LLM 网关**: LiteLLM
-- **任务队列**: ARQ (Redis)
-- **日志**: Loguru
+- **Language**: Python 3.12+
+- **Framework**: FastAPI + Uvicorn (ASGI)
+- **Package manager**: uv (`pyproject.toml`)
+- **Database**: Supabase (PostgreSQL)
+- **Storage**: AWS S3 / LocalStack
+- **LLM gateway**: LiteLLM
+- **Task queue**: ARQ (Redis)
+- **Logging**: Loguru
 
-### 后端目录结构
+### Directory Structure
 
 ```
 backend/
-├── src/                       # 主源码
-│   ├── main.py                # 应用入口 & 生命周期
-│   ├── config.py              # 全局配置 (Pydantic Settings)
-│   ├── auth/                  # JWT 认证 (Supabase Auth)
-│   ├── project/               # 项目管理 CRUD
-│   ├── content_node/          # 内容节点树 (文件夹/JSON/MD/文件)
-│   ├── table/                 # 结构化数据表 (JSON Pointer)
-│   ├── tool/                  # 工具注册 & 搜索索引
-│   ├── agent/                 # Agent 聊天 (SSE 流式) & 配置
-│   ├── mcp_v3/                # MCP 协议 v3 (工具绑定/代理)
-│   ├── mcp/                   # MCP 实例管理
-│   ├── ingest/                # 数据摄取 ETL
-│   │   ├── file/              # 文件摄取 (MineRU + LLM)
-│   │   └── saas/              # SaaS 同步 (Notion/GitHub 等)
-│   ├── search/                # 向量搜索 (Turbopuffer + RRF)
-│   ├── chunking/              # 文本分块
-│   ├── llm/                   # LLM 服务 (生成 + Embedding)
-│   ├── oauth/                 # OAuth 集成 (9+ 平台)
-│   ├── s3/                    # S3 存储服务
-│   ├── sandbox/               # 代码沙盒 (E2B/Docker)
-│   ├── scheduler/             # 定时任务 (APScheduler)
-│   ├── context_publish/       # 公开 JSON 发布
-│   ├── analytics/             # 分析
-│   ├── profile/               # 用户画像
-│   ├── internal/              # 内部 API
-│   ├── supabase/              # Supabase 客户端 & Repository
-│   └── utils/                 # 工具库 (日志/中间件)
-├── mcp_service/               # MCP Server 独立服务 (FastMCP)
-├── sql/                       # 数据库 DDL
-├── tests/                     # 测试
-├── scripts/                   # 脚本
-└── docs/                      # 功能文档
+├── src/
+│   ├── main.py                # App entrypoint & lifespan
+│   ├── config.py              # Global config (Pydantic Settings)
+│   ├── auth/                  # JWT auth (Supabase Auth)
+│   ├── organization/          # Org management & member invitations
+│   ├── project/               # Project CRUD & members & dashboard
+│   ├── content_node/          # Content node tree (folder/JSON/MD/file) & versions
+│   ├── table/                 # Structured data tables (JSON Pointer)
+│   ├── tool/                  # Tool registration & search index
+│   ├── agent/                 # Agent chat (SSE) & config & MCP tool binding
+│   │   ├── config/            # Agent CRUD & access permissions
+│   │   └── mcp/               # MCP v3 tool binding & proxy
+│   ├── mcp/                   # MCP instance management (FastMCP)
+│   ├── mcp_endpoint/          # MCP endpoint CRUD & API key
+│   ├── mcp_config/            # MCP configuration
+│   ├── sandbox/               # Code sandbox (E2B/Docker)
+│   ├── sandbox_endpoint/      # Sandbox endpoint CRUD & API key & exec
+│   ├── sandbox_config/        # Sandbox configuration
+│   ├── connection/            # Unified connection management (connections table CRUD)
+│   ├── sync/                  # Data source sync engine
+│   │   ├── connectors/        # Platform connectors (Notion/GitHub/Gmail/...)
+│   │   │   └── filesystem/    # Local folder sync (OpenClaw)
+│   │   └── folder_router.py   # Folder-level push/pull API
+│   ├── upload/                # File ingestion ETL (MineRU + LLM)
+│   ├── collaboration/         # Collaborative editing & version history & audit logs
+│   ├── access/                # Access control (compatibility layer)
+│   ├── search/                # Vector search (Turbopuffer + RRF)
+│   ├── chunking/              # Text chunking
+│   ├── llm/                   # LLM service (generation + embedding)
+│   ├── oauth/                 # OAuth integration (9+ platforms)
+│   ├── s3/                    # S3 storage service
+│   ├── db_connector/          # External database connector
+│   ├── context_publish/       # Public JSON publishing (short links)
+│   ├── analytics/             # Usage analytics
+│   ├── profile/               # User profile & onboarding status
+│   ├── scheduler/             # Scheduled tasks (APScheduler)
+│   ├── security/              # Security module (AES-256-GCM)
+│   ├── internal/              # Internal API (X-Internal-Secret)
+│   ├── supabase/              # Supabase client & repository
+│   ├── turbopuffer/           # Turbopuffer vector DB client
+│   ├── workspace/             # Workspace management
+│   └── utils/                 # Utilities (logging/middleware)
+├── mcp_service/               # Standalone MCP Server service (FastMCP)
+├── sql/                       # Database DDL & migrations
+├── tests/                     # Tests
+├── scripts/                   # Scripts
+└── docs/                      # Feature documentation
 ```
 
-### 后端开发规范
+### Development Conventions
 
-- **分层架构**: `Router → Service → Repository (Supabase)` 三层分离
-- **依赖注入**: 使用 FastAPI `Depends` 注入 Service 和 Repository
-- **全异步**: 所有 I/O 操作使用 `async/await`
-- **Pydantic 模型**: 所有 Request/Response 使用 Pydantic schema 定义
-- **命名约定**: 文件 `snake_case.py`，类 `PascalCase`，函数/变量 `snake_case`
-- **路由前缀**: 业务 API 统一 `/api/v1`，内部 API 使用 `/internal`
-- **模块结构**: 每个模块通常包含 `router.py`, `service.py`, `repository.py`, `schemas.py`
+- **Layered architecture**: `Router → Service → Repository (Supabase)` three-tier separation
+- **Dependency injection**: Use FastAPI `Depends` to inject Service and Repository
+- **Fully async**: All I/O operations use `async/await`
+- **Pydantic models**: All request/response defined with Pydantic schemas
+- **Naming conventions**: Files `snake_case.py`, classes `PascalCase`, functions/variables `snake_case`
+- **DB table naming**: All table names use **plural snake_case** (e.g. `projects`, `content_nodes`, `connections`)
+- **Route prefix**: Business APIs under `/api/v1`, internal APIs under `/internal`
+- **Module structure**: Each module typically contains `router.py`, `service.py`, `repository.py`, `schemas.py`
 
-### 后端 API 路由总览
+### Database Tables
 
-| 路由前缀 | 模块 | 说明 |
-|----------|------|------|
-| `/api/v1/projects` | project | 项目 CRUD |
-| `/api/v1/nodes` | content_node | 内容节点 (文件夹/JSON/MD/文件) |
-| `/api/v1/tables` | table | 数据表 & JSON Pointer 操作 |
-| `/api/v1/tools` | tool | 工具注册 & 搜索索引 |
-| `/api/v1/agents` | agent | Agent SSE 流式对话 |
-| `/api/v1/mcp` | mcp_v3 | MCP 工具绑定 & 代理 |
-| `/api/v1/ingest` | ingest | 文件/SaaS/URL 数据摄取 |
-| `/api/v1/s3` | s3 | 文件上传/下载/预签名URL |
-| `/api/v1/publishes` | context_publish | 公开 JSON 短链接 |
-| `/api/v1/oauth` | oauth | OAuth 授权 (9+ 平台) |
-| `/internal` | internal | 内部服务 API |
-| `/health` | main | 健康检查 |
+All tables use plural snake_case names. The "unified connections" architecture stores agents, MCP endpoints, sandbox endpoints, and sync connections in a single `connections` table differentiated by `provider`/`direction`.
 
-### 后端常用命令
+| Table | Repository | Description |
+|-------|-----------|-------------|
+| `projects` | `supabase/projects/repository.py` | Projects |
+| `project_members` | `project/repository.py`, `project/service.py` | Project membership |
+| `organizations` | `organization/repository.py` | Organizations |
+| `org_members` | `organization/repository.py` | Organization membership |
+| `org_invitations` | `organization/repository.py` | Organization invitations |
+| `profiles` | `profile/repository.py` | User profiles |
+| `connections` | `connection/router.py`, `agent/config/repository.py` | Unified connections (agents/MCP/sandbox/sync) |
+| `connection_accesses` | `agent/config/repository.py` | Agent ↔ content node access bindings |
+| `connection_tools` | `agent/config/repository.py`, `tool/service.py` | Agent ↔ tool bindings |
+| `content_nodes` | `content_node/repository.py` | Content tree (folder/JSON/MD/file) |
+| `tools` | `supabase/tools/repository.py` | Registered tools |
+| `mcps` | `supabase/mcps/repository.py`, `supabase/mcp_v2/repository.py` | MCP server instances |
+| `mcp_bindings` | `supabase/mcp_binding/repository.py` | MCP ↔ tool bindings |
+| `chunks` | `chunking/repository.py` | Text chunks for search |
+| `uploads` | `upload/file/tasks/repository.py` | File upload/ingest tasks |
+| `etl_rules` | `upload/file/rules/repository_supabase.py` | ETL transformation rules |
+| `context_publishes` | `supabase/context_publish/repository.py` | Public JSON short links |
+| `oauth_connections` | `oauth/repository.py` | OAuth integrations |
+| `chat_sessions` | `agent/chat/repository.py` | Agent chat sessions |
+| `chat_messages` | `agent/chat/repository.py` | Agent chat messages |
+| `agent_execution_logs` | `agent/config/repository.py`, `scheduler/jobs/agent_job.py` | Scheduled agent execution logs |
+| `file_versions` | `collaboration/version_repository.py` | File version history |
+| `folder_snapshots` | `collaboration/version_repository.py` | Folder snapshots |
+| `audit_logs` | `collaboration/audit_repository.py` | Audit trail |
+| `search_index_tasks` | `project/dashboard_router.py` | Search indexing tasks |
+| `ingest_tasks` | `project/dashboard_router.py` | Ingestion tasks |
+| `agent_logs` | `analytics/service.py` | Agent usage analytics |
+| `access_logs` | `analytics/service.py`, `analytics/router.py` | API access analytics |
+
+### API Routes
+
+| Route Prefix | Module | Description |
+|-------------|--------|-------------|
+| `/api/v1/organizations` | organization | Org CRUD & members & invitations |
+| `/api/v1/projects` | project | Project CRUD & members & dashboard |
+| `/api/v1/nodes` | content_node | Content nodes (folder/JSON/MD/file) & versions |
+| `/api/v1/tables` | table | Data tables & JSON Pointer operations |
+| `/api/v1/tools` | tool | Tool registration & search index |
+| `/api/v1/agents` | agent | Agent SSE streaming chat |
+| `/api/v1/agent-config` | agent/config | Agent CRUD & access permissions |
+| `/api/v1/mcp` | agent/mcp | MCP v3 tool binding & proxy |
+| `/api/v1/mcp-endpoints` | mcp_endpoint | MCP endpoint CRUD & API key |
+| `/api/v1/sandbox-endpoints` | sandbox_endpoint | Sandbox endpoint CRUD & exec |
+| `/api/v1/connections` | connection | Unified connection management (all types) |
+| `/api/v1/sync` | sync | Data source sync & OpenClaw & folder push/pull |
+| `/api/v1/ingest` | upload | File/URL ingestion ETL |
+| `/api/v1/collab` | collaboration | Collaborative editing & versions & audit |
+| `/api/v1/workspace` | workspace | Workspace management |
+| `/api/v1/db-connector` | db_connector | External database connections |
+| `/api/v1/publishes` | context_publish | Public JSON short links |
+| `/api/v1/oauth` | oauth | OAuth authorization (9+ platforms) |
+| `/api/v1/auth` | auth | Authentication (login/refresh) |
+| `/api/v1/analytics` | analytics | Usage statistics |
+| `/api/v1/profile` | profile | User profile & onboarding |
+| `/api/v1/s3` | s3 | File upload/download/presigned URLs |
+| `/internal` | internal | Internal service API |
+| `/p/{key}` | context_publish | Public JSON access (no auth required) |
+| `/health` | main | Health check |
+
+### Common Commands
 
 ```bash
-# 安装依赖
+# Install dependencies
 uv sync
 
-# 启动开发服务器
+# Start dev server
 uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info --no-access-log
 
-# 运行测试
+# Run tests
 uv run pytest
-uv run pytest -m "not e2e"      # 排除 e2e 测试
+uv run pytest -m "not e2e"      # Exclude e2e tests
 
-# 启动 Worker
-uv run arq src.ingest.file.jobs.worker.WorkerSettings      # 文件处理 Worker
-uv run arq src.ingest.saas.jobs.worker.WorkerSettings       # SaaS 同步 Worker
+# Start file worker (ETL / OCR)
+uv run arq src.upload.file.jobs.worker.WorkerSettings
 ```
 
-### 后端部署
+### Deployment
 
-Railway 多服务部署（共享代码库，通过 `SERVICE_ROLE` 区分）：
+Railway multi-service deployment (shared codebase, differentiated by `SERVICE_ROLE`):
 
-- **api**（默认）: 主 API 服务
-- **file_worker**: 文件 ETL Worker (ARQ)
-- **saas_worker**: SaaS 同步 Worker (ARQ)
-- **mcp_server**: MCP 协议服务 (FastMCP)
+- **api** (default): Main API service
+- **file_worker**: File ETL Worker (ARQ)
+- **mcp_server**: MCP protocol service (FastMCP)
 
 ---
 
-## Frontend（前端）
+## Frontend
 
-- **框架**: Next.js 15 (App Router)
-- **语言**: TypeScript
+- **Framework**: Next.js 15 (App Router)
+- **Language**: TypeScript
 - **UI**: React 18 + Tailwind CSS
-- **认证**: Supabase Auth
-- **状态管理**: Zustand + React Context
-- **数据请求**: SWR
+- **Auth**: Supabase Auth
+- **State management**: Zustand + React Context
+- **Data fetching**: SWR
 
-### 前端目录结构
+### Directory Structure
 
 ```
 frontend/
-├── app/                          # Next.js App Router 页面
-│   ├── (main)/                   # 路由组 (共享 AppSidebar 布局)
-│   │   ├── projects/             # 项目模块
-│   │   │   └── [projectId]/      # 项目详情页
-│   │   │       ├── data/         # 数据浏览器
-│   │   │       ├── toolkit/      # Agent 工具包
-│   │   │       ├── tools/        # 项目工具
-│   │   │       ├── logs/         # 项目日志
-│   │   │       └── settings/     # 项目设置
-│   │   ├── settings/             # 全局设置
-│   │   ├── tools-and-server/     # 工具 & MCP 服务器管理
-│   │   ├── home/                 # 主页/仪表盘
-│   │   ├── billing/              # 计费
-│   │   └── team/                 # 团队管理
-│   ├── api/                      # API 路由 (agent, sandbox)
-│   ├── auth/                     # Auth 回调
-│   ├── login/                    # 登录页
-│   ├── onboarding/               # 新手引导
-│   └── oauth/                    # OAuth 回调 (多平台)
-├── components/                    # React 组件
-│   ├── agent/                    # Agent 相关组件
-│   ├── chat/                     # 聊天界面
-│   ├── dashboard/                # 仪表盘组件
-│   ├── editors/                  # 编辑器 (JSON/Markdown/Code)
+├── app/                          # Next.js App Router pages
+│   ├── (main)/                   # Route group (shared AppSidebar layout)
+│   │   ├── projects/             # Projects module
+│   │   │   └── [projectId]/      # Project detail pages
+│   │   │       ├── data/         # Data explorer
+│   │   │       ├── connections/  # Connection management
+│   │   │       ├── toolkit/      # Agent toolkit
+│   │   │       ├── monitor/      # Monitoring
+│   │   │       └── settings/     # Project settings
+│   │   ├── settings/             # Global settings
+│   │   ├── tools-and-server/     # Tools & MCP server management
+│   │   ├── home/                 # Home / dashboard
+│   │   ├── billing/              # Billing
+│   │   └── team/                 # Team management
+│   ├── api/                      # API routes (agent, sandbox)
+│   ├── auth/                     # Auth callbacks
+│   ├── login/                    # Login page
+│   ├── onboarding/               # Onboarding flow
+│   └── oauth/                    # OAuth callbacks (multi-platform)
+├── components/                    # React components
+│   ├── agent/                    # Agent components
+│   ├── chat/                     # Chat interface
+│   ├── dashboard/                # Dashboard components
+│   ├── editors/                  # Editors (JSON/Markdown/Code)
 │   │   ├── code/                 # Monaco / CodeMirror
-│   │   ├── markdown/             # Milkdown Markdown 编辑器
-│   │   ├── table/                # 表格式 JSON 编辑器
-│   │   ├── tree/                 # 树形 JSON 编辑器
-│   │   └── vanilla/              # Vanilla JSON 编辑器
-│   ├── sidebar/                  # 侧边栏
-│   └── RightAuxiliaryPanel/      # 右侧辅助面板
-├── lib/                          # 工具库 & API 客户端
-│   ├── hooks/                    # 自定义 React Hooks
-│   ├── apiClient.ts              # 基础 API 客户端
-│   ├── chatApi.ts                # 聊天 API
-│   ├── contentNodesApi.ts        # 内容节点 API
+│   │   ├── markdown/             # Milkdown Markdown editor
+│   │   ├── table/                # Tabular JSON editor
+│   │   ├── tree/                 # Tree JSON editor
+│   │   └── vanilla/              # Vanilla JSON editor
+│   ├── sidebar/                  # Sidebar
+│   ├── views/                    # Shared view components
+│   ├── onboarding/               # Onboarding components
+│   └── RightAuxiliaryPanel/      # Right auxiliary panel
+├── lib/                          # Utilities & API clients
+│   ├── hooks/                    # Custom React hooks
+│   ├── apiClient.ts              # Base API client
+│   ├── chatApi.ts                # Chat API
+│   ├── contentNodesApi.ts        # Content nodes API
 │   ├── mcpApi.ts                 # MCP API
-│   ├── projectsApi.ts            # 项目 API
-│   └── oauthApi.ts               # OAuth API
+│   ├── mcpEndpointsApi.ts        # MCP endpoints API
+│   ├── sandboxEndpointsApi.ts    # Sandbox endpoints API
+│   ├── projectsApi.ts            # Projects API
+│   ├── organizationsApi.ts       # Organizations API
+│   ├── oauthApi.ts               # OAuth API
+│   ├── ingestApi.ts              # Ingestion API
+│   ├── dbConnectorApi.ts         # Database connector API
+│   └── profileApi.ts             # User profile API
 ├── contexts/                     # React Context
-│   ├── AgentContext.tsx           # Agent 状态管理
-│   └── WorkspaceContext.tsx       # 工作区状态管理
-├── middleware.ts                  # Next.js 中间件 (认证 & 路由)
-└── next.config.ts                # Next.js 配置
+│   ├── AgentContext.tsx           # Agent state management
+│   └── WorkspaceContext.tsx       # Workspace state management
+├── middleware.ts                  # Next.js middleware (auth & routing)
+└── next.config.ts                # Next.js config
 ```
 
-### 前端核心功能
-
-1. **项目管理** — 多项目工作区，项目数据表与配置
-2. **数据管理** — 多视图（列表/网格/Miller Columns/资源管理器），JSON/Markdown 编辑
-3. **Agent & AI** — SSE 流式聊天，Agent 配置，MCP 工具集成
-4. **工具 & MCP 服务器** — 工具库管理，MCP Server 部署与访问控制
-5. **OAuth 集成** — 支持 Notion/GitHub/Gmail/Google Drive/Linear/Airtable 等 9+ 平台
-6. **新手引导** — 多步骤向导，演示内容
-
-### 前端常用命令
+### Common Commands
 
 ```bash
-# 安装依赖
+# Install dependencies
 npm install
 
-# 启动开发服务器
+# Start dev server
 npm run dev
 
-# 构建生产版本
+# Production build
 npm run build
 ```
 
-### 前端环境变量
+### Environment Variables
 
 ```
 NEXT_PUBLIC_SUPABASE_URL        # Supabase URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY   # Supabase 匿名 Key
-NEXT_PUBLIC_API_URL             # 后端 API 地址 (默认 http://localhost:9090)
-NEXT_PUBLIC_DEV_MODE            # 开发模式标志
+NEXT_PUBLIC_SUPABASE_ANON_KEY   # Supabase anon key
+NEXT_PUBLIC_API_URL             # Backend API URL (default http://localhost:9090)
+NEXT_PUBLIC_DEV_MODE            # Dev mode flag
 ```
 
 ---
 
-## Sandbox（沙盒）
+## CLI
 
-轻量级 Docker 沙盒环境，用于在隔离容器中安全执行 CLI 命令（如 `jq` 编辑 JSON）。
+- **Language**: JavaScript (ESM)
+- **Framework**: Commander.js
+- **Install**: `npm install -g puppyone`
 
-### 沙盒结构
+### Directory Structure
+
+```
+cli/
+├── bin/puppyone.js             # Entrypoint & command registration
+├── src/
+│   ├── commands/               # Command implementations
+│   │   ├── auth.js             # Auth (login/logout/whoami)
+│   │   ├── org.js              # Organization management
+│   │   ├── project.js          # Project management
+│   │   ├── fs.js               # Cloud file system (POSIX-like)
+│   │   ├── connection.js       # Unified connection management (add/ls/info/rm/...)
+│   │   ├── sync.js             # Data source sync
+│   │   ├── access.js           # Local folder sync (daemon)
+│   │   ├── agent-cmd.js        # Agent CRUD & chat
+│   │   ├── mcp.js              # MCP endpoint management
+│   │   ├── sandbox.js          # Sandbox management & exec
+│   │   ├── tool.js             # Tool management
+│   │   ├── table.js            # Data table operations
+│   │   ├── ingest.js           # File/URL ingestion
+│   │   ├── publish.js          # Public publishing
+│   │   ├── db.js               # Database connector
+│   │   ├── config-cmd.js       # CLI configuration
+│   │   ├── global.js           # Global commands (status/ps/ls)
+│   │   └── openclaw.js         # Folder sync core logic
+│   ├── api.js                  # HTTP client
+│   ├── config.js               # Config file read/write
+│   ├── daemon.js               # Background daemon management
+│   ├── registry.js             # Local connection registry
+│   ├── output.js               # Output formatting (human/JSON)
+│   ├── helpers.js              # Shared utilities
+│   └── state.js                # Sync state management
+├── SPEC.md                     # CLI interface spec
+└── DESIGN.md                   # CLI design doc
+```
+
+### Key Commands
+
+```bash
+puppyone auth login              # Sign in
+puppyone project use "My Project" # Set active project
+puppyone fs ls                   # Browse cloud files
+puppyone conn add notion <url>   # Connect a data source (unified entry)
+puppyone conn add folder ~/path  # Mount a local folder
+puppyone conn add mcp "name"     # Create an MCP endpoint
+puppyone conn add sandbox "name" # Create a sandbox
+puppyone conn ls                 # List all connections
+puppyone status                  # Project dashboard
+puppyone agent chat              # Chat with an agent
+```
+
+See `cli/SPEC.md` for full reference.
+
+---
+
+## Sandbox
+
+Lightweight Docker sandbox environment for securely executing CLI commands (e.g. `jq` for JSON editing) in isolated containers.
 
 ```
 sandbox/
-├── README.md          # 使用文档
+├── README.md          # Usage docs
 ├── Dockerfile         # Alpine + jq/bash/coreutils
-└── test-data.json     # 示例测试数据
+└── test-data.json     # Sample test data
 ```
 
-### 工作流程
-
-1. 创建临时 Docker 容器（Alpine + jq/bash）
-2. 挂载 JSON 文件到 `/workspace/data.json`
-3. AI Agent 生成并执行 CLI 命令
-4. 读取修改后的 JSON 数据
-5. 销毁容器
-
-前端 (`app/api/sandbox/route.ts`) 和后端 (`src/sandbox/`) 均有沙盒集成，后端还支持 E2B 云沙盒。
+Both the frontend (`app/api/sandbox/route.ts`) and backend (`src/sandbox/`) integrate with sandboxes; the backend also supports E2B cloud sandboxes.
 
 ---
 
-## 其他目录说明
+## Other Directories
 
-| 目录 | 说明 |
-|------|------|
-| `docs/` | 项目级文档 |
-| `assert/` | 静态资源 |
-| `puppydoc/` | 文档相关 |
-| `scripts/` | 工具脚本 |
-| `todo/` | 待办事项 |
+| Directory | Description |
+|-----------|-------------|
+| `docs/` | Project-level documentation |
+| `assert/` | Static assets |
+| `puppydoc/` | Documentation resources |
+| `scripts/` | Utility scripts |
+| `todo/` | Todo items |
 | `.github/` | GitHub Actions & CI |

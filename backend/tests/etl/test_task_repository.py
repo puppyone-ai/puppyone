@@ -12,8 +12,8 @@ import os
 import pytest
 from datetime import datetime
 
-from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus, ETLTaskResult
-from src.ingest.file.tasks.repository import ETLTaskRepositorySupabase
+from src.upload.file.tasks.models import ETLTask, ETLTaskStatus, ETLTaskResult
+from src.upload.file.tasks.repository import ETLTaskRepositorySupabase
 
 
 # 需要真实 Supabase 环境变量；未配置时跳过，避免本地/CI 失败
@@ -34,8 +34,8 @@ def sample_task():
     """创建测试用的任务"""
     return ETLTask(
         task_id=None,  # Will be assigned by database
-        user_id=1,
-        project_id=1,
+        created_by="user-1",
+        project_id="proj-1",
         filename="test.pdf",
         rule_id=1,
         status=ETLTaskStatus.PENDING,
@@ -54,7 +54,7 @@ def test_create_task(repository, sample_task):
     # Verify task was created with ID
     assert created_task.task_id is not None
     assert isinstance(created_task.task_id, int)
-    assert created_task.user_id == sample_task.user_id
+    assert created_task.created_by == sample_task.created_by
     assert created_task.project_id == sample_task.project_id
     assert created_task.filename == sample_task.filename
     assert created_task.rule_id == sample_task.rule_id
@@ -76,7 +76,7 @@ def test_get_task(repository, sample_task):
     # Verify
     assert retrieved_task is not None
     assert retrieved_task.task_id == task_id
-    assert retrieved_task.user_id == created_task.user_id
+    assert retrieved_task.created_by == created_task.created_by
     assert retrieved_task.filename == created_task.filename
     
     # Cleanup
@@ -167,11 +167,11 @@ def test_list_tasks_no_filter(repository):
     """测试列出所有任务"""
     # Create multiple tasks
     task1 = repository.create_task(ETLTask(
-        task_id=None, user_id=1, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-1",
         filename="test1.pdf", rule_id=1
     ))
     task2 = repository.create_task(ETLTask(
-        task_id=None, user_id=1, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-1",
         filename="test2.pdf", rule_id=1
     ))
     
@@ -189,24 +189,24 @@ def test_list_tasks_no_filter(repository):
     repository.delete_task(task2.task_id)
 
 
-def test_list_tasks_filter_by_user(repository):
-    """测试按用户ID过滤任务"""
-    # Create tasks for different users
+def test_list_tasks_filter_by_project(repository):
+    """测试按项目ID过滤任务"""
+    # Create tasks for different projects
     task1 = repository.create_task(ETLTask(
-        task_id=None, user_id=1, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-1",
         filename="test1.pdf", rule_id=1
     ))
     task2 = repository.create_task(ETLTask(
-        task_id=None, user_id=2, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-2",
         filename="test2.pdf", rule_id=1
     ))
     
-    # List tasks for user 1
-    tasks = repository.list_tasks(user_id=1, limit=10)
+    # List tasks for project 1
+    tasks = repository.list_tasks(project_id="proj-1", limit=10)
     
-    # Verify only user 1's tasks
+    # Verify only project 1's tasks
     for task in tasks:
-        assert task.user_id == 1
+        assert task.project_id == "proj-1"
     
     # Cleanup
     repository.delete_task(task1.task_id)
@@ -217,12 +217,12 @@ def test_list_tasks_filter_by_status(repository):
     """测试按状态过滤任务"""
     # Create tasks with different statuses
     task1 = repository.create_task(ETLTask(
-        task_id=None, user_id=1, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-1",
         filename="test1.pdf", rule_id=1, status=ETLTaskStatus.PENDING
     ))
     
     task2 = repository.create_task(ETLTask(
-        task_id=None, user_id=1, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-1",
         filename="test2.pdf", rule_id=1, status=ETLTaskStatus.PENDING
     ))
     
@@ -237,7 +237,7 @@ def test_list_tasks_filter_by_status(repository):
     pending_tasks = repository.list_tasks(status=ETLTaskStatus.PENDING, limit=10)
     
     # Verify
-    pending_ids = [t.task_id for t in pending_tasks if t.user_id == 1]
+    pending_ids = [t.task_id for t in pending_tasks if t.project_id == "proj-1"]
     assert task1.task_id in pending_ids
     assert task2.task_id not in pending_ids
     
@@ -250,11 +250,11 @@ def test_count_tasks(repository):
     """测试统计任务数量"""
     # Create some tasks
     task1 = repository.create_task(ETLTask(
-        task_id=None, user_id=1, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-1",
         filename="test1.pdf", rule_id=1
     ))
     task2 = repository.create_task(ETLTask(
-        task_id=None, user_id=1, project_id=1,
+        task_id=None, created_by="user-1", project_id="proj-1",
         filename="test2.pdf", rule_id=1
     ))
     
@@ -262,9 +262,9 @@ def test_count_tasks(repository):
     count = repository.count_tasks()
     assert count >= 2
     
-    # Count tasks for specific user
-    user_count = repository.count_tasks(user_id=1)
-    assert user_count >= 2
+    # Count tasks for specific project
+    proj_count = repository.count_tasks(project_id="proj-1")
+    assert proj_count >= 2
     
     # Cleanup
     repository.delete_task(task1.task_id)
@@ -303,7 +303,7 @@ def test_task_to_dict_from_dict(sample_task):
     task_dict = sample_task.to_dict()
     
     # Verify dict structure
-    assert task_dict["user_id"] == sample_task.user_id
+    assert task_dict["created_by"] == sample_task.created_by
     assert task_dict["project_id"] == sample_task.project_id
     assert task_dict["filename"] == sample_task.filename
     assert task_dict["rule_id"] == sample_task.rule_id
@@ -317,7 +317,7 @@ def test_task_to_dict_from_dict(sample_task):
     
     # Verify
     assert restored_task.task_id == 123
-    assert restored_task.user_id == sample_task.user_id
+    assert restored_task.created_by == sample_task.created_by
     assert restored_task.project_id == sample_task.project_id
     assert restored_task.filename == sample_task.filename
     assert restored_task.status == sample_task.status
@@ -334,8 +334,8 @@ def test_task_with_result_serialization():
     
     task = ETLTask(
         task_id=100,
-        user_id=1,
-        project_id=1,
+        created_by="user-1",
+        project_id="proj-1",
         filename="test.pdf",
         rule_id=1,
         status=ETLTaskStatus.COMPLETED,

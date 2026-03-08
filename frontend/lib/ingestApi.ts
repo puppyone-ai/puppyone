@@ -3,15 +3,13 @@
  *
  * Single entry point for all data ingestion:
  * - File upload → File Worker (OCR, extraction)
- * - SaaS sync → SaaS Worker (GitHub, Notion, Gmail, etc.)
- * - URL crawl → SaaS Worker (Firecrawl)
+ * - SaaS sync → SyncEngine (GitHub, Notion, Gmail, etc.)
  *
  * Backend: /api/v1/ingest/*
  */
 
 import { apiRequest, getAccessToken } from './apiClient';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
 // === Enums ===
 
@@ -91,9 +89,6 @@ export interface IngestHealthResponse {
     queue_size: number;
     task_count: number;
     worker_count: number;
-  };
-  saas_worker: {
-    status: string;
   };
 }
 
@@ -252,7 +247,8 @@ export async function submitFileIngest(
     formData.append('files', file);
   }
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/submit/file`, {
+  // Route through same-origin Next.js proxy to avoid CORS / system-proxy issues
+  const response = await fetch('/api/ingest?path=submit/file', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -286,7 +282,8 @@ export async function submitSaaSIngest(
     formData.append('name', params.name);
   }
 
-  const response = await fetch(`${API_URL}/api/v1/ingest/submit/saas`, {
+  // Route through same-origin Next.js proxy to avoid CORS / system-proxy issues
+  const response = await fetch('/api/ingest?path=submit/saas', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,

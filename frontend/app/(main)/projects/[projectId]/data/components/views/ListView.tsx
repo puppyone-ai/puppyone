@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { ContentType, AgentResource } from './GridView';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, LockIcon, getSyncSourceIcon, getSyncSource } from '@/lib/nodeTypeConfig';
+import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 
 export interface ListViewItem {
   id: string;
@@ -11,6 +12,7 @@ export interface ListViewItem {
   type: ContentType;  // type 直接决定渲染方式
   description?: string;
   rowCount?: number;
+  id_path?: string;
   onClick: (e: React.MouseEvent) => void;
   // 同步相关字段
   is_synced?: boolean;
@@ -22,11 +24,14 @@ export interface ListViewItem {
 
 export interface ListViewProps {
   items: ListViewItem[];
+  parentFolderId?: string | null;
   onCreateClick?: (e: React.MouseEvent) => void;
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
+  onMove?: (id: string, name: string, id_path?: string) => void;
+  onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
   createLabel?: string;
   loading?: boolean;
@@ -157,26 +162,37 @@ const SyncStatusIndicator = ({ status }: { status?: string }) => {
 
 function ListItem({
   item,
+  parentFolderId,
   agentResource,
   onRename,
   onDelete,
   onDuplicate,
   onRefresh,
+  onMove,
+  onMoveNode,
   onCreateTool,
 }: {
   item: ListViewItem;
+  parentFolderId?: string | null;
   agentResource?: AgentResource;
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
+  onMove?: (id: string, name: string, id_path?: string) => void;
+  onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   
-  // Get type config - type directly determines rendering method
   const typeConfig = getNodeTypeConfig(item.type);
   const isFolder = typeConfig.renderAs === 'folder';
+
+  const { isDropTarget, dropHandlers } = useNodeDrop({
+    targetFolderId: item.id,
+    onMoveNode,
+    disabled: !isFolder,
+  });
   
   // 获取 SaaS Logo - 从 type 或 sync_source 获取
   const syncSource = item.sync_source || getSyncSource(item.type);
@@ -193,19 +209,21 @@ function ListItem({
       onClick={item.onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      draggable={!typeConfig.isReadOnly && !isPlaceholder}
+      draggable={!isPlaceholder}
       onDragStart={(e) => {
-        if (typeConfig.isReadOnly || isPlaceholder) {
+        if (isPlaceholder) {
           e.preventDefault();
           return;
         }
         e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify({
           id: item.id,
           name: item.name,
-          type: item.type
+          type: item.type,
+          parentId: parentFolderId ?? null,
         }));
-        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.effectAllowed = 'copyMove';
       }}
+      {...dropHandlers}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -213,14 +231,17 @@ function ListItem({
         padding: '0 12px',
         gap: 10,
         cursor: 'pointer',
-        background: hasAgentAccess 
+        background: isDropTarget
+          ? 'rgba(59, 130, 246, 0.15)'
+          : hasAgentAccess 
           ? hovered 
             ? 'rgba(249, 115, 22, 0.08)' 
             : 'rgba(249, 115, 22, 0.04)'
           : hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
         borderBottom: '1px solid rgba(255,255,255,0.04)',
-        // 左边橙色边条表示 agent access
-        borderLeft: hasAgentAccess 
+        borderLeft: isDropTarget
+            ? '3px solid rgba(59, 130, 246, 0.6)'
+            : hasAgentAccess 
             ? '3px solid rgba(249, 115, 22, 0.6)' 
             : '3px solid transparent',
         transition: 'all 0.15s',
@@ -281,7 +302,7 @@ function ListItem({
       </div>
 
       {/* Action Menu (不显示给占位符) */}
-      {!isPlaceholder && (onRename || onDelete || onDuplicate || onCreateTool || (isSyncedType(item.type) && onRefresh)) && (
+      {!isPlaceholder && (onRename || onDelete || onDuplicate || onMove || onCreateTool || (isSyncedType(item.type) && onRefresh)) && (
         <ItemActionMenu
           itemId={item.id}
           itemName={item.name}
@@ -289,6 +310,7 @@ function ListItem({
           onRename={onRename}
           onDelete={onDelete}
           onDuplicate={onDuplicate}
+          onMove={onMove ? (id, name) => onMove(id, name, item.id_path) : undefined}
           onRefresh={isSyncedType(item.type) ? onRefresh : undefined}
           onCreateTool={onCreateTool}
           syncUrl={item.sync_url}
@@ -337,11 +359,14 @@ function ListItem({
 
 export function ListView({
   items,
+  parentFolderId,
   onCreateClick,
   onRename,
   onDelete,
   onDuplicate,
   onRefresh,
+  onMove,
+  onMoveNode,
   onCreateTool,
   createLabel = 'New...',
   loading,
@@ -370,11 +395,14 @@ export function ListView({
         <ListItem
           key={item.id}
           item={item}
+          parentFolderId={parentFolderId}
           agentResource={resourceMap.get(item.id)}
           onRename={onRename}
           onDelete={onDelete}
           onDuplicate={onDuplicate}
           onRefresh={onRefresh}
+          onMove={onMove}
+          onMoveNode={onMoveNode}
           onCreateTool={onCreateTool}
         />
       ))}
