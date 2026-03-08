@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { EmailOtpType } from '@supabase/supabase-js';
-import { getServerSupabaseUrl, getSupabaseAnonKey } from '@/lib/server-env';
+import { getServerSupabaseUrl, getSupabaseAnonKey, getRequestOrigin } from '@/lib/server-env';
 
 /**
  * Supabase Email Verification - Route Handler (服务端)
@@ -16,7 +16,7 @@ import { getServerSupabaseUrl, getSupabaseAnonKey } from '@/lib/server-env';
  */
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const { origin } = requestUrl;
+  const origin = getRequestOrigin(request);
   const token_hash = requestUrl.searchParams.get('token_hash');
   const type = requestUrl.searchParams.get('type') as EmailOtpType | null;
   const next = requestUrl.searchParams.get('next') ?? '/home';

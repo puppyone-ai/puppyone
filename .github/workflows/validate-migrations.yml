@@ -1,0 +1,47 @@
+name: Validate Migrations (PR Check)
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+
+jobs:
+  validate-staging:
+    name: Dry-run against Staging DB
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to staging project
+        run: supabase link --project-ref ${{ secrets.STAGING_PROJECT_ID }}
+
+      - name: Validate migrations (dry-run)
+        run: supabase db push --dry-run
+
+  validate-production:
+    name: Dry-run against Production DB
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to production project
+        run: supabase link --project-ref ${{ secrets.PRODUCTION_PROJECT_ID }}
+
+      - name: Validate migrations (dry-run)
+        run: supabase db push --dry-run
