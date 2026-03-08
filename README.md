@@ -4,7 +4,7 @@
 
 <p align="center">
   <b>The context file system for agents.</b><br>
-  With agent-level auth, versioning, and collaboration.
+   Connect, govern, and share context across all agents.
 </p>
 
 <p align="center">
@@ -42,9 +42,9 @@ PuppyOne is a context file system built only for agents. It directly solves all 
 
 - **15+ Connectors** — Mount Notion, GitHub, Gmail, Google Drive, Airtable, and more into a single directory tree. All data is transformed into agent-friendly formats (Markdown, JSON, raw files).
 - **Versioning & Rollback** — Every write is tracked. Diff any file against its history and rollback to a previous state in one click.
-- **File-Level Security (FLS)** — Each agent gets its own view of the file tree based on its identity. Files it shouldn't access physically don't exist in its environment.
-- **Multi-Channel Access** — Distribute your context via OpenClaw, MCP, Bash, SSH, REST API, or CLI. Agents access it however they work best.
+- **Auth for agents** — Each agent gets its own view of the file tree based on its identity.
 - **Audit Logs** — Full traceability: which agent read, wrote, or deleted which file, and when.
+- **Multi-Channel Access** — Distribute your context via OpenClaw, MCP, Bash, SSH, REST API, or CLI. Agents access it however they work best.
 
 
 <img src="assets/puppy-filesystem-demo.png" alt="puppyone file system" width="100%" />
