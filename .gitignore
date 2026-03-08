@@ -132,3 +132,13 @@ agfs-master/
 
 # Internal todo files (not for public consumption)
 todo/
+
+# Temporary directories
+.tmp*/
+.tmp-home-refresh-review/
+
+# E2E test artifacts
+**/.last_*.json
+
+# Python bytecode (alternate cache dir)
+.pycache/

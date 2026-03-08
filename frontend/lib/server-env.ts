@@ -24,3 +24,32 @@ export function getSupabaseAnonKey(): string {
   }
   return anonKey;
 }
+
+/**
+ * Resolve the public-facing origin for server-side redirects.
+ *
+ * Behind a reverse proxy (Railway, Vercel, etc.) `request.url` may reflect the
+ * internal container address (e.g. http://localhost:8080). This helper checks,
+ * in order:
+ *   1. NEXT_PUBLIC_SITE_URL env var (explicit override)
+ *   2. x-forwarded-host + x-forwarded-proto headers (set by most proxies)
+ *   3. host header
+ *   4. request.url fallback
+ */
+export function getRequestOrigin(request: Request): string {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (siteUrl) return siteUrl.replace(/\/+$/, '');
+
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  if (forwardedHost) {
+    const proto = request.headers.get('x-forwarded-proto') || 'https';
+    return `${proto}://${forwardedHost}`;
+  }
+
+  const host = request.headers.get('host');
+  if (host && !host.startsWith('localhost') && !host.startsWith('127.0.0.1')) {
+    return `https://${host}`;
+  }
+
+  return new URL(request.url).origin;
+}
