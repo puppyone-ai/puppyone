@@ -5,6 +5,7 @@ import {
   getServerApiBaseUrl,
   getServerSupabaseUrl,
   getSupabaseAnonKey,
+  getRequestOrigin,
 } from '@/lib/server-env';
 
 /**
@@ -15,7 +16,7 @@ import {
  */
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const { origin } = requestUrl;
+  const origin = getRequestOrigin(request);
   const code = requestUrl.searchParams.get('code');
   const next = requestUrl.searchParams.get('next') ?? '/home';
   const apiUrl = getServerApiBaseUrl();
