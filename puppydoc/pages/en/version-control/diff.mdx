@@ -1,0 +1,160 @@
+# Version Diff
+
+Compare any two versions side by side and inspect every change precisely.
+
+---
+
+## What is version diff
+
+Version diff lets you compare any two historical versions of the same Content Node line by line, clearly showing:
+
+- **Added content** (green)
+- **Deleted content** (red)
+- **Modified content** (yellow)
+
+Whether the Content Node is a JSON file, a Markdown document, or another supported type, version diff is available.
+
+---
+
+## View a version diff
+
+### Dashboard
+
+1. Open your Project -> select a file
+2. Click the **History** tab to open the version history panel
+3. Select the two versions you want to compare
+4. Click **Compare** to open the diff view
+
+### CLI
+
+```bash
+# Compare version 2 and version 5
+puppyone fs diff /docs/readme.md 2 5
+```
+
+Example output:
+
+```diff
+--- v2
++++ v5
+
+ # Product Documentation
+ 
+-## Feature Overview
++## Core Features
+ 
+-This product supports data import and querying.
++This product supports multi-source data connections, real-time sync, and agent collaboration.
++
++### Data Connections
++
++Supports OAuth integrations for 15+ platforms.
+ 
+ ## Technical Architecture
+ 
+ Built with FastAPI + Supabase.
+-Supports single-machine deployment.
++Supports single-machine deployment and Railway cloud deployment.
+```
+
+### API
+
+```bash
+# Compare version 2 and version 5
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/diff/2/5" \
+  -H "Authorization: Bearer {token}"
+```
+
+Example response:
+
+```json
+{
+  "node_id": "node_001",
+  "v1": 2,
+  "v2": 5,
+  "diff": {
+    "additions": 8,
+    "deletions": 3,
+    "modifications": 2,
+    "patches": [
+      {
+        "path": "/title",
+        "op": "unchanged",
+        "value": "Product Documentation"
+      },
+      {
+        "path": "/sections/0/heading",
+        "op": "replace",
+        "old_value": "Feature Overview",
+        "new_value": "Core Features"
+      }
+    ]
+  }
+}
+```
+
+You can also access it through the collaboration route: `GET /api/v1/collab/diff/{node_id}/{v1}/{v2}`
+
+---
+
+## Common use cases
+
+### Review an agent's changes
+
+After an agent completes a write, compare the versions before and after the write to confirm the result matches expectations:
+
+```bash
+# View recent version history
+puppyone fs versions /docs/product-spec.md
+
+# Compare the versions before and after the agent change
+puppyone fs diff /docs/product-spec.md 7 8
+```
+
+If the change is not what you want, you can [roll back](/en/version-control/versions) directly to the earlier version.
+
+### Compare changes before and after sync
+
+After syncing from an external data source, inspect exactly what the sync introduced:
+
+```bash
+# Before syncing, note the current version number (for example v12)
+puppyone fs versions /research/notion-data.json
+
+# Run the sync
+puppyone conn refresh <connection-id>
+
+# Compare before and after sync
+puppyone fs diff /research/notion-data.json 12 13
+```
+
+### Track how data changes over time
+
+Compare two versions far apart in time to understand how the data evolved overall:
+
+```bash
+# Compare the version from a week ago to the current one
+puppyone fs diff /analytics/metrics.json 3 15
+```
+
+---
+
+## Diff format explained
+
+CLI output uses the standard unified diff format:
+
+| Marker | Meaning |
+|--------|---------|
+| `---` / `+++` | Identify the old version and the new version |
+| Lines starting with `-` | Present in the old version but deleted in the new one |
+| Lines starting with `+` | Added in the new version |
+| Lines with no prefix | Content that is the same in both versions (context) |
+
+For JSON Content Nodes, the API diff also includes structured change paths (JSON Patch format) for programmatic handling.
+
+---
+
+## Next steps
+
+- [File Version History and Rollback](/en/version-control/versions) - View history and restore versions
+- [Folder Snapshots](/en/version-control/snapshots) - Take a full backup of a directory

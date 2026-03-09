@@ -1,0 +1,341 @@
+# Code Sandbox
+
+Run code in an isolated sandbox environment to process your PuppyOne data safely.
+
+---
+
+## What a code sandbox is
+
+A code sandbox is an isolated execution environment. PuppyOne mounts your Content Node data into the sandbox so an agent can run arbitrary code against it.
+
+Sandboxes are useful when you need to:
+
+- Perform complex computation or transformation on large JSON datasets
+- Run Python scripts for data analysis
+- Use tools like `jq` for batch processing structured data
+- Install third-party libraries for compute tasks
+- Run untrusted code inside a secure isolated environment
+
+---
+
+## How it works
+
+```
+PuppyOne cloud                      Sandbox environment (isolated)
+┌─────────────────────┐             ┌─────────────────────┐
+│  Content Nodes      │  ──mount──► │  /workspace/        │
+│  /products.json     │             │  /products.json     │
+│  /docs/             │             │  /docs/             │
+└─────────────────────┘             └──────────┬──────────┘
+                                               │
+                                    Agent runs code in the sandbox
+```
+
+Your Content Nodes are mounted under `/workspace/` inside the sandbox, so the agent can read and write them like local files. Depending on configuration, writes can sync back to PuppyOne.
+
+---
+
+## Two sandbox backends
+
+| Backend | Technology | Best for | Startup speed |
+|------|------|----------|----------|
+| **E2B** | Firecracker microVM | Cloud, higher isolation | About 1 second |
+| **Docker** | Docker container | Self-hosting, flexible setup | About 2 seconds |
+
+---
+
+## Create a sandbox
+
+### Via CLI
+
+```bash
+# Create an E2B sandbox in the cloud
+puppyone conn add sandbox "Python Runner" --type e2b
+
+# Create a Docker sandbox for self-hosted use
+puppyone conn add sandbox "Data Processor" --type docker
+```
+
+### Via API
+
+```bash
+curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
+  -H "Authorization: Bearer sk_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Python Runner",
+    "project_id": "proj_xxx",
+    "runtime": "python",
+    "sandbox_type": "e2b",
+    "mounts": [
+      {
+        "node_id": "node_abc123",
+        "mount_path": "/workspace/products",
+        "mode": "rw"
+      }
+    ],
+    "timeout": 30
+  }'
+```
+
+### Via dashboard
+
+1. Open Project -> **Connections**
+2. Click **Add Connection** and choose **Sandbox**
+3. Configure the sandbox name, runtime, and mounted nodes
+4. Create it
+
+---
+
+## Sandbox configuration
+
+### Runtimes
+
+| Runtime | Preinstalled tools | Best for |
+|--------|---------|---------|
+| `alpine` | bash, jq, coreutils | Lightweight data processing |
+| `python` | Python 3.12, pip, jq | Data analysis and scripting |
+| `node` | Node.js 20, npm, jq | JavaScript processing |
+
+### Mount configuration
+
+Each mount defines which Content Nodes map to which sandbox paths:
+
+```json
+{
+  "mounts": [
+    {
+      "node_id": "node_abc123",
+      "mount_path": "/workspace/products",
+      "mode": "rw"
+    },
+    {
+      "node_id": "node_def456",
+      "mount_path": "/workspace/docs",
+      "mode": "ro"
+    }
+  ]
+}
+```
+
+**Mount modes**:
+
+| Mode | Description |
+|------|------|
+| `rw` | Read/write. The agent can modify data, and changes sync back to PuppyOne |
+| `ro` | Read-only. The agent can read but cannot modify |
+
+### Timeout
+
+The `timeout` parameter controls the maximum duration of a single execution in seconds. The default is 30 seconds, and the maximum is 300 seconds.
+
+---
+
+## Execute code
+
+### Via CLI
+
+```bash
+# Run a simple command
+puppyone sandbox exec <sandbox_id> "ls /workspace/"
+
+# Run a Python script
+puppyone sandbox exec <sandbox_id> "python3 -c 'import json; data = json.load(open(\"/workspace/products/pricing.json\")); print(len(data[\"products\"]))'"
+
+# Run a jq query
+puppyone sandbox exec <sandbox_id> "jq '.products[] | select(.price > 100)' /workspace/products/pricing.json"
+```
+
+### Via API
+
+```bash
+curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec \
+  -H "X-Access-Key: sk_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "python3 /workspace/script.py",
+    "timeout": 30
+  }'
+```
+
+**Response example**:
+
+```json
+{
+  "exit_code": 0,
+  "stdout": "Done processing, 42 records total\n",
+  "stderr": "",
+  "duration_ms": 1250
+}
+```
+
+---
+
+## Real-world examples
+
+### Process JSON with Python
+
+Suppose you have a product list mounted at `/workspace/products/pricing.json` and want to filter expensive products and generate a report.
+
+First create a sandbox and mount the data:
+
+```bash
+puppyone conn add sandbox "Price Analyzer" --type e2b
+```
+
+Then run the analysis script:
+
+```bash
+puppyone sandbox exec <sandbox_id> "python3 -c '
+import json
+
+with open(\"/workspace/products/pricing.json\") as f:
+    data = json.load(f)
+
+expensive = [p for p in data[\"products\"] if p[\"price\"] > 100]
+print(f\"Found {len(expensive)} expensive products:\")
+for p in expensive:
+    print(f\"  - {p['name']}: ${p['price']}\")
+
+# Write analysis results
+report = {
+    \"total\": len(data[\"products\"]),
+    \"expensive_count\": len(expensive),
+    \"expensive_products\": expensive,
+}
+with open(\"/workspace/products/analysis.json\", \"w\") as f:
+    json.dump(report, f, ensure_ascii=False, indent=2)
+print(\"Report saved\")
+'"
+```
+
+Output:
+
+```
+Found 1 expensive product:
+  - Gadget X: $149.99
+Report saved
+```
+
+Because the mount mode is `rw`, the generated `analysis.json` automatically syncs back into PuppyOne as a new Content Node.
+
+### Query structured data with `jq`
+
+`jq` is great for JSON processing, and it is preinstalled in every sandbox runtime.
+
+```bash
+# Extract all product names
+puppyone sandbox exec <sandbox_id> \
+  "jq '[.products[].name]' /workspace/products/pricing.json"
+
+# Calculate average price
+puppyone sandbox exec <sandbox_id> \
+  "jq '.products | map(.price) | add / length' /workspace/products/pricing.json"
+
+# Group by category
+puppyone sandbox exec <sandbox_id> \
+  "jq '.products | group_by(.category) | map({category: .[0].category, count: length})' /workspace/products/pricing.json"
+```
+
+### Install third-party libraries
+
+In the Python runtime, you can install extra libraries:
+
+```bash
+puppyone sandbox exec <sandbox_id> "pip install pandas && python3 -c '
+import pandas as pd
+import json
+
+with open(\"/workspace/products/pricing.json\") as f:
+    data = json.load(f)
+
+df = pd.DataFrame(data[\"products\"])
+print(df.describe())
+print()
+print(\"Grouped by category:\")
+print(df.groupby(\"category\")[\"price\"].agg([\"count\", \"mean\", \"max\"]))
+'"
+```
+
+---
+
+## Read-only vs read/write
+
+### Read-only mode (`ro`)
+
+Best for analysis-only workflows where agents must not modify data accidentally.
+
+```json
+{
+  "mounts": [
+    {
+      "node_id": "node_abc123",
+      "mount_path": "/workspace/data",
+      "mode": "ro"
+    }
+  ]
+}
+```
+
+If the agent tries to write to a read-only mount, it receives a `Permission denied` error.
+
+### Read/write mode (`rw`)
+
+The agent can modify data or create new files, and changes sync back to PuppyOne automatically.
+
+```json
+{
+  "mounts": [
+    {
+      "node_id": "node_abc123",
+      "mount_path": "/workspace/data",
+      "mode": "rw"
+    }
+  ]
+}
+```
+
+Use this when the agent needs to generate reports, transform data formats, or update existing content.
+
+---
+
+## FAQ
+
+### Sandbox startup times out
+
+1. E2B sandboxes usually start in around 1 second, so timeouts often point to a network issue
+2. For Docker sandboxes, make sure Docker is running
+3. In self-hosted environments, make sure the backend is configured with the correct sandbox backend
+
+### Execution times out
+
+1. The default timeout is 30 seconds, and you can increase it when creating the sandbox, up to 300 seconds
+2. For long-running jobs, consider splitting them into multiple runs
+3. Dependency installation such as `pip install` also counts toward execution time
+
+### Changes do not sync back
+
+1. Make sure the mount mode is `rw`, not `ro`
+2. Make sure the file is written inside the mounted path
+3. Sync may lag by a few seconds after writes
+
+### Tools are missing inside the sandbox
+
+The default sandbox environment is intentionally minimal. You can install tools inside a command:
+
+```bash
+# Python sandbox
+puppyone sandbox exec <id> "pip install requests pandas"
+
+# Alpine sandbox
+puppyone sandbox exec <id> "apk add --no-cache curl"
+```
+
+Each sandbox execution runs in an isolated environment, so installed tools are not persisted. If you need a persistent custom environment, use the Docker backend and build a custom image.
+
+---
+
+## Next steps
+
+- [REST API](/en/distribute/rest-api). Access Content Nodes programmatically over HTTP
+- [Distribution Overview](/en/distribute). Compare all distribution methods

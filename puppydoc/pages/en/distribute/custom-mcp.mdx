@@ -1,0 +1,239 @@
+# Custom MCP Clients
+
+Connect PuppyOne data from any MCP-compatible client.
+
+---
+
+## MCP server information
+
+PuppyOne generates a standard MCP server for each connection, and any client that supports MCP can connect to it directly.
+
+**Server URL**:
+
+```
+https://api.puppyone.ai/api/v1/mcp/server/{API_KEY}
+```
+
+**Self-hosted URL**:
+
+```
+http://localhost:9090/api/v1/mcp/server/{API_KEY}
+```
+
+**Transport**: SSE (Server-Sent Events)
+
+---
+
+## Get your API key
+
+### From the dashboard
+
+1. Open Project -> **Connections**
+2. Click **Add Connection** and choose **MCP**
+3. Enter a name and create the connection
+4. Copy the API key
+
+### From the CLI
+
+```bash
+puppyone conn add mcp "My Agent Data"
+```
+
+The output includes the full server URL and API key.
+
+---
+
+## Using `mcp-remote`
+
+Most MCP clients can connect to a remote MCP server through `mcp-remote`. This is the most universal setup:
+
+```bash
+npx -y mcp-remote https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx
+```
+
+---
+
+## Client configuration examples
+
+### Cline (VS Code extension)
+
+Add this in Cline's MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+### Continue (VS Code / JetBrains extension)
+
+Add MCP configuration to `~/.continue/config.json`:
+
+```json
+{
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+        }
+      }
+    ]
+  }
+}
+```
+
+### Zed
+
+Add this in Zed's `settings.json`:
+
+```json
+{
+  "context_servers": {
+    "puppyone": {
+      "command": {
+        "path": "npx",
+        "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+      }
+    }
+  }
+}
+```
+
+---
+
+## Connect directly with the MCP SDK
+
+If you are building your own agent or tool, you can connect to PuppyOne directly with an MCP SDK.
+
+### TypeScript
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+
+const API_KEY = "sk_live_xxx";
+const serverUrl = `https://api.puppyone.ai/api/v1/mcp/server/${API_KEY}`;
+
+const transport = new SSEClientTransport(new URL(serverUrl));
+const client = new Client({
+  name: "my-agent",
+  version: "1.0.0",
+});
+
+await client.connect(transport);
+
+// List available tools
+const tools = await client.listTools();
+console.log("Available tools:", tools);
+
+// Get the data structure
+const schema = await client.callTool({
+  name: "get_data_schema",
+  arguments: {},
+});
+console.log("Schema:", schema);
+
+// Query data
+const result = await client.callTool({
+  name: "query_data",
+  arguments: {
+    path: "/products",
+  },
+});
+console.log("Query result:", result);
+```
+
+### Python
+
+```python
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+
+API_KEY = "sk_live_xxx"
+server_url = f"https://api.puppyone.ai/api/v1/mcp/server/{API_KEY}"
+
+async def main():
+    async with sse_client(server_url) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+
+            # List available tools
+            tools = await session.list_tools()
+            print("Available tools:", tools)
+
+            # Get the data structure
+            schema = await session.call_tool("get_data_schema", {})
+            print("Schema:", schema)
+
+            # Query data
+            result = await session.call_tool("query_data", {
+                "path": "/products",
+            })
+            print("Query result:", result)
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
+```
+
+---
+
+## Available tools
+
+After the connection is established, your agent can use the following MCP tools to operate on Content Nodes:
+
+| Tool | Description | Parameters |
+|------|------|------|
+| `get_data_schema` | Get a structural overview of the Content Node tree | None |
+| `get_all_data` | Get all data | None |
+| `query_data` | Query by path or filter | `path`, `filter` |
+| `preview` | Preview node content with truncation for large data | `path` |
+| `select` | Select one or more nodes precisely | `path`, `ids` |
+| `create` | Create a new Content Node | `path`, `type`, `name`, `content` |
+| `update` | Update node content | `path`, `content` |
+| `delete` | Delete a node | `path` |
+
+---
+
+## FAQ
+
+### SSE connection gets interrupted
+
+Some clients or network proxies do not handle long-lived SSE connections well. Try this:
+
+1. Check whether the client has an SSE timeout setting
+2. If you are behind a corporate proxy, make sure it supports SSE
+3. Using `mcp-remote` usually helps with reconnect logic
+
+### Tool list is empty
+
+1. Make sure the API key is correct
+2. Make sure the PuppyOne project behind it contains data
+3. Try recreating the MCP connection
+
+### SDK version compatibility
+
+PuppyOne supports standard MCP SSE transport. Use the latest MCP SDK:
+
+```bash
+# TypeScript
+npm install @modelcontextprotocol/sdk
+
+# Python
+pip install mcp
+```
+
+---
+
+## Next steps
+
+- [REST API](/en/distribute/rest-api). Access PuppyOne directly over HTTP without MCP
+- [Code Sandbox](/en/distribute/sandbox). Run code against your data in an isolated environment

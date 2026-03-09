@@ -9,6 +9,9 @@
   "google-calendar": "Google Calendar",
   "linear": "Linear",
   "airtable": "Airtable",
+  "posthog": "PostHog",
+  "database": "Database Connection",
   "files": "File Upload",
-  "urls": "Web Crawl"
+  "urls": "Web Crawling",
+  "local-folder": "Local Folder Sync"
 }

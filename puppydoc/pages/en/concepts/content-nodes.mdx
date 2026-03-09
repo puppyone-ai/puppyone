@@ -1,0 +1,137 @@
+# Content Node
+
+A Content Node is the basic unit of data in PuppyOne.
+
+---
+
+## What is a Content Node
+
+Inside every PuppyOne Project is a Content Node tree, much like a cloud file system. You can create folders, store JSON data, edit Markdown documents, and upload attachments, and AI agents can read and write those contents directly.
+
+Unlike a traditional table-based model, the Content Node tree supports both structured data and unstructured documents, with arbitrary nesting for greater flexibility.
+
+---
+
+## Four node types
+
+| Type | Description | Typical Use |
+|------|------|----------|
+| `folder` | A folder that can contain child nodes | Organizing directory structure |
+| `json` | A JSON file for structured data | Product data, configuration, API responses |
+| `markdown` | A Markdown file for rich text content | Docs, knowledge base articles, meeting notes |
+| `file` | A binary uploaded file | PDFs, images, attachments |
+
+---
+
+## Tree structure
+
+Content Nodes form a tree through `parent_id`. Every node has a unique path, just like in a file system:
+
+```
+/
+├── docs/
+│   ├── product-spec.md        ← Markdown node
+│   ├── api-reference.md       ← Markdown node
+│   └── changelog.json         ← JSON node
+├── data/
+│   ├── products.json          ← JSON node
+│   ├── customers.json         ← JSON node
+│   └── attachments/
+│       └── contract.pdf       ← File node
+└── README.md                  ← Markdown node
+```
+
+You can manage Content Nodes much like local files: create directories, move files, rename them, and delete them.
+
+---
+
+## Node properties
+
+Each Content Node includes these core properties:
+
+| Property | Description |
+|------|------|
+| `id` | Unique node ID |
+| `name` | Node name, such as `products.json` |
+| `type` | Node type: `folder`, `json`, `markdown`, or `file` |
+| `path` | Full path, such as `/data/products.json` |
+| `content` | Node contents. JSON or Markdown text for supported types; empty for folders and files |
+| `parent_id` | Parent node ID. Empty for the root node |
+| `project_id` | The Project this node belongs to |
+
+---
+
+## Version history and audit
+
+Every Content Node tracks changes automatically:
+
+- **Version history** - Every edit creates a new version. You can compare any two versions and roll back in one click.
+- **Audit logs** - See who performed which action on which node, and when.
+- **Folder snapshots** - Capture a point-in-time snapshot of an entire directory for bulk rollback.
+
+---
+
+## Access control
+
+Content Nodes support fine-grained access control through FLS, or File Level Security:
+
+- Authorize by path - Agents can only access approved paths
+- Authorize by operation - Restrict access to read-only or read/write
+- Unauthorized paths are **physically invisible** to the agent
+
+For example, a support agent may only be allowed to access `/products` and `/faq`, while everything under `/internal` remains hidden.
+
+---
+
+## Create Content Nodes
+
+### Through the Dashboard
+
+In a project's data view, click the create button to add a folder, JSON file, or Markdown file. Uploaded files can be dragged directly into the page.
+
+### Through the CLI
+
+```bash
+# Create a folder
+puppyone fs mkdir /docs
+
+# Create a JSON file
+puppyone fs touch -t json /data/products.json
+
+# Write content
+puppyone fs write /data/products.json '{"items": []}'
+
+# Create a Markdown file
+puppyone fs touch -t markdown /docs/guide.md
+
+# View the directory structure
+puppyone fs ls /
+```
+
+### Through the API
+
+```bash
+# Create a JSON node
+curl -X POST https://api.puppyone.ai/api/v1/nodes/json \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "proj_xxx",
+    "name": "products.json",
+    "parent_id": "node_data",
+    "content": {"items": []}
+  }'
+```
+
+### Through external sync sources
+
+Once you add external sources like Notion, GitHub, or Gmail as connections, synced data is automatically transformed into Content Nodes and stored in your project's file tree.
+
+---
+
+## Best practices
+
+1. **Organize by folder** - Structure directories by business domain, such as `/products`, `/docs`, and `/support`
+2. **Use JSON for structured data and Markdown for documents** - Pick the node type that best fits the content
+3. **Use paths to separate permissions** - Put content with different access needs into different directories
+4. **Take advantage of version history** - You can always roll back if a change goes wrong

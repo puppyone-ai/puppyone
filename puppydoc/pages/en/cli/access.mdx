@@ -1,0 +1,302 @@
+# Local Folder Sync
+
+`puppyone access`, with aliases `puppyone openclaw` and `puppyone oc`, synchronizes a local folder with the cloud Content Node tree in both directions. It runs a background daemon that continuously watches for file changes so local and cloud data stay in sync in real time.
+
+---
+
+## Command overview
+
+| Command | Description |
+|------|------|
+| `access up [folder]` | Start the sync daemon |
+| `access down [folder]` | Stop the daemon |
+| `access connect [folder]` | Establish the first connection without starting the daemon |
+| `access disconnect [folder]` | Stop syncing and disconnect |
+| `access remove [folder]` | Same as `disconnect` |
+| `access ls` | List all connections |
+| `access ps` | List running daemons |
+| `access status [path]` | Show detailed sync status |
+| `access logs [folder]` | Show daemon logs |
+| `access trigger [folder]` | Force a sync run |
+
+### Top-level shortcuts
+
+| Shortcut | Equivalent |
+|----------|--------|
+| `puppyone ps` | `puppyone access ps` |
+| `puppyone status` | Project dashboard, when called without arguments |
+
+---
+
+## First-time setup
+
+### Quick start
+
+The easiest path is `access up`, which establishes the connection and starts the daemon in one command:
+
+```bash
+puppyone access up ~/workspace --key cli_xxx
+```
+
+Arguments:
+
+| Option | Description |
+|------|------|
+| `[folder]` | Local folder path to sync. Defaults to the current directory |
+| `--key <key>` | Connection access key |
+| `--path <path>` | Target path in the cloud |
+| `-y` | Skip confirmation prompts |
+
+### Step-by-step setup
+
+If you want to connect first and start syncing later, do it in two steps:
+
+```bash
+# Step 1: create the connection
+puppyone access connect ~/workspace --key cli_xxx
+
+# Step 2: start the daemon
+puppyone access up ~/workspace
+```
+
+### Get the access key
+
+Access keys come from connection management. First create a folder-sync connection in the web UI or CLI, then retrieve the key:
+
+```bash
+# Create the connection
+puppyone conn add folder ~/workspace --name "Dev Sync"
+
+# Get the access key
+puppyone conn key <connection-id>
+```
+
+---
+
+## Daemon management
+
+### Start the daemon
+
+```bash
+# Start sync for a folder
+puppyone access up ~/workspace
+
+# Provide the key on first start
+puppyone access up ~/workspace --key cli_xxx
+
+# Skip confirmation
+puppyone access up ~/workspace -y
+```
+
+### Stop the daemon
+
+```bash
+# Stop syncing a folder
+puppyone access down ~/workspace
+```
+
+Stopping the daemon keeps the connection mapping, so the next `access up` can resume directly.
+
+### Show running daemons
+
+```bash
+puppyone access ps
+
+# Or the top-level shortcut
+puppyone ps
+```
+
+Example output:
+
+```
+PID    Folder              Status   Synced At
+12345  ~/workspace         running  2025-01-15 14:30:00
+67890  ~/projects/blog     running  2025-01-15 14:28:00
+```
+
+---
+
+## Inspect status
+
+### Connection list
+
+List all established sync connections:
+
+```bash
+puppyone access ls
+```
+
+### Detailed sync status
+
+Show detailed sync status for a folder:
+
+```bash
+puppyone access status ~/workspace
+```
+
+The output includes the connection ID, sync direction, last sync time, file counts, and queued files waiting to sync.
+
+---
+
+## Logs and debugging
+
+### View daemon logs
+
+```bash
+# Show recent logs
+puppyone access logs ~/workspace
+
+# Follow logs live, like tail -f
+puppyone access logs ~/workspace -f
+
+# Show a specific number of lines
+puppyone access logs ~/workspace -n 50
+```
+
+### Force sync
+
+If you think a change was missed, manually trigger a full sync:
+
+```bash
+puppyone access trigger ~/workspace
+```
+
+---
+
+## Disconnect
+
+### Stop and disconnect
+
+Stop the daemon and remove the connection mapping:
+
+```bash
+puppyone access disconnect ~/workspace
+
+# Or
+puppyone access remove ~/workspace
+```
+
+After disconnecting, local files remain in place, but they no longer stay synced with the cloud.
+
+---
+
+## Local config layout
+
+### Workspace config
+
+Each connected folder gets a `.puppyone/` directory containing sync configuration for that workspace:
+
+```
+~/workspace/
+├── .puppyone/
+│   ├── config.json    # Connection config, key, remote path, etc.
+│   └── state.json     # Sync state, last sync time, cursors, etc.
+├── docs/
+├── config/
+└── ...
+```
+
+### Global registry
+
+All sync connections are also registered in a global file:
+
+```
+~/.puppyone/registry.json
+```
+
+That file stores the folder-to-connection mapping used by `access ls`.
+
+---
+
+## Troubleshooting
+
+### Daemon will not start
+
+```bash
+# Check for leftover processes
+puppyone access ps
+
+# If any remain, stop them
+puppyone access down ~/workspace
+
+# Start again
+puppyone access up ~/workspace
+```
+
+If it still fails, inspect the logs:
+
+```bash
+puppyone access logs ~/workspace -n 100
+```
+
+Common causes:
+- Access key expired or is invalid. Regenerate it with `puppyone conn key <id> --regenerate`
+- API URL is unreachable. Check the network or config with `puppyone config show`
+- Port conflict. Make sure no other process is blocking it
+
+### Sync appears stuck
+
+If file changes do not reach the cloud for a long time:
+
+```bash
+# Check current status
+puppyone access status ~/workspace
+
+# Force a sync
+puppyone access trigger ~/workspace
+
+# Follow logs live
+puppyone access logs ~/workspace -f
+```
+
+### Sync conflict
+
+If the same file changes locally and in the cloud at the same time, you may get a conflict. Check conflict state with:
+
+```bash
+puppyone access status ~/workspace
+```
+
+Conflicted files are marked, and you can choose whether to keep the local or cloud version. For more details, see [Conflict Resolution](/en/conflict).
+
+---
+
+## Practical workflows
+
+### Sync a development workspace
+
+Keep a local dev folder synced with the cloud so agents can work directly on your files:
+
+```bash
+# Create the connection and start sync
+puppyone conn add folder ~/projects/my-app --name "My App"
+puppyone conn key <id>
+puppyone access up ~/projects/my-app --key <key>
+
+# Verify sync health
+puppyone access status ~/projects/my-app
+```
+
+### Sync multiple folders
+
+Run multiple sync daemons at the same time:
+
+```bash
+puppyone access up ~/workspace
+puppyone access up ~/projects/blog
+puppyone access up ~/docs
+
+# Show all daemons
+puppyone ps
+```
+
+### Use in scripts
+
+```bash
+#!/bin/bash
+# Start sync and wait for the first sync to complete
+puppyone access up ~/workspace --key cli_xxx -y
+
+# Check status
+puppyone access status ~/workspace --json | jq '.status'
+```

@@ -1,0 +1,174 @@
+# Claude Desktop
+
+Connect your PuppyOne data to Claude Desktop through MCP.
+
+---
+
+## Prerequisites
+
+- Claude Desktop, latest version
+- A PuppyOne account with data already imported into your project
+
+---
+
+## Setup steps
+
+### Step 1: Get your MCP configuration
+
+Just like [Cursor](/en/distribute/cursor), you can get the MCP connection information from the dashboard or CLI:
+
+```bash
+puppyone conn add mcp "My Data"
+```
+
+### Step 2: Edit the config file
+
+Open the Claude Desktop config file:
+
+**macOS**:
+
+```bash
+open ~/Library/Application\ Support/Claude/claude_desktop_config.json
+```
+
+**Windows**:
+
+```
+%APPDATA%\Claude\claude_desktop_config.json
+```
+
+If the file does not exist yet, create it manually.
+
+### Step 3: Add the MCP server
+
+Write the following config into the file:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+Replace `sk_live_xxx` with your actual API key.
+
+### Step 4: Restart Claude Desktop
+
+Save the file, fully quit Claude Desktop, and open it again. In the chat toolbar, you should see the PuppyOne tools icon.
+
+---
+
+## Multiple data sources
+
+If you have multiple PuppyOne projects or data sources, you can add multiple MCP servers:
+
+```json
+{
+  "mcpServers": {
+    "puppyone-product-data": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_products"]
+    },
+    "puppyone-tech-docs": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_docs"]
+    }
+  }
+}
+```
+
+Each server is an independent data connection, and Claude can call them in the same conversation.
+
+---
+
+## Self-hosted config
+
+If you are using a self-hosted PuppyOne backend:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:9090/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+---
+
+## Usage examples
+
+### Document analysis
+
+```
+Please analyze the topic distribution across all documents in /docs/ in PuppyOne
+and give me a summary.
+```
+
+Claude Desktop will read your documents through MCP and perform deeper analysis.
+
+### Data query
+
+```
+Check the registration-time distribution of all customers under /customers/.
+Which customers have been inactive for more than 30 days?
+```
+
+### Content creation
+
+```
+Using the latest three meeting notes in /meeting-notes/,
+draft a weekly project report and write it to /reports/weekly-0309.json.
+```
+
+Claude Desktop first reads the meeting notes, generates the report, then writes a new node with the MCP `create` tool.
+
+---
+
+## How it differs from Cursor
+
+| Feature | Cursor | Claude Desktop |
+|------|--------|---------------|
+| Context window | Medium | Larger, better for long-document analysis |
+| Code editing | Direct file editing | Outputs code snippets only |
+| MCP config | `.cursor/mcp.json` | `claude_desktop_config.json` |
+| Typical use cases | Coding plus data queries | Document analysis, report generation, data exploration |
+| Multi-model support | Multiple models | Claude family |
+
+Both use the same MCP protocol and API key, so you can configure both and switch depending on the task.
+
+---
+
+## Troubleshooting
+
+### MCP tools do not appear
+
+1. Make sure the config file path is correct
+2. Make sure the JSON syntax is valid
+3. Fully quit Claude Desktop, not just minimize it, and restart
+4. Make sure Node.js 18+ is installed
+
+### Tool calls return empty data
+
+1. Make sure your PuppyOne project contains data
+2. Check the connection status in the PuppyOne dashboard
+3. Make sure the API key has not expired
+
+### Unstable connection
+
+1. Check your network connection
+2. Claude Desktop sometimes needs a few seconds to complete the MCP handshake
+3. If it keeps failing, remove the config and add it again
+
+---
+
+## Next steps
+
+- [Claude Code integration](/en/distribute/claude-code). Let Claude Code work on your data through file sync
+- [Custom MCP Clients](/en/distribute/custom-mcp). Use PuppyOne in other MCP-compatible clients

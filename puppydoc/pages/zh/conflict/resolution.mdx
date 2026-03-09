@@ -1,0 +1,200 @@
+# 冲突解决策略
+
+了解 PuppyOne 处理并发编辑冲突的三种策略，以及何时使用它们。
+
+---
+
+## 三方合并（Three-way Merge）
+
+三方合并是处理并发编辑最智能的方式。系统对比三个版本来判断如何合并：
+
+```
+        基础版本 (Base)
+       ┌──────┴──────┐
+       │             │
+   版本 A 的修改   版本 B 的修改
+   (Agent A)      (Agent B)
+       │             │
+       └──────┬──────┘
+              │
+        合并结果 (Merged)
+```
+
+### 工作流程
+
+1. Agent A 和 Agent B 同时基于版本 v3 进行修改
+2. Agent A 先提交，版本变为 v4
+3. Agent B 提交时，系统检测到基础版本已变化
+4. 系统自动对比：Base (v3)、Agent A 的修改 (v4)、Agent B 的修改
+5. 非冲突部分自动合并，冲突部分标记出来
+
+### 自动合并成功的场景
+
+当两方修改了文件的不同部分，系统可以自动合并：
+
+```json
+// 基础版本 (v3)
+{
+  "title": "API 设计文档",
+  "author": "Alice",
+  "status": "draft"
+}
+
+// Agent A 修改了 author
+{
+  "title": "API 设计文档",
+  "author": "Alice & Bob",
+  "status": "draft"
+}
+
+// Agent B 修改了 status
+{
+  "title": "API 设计文档",
+  "author": "Alice",
+  "status": "review"
+}
+
+// 自动合并结果——两处修改都保留
+{
+  "title": "API 设计文档",
+  "author": "Alice & Bob",
+  "status": "review"
+}
+```
+
+### 合并冲突的场景
+
+当两方修改了文件的同一部分，系统无法自动决定保留哪个：
+
+```json
+// 基础版本
+{ "price": 99 }
+
+// Agent A 把 price 改为 89
+{ "price": 89 }
+
+// Agent B 把 price 改为 79
+{ "price": 79 }
+
+// 冲突！系统无法自动合并，需要人工介入
+```
+
+此时提交会返回冲突信息，包含两个版本的内容，由你决定如何处理。
+
+---
+
+## 最终写入优先（Last-write-wins）
+
+最简单直接的策略：后写入的内容覆盖先前的内容，不做合并。
+
+```
+时间线：
+  t1: Agent A 写入内容 "版本 A"
+  t2: Agent B 写入内容 "版本 B"  (t2 > t1)
+  
+结果：最终内容为 "版本 B"
+      "版本 A" 自动保存在版本历史中
+```
+
+### 使用场景
+
+- **OpenClaw 文件同步**：本地文件夹与云端同步时默认使用此策略。本地文件修改后直接推送到云端，覆盖当前版本
+- **外部数据源同步**：从 Notion、GitHub 等拉取数据时，外部源的最新版本直接覆盖旧数据
+- **对实时性要求高、冲突概率低的场景**
+
+### 安全保障
+
+虽然策略简单，但不用担心数据丢失：
+
+- 每次覆盖前，当前版本会自动保存到版本历史
+- 你可以随时查看历史版本并回滚
+
+```bash
+# 查看文件的版本历史
+puppyone fs versions /data/config.json
+
+# 回滚到指定版本
+puppyone fs rollback /data/config.json 3
+```
+
+---
+
+## 手动解决冲突
+
+当三方合并无法自动处理冲突时，系统会返回冲突信息，需要你手动决定。
+
+### 冲突响应示例
+
+```json
+{
+  "status": "conflict",
+  "base_version": 3,
+  "conflicts": [
+    {
+      "path": "/price",
+      "base_value": 99,
+      "current_value": 89,
+      "incoming_value": 79
+    }
+  ]
+}
+```
+
+### 解决方式
+
+你可以选择：
+
+1. **保留当前版本** — 忽略新的修改
+2. **使用新版本** — 覆盖当前内容
+3. **手动合并** — 综合两个版本的修改，提交一个新的版本
+
+---
+
+## 最佳实践
+
+### 用 Checkout/Commit 保护关键数据
+
+对于不能出错的关键数据（如定价配置、API 规范），使用 Checkout/Commit 工作流锁定后再编辑：
+
+```bash
+# 检出 → 编辑 → 提交，全程独占
+curl -X POST ".../api/v1/collab/checkout" \
+  -d '{"node_ids": ["pricing_node"], "project_id": "proj_123"}'
+```
+
+### 用路径权限减少冲突
+
+通过 FLS（File Level Security）路径权限，给不同 Agent 分配不同的工作路径，从根本上避免并发写入同一文件：
+
+```yaml
+# Agent A 只能写 /specs
+Agent A:
+  paths: ["/specs"]
+
+# Agent B 只能写 /docs
+Agent B:
+  paths: ["/docs"]
+```
+
+两个 Agent 各写各的区域，不会冲突。
+
+### 依赖版本历史作为安全网
+
+无论使用哪种策略，版本历史都会保留所有修改记录。即使出现意外覆盖，你也可以随时回滚到之前的版本。
+
+### 关注审计日志
+
+定期查看审计日志，了解哪些 Agent 在修改哪些文件，及时发现异常的并发修改模式：
+
+```bash
+puppyone fs audit /critical-data
+```
+
+---
+
+## 下一步
+
+- [Checkout / Commit 工作流](/zh/conflict/checkout) — 锁定编辑的详细流程
+- [审计日志](/zh/audit) — 追踪所有操作记录
+- [版本控制](/zh/version-control) — 查看和回滚历史版本
+- [Auth for Agents](/zh/auth-for-agents) — 用路径权限减少冲突

@@ -7,7 +7,7 @@
 ## 前提条件
 
 - Docker & Docker Compose
-- 或者：Python 3.10+, Node.js 18+
+- 或者：Python 3.12+, Node.js 18+, [uv](https://docs.astral.sh/uv/) 包管理器
 
 ---
 
@@ -20,15 +20,23 @@ git clone https://github.com/puppyone-ai/puppyone.git
 cd puppyone
 ```
 
-### 2. 启动服务
+### 2. 配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，填入必要配置（参见下方环境变量说明）。
+
+### 3. 启动服务
 
 ```bash
 docker compose up --build
 ```
 
-### 3. 访问服务
+### 4. 访问服务
 
-- **Frontend**: http://localhost:4000
+- **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:9090
 
 ---
@@ -47,10 +55,8 @@ cd puppyone
 ```bash
 cd backend
 cp .env.example .env  # 配置环境变量
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m uvicorn src.main:app --port 9090
+uv sync
+uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info --no-access-log
 ```
 
 ### 3. 启动前端
@@ -64,7 +70,7 @@ npm run dev
 
 ### 4. 访问
 
-- **Frontend**: http://localhost:4000
+- **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:9090
 
 ---
@@ -74,18 +80,21 @@ npm run dev
 主要配置项（在 `.env` 文件中）：
 
 ```bash
-# 数据库
-DATABASE_URL=postgresql://...
+# Supabase（必填）
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_KEY=your-supabase-service-role-key
 
-# JWT 密钥
-JWT_SECRET=your-secret-key
+# S3 存储
+S3_BUCKET=your-bucket
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
 
-# OpenAI（用于 ETL）
+# LLM（用于 ETL 和 Agent 对话）
 OPENAI_API_KEY=sk-...
 
-# Supabase（可选）
-SUPABASE_URL=...
-SUPABASE_KEY=...
+# Redis（任务队列）
+REDIS_URL=redis://localhost:6379
 ```
 
 ---
@@ -121,16 +130,17 @@ Cursor 配置：
 
 ### 数据库连接失败
 
-检查 `DATABASE_URL` 配置是否正确。
+检查 `SUPABASE_URL` 和 `SUPABASE_KEY` 配置是否正确。
 
 ### MCP 连接失败
 
-确保 `MCP_SERVER_URL` 环境变量配置正确。
+确保后端服务正常运行，且 API Key 有效。
 
 ---
 
 ## 下一步
 
-- [连接数据源](/zh/connect)
-- [设置访问权限](/zh/access)
-- [连接 Agent](/zh/agents)
+- [CLI 快速开始](/zh/quickstart/cli) — 用命令行管理你的数据
+- [连接数据源](/zh/connect) — 接入 Notion、GitHub 等平台
+- [核心概念](/zh/concepts) — 了解 Content Node、Connection 等核心概念
+- [分发给 Agent](/zh/distribute) — MCP、OpenClaw、REST API

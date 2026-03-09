@@ -1,0 +1,112 @@
+# Database Connection
+
+Connect to an external database and import table data into PuppyOne as content nodes.
+
+---
+
+## Overview
+
+The database connector lets you connect directly to relational databases such as PostgreSQL and MySQL, browse table structures, preview data, and save selected table data as JSON content nodes in PuppyOne.
+
+This allows your agents to query and analyze real business data without requiring manual exports.
+
+---
+
+## Supported databases
+
+| Database | Connection String Format |
+|--------|---------------|
+| PostgreSQL | `postgresql://user:pass@host:5432/dbname` |
+| MySQL | `mysql://user:pass@host:3306/dbname` |
+
+---
+
+## Set up with the CLI
+
+### Create a connection
+
+```bash
+puppyone db connect "postgresql://user:pass@host:5432/mydb" --name "Prod DB"
+```
+
+### List existing connections
+
+```bash
+puppyone db ls
+```
+
+### Browse database tables
+
+```bash
+puppyone db tables <connection_id>
+```
+
+### Preview table data
+
+```bash
+puppyone db preview <connection_id> <table_name>
+```
+
+### Save table data to PuppyOne
+
+Save the data from database tables as JSON content nodes in your Project:
+
+```bash
+puppyone db save <connection_id>
+```
+
+### Delete a connection
+
+```bash
+puppyone db rm <connection_id>
+```
+
+---
+
+## Set up with the Dashboard
+
+1. Open your Project → **Connections** → **Add Connection**
+2. Select **Database**
+3. Enter the database connection details:
+   - **Connection string**, or enter Host, Port, Database, Username, and Password separately
+   - **Connection name** for identification
+4. Click **Test Connection** to verify connectivity
+5. Once the connection succeeds, browse the table structure and choose which tables to import
+6. Click **Save** to store the table data as content nodes
+
+---
+
+## API endpoints
+
+```bash
+# Create a connection
+curl -X POST "https://api.puppyone.ai/api/v1/db-connector/connections" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_string": "postgresql://user:pass@host:5432/mydb",
+    "name": "Prod DB",
+    "project_id": "proj_xxx"
+  }'
+
+# List database tables
+curl "https://api.puppyone.ai/api/v1/db-connector/connections/{id}/tables" \
+  -H "Authorization: Bearer <token>"
+
+# Preview table data
+curl "https://api.puppyone.ai/api/v1/db-connector/connections/{id}/tables/users/preview" \
+  -H "Authorization: Bearer <token>"
+
+# Save as content nodes
+curl -X POST "https://api.puppyone.ai/api/v1/db-connector/connections/{id}/save" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Security notes
+
+- Database credentials are stored using AES-256-GCM encryption
+- Connection details are never shown in plaintext in the frontend
+- It is recommended to use a read-only database account
+- SSL/TLS encrypted connections are supported

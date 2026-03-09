@@ -1,0 +1,177 @@
+# CLI 快速开始
+
+5 分钟用命令行跑通完整工作流。
+
+---
+
+## 安装
+
+```bash
+npm install -g puppyone
+```
+
+验证安装：
+
+```bash
+puppyone --version
+```
+
+---
+
+## 登录
+
+```bash
+puppyone auth login -e user@example.com -p password
+```
+
+登录成功后，CLI 会自动保存凭证，后续命令无需重复认证。
+
+---
+
+## 设置组织和项目
+
+```bash
+puppyone org use "My Organization"
+puppyone project use "My Project"
+```
+
+设置完成后，后续所有操作都会默认作用于当前项目。
+
+---
+
+## 浏览文件
+
+```bash
+# 列出根目录下的内容
+puppyone fs ls
+
+# 查看完整目录树
+puppyone fs tree
+```
+
+---
+
+## 创建内容
+
+puppyone 中的数据以 Content Node 树形式组织，支持文件夹、JSON、Markdown 和文件四种类型。
+
+```bash
+# 创建文件夹
+puppyone fs mkdir /docs
+puppyone fs mkdir /products
+
+# 创建 Markdown 文件并写入内容
+puppyone fs touch /docs/readme.md -t markdown
+puppyone fs write /docs/readme.md -d "# Hello World"
+
+# 创建 JSON 文件并写入内容
+puppyone fs touch -t json /products/list.json
+puppyone fs write /products/list.json -d '[{"name": "Widget", "price": 99}]'
+```
+
+---
+
+## 连接数据源
+
+从外部平台同步数据到你的 Context File System。
+
+```bash
+# 授权 Notion
+puppyone sync auth notion
+
+# 将 Notion 数据库连接到指定目录
+puppyone conn add notion https://notion.so/your-database-id --folder /docs
+```
+
+支持 Notion、GitHub、Gmail、Google Drive、Linear、Airtable 等 15+ 平台。
+
+---
+
+## 创建 MCP 端点
+
+为 Cursor、Claude Desktop 等 MCP 客户端创建接入点。
+
+```bash
+puppyone conn add mcp "My API"
+```
+
+创建后会返回 MCP Server URL 和 API Key，将其配置到客户端即可。
+
+---
+
+## 挂载本地文件夹
+
+通过 OpenClaw 协议实现本地文件夹与云端的双向实时同步。
+
+```bash
+# 将本地文件夹注册为连接
+puppyone conn add folder ~/workspace --name "Dev Sync"
+
+# 启动同步守护进程
+puppyone access up ~/workspace
+```
+
+启动后，本地文件夹中的变更会自动同步到云端，反之亦然。
+
+---
+
+## 查看项目状态
+
+```bash
+# 项目概览
+puppyone status
+
+# 列出所有连接（同步、MCP、Agent、本地文件夹等）
+puppyone conn ls
+```
+
+---
+
+## 完整示例
+
+以下是从零开始的完整操作流程：
+
+```bash
+# 安装并登录
+npm install -g puppyone
+puppyone auth login -e user@example.com -p password
+
+# 选择项目
+puppyone org use "My Organization"
+puppyone project use "My Project"
+
+# 创建目录结构
+puppyone fs mkdir /docs
+puppyone fs mkdir /products
+
+# 写入内容
+puppyone fs touch /docs/readme.md -t markdown
+puppyone fs write /docs/readme.md -d "# 产品知识库"
+puppyone fs touch /products/catalog.json -t json
+puppyone fs write /products/catalog.json -d '[{"name": "Widget Pro", "price": 99.99}]'
+
+# 连接 Notion 数据
+puppyone sync auth notion
+puppyone conn add notion https://notion.so/db-id --folder /docs/notion
+
+# 为 Agent 创建 MCP 端点
+puppyone conn add mcp "Production API"
+
+# 挂载本地文件夹
+puppyone conn add folder ~/workspace --name "Local Dev"
+puppyone access up ~/workspace
+
+# 检查结果
+puppyone fs tree
+puppyone conn ls
+puppyone status
+```
+
+---
+
+## 下一步
+
+- [核心概念](/zh/concepts) — 了解 Content Node、Connection 等核心概念
+- [连接更多数据源](/zh/connect) — 接入更多平台
+- [分发给 Agent](/zh/distribute) — MCP、OpenClaw、REST API
+- [CLI 完整参考](/zh/cli) — 所有命令和参数

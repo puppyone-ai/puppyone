@@ -1,0 +1,173 @@
+# 操作日志查询
+
+查看、筛选和分析 Content Node 的完整操作记录。
+
+---
+
+## 查看审计日志
+
+PuppyOne 提供三种方式查看审计日志：Dashboard、CLI 和 API。
+
+### Dashboard
+
+1. 打开 Project，进入 **Data** 页面
+2. 选中目标文件或文件夹
+3. 点击右侧面板的 **Audit** 标签页
+4. 查看该节点的所有操作记录
+
+### CLI
+
+使用 `puppyone fs audit` 命令查看任意路径的审计日志：
+
+```bash
+# 查看某个文件的审计日志
+puppyone fs audit /docs/readme.md
+
+# 查看文件夹下所有操作
+puppyone fs audit /docs
+
+# 输出为 JSON 格式
+puppyone fs audit /docs/readme.md --json
+```
+
+输出示例：
+
+```
+PATH: /docs/readme.md
+──────────────────────────────────────────────────────
+TIME                  ACTOR              ACTION
+──────────────────────────────────────────────────────
+2025-03-09 14:30:00   alice@team.com     update
+2025-03-09 12:15:00   Research Agent     update
+2025-03-08 09:00:00   bob@team.com       create
+```
+
+### API
+
+调用 REST API 获取指定节点的审计日志：
+
+```bash
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/audit-logs" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+响应示例：
+
+```json
+{
+  "logs": [
+    {
+      "actor": "alice@team.com",
+      "action": "update",
+      "node_path": "/docs/readme.md",
+      "timestamp": "2025-03-09T14:30:00Z",
+      "metadata": {
+        "source": "dashboard",
+        "version": 5
+      }
+    },
+    {
+      "actor": "Research Agent",
+      "action": "update",
+      "node_path": "/docs/readme.md",
+      "timestamp": "2025-03-09T12:15:00Z",
+      "metadata": {
+        "source": "mcp",
+        "version": 4
+      }
+    }
+  ]
+}
+```
+
+---
+
+## 日志条目结构
+
+每条审计日志包含以下字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `actor` | string | 操作者身份——用户邮箱（如 `alice@team.com`）或 Agent 名称（如 `Research Agent`） |
+| `action` | string | 操作类型，见下方列表 |
+| `node_path` | string | 被操作的 Content Node 路径 |
+| `timestamp` | string | 操作时间（ISO 8601 格式） |
+| `metadata` | object | 附加信息，包含操作来源、版本号等 |
+
+---
+
+## 操作类型
+
+| 操作类型 | 说明 | 典型场景 |
+|----------|------|----------|
+| `create` | 创建新节点 | 新建文件、文件夹；Agent 生成新内容 |
+| `update` | 修改节点内容 | 编辑文件内容；Agent 更新数据 |
+| `delete` | 删除节点 | 删除文件或文件夹 |
+| `rollback` | 回滚到历史版本 | 恢复到之前的版本 |
+| `sync` | 从外部数据源同步 | Notion / GitHub 等连接器同步数据 |
+| `checkout` | 检出节点 | 锁定节点进行编辑 |
+| `commit` | 提交检出的修改 | 完成编辑，释放锁定 |
+
+---
+
+## 筛选和搜索
+
+当前 CLI 的 `puppyone fs audit` 以快速查看为主，会直接输出完整日志。若你需要按操作者、时间范围或操作类型做更精细的筛选，推荐两种方式：
+
+1. 使用 `--json` 输出后，配合 `jq` 或脚本做本地过滤
+2. 直接调用 REST API，在你的程序里按字段筛选
+
+```bash
+# 导出 JSON 后自行筛选
+puppyone fs audit /docs/readme.md --json
+```
+
+---
+
+## 实际场景
+
+### 场景一：谁最后修改了这个文件？
+
+```bash
+puppyone fs audit /specs/api-design.md
+```
+
+日志最上方就是最近一次操作，可以直接看到修改者和时间。
+
+### 场景二：某个 Agent 在过去 24 小时做了什么？
+
+```bash
+puppyone fs audit / --json
+```
+
+导出完整日志后，你可以在自己的脚本或 `jq` 里筛出 `Content Writer` 在最近 24 小时内的记录，确认它是否按预期工作。
+
+### 场景三：追踪某个文件夹的所有变更
+
+```bash
+puppyone fs audit /products
+```
+
+查看 `/products` 文件夹下的完整操作历史；如果需要限制时间范围，建议配合 `--json` 输出后自行过滤。
+
+### 场景四：排查数据异常
+
+当发现数据不正确时，通过审计日志定位问题：
+
+```bash
+# 查看该文件的完整操作历史
+puppyone fs audit /data/pricing.json
+
+# 结合版本历史，对比变更前后的内容差异
+puppyone fs versions /data/pricing.json
+```
+
+找到导致问题的那次修改后，可以使用版本回滚恢复数据。
+
+---
+
+## 下一步
+
+- [版本控制](/zh/version-control) — 查看和回滚文件版本
+- [冲突解决](/zh/conflict) — 处理多方并发编辑
+- [Auth for Agents](/zh/auth-for-agents) — 控制 Agent 的访问范围

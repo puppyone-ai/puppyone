@@ -1,0 +1,112 @@
+# 数据库连接
+
+连接外部数据库，将表数据导入 PuppyOne 作为内容节点。
+
+---
+
+## 概述
+
+数据库连接器允许你直接连接 PostgreSQL、MySQL 等关系型数据库，浏览表结构、预览数据，并将选定的表数据保存为 PuppyOne 中的 JSON 内容节点。
+
+这让你的 Agent 能够基于真实的业务数据库进行查询和分析，而无需手动导出数据。
+
+---
+
+## 支持的数据库
+
+| 数据库 | 连接字符串格式 |
+|--------|---------------|
+| PostgreSQL | `postgresql://user:pass@host:5432/dbname` |
+| MySQL | `mysql://user:pass@host:3306/dbname` |
+
+---
+
+## 通过 CLI 设置
+
+### 创建连接
+
+```bash
+puppyone db connect "postgresql://user:pass@host:5432/mydb" --name "Prod DB"
+```
+
+### 列出已有连接
+
+```bash
+puppyone db ls
+```
+
+### 浏览数据库表
+
+```bash
+puppyone db tables <connection_id>
+```
+
+### 预览表数据
+
+```bash
+puppyone db preview <connection_id> <table_name>
+```
+
+### 保存表数据到 PuppyOne
+
+将数据库表的数据保存为项目中的 JSON 内容节点：
+
+```bash
+puppyone db save <connection_id>
+```
+
+### 删除连接
+
+```bash
+puppyone db rm <connection_id>
+```
+
+---
+
+## 通过 Dashboard 设置
+
+1. 进入项目 → **Connections** → **Add Connection**
+2. 选择 **Database**
+3. 输入数据库连接信息：
+   - **连接字符串** 或分别填写 Host、Port、Database、Username、Password
+   - **连接名称**（用于标识）
+4. 点击 **Test Connection** 测试连通性
+5. 连接成功后，浏览表结构并选择要导入的表
+6. 点击 **Save** 将表数据保存为内容节点
+
+---
+
+## API 接口
+
+```bash
+# 创建连接
+curl -X POST "https://api.puppyone.ai/api/v1/db-connector/connections" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_string": "postgresql://user:pass@host:5432/mydb",
+    "name": "Prod DB",
+    "project_id": "proj_xxx"
+  }'
+
+# 列出数据库表
+curl "https://api.puppyone.ai/api/v1/db-connector/connections/{id}/tables" \
+  -H "Authorization: Bearer <token>"
+
+# 预览表数据
+curl "https://api.puppyone.ai/api/v1/db-connector/connections/{id}/tables/users/preview" \
+  -H "Authorization: Bearer <token>"
+
+# 保存为内容节点
+curl -X POST "https://api.puppyone.ai/api/v1/db-connector/connections/{id}/save" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## 安全说明
+
+- 数据库连接凭证使用 AES-256-GCM 加密存储
+- 连接信息不会在前端明文展示
+- 建议使用只读数据库账号进行连接
+- 支持 SSL/TLS 加密连接

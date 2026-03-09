@@ -1,0 +1,294 @@
+# 统一连接管理
+
+`puppyone conn`（完整写法：`puppyone connection`）是 PuppyOne 的统一连接管理命令。所有外部集成——数据源同步、Agent、MCP 端点、沙盒、本地文件夹——都通过同一套命令管理。
+
+---
+
+## 命令总览
+
+| 命令 | 说明 |
+|------|------|
+| `conn add <type> [source]` | 创建连接 |
+| `conn ls` | 列出所有连接 |
+| `conn info <id>` | 查看连接详情 |
+| `conn pause <id>` | 暂停连接 |
+| `conn resume <id>` | 恢复连接 |
+| `conn rm <id>` | 删除连接 |
+| `conn key <id>` | 查看 Access Key |
+| `conn refresh <id>` | 手动触发同步 |
+| `conn trigger <id> <mode>` | 设置触发模式 |
+| `conn update <id>` | 更新配置 |
+| `conn logs <id>` | 查看执行记录 |
+| `conn run <id>` | 触发执行 |
+| `conn schema <provider>` | 查看配置字段 |
+
+---
+
+## 创建连接
+
+`conn add` 是创建连接的入口，第一个参数指定连接类型，后续参数和选项因类型而异。
+
+### 连接类型
+
+| 类型 | 说明 | 示例 |
+|------|------|------|
+| `notion` | Notion 数据源 | `conn add notion <url>` |
+| `github` | GitHub 仓库 | `conn add github <url>` |
+| `gmail` | Gmail 邮箱 | `conn add gmail` |
+| `url` | 网页抓取 | `conn add url <url>` |
+| `agent` | AI Agent | `conn add agent "name"` |
+| `mcp` | MCP 端点 | `conn add mcp "name"` |
+| `sandbox` | 代码沙盒 | `conn add sandbox "name"` |
+| `folder` | 本地文件夹同步 | `conn add folder <path>` |
+
+### 通用选项
+
+| 选项 | 说明 |
+|------|------|
+| `--name <name>` | 连接名称 |
+| `--folder <path>` | 数据存放的云端目录 |
+| `--mode <mode>` | 同步模式 |
+| `--model <model>` | Agent 使用的模型 |
+| `--system-prompt <text>` | Agent 的系统提示词 |
+| `--type <type>` | 沙盒类型（`e2b` / `docker`） |
+| `--api-key <key>` | API Key |
+| `--config <json>` | 高级配置（JSON 格式） |
+
+---
+
+### 数据源连接
+
+从外部平台拉取数据到你的 Content Node 树：
+
+```bash
+# Notion — 同步一个页面
+puppyone conn add notion https://notion.so/my-page-id --folder /docs
+
+# GitHub — 同步一个仓库
+puppyone conn add github https://github.com/org/repo --folder /code
+
+# Gmail — 同步邮件
+puppyone conn add gmail
+
+# 网页抓取
+puppyone conn add url https://example.com/article --folder /imports
+```
+
+### Agent 连接
+
+创建一个 AI Agent，绑定模型和工具：
+
+```bash
+# 创建一个 GPT-4o Agent
+puppyone conn add agent "My Bot" --model gpt-4o
+
+# 创建带系统提示词的 Agent
+puppyone conn add agent "Analyst" --model gpt-4o --system-prompt "你是一个数据分析师"
+```
+
+### MCP 端点
+
+创建 MCP 端点，让 Cursor、Claude Desktop 等客户端直接访问你的数据：
+
+```bash
+puppyone conn add mcp "My Endpoint"
+```
+
+创建后使用 `conn key` 获取 Access Key，配置到客户端中。
+
+### 沙盒
+
+创建隔离的代码执行环境：
+
+```bash
+# 默认沙盒
+puppyone conn add sandbox "Runner"
+
+# 指定 E2B 类型
+puppyone conn add sandbox "Runner" --type e2b
+```
+
+### 本地文件夹同步
+
+将本地目录与云端 Content Node 树双向同步：
+
+```bash
+puppyone conn add folder ~/workspace --name "Dev Sync"
+```
+
+---
+
+## 查看与管理
+
+### 列出所有连接
+
+```bash
+# 列出所有连接
+puppyone conn ls
+
+# 按类型筛选
+puppyone conn ls --provider notion
+
+# 按状态筛选
+puppyone conn ls --status active
+
+# JSON 输出
+puppyone conn ls --json
+```
+
+### 查看连接详情
+
+```bash
+puppyone conn info conn_abc123
+```
+
+### 暂停与恢复
+
+```bash
+# 暂停一个数据源同步
+puppyone conn pause conn_abc123
+
+# 恢复
+puppyone conn resume conn_abc123
+```
+
+### 删除连接
+
+```bash
+puppyone conn rm conn_abc123
+```
+
+---
+
+## Access Key 管理
+
+Agent、MCP 端点和沙盒都使用 Access Key 进行身份验证。
+
+```bash
+# 查看 Access Key
+puppyone conn key conn_abc123
+
+# 重新生成 Access Key
+puppyone conn key conn_abc123 --regenerate
+```
+
+---
+
+## 同步与执行
+
+### 手动触发同步
+
+对数据源连接，手动执行一次同步：
+
+```bash
+puppyone conn refresh conn_abc123
+```
+
+### 设置触发模式
+
+配置连接的同步触发方式：
+
+```bash
+puppyone conn trigger conn_abc123 manual
+puppyone conn trigger conn_abc123 scheduled
+```
+
+### 触发执行
+
+直接运行一次连接的执行逻辑：
+
+```bash
+puppyone conn run conn_abc123
+```
+
+### 查看执行记录
+
+```bash
+puppyone conn logs conn_abc123
+```
+
+---
+
+## 更新配置
+
+修改已有连接的配置：
+
+```bash
+# 更新单个配置项
+puppyone conn update conn_abc123 --set name="New Name"
+
+# 通过 JSON 更新多项配置
+puppyone conn update conn_abc123 --config '{"folder": "/new-path", "mode": "incremental"}'
+```
+
+### 查看配置字段
+
+查看某种连接类型支持哪些配置字段：
+
+```bash
+puppyone conn schema notion
+puppyone conn schema agent
+```
+
+---
+
+## 实用工作流
+
+### 为项目搭建多数据源
+
+```bash
+# 连接 Notion 文档
+puppyone conn add notion https://notion.so/wiki-page --folder /wiki
+
+# 连接 GitHub 仓库
+puppyone conn add github https://github.com/org/docs --folder /github
+
+# 连接 Gmail
+puppyone conn add gmail
+
+# 查看所有连接状态
+puppyone conn ls
+```
+
+### 创建并使用 MCP 端点
+
+```bash
+# 创建端点
+puppyone conn add mcp "Cursor Endpoint"
+
+# 获取 Access Key
+puppyone conn key <id>
+
+# 在 Cursor 的 MCP 配置中使用该 Key 连接
+```
+
+### 创建并管理沙盒
+
+```bash
+# 创建沙盒
+puppyone conn add sandbox "Code Runner" --type e2b
+
+# 查看详情
+puppyone conn info <id>
+
+# 获取 Access Key
+puppyone conn key <id>
+
+# 触发一次执行
+puppyone conn run <id>
+
+# 查看执行日志
+puppyone conn logs <id>
+```
+
+### 批量管理连接
+
+```bash
+# 列出所有暂停的连接
+puppyone conn ls --status paused --json
+
+# 通过脚本批量恢复
+for id in $(puppyone conn ls --status paused --json | jq -r '.[].id'); do
+  puppyone conn resume "$id"
+done
+```

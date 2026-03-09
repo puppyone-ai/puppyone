@@ -1,6 +1,6 @@
 # Google Docs
 
-Sync Google Docs as Markdown so agents can read and reference document content.
+Sync Google Docs documents into Markdown so agents can read and reference document content.
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Sync Google Docs as Markdown so agents can read and reference document content.
 
 ---
 
-## Use Cases
+## Use cases
 
 - Sync PRDs and specs for your Dev Agent
 - Company wikis and SOPs for your Support Agent
@@ -19,41 +19,56 @@ Sync Google Docs as Markdown so agents can read and reference document content.
 
 ---
 
-## Setup
+## Setup steps
 
-### Step 1: Authorize Google
+### Step 1: Authorize your Google account
 
-1. Open your Project → **Add Connector** → **Google Docs**
-2. Click **Connect with Google** and complete OAuth
+1. Open Project → **Connections** → **Add Connection** → **Google Docs**
+2. Click **Connect with Google** and complete OAuth authorization
 
-### Step 2: Select Documents
+### Step 2: Choose documents
 
-**Option A — Paste a link**
+You can specify the documents to sync in two ways:
+
+**Option 1: Paste a document link**
 
 Copy the Google Docs share link and paste it:
 ```
 https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit
 ```
 
-**Option B — Browse Drive**
+**Option 2: Select from the Drive browser**
 
-Browse your Google Drive and select documents to sync.
+Browse your Google Drive and select the documents you want to sync.
 
-### Step 3: Start Sync
+### Step 3: Start sync
 
-Content is converted to Markdown with headings, lists, and tables preserved.
+Click **Start Sync**. The document content is converted to Markdown, and heading levels and list formatting are preserved automatically.
 
 ---
 
-## Output Example
+## Output example
 
+Original Google Doc:
+```
+# Product Requirements v2.1
+
+## Background
+This iteration focuses on...
+
+## Feature list
+- Feature A: ...
+- Feature B: ...
+```
+
+Synced output (Markdown):
 ```markdown
 # Product Requirements v2.1
 
 ## Background
 This iteration focuses on...
 
-## Feature List
+## Feature list
 - Feature A: ...
 - Feature B: ...
 ```
@@ -62,6 +77,6 @@ This iteration focuses on...
 
 ## Notes
 
-- Images inside documents are not synced — text content only
-- Tables are converted to Markdown table format
-- Updates require a manual re-sync or a scheduled sync interval
+- Images inside documents are not synced yet. Only text content is preserved
+- Tables are converted into Markdown table format
+- After a document is updated, you need to trigger sync manually or enable scheduled sync

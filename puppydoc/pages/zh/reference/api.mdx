@@ -1,6 +1,6 @@
-# API 参考
+# REST API 参考
 
-PuppyOne REST API 完整文档。
+PuppyOne 提供完整的 REST API，覆盖内容管理、Agent 配置、数据同步、协作编辑等全部功能。
 
 ---
 
@@ -8,89 +8,487 @@ PuppyOne REST API 完整文档。
 
 ### Base URL
 
-**生产环境**：
+**生产环境：**
 ```
 https://api.puppyone.ai/api/v1
 ```
 
-**自托管**：
+**自托管：**
 ```
 http://localhost:9090/api/v1
 ```
 
 ### 认证
 
-所有请求需要在 Header 中携带 API Key：
+所有 API 请求需要在 Header 中携带认证凭证。支持两种方式：
+
+**JWT Token（用户认证）：**
+```
+Authorization: Bearer <access_token>
+```
+
+**Access Key（机器/Agent 认证）：**
+```
+Authorization: Bearer cli_xxx
+```
+
+### 通用参数
+
+部分列表接口支持以下查询参数：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `project_id` | string | 项目 ID（大多数接口必填） |
+| `org_id` | string | 组织 ID |
+
+---
+
+## 1. 认证
+
+### 获取公共配置
 
 ```
-Authorization: Bearer sk_live_xxx
+GET /auth/config
 ```
 
-### 响应格式
+返回 Supabase 公共配置（URL + anon key），用于客户端 Realtime 连接。
 
-所有响应都是 JSON 格式：
+### 登录
 
-**成功**：
+```
+POST /auth/login
+```
+
+**请求体：**
 ```json
 {
-  "data": { ... },
-  "error": null
+  "email": "user@example.com",
+  "password": "your-password"
 }
 ```
 
-**错误**：
+**响应：**
 ```json
 {
-  "data": null,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Error description"
-  }
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "v1.xxx",
+  "expires_in": 3600
 }
+```
+
+### 刷新 Token
+
+```
+POST /auth/refresh
+```
+
+**请求体：**
+```json
+{
+  "refresh_token": "v1.xxx"
+}
+```
+
+### 初始化用户
+
+```
+POST /auth/initialize
+```
+
+幂等操作，创建用户的 Profile 和默认 Organization。首次登录后调用。
+
+---
+
+## 2. 组织
+
+### 列出组织
+
+```
+GET /organizations/
+```
+
+返回当前用户所属的全部组织。
+
+### 创建组织
+
+```
+POST /organizations/
+```
+
+**请求体：**
+```json
+{
+  "name": "我的团队",
+  "description": "团队描述"
+}
+```
+
+### 获取组织详情
+
+```
+GET /organizations/{org_id}
+```
+
+### 更新组织
+
+```
+PUT /organizations/{org_id}
+```
+
+### 删除组织
+
+```
+DELETE /organizations/{org_id}
+```
+
+### 成员管理
+
+```
+GET    /organizations/{org_id}/members                          # 列出成员
+PUT    /organizations/{org_id}/members/{user_id}/role           # 更新角色
+DELETE /organizations/{org_id}/members/{user_id}                # 移除成员
+POST   /organizations/{org_id}/leave                            # 离开组织
+```
+
+### 邀请
+
+```
+POST /organizations/{org_id}/invite                             # 发送邀请
+GET  /organizations/{org_id}/invitations                        # 查看待处理邀请
+POST /organizations/invitations/{token}/accept                  # 接受邀请
 ```
 
 ---
 
-## Table API
+## 3. 项目
 
-### 查询数据
+### 列出项目
 
 ```
-POST /tables/{table_id}/query
+GET /projects/?org_id={org_id}
 ```
 
-**请求体**：
+### 创建项目
+
+```
+POST /projects/
+```
+
+**请求体：**
 ```json
 {
-  "path": "/products",
-  "filter": {
-    "price": { "$lt": 100 }
-  },
-  "limit": 10,
-  "offset": 0
+  "name": "产品知识库",
+  "description": "存储产品相关数据",
+  "org_id": "org_xxx"
 }
 ```
 
-**参数**：
+### 获取项目详情
+
+```
+GET /projects/{project_id}
+```
+
+### 更新项目
+
+```
+PUT /projects/{project_id}
+```
+
+### 删除项目
+
+```
+DELETE /projects/{project_id}
+```
+
+### 项目仪表盘
+
+```
+GET /projects/{project_id}/dashboard
+```
+
+返回项目的聚合状态信息（节点数量、连接状态、同步进度等）。
+
+### 项目成员
+
+```
+GET    /projects/{project_id}/members                           # 列出成员
+POST   /projects/{project_id}/members                           # 添加成员
+PUT    /projects/{project_id}/members/{user_id}/role            # 更新角色
+DELETE /projects/{project_id}/members/{user_id}                 # 移除成员
+```
+
+### 初始化默认内容
+
+```
+POST /projects/{project_id}/seed
+```
+
+为项目创建默认的示例内容。
+
+---
+
+## 4. 内容节点
+
+内容节点（Content Node）是 PuppyOne 的核心数据单元，支持四种类型：`folder`、`json`、`markdown`、`file`。
+
+### 列出节点
+
+```
+GET /nodes/?project_id={project_id}&parent_id={parent_id}
+```
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `path` | string | ✅ | JSON 路径 |
-| `filter` | object | ❌ | 过滤条件 |
-| `limit` | number | ❌ | 返回数量限制 |
-| `offset` | number | ❌ | 分页偏移 |
+| `project_id` | string | 是 | 项目 ID |
+| `parent_id` | string | 否 | 父节点 ID，不传则返回根目录 |
 
-**响应**：
+### 获取单个节点
+
+```
+GET /nodes/{node_id}
+```
+
+**响应：**
 ```json
 {
-  "data": [
-    { "id": "SKU-001", "name": "Widget", "price": 59.99 }
-  ],
-  "error": null
+  "id": "node_xxx",
+  "name": "config.json",
+  "type": "json",
+  "content": { "key": "value" },
+  "parent_id": "node_parent",
+  "project_id": "proj_xxx",
+  "created_at": "2025-01-01T00:00:00Z",
+  "updated_at": "2025-01-01T00:00:00Z"
 }
 ```
 
+### 按路径获取节点
+
+```
+GET /nodes/by-path?project_id={project_id}&path=/folder/file.json
+```
+
+### 按 ID 路径获取节点
+
+```
+GET /nodes/by-id-path/?project_id={project_id}&id_path=id1/id2/id3
+```
+
+### 批量获取节点
+
+```
+GET /nodes/batch?ids=node_1,node_2,node_3
+```
+
+### 创建文件夹
+
+```
+POST /nodes/folder
+```
+
+**请求体：**
+```json
+{
+  "name": "reports",
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent"
+}
+```
+
+### 创建 JSON 节点
+
+```
+POST /nodes/json
+```
+
+**请求体：**
+```json
+{
+  "name": "config.json",
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "content": { "key": "value", "nested": { "a": 1 } }
+}
+```
+
+### 创建 Markdown 节点
+
+```
+POST /nodes/markdown
+```
+
+**请求体：**
+```json
+{
+  "name": "README.md",
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "content": "# Hello\n\nThis is a markdown file."
+}
+```
+
+### 批量创建节点
+
+```
+POST /nodes/bulk-create
+```
+
+**请求体：**
+```json
+{
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "nodes": [
+    { "name": "a.json", "type": "json", "content": {} },
+    { "name": "b.md", "type": "markdown", "content": "# B" }
+  ]
+}
+```
+
+### 上传文件
+
+```
+POST /nodes/upload
+```
+
+返回预签名上传 URL，客户端直接上传文件到 S3。
+
+### 更新节点
+
+```
+PUT /nodes/{node_id}
+```
+
+**请求体：**
+```json
+{
+  "name": "new-name.json",
+  "content": { "updated": true }
+}
+```
+
+### 移动节点
+
+```
+POST /nodes/{node_id}/move
+```
+
+**请求体：**
+```json
+{
+  "new_parent_id": "node_target_folder"
+}
+```
+
+### 删除节点
+
+```
+DELETE /nodes/{node_id}
+```
+
+软删除，节点移入 `.trash` 文件夹。
+
+### 获取下载链接
+
+```
+GET /nodes/{node_id}/download
+```
+
+返回文件类型节点的预签名下载 URL。
+
+### 版本历史
+
+```
+GET  /nodes/{node_id}/versions                                 # 版本列表
+GET  /nodes/{node_id}/versions/{version}                       # 获取特定版本内容
+POST /nodes/{node_id}/rollback/{version}                       # 回滚到指定版本
+GET  /nodes/{node_id}/diff/{v1}/{v2}                           # 对比两个版本
+```
+
+**版本列表响应：**
+```json
+[
+  {
+    "version": 3,
+    "actor_type": "user",
+    "actor_id": "user_xxx",
+    "created_at": "2025-01-03T00:00:00Z",
+    "message": "Updated config"
+  },
+  {
+    "version": 2,
+    "actor_type": "agent",
+    "actor_id": "agent_xxx",
+    "created_at": "2025-01-02T00:00:00Z"
+  }
+]
+```
+
+### 文件夹快照
+
+```
+GET  /nodes/{folder_id}/snapshots                              # 快照历史
+POST /nodes/{folder_id}/rollback-snapshot/{snapshot_id}         # 回滚到快照
+```
+
+### 审计日志
+
+```
+GET /nodes/{node_id}/audit-logs
+```
+
+返回该节点的全部操作记录（谁在什么时候对该节点做了什么）。
+
+**响应：**
+```json
+[
+  {
+    "action": "update",
+    "actor_type": "user",
+    "actor_id": "user_xxx",
+    "node_id": "node_xxx",
+    "timestamp": "2025-01-01T12:00:00Z",
+    "details": {}
+  }
+]
+```
+
 ---
+
+## 5. 数据表
+
+数据表接口是面向结构化 JSON 数据的补充操作层，使用 JSON Pointer 路径来定位和操作数据；它不是 PuppyOne 的主数据模型，主模型仍然是 Content Node。
+
+### 列出数据表
+
+```
+GET /tables/?org_id={org_id}
+```
+
+### 获取数据表
+
+```
+GET /tables/{table_id}
+```
+
+### 创建数据表
+
+```
+POST /tables/
+```
+
+### 更新数据表
+
+```
+PUT /tables/{table_id}
+```
+
+### 删除数据表
+
+```
+DELETE /tables/{table_id}
+```
 
 ### 获取数据
 
@@ -98,23 +496,9 @@ POST /tables/{table_id}/query
 GET /tables/{table_id}/data?path=/products
 ```
 
-**参数**：
-
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `path` | string | ❌ | JSON 路径，默认 `/` |
-
-**响应**：
-```json
-{
-  "data": {
-    "products": [...]
-  },
-  "error": null
-}
-```
-
----
+| `path` | string | 否 | JSON Pointer 路径，默认 `/` |
 
 ### 创建数据
 
@@ -122,7 +506,7 @@ GET /tables/{table_id}/data?path=/products
 POST /tables/{table_id}/data
 ```
 
-**请求体**：
+**请求体：**
 ```json
 {
   "path": "/products",
@@ -134,22 +518,13 @@ POST /tables/{table_id}/data
 }
 ```
 
-**参数**：
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `path` | string | ✅ | 目标路径（必须是数组） |
-| `data` | any | ✅ | 要创建的数据 |
-
----
-
 ### 更新数据
 
 ```
 PUT /tables/{table_id}/data
 ```
 
-**请求体**：
+**请求体：**
 ```json
 {
   "path": "/products/0/price",
@@ -157,101 +532,637 @@ PUT /tables/{table_id}/data
 }
 ```
 
-**参数**：
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `path` | string | ✅ | 目标路径 |
-| `value` | any | ✅ | 新值 |
-
----
-
 ### 删除数据
 
 ```
 DELETE /tables/{table_id}/data?path=/products/0
 ```
 
-**参数**：
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `path` | string | ✅ | 要删除的路径 |
-
 ---
 
-## 过滤器语法
+## 6. 连接管理
 
-### 比较操作符
+连接（Connection）是 PuppyOne 的统一集成抽象，涵盖 Agent、MCP 端点、沙盒端点、同步连接等所有外部集成类型。
 
-| 操作符 | 说明 | 示例 |
-|--------|------|------|
-| `$eq` | 等于 | `{"status": {"$eq": "active"}}` |
-| `$ne` | 不等于 | `{"status": {"$ne": "deleted"}}` |
-| `$gt` | 大于 | `{"price": {"$gt": 100}}` |
-| `$gte` | 大于等于 | `{"price": {"$gte": 100}}` |
-| `$lt` | 小于 | `{"price": {"$lt": 100}}` |
-| `$lte` | 小于等于 | `{"price": {"$lte": 100}}` |
-| `$in` | 在数组中 | `{"category": {"$in": ["A", "B"]}}` |
-| `$nin` | 不在数组中 | `{"category": {"$nin": ["C"]}}` |
+### 列出连接
 
-### 逻辑操作符
-
-```json
-{
-  "$and": [
-    {"price": {"$gte": 50}},
-    {"price": {"$lte": 100}}
-  ]
-}
+```
+GET /connections/?project_id={project_id}
 ```
 
-```json
-{
-  "$or": [
-    {"category": "电子"},
-    {"category": "配件"}
-  ]
-}
+### 获取连接
+
+```
+GET /connections/{connection_id}
+```
+
+### 更新连接
+
+```
+PATCH /connections/{connection_id}
+```
+
+### 删除连接
+
+```
+DELETE /connections/{connection_id}
+```
+
+### 重新生成访问密钥
+
+```
+POST /connections/{connection_id}/regenerate-key
 ```
 
 ---
 
-## Project API
+## 7. 数据同步
 
-### 列出项目
-
-```
-GET /projects
-```
-
-### 获取项目
+### 项目同步状态
 
 ```
-GET /projects/{project_id}
+GET /sync/status?project_id={project_id}
 ```
 
-### 创建项目
+### 列出可用连接器
 
 ```
-POST /projects
+GET /sync/connectors
 ```
 
-**请求体**：
+返回所有支持的同步连接器规格列表。
+
+### 列出同步任务
+
+```
+GET /sync/syncs?project_id={project_id}
+```
+
+### 创建同步
+
+```
+POST /sync/bootstrap
+```
+
+**请求体：**
 ```json
 {
-  "name": "产品知识库",
-  "description": "存储产品相关数据"
+  "project_id": "proj_xxx",
+  "provider": "notion",
+  "config": {
+    "database_id": "xxx"
+  }
 }
+```
+
+### 同步操作
+
+```
+POST   /sync/syncs/{sync_id}/refresh                           # 手动刷新
+POST   /sync/syncs/{sync_id}/pause                             # 暂停同步
+POST   /sync/syncs/{sync_id}/resume                            # 恢复同步
+PATCH  /sync/syncs/{sync_id}/trigger                           # 更新触发方式
+DELETE /sync/syncs/{sync_id}                                    # 删除同步
+```
+
+### 同步运行记录
+
+```
+GET /sync/syncs/{sync_id}/runs                                 # 运行记录列表
+GET /sync/runs/{run_id}                                        # 运行详情
+```
+
+### 文件夹推拉（CLI 同步）
+
+```
+POST /sync/syncs/{sync_id}/push-file                           # 推送本地文件
+GET  /sync/syncs/{sync_id}/pull-files                          # 拉取云端文件
+POST /sync/syncs/{sync_id}/ack-pull                            # 确认拉取完成
+```
+
+### 同步变更日志
+
+```
+GET /sync/changelog?project_id={project_id}
+```
+
+---
+
+## 8. Agent 配置
+
+### 列出 Agent
+
+```
+GET /agent-config/?project_id={project_id}
+```
+
+### 获取 Agent
+
+```
+GET /agent-config/{agent_id}
+```
+
+### 获取默认 Agent
+
+```
+GET /agent-config/default?project_id={project_id}
+```
+
+### 创建 Agent
+
+```
+POST /agent-config/
+```
+
+**请求体：**
+```json
+{
+  "name": "客服助手",
+  "project_id": "proj_xxx",
+  "system_prompt": "你是一个专业的客服助手...",
+  "model": "gpt-4o"
+}
+```
+
+### 更新 Agent
+
+```
+PUT /agent-config/{agent_id}
+```
+
+### 删除 Agent
+
+```
+DELETE /agent-config/{agent_id}
+```
+
+### 访问权限控制
+
+```
+POST   /agent-config/{agent_id}/accesses                       # 添加节点访问
+PUT    /agent-config/{agent_id}/accesses/{access_id}           # 更新访问
+DELETE /agent-config/{agent_id}/accesses/{access_id}           # 移除访问
+PUT    /agent-config/{agent_id}/accesses                       # 批量同步访问
+```
+
+### Bash 工具
+
+```
+POST   /agent-config/{agent_id}/bash                           # 添加 Bash 工具
+PUT    /agent-config/{agent_id}/bash/{bash_id}                 # 更新 Bash 工具
+DELETE /agent-config/{agent_id}/bash/{bash_id}                 # 移除 Bash 工具
+PUT    /agent-config/{agent_id}/bash                           # 批量同步 Bash 工具
+```
+
+### 执行历史
+
+```
+GET /agent-config/{agent_id}/executions
+```
+
+---
+
+## 9. Agent 对话
+
+### SSE 流式对话
+
+```
+POST /agents
+```
+
+通过 Server-Sent Events (SSE) 与 Agent 进行流式对话。
+
+**请求体：**
+```json
+{
+  "agent_id": "agent_xxx",
+  "message": "帮我查一下最新的产品数据",
+  "session_id": "session_xxx"
+}
+```
+
+**SSE 事件流：**
+```
+data: {"type": "text", "content": "正在查询..."}
+data: {"type": "tool_call", "name": "query_data", "arguments": {...}}
+data: {"type": "tool_result", "content": {...}}
+data: {"type": "text", "content": "查询结果如下..."}
+data: {"type": "done"}
+```
+
+### 对话会话管理
+
+```
+POST   /chat/sessions                                          # 创建会话
+GET    /chat/sessions                                          # 列出会话
+GET    /chat/sessions/{session_id}                             # 获取会话
+PATCH  /chat/sessions/{session_id}                             # 更新会话
+DELETE /chat/sessions/{session_id}                             # 删除会话
+GET    /chat/sessions/{session_id}/messages                    # 获取消息记录
+```
+
+---
+
+## 10. MCP 端点
+
+### 列出 MCP 端点
+
+```
+GET /mcp-endpoints?project_id={project_id}
+```
+
+### 创建 MCP 端点
+
+```
+POST /mcp-endpoints
+```
+
+**请求体：**
+```json
+{
+  "name": "产品数据 MCP",
+  "project_id": "proj_xxx",
+  "node_id": "node_xxx"
+}
+```
+
+### 获取 MCP 端点
+
+```
+GET /mcp-endpoints/{endpoint_id}
+```
+
+### 按节点获取 MCP 端点
+
+```
+GET /mcp-endpoints/by-node/{node_id}
+```
+
+### 更新 MCP 端点
+
+```
+PUT /mcp-endpoints/{endpoint_id}
+```
+
+### 删除 MCP 端点
+
+```
+DELETE /mcp-endpoints/{endpoint_id}
+```
+
+### 重新生成 API Key
+
+```
+POST /mcp-endpoints/{endpoint_id}/regenerate-key
+```
+
+### MCP 工具绑定
+
+```
+GET    /mcp/agents/{agent_id}/tools                            # 列出绑定工具
+POST   /mcp/agents/{agent_id}/tools                            # 绑定工具
+PUT    /mcp/agents/{agent_id}/tools/{tool_id}                  # 更新绑定
+DELETE /mcp/agents/{agent_id}/tools/{tool_id}                  # 解绑工具
+GET    /mcp/agents/{agent_id}/status                           # MCP 状态
+POST   /mcp/agents/{agent_id}/regenerate-key                   # 重新生成 MCP Key
+```
+
+### MCP 代理转发
+
+```
+ANY /mcp/proxy                                                 # MCP Server 代理
+ANY /mcp/proxy/{path}                                          # MCP Server 代理（子路径）
+```
+
+---
+
+## 11. 沙盒端点
+
+### 列出沙盒端点
+
+```
+GET /sandbox-endpoints?project_id={project_id}
+```
+
+### 创建沙盒端点
+
+```
+POST /sandbox-endpoints
+```
+
+**请求体：**
+```json
+{
+  "name": "代码沙盒",
+  "project_id": "proj_xxx",
+  "node_id": "node_xxx"
+}
+```
+
+### 获取沙盒端点
+
+```
+GET /sandbox-endpoints/{endpoint_id}
+```
+
+### 按节点获取沙盒端点
+
+```
+GET /sandbox-endpoints/by-node/{node_id}
+```
+
+### 更新沙盒端点
+
+```
+PUT /sandbox-endpoints/{endpoint_id}
+```
+
+### 删除沙盒端点
+
+```
+DELETE /sandbox-endpoints/{endpoint_id}
+```
+
+### 重新生成访问密钥
+
+```
+POST /sandbox-endpoints/{endpoint_id}/regenerate-key
+```
+
+### 执行命令
+
+```
+POST /sandbox-endpoints/{endpoint_id}/exec
+```
+
+**请求体：**
+```json
+{
+  "command": "jq '.products | length' data.json"
+}
+```
+
+**响应：**
+```json
+{
+  "stdout": "42",
+  "stderr": "",
+  "exit_code": 0
+}
+```
+
+---
+
+## 12. 协作
+
+PuppyOne 提供完整的协作编辑工作流，包括 Checkout/Commit、版本管理和快照回滚。
+
+### Checkout（签出工作副本）
+
+```
+POST /collab/checkout
+```
+
+**请求体：**
+```json
+{
+  "node_ids": ["node_1", "node_2"],
+  "project_id": "proj_xxx"
+}
+```
+
+### Commit（提交变更）
+
+```
+POST /collab/commit
+```
+
+**请求体：**
+```json
+{
+  "mutations": [
+    {
+      "node_id": "node_1",
+      "content": { "updated": true },
+      "message": "更新配置"
+    }
+  ],
+  "project_id": "proj_xxx"
+}
+```
+
+### 版本管理
+
+```
+GET  /collab/versions/{node_id}                                # 版本历史
+GET  /collab/versions/{node_id}/{version}                      # 获取版本内容
+POST /collab/rollback/{node_id}/{version}                      # 回滚到指定版本
+GET  /collab/diff/{node_id}/{v1}/{v2}                          # 版本对比
+```
+
+### 文件夹快照
+
+```
+GET  /collab/snapshots/{folder_id}                             # 快照列表
+POST /collab/rollback-snapshot/{folder_id}/{snapshot_id}        # 回滚到快照
+```
+
+---
+
+## 13. 工具
+
+### 列出工具
+
+```
+GET /tools/?org_id={org_id}
+```
+
+### 按节点列出工具
+
+```
+GET /tools/by-node/{node_id}
+```
+
+### 按项目列出工具
+
+```
+GET /tools/by-project/{project_id}
+```
+
+### 创建工具
+
+```
+POST /tools/
+```
+
+**请求体：**
+```json
+{
+  "name": "query_products",
+  "node_id": "node_xxx",
+  "type": "query",
+  "config": {}
+}
+```
+
+### 创建搜索工具
+
+```
+POST /tools/search
+```
+
+异步创建带向量索引的搜索工具。
+
+### 获取搜索索引状态
+
+```
+GET /tools/{tool_id}/search-index
+```
+
+### 获取/更新/删除工具
+
+```
+GET    /tools/{tool_id}
+PUT    /tools/{tool_id}
+DELETE /tools/{tool_id}
+```
+
+---
+
+## 14. 数据导入
+
+### 提交文件导入
+
+```
+POST /ingest/submit/file
+```
+
+上传 PDF、DOCX、图片等文件，自动执行 ETL 转换为 Markdown/JSON。
+
+### 提交 URL/SaaS 导入
+
+```
+POST /ingest/submit/saas
+```
+
+从 URL 或 SaaS 平台拉取数据。
+
+### 任务管理
+
+```
+GET    /ingest/tasks/{task_id}                                 # 获取任务状态
+POST   /ingest/tasks/batch                                     # 批量获取任务状态
+DELETE /ingest/tasks/{task_id}                                  # 取消任务
+GET    /ingest/health                                          # 导入服务健康检查
+```
+
+### ETL 规则
+
+```
+GET    /ingest/rules                                           # 列出 ETL 规则
+POST   /ingest/rules                                           # 创建 ETL 规则
+GET    /ingest/rules/{rule_id}                                 # 获取规则详情
+DELETE /ingest/rules/{rule_id}                                  # 删除规则
+```
+
+---
+
+## 15. OAuth
+
+PuppyOne 支持多个平台的 OAuth 集成。每个平台的接口模式一致：
+
+```
+GET    /oauth/{provider}/authorize                             # 获取授权 URL
+POST   /oauth/{provider}/callback                              # 处理授权回调
+GET    /oauth/{provider}/status                                # 查看连接状态
+DELETE /oauth/{provider}/disconnect                            # 断开连接
+```
+
+支持的 `{provider}` 列表：
+
+| Provider | 说明 |
+|----------|------|
+| `notion` | Notion 工作区 |
+| `github` | GitHub 仓库 |
+| `gmail` | Gmail 邮箱 |
+| `google-drive` | Google Drive 文件 |
+| `google-docs` | Google Docs 文档 |
+| `google-sheets` | Google Sheets 表格 |
+| `google-calendar` | Google Calendar 日历 |
+| `linear` | Linear 项目管理 |
+| `airtable` | Airtable 表格 |
+
+**示例 -- 发起 Notion OAuth：**
+```bash
+curl "https://api.puppyone.ai/api/v1/oauth/notion/authorize?project_id=proj_xxx" \
+  -H "Authorization: Bearer <token>"
+```
+
+**通用浏览器回调：**
+```
+GET /oauth/callback
+```
+
+---
+
+## 其他接口
+
+### 数据库连接
+
+```
+POST   /db-connector/connections                               # 创建数据库连接
+GET    /db-connector/connections                               # 列出连接
+DELETE /db-connector/connections/{connection_id}                # 删除连接
+GET    /db-connector/connections/{id}/tables                   # 列出数据库表
+GET    /db-connector/connections/{id}/tables/{table}/preview   # 预览表数据
+POST   /db-connector/connections/{id}/save                     # 保存为内容节点
+```
+
+### 公开发布
+
+```
+POST   /publishes/                                             # 创建发布
+GET    /publishes/                                             # 列出发布
+PATCH  /publishes/{publish_id}                                 # 更新发布
+DELETE /publishes/{publish_id}                                  # 删除发布
+```
+
+公开访问（无需认证）：
+```
+GET /p/{publish_key}
+```
+
+### 使用统计
+
+```
+GET /analytics/access-timeseries                               # 访问量时间序列
+GET /analytics/access-summary                                  # 访问量汇总
+```
+
+### 用户信息
+
+```
+GET  /profile/me                                               # 获取当前用户信息
+GET  /profile/onboarding/status                                # Onboarding 状态
+POST /profile/onboarding/complete                              # 完成 Onboarding
+POST /profile/onboarding/reset                                 # 重置 Onboarding
+```
+
+### Workspace
+
+```
+POST /workspace/create                                         # 创建 Workspace
+POST /workspace/{agent_id}/complete                            # 完成 Agent Workspace
+GET  /workspace/{agent_id}/status                              # Workspace 状态
 ```
 
 ---
 
 ## 错误码
 
-| 错误码 | HTTP 状态 | 说明 |
-|--------|----------|------|
-| `UNAUTHORIZED` | 401 | API Key 无效或缺失 |
+| 错误码 | HTTP 状态码 | 说明 |
+|--------|------------|------|
+| `UNAUTHORIZED` | 401 | Token 无效或缺失 |
 | `FORBIDDEN` | 403 | 权限不足 |
 | `NOT_FOUND` | 404 | 资源不存在 |
 | `VALIDATION_ERROR` | 422 | 请求参数错误 |
@@ -260,73 +1171,57 @@ POST /projects
 
 ---
 
-## 速率限制
-
-| 计划 | 限制 |
-|------|------|
-| Free | 100 请求/分钟 |
-| Pro | 1000 请求/分钟 |
-| Team | 无限制 |
-
-响应 Header：
-- `X-RateLimit-Limit`: 总配额
-- `X-RateLimit-Remaining`: 剩余配额
-- `X-RateLimit-Reset`: 重置时间（Unix 时间戳）
-
----
-
 ## 代码示例
 
-### cURL
+### cURL -- 创建 JSON 内容节点
 
 ```bash
-# 查询数据
-curl -X POST "https://api.puppyone.ai/api/v1/tables/tbl_xxx/query" \
-  -H "Authorization: Bearer sk_live_xxx" \
+curl -X POST "https://api.puppyone.ai/api/v1/nodes/json" \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"path": "/products", "filter": {"price": {"$lt": 100}}}'
+  -d '{
+    "name": "products.json",
+    "project_id": "proj_xxx",
+    "content": {
+      "products": [
+        { "id": "SKU-001", "name": "Widget", "price": 59.99 }
+      ]
+    }
+  }'
 ```
 
-### Python
+### Python -- 查询内容节点
 
 ```python
 import requests
 
-def query_products(api_key, table_id, max_price):
-    response = requests.post(
-        f"https://api.puppyone.ai/api/v1/tables/{table_id}/query",
-        headers={"Authorization": f"Bearer {api_key}"},
-        json={
-            "path": "/products",
-            "filter": {"price": {"$lt": max_price}}
-        }
-    )
-    return response.json()["data"]
+API_BASE = "https://api.puppyone.ai/api/v1"
+TOKEN = "<your-token>"
+
+headers = {"Authorization": f"Bearer {TOKEN}"}
+
+resp = requests.get(
+    f"{API_BASE}/nodes/",
+    headers=headers,
+    params={"project_id": "proj_xxx"}
+).json()
+
+for node in resp["data"]["nodes"]:
+    print(f"{node['name']} ({node['type']})")
 ```
 
-### JavaScript
+### JavaScript -- 获取版本历史
 
 ```javascript
-async function queryProducts(apiKey, tableId, maxPrice) {
+const API_BASE = "https://api.puppyone.ai/api/v1";
+
+async function getVersionHistory(token, nodeId) {
   const response = await fetch(
-    `https://api.puppyone.ai/api/v1/tables/${tableId}/query`,
+    `${API_BASE}/nodes/${nodeId}/versions`,
     {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        path: "/products",
-        filter: { price: { $lt: maxPrice } }
-      })
+      headers: { "Authorization": `Bearer ${token}` }
     }
   );
-  const data = await response.json();
-  return data.data;
+  return response.json();
 }
 ```
-
-
-
-

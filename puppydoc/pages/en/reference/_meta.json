@@ -1,5 +1,5 @@
 {
-  "mcp-tools": "MCP Tools",
-  "api": "API Reference",
-  "concepts": "Core Concepts"
+  "api": "REST API Reference",
+  "mcp-tools": "MCP Tools Reference",
+  "concepts": "Glossary"
 }

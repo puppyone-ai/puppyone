@@ -1,0 +1,119 @@
+# 分发概览
+
+把你的 Context File System 交到 Agent 手中。
+
+---
+
+## 什么是分发
+
+你已经通过 [数据连接](/zh/connect) 把各种数据源汇聚到了 PuppyOne，通过 [数据管理](/zh/editor) 整理好了结构。接下来，你需要把这些数据**交给 Agent 使用**——这就是分发。
+
+PuppyOne 提供多种分发方式，覆盖从 IDE 插件到自研 Agent 的全部场景。每种方式的本质都是让 Agent 能够读写你的 Content Node 树。
+
+---
+
+## 分发方式一览
+
+| 方式 | 协议 | 适用 Agent | 特点 |
+|------|------|-----------|------|
+| [Cursor](/zh/distribute/cursor) | MCP | Cursor IDE | IDE 内置，代码 + 数据联动 |
+| [Claude Desktop](/zh/distribute/claude-desktop) | MCP | Claude Desktop | 长对话，文档分析 |
+| [Claude Code](/zh/distribute/claude-code) | 文件同步 | Claude Code | 本地文件直接读写 |
+| [自定义 MCP 客户端](/zh/distribute/custom-mcp) | MCP | 任意 MCP 客户端 | 通用协议，兼容广泛 |
+| [REST API](/zh/distribute/rest-api) | HTTP | 自研 Agent | 完全可编程 |
+| [代码沙盒](/zh/distribute/sandbox) | 挂载执行 | 计算密集型 Agent | 隔离执行环境 |
+
+---
+
+## 我应该选哪种方式
+
+```
+你的 Agent 是什么？
+│
+├─ Cursor IDE
+│  └─► 使用 Cursor MCP 集成（最简单）
+│
+├─ Claude Desktop
+│  └─► 使用 Claude Desktop MCP 配置
+│
+├─ Claude Code
+│  └─► 使用本地文件同步（Claude Code 以文件为核心）
+│
+├─ 其他 MCP 兼容客户端（Cline / Continue / Zed 等）
+│  └─► 使用自定义 MCP 客户端配置
+│
+├─ 自研 Agent / 脚本
+│  └─► 需要在沙盒中执行代码？
+│     ├─ 是 → 使用代码沙盒
+│     └─ 否 → 使用 REST API
+│
+└─ 不确定
+   └─► 从 Cursor 或 Claude Desktop 开始，5 分钟内就能跑通
+```
+
+---
+
+## 核心概念
+
+### MCP（Model Context Protocol）
+
+MCP 是一个让 AI 模型访问外部工具和数据的标准协议。PuppyOne 为每个连接生成一个 MCP Server URL，任何 MCP 兼容客户端都能直接连接。
+
+你的 MCP Server URL 格式为：
+
+```
+https://api.puppyone.ai/api/v1/mcp/server/{API_KEY}
+```
+
+### 文件同步（OpenClaw）
+
+对于 Claude Code 等以本地文件为核心的 Agent，PuppyOne 通过 OpenClaw 协议在云端和本地文件夹之间建立实时双向同步。Agent 读写本地文件，就等于在操作你的 Context File System。
+
+### REST API
+
+如果你在构建自己的 Agent 或自动化流程，可以直接调用 PuppyOne 的 HTTP API 操作 Content Node。
+
+### 代码沙盒
+
+PuppyOne 可以把你的数据挂载到隔离的沙盒环境（Docker 或 E2B 微虚拟机），让 Agent 在沙盒中安全执行代码，处理你的数据。
+
+---
+
+## 快速开始
+
+不管选哪种方式，你都需要先完成以下步骤：
+
+1. **创建项目并导入数据** — 参见 [快速开始](/zh/quickstart)
+2. **创建连接** — 在 Dashboard 中选择分发方式，或通过 CLI 创建
+
+```bash
+# 安装 CLI
+npm install -g puppyone
+
+# 登录
+puppyone auth login
+
+# 创建 MCP 连接（用于 Cursor / Claude Desktop / 自定义客户端）
+puppyone conn add mcp "My Data"
+
+# 创建本地文件夹同步（用于 Claude Code）
+puppyone conn add folder ~/project/context --name "Claude Code Workspace"
+
+# 创建沙盒（用于代码执行）
+puppyone conn add sandbox "Python Runner" --type e2b
+```
+
+每种分发方式的详细配置，请参阅对应的文档页面。
+
+---
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="Cursor" href="/zh/distribute/cursor" />
+  <Card title="Claude Desktop" href="/zh/distribute/claude-desktop" />
+  <Card title="Claude Code" href="/zh/distribute/claude-code" />
+  <Card title="自定义 MCP 客户端" href="/zh/distribute/custom-mcp" />
+  <Card title="REST API" href="/zh/distribute/rest-api" />
+  <Card title="代码沙盒" href="/zh/distribute/sandbox" />
+</Cards>

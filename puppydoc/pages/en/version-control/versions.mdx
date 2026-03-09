@@ -1,0 +1,163 @@
+# File Version History and Rollback
+
+Every edit creates a version automatically, so you can inspect history and restore any point in time whenever needed.
+
+---
+
+## Automatic versioning
+
+Whenever a Content Node (JSON, Markdown, or file) is modified, PuppyOne automatically:
+
+1. Creates a new version for the current content
+2. Records when the change happened and who made it (human user or agent)
+3. Preserves the full chain of historical versions
+
+No manual saving or commit is required. Whether the change comes from the Dashboard, CLI, API, or an agent writing through MCP, every update is tracked.
+
+---
+
+## View version history
+
+### Dashboard
+
+1. Open your Project -> select a file
+2. Click the **History** tab in the right panel
+3. Review the version list, including version number, timestamp, and author
+
+### CLI
+
+```bash
+puppyone fs versions /docs/product-spec.md
+```
+
+Example output:
+
+```
+Version  Time                  Author
+-------  --------------------  ----------------
+v5       2025-03-09 15:30:00   Agent: data-sync
+v4       2025-03-09 14:00:00   user@example.com
+v3       2025-03-08 10:20:00   Agent: writer
+v2       2025-03-07 16:45:00   user@example.com
+v1       2025-03-07 09:00:00   user@example.com
+```
+
+### API
+
+```bash
+# Get the version history of a file
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions?project_id={project_id}" \
+  -H "Authorization: Bearer {token}"
+```
+
+Example response:
+
+```json
+{
+  "versions": [
+    {
+      "version": 5,
+      "created_at": "2025-03-09T15:30:00Z",
+      "author": "Agent: data-sync",
+      "size": 2048
+    },
+    {
+      "version": 4,
+      "created_at": "2025-03-09T14:00:00Z",
+      "author": "user@example.com",
+      "size": 1856
+    }
+  ]
+}
+```
+
+You can also access it through the collaboration route: `GET /api/v1/collab/versions/{node_id}`
+
+---
+
+## View the content of a specific version
+
+### API
+
+```bash
+# Get the full contents of version 3
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions/3" \
+  -H "Authorization: Bearer {token}"
+```
+
+The response returns the complete file contents for that version, which you can use for previewing or manually restoring partial data.
+
+---
+
+## Roll back to a historical version
+
+Rollback restores the file to the contents of a specific version. **The rollback operation itself also creates a new version**, so the history is never lost.
+
+### Dashboard
+
+1. Open the file's **History** panel
+2. Select the version you want to restore
+3. Click **Restore**
+4. Confirm the rollback
+
+### CLI
+
+```bash
+# Roll back to version 3
+puppyone fs rollback /docs/product-spec.md 3
+```
+
+Output:
+
+```
+Rolled back /docs/product-spec.md to version 3
+Current version is now v6 (restored from v3)
+```
+
+### API
+
+```bash
+# Roll back to version 3
+curl -X POST "https://api.puppyone.ai/api/v1/nodes/{node_id}/rollback/3" \
+  -H "Authorization: Bearer {token}"
+```
+
+You can also use: `POST /api/v1/collab/rollback/{node_id}/{version}`
+
+---
+
+## Real scenario: recovering from an agent mistake
+
+Suppose you asked an agent to update a product document, but it accidentally overwrote the entire file:
+
+```bash
+# 1. Check version history to confirm the problem
+puppyone fs versions /docs/product-spec.md
+
+# Output shows v8 is the bad write by the agent
+# v7 is the correct version
+
+# 2. Compare versions to confirm the diff
+puppyone fs diff /docs/product-spec.md 7 8
+
+# 3. Roll back to the correct version
+puppyone fs rollback /docs/product-spec.md 7
+```
+
+The full recovery takes less than a minute, with zero data loss.
+
+---
+
+## Notes
+
+- Rollback never deletes historical versions; it creates a new version with the content of the target version
+- Version numbers always increase, even after rollback
+- Each Content Node manages its version history independently, so changing one file does not affect others
+- Version history records the author, so you can trace changes later in the [Audit Log](/en/audit)
+
+---
+
+## Next steps
+
+- [Folder Snapshots](/en/version-control/snapshots) - Take a full backup of an entire directory
+- [Version Diff](/en/version-control/diff) - Inspect differences between two versions line by line

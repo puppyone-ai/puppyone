@@ -1,66 +1,122 @@
 # Notion
 
-Sync Notion pages and databases into your Context File System.
-
-| | |
-|---|---|
-| **Direction** | Pull (Notion → PuppyOne) |
-| **Trigger** | Incremental sync |
-| **Auth** | Notion OAuth |
-| **Output** | Markdown / JSON |
+Import pages and databases from Notion into PuppyOne.
 
 ---
 
-## What Gets Synced
+## Supported content
 
-| Notion Content | Output |
-|----------------|--------|
-| Pages | Markdown |
-| Databases | JSON (each row = one object) |
-| Nested pages | Markdown (hierarchy preserved) |
+| Type | Supported | Notes |
+|------|------|------|
+| Page | ✅ | Includes sub-pages |
+| Database | ✅ | Automatically converted into JSON arrays |
+| Embedded content | ⚠️ | Partial support (images, video links) |
+| Comments | ❌ | Not supported yet |
 
 ---
 
-## Setup
+## Setup steps
 
-### Step 1: Authorize Notion
+### Step 1: Start the import
 
-1. Open your Project → **Add Connector** → **Notion**
-2. Click **Connect with Notion**
-3. In the Notion popup, select the pages and databases PuppyOne should access
+1. Open your Project
+2. Click **Import** → **Notion**
+
+### Step 2: Authorize Notion
+
+The first time you use it, you need to complete OAuth authorization:
+
+1. Click **Connect Notion**
+2. In the Notion popup, choose the Workspace you want to authorize
+3. Select the pages you want to share with PuppyOne, either all or only some of them
 4. Click **Allow access**
 
-### Step 2: Select Resources
+> 💡 **Tip**: You can authorize only specific pages. PuppyOne can access only the content you explicitly grant access to.
 
-After authorization, choose which pages or databases to sync.
+### Step 3: Choose what to import
 
-### Step 3: Start Sync
+After authorization succeeds, you will see a list of pages available for import:
 
-Click **Start Sync**. The first sync is a full pull; subsequent syncs are incremental — only changed content is updated.
+1. Check the pages or databases you want to import
+2. Click **Import**
+
+### Step 4: Wait for processing
+
+The import runs in the background. You can track progress in the **Tasks** panel.
+
+When processing is complete, your Notion content is converted into content nodes and written into your project file tree.
 
 ---
 
-## Data Structure Example
+## Data structure examples
 
-A Notion database with product rows becomes:
+### Notion page → JSON
 
 ```json
-[
-  {
-    "id": "abc123",
-    "Name": "Widget Pro",
-    "Price": 99.99,
-    "Status": "Active",
-    "Category": "Electronics",
-    "last_edited_time": "2026-02-20T10:00:00Z"
+{
+  "title": "Product Requirements Document",
+  "content": "## Background\n\nThis is a...",
+  "created_at": "2024-01-15",
+  "last_edited": "2024-01-20",
+  "properties": {
+    "Status": "In Progress",
+    "Owner": "Alice"
   }
-]
+}
+```
+
+### Notion database → JSON array
+
+```json
+{
+  "database_title": "Product List",
+  "items": [
+    {
+      "name": "Widget Pro",
+      "price": 99.99,
+      "category": "Electronics"
+    },
+    {
+      "name": "Gadget X",
+      "price": 149.99,
+      "category": "Accessories"
+    }
+  ]
+}
 ```
 
 ---
 
-## Notes
+## Sync settings
 
-- Notion OAuth requires you to explicitly share pages with PuppyOne — content you don't share is never accessed
-- Files and images inside Notion pages are not synced
-- Database relations are not followed — each database is synced independently
+### Manual sync
+
+Find the corresponding Notion connection in your Project connection list, then click **Sync** to manually pull the latest content.
+
+### Automatic sync (coming soon)
+
+Scheduled automatic sync will be supported in the future.
+
+---
+
+## FAQ
+
+### Why can't I see some pages?
+
+Make sure you selected those pages during Notion OAuth authorization. You can re-authorize from **Settings** → **Connections**.
+
+### Why is the import slow?
+
+Large Notion databases may take a few minutes. You can check progress in the **Tasks** panel.
+
+### Why weren't images imported?
+
+For now, images are kept as links. If a Notion image is private, the agent may not be able to access it directly.
+
+---
+
+## Next steps
+
+- [Manage imported data](/en/editor)
+- [Auth for Agents](/en/auth-for-agents)
+- [Distribute to Agents](/en/distribute)

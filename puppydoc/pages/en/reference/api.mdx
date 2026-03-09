@@ -1,113 +1,1227 @@
-# API Reference
+# REST API Reference
 
-Full REST API documentation for PuppyOne.
+PuppyOne provides a complete REST API covering content management, agent configuration, data sync, collaborative editing, and more.
 
 ---
 
-## Base URL
+## Basic information
 
+### Base URL
+
+**Production:**
 ```
 https://api.puppyone.ai/api/v1
 ```
 
-Self-hosted:
+**Self-hosted:**
 ```
 http://localhost:9090/api/v1
 ```
 
----
+### Authentication
 
-## Authentication
+All API requests must include authentication headers. Two authentication methods are supported:
 
-All requests require a Bearer token:
-
-```bash
-curl -H "Authorization: Bearer YOUR_API_KEY" \
-  https://api.puppyone.ai/api/v1/projects
+**JWT token, for user authentication:**
+```
+Authorization: Bearer <access_token>
 ```
 
----
+**Access key, for machine or agent authentication:**
+```
+Authorization: Bearer cli_xxx
+```
 
-## Endpoints
+### Common parameters
 
-### Projects
+Some list endpoints support these query parameters:
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/projects` | List all projects |
-| `POST` | `/projects` | Create a project |
-| `GET` | `/projects/{id}` | Get a project |
-| `PATCH` | `/projects/{id}` | Update a project |
-| `DELETE` | `/projects/{id}` | Delete a project |
-
-### Tables (Data)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/tables/{id}/data` | Get all data |
-| `POST` | `/tables/{id}/query` | Query with filter |
-| `POST` | `/tables/{id}/data` | Create entry |
-| `PUT` | `/tables/{id}/data` | Update entry |
-| `DELETE` | `/tables/{id}/data` | Delete entry |
-
-### Sync
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/sync` | List sync connectors |
-| `POST` | `/sync` | Create a sync connector |
-| `POST` | `/sync/{id}/pull` | Trigger a manual pull |
-
-### MCP
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/mcp` | List MCP configurations |
-| `GET` | `/mcp/server/{api_key}` | MCP Server SSE endpoint |
+| Parameter | Type | Description |
+|------|------|------|
+| `project_id` | string | Project ID, required for most endpoints |
+| `org_id` | string | Organization ID |
 
 ---
 
-## Response Format
+## 1. Authentication
 
-Success:
+### Get public config
+
+```
+GET /auth/config
+```
+
+Returns public Supabase configuration, URL and anon key, for client-side Realtime connections.
+
+### Log in
+
+```
+POST /auth/login
+```
+
+**Request body:**
 ```json
 {
-  "data": { ... },
-  "error": null
+  "email": "user@example.com",
+  "password": "your-password"
 }
 ```
 
-Error:
+**Response:**
 ```json
 {
-  "data": null,
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "Project not found"
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "v1.xxx",
+  "expires_in": 3600
+}
+```
+
+### Refresh token
+
+```
+POST /auth/refresh
+```
+
+**Request body:**
+```json
+{
+  "refresh_token": "v1.xxx"
+}
+```
+
+### Initialize user
+
+```
+POST /auth/initialize
+```
+
+An idempotent operation that creates the user's profile and default organization. Call this after the first login.
+
+---
+
+## 2. Organizations
+
+### List organizations
+
+```
+GET /organizations/
+```
+
+Returns all organizations the current user belongs to.
+
+### Create organization
+
+```
+POST /organizations/
+```
+
+**Request body:**
+```json
+{
+  "name": "My Team",
+  "description": "Team description"
+}
+```
+
+### Get organization details
+
+```
+GET /organizations/{org_id}
+```
+
+### Update organization
+
+```
+PUT /organizations/{org_id}
+```
+
+### Delete organization
+
+```
+DELETE /organizations/{org_id}
+```
+
+### Member management
+
+```
+GET    /organizations/{org_id}/members                          # List members
+PUT    /organizations/{org_id}/members/{user_id}/role           # Update role
+DELETE /organizations/{org_id}/members/{user_id}                # Remove member
+POST   /organizations/{org_id}/leave                            # Leave organization
+```
+
+### Invitations
+
+```
+POST /organizations/{org_id}/invite                             # Send invitation
+GET  /organizations/{org_id}/invitations                        # Show pending invitations
+POST /organizations/invitations/{token}/accept                  # Accept invitation
+```
+
+---
+
+## 3. Projects
+
+### List projects
+
+```
+GET /projects/?org_id={org_id}
+```
+
+### Create project
+
+```
+POST /projects/
+```
+
+**Request body:**
+```json
+{
+  "name": "Product Knowledge Base",
+  "description": "Stores product-related data",
+  "org_id": "org_xxx"
+}
+```
+
+### Get project details
+
+```
+GET /projects/{project_id}
+```
+
+### Update project
+
+```
+PUT /projects/{project_id}
+```
+
+### Delete project
+
+```
+DELETE /projects/{project_id}
+```
+
+### Project dashboard
+
+```
+GET /projects/{project_id}/dashboard
+```
+
+Returns aggregated project state, including node counts, connection status, and sync progress.
+
+### Project members
+
+```
+GET    /projects/{project_id}/members                           # List members
+POST   /projects/{project_id}/members                           # Add member
+PUT    /projects/{project_id}/members/{user_id}/role            # Update role
+DELETE /projects/{project_id}/members/{user_id}                 # Remove member
+```
+
+### Seed default content
+
+```
+POST /projects/{project_id}/seed
+```
+
+Creates default sample content for the project.
+
+---
+
+## 4. Content nodes
+
+Content Nodes are PuppyOne's core data unit. Four types are supported: `folder`, `json`, `markdown`, and `file`.
+
+### List nodes
+
+```
+GET /nodes/?project_id={project_id}&parent_id={parent_id}
+```
+
+| Parameter | Type | Required | Description |
+|------|------|------|------|
+| `project_id` | string | Yes | Project ID |
+| `parent_id` | string | No | Parent node ID. If omitted, returns the root |
+
+### Get a single node
+
+```
+GET /nodes/{node_id}
+```
+
+**Response:**
+```json
+{
+  "id": "node_xxx",
+  "name": "config.json",
+  "type": "json",
+  "content": { "key": "value" },
+  "parent_id": "node_parent",
+  "project_id": "proj_xxx",
+  "created_at": "2025-01-01T00:00:00Z",
+  "updated_at": "2025-01-01T00:00:00Z"
+}
+```
+
+### Get a node by path
+
+```
+GET /nodes/by-path?project_id={project_id}&path=/folder/file.json
+```
+
+### Get a node by ID path
+
+```
+GET /nodes/by-id-path/?project_id={project_id}&id_path=id1/id2/id3
+```
+
+### Batch get nodes
+
+```
+GET /nodes/batch?ids=node_1,node_2,node_3
+```
+
+### Create folder
+
+```
+POST /nodes/folder
+```
+
+**Request body:**
+```json
+{
+  "name": "reports",
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent"
+}
+```
+
+### Create JSON node
+
+```
+POST /nodes/json
+```
+
+**Request body:**
+```json
+{
+  "name": "config.json",
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "content": { "key": "value", "nested": { "a": 1 } }
+}
+```
+
+### Create Markdown node
+
+```
+POST /nodes/markdown
+```
+
+**Request body:**
+```json
+{
+  "name": "README.md",
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "content": "# Hello\n\nThis is a markdown file."
+}
+```
+
+### Batch create nodes
+
+```
+POST /nodes/bulk-create
+```
+
+**Request body:**
+```json
+{
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "nodes": [
+    { "name": "a.json", "type": "json", "content": {} },
+    { "name": "b.md", "type": "markdown", "content": "# B" }
+  ]
+}
+```
+
+### Upload file
+
+```
+POST /nodes/upload
+```
+
+Returns a presigned upload URL, and the client uploads the file directly to S3.
+
+### Update node
+
+```
+PUT /nodes/{node_id}
+```
+
+**Request body:**
+```json
+{
+  "name": "new-name.json",
+  "content": { "updated": true }
+}
+```
+
+### Move node
+
+```
+POST /nodes/{node_id}/move
+```
+
+**Request body:**
+```json
+{
+  "new_parent_id": "node_target_folder"
+}
+```
+
+### Delete node
+
+```
+DELETE /nodes/{node_id}
+```
+
+Soft delete only. The node is moved into the `.trash` folder.
+
+### Get download URL
+
+```
+GET /nodes/{node_id}/download
+```
+
+Returns a presigned download URL for file-type nodes.
+
+### Version history
+
+```
+GET  /nodes/{node_id}/versions                                 # List versions
+GET  /nodes/{node_id}/versions/{version}                       # Get version content
+POST /nodes/{node_id}/rollback/{version}                       # Roll back to a version
+GET  /nodes/{node_id}/diff/{v1}/{v2}                           # Compare two versions
+```
+
+**Version list response:**
+```json
+[
+  {
+    "version": 3,
+    "actor_type": "user",
+    "actor_id": "user_xxx",
+    "created_at": "2025-01-03T00:00:00Z",
+    "message": "Updated config"
+  },
+  {
+    "version": 2,
+    "actor_type": "agent",
+    "actor_id": "agent_xxx",
+    "created_at": "2025-01-02T00:00:00Z"
+  }
+]
+```
+
+### Folder snapshots
+
+```
+GET  /nodes/{folder_id}/snapshots                              # Snapshot history
+POST /nodes/{folder_id}/rollback-snapshot/{snapshot_id}        # Roll back to a snapshot
+```
+
+### Audit logs
+
+```
+GET /nodes/{node_id}/audit-logs
+```
+
+Returns the full operation history for a node, who did what and when.
+
+**Response:**
+```json
+[
+  {
+    "action": "update",
+    "actor_type": "user",
+    "actor_id": "user_xxx",
+    "node_id": "node_xxx",
+    "timestamp": "2025-01-01T12:00:00Z",
+    "details": {}
+  }
+]
+```
+
+---
+
+## 5. Tables
+
+Table APIs are a supplemental operation layer for structured JSON data. They use JSON Pointer paths to locate and modify data, but the primary data model in PuppyOne is still the Content Node.
+
+### List tables
+
+```
+GET /tables/?org_id={org_id}
+```
+
+### Get table
+
+```
+GET /tables/{table_id}
+```
+
+### Create table
+
+```
+POST /tables/
+```
+
+### Update table
+
+```
+PUT /tables/{table_id}
+```
+
+### Delete table
+
+```
+DELETE /tables/{table_id}
+```
+
+### Get data
+
+```
+GET /tables/{table_id}/data?path=/products
+```
+
+| Parameter | Type | Required | Description |
+|------|------|------|------|
+| `path` | string | No | JSON Pointer path, defaults to `/` |
+
+### Create data
+
+```
+POST /tables/{table_id}/data
+```
+
+**Request body:**
+```json
+{
+  "path": "/products",
+  "data": {
+    "id": "SKU-003",
+    "name": "New Widget",
+    "price": 129.99
   }
 }
 ```
 
+### Update data
+
+```
+PUT /tables/{table_id}/data
+```
+
+**Request body:**
+```json
+{
+  "path": "/products/0/price",
+  "value": 89.99
+}
+```
+
+### Delete data
+
+```
+DELETE /tables/{table_id}/data?path=/products/0
+```
+
 ---
 
-## Error Codes
+## 6. Connection management
 
-| Code | HTTP Status | Meaning |
-|------|-------------|---------|
-| `UNAUTHORIZED` | 401 | Invalid or missing API Key |
-| `FORBIDDEN` | 403 | Insufficient FLS permissions |
-| `NOT_FOUND` | 404 | Resource does not exist |
-| `VALIDATION_ERROR` | 422 | Invalid request body |
+Connections are PuppyOne's unified integration abstraction, covering agents, MCP endpoints, sandbox endpoints, sync connections, and more.
+
+### List connections
+
+```
+GET /connections/?project_id={project_id}
+```
+
+### Get connection
+
+```
+GET /connections/{connection_id}
+```
+
+### Update connection
+
+```
+PATCH /connections/{connection_id}
+```
+
+### Delete connection
+
+```
+DELETE /connections/{connection_id}
+```
+
+### Regenerate access key
+
+```
+POST /connections/{connection_id}/regenerate-key
+```
+
+---
+
+## 7. Data sync
+
+### Project sync status
+
+```
+GET /sync/status?project_id={project_id}
+```
+
+### List available connectors
+
+```
+GET /sync/connectors
+```
+
+Returns a list of all supported sync connector specs.
+
+### List sync jobs
+
+```
+GET /sync/syncs?project_id={project_id}
+```
+
+### Create sync
+
+```
+POST /sync/bootstrap
+```
+
+**Request body:**
+```json
+{
+  "project_id": "proj_xxx",
+  "provider": "notion",
+  "config": {
+    "database_id": "xxx"
+  }
+}
+```
+
+### Sync operations
+
+```
+POST   /sync/syncs/{sync_id}/refresh                           # Manual refresh
+POST   /sync/syncs/{sync_id}/pause                             # Pause sync
+POST   /sync/syncs/{sync_id}/resume                            # Resume sync
+PATCH  /sync/syncs/{sync_id}/trigger                           # Update trigger mode
+DELETE /sync/syncs/{sync_id}                                   # Delete sync
+```
+
+### Sync run history
+
+```
+GET /sync/syncs/{sync_id}/runs                                 # List run records
+GET /sync/runs/{run_id}                                        # Run details
+```
+
+### Folder push and pull, for CLI sync
+
+```
+POST /sync/syncs/{sync_id}/push-file                           # Push local file
+GET  /sync/syncs/{sync_id}/pull-files                          # Pull cloud files
+POST /sync/syncs/{sync_id}/ack-pull                            # Confirm pull completed
+```
+
+### Sync changelog
+
+```
+GET /sync/changelog?project_id={project_id}
+```
+
+---
+
+## 8. Agent configuration
+
+### List agents
+
+```
+GET /agent-config/?project_id={project_id}
+```
+
+### Get agent
+
+```
+GET /agent-config/{agent_id}
+```
+
+### Get default agent
+
+```
+GET /agent-config/default?project_id={project_id}
+```
+
+### Create agent
+
+```
+POST /agent-config/
+```
+
+**Request body:**
+```json
+{
+  "name": "Support Assistant",
+  "project_id": "proj_xxx",
+  "system_prompt": "You are a professional support assistant...",
+  "model": "gpt-4o"
+}
+```
+
+### Update agent
+
+```
+PUT /agent-config/{agent_id}
+```
+
+### Delete agent
+
+```
+DELETE /agent-config/{agent_id}
+```
+
+### Access control
+
+```
+POST   /agent-config/{agent_id}/accesses                       # Add node access
+PUT    /agent-config/{agent_id}/accesses/{access_id}           # Update access
+DELETE /agent-config/{agent_id}/accesses/{access_id}           # Remove access
+PUT    /agent-config/{agent_id}/accesses                       # Sync accesses in bulk
+```
+
+### Bash tools
+
+```
+POST   /agent-config/{agent_id}/bash                           # Add Bash tool
+PUT    /agent-config/{agent_id}/bash/{bash_id}                 # Update Bash tool
+DELETE /agent-config/{agent_id}/bash/{bash_id}                 # Remove Bash tool
+PUT    /agent-config/{agent_id}/bash                           # Sync Bash tools in bulk
+```
+
+### Execution history
+
+```
+GET /agent-config/{agent_id}/executions
+```
+
+---
+
+## 9. Agent chat
+
+### SSE streaming chat
+
+```
+POST /agents
+```
+
+Stream a conversation with an agent over Server-Sent Events, SSE.
+
+**Request body:**
+```json
+{
+  "agent_id": "agent_xxx",
+  "message": "Check the latest product data for me",
+  "session_id": "session_xxx"
+}
+```
+
+**SSE event stream:**
+```
+data: {"type": "text", "content": "Checking now..."}
+data: {"type": "tool_call", "name": "query_data", "arguments": {...}}
+data: {"type": "tool_result", "content": {...}}
+data: {"type": "text", "content": "Here are the results..."}
+data: {"type": "done"}
+```
+
+### Chat session management
+
+```
+POST   /chat/sessions                                          # Create session
+GET    /chat/sessions                                          # List sessions
+GET    /chat/sessions/{session_id}                             # Get session
+PATCH  /chat/sessions/{session_id}                             # Update session
+DELETE /chat/sessions/{session_id}                             # Delete session
+GET    /chat/sessions/{session_id}/messages                    # Get message history
+```
+
+---
+
+## 10. MCP endpoints
+
+### List MCP endpoints
+
+```
+GET /mcp-endpoints?project_id={project_id}
+```
+
+### Create MCP endpoint
+
+```
+POST /mcp-endpoints
+```
+
+**Request body:**
+```json
+{
+  "name": "Product Data MCP",
+  "project_id": "proj_xxx",
+  "node_id": "node_xxx"
+}
+```
+
+### Get MCP endpoint
+
+```
+GET /mcp-endpoints/{endpoint_id}
+```
+
+### Get MCP endpoint by node
+
+```
+GET /mcp-endpoints/by-node/{node_id}
+```
+
+### Update MCP endpoint
+
+```
+PUT /mcp-endpoints/{endpoint_id}
+```
+
+### Delete MCP endpoint
+
+```
+DELETE /mcp-endpoints/{endpoint_id}
+```
+
+### Regenerate API key
+
+```
+POST /mcp-endpoints/{endpoint_id}/regenerate-key
+```
+
+### MCP tool bindings
+
+```
+GET    /mcp/agents/{agent_id}/tools                            # List bound tools
+POST   /mcp/agents/{agent_id}/tools                            # Bind tool
+PUT    /mcp/agents/{agent_id}/tools/{tool_id}                  # Update binding
+DELETE /mcp/agents/{agent_id}/tools/{tool_id}                  # Unbind tool
+GET    /mcp/agents/{agent_id}/status                           # MCP status
+POST   /mcp/agents/{agent_id}/regenerate-key                   # Regenerate MCP key
+```
+
+### MCP proxy forwarding
+
+```
+ANY /mcp/proxy                                                 # MCP server proxy
+ANY /mcp/proxy/{path}                                          # MCP server proxy subpath
+```
+
+---
+
+## 11. Sandbox endpoints
+
+### List sandbox endpoints
+
+```
+GET /sandbox-endpoints?project_id={project_id}
+```
+
+### Create sandbox endpoint
+
+```
+POST /sandbox-endpoints
+```
+
+**Request body:**
+```json
+{
+  "name": "Code Sandbox",
+  "project_id": "proj_xxx",
+  "node_id": "node_xxx"
+}
+```
+
+### Get sandbox endpoint
+
+```
+GET /sandbox-endpoints/{endpoint_id}
+```
+
+### Get sandbox endpoint by node
+
+```
+GET /sandbox-endpoints/by-node/{node_id}
+```
+
+### Update sandbox endpoint
+
+```
+PUT /sandbox-endpoints/{endpoint_id}
+```
+
+### Delete sandbox endpoint
+
+```
+DELETE /sandbox-endpoints/{endpoint_id}
+```
+
+### Regenerate access key
+
+```
+POST /sandbox-endpoints/{endpoint_id}/regenerate-key
+```
+
+### Execute command
+
+```
+POST /sandbox-endpoints/{endpoint_id}/exec
+```
+
+**Request body:**
+```json
+{
+  "command": "jq '.products | length' data.json"
+}
+```
+
+**Response:**
+```json
+{
+  "stdout": "42",
+  "stderr": "",
+  "exit_code": 0
+}
+```
+
+---
+
+## 12. Collaboration
+
+PuppyOne provides a full collaborative editing workflow, including Checkout and Commit, version history, and snapshot rollback.
+
+### Checkout
+
+```
+POST /collab/checkout
+```
+
+**Request body:**
+```json
+{
+  "node_ids": ["node_1", "node_2"],
+  "project_id": "proj_xxx"
+}
+```
+
+### Commit
+
+```
+POST /collab/commit
+```
+
+**Request body:**
+```json
+{
+  "mutations": [
+    {
+      "node_id": "node_1",
+      "content": { "updated": true },
+      "message": "Update config"
+    }
+  ],
+  "project_id": "proj_xxx"
+}
+```
+
+### Version management
+
+```
+GET  /collab/versions/{node_id}                                # Version history
+GET  /collab/versions/{node_id}/{version}                      # Get version content
+POST /collab/rollback/{node_id}/{version}                      # Roll back to version
+GET  /collab/diff/{node_id}/{v1}/{v2}                          # Compare versions
+```
+
+### Folder snapshots
+
+```
+GET  /collab/snapshots/{folder_id}                             # List snapshots
+POST /collab/rollback-snapshot/{folder_id}/{snapshot_id}       # Roll back to snapshot
+```
+
+---
+
+## 13. Tools
+
+### List tools
+
+```
+GET /tools/?org_id={org_id}
+```
+
+### List tools by node
+
+```
+GET /tools/by-node/{node_id}
+```
+
+### List tools by project
+
+```
+GET /tools/by-project/{project_id}
+```
+
+### Create tool
+
+```
+POST /tools/
+```
+
+**Request body:**
+```json
+{
+  "name": "query_products",
+  "node_id": "node_xxx",
+  "type": "query",
+  "config": {}
+}
+```
+
+### Create search tool
+
+```
+POST /tools/search
+```
+
+Creates a search tool with a vector index asynchronously.
+
+### Get search index status
+
+```
+GET /tools/{tool_id}/search-index
+```
+
+### Get, update, or delete a tool
+
+```
+GET    /tools/{tool_id}
+PUT    /tools/{tool_id}
+DELETE /tools/{tool_id}
+```
+
+---
+
+## 14. Ingestion
+
+### Submit file ingestion
+
+```
+POST /ingest/submit/file
+```
+
+Upload PDFs, DOCX files, images, and more, then automatically run ETL into Markdown or JSON.
+
+### Submit URL or SaaS ingestion
+
+```
+POST /ingest/submit/saas
+```
+
+Pull data from a URL or SaaS platform.
+
+### Task management
+
+```
+GET    /ingest/tasks/{task_id}                                 # Get task status
+POST   /ingest/tasks/batch                                     # Get task status in bulk
+DELETE /ingest/tasks/{task_id}                                 # Cancel task
+GET    /ingest/health                                          # Ingestion service health check
+```
+
+### ETL rules
+
+```
+GET    /ingest/rules                                           # List ETL rules
+POST   /ingest/rules                                           # Create ETL rule
+GET    /ingest/rules/{rule_id}                                 # Get rule details
+DELETE /ingest/rules/{rule_id}                                 # Delete rule
+```
+
+---
+
+## 15. OAuth
+
+PuppyOne supports OAuth integrations for multiple platforms. Each platform follows the same endpoint pattern:
+
+```
+GET    /oauth/{provider}/authorize                             # Get authorization URL
+POST   /oauth/{provider}/callback                              # Handle callback
+GET    /oauth/{provider}/status                                # Check connection status
+DELETE /oauth/{provider}/disconnect                            # Disconnect
+```
+
+Supported `{provider}` values:
+
+| Provider | Description |
+|----------|------|
+| `notion` | Notion workspace |
+| `github` | GitHub repository |
+| `gmail` | Gmail inbox |
+| `google-drive` | Google Drive files |
+| `google-docs` | Google Docs documents |
+| `google-sheets` | Google Sheets spreadsheets |
+| `google-calendar` | Google Calendar |
+| `linear` | Linear project management |
+| `airtable` | Airtable bases |
+
+**Example, start Notion OAuth:**
+```bash
+curl "https://api.puppyone.ai/api/v1/oauth/notion/authorize?project_id=proj_xxx" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Generic browser callback:**
+```
+GET /oauth/callback
+```
+
+---
+
+## Other endpoints
+
+### Database connections
+
+```
+POST   /db-connector/connections                               # Create DB connection
+GET    /db-connector/connections                               # List connections
+DELETE /db-connector/connections/{connection_id}               # Delete connection
+GET    /db-connector/connections/{id}/tables                   # List database tables
+GET    /db-connector/connections/{id}/tables/{table}/preview   # Preview table data
+POST   /db-connector/connections/{id}/save                     # Save as content node
+```
+
+### Public publishing
+
+```
+POST   /publishes/                                             # Create publish
+GET    /publishes/                                             # List publishes
+PATCH  /publishes/{publish_id}                                 # Update publish
+DELETE /publishes/{publish_id}                                 # Delete publish
+```
+
+Public access, no auth required:
+```
+GET /p/{publish_key}
+```
+
+### Usage analytics
+
+```
+GET /analytics/access-timeseries                               # Access time series
+GET /analytics/access-summary                                  # Access summary
+```
+
+### User profile
+
+```
+GET  /profile/me                                               # Get current user info
+GET  /profile/onboarding/status                                # Onboarding status
+POST /profile/onboarding/complete                              # Complete onboarding
+POST /profile/onboarding/reset                                 # Reset onboarding
+```
+
+### Workspace
+
+```
+POST /workspace/create                                         # Create workspace
+POST /workspace/{agent_id}/complete                            # Complete agent workspace
+GET  /workspace/{agent_id}/status                              # Workspace status
+```
+
+---
+
+## Error codes
+
+| Error code | HTTP status | Description |
+|--------|------------|------|
+| `UNAUTHORIZED` | 401 | Invalid or missing token |
+| `FORBIDDEN` | 403 | Insufficient permissions |
+| `NOT_FOUND` | 404 | Resource not found |
+| `VALIDATION_ERROR` | 422 | Invalid request parameters |
 | `RATE_LIMITED` | 429 | Too many requests |
-| `INTERNAL_ERROR` | 500 | Server error |
+| `INTERNAL_ERROR` | 500 | Internal server error |
 
 ---
 
-## Rate Limits
+## Code examples
 
-| Plan | Limit |
-|------|-------|
-| Free | 100 req/min |
-| Pro | 1,000 req/min |
-| Team | Unlimited |
-| Self-hosted | No limits |
+### cURL: create a JSON Content Node
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/nodes/json" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "products.json",
+    "project_id": "proj_xxx",
+    "content": {
+      "products": [
+        { "id": "SKU-001", "name": "Widget", "price": 59.99 }
+      ]
+    }
+  }'
+```
+
+### Python: query Content Nodes
+
+```python
+import requests
+
+API_BASE = "https://api.puppyone.ai/api/v1"
+TOKEN = "<your-token>"
+
+headers = {"Authorization": f"Bearer {TOKEN}"}
+
+resp = requests.get(
+    f"{API_BASE}/nodes/",
+    headers=headers,
+    params={"project_id": "proj_xxx"}
+).json()
+
+for node in resp["data"]["nodes"]:
+    print(f"{node['name']} ({node['type']})")
+```
+
+### JavaScript: get version history
+
+```javascript
+const API_BASE = "https://api.puppyone.ai/api/v1";
+
+async function getVersionHistory(token, nodeId) {
+  const response = await fetch(
+    `${API_BASE}/nodes/${nodeId}/versions`,
+    {
+      headers: { "Authorization": `Bearer ${token}` }
+    }
+  );
+  return response.json();
+}
+```

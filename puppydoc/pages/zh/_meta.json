@@ -1,9 +1,26 @@
 {
   "index": "介绍",
   "quickstart": "快速开始",
-  "connect": "Sync Connectors",
-  "agents": "接入 Agent",
-  "access": "File Level Security",
+  "concepts": "核心概念",
+  "connect": "数据连接",
   "editor": "数据管理",
+  "-- Manage": {
+    "type": "separator",
+    "title": "管控"
+  },
+  "auth-for-agents": "Auth for Agents",
+  "version-control": "版本控制",
+  "audit": "审计日志",
+  "conflict": "冲突解决",
+  "-- Distribute": {
+    "type": "separator",
+    "title": "分发"
+  },
+  "distribute": "分发给 Agent",
+  "-- Tools": {
+    "type": "separator",
+    "title": "工具与参考"
+  },
+  "cli": "CLI 参考",
   "reference": "参考"
 }

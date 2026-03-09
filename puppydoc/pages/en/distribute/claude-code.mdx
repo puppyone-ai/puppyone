@@ -1,0 +1,207 @@
+# Claude Code
+
+Use local file sync so Claude Code can read and write your PuppyOne data directly.
+
+---
+
+## Why file sync instead of MCP
+
+Claude Code is an AI coding tool built around file operations. It works directly with the local file system, and unlike Cursor, its strongest workflow is local file editing.
+
+That is why PuppyOne provides a **file sync** workflow for Claude Code. The OpenClaw protocol establishes real-time two-way sync between PuppyOne in the cloud and a local folder. Claude Code edits local files, and the changes sync back to the cloud automatically.
+
+---
+
+## How it works
+
+```
+PuppyOne cloud                      Local folder
+┌──────────────────┐               ┌──────────────────────┐
+│ /notion-docs/    │  ◄──────────► │ ~/project/context/   │
+│ /github-issues/  │   real-time   │   /notion-docs/      │
+│ /linear-tasks/   │   two-way sync│   /github-issues/    │
+└──────────────────┘               └──────────┬───────────┘
+                                              │
+                                   Claude Code reads and writes here
+```
+
+- **Cloud -> local**: Data imported into PuppyOne through connectors, such as Notion pages or GitHub issues, syncs automatically into the local folder
+- **Local -> cloud**: File changes made by Claude Code are pushed back to PuppyOne automatically
+- **Conflict handling**: If both sides change the same content, PuppyOne detects conflicts and provides resolution options
+
+---
+
+## Prerequisites
+
+- Claude Code, installed and available
+- Node.js 18+
+- A PuppyOne account with data already imported into your project
+
+---
+
+## Setup
+
+### Option 1: Full CLI flow
+
+#### Step 1: Install the CLI
+
+```bash
+npm install -g puppyone
+```
+
+#### Step 2: Log in
+
+```bash
+puppyone auth login
+```
+
+Complete authorization in your browser when prompted.
+
+#### Step 3: Select a project
+
+```bash
+puppyone project ls
+puppyone project use "My Project"
+```
+
+#### Step 4: Create a folder connection
+
+```bash
+puppyone conn add folder ~/project/context --name "Claude Code Workspace"
+```
+
+This creates a two-way sync connection in PuppyOne and returns an access key.
+
+#### Step 5: Start sync
+
+```bash
+puppyone access up ~/project/context
+```
+
+Once sync starts, Content Node data from PuppyOne is downloaded into `~/project/context/`, and later changes sync in real time.
+
+### Option 2: Quick dashboard setup
+
+1. Open the PuppyOne dashboard
+2. Go to Project -> **Connections**
+3. Click **Add Connection** and choose **OpenClaw / Local Folder**
+4. Enter a name and create the connection
+5. Copy the generated access key
+6. Run this in your terminal:
+
+```bash
+npm install -g puppyone
+puppyone access up --key cli_xxx ~/project/context
+```
+
+Replace `cli_xxx` with the access key you copied.
+
+---
+
+## Using it in Claude Code
+
+After sync starts, your PuppyOne data is available in the local folder. Open Claude Code and include that sync directory in your project.
+
+### Read data
+
+```
+Please read all documents under context/notion-docs/
+and prepare a technical architecture overview.
+```
+
+Claude Code reads the local Markdown and JSON files directly, with no API calls required.
+
+### Modify data
+
+```
+Update the price of Widget Pro in context/products/pricing.json to 149.99.
+```
+
+Claude Code edits the local file, and the change syncs back to PuppyOne automatically.
+
+### Create new files
+
+```
+Based on the meeting notes in context/meeting-notes/,
+generate a weekly report and save it to context/reports/weekly.md.
+```
+
+New files are automatically synced into PuppyOne as new Content Nodes.
+
+---
+
+## Sync management
+
+### Check sync status
+
+```bash
+puppyone status
+```
+
+This shows all active sync connections and their status.
+
+### Stop sync
+
+```bash
+puppyone access down ~/project/context
+```
+
+`puppyone access up` handles connection setup, initial sync, and starting the local daemon. When you want to stop it, use `puppyone access down`.
+
+---
+
+## Directory structure
+
+The synced local folder mirrors the Content Node tree in PuppyOne one-to-one:
+
+```
+~/project/context/
+├── notion-docs/
+│   ├── Product Requirements.md
+│   └── Technical Architecture.md
+├── github-issues/
+│   ├── issue-123.json
+│   └── issue-456.json
+├── products/
+│   └── pricing.json
+└── reports/
+    └── weekly.md
+```
+
+- **Folder** -> `folder` node type in PuppyOne
+- **`.json` file** -> `json` node type in PuppyOne
+- **`.md` file** -> `markdown` node type in PuppyOne
+
+---
+
+## FAQ
+
+### Sync starts but no files appear
+
+1. Make sure your PuppyOne project contains data
+2. Check that the access key is correct
+3. Run `puppyone status` to inspect connection status
+
+### File changes do not sync back to the cloud
+
+1. Make sure the sync process is still running
+2. Large files or many files may take a few seconds
+3. Make sure the file is inside the sync directory
+
+### What happens if there is a conflict?
+
+When the same file is modified both locally and in the cloud, PuppyOne will:
+1. Preserve both versions
+2. Keep the pre-overwrite content in version history as a safety net
+3. Let you inspect diffs in the dashboard and decide whether to roll back
+
+### Can I sync only part of my data?
+
+Yes. The safest approach is to create a dedicated folder or workspace in PuppyOne for content you want to expose to Claude Code, then run `puppyone access up` on the corresponding local directory.
+
+---
+
+## Next steps
+
+- [Custom MCP Clients](/en/distribute/custom-mcp). Use MCP in other AI tools
+- [REST API](/en/distribute/rest-api). Access PuppyOne programmatically over HTTP

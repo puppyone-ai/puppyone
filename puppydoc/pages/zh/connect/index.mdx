@@ -8,7 +8,7 @@
 
 Sync Connector 不是一次性的数据导入。它是一个持续的**同步关系**——每个 Connector 都有方向和触发方式，确保你的 Context File System 始终和外部世界保持一致。
 
-每个 Connector 的数据，同步进来后都会转化为结构化的 JSON 或 Markdown 文件，存储在你的 Project 中，Agent 可以直接查询和使用。
+每个 Connector 的数据，同步进来后都会转化为结构化的 JSON 或 Markdown 内容节点，存储在你的 Project 中，Agent 可以直接查询和使用。
 
 ---
 
@@ -25,31 +25,55 @@ Sync Connector 不是一次性的数据导入。它是一个持续的**同步关
 | [**Google Calendar**](/zh/connect/google-calendar) | Pull | 定时拉取 | 日历事件 → JSON |
 | [**Linear**](/zh/connect/linear) | Pull | 手动 | Issue / Project → JSON |
 | [**Airtable**](/zh/connect/airtable) | Pull | 全量同步 | 表格 → JSON |
+| [**PostHog**](/zh/connect/posthog) | Pull | 手动 | 事件 / 用户 / 洞察 → JSON |
+| [**数据库**](/zh/connect/database) | Pull | 手动 | 数据库表 → JSON |
+| [**本地文件夹**](/zh/connect/local-folder) | Bidirectional | 实时 | 本地文件 ↔ 内容节点 |
 | [**文件上传**](/zh/connect/files) | Pull | 单次导入 | PDF / DOCX / 图片 → Markdown |
 | [**网页爬取**](/zh/connect/urls) | Pull | 单次导入 | 公开网页 → Markdown |
-
-> **OpenClaw / 本地文件夹** 是双向同步（Bidirectional），Agent 写回的内容也能同步到本地。详见 [OpenClaw 集成](#)。
 
 ---
 
 ## 同步方向说明
 
-**Pull（拉取）**：外部数据 → puppyone
+**Pull（拉取）**：外部数据 → PuppyOne
 - 适合 Notion、GitHub、Gmail 等 SaaS 数据源
 - 数据以只读或可查询的方式供 Agent 使用
 
-**Bidirectional（双向）**：外部 ↔ puppyone
-- 适合本地文件夹、OpenClaw 等场景
-- Agent 在 puppyone 中修改的数据，可以同步回本地或外部系统
+**Bidirectional（双向）**：外部 ↔ PuppyOne
+- 适合本地文件夹同步场景
+- Agent 在 PuppyOne 中修改的数据，可以同步回本地
 
 ---
 
 ## 如何添加 Connector
 
-1. 进入你的 **Project** → 点击 **Add Connector**
+### 通过 Dashboard
+
+1. 进入你的 **Project** → 点击 **Connections** → **Add Connection**
 2. 选择数据源，完成 **OAuth 授权**（或粘贴 API Key）
 3. 选择要同步的资源（页面、仓库、邮箱标签等）
 4. 点击 **Start Sync**，等待首次同步完成
+
+### 通过 CLI
+
+使用 `puppyone conn add` 命令快速添加连接：
+
+```bash
+# 添加 Notion 连接（需要先完成 OAuth）
+puppyone conn add notion <notion-url>
+
+# 添加 GitHub 连接
+puppyone conn add github <repo-url>
+
+# 添加本地文件夹连接
+puppyone conn add folder ~/workspace --name "My Workspace"
+
+# 添加 PostHog 连接
+puppyone conn add posthog --api-key phx_xxx --config '{"project_id":"123","mode":"events"}'
+
+# 查看所有连接
+puppyone conn ls
+```
 
 同步完成后，数据会出现在 Project 的文件树中，可直接通过 MCP 或 API 访问。
 
@@ -63,5 +87,9 @@ import { Cards, Card } from 'nextra/components'
   <Card title="Gmail" href="/zh/connect/gmail" />
   <Card title="Google Drive" href="/zh/connect/google-drive" />
   <Card title="Linear" href="/zh/connect/linear" />
+  <Card title="PostHog" href="/zh/connect/posthog" />
+  <Card title="数据库连接" href="/zh/connect/database" />
+  <Card title="本地文件夹同步" href="/zh/connect/local-folder" />
   <Card title="文件上传" href="/zh/connect/files" />
+  <Card title="网页爬取" href="/zh/connect/urls" />
 </Cards>

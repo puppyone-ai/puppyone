@@ -1,0 +1,268 @@
+# File System Commands
+
+`puppyone fs` provides a POSIX-style command set so you can manage the cloud Content Node tree like a local file system: browse, read, write, upload, download, and manage versions directly from the terminal.
+
+---
+
+## Command overview
+
+| Command | Description |
+|------|------|
+| `fs ls [path]` | List files and folders |
+| `fs tree [path]` | Show a tree view |
+| `fs cat <path>` | Read file content |
+| `fs mkdir <path>` | Create a folder |
+| `fs touch <path>` | Create an empty file |
+| `fs write <path>` | Write content |
+| `fs mv <src> <dst>` | Move or rename |
+| `fs rm <path>` | Delete, soft-delete only |
+| `fs info <path>` | Show node details |
+| `fs upload <local> [remote]` | Upload a local file |
+| `fs download <remote> [local]` | Download to local disk |
+| `fs versions <path>` | Show version history |
+| `fs diff <path> <v1> <v2>` | Compare two versions |
+| `fs rollback <path> <ver>` | Roll back to a version |
+| `fs audit <path>` | Show audit logs |
+
+---
+
+## Browse and read
+
+### List files
+
+```bash
+# List the root directory
+puppyone fs ls
+
+# List a specific path
+puppyone fs ls /docs
+
+# Long format with type, size, and modified time
+puppyone fs ls -l /docs
+```
+
+### Browse as a tree
+
+```bash
+# Show the full tree
+puppyone fs tree
+
+# Limit depth
+puppyone fs tree -d 2
+
+# Show a subtree
+puppyone fs tree /docs -d 3
+```
+
+### Read file contents
+
+```bash
+# Read a Markdown file
+puppyone fs cat /docs/readme
+
+# Read a JSON file
+puppyone fs cat /config/settings.json
+```
+
+---
+
+## Create and write
+
+### Create folders
+
+```bash
+puppyone fs mkdir /docs
+puppyone fs mkdir /docs/guides
+```
+
+### Create empty files
+
+```bash
+# Creates a JSON file by default
+puppyone fs touch /config/settings
+
+# Specify the file type
+puppyone fs touch /docs/guide -t markdown
+puppyone fs touch /data/records -t json
+```
+
+### Write content
+
+`fs write` supports three input methods:
+
+```bash
+# Write directly with -d
+puppyone fs write /config/settings -d '{"theme": "dark", "lang": "zh"}'
+
+# Read content from a local file
+puppyone fs write /docs/readme -f ./README.md
+
+# Pipe content through stdin
+echo '{"key": "value"}' | puppyone fs write /config/app
+cat report.md | puppyone fs write /docs/report
+```
+
+Common automation pattern: write processed data from scripts:
+
+```bash
+# Write JSON from an API response
+curl -s https://api.example.com/data | puppyone fs write /imports/api-data
+
+# Write transformed output
+jq '.results' data.json | puppyone fs write /processed/results
+```
+
+---
+
+## File management
+
+### Move and rename
+
+```bash
+# Rename
+puppyone fs mv /docs/old-name /docs/new-name
+
+# Move to another directory
+puppyone fs mv /docs/draft /published/article
+```
+
+### Delete
+
+```bash
+# Soft delete, recoverable
+puppyone fs rm /docs/outdated
+```
+
+### Show node details
+
+```bash
+puppyone fs info /docs/readme
+```
+
+The output includes node metadata such as node ID, type, created time, updated time, and size.
+
+### Upload a local file
+
+```bash
+# Upload to a specific remote path
+puppyone fs upload ./report.pdf /docs/report.pdf
+
+# If omitted, the local filename is used
+puppyone fs upload ./data.csv
+```
+
+### Download to local disk
+
+```bash
+# Download to a specific local path
+puppyone fs download /docs/report.pdf ./downloads/report.pdf
+
+# If omitted, download into the current directory
+puppyone fs download /exports/data.json
+```
+
+---
+
+## Version management
+
+Every write automatically creates a version, so you can inspect history, compare changes, and roll back at any time.
+
+### Show version history
+
+```bash
+puppyone fs versions /docs/readme
+```
+
+Example output:
+
+```
+Version  Author        Date                 Summary
+v3       user@test.com 2025-01-15 14:30:00  Updated introduction
+v2       agent-bot     2025-01-14 10:00:00  Added FAQ section
+v1       user@test.com 2025-01-13 09:00:00  Initial version
+```
+
+### Compare two versions
+
+```bash
+# Compare v1 and v3
+puppyone fs diff /docs/readme v1 v3
+```
+
+### Roll back to a version
+
+```bash
+# Roll back to v2
+puppyone fs rollback /docs/readme v2
+```
+
+Rollback creates a new version whose content matches the target version, so no intermediate history is lost.
+
+---
+
+## Audit logs
+
+See every operation on a node: who changed what, and when.
+
+```bash
+puppyone fs audit /docs/readme
+```
+
+Example output:
+
+```
+Time                 Actor         Action    Details
+2025-01-15 14:30:00  user@test.com update    Updated content
+2025-01-15 10:00:00  agent-bot     update    Added FAQ section
+2025-01-13 09:00:00  user@test.com create    Created node
+```
+
+---
+
+## Practical workflows
+
+### Quickly scaffold a project structure
+
+```bash
+puppyone fs mkdir /docs
+puppyone fs mkdir /config
+puppyone fs mkdir /data
+puppyone fs touch /config/settings -t json
+puppyone fs write /config/settings -d '{"version": "1.0", "env": "production"}'
+puppyone fs touch /docs/readme -t markdown
+puppyone fs write /docs/readme -f ./README.md
+```
+
+### Import and organize data
+
+```bash
+# Upload a local file
+puppyone fs upload ./dataset.csv /data/raw/dataset.csv
+
+# Write processed data
+puppyone fs touch /data/processed/summary -t json
+puppyone fs write /data/processed/summary -d '{"total": 1024, "status": "done"}'
+```
+
+### Compare and roll back versions
+
+```bash
+# Check the history of an important config
+puppyone fs versions /config/settings
+
+# Roll back after spotting a bad change
+puppyone fs diff /config/settings v3 v5
+puppyone fs rollback /config/settings v3
+```
+
+### Automate with JSON output
+
+```bash
+# Get directory structure as JSON
+puppyone fs ls /data --json
+
+# Iterate over files in a script
+for file in $(puppyone fs ls /data --json | jq -r '.[].name'); do
+  puppyone fs cat "/data/$file" --json > "backup_$file.json"
+done
+```

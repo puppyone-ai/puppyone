@@ -16,47 +16,61 @@
 2. 输入名称（如「产品知识库」）
 3. 点击 **Create**
 
----
-
-## Step 3: 创建 Table
-
-1. 在 Project 内，点击 **New Table**
-2. 输入名称（如「products」）
-3. 点击 **Create**
+Project 是你的顶层容器，所有数据以 Content Node 树（文件夹、JSON、Markdown、文件）的形式组织在其中。
 
 ---
 
-## Step 4: 导入数据
+## Step 3: 导入数据
+
+创建好 Project 后，有多种方式将数据导入。
 
 ### 方式一：上传文件
 
-1. 点击 **Import** → **Upload Files**
+1. 在 Dashboard 中点击 **Import** → **Upload Files**
 2. 拖拽或选择文件（PDF、Word、Excel 等）
-3. 等待处理完成
+3. 等待处理完成，文件会自动转换为 Content Node
 
 ### 方式二：连接 Notion
+
+通过 Dashboard：
 
 1. 点击 **Import** → **Notion**
 2. 完成 OAuth 授权
 3. 选择要导入的页面
 4. 点击 **Import**
 
-### 方式三：手动输入
+或者通过 CLI：
 
-1. 在编辑器中直接添加 JSON 数据
-2. 点击保存
+```bash
+puppyone sync auth notion
+puppyone conn add notion https://notion.so/your-database-id --folder /docs
+```
+
+### 方式三：手动创建
+
+通过 CLI 直接创建内容节点：
+
+```bash
+puppyone fs mkdir /products
+puppyone fs touch -t json /products/widget.json
+puppyone fs write /products/widget.json -d '{"name": "Widget Pro", "price": 99.99}'
+```
+
+也可以在 Dashboard 的编辑器中手动创建和编辑 JSON / Markdown 内容。
 
 ---
 
-## Step 5: 连接 Agent
+## Step 4: 连接 Agent
 
-### Cursor 用户
+最快的方式是通过 MCP 协议。先在 Dashboard 或 CLI 中创建一个 MCP 端点：
 
-1. 点击 Table 右上角的 **Connect Agent**
-2. 选择 **Cursor**
-3. 复制生成的配置
-4. 粘贴到 Cursor Settings → MCP
-5. 重启 Cursor
+```bash
+puppyone conn add mcp "My Data"
+```
+
+创建后会返回 MCP Server URL（格式为 `https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx`）。
+
+以 Cursor 为例，在项目根目录创建 `.cursor/mcp.json`：
 
 ```json
 {
@@ -69,16 +83,13 @@
 }
 ```
 
-### Claude Desktop 用户
+将 `sk_live_xxx` 替换为你的实际 API Key，重启 Cursor 即可。
 
-1. 点击 **Connect Agent** → **Claude Desktop**
-2. 复制配置
-3. 添加到 `~/Library/Application Support/Claude/claude_desktop_config.json`
-4. 重启 Claude Desktop
+其他 Agent 的接入方式请参考[分发文档](/zh/distribute)——包括 [Claude Desktop](/zh/distribute/claude-desktop)、[Claude Code](/zh/distribute/claude-code)（文件同步）、[REST API](/zh/distribute/rest-api) 等。
 
 ---
 
-## Step 6: 测试
+## Step 5: 测试
 
 在 Cursor 或 Claude Desktop 中问：
 
@@ -90,6 +101,7 @@
 
 ## 下一步
 
-- [连接更多数据源](/zh/connect)
-- [设置访问权限](/zh/access)
-- [详细 Agent 配置](/zh/agents)
+- [核心概念](/zh/concepts) — 了解 Content Node、Connection 等核心概念
+- [连接更多数据源](/zh/connect) — 接入 Notion、GitHub、Gmail 等平台
+- [版本控制](/zh/version-control) — 版本历史、快照、回滚
+- [分发给 Agent](/zh/distribute) — MCP、OpenClaw、REST API

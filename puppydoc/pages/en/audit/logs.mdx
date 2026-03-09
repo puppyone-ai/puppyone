@@ -1,0 +1,173 @@
+# Operation Log Query
+
+View, filter, and analyze the complete operation history of your Content Nodes.
+
+---
+
+## View audit logs
+
+PuppyOne provides three ways to view audit logs: Dashboard, CLI, and API.
+
+### Dashboard
+
+1. Open your Project and go to the **Data** page
+2. Select the target file or folder
+3. Click the **Audit** tab in the right panel
+4. Review all recorded operations for that node
+
+### CLI
+
+Use `puppyone fs audit` to inspect the audit log for any path:
+
+```bash
+# View the audit log for a file
+puppyone fs audit /docs/readme.md
+
+# View all operations under a folder
+puppyone fs audit /docs
+
+# Output JSON
+puppyone fs audit /docs/readme.md --json
+```
+
+Example output:
+
+```
+PATH: /docs/readme.md
+──────────────────────────────────────────────────────
+TIME                  ACTOR              ACTION
+──────────────────────────────────────────────────────
+2025-03-09 14:30:00   alice@team.com     update
+2025-03-09 12:15:00   Research Agent     update
+2025-03-08 09:00:00   bob@team.com       create
+```
+
+### API
+
+Call the REST API to fetch audit logs for a specific node:
+
+```bash
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/audit-logs" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+Example response:
+
+```json
+{
+  "logs": [
+    {
+      "actor": "alice@team.com",
+      "action": "update",
+      "node_path": "/docs/readme.md",
+      "timestamp": "2025-03-09T14:30:00Z",
+      "metadata": {
+        "source": "dashboard",
+        "version": 5
+      }
+    },
+    {
+      "actor": "Research Agent",
+      "action": "update",
+      "node_path": "/docs/readme.md",
+      "timestamp": "2025-03-09T12:15:00Z",
+      "metadata": {
+        "source": "mcp",
+        "version": 4
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Log entry structure
+
+Each audit log entry includes the following fields:
+
+| Field | Type | Description |
+|------|------|-------------|
+| `actor` | string | The actor identity - user email (for example `alice@team.com`) or agent name (for example `Research Agent`) |
+| `action` | string | Operation type; see the list below |
+| `node_path` | string | Path of the Content Node being operated on |
+| `timestamp` | string | Time of the operation (ISO 8601 format) |
+| `metadata` | object | Extra information such as source and version number |
+
+---
+
+## Operation types
+
+| Operation Type | Description | Typical Scenario |
+|---------------|-------------|------------------|
+| `create` | Create a new node | Creating a file or folder; an agent generates new content |
+| `update` | Modify node content | Editing a file; an agent updates data |
+| `delete` | Delete a node | Removing a file or folder |
+| `rollback` | Roll back to a historical version | Restore an earlier version |
+| `sync` | Sync from an external data source | Connector sync from Notion, GitHub, etc. |
+| `checkout` | Check out a node | Lock a node for editing |
+| `commit` | Commit checked-out changes | Finish editing and release the lock |
+
+---
+
+## Filtering and search
+
+The current `puppyone fs audit` CLI command is optimized for quick inspection and prints the full log directly. If you need more granular filtering by actor, time range, or action type, two approaches are recommended:
+
+1. Use `--json` output and filter locally with `jq` or a script
+2. Call the REST API directly and filter by fields in your own program
+
+```bash
+# Export JSON and filter it yourself
+puppyone fs audit /docs/readme.md --json
+```
+
+---
+
+## Real scenarios
+
+### Scenario 1: Who modified this file last?
+
+```bash
+puppyone fs audit /specs/api-design.md
+```
+
+The most recent operation appears at the top of the log, so you can immediately see who changed it and when.
+
+### Scenario 2: What did an agent do in the last 24 hours?
+
+```bash
+puppyone fs audit / --json
+```
+
+After exporting the full log, you can filter for `Content Writer` entries from the last 24 hours in your own script or with `jq` to confirm it behaved as expected.
+
+### Scenario 3: Track all changes in a folder
+
+```bash
+puppyone fs audit /products
+```
+
+Inspect the complete operation history under `/products`. If you need a time range, export with `--json` and filter locally.
+
+### Scenario 4: Investigate bad data
+
+When data looks incorrect, use the audit log to identify the change that introduced the issue:
+
+```bash
+# View the full operation history of the file
+puppyone fs audit /data/pricing.json
+
+# Pair it with version history to compare before and after
+puppyone fs versions /data/pricing.json
+```
+
+Once you find the problematic change, you can restore the data with version rollback.
+
+---
+
+## Next steps
+
+- [Version Control](/en/version-control) - View and roll back file versions
+- [Conflict Resolution](/en/conflict) - Handle concurrent edits from multiple actors
+- [Auth for Agents](/en/auth-for-agents) - Control what agents are allowed to access

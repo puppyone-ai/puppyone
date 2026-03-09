@@ -1,6 +1,6 @@
 # Gmail
 
-Sync Gmail emails into your Context File System, so agents can query and analyze your inbox.
+Sync Gmail emails into the Context File System so agents can query and analyze your email data.
 
 | | |
 |---|---|
@@ -11,9 +11,9 @@ Sync Gmail emails into your Context File System, so agents can query and analyze
 
 ---
 
-## Data Structure
+## Data structure
 
-Emails are stored in a single JSON node:
+After Gmail emails are synced, they are stored in a single JSON node that contains all email data in a structured format:
 
 ```json
 {
@@ -24,7 +24,7 @@ Emails are stored in a single JSON node:
       "from": "alice@example.com",
       "to": ["bob@example.com"],
       "date": "2026-02-20T10:30:00Z",
-      "snippet": "Meeting next Wednesday, agenda below...",
+      "snippet": "We have a meeting next Wednesday. Agenda below...",
       "body": "...",
       "labels": ["INBOX", "IMPORTANT"],
       "thread_id": "18b2c3d4e5f6"
@@ -37,36 +37,37 @@ Emails are stored in a single JSON node:
 
 ---
 
-## Setup
+## Setup steps
 
-### Step 1: Authorize Google
+### Step 1: Authorize your Google account
 
-1. Open your Project → **Add Connector** → **Gmail**
-2. Click **Connect with Google** and complete the OAuth flow
+1. Open Project → **Connections** → **Add Connection** → **Gmail**
+2. Click **Connect with Google** and complete OAuth authorization
+3. Return to PuppyOne after authorization completes
 
-### Step 2: Configure Sync Scope
+### Step 2: Configure sync scope
 
 | Option | Description | Example |
 |--------|-------------|---------|
 | **Label filter** | Only sync emails with specific labels | `INBOX`, `IMPORTANT` |
-| **Date range** | How far back to sync | Last 90 days |
-| **Max emails** | Cap on emails per sync | 500 |
+| **Date range** | Which date to start syncing from | Last 90 days |
+| **Maximum count** | Maximum number of emails per sync | 500 |
 
-### Step 3: Start Sync
+### Step 3: Start sync
 
-Click **Start Sync**. The first run pulls historical emails; subsequent runs are incremental.
+Click **Start Sync**. The first sync pulls historical emails, and later syncs apply incremental updates on a schedule.
 
 ---
 
-## Agent Usage Example
+## Agent usage example
 
 ```
-User: Find all emails from @acme.com last week and summarize them
+User: Find all emails from @acme.com from last week and summarize the main points
 
 Agent: [calls query_data]
        Found 8 emails from acme.com:
-       1. "Partnership Proposal" - Feb 20, Alice Chen
-       2. "Quote Confirmation" - Feb 21, Bob Wang
+       1. "Partnership Proposal" - 2026-02-20, Alice Chen
+       2. "Quote Confirmation" - 2026-02-21, Bob Wang
        ...
 ```
 
@@ -74,6 +75,6 @@ Agent: [calls query_data]
 
 ## Notes
 
-- Gmail sync pulls email metadata and body only — **attachments are not included**
-- HTML is stripped from email bodies, plain text only
-- Default sync interval is 1 hour, adjustable in settings
+- Gmail sync pulls only email metadata and message bodies. **Attachments are not included**
+- HTML is automatically removed from email bodies and converted to plain text
+- The default sync interval is 1 hour and can be adjusted in settings

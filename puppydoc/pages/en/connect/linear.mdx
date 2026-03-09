@@ -1,6 +1,6 @@
 # Linear
 
-Sync Linear Issues and project data into structured JSON so agents can query task status, assignees, and priorities.
+Sync Linear issues and project data into structured JSON so agents can query task status, assignees, and priorities.
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Sync Linear Issues and project data into structured JSON so agents can query tas
 
 ---
 
-## Data Structure
+## Data structure
 
 All issues are stored in a single JSON node:
 
@@ -43,42 +43,42 @@ All issues are stored in a single JSON node:
 
 ---
 
-## Setup
+## Setup steps
 
 ### Step 1: Authorize Linear
 
-1. Open your Project → **Add Connector** → **Linear**
-2. Click **Connect with Linear** and complete OAuth
+1. Open Project → **Connections** → **Add Connection** → **Linear**
+2. Click **Connect with Linear** and complete OAuth authorization
 
-### Step 2: Select Sync Scope
+### Step 2: Select sync scope
 
 | Option | Description |
 |--------|-------------|
-| **Team** | Which team's issues to sync |
+| **Team** | Select which team's issues to sync |
 | **Status filter** | Only sync specific statuses (e.g. `in_progress`, `todo`) |
-| **Time range** | Only sync recently updated issues |
+| **Time range** | Sync only recently updated issues |
 
-### Step 3: Start Sync
+### Step 3: Start sync
 
-Click **Start Sync**. Linear sync is manual — data is available immediately after completion.
+Click **Start Sync**. Linear sync is currently manual, and the data becomes available immediately after it finishes.
 
 ---
 
-## Agent Usage Example
+## Agent usage example
 
 ```
 User: What urgent bugs are still open?
 
 Agent: [calls query_data, filter: priority=urgent AND status!=done]
-       Found 3 urgent open bugs:
-       1. ENG-123 - Login page flickering (Alice Chen, due Mar 1)
-       2. ENG-156 - iOS crash (unassigned, due Feb 28)
-       3. ENG-171 - Payment timeout (Bob Wang, due Mar 5)
+       Found 3 urgent unresolved bugs:
+       1. ENG-123 - Login page flickering (Alice Chen, due 3/1)
+       2. ENG-156 - iOS crash (unassigned, due 2/28)
+       3. ENG-171 - Payment timeout (Bob Wang, due 3/5)
 ```
 
 ---
 
 ## Notes
 
-- Linear sync is **Pull only** — agents cannot modify Linear issues through PuppyOne
-- Each sync is a full pull; larger workspaces may take a few minutes
+- Linear sync currently supports **Pull only**. Agents cannot modify Linear issues directly through PuppyOne
+- Each sync is a full pull, so large datasets may take a few minutes

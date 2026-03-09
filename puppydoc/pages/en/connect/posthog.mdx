@@ -1,0 +1,79 @@
+# PostHog
+
+Sync PostHog product analytics data into PuppyOne.
+
+---
+
+## Overview
+
+The PostHog connector lets you pull product analytics data such as events, users, and insight reports into PuppyOne, so agents can analyze real user behavior and make decisions based on it.
+
+The PostHog connector uses API Key authentication instead of OAuth, which keeps setup simple and fast.
+
+---
+
+## Authentication method
+
+The PostHog connector uses a **Personal API Key** for authentication.
+
+To get an API key:
+1. Sign in to your PostHog instance
+2. Go to **Settings → Personal API Keys**
+3. Click **Create personal API key**
+4. Copy the generated API key, for example `phx_xxx`
+
+---
+
+## Set up with the CLI
+
+```bash
+puppyone conn add posthog \
+  --api-key phx_xxx \
+  --config '{"project_id": "123", "mode": "events"}'
+```
+
+After adding the connection, manually trigger the first sync:
+
+```bash
+puppyone sync refresh <sync_id>
+```
+
+---
+
+## Set up with the Dashboard
+
+1. Open your Project → **Connections** → **Add Connection**
+2. Select **PostHog**
+3. Enter your Personal API Key
+4. Configure the sync options:
+   - **Project ID**: Your PostHog project ID
+   - **Mode**: Sync mode (`events` / `persons` / `insights`)
+5. Click **Start Sync**
+
+---
+
+## Configuration options
+
+| Parameter | Type | Required | Notes |
+|------|------|------|------|
+| `project_id` | string | Yes | PostHog project ID |
+| `mode` | string | Yes | Sync mode |
+| `api_key` | string | Yes | Personal API Key |
+
+### Sync modes
+
+| Mode | Notes | Output Format |
+|------|------|----------|
+| `events` | User behavior events | JSON (event list) |
+| `persons` | User profile data | JSON (user list) |
+| `insights` | Insight reports and trends | JSON (report data) |
+
+---
+
+## Synced data
+
+After syncing finishes, PostHog data is stored in your Project as JSON content nodes. You can:
+
+- Let agents query and analyze the data through MCP
+- Access it programmatically through the REST API
+- Browse and edit it in the Dashboard

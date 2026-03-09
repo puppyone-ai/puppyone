@@ -1,0 +1,147 @@
+# Folder Snapshots
+
+Capture a point-in-time snapshot of an entire folder tree so you can archive it before batch operations and restore it later if something goes wrong.
+
+---
+
+## What is a folder snapshot
+
+File version history tracks changes to **a single file**. A folder snapshot captures the **complete state of an entire directory tree** at a specific moment, including all subfolders and file contents.
+
+You can think of it as a full backup of one directory.
+
+```
+/research/
+├── papers/
+│   ├── paper-a.md    ← snapshot records the content at this moment
+│   └── paper-b.md    ← snapshot records the content at this moment
+├── notes.json        ← snapshot records the content at this moment
+└── summary.md        ← snapshot records the content at this moment
+```
+
+When you restore a snapshot, the whole directory returns to the state it had when the snapshot was taken.
+
+---
+
+## Common use cases
+
+| Scenario | Description |
+|----------|-------------|
+| Backup before a batch sync | Take a snapshot of the target folder before pulling a large amount of data from Notion or GitHub |
+| Before a large agent operation | Save the current state before an agent rewrites many files |
+| Data migration | Archive the folder before reorganizing the structure |
+| Scheduled backups | Take snapshots of important directories regularly as restore points |
+
+---
+
+## File versions vs folder snapshots
+
+| Dimension | File Version History | Folder Snapshot |
+|-----------|----------------------|-----------------|
+| Granularity | Single file | Entire folder tree |
+| Trigger | Created automatically on every edit | Created when you need directory-level protection |
+| Recorded content | Changes to one file | Folder structure + all file contents |
+| Restore scope | Restore one file | Restore an entire directory |
+| Best for | Tracking how a file evolves | Safe backup before batch operations |
+
+---
+
+## View snapshot list
+
+### API
+
+```bash
+# Get the list of snapshots for a folder
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{folder_id}/snapshots?project_id={project_id}" \
+  -H "Authorization: Bearer {token}"
+```
+
+Example response:
+
+```json
+{
+  "snapshots": [
+    {
+      "snapshot_id": "snap_abc123",
+      "folder_id": "folder_001",
+      "created_at": "2025-03-09T10:00:00Z",
+      "created_by": "user@example.com",
+      "file_count": 42,
+      "total_size": 156000
+    },
+    {
+      "snapshot_id": "snap_def456",
+      "folder_id": "folder_001",
+      "created_at": "2025-03-01T08:00:00Z",
+      "created_by": "Agent: data-sync",
+      "file_count": 38,
+      "total_size": 142000
+    }
+  ]
+}
+```
+
+You can also access it through the collaboration route: `GET /api/v1/collab/snapshots/{folder_id}`
+
+---
+
+## Restore a snapshot
+
+Restoring a snapshot rolls the folder and all of its descendants back to the state captured in that snapshot.
+
+### API
+
+```bash
+# Restore the folder to a specific snapshot
+curl -X POST "https://api.puppyone.ai/api/v1/nodes/{folder_id}/rollback-snapshot/{snapshot_id}" \
+  -H "Authorization: Bearer {token}"
+```
+
+Example response:
+
+```json
+{
+  "message": "Folder restored to snapshot snap_abc123",
+  "restored_files": 42,
+  "folder_id": "folder_001"
+}
+```
+
+> Restoring does not delete the snapshot itself. After restore, each affected file also gets a new version record.
+
+---
+
+## Real scenario: backup before sync
+
+Before syncing a large set of data from Notion into the `/research/` directory:
+
+```bash
+# 1. First, review the currently available snapshots
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{folder_id}/snapshots?project_id={project_id}" \
+  -H "Authorization: Bearer {token}"
+
+# 2. Run the sync
+puppyone conn refresh <connection-id>
+
+# 3. If the sync result is not what you want, restore a target snapshot
+curl -X POST "https://api.puppyone.ai/api/v1/nodes/{folder_id}/rollback-snapshot/{snapshot_id}" \
+  -H "Authorization: Bearer {token}"
+```
+
+This gives you a safe way to try large batch operations while always being able to return to a known good state.
+
+---
+
+## Notes
+
+- A snapshot records the full state at the moment it is taken, including folder structure and file contents
+- Restoring a snapshot affects all files under the folder, but does not delete files added after the snapshot was taken
+- Every restored file creates a new version record that you can trace in [File Version History and Rollback](/en/version-control/versions)
+- Snapshot data is stored in the `folder_snapshots` table, and operations can also be reviewed through the [Audit Log](/en/audit)
+
+---
+
+## Next steps
+
+- [File Version History and Rollback](/en/version-control/versions) - Manage versions for individual files
+- [Version Diff](/en/version-control/diff) - Compare different versions of a file

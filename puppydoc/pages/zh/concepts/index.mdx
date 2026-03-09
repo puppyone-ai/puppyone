@@ -1,0 +1,88 @@
+# 核心概念概览
+
+理解 PuppyOne 的数据模型与核心架构。
+
+---
+
+## 数据层级
+
+PuppyOne 将你的数据组织为三层结构：
+
+```
+Organization（组织）
+└── Project（项目）
+    └── Content Nodes（内容节点树）
+        ├── 📁 Folder
+        │   ├── 📄 JSON file
+        │   ├── 📝 Markdown file
+        │   └── 📎 Uploaded file
+        └── ...
+```
+
+### Organization
+
+组织是最顶层的管理单元，对应你的团队或公司。
+
+- 管理成员和角色
+- 包含多个 Project
+- 统一计费和权限管理
+
+### Project
+
+项目是组织数据的命名空间。一个业务场景对应一个 Project。
+
+- 例如：「产品知识库」「客服 FAQ」「研发文档」
+- 每个 Project 下有独立的 Content Node 树
+- 可以设置项目级别的访问控制和成员
+
+### Content Node
+
+Content Node（内容节点）是 PuppyOne 的核心数据结构——一棵由文件夹、JSON 文件、Markdown 文件和上传文件组成的树。
+
+与传统的「表」不同，Content Node 树支持任意层级嵌套，能同时容纳结构化数据和非结构化文档，就像一个云端文件系统。
+
+---
+
+## 核心概念
+
+| 概念 | 说明 |
+|------|------|
+| **Content Node** | 数据的基本单元，支持文件夹 / JSON / Markdown / 文件四种类型 |
+| **连接（Connection）** | 所有外部集成的统一抽象——数据源同步、Agent、MCP 端点、沙盒、本地文件夹 |
+| **MCP 协议** | AI 模型访问你数据的标准协议，Cursor / Claude Desktop 等客户端直接使用 |
+
+---
+
+## 连接：一切集成的统一入口
+
+PuppyOne 用「连接」这一个概念统一管理所有外部集成：
+
+```
+连接（Connection）
+├── Sync Source   — 从 Notion / GitHub / Gmail 等拉取数据
+├── Agent         — 绑定模型和工具的 AI Agent
+├── MCP Endpoint  — 通过 MCP 协议暴露数据
+├── Sandbox       — 隔离代码执行环境
+└── Filesystem    — 本地文件夹双向同步
+```
+
+不管是接入一个 Notion 数据源，还是创建一个 MCP 端点给 Cursor 使用，你都通过同一套接口管理：
+
+```bash
+puppyone conn add notion <url>      # 添加 Notion 数据源
+puppyone conn add mcp "My MCP"      # 创建 MCP 端点
+puppyone conn add folder ~/docs     # 挂载本地文件夹
+puppyone conn ls                    # 查看所有连接
+```
+
+---
+
+## 了解更多
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="Content Node" href="/zh/concepts/content-nodes" />
+  <Card title="统一连接" href="/zh/concepts/connections" />
+  <Card title="MCP 协议" href="/zh/concepts/mcp" />
+</Cards>

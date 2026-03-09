@@ -1,0 +1,249 @@
+# REST API
+
+Operate on PuppyOne Content Nodes directly through HTTP.
+
+---
+
+## Overview
+
+If you are building your own agent, automation script, or backend service, you can call the PuppyOne REST API directly to read and write Content Nodes. This is the most flexible option when you need to plug PuppyOne into existing systems, workflows, or server-side logic.
+
+---
+
+## Basics
+
+### Base URL
+
+| Environment | Base URL |
+|------|----------|
+| Cloud | `https://api.puppyone.ai/api/v1` |
+| Self-hosted | `http://localhost:9090/api/v1` |
+
+### Authentication
+
+All requests must include an auth header:
+
+```http
+Authorization: Bearer <access_key>
+```
+
+In most cases, you should create a dedicated access key for your REST API integration instead of reusing an MCP, sandbox, or file-sync key.
+
+---
+
+## Core endpoints
+
+The main data model in PuppyOne is the Content Node tree. In most integrations, these are the endpoints you will use most often.
+
+### 1. List nodes
+
+```http
+GET /nodes?project_id={project_id}&parent_id={parent_id}
+```
+
+Good for browsing directories or listing child nodes under a folder.
+
+### 2. Get node details
+
+```http
+GET /nodes/{node_id}?project_id={project_id}
+```
+
+Good for reading a specific JSON, Markdown, or file node.
+
+### 3. Create a folder
+
+```http
+POST /nodes/folder
+```
+
+```json
+{
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "name": "reports"
+}
+```
+
+### 4. Create a JSON node
+
+```http
+POST /nodes/json
+```
+
+```json
+{
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "name": "weekly-report.json",
+  "content": {
+    "title": "Weekly Report",
+    "summary": "Completed product pricing adjustments this week."
+  }
+}
+```
+
+### 5. Create a Markdown node
+
+```http
+POST /nodes/markdown
+```
+
+```json
+{
+  "project_id": "proj_xxx",
+  "parent_id": "node_docs",
+  "name": "README.md",
+  "content": "# Project Notes\n\nThis is the document body."
+}
+```
+
+### 6. Update a node
+
+```http
+PUT /nodes/{node_id}
+```
+
+```json
+{
+  "name": "README.md",
+  "content": "# Project Notes\n\nThis is the updated body."
+}
+```
+
+### 7. Delete a node
+
+```http
+DELETE /nodes/{node_id}
+```
+
+### 8. Upload a file
+
+```http
+POST /nodes/upload
+```
+
+Best for binary content such as PDFs, images, and attachments. The server returns an upload URL, and the client uploads the file to the storage layer.
+
+---
+
+## Python example
+
+```python
+import httpx
+
+BASE_URL = "https://api.puppyone.ai/api/v1"
+ACCESS_KEY = "sk_live_xxx"
+PROJECT_ID = "proj_xxx"
+
+headers = {
+    "Authorization": f"Bearer {ACCESS_KEY}",
+    "Content-Type": "application/json",
+}
+
+async def list_nodes(parent_id=None):
+    params = {"project_id": PROJECT_ID}
+    if parent_id:
+        params["parent_id"] = parent_id
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{BASE_URL}/nodes", headers=headers, params=params)
+        resp.raise_for_status()
+        return resp.json()["data"]["nodes"]
+
+async def get_node(node_id):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{BASE_URL}/nodes/{node_id}",
+            headers=headers,
+            params={"project_id": PROJECT_ID},
+        )
+        resp.raise_for_status()
+        return resp.json()["data"]
+
+async def create_json_node(parent_id, name, content):
+    body = {
+        "project_id": PROJECT_ID,
+        "parent_id": parent_id,
+        "name": name,
+        "content": content,
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{BASE_URL}/nodes/json", headers=headers, json=body)
+        resp.raise_for_status()
+        return resp.json()["data"]
+
+async def update_node(node_id, content):
+    async with httpx.AsyncClient() as client:
+        resp = await client.put(
+            f"{BASE_URL}/nodes/{node_id}",
+            headers=headers,
+            json={"content": content},
+        )
+        resp.raise_for_status()
+        return resp.json()["data"]
+```
+
+## JavaScript / Node.js example
+
+```javascript
+const BASE_URL = "https://api.puppyone.ai/api/v1";
+const ACCESS_KEY = "sk_live_xxx";
+const PROJECT_ID = "proj_xxx";
+
+const headers = {
+  Authorization: `Bearer ${ACCESS_KEY}`,
+  "Content-Type": "application/json",
+};
+
+async function listNodes(parentId) {
+  const params = new URLSearchParams({ project_id: PROJECT_ID });
+  if (parentId) params.set("parent_id", parentId);
+
+  const resp = await fetch(`${BASE_URL}/nodes?${params}`, { headers });
+  if (!resp.ok) throw new Error(await resp.text());
+  const data = await resp.json();
+  return data.data.nodes;
+}
+
+async function getNode(nodeId) {
+  const params = new URLSearchParams({ project_id: PROJECT_ID });
+  const resp = await fetch(`${BASE_URL}/nodes/${nodeId}?${params}`, { headers });
+  if (!resp.ok) throw new Error(await resp.text());
+  const data = await resp.json();
+  return data.data;
+}
+
+async function createJsonNode(parentId, name, content) {
+  const resp = await fetch(`${BASE_URL}/nodes/json`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      project_id: PROJECT_ID,
+      parent_id: parentId,
+      name,
+      content,
+    }),
+  });
+  if (!resp.ok) throw new Error(await resp.text());
+  const data = await resp.json();
+  return data.data;
+}
+```
+
+---
+
+## When REST API is the right fit
+
+- You are building a custom agent and want full control over requests, responses, and retries
+- You need to integrate PuppyOne into an existing backend service or automation flow
+- You only need data access and do not want the MCP client setup
+
+If you want the fastest out-of-the-box experience, MCP is usually easier. If you need finer engineering control, REST API is a better fit.
+
+---
+
+## Next steps
+
+- [Code Sandbox](/en/distribute/sandbox). Execute code against your data in an isolated environment
+- [Cursor integration](/en/distribute/cursor). Use MCP if you prefer a client-based workflow

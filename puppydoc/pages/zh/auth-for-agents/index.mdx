@@ -1,0 +1,113 @@
+# Auth for Agents
+
+控制谁能访问你的 Context File System，以及能做什么。
+
+---
+
+## 两种身份验证模型
+
+PuppyOne 区分**人类用户**和**机器/Agent** 的身份验证方式：
+
+```
+┌────────────────────────────────────────────────────┐
+│              人类用户 (JWT)                          │
+│                                                     │
+│  邮箱密码 / OAuth 登录 → Supabase Auth → JWT Token  │
+│  适用于：Dashboard、CLI 交互操作                     │
+└────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────┐
+│              机器 / Agent (Access Key)               │
+│                                                     │
+│  每个 Connection 分配独立的 Access Key               │
+│  适用于：MCP 端点、Sandbox、文件系统同步、Agent      │
+└────────────────────────────────────────────────────┘
+```
+
+### JWT（人类用户）
+
+你通过邮箱密码或第三方 OAuth（Google、GitHub 等）登录 PuppyOne 后，系统签发一个 JWT Token。这个 Token 代表你本人的身份，拥有你作为项目成员的全部权限。
+
+```bash
+# CLI 登录
+puppyone auth login
+
+# 验证当前身份
+puppyone auth whoami
+```
+
+### Access Key（机器 / Agent）
+
+Agent 不会像人类一样登录。每个 Connection（Agent、MCP 端点、Sandbox、文件系统同步）在创建时自动获得一个 Access Key。Agent 通过这个 Key 访问 API，系统根据 Key 关联的权限规则决定它能做什么。
+
+```bash
+# 查看某个 Connection 的 Access Key
+puppyone conn key <connection-id>
+```
+
+---
+
+## 为什么 Agent 认证不同于人类
+
+人类用户是项目成员，通常需要广泛的访问权限来管理项目。但 Agent 不同：
+
+- **Agent 只需要完成特定任务**——客服 Agent 不需要看到研发文档
+- **Agent 是自动化运行的**——没有人在旁边判断它是否越界
+- **Agent 可能有多个**——每个 Agent 的职责和权限应该隔离
+
+因此，PuppyOne 为每个 Agent 单独分配凭证，并通过 **File Level Security (FLS)** 精确控制它的能力边界。
+
+---
+
+## 两层权限模型
+
+每个 Access Key 关联一组权限规则，分为两层：
+
+```
+请求进入
+   │
+   ▼
+┌──────────────────────────────────┐
+│  第一层：Tool 权限                │
+│  这个 Agent 能调用哪些操作？      │
+│                                   │
+│  query_data ✅  create ✅         │
+│  update ✅      delete ❌         │
+└──────────────┬───────────────────┘
+               │ 通过
+               ▼
+┌──────────────────────────────────┐
+│  第二层：路径权限                 │
+│  这个操作能访问哪些 Content Node？│
+│                                   │
+│  /products ✅  /faq ✅            │
+│  /internal ❌                     │
+└──────────────┬───────────────────┘
+               │ 通过
+               ▼
+            执行操作
+```
+
+1. **Tool 权限**：决定 Agent 能执行哪些操作（读取、创建、修改、删除）
+2. **路径权限**：决定每个操作能访问哪些 Content Node 路径
+
+两层都通过，请求才会被执行。
+
+---
+
+## "不存在"原则
+
+FLS 不只是拒绝访问——Agent 没有权限的路径，**在它的视野中物理上不存在**。
+
+如果一个 Agent 只被授权访问 `/products` 和 `/faq`，那么当它列出文件系统时，看到的就只有这两个路径。`/internal`、`/users` 等其他内容完全不可见，Agent 甚至不知道它们的存在。
+
+这和传统的"403 Forbidden"不同——Agent 不会看到一个它无法访问的路径然后被拒绝，而是从一开始就只看到它被允许看到的世界。
+
+---
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="FLS 权限控制" href="/zh/auth-for-agents/permissions" />
+  <Card title="凭证管理" href="/zh/auth-for-agents/api-keys" />
+</Cards>

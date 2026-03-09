@@ -1,0 +1,145 @@
+# JSON Editor
+
+PuppyOne's visual JSON editor makes it easy to manage structured data.
+
+---
+
+## Interface overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  📁 products                                    [+] [-] │
+│  ├── 📄 [0]                                             │
+│  │   ├── id: "SKU-001"                         [✏️]    │
+│  │   ├── name: "Widget Pro"                    [✏️]    │
+│  │   └── price: 99.99                          [✏️]    │
+│  ├── 📄 [1]                                             │
+│  │   └── ...                                            │
+│  📁 categories                                  [+] [-] │
+│  └── ...                                                │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Basic operations
+
+### Edit a value
+
+1. Click any value, such as `"Widget Pro"`
+2. Edit it directly
+3. Press `Enter` to confirm, or `Escape` to cancel
+
+### Add a field
+
+1. Click the **[+]** button next to the parent node
+2. Choose a type:
+   - 📝 String
+   - 🔢 Number
+   - ✅ Boolean
+   - 📁 Object
+   - 📋 Array
+3. Enter the field name and value
+
+### Delete a node
+
+1. Right-click the node
+2. Select **Delete**
+3. Confirm deletion
+
+### Move a node
+
+1. Drag the node to the target location
+2. Release to finish moving it
+
+---
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|--------|------|
+| `Enter` | Confirm edit |
+| `Escape` | Cancel edit |
+| `Tab` | Move to the next field |
+| `Ctrl/Cmd + Z` | Undo |
+| `Ctrl/Cmd + Shift + Z` | Redo |
+| `Ctrl/Cmd + S` | Save |
+
+---
+
+## Bulk actions
+
+### Copy and paste JSON
+
+1. Select a node
+2. Press `Ctrl/Cmd + C` to copy
+3. Select the target location
+4. Press `Ctrl/Cmd + V` to paste
+
+### Import a JSON snippet
+
+1. Click **Import JSON** in the toolbar
+2. Paste the JSON code
+3. Choose where to import it
+
+---
+
+## Data types
+
+The editor automatically recognizes and displays data types:
+
+| Type | Display | Example |
+|------|------|------|
+| String | `"text"` | `"Hello World"` |
+| Number | `123` | `99.99` |
+| Boolean | `true` / `false` | `true` |
+| Null | `null` | `null` |
+| Array | `[...]` | `[1, 2, 3]` |
+| Object | `{...}` | `{"key": "value"}` |
+
+---
+
+## Search and filtering
+
+### Global search
+
+1. Press `Ctrl/Cmd + F`
+2. Enter a search term
+3. Matching results are highlighted
+
+### JSON Path navigation
+
+Type a JSON Path directly to jump to a specific location:
+
+```
+/products/0/name    → Jump to the first product's name
+/categories         → Jump to the categories array
+```
+
+---
+
+## Validation and error messages
+
+The editor validates JSON format in real time:
+
+- ✅ Green: valid data format
+- ⚠️ Yellow: warning, such as duplicate keys
+- ❌ Red: format error, such as invalid JSON
+
+---
+
+## Switch to the code editor
+
+If you prefer editing raw JSON directly:
+
+1. Click **Code View** in the toolbar
+2. Edit the JSON text directly
+3. Switch back to **Tree View** to see the structured view
+
+---
+
+## Next steps
+
+- [Structured Data Best Practices](/en/editor/structure)
+- [Version Control](/en/version-control)
+- [Auth for Agents](/en/auth-for-agents)

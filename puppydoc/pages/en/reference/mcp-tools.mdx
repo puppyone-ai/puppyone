@@ -1,35 +1,35 @@
-# MCP Tools
+# MCP Tools Reference
 
-Complete reference for all MCP Tools available when an agent connects to PuppyOne.
+Through MCP, agents can use the following tools to interact with the Context File System.
 
-Tool availability is controlled by your [File Level Security (FLS)](/en/access) configuration.
-
----
-
-## Tools Overview
-
-| Tool | Default Name | Type | Risk |
-|------|-------------|------|------|
-| `get_data_schema` | `get_data_schema` | Read | 🟢 Safe |
-| `get_all_data` | `get_all_data` | Read | 🟢 Safe |
-| `query_data` | `query_data` | Read | 🟢 Safe |
-| `preview` | `preview_data` | Read | 🟢 Safe |
-| `select` | `select_data` | Read | 🟢 Safe |
-| `create` | `create_element` | Write | 🟡 Careful |
-| `update` | `update_element` | Write | 🟡 Careful |
-| `delete` | `delete_element` | Write | 🔴 Destructive |
+Availability for each tool is controlled by your [File Level Security (FLS)](/en/auth-for-agents) configuration.
 
 ---
 
-## Read Tools
+## Tools overview
+
+| Tool | Default name | Function | Risk level |
+|------|----------|------|----------|
+| `get_data_schema` | `get_data_schema` | Get the data structure | 🟢 Read-only |
+| `get_all_data` | `get_all_data` | Read all data | 🟢 Read-only |
+| `query_data` | `query_data` | Query with conditional filters | 🟢 Read-only |
+| `preview` | `preview_data` | Quickly preview part of the data | 🟢 Read-only |
+| `select` | `select_data` | Return specific fields | 🟢 Read-only |
+| `create` | `create_element` | Create a new item | 🟡 Write |
+| `update` | `update_element` | Modify an existing item | 🟡 Write |
+| `delete` | `delete_element` | Delete an item | 🔴 Destructive |
+
+---
+
+## Read-only tools
 
 ### `get_data_schema`
 
-Returns the structure definition of the data so the agent understands what fields are available. Agents typically call this first before querying.
+Returns the current data structure so the agent can understand which fields exist and what their types are. Agents usually call this before querying.
 
-**Input:** none
+**Input parameters**: None
 
-**Response example:**
+**Example response**:
 ```json
 {
   "schema": {
@@ -51,11 +51,11 @@ Returns the structure definition of the data so the agent understands what field
 
 ### `get_all_data`
 
-Returns the complete dataset with no filtering. Best for small datasets or when you need the full picture.
+Returns the full dataset with no filtering. This is best for smaller datasets.
 
-**Input:** none
+**Input parameters**: None
 
-**Response example:**
+**Example response**:
 ```json
 [
   { "id": "1", "name": "Widget Pro", "price": 99.99 },
@@ -67,17 +67,17 @@ Returns the complete dataset with no filtering. Best for small datasets or when 
 
 ### `query_data`
 
-Filtered query with conditions, pagination, and sorting.
+Runs a conditional query with support for filters, sorting, and limits.
 
-**Input parameters:**
+**Input parameters**:
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `filter` | object | Filter conditions (see syntax below) |
-| `limit` | number | Max records to return |
-| `offset` | number | Skip first N records (pagination) |
+|------|------|------|
+| `filter` | object | Filter conditions, see syntax below |
+| `limit` | number | Maximum number of rows to return |
+| `offset` | number | Skip the first N rows, for pagination |
 
-**Filter syntax:**
+**Filter syntax**:
 
 ```json
 // Equals
@@ -86,10 +86,10 @@ Filtered query with conditions, pagination, and sorting.
 // Greater than
 { "price": { "$gt": 50 } }
 
-// In list
+// Included in an array
 { "category": { "$in": ["electronics", "accessories"] } }
 
-// AND
+// Combined conditions, AND
 {
   "$and": [
     { "status": { "$eq": "active" } },
@@ -97,7 +97,7 @@ Filtered query with conditions, pagination, and sorting.
   ]
 }
 
-// OR
+// Combined conditions, OR
 {
   "$or": [
     { "priority": { "$eq": "urgent" } },
@@ -106,34 +106,34 @@ Filtered query with conditions, pagination, and sorting.
 }
 ```
 
-**Supported operators:** `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`
+**Supported operators**: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`
 
 ---
 
 ### `preview`
 
-Returns the first N records — useful for agents to understand the data shape before committing to a full query.
+Quickly previews the first few records so the agent can understand the shape of the data without pulling everything.
 
-**Input parameters:**
+**Input parameters**:
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `limit` | number | Number of records to preview (default: 5) |
+|------|------|------|
+| `limit` | number | Number of preview rows, default is 5 |
 
 ---
 
 ### `select`
 
-Returns only the specified fields, reducing token usage when the dataset has many fields the agent doesn't need.
+Returns only specified fields, which reduces token usage when the dataset contains many fields but the agent only needs a few of them.
 
-**Input parameters:**
+**Input parameters**:
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
+|------|------|------|
 | `fields` | string[] | Field names to return |
-| `filter` | object | Optional filter conditions (same as `query_data`) |
+| `filter` | object | Optional, same filter syntax as `query_data` |
 
-**Example:**
+**Example**:
 ```json
 {
   "fields": ["id", "name", "price"],
@@ -143,22 +143,22 @@ Returns only the specified fields, reducing token usage when the dataset has man
 
 ---
 
-## Write Tools
+## Write tools
 
-> Write tools must be explicitly enabled in [FLS configuration](/en/access).
+> Write tools must be explicitly enabled in [FLS configuration](/en/auth-for-agents) before they can be used.
 
 ### `create`
 
-Adds a new entry to the dataset.
+Creates a new item in the dataset.
 
-**Input parameters:**
+**Input parameters**:
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `data` | object | The new entry to create |
-| `path` | string | Optional JSON path to insert at |
+|------|------|------|
+| `data` | object | The data object to create |
+| `path` | string | Optional, where to insert into the JSON structure |
 
-**Example:**
+**Example**:
 ```json
 {
   "data": {
@@ -173,20 +173,20 @@ Adds a new entry to the dataset.
 
 ### `update`
 
-Modifies fields of existing entries matching the filter.
+Modifies fields on existing items.
 
-**Input parameters:**
+**Input parameters**:
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `filter` | object | Identifies which entries to update |
-| `data` | object | Fields and values to update |
+|------|------|------|
+| `filter` | object | Used to locate the items to update, same syntax as `query_data` |
+| `data` | object | Fields and values to write |
 
-**Example:**
+**Example**:
 ```json
 {
   "filter": { "id": { "$eq": "123" } },
-  "data": { "price": 89.99 }
+  "data": { "price": 89.99, "status": "active" }
 }
 ```
 
@@ -194,15 +194,15 @@ Modifies fields of existing entries matching the filter.
 
 ### `delete`
 
-Removes entries matching the filter. **This action is irreversible.**
+Deletes items matching the filter. **This action cannot be undone**, so authorize it carefully.
 
-**Input parameters:**
+**Input parameters**:
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `filter` | object | Identifies which entries to delete |
+|------|------|------|
+| `filter` | object | Used to locate the items to delete |
 
-**Example:**
+**Example**:
 ```json
 {
   "filter": { "status": { "$eq": "archived" } }
@@ -211,9 +211,9 @@ Removes entries matching the filter. **This action is irreversible.**
 
 ---
 
-## Custom Tool Names
+## Customizing tool names
 
-Tool default names (like `create_element`) can be overridden in the MCP configuration to give agents clearer context:
+Default tool names such as `create_element` can be customized in MCP configuration so the agent gets clearer context:
 
 ```json
 {

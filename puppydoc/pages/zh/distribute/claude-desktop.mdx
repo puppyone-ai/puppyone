@@ -1,0 +1,174 @@
+# Claude Desktop
+
+在 Claude Desktop 中通过 MCP 连接你的 PuppyOne 数据。
+
+---
+
+## 前置条件
+
+- Claude Desktop（最新版本）
+- PuppyOne 账号，且项目中已有数据
+
+---
+
+## 配置步骤
+
+### Step 1: 获取 MCP 配置
+
+与 [Cursor](/zh/distribute/cursor) 相同，通过 Dashboard 或 CLI 获取 MCP 连接信息：
+
+```bash
+puppyone conn add mcp "My Data"
+```
+
+### Step 2: 编辑配置文件
+
+打开 Claude Desktop 的配置文件：
+
+**macOS**：
+
+```bash
+open ~/Library/Application\ Support/Claude/claude_desktop_config.json
+```
+
+**Windows**：
+
+```
+%APPDATA%\Claude\claude_desktop_config.json
+```
+
+如果文件不存在，手动创建即可。
+
+### Step 3: 添加 MCP Server
+
+将以下内容写入配置文件：
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+将 `sk_live_xxx` 替换为你的实际 API Key。
+
+### Step 4: 重启 Claude Desktop
+
+保存文件后，完全退出并重新打开 Claude Desktop。在对话界面的工具栏中，你应该能看到 PuppyOne 的工具图标。
+
+---
+
+## 多数据源配置
+
+如果你有多个 PuppyOne 项目或数据源，可以添加多个 MCP Server：
+
+```json
+{
+  "mcpServers": {
+    "puppyone-产品数据": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_products"]
+    },
+    "puppyone-技术文档": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_docs"]
+    }
+  }
+}
+```
+
+每个 Server 对应一个独立的数据连接，Claude 可以在对话中同时调用。
+
+---
+
+## 自部署配置
+
+如果使用自部署的 PuppyOne 后端：
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:9090/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+---
+
+## 使用示例
+
+### 文档分析
+
+```
+请帮我分析 PuppyOne 中 /docs/ 文件夹下所有文档的主题分布，
+并给出一个摘要。
+```
+
+Claude Desktop 会通过 MCP 读取你的文档数据，进行深度分析。
+
+### 数据查询
+
+```
+查看 /customers/ 下所有客户的注册时间分布，
+哪些客户超过 30 天没有活跃？
+```
+
+### 内容创建
+
+```
+根据 /meeting-notes/ 中最近三次会议记录，
+帮我整理一份项目周报，写入 /reports/weekly-0309.json。
+```
+
+Claude Desktop 会先读取会议记录，生成周报内容，然后通过 MCP 的 `create` 工具写入新节点。
+
+---
+
+## 与 Cursor 的区别
+
+| 特性 | Cursor | Claude Desktop |
+|------|--------|---------------|
+| 上下文窗口 | 中等 | 更大（适合长文档分析） |
+| 代码编辑 | 直接编辑文件 | 仅输出代码片段 |
+| MCP 配置 | `.cursor/mcp.json` | `claude_desktop_config.json` |
+| 典型用途 | 代码开发 + 数据查询 | 文档分析、报告生成、数据探索 |
+| 多模型 | 多模型可选 | Claude 系列 |
+
+两者使用相同的 MCP 协议和 API Key，你可以同时配置，在不同场景中切换使用。
+
+---
+
+## 故障排查
+
+### 看不到 MCP 工具
+
+1. 确认配置文件路径正确
+2. 确认 JSON 格式无语法错误（可以用 `cat` 命令查看文件内容）
+3. 完全退出 Claude Desktop（不是最小化）并重新启动
+4. 确认安装了 Node.js 18+
+
+### 工具调用返回空数据
+
+1. 确认 PuppyOne 项目中有数据
+2. 在 PuppyOne Dashboard 中检查连接状态
+3. 确认 API Key 没有过期
+
+### 连接不稳定
+
+1. 检查网络连接
+2. Claude Desktop 有时需要等待几秒完成 MCP 握手
+3. 如果反复失败，尝试删除配置后重新添加
+
+---
+
+## 下一步
+
+- [Claude Code 集成](/zh/distribute/claude-code) — 通过文件同步让 Claude Code 操作你的数据
+- [自定义 MCP 客户端](/zh/distribute/custom-mcp) — 在其他 MCP 兼容客户端中使用

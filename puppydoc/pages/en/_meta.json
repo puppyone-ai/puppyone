@@ -1,8 +1,26 @@
 {
   "index": "Introduction",
   "quickstart": "Quick Start",
-  "connect": "Sync Connectors",
-  "agents": "Connect Agents",
-  "access": "File Level Security",
+  "concepts": "Core Concepts",
+  "connect": "Data Connections",
+  "editor": "Data Management",
+  "-- Manage": {
+    "type": "separator",
+    "title": "Manage"
+  },
+  "auth-for-agents": "Auth for Agents",
+  "version-control": "Version Control",
+  "audit": "Audit Logs",
+  "conflict": "Conflict Resolution",
+  "-- Distribute": {
+    "type": "separator",
+    "title": "Distribute"
+  },
+  "distribute": "Distribute to Agents",
+  "-- Tools": {
+    "type": "separator",
+    "title": "Tools & Reference"
+  },
+  "cli": "CLI Reference",
   "reference": "Reference"
 }

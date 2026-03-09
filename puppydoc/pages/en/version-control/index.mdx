@@ -1,0 +1,82 @@
+# Version Control
+
+Manage your Context File System like Git, with every change recorded automatically.
+
+---
+
+## Why version control matters
+
+When multiple agents work on your data at the same time, accidental overwrites, deletions, and bad writes can happen. PuppyOne's version control system automatically creates a version record for every change so you can:
+
+- **Roll back anytime** - restore any historical version with a single command
+- **Review changes** - compare two versions to see exactly what an agent changed
+- **Back up safely** - take a snapshot of an entire folder before large batch operations
+
+No manual commits, no need to remember to save - every change is recorded automatically.
+
+---
+
+## Three core capabilities
+
+### File version history
+
+Every time a Content Node is modified, the system automatically creates a new version. You can inspect the full history and restore any version.
+
+```bash
+# View the version history of a file
+puppyone fs versions /docs/product-spec.md
+
+# Roll back to version 3
+puppyone fs rollback /docs/product-spec.md 3
+```
+
+### Folder snapshots
+
+Take a point-in-time snapshot of an entire folder tree, recording the complete state of every file under that directory. This is ideal for backups before large sync jobs or batch agent operations.
+
+```
+GET  /api/v1/nodes/{folder_id}/snapshots
+POST /api/v1/nodes/{folder_id}/rollback-snapshot/{snapshot_id}
+```
+
+### Version diff
+
+Compare any two versions side by side to see additions, deletions, and modifications clearly.
+
+```bash
+# Compare the difference between version 2 and version 5
+puppyone fs diff /docs/readme.md 2 5
+```
+
+---
+
+## Common use cases
+
+| Scenario | Recommended Feature |
+|----------|---------------------|
+| An agent accidentally overwrote a file | File version rollback |
+| Safe backup before a batch sync | Folder snapshot |
+| Review what an agent changed | Version diff |
+| Track how data evolved over time | Version history |
+| Archive before a data migration | Folder snapshot |
+
+---
+
+## How it differs from Git
+
+PuppyOne version control is designed for a **cloud Context File System**, so it differs from Git in a few important ways:
+
+- **Automatic versioning** - every write creates a version automatically, no `commit` needed
+- **File-level granularity** - each Content Node manages its own version history independently
+- **No branches** - linear history, which simplifies agent workflows
+- **Instant rollback** - rollback itself creates a new version, so history is never lost
+
+---
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="File Version History and Rollback" href="/en/version-control/versions" />
+  <Card title="Folder Snapshots" href="/en/version-control/snapshots" />
+  <Card title="Version Diff" href="/en/version-control/diff" />
+</Cards>

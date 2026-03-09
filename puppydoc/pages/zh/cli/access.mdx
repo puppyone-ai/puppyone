@@ -1,0 +1,302 @@
+# 本地文件夹同步
+
+`puppyone access`（别名：`puppyone openclaw`、`puppyone oc`）用于将本地文件夹与云端 Content Node 树进行双向同步。它通过后台守护进程持续监听文件变更，实现本地与云端的实时同步。
+
+---
+
+## 命令总览
+
+| 命令 | 说明 |
+|------|------|
+| `access up [folder]` | 启动同步守护进程 |
+| `access down [folder]` | 停止守护进程 |
+| `access connect [folder]` | 首次连接（不启动守护进程） |
+| `access disconnect [folder]` | 停止并断开连接 |
+| `access remove [folder]` | 同 `disconnect` |
+| `access ls` | 列出所有连接 |
+| `access ps` | 列出运行中的守护进程 |
+| `access status [path]` | 查看同步状态详情 |
+| `access logs [folder]` | 查看守护进程日志 |
+| `access trigger [folder]` | 强制触发一次同步 |
+
+### 顶层快捷命令
+
+| 快捷命令 | 等价于 |
+|----------|--------|
+| `puppyone ps` | `puppyone access ps` |
+| `puppyone status` | 项目仪表盘（无参数时） |
+
+---
+
+## 首次设置
+
+### 快速启动
+
+最简单的方式是用 `access up`，一条命令完成连接和守护进程启动：
+
+```bash
+puppyone access up ~/workspace --key cli_xxx
+```
+
+参数说明：
+
+| 选项 | 说明 |
+|------|------|
+| `[folder]` | 要同步的本地文件夹路径，默认为当前目录 |
+| `--key <key>` | 连接的 Access Key |
+| `--path <path>` | 云端同步目标路径 |
+| `-y` | 跳过确认提示 |
+
+### 分步操作
+
+如果你想先建立连接、稍后再启动同步，可以分两步进行：
+
+```bash
+# 第一步：建立连接
+puppyone access connect ~/workspace --key cli_xxx
+
+# 第二步：启动守护进程
+puppyone access up ~/workspace
+```
+
+### 获取 Access Key
+
+Access Key 从连接管理中获取。先通过 Web 界面或 CLI 创建一个文件夹同步连接，然后获取 Key：
+
+```bash
+# 创建连接
+puppyone conn add folder ~/workspace --name "Dev Sync"
+
+# 获取 Access Key
+puppyone conn key <connection-id>
+```
+
+---
+
+## 守护进程管理
+
+### 启动守护进程
+
+```bash
+# 启动指定文件夹的同步
+puppyone access up ~/workspace
+
+# 首次启动时指定 Key
+puppyone access up ~/workspace --key cli_xxx
+
+# 跳过确认
+puppyone access up ~/workspace -y
+```
+
+### 停止守护进程
+
+```bash
+# 停止指定文件夹的同步
+puppyone access down ~/workspace
+```
+
+停止后连接关系保留，下次 `access up` 可以直接恢复。
+
+### 查看运行中的守护进程
+
+```bash
+puppyone access ps
+
+# 或使用顶层快捷命令
+puppyone ps
+```
+
+输出示例：
+
+```
+PID    Folder              Status   Synced At
+12345  ~/workspace         running  2025-01-15 14:30:00
+67890  ~/projects/blog     running  2025-01-15 14:28:00
+```
+
+---
+
+## 查看状态
+
+### 连接列表
+
+查看所有已建立的同步连接：
+
+```bash
+puppyone access ls
+```
+
+### 同步状态详情
+
+查看某个文件夹的详细同步状态：
+
+```bash
+puppyone access status ~/workspace
+```
+
+输出包含：连接 ID、同步方向、最近同步时间、文件统计、队列中的待同步文件等。
+
+---
+
+## 日志与调试
+
+### 查看守护进程日志
+
+```bash
+# 查看最近的日志
+puppyone access logs ~/workspace
+
+# 实时追踪日志（类似 tail -f）
+puppyone access logs ~/workspace -f
+
+# 指定显示行数
+puppyone access logs ~/workspace -n 50
+```
+
+### 强制同步
+
+如果怀疑同步遗漏了某些变更，可以手动触发一次完整同步：
+
+```bash
+puppyone access trigger ~/workspace
+```
+
+---
+
+## 断开连接
+
+### 停止并断开
+
+停止守护进程并清除连接关系：
+
+```bash
+puppyone access disconnect ~/workspace
+
+# 或
+puppyone access remove ~/workspace
+```
+
+断开后，本地文件不会被删除，但不再与云端保持同步。
+
+---
+
+## 本地配置结构
+
+### 工作区配置
+
+每个已连接的文件夹下会创建 `.puppyone/` 目录，保存该工作区的同步配置：
+
+```
+~/workspace/
+├── .puppyone/
+│   ├── config.json    # 连接配置（Key、远端路径等）
+│   └── state.json     # 同步状态（最近同步时间、游标等）
+├── docs/
+├── config/
+└── ...
+```
+
+### 全局注册表
+
+所有同步连接都注册在全局文件中：
+
+```
+~/.puppyone/registry.json
+```
+
+该文件记录了所有文件夹的连接映射关系，`access ls` 命令读取的就是这个文件。
+
+---
+
+## 故障排查
+
+### 守护进程无法启动
+
+```bash
+# 检查是否有残留进程
+puppyone access ps
+
+# 如果有残留，先停止
+puppyone access down ~/workspace
+
+# 重新启动
+puppyone access up ~/workspace
+```
+
+如果仍然失败，检查日志：
+
+```bash
+puppyone access logs ~/workspace -n 100
+```
+
+常见原因：
+- Access Key 过期或无效——重新生成：`puppyone conn key <id> --regenerate`
+- API 地址不可达——检查网络或配置：`puppyone config show`
+- 端口冲突——确认没有其他进程占用
+
+### 同步卡住
+
+文件变更后长时间没有同步到云端：
+
+```bash
+# 查看当前状态
+puppyone access status ~/workspace
+
+# 强制触发同步
+puppyone access trigger ~/workspace
+
+# 查看实时日志定位问题
+puppyone access logs ~/workspace -f
+```
+
+### 同步冲突
+
+当本地和云端同时修改了同一个文件时，可能出现冲突。查看冲突状态：
+
+```bash
+puppyone access status ~/workspace
+```
+
+冲突文件会被标记，你可以选择保留本地版本或云端版本。更多信息参见 [冲突解决](/zh/conflict) 文档。
+
+---
+
+## 实用工作流
+
+### 开发环境同步
+
+将本地开发目录与云端保持同步，让 Agent 可以直接访问你的工作文件：
+
+```bash
+# 创建连接并启动
+puppyone conn add folder ~/projects/my-app --name "My App"
+puppyone conn key <id>
+puppyone access up ~/projects/my-app --key <key>
+
+# 确认同步正常
+puppyone access status ~/projects/my-app
+```
+
+### 多目录同步
+
+同时同步多个文件夹：
+
+```bash
+puppyone access up ~/workspace
+puppyone access up ~/projects/blog
+puppyone access up ~/docs
+
+# 查看所有守护进程
+puppyone ps
+```
+
+### 在脚本中使用
+
+```bash
+#!/bin/bash
+# 启动同步并等待首次同步完成
+puppyone access up ~/workspace --key cli_xxx -y
+
+# 检查状态
+puppyone access status ~/workspace --json | jq '.status'
+```
