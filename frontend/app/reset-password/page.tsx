@@ -119,7 +119,7 @@ export default function ResetPasswordPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <img
-              src='/puppybase.svg'
+              src='/puppyone-logo.svg'
               alt='PuppyBase'
               width={64}
               height={64}

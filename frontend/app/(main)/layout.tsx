@@ -6,6 +6,7 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { useProjects } from '@/lib/hooks/useData';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { OrganizationProvider, useOrganization } from '@/contexts/OrganizationContext';
+import { getEnvironmentLabel } from '@/lib/env';
 
 function MainLayoutInner({
   children,
@@ -46,6 +47,7 @@ function MainLayoutInner({
   const userInitial = (session?.user?.email?.[0] || 'U').toUpperCase();
   const userMetadata = session?.user?.user_metadata as Record<string, any> | undefined;
   const userAvatarUrl = userMetadata?.avatar_url || userMetadata?.picture || userMetadata?.avatarUrl || undefined;
+  const environmentLabel = useMemo(() => getEnvironmentLabel(), []);
 
   return (
     <div
@@ -62,6 +64,7 @@ function MainLayoutInner({
         activeView={activeView}
         userInitial={userInitial}
         userAvatarUrl={userAvatarUrl}
+        environmentLabel={environmentLabel}
         isCollapsed={isNavCollapsed}
         onCollapsedChange={setIsNavCollapsed}
         sidebarWidth={sidebarWidth}

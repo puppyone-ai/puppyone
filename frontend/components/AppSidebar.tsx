@@ -26,7 +26,7 @@ export function AppSidebar({
   activeView = 'projects',
   userInitial,
   userAvatarUrl,
-  environmentLabel = 'Local Dev',
+  environmentLabel,
   isCollapsed = false,
   onCollapsedChange,
   sidebarWidth,
