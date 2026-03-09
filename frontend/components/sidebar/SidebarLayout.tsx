@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import UserMenuPanel from '../UserMenuPanel';
 import { type NodeInfo } from '../../lib/contentNodesApi';
 import { ProjectSwitcher, type ProjectOption } from './ProjectSwitcher';
+import { getEnvironmentLabel } from '../../lib/env';
 
 export type NavItem = {
   id: string;
@@ -59,12 +60,14 @@ export function SidebarLayout({
   onBack,
   userInitial,
   userAvatarUrl,
-  environmentLabel = 'Local Dev',
+  environmentLabel,
   isCollapsed = false,
   onCollapsedChange,
   sidebarWidth = DEFAULT_SIDEBAR_WIDTH,
   onSidebarWidthChange,
 }: SidebarLayoutProps) {
+  const resolvedEnvLabel = environmentLabel ?? getEnvironmentLabel();
+
   // 内部 collapsed 状态（非受控模式时使用）
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isControlled = onCollapsedChange !== undefined;
@@ -156,7 +159,7 @@ export function SidebarLayout({
       {/* Header */}
       <div
         className={clsx(
-          'box-border flex h-[48px] items-center',
+          'box-border flex h-[48px] items-center mt-2',
           effectiveCollapsed
             ? 'justify-center px-0'
             : 'justify-between pl-2 pr-[9px]'
@@ -170,19 +173,17 @@ export function SidebarLayout({
             title='Expand sidebar'
             aria-label='Expand sidebar'
           >
-            {/* 始终显示公司产品 logo */}
             <img
-              className='block group-hover:hidden'
-              src='/puppybase.svg'
+              className='block group-hover:hidden rounded-[4px]'
+              src='/puppyone-logo.svg'
               alt='puppyone'
-              width={14}
-              height={14}
+              width={20}
+              height={20}
             />
-
             <svg
               className='hidden text-[#9ca3af] group-hover:block'
-              width='14'
-              height='14'
+              width='16'
+              height='16'
               viewBox='0 0 24 24'
               fill='none'
               stroke='currentColor'
@@ -215,11 +216,11 @@ export function SidebarLayout({
               // Fallback: simple title display
               <div className='flex items-center gap-2 overflow-hidden px-2'>
                 <img
-                  src='/puppybase.svg'
+                  src='/puppyone-logo.svg'
                   alt='puppyone'
-                  width={14}
-                  height={14}
-                  className='flex-shrink-0'
+                  width={20}
+                  height={20}
+                  className='flex-shrink-0 rounded-[4px]'
                 />
                 <span className='text-sm font-semibold tracking-[0.3px] text-[#ededed] truncate'>
                   {title}
@@ -281,7 +282,7 @@ export function SidebarLayout({
           </div>
         </div>
       ) : (
-        <div className='flex-1 py-3'>
+        <div className='flex-1 pt-1 pb-3'>
           <div className='flex flex-col items-center gap-2'>
             {navItems.map(item => (
               <button
@@ -313,8 +314,8 @@ export function SidebarLayout({
         )}
       >
         {!effectiveCollapsed && (
-          <span className='flex h-7 items-center rounded-[5px] bg-[#2a2a2a] px-2.5 text-sm text-[#808080]'>
-            {environmentLabel}
+          <span className='flex h-7 items-center rounded-[5px] bg-[#2a2a2a] px-2.5 text-xs text-[#808080]'>
+            {resolvedEnvLabel}
           </span>
         )}
 

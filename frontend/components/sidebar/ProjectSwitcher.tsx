@@ -100,11 +100,11 @@ export function ProjectSwitcher({
         ) : (
           // Logo for home
           <img
-            src='/puppybase.svg'
+            src='/puppyone-logo.svg'
             alt='puppyone'
-            width={14}
-            height={14}
-            className='flex-shrink-0'
+            width={20}
+            height={20}
+            className='flex-shrink-0 rounded-[4px]'
           />
         )}
 
@@ -156,11 +156,11 @@ export function ProjectSwitcher({
               )}
             >
               <img
-                src='/puppybase.svg'
+                src='/puppyone-logo.svg'
                 alt='puppyone'
-                width={14}
-                height={14}
-                className='flex-shrink-0'
+                width={20}
+                height={20}
+                className='flex-shrink-0 rounded-[4px]'
               />
               <div className='flex-1 min-w-0'>
                 <div className='text-sm font-medium text-[#ededed] truncate'>
