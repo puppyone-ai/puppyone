@@ -4,11 +4,13 @@
   },
   "en": {
     "type": "page",
-    "title": "English"
+    "title": "English",
+    "display": "hidden"
   },
   "zh": {
     "type": "page",
-    "title": "中文"
+    "title": "中文",
+    "display": "hidden"
   }
 }
 

@@ -6,28 +6,57 @@
   --nextra-primary-saturation: 0%;
 }
 
+/* ---------- Light mode background layers (Notion-like off-white) ---------- */
+html:not(.dark) body {
+  background-color: #FAF9F6 !important;
+}
+
+html:not(.dark) .nextra-nav-container {
+  background-color: #FAF9F6 !important;
+}
+
+html:not(.dark) .nextra-sidebar-container {
+  background-color: transparent !important;
+}
+
 /* ---------- Dark mode background layers ---------- */
 .dark body {
   background-color: #0d0d0d;
 }
 
 .dark .nextra-sidebar-container {
-  background-color: #0d0d0d;
-  border-right: 1px solid #222;
+  background-color: transparent;
+  border-right: none;
+}
+
+@media (min-width: 768px) {
+  .nextra-sidebar-container {
+    max-height: calc(100vh - var(--nextra-navbar-height) - 2px) !important;
+  }
 }
 
 .dark .nextra-nav-container {
   background-color: #0d0d0d;
-  border-bottom: 1px solid #222;
+  border-bottom: none;
+  box-shadow: 0 1px 0 0 #222;
 }
 
 .dark article {
   color: #e5e5e5;
 }
 
-/* ---------- Typography ---------- */
+/* ---------- Typography (Strictly 3 sizes: 24px, 18px, 14px) ---------- */
 
-/* Body content */
+/* 1. Main Headings */
+article h1, .nextra-content h1 { font-size: 24px !important; font-weight: 700 !important; }
+
+/* 2. Sub Headings */
+article h2, .nextra-content h2 { font-size: 18px !important; font-weight: 600 !important; }
+
+/* 3. Everything else (14px) */
+article h3, .nextra-content h3 { font-size: 14px !important; font-weight: 600 !important; }
+article h4, article h5, article h6 { font-size: 14px !important; font-weight: 600 !important; }
+
 .nextra-content main,
 article,
 .nextra-content p,
@@ -35,34 +64,96 @@ article,
   font-size: 14px;
 }
 
-/* Headings */
-article h1 { font-size: 22px; font-weight: 600; }
-article h2 { font-size: 16px; font-weight: 600; }
-article h3 { font-size: 14px; font-weight: 600; }
+/* Override Nextra's utility classes to enforce 14px on UI elements */
+.nx-text-xs,
+.nx-text-sm,
+.nx-text-base,
+.nx-text-lg,
+.md\:nx-text-xs,
+.md\:nx-text-sm,
+.md\:nx-text-base,
+.md\:nx-text-lg {
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+}
+
+/* ---------- Right TOC (Table of Contents) ---------- */
+.nextra-toc a,
+.nextra-toc span,
+.nextra-toc p,
+.nextra-toc .nx-text-xs,
+.nextra-toc .nx-text-sm {
+  font-size: 12px !important;
+  color: #888 !important; /* Muted gray for light mode */
+}
+
+.dark .nextra-toc a,
+.dark .nextra-toc span,
+.dark .nextra-toc p,
+.dark .nextra-toc .nx-text-xs,
+.dark .nextra-toc .nx-text-sm {
+  color: #666 !important; /* Muted gray for dark mode */
+}
+
+/* Remove TOC bottom sticky section background and shadow */
+.nextra-toc .nx-mt-8.nx-border-t {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border-top: none !important;
+  padding-bottom: 2rem !important;
+}
 
 /* ---------- Sidebar ---------- */
 .nextra-sidebar-container a,
 .nextra-sidebar-container span,
 .nextra-sidebar-container button {
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 
 .nextra-sidebar-container a {
-  height: 28px !important;
   min-height: 28px !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
   display: flex !important;
   align-items: center !important;
+  line-height: 1.4 !important;
 }
 
-/* Sidebar section title */
-.nextra-sidebar-container .nextra-sidebar-title {
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #737373 !important;
+/* Sidebar section title (Separators) */
+.nextra-sidebar-container .nextra-sidebar-title,
+.nextra-sidebar-container li.nx-font-semibold.nx-mt-5,
+.nextra-sidebar-container li.nx-font-semibold.first\:nx-mt-0 {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #A3A3A3 !important; /* Muted gray for light mode */
+}
+
+.dark .nextra-sidebar-container .nextra-sidebar-title,
+.dark .nextra-sidebar-container li.nx-font-semibold.nx-mt-5,
+.dark .nextra-sidebar-container li.nx-font-semibold.first\:nx-mt-0 {
+  color: #525252 !important; /* Muted gray for dark mode */
+}
+
+/* Remove Sidebar bottom sticky section background and shadow */
+.nextra-sidebar-container .nx-sticky.nx-bottom-0 {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border-top: none !important;
+  padding-bottom: 2rem !important; /* Align with bottom of main content */
+  margin-bottom: 0 !important;
+}
+
+/* Align bottom navigation links (Previous/Next) */
+.nextra-content main > .nx-mb-8.nx-flex.nx-items-center.nx-border-t {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+  align-items: flex-end !important;
+  min-height: 80px; /* Give it some height so it doesn't collapse */
+}
+
+.nextra-content main > .nx-mb-8.nx-flex.nx-items-center.nx-border-t a {
+  padding-bottom: 0 !important;
+  margin-bottom: 2rem !important; /* Push the text up from the absolute bottom */
 }
 
 /* ---------- Code blocks ---------- */
@@ -72,7 +163,7 @@ article h3 { font-size: 14px; font-weight: 600; }
 }
 
 code {
-  font-size: 12px !important;
+  font-size: 14px !important;
 }
 
 /* Inline code */
@@ -81,7 +172,7 @@ code {
   border: 1px solid #2a2a2a;
   border-radius: 4px;
   color: #a3a3a3;
-  font-size: 12px;
+  font-size: 14px !important;
 }
 
 /* ---------- Buttons ---------- */
@@ -118,7 +209,22 @@ nav button[aria-label] {
 }
 
 .dark table td,
-.dark table th {
+.dark table th,
+table td,
+table th {
   border-color: #222;
-  font-size: 13px;
+  font-size: 14px !important;
+}
+
+/* ---------- Footer ---------- */
+footer {
+  display: none !important;
+}
+
+/* ---------- Hide bare language tabs in navbar ---------- */
+.nextra-nav-container nav > a[href="/doc/en"],
+.nextra-nav-container nav > a[href="/doc/zh"],
+.nextra-nav-container nav > a[href="/en"],
+.nextra-nav-container nav > a[href="/zh"] {
+  display: none !important;
 }
