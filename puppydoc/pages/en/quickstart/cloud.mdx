@@ -1,96 +1,107 @@
 # Cloud Quick Start
 
-Get your agent reading real context in 5 minutes.
+Get your agent connected to your data in 5 minutes.
 
 ---
 
-## Step 1: Create Account
+## Step 1: Create an account
 
 Visit [puppyone.ai](https://puppyone.ai) and sign up.
 
 ---
 
-## Step 2: Create a Project
+## Step 2: Create a project
 
-1. Click **New Project**
-2. Give it a name (e.g. "Product Knowledge Base")
+1. After signing in, click **New Project**
+2. Enter a name, such as "Product Knowledge Base"
 3. Click **Create**
 
----
-
-## Step 3: Connect a Data Source
-
-### Option A: Upload files
-
-1. Click **Import** → **Upload Files**
-2. Drag and drop files (PDF, Word, Excel, Markdown…)
-3. Wait for processing to complete
-
-### Option B: Connect Notion
-
-1. Click **Add Connector** → **Notion**
-2. Complete the OAuth flow
-3. Select the pages or databases to sync
-4. Click **Start Sync**
-
-### Option C: Type data manually
-
-Open the JSON editor and add data directly.
+A Project is your top-level container. All data inside it is organized as a Content Node tree made up of folders, JSON, Markdown, and files.
 
 ---
 
-## Step 4: Set Up File Level Security
+## Step 3: Import Data
 
-1. Go to the **Access** tab of your Project
-2. Create an API Key
-3. Configure which Tools the key can use (`query_data`, `get_all_data`, etc.)
-4. Optionally restrict to specific JSON paths
+Once your Project is ready, you have several ways to bring data in.
 
-For a quick start, you can skip this step — the default key has read access.
+### Option 1: Upload files
+
+1. In the Dashboard, click **Import** → **Upload Files**
+2. Drag in or select files such as PDF, Word, or Excel
+3. Wait for processing to finish; the files will be converted into Content Nodes automatically
+
+### Option 2: Connect Notion
+
+From the Dashboard:
+
+1. Click **Import** → **Notion**
+2. Complete OAuth authorization
+3. Choose the pages you want to import
+4. Click **Import**
+
+Or from the CLI:
+
+```bash
+puppyone sync auth notion
+puppyone conn add notion https://notion.so/your-database-id --folder /docs
+```
+
+### Option 3: Create content manually
+
+Create content nodes directly from the CLI:
+
+```bash
+puppyone fs mkdir /products
+puppyone fs touch -t json /products/widget.json
+puppyone fs write /products/widget.json -d '{"name": "Widget Pro", "price": 99.99}'
+```
+
+You can also create and edit JSON or Markdown content manually in the Dashboard editor.
 
 ---
 
-## Step 5: Connect Your Agent
+## Step 4: Connect an agent
 
-### Cursor
+The fastest way is through MCP. First, create an MCP endpoint from the Dashboard or CLI:
 
-1. Click **Connect Agent** → **Cursor** in the dashboard
-2. Copy the generated config
-3. Open Cursor Settings → MCP → paste the config
-4. Restart Cursor
+```bash
+puppyone conn add mcp "My Data"
+```
+
+After creation, you will get an MCP Server URL in the format `https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx`.
+
+Using Cursor as an example, create `.cursor/mcp.json` in your project root:
 
 ```json
 {
   "mcpServers": {
     "puppyone": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/YOUR_API_KEY"]
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
     }
   }
 }
 ```
 
-### Claude Desktop
+Replace `sk_live_xxx` with your real API key, then restart Cursor.
 
-1. Click **Connect Agent** → **Claude Desktop**
-2. Copy the config
-3. Add it to `~/Library/Application Support/Claude/claude_desktop_config.json`
-4. Restart Claude Desktop
+For other agent clients, see the [distribution docs](/en/distribute), including [Claude Desktop](/en/distribute/claude-desktop), [Claude Code](/en/distribute/claude-code) for file sync, and the [REST API](/en/distribute/rest-api).
 
 ---
 
-## Step 6: Test It
+## Step 5: Test it
 
-Ask your agent:
+In Cursor or Claude Desktop, ask:
 
-> "What data do you have access to?"
+> "Help me look up our product data."
 
-The agent will call `get_data_schema` and describe the structure of your data.
+If everything is configured correctly, the agent will call PuppyOne and fetch the data.
 
 ---
 
-## Next Steps
+## Next steps
 
-- [Add more data sources](/en/connect)
-- [Configure permissions](/en/access)
-- [Full Agent Access guide](/en/agents)
+- [Core Concepts](/en/concepts) - Learn the core ideas behind Content Nodes, Connections, and more
+- [Connect more data sources](/en/connect) - Bring in data from Notion, GitHub, Gmail, and other platforms
+- [Version Control](/en/version-control) - Explore version history, snapshots, and rollback
+- [Distribute to Agents](/en/distribute) - Use MCP, OpenClaw, or the REST API

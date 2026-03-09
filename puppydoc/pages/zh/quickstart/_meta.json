@@ -1,4 +1,5 @@
 {
   "cloud": "云端版",
-  "self-hosted": "自托管"
+  "self-hosted": "自托管",
+  "cli": "CLI 快速开始"
 }

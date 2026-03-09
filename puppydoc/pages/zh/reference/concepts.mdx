@@ -1,4 +1,4 @@
-# 核心概念
+# 术语表
 
 PuppyOne 的核心概念和术语解释。
 
@@ -7,125 +7,144 @@ PuppyOne 的核心概念和术语解释。
 ## 数据层级
 
 ```
-Workspace（工作区）
+Organization（组织）
 └── Project（项目）
-    └── Table（表）
-        └── JSON Data（数据）
+    └── Content Node（内容节点）
+        ├── folder  — 文件夹
+        ├── json    — JSON 文件
+        ├── markdown — Markdown 文件
+        └── file    — 二进制文件
 ```
-
-### Workspace
-
-工作区是你的 PuppyOne 账户的顶层容器。
-
-- 每个用户有一个 Workspace
-- 包含所有 Project 和设置
-- 管理团队成员和计费
-
-### Project
-
-项目是组织数据的命名空间。
-
-- 一个业务场景对应一个 Project
-- 例如：「产品知识库」「客服FAQ」「研发文档」
-- 可以设置项目级别的访问控制
-
-### Table
-
-表是存储结构化数据的容器。
-
-- 每个 Table 存储一份 JSON 数据
-- 支持任意嵌套的 JSON 结构
-- 自动追踪版本历史
-- 可以配置独立的访问权限
 
 ---
 
-## Agent 相关
+## 核心术语
 
-### Tool
+### Organization（组织）
 
-Tool 是 Agent 可以调用的数据操作。
+组织是 PuppyOne 的顶层容器，代表一个团队或公司。
 
-| Tool | 说明 |
-|------|------|
-| `query_data` | 带条件查询数据 |
-| `get_all_data` | 获取全部数据 |
+- 管理成员和角色（Owner / Admin / Member）
+- 管理计费和配额
+- 一个用户可以属于多个组织
+
+### Project（项目）
+
+项目是组织下的数据命名空间，用于隔离不同业务场景的数据。
+
+- 每个业务场景对应一个 Project，例如「产品知识库」「客服 FAQ」「研发文档」
+- 项目内包含内容节点树、连接、Agent 等资源
+- 支持项目级别的成员管理和访问控制
+
+### Content Node（内容节点）
+
+内容节点是 PuppyOne 云文件系统的基本数据单位，以树形结构组织。
+
+| 类型 | 说明 | 用途 |
+|------|------|------|
+| `folder` | 文件夹 | 组织目录结构 |
+| `json` | JSON 文件 | 结构化数据存储 |
+| `markdown` | Markdown 文件 | 文档和文本内容 |
+| `file` | 二进制文件 | 图片、PDF 等附件 |
+
+每个内容节点自动追踪版本历史，支持回滚和对比。
+
+### Connection（连接）
+
+连接是 PuppyOne 统一的外部集成抽象。所有类型的外部集成都通过 `connections` 表管理，使用 `provider` 和 `direction` 字段区分类型。
+
+| 连接类型 | 说明 | 示例 |
+|----------|------|------|
+| Sync | 数据源同步连接 | Notion、GitHub、Gmail |
+| Agent | AI Agent 实例 | 客服助手、数据分析 Agent |
+| MCP | MCP 协议端点 | 为 Cursor / Claude 提供工具 |
+| Sandbox | 代码沙盒 | Docker / E2B 隔离执行环境 |
+| Filesystem | 本地文件夹同步 | 双向同步本地目录 |
+
+### MCP（Model Context Protocol）
+
+MCP 是 Anthropic 提出的开放协议，定义了 AI 模型如何与外部工具和数据源交互。
+
+- PuppyOne 为每个 Agent / MCP 端点生成标准的 MCP 接口
+- 支持 Cursor、Claude Desktop、Windsurf 等 MCP 兼容客户端直接连接
+- Agent 通过 MCP 协议调用绑定的工具
+
+### FLS（File Level Security）
+
+文件级权限控制，精确控制每个 Agent 可以访问哪些内容节点。
+
+- 通过 `connection_accesses` 表管理 Agent 与内容节点的绑定关系
+- 支持只读、读写等权限级别
+- 遵循最小权限原则
+
+### Tool（工具）
+
+工具是 Agent 可调用的数据操作，绑定到具体的内容节点上。
+
+| 工具类型 | 说明 |
+|----------|------|
+| `query` | 带条件查询数据 |
+| `get_all` | 获取全部数据 |
 | `create` | 创建新条目 |
 | `update` | 修改数据 |
 | `delete` | 删除数据 |
+| `search` | 向量搜索（基于语义检索） |
 
-### MCP (Model Context Protocol)
+### Access Key（访问凭证）
 
-MCP 是 Anthropic 提出的开放协议，定义了 AI 模型如何与外部工具交互。
+Access Key 是用于机器和 Agent 认证的凭证，格式通常为 `cli_xxx`。
 
-- PuppyOne 为每个 Table 提供 MCP Server
-- 支持 Cursor、Claude Desktop 等客户端
-- Agent 通过 MCP 协议调用 Tool
-
-### API Key
-
-API Key 是 Agent 访问 PuppyOne 的凭证。
-
-- 每个 API Key 关联特定的权限配置
-- 一个 Agent 应该使用一个独立的 API Key
-- 支持创建、禁用、删除
+- 每个 Agent / MCP 端点 / 沙盒端点都有独立的 Access Key
+- 支持重新生成（旧密钥立即失效）
+- 用于 CLI 工具和 API 的非交互式认证
 
 ---
 
-## 数据相关
+## 同步相关
 
-### JSON Path
+### Sync Connector（数据源同步连接器）
 
-JSON Path 用于定位 JSON 数据中的特定位置。
+同步连接器负责将外部 SaaS 平台的数据拉取到 PuppyOne 中。
 
-```
-/                    → 根路径（整个数据）
-/products            → products 字段
-/products/0          → 第一个产品
-/products/0/name     → 第一个产品的名称
-/products/*          → 所有产品
-```
+- 支持 Notion、GitHub、Gmail、Google Drive 等 15+ 平台
+- 数据同步后转换为结构化的 JSON 或 Markdown 内容节点
+- 支持增量同步、定时拉取、手动刷新
 
-### Connector
+### OpenClaw
 
-Connector 是连接外部数据源的组件。
+PuppyOne 的本地文件夹双向同步协议。
 
-支持的 Connector：
-- Notion
-- GitHub
-- Airtable
-- Google Sheets
-- 文件上传
-- URL 爬取
-
-### ETL
-
-ETL (Extract, Transform, Load) 是数据处理流程。
-
-```
-提取 (Extract) → 转换 (Transform) → 加载 (Load)
-```
-
-PuppyOne 自动执行 ETL：
-1. **提取**：从数据源获取原始数据
-2. **转换**：解析、清洗、结构化
-3. **加载**：存储为 JSON 格式
+- 将本地目录与云端 Context File System 实时双向同步
+- 通过后台守护进程运行
+- CLI 命令：`puppyone access up` / `puppyone access down`
 
 ---
 
-## 访问控制
+## 协作相关
 
-### 权限模型
+### Checkout / Commit（签出 / 提交）
 
-```
-Tool 权限（Agent 能做什么）
-    ↓
-路径权限（能访问哪些数据）
-```
+协作编辑工作流，类似 Git 的操作模式。
 
-### 最小权限原则
+- **Checkout**：签出内容节点的工作副本，获取锁
+- **Commit**：提交变更，自动创建新版本
+- 支持冲突检测
 
-只授予 Agent 完成任务所需的最小权限。
+### Snapshot（快照）
+
+文件夹级别的快照备份。
+
+- 保存文件夹在某个时刻的完整状态
+- 支持一键回滚到任意快照
+- 适合在批量操作前创建安全备份
+
+### Audit Log（审计日志）
+
+操作审计日志，记录所有对内容节点的操作。
+
+- 记录谁（用户 / Agent）在什么时间对哪个节点做了什么操作
+- 支持按节点、按时间、按操作人查询
+- 完整可追溯
 
 ---
 
@@ -133,30 +152,34 @@ Tool 权限（Agent 能做什么）
 
 ### MCP Server
 
-为 Cursor、Claude Desktop 等 MCP 客户端提供服务。
+为 Cursor、Claude Desktop 等 MCP 兼容客户端提供数据访问服务。
 
 ### REST API
 
-HTTP API，适合自研 Agent 和后端集成。
+标准 HTTP API，适合自研 Agent、后端集成和自动化脚本。
 
 ### Publish Link
 
-公开链接，任何人可以通过链接访问（只读）。
+公开短链接，任何人可以通过链接访问 JSON 数据（只读，无需认证）。
 
 ---
 
-## 术语对照
+## 术语对照表
 
 | 英文 | 中文 | 说明 |
 |------|------|------|
-| Context Base | 上下文基座 | PuppyOne 的核心定位 |
-| Workspace | 工作区 | 账户级容器 |
-| Project | 项目 | 命名空间 |
-| Table | 表 | 数据容器 |
-| Tool | 工具 | Agent 可调用的操作 |
-| Connector | 连接器 | 数据源适配器 |
-| API Key | API 密钥 | 访问凭证 |
-
-
-
-
+| Organization | 组织 | 顶层容器，管理团队和计费 |
+| Project | 项目 | 数据命名空间 |
+| Content Node | 内容节点 | 云文件系统的基本数据单位 |
+| Connection | 连接 | 统一的外部集成抽象 |
+| MCP | Model Context Protocol | AI 模型与工具交互的开放协议 |
+| FLS | File Level Security | 文件级权限控制 |
+| Tool | 工具 | Agent 可调用的数据操作 |
+| Access Key | 访问凭证 | 机器 / Agent 认证密钥 |
+| OpenClaw | 本地同步协议 | 本地文件夹双向同步 |
+| Sync Connector | 同步连接器 | 数据源同步适配器 |
+| Checkout / Commit | 签出 / 提交 | 协作编辑工作流 |
+| Snapshot | 快照 | 文件夹级别备份 |
+| Audit Log | 审计日志 | 操作追踪记录 |
+| ETL | 数据处理流程 | 提取、转换、加载 |
+| Publish Link | 公开链接 | 只读公开访问 |

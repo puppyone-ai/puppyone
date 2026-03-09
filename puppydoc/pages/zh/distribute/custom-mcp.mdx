@@ -1,0 +1,239 @@
+# 自定义 MCP 客户端
+
+在任何 MCP 兼容客户端中连接 PuppyOne 数据。
+
+---
+
+## MCP Server 信息
+
+PuppyOne 为每个连接生成一个标准的 MCP Server，任何支持 MCP 协议的客户端都可以直接连接。
+
+**Server URL**：
+
+```
+https://api.puppyone.ai/api/v1/mcp/server/{API_KEY}
+```
+
+**自部署 URL**：
+
+```
+http://localhost:9090/api/v1/mcp/server/{API_KEY}
+```
+
+**传输协议**：SSE（Server-Sent Events）
+
+---
+
+## 获取 API Key
+
+### 通过 Dashboard
+
+1. 打开 Project → **Connections**
+2. 点击 **Add Connection** → 选择 **MCP**
+3. 输入名称，创建连接
+4. 复制 API Key
+
+### 通过 CLI
+
+```bash
+puppyone conn add mcp "My Agent Data"
+```
+
+输出中会包含完整的 Server URL 和 API Key。
+
+---
+
+## 使用 mcp-remote
+
+大多数 MCP 客户端支持通过 `mcp-remote` 连接远程 MCP Server。这是最通用的接入方式：
+
+```bash
+npx -y mcp-remote https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx
+```
+
+---
+
+## 客户端配置示例
+
+### Cline（VS Code 插件）
+
+在 Cline 的 MCP 设置中添加：
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+### Continue（VS Code / JetBrains 插件）
+
+在 `~/.continue/config.json` 中添加 MCP 配置：
+
+```json
+{
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+        }
+      }
+    ]
+  }
+}
+```
+
+### Zed
+
+在 Zed 的 `settings.json` 中添加：
+
+```json
+{
+  "context_servers": {
+    "puppyone": {
+      "command": {
+        "path": "npx",
+        "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+      }
+    }
+  }
+}
+```
+
+---
+
+## 使用 MCP SDK 直接连接
+
+如果你在构建自己的 Agent 或工具，可以使用 MCP SDK 直接连接 PuppyOne。
+
+### TypeScript
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+
+const API_KEY = "sk_live_xxx";
+const serverUrl = `https://api.puppyone.ai/api/v1/mcp/server/${API_KEY}`;
+
+const transport = new SSEClientTransport(new URL(serverUrl));
+const client = new Client({
+  name: "my-agent",
+  version: "1.0.0",
+});
+
+await client.connect(transport);
+
+// 列出可用工具
+const tools = await client.listTools();
+console.log("可用工具:", tools);
+
+// 调用工具获取数据结构
+const schema = await client.callTool({
+  name: "get_data_schema",
+  arguments: {},
+});
+console.log("数据结构:", schema);
+
+// 查询数据
+const result = await client.callTool({
+  name: "query_data",
+  arguments: {
+    path: "/products",
+  },
+});
+console.log("查询结果:", result);
+```
+
+### Python
+
+```python
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+
+API_KEY = "sk_live_xxx"
+server_url = f"https://api.puppyone.ai/api/v1/mcp/server/{API_KEY}"
+
+async def main():
+    async with sse_client(server_url) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+
+            # 列出可用工具
+            tools = await session.list_tools()
+            print("可用工具:", tools)
+
+            # 获取数据结构
+            schema = await session.call_tool("get_data_schema", {})
+            print("数据结构:", schema)
+
+            # 查询数据
+            result = await session.call_tool("query_data", {
+                "path": "/products",
+            })
+            print("查询结果:", result)
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
+```
+
+---
+
+## 可用工具列表
+
+连接成功后，你的 Agent 可以使用以下 MCP 工具操作 Content Node：
+
+| 工具 | 说明 | 参数 |
+|------|------|------|
+| `get_data_schema` | 获取 Content Node 树的结构概览 | 无 |
+| `get_all_data` | 获取所有数据 | 无 |
+| `query_data` | 按路径或条件查询数据 | `path`, `filter` |
+| `preview` | 预览节点内容（截断大数据） | `path` |
+| `select` | 精确选择一个或多个节点 | `path`, `ids` |
+| `create` | 创建新的 Content Node | `path`, `type`, `name`, `content` |
+| `update` | 更新节点内容 | `path`, `content` |
+| `delete` | 删除节点 | `path` |
+
+---
+
+## 常见问题
+
+### SSE 连接被中断
+
+部分客户端或网络代理不支持长时间的 SSE 连接。解决方案：
+
+1. 检查客户端是否有 SSE 超时设置
+2. 如果使用公司网络代理，确保代理支持 SSE
+3. 使用 `mcp-remote` 通常可以处理重连逻辑
+
+### 工具列表为空
+
+1. 确认 API Key 正确
+2. 确认对应的 PuppyOne 项目中有数据
+3. 尝试重新创建 MCP 连接
+
+### SDK 版本兼容
+
+PuppyOne 支持 MCP 协议的标准 SSE 传输。请使用最新版本的 MCP SDK：
+
+```bash
+# TypeScript
+npm install @modelcontextprotocol/sdk
+
+# Python
+pip install mcp
+```
+
+---
+
+## 下一步
+
+- [REST API](/zh/distribute/rest-api) — 不使用 MCP，直接通过 HTTP 接口访问
+- [代码沙盒](/zh/distribute/sandbox) — 在隔离环境中执行代码处理数据

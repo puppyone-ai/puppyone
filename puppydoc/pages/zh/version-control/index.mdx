@@ -1,0 +1,82 @@
+# 版本控制
+
+像 Git 一样管理你的 Context File System，每一次变更都自动留痕。
+
+---
+
+## 为什么需要版本控制
+
+当多个 Agent 同时操作你的数据时，意外覆盖、误删、写入错误内容都可能发生。PuppyOne 的版本控制系统为每一次变更自动创建版本记录，让你可以：
+
+- **随时回退**：一条命令恢复到任意历史版本
+- **审查变更**：对比两个版本的差异，确认 Agent 做了什么
+- **安全备份**：对整个文件夹拍快照，批量操作前一键存档
+
+不需要手动提交、不需要记住保存——所有变更自动记录。
+
+---
+
+## 三大核心能力
+
+### 文件版本历史
+
+每次对 Content Node 的修改，系统自动创建一个新版本。你可以查看完整的修改历史、恢复到任意版本。
+
+```bash
+# 查看文件的版本历史
+puppyone fs versions /docs/product-spec.md
+
+# 回滚到第 3 个版本
+puppyone fs rollback /docs/product-spec.md 3
+```
+
+### 文件夹快照
+
+对整个文件夹树拍一个时间点快照，记录该目录下所有文件的完整状态。适合在大规模同步、批量 Agent 操作前做备份。
+
+```
+GET  /api/v1/nodes/{folder_id}/snapshots
+POST /api/v1/nodes/{folder_id}/rollback-snapshot/{snapshot_id}
+```
+
+### 版本对比
+
+将任意两个版本并排对比，清晰看到新增、删除和修改的内容。
+
+```bash
+# 对比版本 2 和版本 5 的差异
+puppyone fs diff /docs/readme.md 2 5
+```
+
+---
+
+## 适用场景
+
+| 场景 | 推荐功能 |
+|------|----------|
+| Agent 意外覆盖了文件 | 文件版本回滚 |
+| 批量同步前的安全备份 | 文件夹快照 |
+| 审查 Agent 的修改内容 | 版本对比 |
+| 追踪数据随时间的演变 | 版本历史 |
+| 数据迁移前的存档 | 文件夹快照 |
+
+---
+
+## 与 Git 的区别
+
+PuppyOne 的版本控制专为 **云端 Context File System** 设计，和 Git 有几个关键差异：
+
+- **自动版本化**：每次写入自动创建版本，无需 `commit`
+- **文件级粒度**：每个 Content Node 独立管理版本历史
+- **无分支概念**：线性版本历史，简化 Agent 的使用场景
+- **即时回滚**：回滚操作本身也会创建新版本，历史永不丢失
+
+---
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="文件版本历史与回滚" href="/zh/version-control/versions" />
+  <Card title="文件夹快照" href="/zh/version-control/snapshots" />
+  <Card title="版本对比" href="/zh/version-control/diff" />
+</Cards>

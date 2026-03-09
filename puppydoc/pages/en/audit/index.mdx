@@ -1,0 +1,65 @@
+# Audit Log
+
+Keep a complete record of every data operation so collaboration across people and agents stays traceable.
+
+---
+
+## What is the audit log
+
+When multiple agents and team members access the same data at the same time, you need to know who did what, when, and on which file.
+
+PuppyOne's audit log system automatically records every operation on Content Nodes. You do not need to enable it manually. Every create, edit, delete, rollback, and sync action is captured in full.
+
+---
+
+## Why audit logs matter
+
+### Traceability in multi-agent collaboration
+
+When multiple agents are working in the same project at once - for example, one syncing data from Notion, one updating docs automatically, and one answering user questions - you need to know what each agent did. Audit logs make every step traceable.
+
+### Troubleshooting
+
+Something went wrong with your data? Audit logs help you pinpoint whose change caused the issue, when it happened, and what changed before the problem appeared.
+
+### Compliance requirements
+
+For workflows that require a data audit trail, audit logs provide a complete operational record to satisfy compliance requirements.
+
+---
+
+## What gets recorded
+
+Each audit log entry contains the following key information:
+
+| Field | Description | Example |
+|------|-------------|---------|
+| **actor** | The user or agent that performed the action | `alice@team.com`, `Research Agent` |
+| **action** | Operation type | `create`, `update`, `delete` |
+| **node_path** | Path of the node being operated on | `/docs/api-design.md` |
+| **timestamp** | When the action happened | `2025-03-09T14:30:00Z` |
+| **metadata** | Additional operation details | Change details, source, etc. |
+
+### Supported action types
+
+| Action | Description |
+|--------|-------------|
+| `create` | Create a new Content Node |
+| `update` | Modify node content |
+| `delete` | Delete a node |
+| `rollback` | Roll back to a historical version |
+| `sync` | Sync from an external data source |
+| `checkout` | Check out a node for editing |
+| `commit` | Commit checked-out changes |
+
+---
+
+## Learn more
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="Operation Log Query" href="/en/audit/logs" />
+  <Card title="Version Control" href="/en/version-control" />
+  <Card title="Conflict Resolution" href="/en/conflict" />
+</Cards>

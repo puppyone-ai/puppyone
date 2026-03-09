@@ -1,0 +1,187 @@
+# Cursor
+
+在 Cursor IDE 中通过 MCP 直接访问你的 PuppyOne 数据。
+
+---
+
+## 前置条件
+
+- Cursor 0.40 或更高版本
+- PuppyOne 账号，且项目中已有数据（参见 [快速开始](/zh/quickstart)）
+
+---
+
+## 获取 MCP 配置
+
+你可以通过 Dashboard 或 CLI 两种方式获取 MCP 配置。
+
+### 方式一：Dashboard
+
+1. 打开你的 Project
+2. 进入 **Connections** 页面
+3. 点击 **Add Connection** → 选择 **MCP**
+4. 输入名称，点击创建
+5. 复制生成的 MCP 配置
+
+### 方式二：CLI
+
+```bash
+npm install -g puppyone
+puppyone auth login
+puppyone conn add mcp "My Data"
+```
+
+命令执行后会输出完整的 MCP 配置，直接复制即可。
+
+---
+
+## 配置 Cursor
+
+### 项目级配置（推荐）
+
+在项目根目录创建 `.cursor/mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+将 `sk_live_xxx` 替换为你的实际 API Key。
+
+### 全局配置
+
+也可以在 Cursor Settings → MCP 中添加，这样所有项目都能使用。
+
+### 多项目配置
+
+如果你在 PuppyOne 中有多个项目，可以添加多个 MCP Server：
+
+```json
+{
+  "mcpServers": {
+    "puppyone-docs": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_docs_key"]
+    },
+    "puppyone-issues": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_issues_key"]
+    }
+  }
+}
+```
+
+### 自部署配置
+
+如果你使用自部署的 PuppyOne 后端，将 URL 替换为你的服务地址：
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:9090/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+---
+
+## 使用示例
+
+配置完成后，在 Cursor 的 AI 对话中可以直接引用 PuppyOne 中的数据。
+
+### 查询数据
+
+```
+请帮我查看 PuppyOne 中所有 Notion 导入的文档列表。
+```
+
+Cursor 会自动调用 MCP 工具获取你的 Content Node 树，返回结构化的数据。
+
+### 更新数据
+
+```
+把 /products/widget-pro.json 中的价格从 99.99 改为 129.99。
+```
+
+Cursor 通过 MCP 工具调用 `update` 操作，直接修改 PuppyOne 中的数据。
+
+### 代码中引用数据
+
+```
+根据 PuppyOne 中 /api-spec/endpoints.json 的内容，
+帮我生成对应的 TypeScript 类型定义。
+```
+
+Cursor 会先通过 MCP 读取数据，然后基于数据内容生成代码。
+
+---
+
+## 可用的 MCP 工具
+
+连接成功后，Cursor 可以使用以下 MCP 工具：
+
+| 工具 | 说明 |
+|------|------|
+| `get_data_schema` | 获取 Content Node 树的结构 |
+| `get_all_data` | 获取所有数据 |
+| `query_data` | 按条件查询数据 |
+| `preview` | 预览节点内容 |
+| `select` | 精确选择节点 |
+| `create` | 创建新节点 |
+| `update` | 更新节点内容 |
+| `delete` | 删除节点 |
+
+---
+
+## 故障排查
+
+### MCP 未加载
+
+**现象**：Cursor 对话中看不到 PuppyOne 的工具。
+
+**解决**：
+1. 确认 `.cursor/mcp.json` 文件位置正确（项目根目录下的 `.cursor` 文件夹）
+2. 重启 Cursor
+3. 检查 Cursor Settings → MCP，确认服务状态为绿色
+
+### 连接超时
+
+**现象**：工具调用等待很久后失败。
+
+**解决**：
+1. 确认网络可以访问 `api.puppyone.ai`
+2. 如果使用代理，确保 `npx` 命令能正常执行
+3. 尝试在终端手动运行 `npx -y mcp-remote https://api.puppyone.ai/api/v1/mcp/server/YOUR_KEY`，查看是否有错误输出
+
+### 工具调用失败
+
+**现象**：工具调用返回错误信息。
+
+**解决**：
+1. 检查 API Key 是否正确且未过期
+2. 确认项目中确实有数据（空项目没有可查询的内容）
+3. 在 Dashboard 中查看连接状态是否正常
+
+### Node.js 环境问题
+
+**现象**：`npx` 命令执行失败。
+
+**解决**：
+1. 确认安装了 Node.js 18+
+2. 运行 `npx -y mcp-remote --version` 确认 `mcp-remote` 可以正常安装
+
+---
+
+## 下一步
+
+- [连接 Claude Desktop](/zh/distribute/claude-desktop) — 在 Claude Desktop 中使用同样的数据
+- [REST API](/zh/distribute/rest-api) — 通过 HTTP 接口编程访问

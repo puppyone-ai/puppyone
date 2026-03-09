@@ -1,0 +1,9 @@
+{
+  "index": "概览",
+  "cursor": "Cursor",
+  "claude-desktop": "Claude Desktop",
+  "claude-code": "Claude Code",
+  "custom-mcp": "自定义 MCP 客户端",
+  "rest-api": "REST API",
+  "sandbox": "代码沙盒"
+}

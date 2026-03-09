@@ -1,60 +1,50 @@
-# puppyone
+# PuppyOne
 
-**The Context File System for AI Agents.**
+**A Context File System built for AI agents.**
 
-Sync your scattered data into a structured file system that agents can read and write directly.
-
----
-
-## Everything is Sync
-
-puppyone has one core concept: **Synchronize**.
-
-Whether it's data being pulled from Notion, an agent reading and writing via MCP, or a local folder staying in sync via OpenClaw — it's all the same sync engine underneath. Just different directions and protocols.
-
-```
-  Notion  GitHub  Gmail  Linear  Files
-     │       │       │      │      │
-     └───────┴───────┴──────┴──────┘
-                     │
-               ← Sync (Pull)
-                     │
-            ╔════════▼════════╗
-            ║    puppyone     ║   Context File System
-            ╚════════▲════════╝
-                     │
-               Sync (Read / Write) →
-                     │
-       ┌─────────────┼─────────────┐
-       │             │             │
-   OpenClaw         MCP         REST API
-   (↕ bidirectional) (r/w)       (r/w)
-       │             │             │
-  Local folder  Cursor / Claude  Custom Agent
-```
-
-MCP and REST API are not a separate "distribution layer" — they are protocol wrappers on top of the sync result. OpenClaw is the most direct form: bidirectional sync between a local folder and puppyone, kept live.
+Connect, govern, and distribute the same shared context to every agent.
 
 ---
 
-## File Level Security (FLS)
+## Agents need more than a file system
 
-**Permission control down to the file path.**
+Today’s most capable agents are built around files: they read, write, and execute through Bash and the local file system. But **traditional file systems were never designed to be context infrastructure for agents.**
 
-Similar to Row Level Security (RLS) in databases, FLS lets you control exactly what each agent can see and do:
-
-- Customer Support Agent: read-only `/products` and `/faq`
-- Dev Agent: read/write on `/specs`, no delete
-- Sales Agent: can read pricing, cannot see `/internal`
-
-Paths an agent is not authorized to access **do not exist in its view** — physically removed from the file system it sees.
+- **No connectors** - Your data lives across Notion, GitHub, Google Drive, and dozens of other tools. Agents cannot see any of it by default.
+- **No backup or rollback** - If a hallucinating agent overwrites a critical file, the previous version is just gone.
+- **No file-level permissions** - Controlling what each agent can read and write with `chmod` and SSH keys does not scale.
 
 ---
+
+## How PuppyOne solves it
+
+PuppyOne is a Context File System built specifically for agents, designed to solve those problems directly:
+
+- **15+ connectors** - Mount data from Notion, GitHub, Gmail, Google Drive, Airtable, and more into one unified file tree, automatically converted into agent-friendly formats like Markdown, JSON, and raw files.
+- **Version control and rollback** - Every write is tracked automatically. Compare any historical versions and roll back in one click.
+- **Auth for Agents** - Each agent gets its own identity and its own view of the file tree. Paths it is not allowed to access simply do not exist for that agent.
+- **Audit logs** - Fully traceable records of which agent read, modified, or deleted which file, and when.
+- **Multiple access channels** - Distribute your context through MCP, local folder sync, REST API, CLI, or sandbox environments so each agent can connect in the way that fits best.
+
+---
+
+## Quick start
 
 import { Cards, Card } from 'nextra/components'
 
 <Cards>
-  <Card title="Quick Start" href="/en/quickstart/cloud" />
-  <Card title="Sync Connectors" href="/en/connect" />
-  <Card title="Connect Agents" href="/en/agents" />
+  <Card title="Cloud Quick Start" href="/en/quickstart/cloud" />
+  <Card title="Self-Hosted Deployment" href="/en/quickstart/self-hosted" />
+  <Card title="CLI Quick Start" href="/en/quickstart/cli" />
+</Cards>
+
+---
+
+## Learn more
+
+<Cards>
+  <Card title="Core Concepts" href="/en/concepts" />
+  <Card title="Data Connections" href="/en/connect" />
+  <Card title="Distribute to Agents" href="/en/distribute" />
+  <Card title="Auth for Agents" href="/en/auth-for-agents" />
 </Cards>

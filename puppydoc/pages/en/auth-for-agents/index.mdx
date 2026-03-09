@@ -1,0 +1,117 @@
+# Auth for Agents
+
+Control who can access your Context File System and what they can do.
+
+---
+
+## Two authentication models
+
+PuppyOne separates authentication for **human users** and **machines/agents**:
+
+```
+┌────────────────────────────────────────────────────┐
+│              Human Users (JWT)                     │
+│                                                    │
+│  Email/password or OAuth login → Supabase Auth    │
+│  → JWT token                                      │
+│  Used for: Dashboard, interactive CLI operations  │
+└────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────┐
+│              Machines / Agents (Access Key)        │
+│                                                    │
+│  Each Connection gets its own Access Key          │
+│  Used for: MCP endpoints, Sandbox, file sync,     │
+│  and Agents                                       │
+└────────────────────────────────────────────────────┘
+```
+
+### JWT (human users)
+
+After you log in to PuppyOne with email/password or third-party OAuth (Google, GitHub, etc.), the system issues a JWT token. This token represents your identity and carries all permissions you have as a project member.
+
+```bash
+# Log in through the CLI
+puppyone auth login
+
+# Verify your current identity
+puppyone auth whoami
+```
+
+### Access Key (machines / agents)
+
+Agents do not log in like humans. Every Connection (agent, MCP endpoint, sandbox, file sync) automatically receives an Access Key when it is created. The agent uses this key to access the API, and the system decides what it can do based on the permission rules attached to that key.
+
+```bash
+# View the Access Key for a connection
+puppyone conn key <connection-id>
+```
+
+---
+
+## Why agent authentication is different
+
+Human users are project members and usually need broad access to manage the project. Agents are different:
+
+- **Agents only need to complete specific tasks** - a support agent does not need access to engineering docs
+- **Agents run automatically** - there is no human next to them deciding whether they crossed a boundary
+- **You may have many agents** - each agent should have isolated responsibilities and permissions
+
+That is why PuppyOne gives each agent its own credential and uses **File Level Security (FLS)** to define its exact boundaries.
+
+---
+
+## Two-layer permission model
+
+Each Access Key is associated with a set of permission rules across two layers:
+
+```
+Request enters
+   │
+   ▼
+┌──────────────────────────────────┐
+│  Layer 1: Tool permissions       │
+│  Which operations can this       │
+│  agent call?                     │
+│                                  │
+│  query_data ✅  create ✅        │
+│  update ✅      delete ❌        │
+└──────────────┬───────────────────┘
+               │ pass
+               ▼
+┌──────────────────────────────────┐
+│  Layer 2: Path permissions       │
+│  Which Content Nodes can this    │
+│  operation access?               │
+│                                  │
+│  /products ✅  /faq ✅           │
+│  /internal ❌                    │
+└──────────────┬───────────────────┘
+               │ pass
+               ▼
+            Execute operation
+```
+
+1. **Tool permissions**: decide which operations an agent can perform (read, create, update, delete)
+2. **Path permissions**: decide which Content Node paths each operation can access
+
+The request is executed only if both layers allow it.
+
+---
+
+## The "does not exist" principle
+
+FLS does more than deny access. Paths an agent is not allowed to access **do not physically exist in that agent's view**.
+
+If an agent is allowed to access only `/products` and `/faq`, then those are the only paths it will see when listing the file system. Other content such as `/internal` and `/users` is completely invisible, and the agent does not even know those paths exist.
+
+This is different from a traditional "403 Forbidden" model. The agent does not see a path and then get rejected. It only sees the world it is allowed to see from the beginning.
+
+---
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="FLS Permissions" href="/en/auth-for-agents/permissions" />
+  <Card title="Credential Management" href="/en/auth-for-agents/api-keys" />
+</Cards>

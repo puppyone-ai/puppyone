@@ -1,60 +1,50 @@
-# puppyone
+# PuppyOne
 
-**AI Agent 的 Context File System。**
+**为 AI Agent 打造的 Context File System。**
 
-把分散在各处的数据，同步成 Agent 可以直接读写的结构化文件系统。
-
----
-
-## 一切皆 Sync
-
-puppyone 的核心只有一件事：**Synchronize**。
-
-不管是数据从 Notion 同步进来，还是 Agent 通过 MCP 读写，还是本地文件夹通过 OpenClaw 双向同步——底层都是同一个同步引擎，只是方向和协议不同。
-
-```
-  Notion  GitHub  Gmail  Linear  Files
-     │       │       │      │      │
-     └───────┴───────┴──────┴──────┘
-                     │
-               ← Sync (Pull)
-                     │
-            ╔════════▼════════╗
-            ║    puppyone     ║   Context File System
-            ╚════════▲════════╝
-                     │
-               Sync (Read / Write) →
-                     │
-       ┌─────────────┼─────────────┐
-       │             │             │
-   OpenClaw         MCP         REST API
-   (↕ 双向)      (读/写)        (读/写)
-       │             │             │
-  本地文件夹   Cursor / Claude   自研 Agent
-```
-
-MCP 和 REST API 不是独立的"分发层"——它们是 sync 结果之上的协议封装。OpenClaw 则是最直接的双向 sync，本地文件夹和 puppyone 实时保持一致。
+连接、管控、分发——让所有 Agent 共享同一份上下文。
 
 ---
 
-## File Level Security (FLS)
+## Agent 需要的不只是文件系统
 
-**把权限控制精确到文件路径。**
+今天最强的 Agent 都以文件为核心：它们通过 Bash 和本地文件系统来读、写、执行。但**传统文件系统从来不是为 Agent 设计的上下文基础设施。**
 
-类似数据库的行级权限（RLS），FLS 控制每个 Agent 能看到哪些路径、能做哪些操作。
-
-- 客服 Agent 只能读 `/products` 和 `/faq`
-- 研发 Agent 可以读写 `/specs`，但不能删除
-- 销售 Agent 能看报价但看不到 `/internal`
-
-Agent 没有权限的路径，**在它的视野中物理上不存在**。
+- **没有 Connector** — 你的数据散落在 Notion、GitHub、Google Drive 和几十个工具里，Agent 看不到其中任何一个。
+- **没有备份和回滚** — 一个幻觉中的 Agent 覆盖了关键文件，之前的版本就没了。
+- **没有文件级权限** — 靠 `chmod` 和 SSH Key 控制每个 Agent 的读写范围？完全没法扩展。
 
 ---
+
+## PuppyOne 怎么解决
+
+PuppyOne 是一个只为 Agent 而生的 Context File System，直接解决上面所有问题：
+
+- **15+ Connector** — 把 Notion、GitHub、Gmail、Google Drive、Airtable 等平台的数据挂载到一棵统一的文件树里，自动转换为 Agent 友好的格式（Markdown、JSON、原始文件）。
+- **版本控制与回滚** — 每次写入自动留痕。对比任意历史版本的差异，一键回滚。
+- **Auth for Agents** — 每个 Agent 基于自己的身份，看到属于自己的文件树视图。没有权限的路径，物理上不存在。
+- **审计日志** — 完整可追溯：哪个 Agent 在什么时候读取、修改或删除了哪个文件。
+- **多通道访问** — 通过 MCP、本地文件夹同步、REST API、CLI 或沙盒分发你的上下文。Agent 用最适合它的方式接入。
+
+---
+
+## 快速开始
 
 import { Cards, Card } from 'nextra/components'
 
 <Cards>
-  <Card title="快速开始" href="/zh/quickstart/cloud" />
-  <Card title="Sync Connectors" href="/zh/connect" />
-  <Card title="接入 Agent" href="/zh/agents" />
+  <Card title="云端版快速开始" href="/zh/quickstart/cloud" />
+  <Card title="自托管部署" href="/zh/quickstart/self-hosted" />
+  <Card title="CLI 快速开始" href="/zh/quickstart/cli" />
+</Cards>
+
+---
+
+## 了解更多
+
+<Cards>
+  <Card title="核心概念" href="/zh/concepts" />
+  <Card title="数据连接" href="/zh/connect" />
+  <Card title="分发给 Agent" href="/zh/distribute" />
+  <Card title="Auth for Agents" href="/zh/auth-for-agents" />
 </Cards>

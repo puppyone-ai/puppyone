@@ -1,0 +1,137 @@
+# Content Node
+
+Content Node（内容节点）是 PuppyOne 中数据的基本单元。
+
+---
+
+## 什么是 Content Node
+
+每个 PuppyOne Project 内部都是一棵 Content Node 树——就像一个云端文件系统。你可以在里面创建文件夹、写入 JSON 数据、编辑 Markdown 文档、上传附件，而这些内容可以直接被 AI Agent 读写。
+
+与传统的「表」模型不同，Content Node 树兼顾了结构化数据和非结构化文档，支持任意层级嵌套，灵活度更高。
+
+---
+
+## 四种节点类型
+
+| 类型 | 说明 | 典型用途 |
+|------|------|----------|
+| `folder` | 文件夹，可包含子节点 | 组织目录结构 |
+| `json` | JSON 文件，存储结构化数据 | 产品数据、配置信息、API 响应 |
+| `markdown` | Markdown 文件，存储富文本内容 | 文档、知识库文章、会议纪要 |
+| `file` | 二进制文件（上传） | PDF、图片、附件 |
+
+---
+
+## 树形结构
+
+Content Node 通过 `parent_id` 构成一棵树。每个节点都有唯一的路径，就像文件系统中的路径一样：
+
+```
+/
+├── docs/
+│   ├── product-spec.md        ← Markdown 节点
+│   ├── api-reference.md       ← Markdown 节点
+│   └── changelog.json         ← JSON 节点
+├── data/
+│   ├── products.json          ← JSON 节点
+│   ├── customers.json         ← JSON 节点
+│   └── attachments/
+│       └── contract.pdf       ← 文件节点
+└── README.md                  ← Markdown 节点
+```
+
+你可以像管理本地文件一样管理 Content Node——创建目录、移动文件、重命名、删除。
+
+---
+
+## 节点属性
+
+每个 Content Node 包含以下核心属性：
+
+| 属性 | 说明 |
+|------|------|
+| `id` | 节点唯一 ID |
+| `name` | 节点名称（如 `products.json`） |
+| `type` | 节点类型：`folder` / `json` / `markdown` / `file` |
+| `path` | 完整路径（如 `/data/products.json`） |
+| `content` | 节点内容（JSON 或 Markdown 文本，folder 和 file 类型为空） |
+| `parent_id` | 父节点 ID（根节点为空） |
+| `project_id` | 所属 Project ID |
+
+---
+
+## 版本历史与审计
+
+每个 Content Node 自动追踪变更：
+
+- **版本历史** — 每次修改都会生成新版本，可以查看任意两个版本的 diff，支持一键回滚
+- **审计日志** — 记录谁在什么时间对哪个节点做了什么操作，完整可追溯
+- **文件夹快照** — 对整个目录做时间点快照，批量回滚
+
+---
+
+## 访问控制
+
+Content Node 支持细粒度的访问控制（FLS, File Level Security）：
+
+- 按路径授权——Agent 只能访问被授权的路径
+- 按操作授权——可以限制为只读或读写
+- 未授权的路径对 Agent **物理不可见**
+
+例如，客服 Agent 只能访问 `/products` 和 `/faq`，而看不到 `/internal` 下的任何内容。
+
+---
+
+## 创建 Content Node
+
+### 通过 Dashboard
+
+在项目的数据页面中，点击「新建」按钮即可创建文件夹、JSON 文件或 Markdown 文件。上传文件可以直接拖拽到页面。
+
+### 通过 CLI
+
+```bash
+# 创建文件夹
+puppyone fs mkdir /docs
+
+# 创建 JSON 文件
+puppyone fs touch -t json /data/products.json
+
+# 写入内容
+puppyone fs write /data/products.json '{"items": []}'
+
+# 创建 Markdown 文件
+puppyone fs touch -t markdown /docs/guide.md
+
+# 查看目录结构
+puppyone fs ls /
+```
+
+### 通过 API
+
+```bash
+# 创建一个 JSON 节点
+curl -X POST https://api.puppyone.ai/api/v1/nodes/json \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "proj_xxx",
+    "name": "products.json",
+    "parent_id": "node_data",
+    "content": {"items": []}
+  }'
+```
+
+### 通过外部数据源同步
+
+将 Notion、GitHub、Gmail 等外部数据源作为连接添加后，同步的数据会自动转化为 Content Node 存入你的项目文件树中。
+
+---
+
+## 最佳实践
+
+1. **用文件夹组织内容** — 按业务领域划分目录，如 `/products`、`/docs`、`/support`
+2. **结构化数据用 JSON，文档用 Markdown** — 选择合适的节点类型
+3. **利用路径做权限隔离** — 把需要不同权限的内容放在不同目录下
+4. **善用版本历史** — 修改前不用担心丢失，随时可以回滚

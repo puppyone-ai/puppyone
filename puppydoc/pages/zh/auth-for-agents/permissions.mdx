@@ -1,0 +1,260 @@
+# FLS 权限控制
+
+File Level Security（FLS）通过两层权限模型，精确控制每个 Agent 能做什么、能看到什么。
+
+---
+
+## 两层权限模型
+
+每个 Agent 的请求都要经过两道检查：
+
+### 第一层：Tool 权限
+
+**Agent 能调用哪些操作？**
+
+Tool 是 PuppyOne 暴露给 Agent 的数据操作接口。你可以逐个开关，控制 Agent 的操作能力。
+
+| Tool | 操作类型 | 说明 | 风险等级 |
+|------|----------|------|----------|
+| `get_data_schema` | 读取 | 获取 Content Node 的数据结构 | 低 |
+| `get_all_data` | 读取 | 获取指定路径的全部数据 | 低 |
+| `query_data` | 读取 | 带过滤条件查询数据 | 低 |
+| `preview` | 读取 | 快速预览部分数据 | 低 |
+| `select` | 读取 | 返回指定字段 | 低 |
+| `create` | 写入 | 在指定路径创建新条目 | 中 |
+| `update` | 写入 | 修改指定路径的现有数据 | 中 |
+| `delete` | 删除 | 删除指定路径的数据 | 高 |
+
+**建议**：遵循最小权限原则。客服 Agent 只需要读取类 Tool，不需要 `create`、`update`、`delete`。
+
+### 第二层：路径权限
+
+**每个操作能访问哪些 Content Node？**
+
+即使 Agent 有 `query_data` 权限，你仍然可以限制它只能查询特定路径下的数据。路径权限决定了 Agent 的"可见世界"。
+
+---
+
+## 路径权限语法
+
+使用类似文件系统的路径语法指定允许或禁止的 Content Node 范围：
+
+| 路径 | 含义 |
+|------|------|
+| `/` | 根路径（整个 Project 的所有 Content Node） |
+| `/products` | products 节点 |
+| `/products/*` | products 下的所有直接子节点 |
+| `/products/**` | products 下的所有内容，包括嵌套子节点 |
+| `/internal` | internal 节点 |
+
+### 路径规则示例
+
+```yaml
+Path Rules:
+  - path: /products
+    permission: allow
+
+  - path: /faq
+    permission: allow
+
+  - path: /internal
+    permission: deny
+
+  - path: /users/**/password
+    permission: deny
+```
+
+---
+
+## 优先级规则
+
+当多条路径规则可能匹配同一个请求时：
+
+1. **更具体的路径优先** —— `/products/0/price` 的规则优先于 `/products/*`
+2. **deny 优先于 allow** —— 如果同级路径同时匹配 allow 和 deny，结果是 deny
+
+```yaml
+Rules:
+  - path: /products/**
+    permission: allow          # 允许访问所有产品数据
+
+  - path: /products/*/cost
+    permission: deny           # 但禁止访问成本字段
+```
+
+结果：
+- `/products/0/name` → 允许
+- `/products/0/price` → 允许
+- `/products/0/cost` → 禁止（更具体的 deny 规则胜出）
+
+---
+
+## 配置方式
+
+### 通过 Dashboard 配置
+
+1. 打开 Project → **Connections**
+2. 选择目标 Connection（Agent / MCP 端点等）
+3. 切换到 **Access** 标签页
+4. 在 **Tools** 区域勾选允许的操作
+5. 在 **Path Rules** 区域点击 **Add Rule** 配置路径权限
+6. 保存
+
+### 通过 API 配置
+
+```bash
+# 为 Agent 设置访问权限（Content Node 级别）
+curl -X POST https://api.puppyone.ai/api/v1/agent-config/{agent_id}/accesses \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_id": "node_xxx",
+    "json_path": "/products",
+    "readonly": true
+  }'
+```
+
+---
+
+## 实战示例
+
+### 客服 Agent（只读，限定范围）
+
+场景：客服 Agent 需要查询产品信息和常见问题，不能修改任何数据，也不能看到内部文档。
+
+```yaml
+Tools:
+  - get_data_schema: ✅
+  - get_all_data:    ✅
+  - query_data:      ✅
+  - preview:         ✅
+  - select:          ✅
+  - create:          ❌
+  - update:          ❌
+  - delete:          ❌
+
+Paths:
+  /products:  允许
+  /faq:       允许
+  /internal:  禁止
+  /users:     禁止
+```
+
+这个 Agent 看到的文件系统：
+
+```
+/
+├── products/
+│   ├── widget-a.json
+│   ├── widget-b.json
+│   └── ...
+└── faq/
+    ├── shipping.md
+    └── returns.md
+```
+
+`/internal` 和 `/users` 对它来说不存在。
+
+### 研发 Agent（读写，禁止删除）
+
+场景：研发 Agent 需要读写技术规格文档，但不允许删除任何内容，也不能看到人事相关数据。
+
+```yaml
+Tools:
+  - get_data_schema: ✅
+  - get_all_data:    ✅
+  - query_data:      ✅
+  - preview:         ✅
+  - select:          ✅
+  - create:          ✅
+  - update:          ✅
+  - delete:          ❌
+
+Paths:
+  /specs:      允许
+  /code-docs:  允许
+  /hr:         禁止
+```
+
+### 管理员 Agent（完全访问）
+
+场景：管理员 Agent 负责数据维护，需要完整的读写删除权限。
+
+```yaml
+Tools: 全部允许
+
+Paths:
+  /: 允许（根路径，无限制）
+```
+
+> 即使是管理员 Agent，也建议考虑是否真的需要 `delete` 权限。大多数场景下，禁用 `delete` 能避免不可逆的数据丢失。
+
+---
+
+## "不可见"原则
+
+FLS 的核心设计理念：**未授权的路径对 Agent 物理上不存在。**
+
+这不是传统的 403 Forbidden 模式。Agent 不会看到一个路径然后被告知"你没有权限"——它从一开始就只能看到被授权的 Content Node。
+
+```
+实际的 Content Space:          客服 Agent 看到的视图:
+
+/                              /
+├── products/    ← 可见        ├── products/
+├── faq/         ← 可见        └── faq/
+├── internal/    ← 不可见
+├── hr/          ← 不可见
+└── users/       ← 不可见
+```
+
+这意味着：
+- Agent 无法枚举它没有权限的路径
+- Agent 无法猜测或探测隐藏路径的存在
+- 即使 Agent 主动请求一个未授权的路径，系统返回的也是"路径不存在"，而不是"权限不足"
+
+---
+
+## 最佳实践
+
+### 最小权限原则
+
+只授予 Agent 完成任务所需的最小权限集合：
+
+```yaml
+# 不推荐：给所有权限
+tools: [get_data_schema, get_all_data, query_data, preview, select, create, update, delete]
+paths: /
+
+# 推荐：只给需要的权限
+tools: [query_data, preview]
+paths: [/products, /faq]
+```
+
+### 分级授权
+
+| Agent 类型 | 推荐 Tools | 推荐路径范围 |
+|-----------|-----------|-------------|
+| 查询类（客服、搜索） | `query_data`, `preview`, `select` | 仅业务相关路径 |
+| 编辑类（内容管理） | 上述 + `create`, `update` | 业务路径，排除敏感数据 |
+| 管理类（数据维护） | 全部（谨慎开放 `delete`） | 按需开放，尽量不用 `/` |
+
+### 敏感字段隔离
+
+即使开放了某个路径，也可以用更具体的 deny 规则隐藏敏感字段：
+
+```yaml
+Rules:
+  - path: /users/**
+    permission: allow
+  - path: /users/**/password
+    permission: deny
+  - path: /users/**/api_key
+    permission: deny
+```
+
+---
+
+## 下一步
+
+- [凭证管理](/zh/auth-for-agents/api-keys) — Access Key 的创建、轮换与安全管理

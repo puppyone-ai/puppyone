@@ -1,0 +1,119 @@
+# Distribution Overview
+
+Put your Context File System in the hands of agents.
+
+---
+
+## What distribution means
+
+You have already gathered data from many sources into PuppyOne through [Connect](/en/connect), and organized it through [Data Management](/en/editor). The next step is to **make that data available to agents**. That is distribution.
+
+PuppyOne offers multiple distribution methods, covering everything from IDE integrations to fully custom agents. In every case, the goal is the same: let agents read and write your Content Node tree.
+
+---
+
+## Distribution methods at a glance
+
+| Method | Protocol | Best for | Key strength |
+|------|------|-----------|------|
+| [Cursor](/en/distribute/cursor) | MCP | Cursor IDE | Built into the IDE, connects code and data |
+| [Claude Desktop](/en/distribute/claude-desktop) | MCP | Claude Desktop | Long conversations and document analysis |
+| [Claude Code](/en/distribute/claude-code) | File sync | Claude Code | Direct local file read/write |
+| [Custom MCP Clients](/en/distribute/custom-mcp) | MCP | Any MCP client | Standard protocol with broad compatibility |
+| [REST API](/en/distribute/rest-api) | HTTP | Custom agents | Fully programmable |
+| [Code Sandbox](/en/distribute/sandbox) | Mounted execution | Compute-heavy agents | Isolated execution environment |
+
+---
+
+## Which one should I use?
+
+```
+What kind of agent are you using?
+│
+├─ Cursor IDE
+│  └─► Use Cursor MCP integration (the easiest path)
+│
+├─ Claude Desktop
+│  └─► Use Claude Desktop MCP configuration
+│
+├─ Claude Code
+│  └─► Use local file sync (Claude Code is file-first)
+│
+├─ Other MCP-compatible clients (Cline / Continue / Zed, etc.)
+│  └─► Use custom MCP client configuration
+│
+├─ A custom agent / script
+│  └─► Do you need to execute code in a sandbox?
+│     ├─ Yes → Use Code Sandbox
+│     └─ No → Use REST API
+│
+└─ Not sure
+   └─► Start with Cursor or Claude Desktop and get running in 5 minutes
+```
+
+---
+
+## Core concepts
+
+### MCP (Model Context Protocol)
+
+MCP is a standard protocol that lets AI models access external tools and data. PuppyOne generates an MCP Server URL for each connection, and any MCP-compatible client can connect to it directly.
+
+Your MCP Server URL looks like this:
+
+```
+https://api.puppyone.ai/api/v1/mcp/server/{API_KEY}
+```
+
+### File sync (OpenClaw)
+
+For file-first agents such as Claude Code, PuppyOne uses the OpenClaw protocol to establish real-time two-way sync between the cloud and a local folder. When the agent reads or writes local files, it is effectively operating on your Context File System.
+
+### REST API
+
+If you are building your own agent or automation flow, you can call PuppyOne's HTTP API directly to operate on Content Nodes.
+
+### Code sandbox
+
+PuppyOne can mount your data into an isolated sandbox environment, either Docker or E2B microVMs, so agents can execute code safely against your data.
+
+---
+
+## Quick start
+
+No matter which method you choose, start with these steps:
+
+1. **Create a project and import data**. See [Quickstart](/en/quickstart)
+2. **Create a connection**. Choose a distribution method in the dashboard, or create one with the CLI
+
+```bash
+# Install the CLI
+npm install -g puppyone
+
+# Log in
+puppyone auth login
+
+# Create an MCP connection (for Cursor / Claude Desktop / custom clients)
+puppyone conn add mcp "My Data"
+
+# Create a local folder sync (for Claude Code)
+puppyone conn add folder ~/project/context --name "Claude Code Workspace"
+
+# Create a sandbox (for code execution)
+puppyone conn add sandbox "Python Runner" --type e2b
+```
+
+See the corresponding page for detailed setup instructions for each distribution method.
+
+---
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="Cursor" href="/en/distribute/cursor" />
+  <Card title="Claude Desktop" href="/en/distribute/claude-desktop" />
+  <Card title="Claude Code" href="/en/distribute/claude-code" />
+  <Card title="Custom MCP Clients" href="/en/distribute/custom-mcp" />
+  <Card title="REST API" href="/en/distribute/rest-api" />
+  <Card title="Code Sandbox" href="/en/distribute/sandbox" />
+</Cards>

@@ -1,0 +1,341 @@
+# 代码沙盒
+
+在隔离的沙盒环境中执行代码，安全处理你的 PuppyOne 数据。
+
+---
+
+## 什么是代码沙盒
+
+代码沙盒是一个隔离的执行环境，PuppyOne 会把你的 Content Node 数据挂载到沙盒中，Agent 可以在沙盒里执行任意代码来处理这些数据。
+
+沙盒适用于以下场景：
+
+- 对大量 JSON 数据进行复杂计算和转换
+- 执行 Python 脚本进行数据分析
+- 使用 `jq` 等工具批量处理结构化数据
+- 需要安装第三方库的计算任务
+- 在安全隔离的环境中运行不受信任的代码
+
+---
+
+## 工作原理
+
+```
+PuppyOne 云端                       沙盒环境（隔离）
+┌─────────────────────┐             ┌─────────────────────┐
+│  Content Nodes       │  ──挂载──►  │  /workspace/        │
+│  /products.json      │             │  /products.json     │
+│  /docs/              │             │  /docs/             │
+└─────────────────────┘             └──────────┬──────────┘
+                                               │
+                                    Agent 在沙盒里执行代码
+```
+
+你的 Content Node 会被挂载到沙盒的 `/workspace/` 目录下，Agent 可以像操作本地文件一样读写它们。根据配置，修改可以同步回 PuppyOne 云端。
+
+---
+
+## 两种沙盒后端
+
+| 后端 | 技术 | 适用场景 | 启动速度 |
+|------|------|----------|----------|
+| **E2B** | Firecracker 微虚拟机 | 云端，高隔离性 | 约 1 秒 |
+| **Docker** | Docker 容器 | 自部署，灵活配置 | 约 2 秒 |
+
+---
+
+## 创建沙盒
+
+### 通过 CLI
+
+```bash
+# 创建 E2B 沙盒（云端）
+puppyone conn add sandbox "Python Runner" --type e2b
+
+# 创建 Docker 沙盒（自部署）
+puppyone conn add sandbox "Data Processor" --type docker
+```
+
+### 通过 API
+
+```bash
+curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
+  -H "Authorization: Bearer sk_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Python Runner",
+    "project_id": "proj_xxx",
+    "runtime": "python",
+    "sandbox_type": "e2b",
+    "mounts": [
+      {
+        "node_id": "node_abc123",
+        "mount_path": "/workspace/products",
+        "mode": "rw"
+      }
+    ],
+    "timeout": 30
+  }'
+```
+
+### 通过 Dashboard
+
+1. 打开 Project → **Connections**
+2. 点击 **Add Connection** → 选择 **Sandbox**
+3. 配置沙盒名称、运行时和挂载节点
+4. 点击创建
+
+---
+
+## 沙盒配置
+
+### 运行时
+
+| 运行时 | 预装工具 | 适用场景 |
+|--------|---------|---------|
+| `alpine` | bash, jq, coreutils | 轻量数据处理 |
+| `python` | Python 3.12, pip, jq | 数据分析、脚本 |
+| `node` | Node.js 20, npm, jq | JavaScript 处理 |
+
+### 挂载配置
+
+每个挂载定义了哪些 Content Node 映射到沙盒的什么路径：
+
+```json
+{
+  "mounts": [
+    {
+      "node_id": "node_abc123",
+      "mount_path": "/workspace/products",
+      "mode": "rw"
+    },
+    {
+      "node_id": "node_def456",
+      "mount_path": "/workspace/docs",
+      "mode": "ro"
+    }
+  ]
+}
+```
+
+**挂载模式**：
+
+| 模式 | 说明 |
+|------|------|
+| `rw` | 读写 — Agent 可以修改数据，变更同步回 PuppyOne |
+| `ro` | 只读 — Agent 只能读取，无法修改 |
+
+### 超时设置
+
+`timeout` 参数控制单次执行的最大时长（秒），默认 30 秒，最大 300 秒。
+
+---
+
+## 执行代码
+
+### 通过 CLI
+
+```bash
+# 执行简单命令
+puppyone sandbox exec <sandbox_id> "ls /workspace/"
+
+# 执行 Python 脚本
+puppyone sandbox exec <sandbox_id> "python3 -c 'import json; data = json.load(open(\"/workspace/products/pricing.json\")); print(len(data[\"products\"]))'"
+
+# 执行 jq 查询
+puppyone sandbox exec <sandbox_id> "jq '.products[] | select(.price > 100)' /workspace/products/pricing.json"
+```
+
+### 通过 API
+
+```bash
+curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec \
+  -H "X-Access-Key: sk_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "python3 /workspace/script.py",
+    "timeout": 30
+  }'
+```
+
+**响应示例**：
+
+```json
+{
+  "exit_code": 0,
+  "stdout": "处理完成，共 42 条记录\n",
+  "stderr": "",
+  "duration_ms": 1250
+}
+```
+
+---
+
+## 实际应用示例
+
+### 用 Python 处理 JSON 数据
+
+假设你有一个挂载在 `/workspace/products/pricing.json` 的产品列表，想要筛选高价产品并生成报告。
+
+首先创建沙盒并挂载数据：
+
+```bash
+puppyone conn add sandbox "Price Analyzer" --type e2b
+```
+
+然后执行分析脚本：
+
+```bash
+puppyone sandbox exec <sandbox_id> "python3 -c '
+import json
+
+with open(\"/workspace/products/pricing.json\") as f:
+    data = json.load(f)
+
+expensive = [p for p in data[\"products\"] if p[\"price\"] > 100]
+print(f\"高价产品共 {len(expensive)} 个:\")
+for p in expensive:
+    print(f\"  - {p['name']}: ¥{p['price']}\")
+
+# 写入分析结果
+report = {
+    \"total\": len(data[\"products\"]),
+    \"expensive_count\": len(expensive),
+    \"expensive_products\": expensive,
+}
+with open(\"/workspace/products/analysis.json\", \"w\") as f:
+    json.dump(report, f, ensure_ascii=False, indent=2)
+print(\"报告已保存\")
+'"
+```
+
+输出：
+
+```
+高价产品共 1 个:
+  - Gadget X: ¥149.99
+报告已保存
+```
+
+因为挂载模式是 `rw`，生成的 `analysis.json` 会自动同步回 PuppyOne 成为新的 Content Node。
+
+### 用 jq 查询结构化数据
+
+`jq` 是处理 JSON 的利器，所有沙盒运行时都预装了它。
+
+```bash
+# 提取所有产品名称
+puppyone sandbox exec <sandbox_id> \
+  "jq '[.products[].name]' /workspace/products/pricing.json"
+
+# 计算平均价格
+puppyone sandbox exec <sandbox_id> \
+  "jq '.products | map(.price) | add / length' /workspace/products/pricing.json"
+
+# 按类别分组
+puppyone sandbox exec <sandbox_id> \
+  "jq '.products | group_by(.category) | map({category: .[0].category, count: length})' /workspace/products/pricing.json"
+```
+
+### 安装第三方库
+
+在 Python 运行时中，你可以安装额外的库：
+
+```bash
+puppyone sandbox exec <sandbox_id> "pip install pandas && python3 -c '
+import pandas as pd
+import json
+
+with open(\"/workspace/products/pricing.json\") as f:
+    data = json.load(f)
+
+df = pd.DataFrame(data[\"products\"])
+print(df.describe())
+print()
+print(\"按类别统计:\")
+print(df.groupby(\"category\")[\"price\"].agg([\"count\", \"mean\", \"max\"]))
+'"
+```
+
+---
+
+## 读写模式对比
+
+### 只读模式（ro）
+
+适合纯分析场景，Agent 无法意外修改你的数据。
+
+```json
+{
+  "mounts": [
+    {
+      "node_id": "node_abc123",
+      "mount_path": "/workspace/data",
+      "mode": "ro"
+    }
+  ]
+}
+```
+
+如果 Agent 尝试写入只读挂载的路径，会收到 `Permission denied` 错误。
+
+### 读写模式（rw）
+
+Agent 可以修改数据或创建新文件，变更自动同步回 PuppyOne。
+
+```json
+{
+  "mounts": [
+    {
+      "node_id": "node_abc123",
+      "mount_path": "/workspace/data",
+      "mode": "rw"
+    }
+  ]
+}
+```
+
+适合需要 Agent 生成报告、转换数据格式、或更新现有数据的场景。
+
+---
+
+## 常见问题
+
+### 沙盒启动超时
+
+1. E2B 沙盒通常在 1 秒内启动，如果超时可能是网络问题
+2. Docker 沙盒需要确认 Docker 服务正在运行
+3. 自部署环境需要确认后端配置了正确的沙盒后端
+
+### 执行超时
+
+1. 默认超时 30 秒，可以在创建沙盒时调高（最大 300 秒）
+2. 对于长时间任务，考虑拆分为多次执行
+3. 安装依赖（如 `pip install`）也计入执行时间
+
+### 数据没有同步回去
+
+1. 确认挂载模式是 `rw` 而不是 `ro`
+2. 确认文件写入的路径在挂载路径下
+3. 写入后可能有几秒的同步延迟
+
+### 沙盒中缺少工具
+
+默认沙盒环境精简，你可以在执行命令中先安装：
+
+```bash
+# Python 沙盒
+puppyone sandbox exec <id> "pip install requests pandas"
+
+# Alpine 沙盒
+puppyone sandbox exec <id> "apk add --no-cache curl"
+```
+
+每次沙盒执行都是独立的环境，安装的工具不会持久化。如果需要持久化自定义环境，请使用 Docker 后端并构建自定义镜像。
+
+---
+
+## 下一步
+
+- [REST API](/zh/distribute/rest-api) — 通过 HTTP 接口编程访问 Content Node
+- [分发概览](/zh/distribute) — 查看所有分发方式

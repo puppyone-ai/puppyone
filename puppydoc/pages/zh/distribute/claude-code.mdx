@@ -1,0 +1,207 @@
+# Claude Code
+
+通过本地文件同步，让 Claude Code 直接读写你的 PuppyOne 数据。
+
+---
+
+## 为什么是文件同步而不是 MCP
+
+Claude Code 是一个以文件操作为核心的 AI 编程工具——它直接读写本地文件系统。与 Cursor 不同，Claude Code 最擅长的就是处理本地文件。
+
+因此，PuppyOne 为 Claude Code 提供的是**文件同步**方案：通过 OpenClaw 协议在 PuppyOne 云端和本地文件夹之间建立实时双向同步。Claude Code 读写本地文件，变更自动同步到云端。
+
+---
+
+## 工作原理
+
+```
+PuppyOne 云端                       本地文件夹
+┌──────────────────┐               ┌──────────────────────┐
+│ /notion-docs/    │  ◄──────────► │ ~/project/context/   │
+│ /github-issues/  │   实时双向同步  │   /notion-docs/      │
+│ /linear-tasks/   │               │   /github-issues/    │
+└──────────────────┘               └──────────┬───────────┘
+                                              │
+                                   Claude Code 在这里读写文件
+```
+
+- **云端 → 本地**：你在 PuppyOne 中通过 Connector 导入的 Notion 页面、GitHub Issue 等数据，会自动同步到本地文件夹
+- **本地 → 云端**：Claude Code 修改的本地文件，变更会自动推送回 PuppyOne 云端
+- **冲突处理**：当双向都有修改时，PuppyOne 会检测冲突并提供解决方案
+
+---
+
+## 前置条件
+
+- Claude Code（已安装并可用）
+- Node.js 18+
+- PuppyOne 账号，且项目中已有数据
+
+---
+
+## 设置步骤
+
+### 方式一：CLI 完整流程
+
+#### Step 1: 安装 CLI
+
+```bash
+npm install -g puppyone
+```
+
+#### Step 2: 登录
+
+```bash
+puppyone auth login
+```
+
+按提示在浏览器中完成授权。
+
+#### Step 3: 设置项目
+
+```bash
+puppyone project ls
+puppyone project use "My Project"
+```
+
+#### Step 4: 创建文件夹连接
+
+```bash
+puppyone conn add folder ~/project/context --name "Claude Code Workspace"
+```
+
+这会在 PuppyOne 中创建一个双向同步连接，并返回一个 Access Key。
+
+#### Step 5: 启动同步
+
+```bash
+puppyone access up ~/project/context
+```
+
+同步启动后，PuppyOne 云端的 Content Node 数据会下载到 `~/project/context/`，后续变更实时同步。
+
+### 方式二：Dashboard 快速配置
+
+1. 打开 PuppyOne Dashboard
+2. 进入 Project → **Connections**
+3. 点击 **Add Connection** → 选择 **OpenClaw / 本地文件夹**
+4. 输入名称，创建连接
+5. 复制生成的 Access Key
+6. 在终端执行：
+
+```bash
+npm install -g puppyone
+puppyone access up --key cli_xxx ~/project/context
+```
+
+将 `cli_xxx` 替换为你复制的 Access Key。
+
+---
+
+## 在 Claude Code 中使用
+
+同步启动后，你的 PuppyOne 数据就在本地文件夹中了。打开 Claude Code，把同步目录作为项目的一部分即可。
+
+### 读取数据
+
+```
+请阅读 context/notion-docs/ 下的所有文档，
+帮我整理一份技术架构概览。
+```
+
+Claude Code 直接读取本地的 Markdown 和 JSON 文件，不需要任何 API 调用。
+
+### 修改数据
+
+```
+把 context/products/pricing.json 中 Widget Pro 的价格更新为 149.99。
+```
+
+Claude Code 修改本地文件后，变更自动同步到 PuppyOne 云端。
+
+### 创建新文件
+
+```
+根据 context/meeting-notes/ 中的会议记录，
+生成一份周报保存到 context/reports/weekly.md。
+```
+
+新文件创建后，会自动同步为 PuppyOne 中的新 Content Node。
+
+---
+
+## 同步管理
+
+### 查看同步状态
+
+```bash
+puppyone status
+```
+
+显示当前所有活跃的同步连接及其状态。
+
+### 停止同步
+
+```bash
+puppyone access down ~/project/context
+```
+
+`puppyone access up` 会负责建立连接、完成首次同步并启动本地守护进程。需要停止时，使用 `puppyone access down` 即可。
+
+---
+
+## 目录结构
+
+同步后的本地文件夹结构与 PuppyOne 中的 Content Node 树一一对应：
+
+```
+~/project/context/
+├── notion-docs/
+│   ├── 产品需求文档.md
+│   └── 技术架构.md
+├── github-issues/
+│   ├── issue-123.json
+│   └── issue-456.json
+├── products/
+│   └── pricing.json
+└── reports/
+    └── weekly.md
+```
+
+- **文件夹** → PuppyOne 中的 `folder` 类型节点
+- **`.json` 文件** → PuppyOne 中的 `json` 类型节点
+- **`.md` 文件** → PuppyOne 中的 `markdown` 类型节点
+
+---
+
+## 常见问题
+
+### 同步启动后没有文件
+
+1. 确认 PuppyOne 项目中有数据（在 Dashboard 中查看）
+2. 检查 Access Key 是否正确
+3. 运行 `puppyone status` 查看连接状态
+
+### 文件修改没有同步到云端
+
+1. 确认同步进程仍在运行
+2. 大文件或大量文件的同步可能有几秒延迟
+3. 检查文件是否在同步目录内（子目录也算）
+
+### 冲突怎么办
+
+当同一个文件在本地和云端都被修改时，PuppyOne 会：
+1. 保留两个版本
+2. 以版本历史作为安全网，保留被覆盖前的内容
+3. 你可以在 Dashboard 中查看版本差异并决定是否回滚
+
+### 能否只同步部分数据
+
+可以。更稳妥的做法是在 PuppyOne 中单独创建一个用于同步的文件夹连接或工作目录，把需要给 Claude Code 的内容集中放在那个目录下，再对这个本地目录执行 `puppyone access up`。
+
+---
+
+## 下一步
+
+- [自定义 MCP 客户端](/zh/distribute/custom-mcp) — 在其他 AI 工具中使用 MCP 协议
+- [REST API](/zh/distribute/rest-api) — 通过 HTTP 接口编程访问

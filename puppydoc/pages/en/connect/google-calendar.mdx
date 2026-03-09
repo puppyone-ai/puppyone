@@ -1,6 +1,6 @@
 # Google Calendar
 
-Sync Google Calendar events into structured JSON so agents can query your schedule.
+Sync Google Calendar events into structured JSON so agents can query schedule information.
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Sync Google Calendar events into structured JSON so agents can query your schedu
 
 ---
 
-## Data Structure
+## Data structure
 
 ```json
 {
@@ -36,35 +36,35 @@ Sync Google Calendar events into structured JSON so agents can query your schedu
 
 ---
 
-## Setup
+## Setup steps
 
-### Step 1: Authorize Google
+### Step 1: Authorize your Google account
 
-1. Open your Project → **Add Connector** → **Google Calendar**
-2. Click **Connect with Google** and complete OAuth
+1. Open Project → **Connections** → **Add Connection** → **Google Calendar**
+2. Click **Connect with Google** and complete OAuth authorization
 
-### Step 2: Configure Sync Scope
+### Step 2: Configure sync scope
 
 | Option | Description |
 |--------|-------------|
 | **Calendar selection** | Choose which calendars to sync (multi-select supported) |
-| **Time range** | Past N days + future N days |
+| **Time range** | Sync events from the past N days and the next N days |
 
-### Step 3: Start Sync
+### Step 3: Start sync
 
-Click **Start Sync** — events update automatically on the configured interval.
+Click **Start Sync**. After that, updates run automatically on the configured interval.
 
 ---
 
-## Agent Usage Example
+## Agent usage example
 
 ```
-User: What meetings do I have this week? List attendees.
+User: Show me what meetings I have this week and list the attendees
 
 Agent: [calls query_data]
-       5 meetings this week (Feb 23 - Mar 1):
-       - Mon 10:00  Product Weekly (4 people)
-       - Wed 14:00  Business meeting with Acme (3 people)
+       5 meetings this week (2/23-3/1):
+       - Mon 10:00  Product weekly meeting (4 attendees)
+       - Wed 14:00  Business discussion with Acme (3 attendees)
        ...
 ```
 
@@ -72,5 +72,5 @@ Agent: [calls query_data]
 
 ## Notes
 
-- Only syncs calendars you have read access to
-- Events marked as **Private** are not synced
+- Only calendars you have read access to can be synced
+- Private events marked as **Private** are not synced

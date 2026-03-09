@@ -1,53 +1,97 @@
 # Google Sheets
 
-Sync Google Sheets spreadsheets into structured JSON.
-
-| | |
-|---|---|
-| **Direction** | Pull (Google Sheets → PuppyOne) |
-| **Trigger** | Manual / Scheduled |
-| **Auth** | Google OAuth |
-| **Output** | JSON |
+Import spreadsheet data from Google Sheets into PuppyOne.
 
 ---
 
-## Data Structure
+## Supported content
 
-Each sheet row becomes a JSON object, with column headers as keys:
+| Type | Supported | Notes |
+|------|------|------|
+| Sheet | ✅ | Single or multiple sheets |
+| Formulas | ✅ | Imports computed results |
+| Formatting | ❌ | Imports data only |
+| Charts | ❌ | Not supported |
+
+---
+
+## Setup steps
+
+### Step 1: Start the import
+
+1. Open your Project
+2. Click **Import** → **Google Sheets**
+
+### Step 2: Authorize Google
+
+1. Click **Connect Google**
+2. Choose your Google account and authorize access
+3. Allow PuppyOne to access Google Sheets
+
+### Step 3: Choose the spreadsheet
+
+1. Paste a Google Sheets URL, or select one from the list
+2. Choose the sheet tab or tabs you want to import
+3. Click **Import**
+
+---
+
+## Data structure example
+
+Google Sheets is converted into JSON, with the first row used as field names:
+
+**Original spreadsheet:**
+
+| Product Name | Price | Category |
+|--------|------|------|
+| Widget Pro | 99.99 | Electronics |
+| Gadget X | 149.99 | Accessories |
+
+**Converted output:**
 
 ```json
-[
-  { "Product": "Widget Pro", "Price": 99.99, "Stock": 150, "Category": "Electronics" },
-  { "Product": "Widget Mini", "Price": 59.99, "Stock": 320, "Category": "Electronics" }
-]
+{
+  "sheet_name": "Product List",
+  "rows": [
+    {
+      "Product Name": "Widget Pro",
+      "Price": 99.99,
+      "Category": "Electronics"
+    },
+    {
+      "Product Name": "Gadget X",
+      "Price": 149.99,
+      "Category": "Accessories"
+    }
+  ]
+}
 ```
 
 ---
 
-## Setup
+## Configuration options
 
-### Step 1: Authorize Google
-
-1. Open your Project → **Add Connector** → **Google Sheets**
-2. Click **Connect with Google** and authorize Sheets read access
-
-### Step 2: Select Spreadsheet
-
-Paste the Google Sheets URL or browse your Drive to select a spreadsheet.
-
-| Option | Description |
-|--------|-------------|
-| **Sheet tab** | Which tab(s) to sync (default: first tab) |
-| **Header row** | Which row contains column headers (default: row 1) |
-
-### Step 3: Start Sync
-
-Click **Start Sync**. Each row in the sheet becomes a queryable JSON object.
+| Option | Notes |
+|------|------|
+| Use first row as header | Uses the first row as JSON field names |
+| Skip empty rows | Ignores rows with no data |
+| Number formatting | Automatically detects numeric types |
 
 ---
 
-## Notes
+## FAQ
 
-- Empty rows and columns are skipped
-- Merged cells are expanded to individual cells
-- Formula results are synced as values — formulas themselves are not stored
+### Will importing a large sheet be slow?
+
+PuppyOne uses the Google Sheets API to read data in batches, so spreadsheets with thousands of rows usually finish in a few seconds.
+
+### Can it sync automatically?
+
+Manual sync is required for now. Automatic sync is coming soon.
+
+---
+
+## Next steps
+
+- [Manage imported data](/en/editor)
+- [Auth for Agents](/en/auth-for-agents)

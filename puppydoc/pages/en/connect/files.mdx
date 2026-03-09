@@ -1,61 +1,199 @@
 # File Upload
 
-Upload local files directly into your Context File System.
-
-| | |
-|---|---|
-| **Direction** | Pull (local → PuppyOne) |
-| **Trigger** | One-time import |
-| **Auth** | None |
-| **Output** | Markdown / JSON |
+Upload PDFs, Word documents, images, and more directly into PuppyOne.
 
 ---
 
-## Supported File Types
+## Supported file types
 
-| Type | Extensions | Processing |
-|------|------------|------------|
-| Documents | `.pdf`, `.docx`, `.doc` | Text extraction → Markdown |
-| Spreadsheets | `.xlsx`, `.csv` | Parsed → JSON |
-| Images | `.png`, `.jpg`, `.jpeg` | OCR → Markdown |
-| Markdown | `.md`, `.mdx` | Stored as-is |
-| Code | `.py`, `.ts`, `.js`, etc. | Stored as-is |
-| Plain text | `.txt` | Stored as-is |
+| Type | Formats | Processing |
+|------|------|----------|
+| **Documents** | PDF, DOCX, DOC | Text extraction + structuring |
+| **Spreadsheets** | XLSX, CSV | Converted into JSON arrays |
+| **Images** | PNG, JPG, JPEG | OCR text recognition |
+| **Text** | TXT, MD, JSON | Imported directly |
 
 ---
 
-## Processing Modes
+## Upload steps
 
-| Mode | When Used | Result |
-|------|-----------|--------|
-| `raw` | Plain text, code, Markdown | Stored directly, no transformation |
-| `ocr_parse` | PDFs, images, scanned docs | OCR + text extraction → Markdown |
-
-PuppyOne automatically selects the right mode based on file type.
-
----
-
-## How to Upload
+### Step 1: Start the import
 
 1. Open your Project
 2. Click **Import** → **Upload Files**
-3. Drag and drop files, or click to browse
-4. Files are processed in the background — you'll be notified when done
+
+### Step 2: Choose files
+
+You can:
+- Drag files into the upload area
+- Click to choose local files
+- Upload multiple files at once
+
+### Step 3: Wait for processing
+
+After upload, PuppyOne automatically:
+
+1. **Parses** the content, using text extraction for PDFs and OCR for images
+2. **Cleans** the result by removing headers, footers, and formatting noise
+3. **Structures** the content into JSON
+
+You can track progress in the **Tasks** panel.
 
 ---
 
-## File Size Limits
+## Data structure examples
 
-| Plan | Max File Size | Total Storage |
-|------|--------------|---------------|
+### PDF document → JSON
+
+```json
+{
+  "filename": "product-manual.pdf",
+  "pages": 15,
+  "content": "# Product Overview\n\nThis product is...\n\n## Technical Specs\n\n- Size: 10 x 5 x 3 cm\n- Weight: 250g",
+  "metadata": {
+    "author": "Alice",
+    "created_at": "2024-01-10"
+  }
+}
+```
+
+### Image (OCR) → JSON
+
+```json
+{
+  "filename": "invoice.jpg",
+  "ocr_text": "Invoice Number: INV-2024-001\nDate: 2024-01-15\nAmount: $1,234.56",
+  "confidence": 0.95
+}
+```
+
+### Excel → JSON
+
+```json
+{
+  "filename": "sales-data.xlsx",
+  "sheets": [
+    {
+      "name": "Sheet1",
+      "rows": [
+        {"Month": "2024-01", "Sales": 10000},
+        {"Month": "2024-02", "Sales": 12000}
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## Processing options
+
+### PDF processing
+
+| Option | Notes |
+|------|------|
+| Preserve pagination | Split content by page |
+| Extract tables | Detect tables inside PDFs |
+| Extract images | Run OCR on embedded images in PDFs |
+
+### OCR settings
+
+| Option | Notes |
+|------|------|
+| Language | Chinese / English / auto-detect |
+| Preprocessing | Image enhancement to improve recognition |
+
+---
+
+## Processing modes
+
+PuppyOne provides two file processing modes:
+
+| Mode | Notes | Best for |
+|------|------|----------|
+| **raw** | Raw mode, stores the original file content directly | Structured files such as JSON and Markdown |
+| **ocr_parse** | OCR parsing mode, extracts and structures text | PDFs, images, and other files that require text recognition |
+
+---
+
+## Storage result comparison
+
+How different file types are stored under different processing modes:
+
+| Scenario | mode | File Type | type | preview_type | preview_json | preview_md | s3_key |
+|------|------|----------|------|--------------|--------------|------------|--------|
+| Upload `data.json` | raw | json | json | json | ✓ | - | - |
+| Upload `data.json` | ocr_parse | json | json | json | ✓ | - | - |
+| Upload `readme.md` | raw | text | markdown | markdown | - | ✓ | - |
+| Upload `readme.md` | ocr_parse | text | markdown | markdown | - | ✓ | - |
+| Upload `doc.pdf` | raw | binary | file | NULL | - | - | ✓ |
+| Upload `doc.pdf` | ocr_parse | ocr_needed | file→markdown | NULL→markdown | - | ✓ (after OCR) | ✓ (original) |
+| Upload `image.jpg` | raw | binary | file | NULL | - | - | ✓ |
+| Upload `image.jpg` | ocr_parse | ocr_needed | file→markdown | NULL→markdown | - | ✓ (after OCR) | ✓ (original) |
+| Upload `video.mp4` | raw | binary | file | NULL | - | - | ✓ |
+| Upload `video.mp4` | ocr_parse | binary | file | NULL | - | - | ✓ |
+
+### Field definitions
+
+| Field | Notes |
+|------|------|
+| **type** | The original file type identifier |
+| **preview_type** | The preview content format (`json`, `markdown`, or `NULL`) |
+| **preview_json** | Structured JSON content for direct querying |
+| **preview_md** | Markdown content for display and agent reading |
+| **s3_key** | S3 storage path for the original file, used for binary files |
+
+### Processing logic
+
+1. **JSON and Markdown files**: parsed directly in either mode, no OCR needed
+2. **PDFs and images**:
+   - `raw` mode stores only the original file in S3
+   - `ocr_parse` mode stores the original file in S3 and the extracted OCR text in `preview_md`
+3. **Videos and other binary files**: stored only in S3, with no content parsing
+
+---
+
+## File size limits
+
+| Plan | Per-file limit | Total storage |
+|------|-----------|--------|
 | Free | 10 MB | 100 MB |
 | Pro | 50 MB | 10 GB |
 | Team | 100 MB | Unlimited |
 
 ---
 
-## Notes
+## Use cases
 
-- File processing is asynchronous — large files may take a few minutes
-- PDFs with complex layouts (multi-column, tables) use OCR for best results
-- Password-protected files cannot be processed
+### Use case 1: Product manuals
+
+Upload a PDF product manual so a support agent can answer questions about product specifications.
+
+### Use case 2: Invoice recognition
+
+Upload invoice images so OCR can extract key information for a finance agent.
+
+### Use case 3: Data reports
+
+Upload Excel reports and convert them into JSON for analytics agents to query.
+
+---
+
+## FAQ
+
+### What if OCR results are inaccurate?
+
+- Make sure the image is clear and high enough resolution
+- Try selecting the language manually instead of auto-detect
+- Complex layouts may still require manual correction
+
+### What if PDF formatting looks messy after extraction?
+
+Some PDFs use complicated layouts, so you may need to make small manual adjustments in the editor after extraction.
+
+---
+
+## Next steps
+
+- [Edit imported data](/en/editor)
+- [Auth for Agents](/en/auth-for-agents)

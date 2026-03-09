@@ -1,0 +1,177 @@
+# CLI Quick Start
+
+Get the full workflow running from the command line in 5 minutes.
+
+---
+
+## Install
+
+```bash
+npm install -g puppyone
+```
+
+Verify the installation:
+
+```bash
+puppyone --version
+```
+
+---
+
+## Sign in
+
+```bash
+puppyone auth login -e user@example.com -p password
+```
+
+After you sign in successfully, the CLI stores your credentials automatically, so you do not need to authenticate again for later commands.
+
+---
+
+## Set your organization and project
+
+```bash
+puppyone org use "My Organization"
+puppyone project use "My Project"
+```
+
+Once set, all later operations will target the current project by default.
+
+---
+
+## Browse files
+
+```bash
+# List contents in the root directory
+puppyone fs ls
+
+# View the full directory tree
+puppyone fs tree
+```
+
+---
+
+## Create content
+
+Data in PuppyOne is organized as a Content Node tree, with four supported types: folders, JSON, Markdown, and files.
+
+```bash
+# Create folders
+puppyone fs mkdir /docs
+puppyone fs mkdir /products
+
+# Create a Markdown file and write content
+puppyone fs touch /docs/readme.md -t markdown
+puppyone fs write /docs/readme.md -d "# Hello World"
+
+# Create a JSON file and write content
+puppyone fs touch -t json /products/list.json
+puppyone fs write /products/list.json -d '[{"name": "Widget", "price": 99}]'
+```
+
+---
+
+## Connect a data source
+
+Sync data from external platforms into your Context File System.
+
+```bash
+# Authorize Notion
+puppyone sync auth notion
+
+# Connect a Notion database to a target folder
+puppyone conn add notion https://notion.so/your-database-id --folder /docs
+```
+
+PuppyOne supports 15+ platforms including Notion, GitHub, Gmail, Google Drive, Linear, and Airtable.
+
+---
+
+## Create an MCP endpoint
+
+Create an entry point for MCP clients such as Cursor and Claude Desktop.
+
+```bash
+puppyone conn add mcp "My API"
+```
+
+After creation, PuppyOne returns an MCP Server URL and API key that you can add to your client.
+
+---
+
+## Mount a local folder
+
+Use the OpenClaw protocol for real-time, bidirectional sync between a local folder and the cloud.
+
+```bash
+# Register a local folder as a connection
+puppyone conn add folder ~/workspace --name "Dev Sync"
+
+# Start the sync daemon
+puppyone access up ~/workspace
+```
+
+Once running, changes in the local folder sync to the cloud automatically, and cloud changes sync back as well.
+
+---
+
+## Check project status
+
+```bash
+# Project overview
+puppyone status
+
+# List all connections (sync, MCP, agent, local folder, and more)
+puppyone conn ls
+```
+
+---
+
+## Full example
+
+Here is a complete flow from scratch:
+
+```bash
+# Install and sign in
+npm install -g puppyone
+puppyone auth login -e user@example.com -p password
+
+# Select your project
+puppyone org use "My Organization"
+puppyone project use "My Project"
+
+# Create directory structure
+puppyone fs mkdir /docs
+puppyone fs mkdir /products
+
+# Write content
+puppyone fs touch /docs/readme.md -t markdown
+puppyone fs write /docs/readme.md -d "# Product Knowledge Base"
+puppyone fs touch /products/catalog.json -t json
+puppyone fs write /products/catalog.json -d '[{"name": "Widget Pro", "price": 99.99}]'
+
+# Connect Notion data
+puppyone sync auth notion
+puppyone conn add notion https://notion.so/db-id --folder /docs/notion
+
+# Create an MCP endpoint for an agent
+puppyone conn add mcp "Production API"
+
+# Mount a local folder
+puppyone conn add folder ~/workspace --name "Local Dev"
+puppyone access up ~/workspace
+
+# Check the results
+puppyone fs tree
+puppyone conn ls
+puppyone status
+```
+
+---
+
+## Next steps
+
+- [Core Concepts](/en/concepts) - Learn the key ideas behind Content Nodes and Connections
+- [Connect more data sources](/en/connect) - Bring in more platforms
+- [Distribute to Agents](/en/distribute) - Use MCP, OpenClaw, and the REST API
+- [CLI Reference](/en/cli) - See all commands and flags

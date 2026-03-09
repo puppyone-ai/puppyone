@@ -1,0 +1,125 @@
+# Manage Data
+
+Create, edit, and organize your data in PuppyOne.
+
+---
+
+## Why data management matters
+
+Imported raw data often needs:
+
+- **Cleanup** - Remove irrelevant fields and fix errors
+- **Reorganization** - Reshape JSON so Agents can query it more easily
+- **Enrichment** - Add metadata and tags
+
+---
+
+## PuppyOne data model
+
+In PuppyOne, data is organized as a **Content Node** tree, similar to a file system:
+
+```
+Project
+├── 📁 products/              ← Folder node
+│   ├── 📄 catalog.json       ← JSON node
+│   └── 📄 intro.md           ← Markdown node
+├── 📁 docs/
+│   ├── 📄 readme.md
+│   └── 📁 api/
+│       └── 📄 endpoints.json
+└── 📎 logo.png               ← File node
+```
+
+| Node type | Description |
+|---------|------|
+| **Folder** | A folder used to organize hierarchy |
+| **JSON** | Structured data with objects, arrays, and nesting |
+| **Markdown** | Rich text content for docs and knowledge bases |
+| **File** | Binary files such as images and PDFs |
+
+Each Content Node has its own path, access control, and version history.
+
+For more details, see [Core Concepts - Content Node](/en/concepts/content-nodes).
+
+---
+
+## Core features
+
+### JSON tree editor
+
+Visually edit JSON data:
+
+- Navigate nested structures in a tree
+- Click any value to edit it
+- Add new fields or array items
+- Delete nodes you no longer need
+
+[Detailed guide →](/en/editor/json-tree)
+
+### Version control
+
+Every change is automatically saved as a version:
+
+- View change history
+- Compare different versions (Diff)
+- Roll back to any version in one click
+- Create folder-level snapshots
+
+[Learn about version control →](/en/version-control)
+
+---
+
+## Data structure recommendations
+
+To help Agents use your data more effectively, we recommend:
+
+### Recommended structure
+
+```json
+{
+  "products": [
+    {
+      "id": "SKU-001",
+      "name": "Widget Pro",
+      "price": 99.99,
+      "category": "Electronics"
+    }
+  ],
+  "categories": ["Electronics", "Accessories", "Services"]
+}
+```
+
+**Characteristics**: flat, clear field names, consistent types
+
+### Not recommended
+
+```json
+{
+  "data": {
+    "items": {
+      "group1": {
+        "subgroup": {
+          "products": [...]
+        }
+      }
+    }
+  }
+}
+```
+
+**Problem**: the nesting is too deep, so Agents have a harder time locating data accurately
+
+[More best practices →](/en/editor/structure)
+
+---
+
+## Next steps
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="JSON Editor" href="/en/editor/json-tree" />
+  <Card title="Structured Data Best Practices" href="/en/editor/structure" />
+  <Card title="Version Control" href="/en/version-control" />
+  <Card title="Auth for Agents" href="/en/auth-for-agents" />
+</Cards>

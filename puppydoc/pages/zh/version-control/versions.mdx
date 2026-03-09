@@ -1,0 +1,163 @@
+# 文件版本历史与回滚
+
+每次修改自动创建版本，随时查看历史、恢复到任意时间点。
+
+---
+
+## 自动版本化
+
+每次对 Content Node（JSON、Markdown、文件）的修改，PuppyOne 都会自动：
+
+1. 为当前内容创建一个新版本
+2. 记录修改时间和操作者（人类用户或 Agent）
+3. 保留完整的历史版本链
+
+不需要手动保存或提交。无论是通过 Dashboard 编辑、CLI 操作、API 调用，还是 Agent 通过 MCP 写入，所有变更都会被追踪。
+
+---
+
+## 查看版本历史
+
+### Dashboard
+
+1. 打开 Project → 选择一个文件
+2. 点击右侧面板的 **History** 标签
+3. 查看版本列表，包含版本号、时间和操作者
+
+### CLI
+
+```bash
+puppyone fs versions /docs/product-spec.md
+```
+
+输出示例：
+
+```
+Version  Time                  Author
+-------  --------------------  ----------------
+v5       2025-03-09 15:30:00   Agent: data-sync
+v4       2025-03-09 14:00:00   user@example.com
+v3       2025-03-08 10:20:00   Agent: writer
+v2       2025-03-07 16:45:00   user@example.com
+v1       2025-03-07 09:00:00   user@example.com
+```
+
+### API
+
+```bash
+# 获取文件的版本历史
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions?project_id={project_id}" \
+  -H "Authorization: Bearer {token}"
+```
+
+响应示例：
+
+```json
+{
+  "versions": [
+    {
+      "version": 5,
+      "created_at": "2025-03-09T15:30:00Z",
+      "author": "Agent: data-sync",
+      "size": 2048
+    },
+    {
+      "version": 4,
+      "created_at": "2025-03-09T14:00:00Z",
+      "author": "user@example.com",
+      "size": 1856
+    }
+  ]
+}
+```
+
+也可以通过协作模块的路径访问：`GET /api/v1/collab/versions/{node_id}`
+
+---
+
+## 查看特定版本内容
+
+### API
+
+```bash
+# 获取版本 3 的完整内容
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions/3" \
+  -H "Authorization: Bearer {token}"
+```
+
+响应会返回该版本的完整文件内容，可以用来预览或手动恢复部分数据。
+
+---
+
+## 回滚到历史版本
+
+回滚会将文件恢复到指定版本的内容。**回滚操作本身也会创建一个新版本**，所以历史记录永远不会丢失。
+
+### Dashboard
+
+1. 打开文件的 **History** 面板
+2. 选择要恢复的版本
+3. 点击 **Restore**
+4. 确认回滚
+
+### CLI
+
+```bash
+# 回滚到版本 3
+puppyone fs rollback /docs/product-spec.md 3
+```
+
+输出：
+
+```
+Rolled back /docs/product-spec.md to version 3
+Current version is now v6 (restored from v3)
+```
+
+### API
+
+```bash
+# 回滚到版本 3
+curl -X POST "https://api.puppyone.ai/api/v1/nodes/{node_id}/rollback/3" \
+  -H "Authorization: Bearer {token}"
+```
+
+也可以通过：`POST /api/v1/collab/rollback/{node_id}/{version}`
+
+---
+
+## 实际场景：Agent 误操作恢复
+
+假设你让一个 Agent 更新产品文档，但它意外覆盖了整个文件内容：
+
+```bash
+# 1. 查看版本历史，确认问题
+puppyone fs versions /docs/product-spec.md
+
+# 输出显示 v8 是 Agent 的错误写入
+# v7 是正确的版本
+
+# 2. 对比版本，确认差异
+puppyone fs diff /docs/product-spec.md 7 8
+
+# 3. 回滚到正确版本
+puppyone fs rollback /docs/product-spec.md 7
+```
+
+整个恢复过程不到一分钟，数据零丢失。
+
+---
+
+## 注意事项
+
+- 回滚不会删除任何历史版本，它创建一个新版本，内容与目标版本相同
+- 版本号是递增的，回滚后的新版本号会继续递增
+- 每个 Content Node 独立管理版本，修改一个文件不会影响其他文件的版本历史
+- 版本历史记录操作者信息，方便在[审计日志](/zh/audit)中追溯
+
+---
+
+## 下一步
+
+- [文件夹快照](/zh/version-control/snapshots) — 对整个目录做完整备份
+- [版本对比](/zh/version-control/diff) — 逐行查看两个版本的差异
