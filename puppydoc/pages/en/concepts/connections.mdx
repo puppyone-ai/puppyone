@@ -1,0 +1,131 @@
+# Unified Connections
+
+Connections are PuppyOne's unified abstraction for managing every external integration.
+
+---
+
+## What is a Connection
+
+In PuppyOne, whether you want to sync data from Notion, create an AI agent, expose an MCP endpoint to Cursor, or mount a local folder, they are all represented as connections.
+
+All connections are stored in the same `connections` table and distinguished by fields like `provider` and `direction`. That gives you one consistent interface for every external integration instead of separate models and workflows.
+
+---
+
+## Connection types
+
+| Type | Description | Direction | Typical Use Case |
+|------|------|------|----------|
+| **Sync Source** | External data source sync | Pull | Pull data from Notion, GitHub, Gmail, and more into Content Nodes |
+| **Agent** | AI agent | — | Bind a model, system prompt, and tools for chats and automation |
+| **MCP Endpoint** | MCP protocol endpoint | Bidirectional | Expose data access to clients such as Cursor and Claude Desktop |
+| **Sandbox** | Code sandbox | — | Run code in isolated Docker or E2B containers |
+| **Filesystem** | Local folder | Bidirectional | Real-time sync between a local folder and the cloud through OpenClaw |
+
+### Sync source
+
+Automatically sync external sources such as Notion pages, GitHub repositories, and Gmail messages into your Project as structured Content Nodes.
+
+Supported sources include Notion, GitHub, Gmail, Google Drive, Google Docs, Google Sheets, Google Calendar, Linear, Airtable, file upload, web scraping, and 15+ platforms in total.
+
+### Agent
+
+Create an AI agent with a model such as GPT-4 or Claude, a system prompt, and bound tools. Agents can stream over SSE and can also run on schedules.
+
+### MCP endpoint
+
+Create an MCP endpoint with its own URL and API key. Any MCP-compatible client, including Cursor, Claude Desktop, and Claude Code, can access your data through it.
+
+### Sandbox
+
+Create an isolated execution environment where agents can run code safely. PuppyOne supports both Docker-based sandboxes and E2B cloud sandboxes.
+
+### Filesystem
+
+Mount a local folder to PuppyOne through the CLI for real-time, bidirectional sync. Local agents such as Claude Code can work directly against local files while staying connected to your shared context.
+
+---
+
+## Connection properties
+
+Each connection includes these core properties:
+
+| Property | Description |
+|------|------|
+| `id` | Unique connection ID |
+| `name` | Connection name |
+| `provider` | Provider type, such as `notion`, `github`, `mcp`, or `agent` |
+| `direction` | Sync direction: `pull`, `push`, or `bidirectional` |
+| `status` | Connection status |
+| `access_key` | Access key used in cases like MCP endpoints and agents |
+| `config` | Connection configuration in JSON form, varying by type |
+
+---
+
+## Connection lifecycle
+
+Every connection has one of three states:
+
+| Status | Description |
+|------|------|
+| `active` | Running normally |
+| `paused` | Temporarily paused and can be resumed at any time |
+| `error` | Something is wrong and the connection needs attention, reconfiguration, or reauthorization |
+
+---
+
+## Manage connections through the CLI
+
+PuppyOne CLI provides a single `conn` command for every connection type:
+
+```bash
+# Add connections
+puppyone conn add notion <url>         # Add a Notion data source
+puppyone conn add github <repo>        # Add a GitHub repository
+puppyone conn add mcp "My Endpoint"    # Create an MCP endpoint
+puppyone conn add agent "My Agent"     # Create an agent
+puppyone conn add sandbox "My Box"     # Create a sandbox
+puppyone conn add folder ~/my-docs     # Mount a local folder
+
+# View connections
+puppyone conn ls                       # List all connections
+puppyone conn info <id>                # View connection details
+
+# Manage connections
+puppyone conn pause <id>               # Pause a connection
+puppyone conn resume <id>              # Resume a connection
+puppyone conn rm <id>                  # Delete a connection
+```
+
+### Example: Create an MCP endpoint and inspect it
+
+```bash
+$ puppyone conn add mcp "Product Knowledge Base MCP"
+✓ MCP endpoint created
+  ID:         conn_abc123
+  Name:       Product Knowledge Base MCP
+  API Key:    sk_live_xxxxxxxxxxxx
+  Server URL: https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxxxxxxxxxxx
+
+$ puppyone conn info conn_abc123
+  Name:       Product Knowledge Base MCP
+  Provider:   mcp
+  Status:     active
+  API Key:    sk_live_xxxxxxxxxxxx
+  Created:    2026-03-09T10:00:00Z
+```
+
+---
+
+## Manage connections through the Dashboard
+
+Open a Project, then click `Connections` in the sidebar to view and manage everything in one place. Click `New`, choose a connection type, and follow the guided setup flow.
+
+---
+
+## Best practices
+
+1. **Use one connection per agent** - Separate access keys and permission settings make auditing and management much easier
+2. **Create MCP endpoints for specific use cases** - Different clients or workflows should have their own endpoints and independent permissions
+3. **Pause instead of deleting when possible** - Temporary connections can be resumed later without recreating everything
+4. **Check `error` states regularly** - These often come from expired OAuth credentials or changed configuration

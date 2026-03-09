@@ -1,47 +1,185 @@
-# Core Concepts
+# Glossary
 
-Key terms and concepts in PuppyOne.
+Core PuppyOne concepts and terminology.
 
 ---
 
-## Data Model
+## Data hierarchy
 
 ```
-Account
-└── Project (a context namespace)
-    ├── Content Nodes (file tree: folders / JSON / Markdown / files)
-    └── Sync Connectors (linked data sources)
+Organization
+└── Project
+    └── Content Node
+        ├── folder
+        ├── json
+        ├── markdown
+        └── file
 ```
 
-| Term | Description |
-|------|-------------|
-| **Project** | Top-level container. One project = one context namespace with its own access controls. |
-| **Content Node** | A file in the Context File System. Can be a folder, JSON document, Markdown file, or binary file. |
-| **Sync Connector** | A configured connection to an external data source (Notion, GitHub, Gmail, etc.) |
-| **File Level Security (FLS)** | Permission system controlling what each agent can see and do, scoped to file paths. |
-| **API Key** | Authentication credential for agent access. Each key carries its own FLS rules. |
+---
+
+## Core terms
+
+### Organization
+
+An organization is the top-level container in PuppyOne. It represents a team or company.
+
+- Manages members and roles, Owner, Admin, and Member
+- Manages billing and quotas
+- One user can belong to multiple organizations
+
+### Project
+
+A project is a data namespace inside an organization, used to isolate data for different business scenarios.
+
+- Each business scenario can have its own project, such as Product Knowledge Base, Support FAQ, or Engineering Docs
+- A project contains the Content Node tree, connections, agents, and related resources
+- Supports project-level member management and access control
+
+### Content Node
+
+Content Nodes are the basic data unit in PuppyOne's cloud file system, organized as a tree.
+
+| Type | Description | Typical use |
+|------|------|------|
+| `folder` | Folder | Organize directory structure |
+| `json` | JSON file | Structured data storage |
+| `markdown` | Markdown file | Documents and text content |
+| `file` | Binary file | Images, PDFs, and other attachments |
+
+Each Content Node automatically tracks version history and supports diffing and rollback.
+
+### Connection
+
+A connection is PuppyOne's unified abstraction for external integrations. All integration types are managed through the `connections` table, with `provider` and `direction` fields used to distinguish them.
+
+| Connection type | Description | Examples |
+|----------|------|------|
+| Sync | Data-source sync connection | Notion, GitHub, Gmail |
+| Agent | AI agent instance | Support assistant, analytics agent |
+| MCP | MCP protocol endpoint | Tools for Cursor or Claude |
+| Sandbox | Code sandbox | Docker or E2B isolated execution |
+| Filesystem | Local folder sync | Two-way sync with local directories |
+
+### MCP (Model Context Protocol)
+
+MCP is an open protocol introduced by Anthropic that defines how AI models interact with external tools and data sources.
+
+- PuppyOne generates standard MCP interfaces for each agent and MCP endpoint
+- Supports direct connections from MCP-compatible clients such as Cursor, Claude Desktop, and Windsurf
+- Agents use MCP to call bound tools
+
+### FLS (File Level Security)
+
+File-level permissions that precisely control which Content Nodes each agent can access.
+
+- Managed through the `connection_accesses` table, which binds agents to Content Nodes
+- Supports permission levels such as read-only and read/write
+- Follows the principle of least privilege
+
+### Tool
+
+A tool is a data operation that an agent can call, bound to specific Content Nodes.
+
+| Tool type | Description |
+|----------|------|
+| `query` | Query data with filters |
+| `get_all` | Read all data |
+| `create` | Create a new item |
+| `update` | Modify data |
+| `delete` | Delete data |
+| `search` | Vector search, semantic retrieval |
+
+### Access Key
+
+An access key is a credential used for machine and agent authentication, typically in the form `cli_xxx`.
+
+- Each agent, MCP endpoint, and sandbox endpoint has its own independent access key
+- Keys can be regenerated, and old keys become invalid immediately
+- Used for non-interactive authentication in the CLI and API
 
 ---
 
-## Sync Concepts
+## Sync-related terms
 
-| Term | Description |
-|------|-------------|
-| **Pull** | Sync direction: external source → PuppyOne |
-| **Push** | Sync direction: PuppyOne → external source |
-| **Bidirectional** | Both pull and push — changes flow both ways |
-| **Incremental sync** | Only changed content is transferred (delta sync) |
-| **Full sync** | All content is re-pulled from the source |
-| **Bootstrap** | First-time scan to discover all available resources |
+### Sync connector
+
+A sync connector pulls data from external SaaS platforms into PuppyOne.
+
+- Supports more than 15 platforms, including Notion, GitHub, Gmail, and Google Drive
+- Synced data is transformed into structured JSON or Markdown Content Nodes
+- Supports incremental sync, scheduled sync, and manual refresh
+
+### OpenClaw
+
+PuppyOne's two-way local folder sync protocol.
+
+- Keeps local directories and the cloud Context File System in real-time sync
+- Runs through a background daemon
+- CLI commands: `puppyone access up` and `puppyone access down`
 
 ---
 
-## Agent Access Concepts
+## Collaboration-related terms
 
-| Term | Description |
-|------|-------------|
-| **MCP** | Model Context Protocol — open standard for agent-to-tool communication |
-| **MCP Server** | PuppyOne's hosted MCP endpoint per project |
-| **Tool** | An operation an agent can invoke (query, create, update, delete, etc.) |
-| **Tool permission** | Whether an API Key is allowed to call a specific tool |
-| **Path permission** | Which JSON paths a tool can access for a given API Key |
+### Checkout / Commit
+
+A collaborative editing workflow similar to Git.
+
+- **Checkout**: Check out a working copy of a Content Node and acquire a lock
+- **Commit**: Submit changes and automatically create a new version
+- Supports conflict detection
+
+### Snapshot
+
+A folder-level backup at a point in time.
+
+- Saves the complete state of a folder at a specific moment
+- Supports one-click rollback to any snapshot
+- Useful as a safety backup before bulk operations
+
+### Audit log
+
+An operation log that records every action performed on Content Nodes.
+
+- Records who, user or agent, did what to which node and when
+- Supports filtering by node, time, and actor
+- Fully traceable
+
+---
+
+## Distribution methods
+
+### MCP server
+
+Provides data access for MCP-compatible clients such as Cursor and Claude Desktop.
+
+### REST API
+
+Standard HTTP API for custom agents, backend integrations, and automation scripts.
+
+### Publish link
+
+A public short link that lets anyone access JSON data in read-only mode without authentication.
+
+---
+
+## Glossary table
+
+| English | Chinese | Description |
+|------|------|------|
+| Organization | 组织 | Top-level container for team and billing management |
+| Project | 项目 | Data namespace |
+| Content Node | 内容节点 | Basic data unit in the cloud file system |
+| Connection | 连接 | Unified abstraction for external integrations |
+| MCP | Model Context Protocol | Open protocol for AI model and tool interaction |
+| FLS | File Level Security | File-level permissions |
+| Tool | 工具 | Data operation callable by an agent |
+| Access Key | 访问凭证 | Machine and agent auth key |
+| OpenClaw | 本地同步协议 | Local folder two-way sync protocol |
+| Sync Connector | 同步连接器 | Data-source sync adapter |
+| Checkout / Commit | 签出 / 提交 | Collaborative editing workflow |
+| Snapshot | 快照 | Folder-level backup |
+| Audit Log | 审计日志 | Operation tracking record |
+| ETL | 数据处理流程 | Extract, transform, load |
+| Publish Link | 公开链接 | Public read-only access link |

@@ -1,0 +1,147 @@
+# 文件夹快照
+
+为整个文件夹树拍一个时间点快照，在批量操作前一键存档，出问题时整体恢复。
+
+---
+
+## 什么是文件夹快照
+
+文件版本历史追踪的是**单个文件**的变更。而文件夹快照捕获的是**整个目录树**在某一时刻的完整状态——包括所有子文件夹和文件的内容。
+
+可以把它理解为对一个目录做了一次完整备份。
+
+```
+/research/
+├── papers/
+│   ├── paper-a.md    ← 快照记录此时的内容
+│   └── paper-b.md    ← 快照记录此时的内容
+├── notes.json         ← 快照记录此时的内容
+└── summary.md         ← 快照记录此时的内容
+```
+
+恢复快照时，整个目录会回到拍快照时的状态。
+
+---
+
+## 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| 批量同步前备份 | 从 Notion / GitHub 拉取大量数据前，先对目标文件夹拍快照 |
+| Agent 批量操作前 | Agent 要批量重写多个文件时，先保存当前状态 |
+| 数据迁移 | 在重新组织文件夹结构前存档 |
+| 定期备份 | 对重要目录定期拍快照，作为恢复点 |
+
+---
+
+## 文件版本 vs 文件夹快照
+
+| 维度 | 文件版本历史 | 文件夹快照 |
+|------|-------------|-----------|
+| 粒度 | 单个文件 | 整个文件夹树 |
+| 触发方式 | 每次修改自动创建 | 在需要做目录级保护时生成 |
+| 记录内容 | 单个文件的内容变更 | 目录结构 + 所有文件内容 |
+| 恢复范围 | 恢复单个文件 | 恢复整个目录 |
+| 适用场景 | 追踪单个文件的演变 | 批量操作前的安全备份 |
+
+---
+
+## 查看快照列表
+
+### API
+
+```bash
+# 获取文件夹的快照列表
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{folder_id}/snapshots?project_id={project_id}" \
+  -H "Authorization: Bearer {token}"
+```
+
+响应示例：
+
+```json
+{
+  "snapshots": [
+    {
+      "snapshot_id": "snap_abc123",
+      "folder_id": "folder_001",
+      "created_at": "2025-03-09T10:00:00Z",
+      "created_by": "user@example.com",
+      "file_count": 42,
+      "total_size": 156000
+    },
+    {
+      "snapshot_id": "snap_def456",
+      "folder_id": "folder_001",
+      "created_at": "2025-03-01T08:00:00Z",
+      "created_by": "Agent: data-sync",
+      "file_count": 38,
+      "total_size": 142000
+    }
+  ]
+}
+```
+
+也可以通过协作模块的路径访问：`GET /api/v1/collab/snapshots/{folder_id}`
+
+---
+
+## 恢复快照
+
+恢复快照会将文件夹及其所有子内容回退到快照记录时的状态。
+
+### API
+
+```bash
+# 恢复到指定快照
+curl -X POST "https://api.puppyone.ai/api/v1/nodes/{folder_id}/rollback-snapshot/{snapshot_id}" \
+  -H "Authorization: Bearer {token}"
+```
+
+响应示例：
+
+```json
+{
+  "message": "Folder restored to snapshot snap_abc123",
+  "restored_files": 42,
+  "folder_id": "folder_001"
+}
+```
+
+> 恢复操作不会删除快照本身。恢复后，被影响的文件也会各自创建新的版本记录。
+
+---
+
+## 实际场景：同步前备份
+
+在从 Notion 大规模同步数据到 `/research/` 目录之前：
+
+```bash
+# 1. 先记录当前可用快照
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{folder_id}/snapshots?project_id={project_id}" \
+  -H "Authorization: Bearer {token}"
+
+# 2. 执行同步操作
+puppyone conn refresh <connection-id>
+
+# 3. 如果同步结果不理想，恢复到目标快照
+curl -X POST "https://api.puppyone.ai/api/v1/nodes/{folder_id}/rollback-snapshot/{snapshot_id}" \
+  -H "Authorization: Bearer {token}"
+```
+
+整个过程确保你可以安全地尝试批量操作，随时回到已知的正确状态。
+
+---
+
+## 注意事项
+
+- 快照记录的是拍照时刻的完整状态，包括目录结构和所有文件内容
+- 恢复快照会影响文件夹下的所有文件，但不会删除快照拍照后新增的文件
+- 每个被恢复的文件会创建新的版本记录，可以在[文件版本历史](/zh/version-control/versions)中追溯
+- 快照数据存储在 `folder_snapshots` 表中，支持通过[审计日志](/zh/audit)查看操作记录
+
+---
+
+## 下一步
+
+- [文件版本历史与回滚](/zh/version-control/versions) — 管理单个文件的版本
+- [版本对比](/zh/version-control/diff) — 对比文件的不同版本

@@ -1,0 +1,210 @@
+# 凭证管理
+
+Access Key 是 Agent 和机器访问 PuppyOne 的唯一凭证。管理好 Access Key 是保障 Context File System 安全的关键。
+
+---
+
+## Access Key 格式
+
+PuppyOne 根据 Connection 类型签发不同前缀的 Access Key：
+
+| 前缀 | 类型 | 适用场景 |
+|------|------|----------|
+| `sk_live_` | MCP 端点 / Agent API Key | MCP 客户端连接、Agent API 调用 |
+| `cli_` | 文件系统 / OpenClaw 同步 Key | 本地文件夹双向同步 |
+
+```
+示例:
+sk_live_a1b2c3d4e5f6...    ← MCP 端点 Key
+cli_x9y8z7w6v5u4...        ← 文件系统同步 Key
+```
+
+每个 Connection 有且只有一个 Access Key——**一个 Connection，一个 Key**。不同的 Agent 使用不同的 Connection，各自持有独立的 Key，权限互相隔离。
+
+---
+
+## Access Key 生命周期
+
+一个 Access Key 从创建到退役，经历以下阶段：
+
+```
+创建 Connection
+     │
+     ▼
+  自动生成 Access Key
+     │
+     ▼
+  Agent 使用 Key 访问 API ←──── 正常运行
+     │
+     ▼
+  轮换（Regenerate）──→ 旧 Key 立即失效，签发新 Key
+     │
+     ▼
+  删除 Connection ──→ Key 永久失效
+```
+
+---
+
+## 管理 Access Key
+
+### 通过 Dashboard 管理
+
+1. 打开 Project → **Connections**
+2. 点击目标 Connection 进入详情页
+3. 在 **Access Key** 区域：
+   - 点击 **Show Key** 查看完整 Key
+   - 点击 **Regenerate** 生成新 Key（旧 Key 立即失效）
+
+### 通过 CLI 管理
+
+```bash
+# 查看某个 Connection 的 Access Key
+puppyone conn key <connection-id>
+
+# 轮换 Access Key（旧 Key 立即失效）
+puppyone conn key <connection-id> --regenerate
+```
+
+轮换后，CLI 会显示新的 Access Key。请立即更新使用该 Key 的所有客户端配置。
+
+---
+
+## Key 轮换最佳实践
+
+定期轮换 Access Key 可以降低泄漏风险。推荐流程：
+
+### 安全轮换步骤
+
+```
+1. 生成新 Key
+   puppyone conn key <id> --regenerate
+
+2. 更新所有客户端配置
+   将新 Key 写入环境变量 / 配置文件
+
+3. 验证新 Key 正常工作
+   确认 Agent 能正常访问 API
+
+4. 确认旧 Key 已无处使用
+   旧 Key 在 regenerate 时已立即失效
+```
+
+> 注意：PuppyOne 的 `--regenerate` 操作是**原子性的**——执行的瞬间旧 Key 失效、新 Key 生效。因此在轮换期间，使用旧 Key 的请求会立即被拒绝。建议在低流量时段执行轮换。
+
+---
+
+## 安全规范
+
+### 不要硬编码 Key
+
+```python
+# 不推荐：Key 硬编码在代码中
+api_key = "sk_live_a1b2c3d4e5f6..."
+
+# 推荐：从环境变量读取
+import os
+api_key = os.environ["PUPPYONE_ACCESS_KEY"]
+```
+
+```javascript
+// 不推荐
+const apiKey = "sk_live_a1b2c3d4e5f6...";
+
+// 推荐
+const apiKey = process.env.PUPPYONE_ACCESS_KEY;
+```
+
+### 不要共享 Key
+
+```yaml
+# 不推荐：多个 Agent 共用一个 Key
+客服 Agent  ──┐
+研发 Agent  ──┼── sk_live_shared_xxx
+销售 Agent  ──┘
+
+# 推荐：每个 Agent 独立的 Connection 和 Key
+客服 Agent  ── sk_live_support_xxx
+研发 Agent  ── sk_live_dev_yyy
+销售 Agent  ── sk_live_sales_zzz
+```
+
+共享 Key 的问题：
+- 无法区分是哪个 Agent 发起的请求
+- 无法为不同 Agent 设置不同的权限
+- 一个 Agent 泄漏 Key 会影响所有 Agent
+
+### 不要提交到版本控制
+
+将 Access Key 加入 `.gitignore`，或使用 `.env` 文件管理：
+
+```bash
+# .env 文件
+PUPPYONE_ACCESS_KEY=sk_live_a1b2c3d4e5f6...
+```
+
+```bash
+# .gitignore
+.env
+```
+
+---
+
+## Key 失效时会发生什么
+
+当一个 Access Key 被轮换（regenerate）或 Connection 被删除时：
+
+- **立即生效**：所有使用该 Key 的请求立即被拒绝
+- **返回 401**：API 返回认证失败错误
+- **不可恢复**：旧 Key 无法恢复，必须使用新 Key
+
+```json
+{
+  "error": "invalid_access_key",
+  "message": "The provided access key is invalid or has been revoked."
+}
+```
+
+正在运行的 Agent 会在下一次 API 调用时收到认证失败。如果你的 Agent 框架支持重试机制，确保它不会无限重试失败的认证请求。
+
+---
+
+## 故障排查
+
+### Access Key 无效
+
+```
+Error: Invalid access key
+```
+
+检查清单：
+- Key 是否完整复制（没有截断或多余空格）
+- Key 是否已被轮换（regenerate 后旧 Key 立即失效）
+- Connection 是否已被删除
+
+### 权限不足
+
+```
+Error: Permission denied
+```
+
+这不是 Key 的问题，而是 FLS 权限配置的问题。检查：
+- 该 Connection 的 Tool 权限是否包含所需操作
+- 该 Connection 的路径权限是否包含目标路径
+- 参考 [FLS 权限控制](/zh/auth-for-agents/permissions)
+
+### 确认当前身份
+
+```bash
+# 人类用户：检查 JWT 身份
+puppyone auth whoami
+
+# Agent / Connection：查看 Key 信息
+puppyone conn info <connection-id>
+```
+
+---
+
+## 下一步
+
+- [FLS 权限控制](/zh/auth-for-agents/permissions) — 配置 Agent 的操作和路径权限
+- [CLI 参考](/zh/cli) — 完整的命令行工具文档

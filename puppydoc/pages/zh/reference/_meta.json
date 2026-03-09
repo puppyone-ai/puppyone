@@ -1,9 +1,5 @@
 {
-  "concepts": "核心概念",
-  "mcp-tools": "MCP Tools",
-  "api": "API 参考"
+  "api": "REST API 参考",
+  "mcp-tools": "MCP Tools 参考",
+  "concepts": "术语表"
 }
-
-
-
-

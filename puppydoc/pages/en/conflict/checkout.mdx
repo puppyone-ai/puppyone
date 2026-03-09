@@ -1,0 +1,153 @@
+# Checkout / Commit Workflow
+
+Use a "checkout -> edit -> commit" flow to ensure that only one user or agent can modify critical data at a time.
+
+---
+
+## How it works
+
+Checkout / Commit is a pessimistic locking strategy: before editing, you lock the target node and receive an exclusive working copy. After editing, you commit the changes and release the lock.
+
+```
+Agent A                         PuppyOne                        Agent B
+  │                                │                               │
+  ├── checkout /specs/api.md ────▶│                               │
+  │                                │── lock node, create working copy
+  │◀── return working copy ───────│                               │
+  │                                │                               │
+  │   (edit working copy)          │                               │
+  │                                │                  ├── try to edit ─▶│
+  │                                │◀── return "locked" error ────────│
+  │                                │                               │
+  ├── commit changes ─────────────▶│                               │
+  │                                │── save changes, release lock    │
+  │◀── commit success ────────────│                               │
+  │                                │                               │
+  │                                │                  ├── can edit now
+```
+
+---
+
+## Check out a Content Node
+
+### API
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/collab/checkout" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_ids": ["node_id_1", "node_id_2"]
+  }'
+```
+
+You can check out multiple nodes in one request. The system creates a working copy and lock for each node.
+
+### State after checkout
+
+After a node is checked out:
+- The person or agent who checked it out receives a working copy and can modify it freely
+- Other users and agents can still **read** the current version of the node
+- Other users and agents **cannot modify** the node and will receive a "locked" response
+- The Dashboard shows the node as locked and displays who checked it out
+
+---
+
+## Edit the working copy
+
+Once checkout succeeds, you can modify the node through any interface:
+
+- Edit directly in the Dashboard editor
+- Update the content through the API
+- Modify it through MCP from an agent
+- Use the CLI
+
+All edits happen on the working copy and do not affect the current version visible to others.
+
+---
+
+## Commit changes
+
+Once editing is complete, committing writes the working copy into the official version:
+
+### API
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/collab/commit" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_id": "node_id_1",
+    "node_type": "markdown",
+    "base_version": 3,
+    "content": "# API Authentication\n\nHere is the updated document content"
+  }'
+```
+
+On commit, the system will:
+
+1. **Run an optimistic lock check** - confirm the node was not modified in some other way since checkout (for example after an admin force-unlocked it)
+2. **Attempt three-way merge** - if the base version changed during checkout, try to merge automatically
+3. **Create a new version** - save the changes as a new version while preserving previous history
+4. **Release the lock** - other users and agents can edit again
+
+---
+
+## Discard changes
+
+If you decide not to commit your edits, the safest approach is to discard the local working copy and avoid sending unfinished content back to PuppyOne. For critical content, it is best to have a project admin confirm the lock state in the Dashboard before the next checkout begins, so partial work is not accidentally committed as an official version.
+
+---
+
+## Example workflow
+
+Here is a full flow for an agent updating an API design document:
+
+### Step 1: Check out the target file
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/collab/checkout" \
+  -H "Authorization: Bearer AGENT_A_TOKEN" \
+  -d '{"node_ids": ["api_design_node_id"]}'
+```
+
+### Step 2: Modify the file
+
+Agent A updates the file through MCP or the API. Other agents cannot modify the file during this time.
+
+### Step 3: Commit the change
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/collab/commit" \
+  -H "Authorization: Bearer AGENT_A_TOKEN" \
+  -d '{"node_id": "api_design_node_id", "node_type": "markdown", "base_version": 3, "content": "# API Design\n\nAdded authentication endpoint documentation"}'
+```
+
+After the commit succeeds, the version number increments automatically and the lock is released.
+
+### Step 4: Another agent continues
+
+Agent B can now check out and modify the same file:
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/collab/checkout" \
+  -H "Authorization: Bearer AGENT_B_TOKEN" \
+  -d '{"node_ids": ["api_design_node_id"]}'
+```
+
+---
+
+## Notes
+
+- **Timeout release**: if a checkout stays open too long without a commit or release, the system may automatically release the lock to avoid permanent blocking
+- **Admin override**: project admins can force-release any checkout lock
+- **Batch operations**: checking out and committing multiple nodes at once is supported for related multi-file updates
+- **Audit trail**: every checkout and commit is recorded in the audit log
+
+---
+
+## Next steps
+
+- [Conflict Resolution Strategies](/en/conflict/resolution) - Learn about three-way merge and last-write-wins
+- [Audit Log](/en/audit) - Trace all operations
+- [Version Control](/en/version-control) - View and restore historical versions

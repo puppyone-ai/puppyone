@@ -1,0 +1,187 @@
+# Cursor
+
+Access your PuppyOne data directly in Cursor through MCP.
+
+---
+
+## Prerequisites
+
+- Cursor 0.40 or later
+- A PuppyOne account with data already imported into your project. See [Quickstart](/en/quickstart)
+
+---
+
+## Get your MCP configuration
+
+You can get your MCP configuration from either the dashboard or the CLI.
+
+### Option 1: Dashboard
+
+1. Open your project
+2. Go to **Connections**
+3. Click **Add Connection** and choose **MCP**
+4. Enter a name and create it
+5. Copy the generated MCP configuration
+
+### Option 2: CLI
+
+```bash
+npm install -g puppyone
+puppyone auth login
+puppyone conn add mcp "My Data"
+```
+
+The command prints the full MCP configuration, ready to copy.
+
+---
+
+## Configure Cursor
+
+### Project-level config (recommended)
+
+Create `.cursor/mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+Replace `sk_live_xxx` with your real API key.
+
+### Global config
+
+You can also add it in Cursor Settings -> MCP so it is available in every project.
+
+### Multiple-project config
+
+If you have multiple PuppyOne projects, you can add multiple MCP servers:
+
+```json
+{
+  "mcpServers": {
+    "puppyone-docs": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_docs_key"]
+    },
+    "puppyone-issues": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://api.puppyone.ai/api/v1/mcp/server/sk_live_issues_key"]
+    }
+  }
+}
+```
+
+### Self-hosted config
+
+If you use a self-hosted PuppyOne backend, replace the URL with your own service:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:9090/api/v1/mcp/server/sk_live_xxx"]
+    }
+  }
+}
+```
+
+---
+
+## Usage examples
+
+Once configured, you can reference PuppyOne data directly in Cursor chat.
+
+### Query data
+
+```
+Please show me a list of all documents imported from Notion in PuppyOne.
+```
+
+Cursor will automatically call MCP tools to read your Content Node tree and return structured results.
+
+### Update data
+
+```
+Change the price in /products/widget-pro.json from 99.99 to 129.99.
+```
+
+Cursor uses the MCP `update` operation to modify the data directly in PuppyOne.
+
+### Use data in code generation
+
+```
+Based on the contents of /api-spec/endpoints.json in PuppyOne,
+generate the corresponding TypeScript type definitions.
+```
+
+Cursor first reads the data through MCP, then generates code from it.
+
+---
+
+## Available MCP tools
+
+After the connection is set up, Cursor can use these MCP tools:
+
+| Tool | Description |
+|------|------|
+| `get_data_schema` | Get the structure of the Content Node tree |
+| `get_all_data` | Get all data |
+| `query_data` | Query data by condition |
+| `preview` | Preview node content |
+| `select` | Select specific nodes precisely |
+| `create` | Create a new node |
+| `update` | Update node content |
+| `delete` | Delete a node |
+
+---
+
+## Troubleshooting
+
+### MCP does not load
+
+**Symptom**: PuppyOne tools do not appear in Cursor chat.
+
+**Fix**:
+1. Make sure `.cursor/mcp.json` is in the correct location, inside the project root `.cursor` folder
+2. Restart Cursor
+3. Open Cursor Settings -> MCP and confirm the service shows as healthy
+
+### Connection timeout
+
+**Symptom**: Tool calls wait a long time and then fail.
+
+**Fix**:
+1. Make sure your network can reach `api.puppyone.ai`
+2. If you use a proxy, make sure `npx` can run normally
+3. Try running `npx -y mcp-remote https://api.puppyone.ai/api/v1/mcp/server/YOUR_KEY` manually in the terminal to check for errors
+
+### Tool calls fail
+
+**Symptom**: Tool calls return errors.
+
+**Fix**:
+1. Check that the API key is correct and not expired
+2. Make sure the project actually contains data
+3. Check the connection status in the dashboard
+
+### Node.js environment issues
+
+**Symptom**: The `npx` command fails.
+
+**Fix**:
+1. Make sure Node.js 18+ is installed
+2. Run `npx -y mcp-remote --version` to confirm `mcp-remote` can be installed correctly
+
+---
+
+## Next steps
+
+- [Connect Claude Desktop](/en/distribute/claude-desktop). Use the same data in Claude Desktop
+- [REST API](/en/distribute/rest-api). Access PuppyOne programmatically over HTTP

@@ -1,0 +1,9 @@
+{
+  "index": "Overview",
+  "cursor": "Cursor",
+  "claude-desktop": "Claude Desktop",
+  "claude-code": "Claude Code",
+  "custom-mcp": "Custom MCP Clients",
+  "rest-api": "REST API",
+  "sandbox": "Code Sandbox"
+}

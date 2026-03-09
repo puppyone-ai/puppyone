@@ -1,0 +1,204 @@
+# 本地文件夹同步
+
+将本地文件夹与 PuppyOne 云端 Context File System 双向实时同步。
+
+---
+
+## 什么是本地文件夹同步
+
+本地文件夹同步基于 OpenClaw 协议，在你的本地目录和 PuppyOne 云端之间建立双向实时同步通道。
+
+- 本地文件变更自动推送到云端
+- 云端变更（包括 Agent 的写入）自动拉取到本地
+- 后台守护进程持续运行，无需手动操作
+
+```
+┌──────────────┐         双向同步         ┌──────────────────┐
+│              │  ───── 推送本地变更 ────→ │                  │
+│  本地文件夹   │                          │  PuppyOne Cloud  │
+│  ~/workspace │  ←── 拉取云端变更 ──────  │  Context FS      │
+│              │                          │                  │
+└──────────────┘         守护进程         └──────────────────┘
+```
+
+同步完成后，Agent、MCP 客户端（Cursor / Claude Desktop）和 REST API 都可以访问这些内容。
+
+---
+
+## 设置方法
+
+### 方法一：CLI 一步设置（推荐）
+
+最简单的方式，一条命令完成连接创建和同步启动：
+
+```bash
+# 添加本地文件夹连接
+puppyone conn add folder ~/workspace --name "My Workspace"
+
+# 启动同步守护进程
+puppyone access up ~/workspace
+```
+
+执行后，CLI 会自动：
+1. 在当前项目中创建一个 Filesystem 类型的连接
+2. 将本地文件夹内容推送到云端
+3. 启动后台守护进程，持续监听双向变更
+
+### 方法二：Dashboard + CLI
+
+适合需要精细控制或已有 Agent 配置的场景：
+
+1. 在 Dashboard 中进入项目 → **Connections** → **Add Connection**
+2. 选择 **Local Folder (OpenClaw)** 类型
+3. 创建后获取 Access Key（格式：`cli_xxx`）
+4. 在终端中使用 Access Key 启动同步：
+
+```bash
+puppyone access up --key cli_xxx ~/workspace
+```
+
+---
+
+## 守护进程管理
+
+### 启动同步
+
+```bash
+puppyone access up ~/workspace
+```
+
+启动后台守护进程，开始双向同步。首次启动会执行全量同步。
+
+### 停止同步
+
+```bash
+puppyone access down ~/workspace
+```
+
+停止守护进程，断开同步连接。本地和云端的文件不会被删除。
+
+### 查看运行状态
+
+```bash
+# 列出所有正在运行的同步进程
+puppyone access ps
+
+# 查看特定文件夹的同步状态
+puppyone access status ~/workspace
+```
+
+### 查看日志
+
+```bash
+puppyone access logs ~/workspace
+```
+
+查看守护进程的运行日志，排查同步问题。
+
+---
+
+## 同步行为
+
+### 文件类型支持
+
+| 文件类型 | 推送（本地→云端） | 拉取（云端→本地） |
+|----------|:-:|:-:|
+| 文本文件（.json / .md / .txt 等） | 支持 | 支持 |
+| 二进制文件（.png / .pdf 等） | 支持 | 仅拉取 |
+
+### 同步规则
+
+- **实时同步**：文件变更后自动触发同步，通常在秒级完成
+- **增量同步**：只传输变更的文件，不重复同步未修改的内容
+- **双向冲突处理**：采用 last-write-wins 策略（最后写入者优先）
+- **版本安全网**：所有被覆盖的内容都保留在版本历史中，可随时回滚
+
+### 忽略规则
+
+同步会自动忽略以下内容：
+- `.git` 目录
+- `node_modules` 目录
+- `.env` 文件
+- 其他常见的临时文件和构建产物
+
+---
+
+## 冲突处理
+
+当本地和云端同时修改了同一个文件时，PuppyOne 采用 **last-write-wins** 策略：
+
+1. 最后提交的变更会覆盖之前的版本
+2. 被覆盖的内容不会丢失，保留在版本历史中
+3. 你可以通过版本对比（diff）和回滚（rollback）找回之前的内容
+
+```bash
+# 查看文件版本历史
+puppyone fs versions <node_id>
+
+# 回滚到指定版本
+puppyone fs rollback <node_id> <version>
+```
+
+---
+
+## 配合 Claude Code 使用
+
+本地文件夹同步是将 PuppyOne 数据交给 AI 编程工具处理的最佳方式：
+
+1. **设置同步**：
+
+```bash
+puppyone conn add folder ~/ai-workspace --name "AI Workspace"
+puppyone access up ~/ai-workspace
+```
+
+2. **启动 Claude Code**：让 Claude Code 直接操作 `~/ai-workspace` 中的文件
+
+3. **双向协作**：
+   - Claude Code 在本地修改的文件会自动同步到云端
+   - 在 Dashboard 或其他 Agent 修改的内容也会自动同步到本地
+   - 所有变更都有版本历史保障
+
+这种方式让你既能使用本地 AI 工具的强大编辑能力，又能保留 PuppyOne 的版本管理、审计日志和多方协作特性。
+
+---
+
+## 常见问题
+
+### 同步延迟怎么办？
+
+检查守护进程状态和日志：
+
+```bash
+puppyone access status ~/workspace
+puppyone access logs ~/workspace
+```
+
+如果守护进程未运行，重新启动即可：
+
+```bash
+puppyone access up ~/workspace
+```
+
+### 如何重新全量同步？
+
+停止同步后重新启动，会自动执行全量同步：
+
+```bash
+puppyone access down ~/workspace
+puppyone access up ~/workspace
+```
+
+### 可以同步多个文件夹吗？
+
+可以。每个文件夹独立创建连接和守护进程：
+
+```bash
+puppyone conn add folder ~/project-a --name "Project A"
+puppyone access up ~/project-a
+
+puppyone conn add folder ~/project-b --name "Project B"
+puppyone access up ~/project-b
+```
+
+使用 `puppyone access ps` 查看所有运行中的同步进程。

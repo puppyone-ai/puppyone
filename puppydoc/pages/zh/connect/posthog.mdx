@@ -1,0 +1,79 @@
+# PostHog
+
+将 PostHog 产品分析数据同步到 PuppyOne。
+
+---
+
+## 概述
+
+PostHog 连接器支持将你的产品分析数据（事件、用户、洞察报告）拉取到 PuppyOne 中，让 Agent 能够基于真实的用户行为数据进行分析和决策。
+
+PostHog 连接使用 API Key 认证（非 OAuth），配置简单快捷。
+
+---
+
+## 认证方式
+
+PostHog 连接使用 **Personal API Key** 进行认证。
+
+获取 API Key：
+1. 登录你的 PostHog 实例
+2. 进入 **Settings → Personal API Keys**
+3. 点击 **Create personal API key**
+4. 复制生成的 API Key（格式：`phx_xxx`）
+
+---
+
+## 通过 CLI 设置
+
+```bash
+puppyone conn add posthog \
+  --api-key phx_xxx \
+  --config '{"project_id": "123", "mode": "events"}'
+```
+
+添加后手动触发首次同步：
+
+```bash
+puppyone sync refresh <sync_id>
+```
+
+---
+
+## 通过 Dashboard 设置
+
+1. 进入项目 → **Connections** → **Add Connection**
+2. 选择 **PostHog**
+3. 输入你的 Personal API Key
+4. 配置同步选项：
+   - **Project ID**：PostHog 项目 ID
+   - **Mode**：同步模式（events / persons / insights）
+5. 点击 **Start Sync**
+
+---
+
+## 配置选项
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `project_id` | string | 是 | PostHog 项目 ID |
+| `mode` | string | 是 | 同步模式 |
+| `api_key` | string | 是 | Personal API Key |
+
+### 同步模式
+
+| Mode | 说明 | 输出格式 |
+|------|------|----------|
+| `events` | 用户行为事件 | JSON（事件列表） |
+| `persons` | 用户档案数据 | JSON（用户列表） |
+| `insights` | 洞察报告和趋势 | JSON（报告数据） |
+
+---
+
+## 同步后的数据
+
+同步完成后，PostHog 数据会以 JSON 内容节点的形式存储在项目中。你可以：
+
+- 通过 MCP 让 Agent 查询和分析这些数据
+- 使用 REST API 程序化访问
+- 在 Dashboard 中浏览和编辑

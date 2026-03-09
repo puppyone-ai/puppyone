@@ -1,0 +1,169 @@
+# CLI 安装与配置
+
+PuppyOne CLI（`puppyone`）是一个命令行工具，让你从终端直接操作 PuppyOne 的所有功能——文件管理、数据源同步、Agent 对话、MCP 端点、本地文件夹同步等。
+
+---
+
+## 安装
+
+通过 npm 全局安装：
+
+```bash
+npm install -g puppyone
+```
+
+安装完成后，验证版本：
+
+```bash
+puppyone -V
+```
+
+---
+
+## 首次配置
+
+安装后需要完成三步初始化：登录、选择组织、选择项目。
+
+```bash
+# 1. 登录
+puppyone auth login -e user@example.com -p password
+
+# 2. 选择组织
+puppyone org use "My Organization"
+
+# 3. 选择项目
+puppyone project use "My Project"
+```
+
+完成后，CLI 会将当前状态保存到配置文件中，后续命令自动使用已选择的组织和项目。
+
+你也可以用 `puppyone init` 一键完成交互式的项目初始化。
+
+---
+
+## 全局选项
+
+所有命令都支持以下全局选项：
+
+| 选项 | 说明 |
+|------|------|
+| `-V, --version` | 显示版本号 |
+| `-u, --api-url <url>` | 指定 API 地址（覆盖配置文件） |
+| `-k, --api-key <key>` | 指定 API Key / Token（覆盖配置文件） |
+| `--json` | 以 JSON 格式输出（适合脚本和 AI 消费） |
+| `-v, --verbose` | 显示详细输出 |
+| `-p, --project <id>` | 指定项目 ID（覆盖当前活动项目） |
+| `-o, --org <id>` | 指定组织 ID（覆盖当前活动组织） |
+
+示例：临时切换到另一个项目执行命令，无需修改全局配置：
+
+```bash
+puppyone fs ls -p proj_abc123
+```
+
+---
+
+## JSON 输出
+
+所有命令都支持 `--json` 选项，输出机器可读的 JSON 格式，方便与其他工具或 AI Agent 集成：
+
+```bash
+puppyone fs ls --json
+puppyone conn ls --json
+puppyone access ps --json
+```
+
+---
+
+## 配置文件
+
+CLI 的配置保存在 `~/.puppyone/config.json`，包含 API 地址、登录凭证、当前活动的组织和项目等信息。
+
+### 配置命令
+
+```bash
+# 查看当前配置
+puppyone config show
+
+# 设置配置项
+puppyone config set api_url https://api.puppyone.ai
+
+# 查看配置文件路径
+puppyone config path
+
+# 重置配置
+puppyone config reset
+```
+
+---
+
+## 命令一览
+
+PuppyOne CLI 将功能划分为以下命令组：
+
+| 命令 | 别名 | 说明 |
+|------|------|------|
+| `puppyone auth` | | 登录、登出、查看当前用户 |
+| `puppyone org` | | 组织管理 |
+| `puppyone project` | `p` | 项目管理 |
+| `puppyone fs` | | 云端文件系统（POSIX 风格） |
+| `puppyone conn` | `connection` | 统一连接管理（数据源 / Agent / MCP / 沙盒 / 文件夹） |
+| `puppyone access` | `openclaw`, `oc` | 本地文件夹双向同步 |
+| `puppyone sync` | | 数据源同步 |
+| `puppyone ingest` | | 文件 / URL 导入 |
+| `puppyone table` | `t` | 结构化数据表操作 |
+| `puppyone tool` | | 工具管理 |
+| `puppyone agent` | | Agent 管理与对话 |
+| `puppyone mcp` | | MCP 端点管理 |
+| `puppyone sandbox` | `sbx` | 沙盒管理与执行 |
+| `puppyone publish` | | 公开发布 |
+| `puppyone db` | | 数据库连接器 |
+| `puppyone config` | | CLI 配置管理 |
+| `puppyone init` | | 项目初始化 |
+| `puppyone ps` | | 查看正在运行的守护进程 |
+| `puppyone status` | | 项目仪表盘 |
+
+---
+
+## 常用工作流
+
+### 浏览项目数据
+
+```bash
+puppyone fs ls              # 列出根目录
+puppyone fs tree             # 树状显示
+puppyone fs cat /docs/readme # 读取文件内容
+```
+
+### 添加数据源并同步
+
+```bash
+puppyone conn add notion https://notion.so/page-id --folder /notion-data
+puppyone conn ls
+```
+
+### 创建 Agent 并对话
+
+```bash
+puppyone conn add agent "My Bot" --model gpt-4o
+puppyone agent chat
+```
+
+### 挂载本地文件夹
+
+```bash
+puppyone access up ~/workspace --key cli_xxx
+puppyone access ps
+```
+
+---
+
+## 获取帮助
+
+任何命令后加 `--help` 查看用法：
+
+```bash
+puppyone --help
+puppyone fs --help
+puppyone fs ls --help
+```

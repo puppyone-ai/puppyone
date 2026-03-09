@@ -1,0 +1,260 @@
+# FLS Permissions
+
+File Level Security (FLS) uses a two-layer permission model to precisely control what each agent can do and what it can see.
+
+---
+
+## Two-layer permission model
+
+Every agent request passes through two checks:
+
+### Layer 1: Tool permissions
+
+**Which operations can the agent call?**
+
+Tools are the data operation interfaces PuppyOne exposes to agents. You can enable or disable them one by one to control what an agent is allowed to do.
+
+| Tool | Operation Type | Description | Risk Level |
+|------|----------------|-------------|------------|
+| `get_data_schema` | Read | Get the data structure of a Content Node | Low |
+| `get_all_data` | Read | Get all data under the specified path | Low |
+| `query_data` | Read | Query with filters | Low |
+| `preview` | Read | Quickly preview part of the data | Low |
+| `select` | Read | Return selected fields | Low |
+| `create` | Write | Create a new entry at the specified path | Medium |
+| `update` | Write | Modify existing data at the specified path | Medium |
+| `delete` | Delete | Delete data at the specified path | High |
+
+**Recommendation**: follow the principle of least privilege. A support agent only needs read tools and does not need `create`, `update`, or `delete`.
+
+### Layer 2: Path permissions
+
+**Which Content Nodes can each operation access?**
+
+Even if an agent has `query_data` permission, you can still restrict it to querying data only under specific paths. Path permissions define the agent's visible world.
+
+---
+
+## Path permission syntax
+
+Use file-system-like path syntax to allow or deny access to ranges of Content Nodes:
+
+| Path | Meaning |
+|------|---------|
+| `/` | Root path (all Content Nodes in the project) |
+| `/products` | The `products` node |
+| `/products/*` | All direct children under `products` |
+| `/products/**` | Everything under `products`, including nested descendants |
+| `/internal` | The `internal` node |
+
+### Example path rules
+
+```yaml
+Path Rules:
+  - path: /products
+    permission: allow
+
+  - path: /faq
+    permission: allow
+
+  - path: /internal
+    permission: deny
+
+  - path: /users/**/password
+    permission: deny
+```
+
+---
+
+## Priority rules
+
+When multiple path rules might match the same request:
+
+1. **More specific paths win** - a rule for `/products/0/price` takes priority over `/products/*`
+2. **`deny` wins over `allow`** - if both match at the same level, the result is `deny`
+
+```yaml
+Rules:
+  - path: /products/**
+    permission: allow          # Allow access to all product data
+
+  - path: /products/*/cost
+    permission: deny           # But block access to cost fields
+```
+
+Result:
+- `/products/0/name` -> allowed
+- `/products/0/price` -> allowed
+- `/products/0/cost` -> denied (the more specific deny rule wins)
+
+---
+
+## How to configure it
+
+### In the Dashboard
+
+1. Open your Project -> **Connections**
+2. Select the target Connection (agent, MCP endpoint, etc.)
+3. Switch to the **Access** tab
+4. Check the allowed operations in the **Tools** section
+5. Click **Add Rule** in the **Path Rules** section to configure path permissions
+6. Save
+
+### Through the API
+
+```bash
+# Configure access permissions for an agent (Content Node level)
+curl -X POST https://api.puppyone.ai/api/v1/agent-config/{agent_id}/accesses \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_id": "node_xxx",
+    "json_path": "/products",
+    "readonly": true
+  }'
+```
+
+---
+
+## Real-world examples
+
+### Support agent (read-only, scoped access)
+
+Scenario: a support agent needs to query product information and FAQs, but must not modify any data or see internal documents.
+
+```yaml
+Tools:
+  - get_data_schema: ✅
+  - get_all_data:    ✅
+  - query_data:      ✅
+  - preview:         ✅
+  - select:          ✅
+  - create:          ❌
+  - update:          ❌
+  - delete:          ❌
+
+Paths:
+  /products:  allow
+  /faq:       allow
+  /internal:  deny
+  /users:     deny
+```
+
+This is the file system the agent can see:
+
+```
+/
+├── products/
+│   ├── widget-a.json
+│   ├── widget-b.json
+│   └── ...
+└── faq/
+    ├── shipping.md
+    └── returns.md
+```
+
+`/internal` and `/users` do not exist from its perspective.
+
+### Engineering agent (read/write, no delete)
+
+Scenario: an engineering agent needs read and write access to technical spec docs, but must not delete anything or see HR-related data.
+
+```yaml
+Tools:
+  - get_data_schema: ✅
+  - get_all_data:    ✅
+  - query_data:      ✅
+  - preview:         ✅
+  - select:          ✅
+  - create:          ✅
+  - update:          ✅
+  - delete:          ❌
+
+Paths:
+  /specs:      allow
+  /code-docs:  allow
+  /hr:         deny
+```
+
+### Admin agent (full access)
+
+Scenario: an admin agent is responsible for data maintenance and needs full read, write, and delete permissions.
+
+```yaml
+Tools: all allowed
+
+Paths:
+  /: allow (root path, no restrictions)
+```
+
+> Even for an admin agent, consider whether `delete` is really necessary. In most cases, disabling `delete` helps prevent irreversible data loss.
+
+---
+
+## The "Invisible" Principle
+
+The core design of FLS is simple: **unauthorized paths do not physically exist for the agent**.
+
+This is not a traditional 403 Forbidden model. The agent does not see a path and then get told "you do not have permission." It can only see the Content Nodes it is authorized to see from the beginning.
+
+```
+Actual Content Space:           Support Agent's View:
+
+/                               /
+├── products/    ← visible      ├── products/
+├── faq/         ← visible      └── faq/
+├── internal/    ← hidden
+├── hr/          ← hidden
+└── users/       ← hidden
+```
+
+This means:
+- The agent cannot enumerate paths it is not allowed to access
+- The agent cannot guess or probe for hidden paths
+- Even if it requests an unauthorized path directly, the system returns "path does not exist" rather than "insufficient permissions"
+
+---
+
+## Best practices
+
+### Principle of least privilege
+
+Grant only the smallest set of permissions an agent needs to complete its task:
+
+```yaml
+# Not recommended: grant everything
+tools: [get_data_schema, get_all_data, query_data, preview, select, create, update, delete]
+paths: /
+
+# Recommended: grant only what is needed
+tools: [query_data, preview]
+paths: [/products, /faq]
+```
+
+### Tiered authorization
+
+| Agent Type | Recommended Tools | Recommended Path Scope |
+|-----------|-------------------|------------------------|
+| Query agents (support, search) | `query_data`, `preview`, `select` | Only business-relevant paths |
+| Editing agents (content management) | Above + `create`, `update` | Business paths, excluding sensitive data |
+| Admin agents (data maintenance) | All tools (`delete` with caution) | Open only what is needed; avoid `/` when possible |
+
+### Isolate sensitive fields
+
+Even if you allow a path, you can still hide sensitive fields with more specific deny rules:
+
+```yaml
+Rules:
+  - path: /users/**
+    permission: allow
+  - path: /users/**/password
+    permission: deny
+  - path: /users/**/api_key
+    permission: deny
+```
+
+---
+
+## Next steps
+
+- [Credential Management](/en/auth-for-agents/api-keys) - Create, rotate, and securely manage Access Keys

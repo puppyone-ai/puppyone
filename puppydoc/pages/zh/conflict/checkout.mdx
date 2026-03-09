@@ -1,0 +1,153 @@
+# Checkout / Commit 工作流
+
+通过「检出 → 编辑 → 提交」的流程，确保同一时间只有一个人或 Agent 修改关键数据。
+
+---
+
+## 工作原理
+
+Checkout / Commit 是一种悲观锁定策略：编辑前先锁定目标节点，获得独占的工作副本，编辑完成后提交修改并释放锁定。
+
+```
+Agent A                         PuppyOne                        Agent B
+  │                                │                               │
+  ├── checkout /specs/api.md ────▶│                               │
+  │                                │── 锁定节点，创建工作副本       │
+  │◀── 返回工作副本 ──────────────│                               │
+  │                                │                               │
+  │   （编辑工作副本）              │                               │
+  │                                │                  ├── 尝试修改 ─▶│
+  │                                │◀── 返回「已锁定」错误 ─────────│
+  │                                │                               │
+  ├── commit 修改 ────────────────▶│                               │
+  │                                │── 保存修改，释放锁定           │
+  │◀── 提交成功 ─────────────────│                               │
+  │                                │                               │
+  │                                │                  ├── 现在可以编辑
+```
+
+---
+
+## 检出节点
+
+### API
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/collab/checkout" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_ids": ["node_id_1", "node_id_2"]
+  }'
+```
+
+你可以一次检出多个节点，系统会为每个节点创建工作副本并加锁。
+
+### 检出后的状态
+
+节点被检出后：
+- 检出者获得一份工作副本，可以自由修改
+- 其他用户和 Agent 仍然可以**读取**该节点的当前版本
+- 其他用户和 Agent **无法修改**该节点，会收到「已锁定」的提示
+- Dashboard 中该节点会显示锁定状态和检出者信息
+
+---
+
+## 编辑工作副本
+
+检出成功后，你可以通过任何方式修改节点内容：
+
+- 在 Dashboard 编辑器中直接编辑
+- 通过 API 更新内容
+- Agent 通过 MCP 协议修改
+- 通过 CLI 操作
+
+所有修改都在工作副本上进行，不会影响其他人看到的当前版本。
+
+---
+
+## 提交修改
+
+编辑完成后，提交修改将工作副本的内容写入正式版本：
+
+### API
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/collab/commit" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_id": "node_id_1",
+    "node_type": "markdown",
+    "base_version": 3,
+    "content": "# API 认证\n\n这里是更新后的文档内容"
+  }'
+```
+
+提交时系统会：
+
+1. **乐观锁检查** — 确认节点自检出以来没有被其他方式修改（如管理员强制解锁后的修改）
+2. **三方合并** — 如果基础版本在检出期间有变更，尝试自动合并
+3. **创建新版本** — 保存修改为新版本，旧版本保留在版本历史中
+4. **释放锁定** — 其他用户和 Agent 可以继续编辑
+
+---
+
+## 放弃修改
+
+如果你决定不提交这次修改，最稳妥的做法是直接丢弃本地工作副本，不把内容提交回 PuppyOne。对于关键内容，建议由项目管理员在 Dashboard 中确认锁定状态后再继续下一次检出，避免误把半成品写回正式版本。
+
+---
+
+## 实际工作流示例
+
+以下是一个 Agent 修改 API 设计文档的完整流程：
+
+### 第一步：检出目标文件
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/collab/checkout" \
+  -H "Authorization: Bearer AGENT_A_TOKEN" \
+  -d '{"node_ids": ["api_design_node_id"]}'
+```
+
+### 第二步：修改文件内容
+
+Agent A 通过 MCP 或 API 更新文件内容。其他 Agent 此时无法修改此文件。
+
+### 第三步：提交修改
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/collab/commit" \
+  -H "Authorization: Bearer AGENT_A_TOKEN" \
+  -d '{"node_id": "api_design_node_id", "node_type": "markdown", "base_version": 3, "content": "# API Design\n\n添加了认证接口的说明"}'
+```
+
+提交成功后，版本号自动递增，锁定释放。
+
+### 第四步：其他 Agent 继续工作
+
+Agent B 现在可以检出并修改同一个文件：
+
+```bash
+curl -X POST "https://api.puppyone.ai/api/v1/collab/checkout" \
+  -H "Authorization: Bearer AGENT_B_TOKEN" \
+  -d '{"node_ids": ["api_design_node_id"]}'
+```
+
+---
+
+## 注意事项
+
+- **超时释放**：如果检出后长时间未提交或释放，系统可能会自动释放锁定，防止节点被永久锁定
+- **管理员权限**：项目管理员可以强制释放任何人的检出锁定
+- **批量操作**：支持一次检出和提交多个节点，适合需要同时修改多个关联文件的场景
+- **审计记录**：每次检出和提交操作都会记录在审计日志中
+
+---
+
+## 下一步
+
+- [冲突解决策略](/zh/conflict/resolution) — 了解三方合并和 last-write-wins
+- [审计日志](/zh/audit) — 追踪所有操作记录
+- [版本控制](/zh/version-control) — 查看和回滚历史版本

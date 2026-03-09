@@ -1,60 +1,155 @@
-# Web Crawl
+# Web Crawling
 
-Crawl public web pages and sync the content into your Context File System.
-
-| | |
-|---|---|
-| **Direction** | Pull (web → PuppyOne) |
-| **Trigger** | One-time import |
-| **Auth** | None |
-| **Output** | Markdown |
+Crawl content from any public web page and import it into PuppyOne.
 
 ---
 
-## How It Works
+## How it works
 
-PuppyOne uses [Firecrawl](https://firecrawl.dev) to fetch and clean web content. The raw HTML is stripped down to readable Markdown, removing navigation, ads, and boilerplate.
+PuppyOne uses [Firecrawl](https://firecrawl.dev) to crawl web content:
 
----
-
-## Setup
-
-1. Open your Project → **Import** → **URL**
-2. Paste one or more URLs
-3. Configure crawl options
-4. Click **Start Crawl**
+1. Enter a URL
+2. Firecrawl renders the page, including JavaScript
+3. The main content is extracted and converted to Markdown
+4. The result is stored as JSON
 
 ---
 
-## Crawl Options
+## Usage steps
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| **Mode** | `single` (one page) or `crawl` (follow links) | `single` |
-| **Max depth** | How many link levels to follow | 1 |
-| **Max pages** | Cap on total pages crawled | 10 |
-| **Include paths** | Only crawl URLs matching these patterns | — |
-| **Exclude paths** | Skip URLs matching these patterns | — |
+### Step 1: Start the import
+
+1. Open your Project
+2. Click **Import** → **URL**
+
+### Step 2: Enter a URL
+
+Paste the web page you want to crawl:
+
+```
+https://example.com/docs/getting-started
+```
+
+### Step 3: Configure crawl options
+
+| Option | Notes |
+|------|------|
+| **Crawl depth** | Whether to follow links into child pages, from 1 to 3 levels |
+| **Include paths** | Crawl only matching paths such as `/docs/*` |
+| **Exclude paths** | Skip specific paths such as `/blog/*` |
+| **Wait time** | How long to wait for JavaScript rendering |
+
+### Step 4: Start crawling
+
+Click **Import** and wait for crawling to finish.
 
 ---
 
-## Output Example
+## Data structure example
 
-```markdown
-# Getting Started with PuppyOne
-
-PuppyOne is the Context File System for AI agents...
-
-## Quick Start
-1. Connect a data source
-2. Configure permissions
-...
+```json
+{
+  "url": "https://example.com/docs/intro",
+  "title": "Quick Start Guide",
+  "content": "# Quick Start\n\nWelcome to our product...\n\n## Installation\n\n```bash\nnpm install example\n```",
+  "metadata": {
+    "description": "Homepage of the product docs",
+    "crawled_at": "2024-01-20T10:30:00Z"
+  }
+}
 ```
 
 ---
 
-## Notes
+## Crawl modes
 
-- Only **public** pages can be crawled — authentication-protected pages are not supported
-- JavaScript-heavy pages (SPAs) are rendered before extraction
-- Crawling respects `robots.txt` — pages that disallow crawling will be skipped
+### Single-page crawl
+
+Crawls only the URL you enter:
+
+```
+URL: https://docs.example.com/intro
+Result: 1 page
+```
+
+### Multi-page crawl
+
+Follows links and crawls multiple pages:
+
+```
+URL: https://docs.example.com
+Depth: 2
+Include paths: /docs/*
+Result: all pages under /docs/
+```
+
+---
+
+## Example configurations
+
+### Crawl an entire documentation site
+
+```yaml
+URL: https://docs.example.com
+Depth: 3
+Include: /docs/*, /guides/*
+Exclude: /blog/*, /changelog/*
+```
+
+### Crawl just one page
+
+```yaml
+URL: https://example.com/pricing
+Depth: 0  # do not follow links
+```
+
+---
+
+## Use cases
+
+### Use case 1: Competitor documentation
+
+Crawl a competitor's public docs so agents can perform comparison analysis.
+
+### Use case 2: Technical documentation
+
+Crawl the official docs of a framework or library for use as reference material by engineering agents.
+
+### Use case 3: Product pages
+
+Crawl your own public product pages to keep the agent knowledge base aligned with your website.
+
+---
+
+## Limitations
+
+| Limitation | Notes |
+|------|------|
+| Public pages only | Pages that require login cannot be crawled |
+| Rate limits apply | Up to 100 pages per minute |
+| Some websites may block crawling | Certain sites have anti-bot protections |
+
+---
+
+## FAQ
+
+### Why is the crawl result empty?
+
+- Check whether the URL is correct
+- The page may require login
+- The site may have anti-crawling protection
+
+### Why does the extracted content look messy?
+
+Some complex pages, especially those with lots of dynamic content, may not extract cleanly. You can try increasing the **Wait time** so JavaScript fully renders first.
+
+### Can it crawl pages that require login?
+
+Not yet. If the platform offers an API or export feature, that is usually the better option.
+
+---
+
+## Next steps
+
+- [Edit imported data](/en/editor)
+- [Auth for Agents](/en/auth-for-agents)

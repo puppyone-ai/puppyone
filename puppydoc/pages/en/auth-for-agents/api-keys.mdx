@@ -1,0 +1,210 @@
+# Credential Management
+
+Access Keys are the only credentials agents and machines use to access PuppyOne. Managing them correctly is critical to securing your Context File System.
+
+---
+
+## Access Key format
+
+PuppyOne issues Access Keys with different prefixes depending on the Connection type:
+
+| Prefix | Type | Common Use |
+|--------|------|------------|
+| `sk_live_` | MCP endpoint / Agent API key | MCP client connections, Agent API calls |
+| `cli_` | File system / OpenClaw sync key | Bidirectional sync for local folders |
+
+```
+Examples:
+sk_live_a1b2c3d4e5f6...    ← MCP endpoint key
+cli_x9y8z7w6v5u4...        ← File sync key
+```
+
+Each Connection has exactly one Access Key - **one Connection, one key**. Different agents should use different Connections so they each have isolated credentials and permissions.
+
+---
+
+## Access Key lifecycle
+
+From creation to retirement, an Access Key goes through these stages:
+
+```
+Create Connection
+     │
+     ▼
+  Access Key generated automatically
+     │
+     ▼
+  Agent uses key to access API  ←──── normal operation
+     │
+     ▼
+  Rotate (Regenerate) ──→ old key becomes invalid immediately, new key is issued
+     │
+     ▼
+  Delete Connection ───→ key is permanently revoked
+```
+
+---
+
+## Managing Access Keys
+
+### In the Dashboard
+
+1. Open your Project -> **Connections**
+2. Click the target Connection to open its detail page
+3. In the **Access Key** section:
+   - Click **Show Key** to reveal the full key
+   - Click **Regenerate** to generate a new key (the old key becomes invalid immediately)
+
+### Through the CLI
+
+```bash
+# View the Access Key for a connection
+puppyone conn key <connection-id>
+
+# Rotate the Access Key (the old key becomes invalid immediately)
+puppyone conn key <connection-id> --regenerate
+```
+
+After rotation, the CLI shows the new Access Key. Update every client configuration that uses the key immediately.
+
+---
+
+## Best practices for key rotation
+
+Regular Access Key rotation reduces the risk of leaked credentials. Recommended flow:
+
+### Secure rotation steps
+
+```
+1. Generate a new key
+   puppyone conn key <id> --regenerate
+
+2. Update all client configurations
+   Write the new key into env vars / config files
+
+3. Verify the new key works
+   Confirm the agent can still access the API
+
+4. Confirm the old key is no longer used
+   The old key becomes invalid immediately at regeneration
+```
+
+> Note: PuppyOne's `--regenerate` operation is **atomic**. The moment you run it, the old key stops working and the new key becomes active. During rotation, any requests still using the old key will be rejected immediately. Rotate during low-traffic periods when possible.
+
+---
+
+## Security guidelines
+
+### Do not hardcode keys
+
+```python
+# Not recommended: hardcode the key in source code
+api_key = "sk_live_a1b2c3d4e5f6..."
+
+# Recommended: read from an environment variable
+import os
+api_key = os.environ["PUPPYONE_ACCESS_KEY"]
+```
+
+```javascript
+// Not recommended
+const apiKey = "sk_live_a1b2c3d4e5f6...";
+
+// Recommended
+const apiKey = process.env.PUPPYONE_ACCESS_KEY;
+```
+
+### Do not share keys
+
+```yaml
+# Not recommended: multiple agents share one key
+Support Agent      ──┐
+Engineering Agent  ──┼── sk_live_shared_xxx
+Sales Agent        ──┘
+
+# Recommended: each agent has its own Connection and key
+Support Agent      ── sk_live_support_xxx
+Engineering Agent  ── sk_live_dev_yyy
+Sales Agent        ── sk_live_sales_zzz
+```
+
+Problems with shared keys:
+- You cannot tell which agent made a request
+- You cannot assign different permissions to different agents
+- If one agent leaks the key, every agent is affected
+
+### Do not commit keys to version control
+
+Add Access Keys to `.gitignore`, or manage them through an `.env` file:
+
+```bash
+# .env file
+PUPPYONE_ACCESS_KEY=sk_live_a1b2c3d4e5f6...
+```
+
+```bash
+# .gitignore
+.env
+```
+
+---
+
+## What happens when a key is revoked
+
+When an Access Key is regenerated or its Connection is deleted:
+
+- **Immediate effect**: all requests using that key are rejected right away
+- **Returns 401**: the API responds with an authentication failure
+- **Irreversible**: the old key cannot be restored; you must use the new key
+
+```json
+{
+  "error": "invalid_access_key",
+  "message": "The provided access key is invalid or has been revoked."
+}
+```
+
+Running agents will receive the authentication error on their next API call. If your agent framework supports retries, make sure it does not retry failed authentication requests forever.
+
+---
+
+## Troubleshooting
+
+### Invalid Access Key
+
+```
+Error: Invalid access key
+```
+
+Checklist:
+- Was the key copied completely, with no truncation or extra whitespace?
+- Has the key already been regenerated? Old keys become invalid immediately
+- Was the Connection deleted?
+
+### Permission denied
+
+```
+Error: Permission denied
+```
+
+This is not a key problem. It is an FLS permission configuration problem. Check:
+- Whether the Connection's tool permissions include the required operation
+- Whether the Connection's path permissions include the target path
+- See [FLS Permissions](/en/auth-for-agents/permissions)
+
+### Verify the current identity
+
+```bash
+# Human user: check JWT identity
+puppyone auth whoami
+
+# Agent / Connection: inspect key information
+puppyone conn info <connection-id>
+```
+
+---
+
+## Next steps
+
+- [FLS Permissions](/en/auth-for-agents/permissions) - Configure what an agent can do and which paths it can access
+- [CLI Reference](/en/cli) - Full documentation for the command-line tool

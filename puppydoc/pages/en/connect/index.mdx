@@ -4,54 +4,78 @@ Mount external data sources into your Context File System.
 
 ---
 
-## What Is a Sync Connector
+## What is a sync connector
 
-A Sync Connector is not a one-time import. It's an ongoing **sync relationship** — each connector has a direction and trigger mode that keeps your Context File System up to date with the outside world.
+A sync connector is not a one-time data import. It is an ongoing **sync relationship**. Each connector has a direction and a trigger mode so your Context File System stays in sync with the outside world.
 
-Once synced, all data is converted to structured JSON or Markdown files stored in your Project, ready for any agent to query.
+After data is synced in, it is converted into structured JSON or Markdown content nodes and stored in your Project. Agents can query and use it directly.
 
 ---
 
-## Supported Connectors
+## Supported connectors
 
-| Connector | Direction | Trigger | Output Format |
-|-----------|-----------|---------|---------------|
-| [**Notion**](/en/connect/notion) | Pull | Incremental | Pages / DBs → Markdown / JSON |
-| [**GitHub**](/en/connect/github) | Pull | Incremental | Repos / Issues / PRs → JSON |
-| [**Gmail**](/en/connect/gmail) | Pull | Scheduled poll | Emails → JSON |
-| [**Google Drive**](/en/connect/google-drive) | Pull | Manual / Scheduled | Files → Markdown / JSON |
-| [**Google Docs**](/en/connect/google-docs) | Pull | Manual / Scheduled | Docs → Markdown |
-| [**Google Sheets**](/en/connect/google-sheets) | Pull | Manual / Scheduled | Sheets → JSON |
-| [**Google Calendar**](/en/connect/google-calendar) | Pull | Scheduled poll | Events → JSON |
-| [**Linear**](/en/connect/linear) | Pull | Manual | Issues / Projects → JSON |
+| Connector | Direction | Trigger | Data Type |
+|-----------|------|----------|----------|
+| [**Notion**](/en/connect/notion) | Pull | Incremental sync | Pages / databases → Markdown / JSON |
+| [**GitHub**](/en/connect/github) | Pull | Incremental sync | Repos / Issues / PRs → JSON |
+| [**Gmail**](/en/connect/gmail) | Pull | Scheduled polling | Emails → JSON |
+| [**Google Drive**](/en/connect/google-drive) | Pull | Manual / scheduled | Files → Markdown / JSON |
+| [**Google Docs**](/en/connect/google-docs) | Pull | Manual / scheduled | Documents → Markdown |
+| [**Google Sheets**](/en/connect/google-sheets) | Pull | Manual / scheduled | Sheets → JSON |
+| [**Google Calendar**](/en/connect/google-calendar) | Pull | Scheduled polling | Calendar events → JSON |
+| [**Linear**](/en/connect/linear) | Pull | Manual | Issues / projects → JSON |
 | [**Airtable**](/en/connect/airtable) | Pull | Full sync | Tables → JSON |
-| [**File Upload**](/en/connect/files) | Pull | One-time | PDF / DOCX / Images → Markdown |
-| [**Web Crawl**](/en/connect/urls) | Pull | One-time | Public URLs → Markdown |
-
-> **OpenClaw / Local Folder** supports **Bidirectional** sync — agent writes are synced back to the source. See OpenClaw integration.
-
----
-
-## Sync Directions Explained
-
-**Pull (External → PuppyOne)**
-- Suitable for SaaS sources like Notion, GitHub, Gmail
-- Data is read into the file system and kept updated
-
-**Bidirectional (External ↔ PuppyOne)**
-- Suitable for local folders and OpenClaw
-- Changes agents make in PuppyOne sync back to the source
+| [**PostHog**](/en/connect/posthog) | Pull | Manual | Events / users / insights → JSON |
+| [**Database Connection**](/en/connect/database) | Pull | Manual | Database tables → JSON |
+| [**Local Folder**](/en/connect/local-folder) | Bidirectional | Real time | Local files ↔ content nodes |
+| [**File Upload**](/en/connect/files) | Pull | One-time import | PDF / DOCX / images → Markdown |
+| [**Web Crawling**](/en/connect/urls) | Pull | One-time import | Public web pages → Markdown |
 
 ---
 
-## How to Add a Connector
+## Sync directions
 
-1. Open your **Project** → click **Add Connector**
-2. Select a source and complete **OAuth authorization** (or paste an API key)
-3. Choose the resources to sync (pages, repositories, mailbox labels, etc.)
-4. Click **Start Sync** and wait for the first sync to complete
+**Pull**: External data → PuppyOne
+- Best for SaaS sources like Notion, GitHub, and Gmail
+- Data is available to agents in a read-only or queryable form
 
-Once done, data appears in your Project's file tree and is immediately accessible via MCP or API.
+**Bidirectional**: External ↔ PuppyOne
+- Best for local folder sync
+- Data modified by agents in PuppyOne can be synced back to your local folder
+
+---
+
+## How to add a connector
+
+### Via the Dashboard
+
+1. Open your **Project** → click **Connections** → **Add Connection**
+2. Choose a data source and complete **OAuth authorization** (or paste an API key)
+3. Select the resources to sync, such as pages, repositories, or mailbox labels
+4. Click **Start Sync** and wait for the first sync to finish
+
+### Via the CLI
+
+Use the `puppyone conn add` command to add connections quickly:
+
+```bash
+# Add a Notion connection (OAuth required first)
+puppyone conn add notion <notion-url>
+
+# Add a GitHub connection
+puppyone conn add github <repo-url>
+
+# Add a local folder connection
+puppyone conn add folder ~/workspace --name "My Workspace"
+
+# Add a PostHog connection
+puppyone conn add posthog --api-key phx_xxx --config '{"project_id":"123","mode":"events"}'
+
+# List all connections
+puppyone conn ls
+```
+
+After syncing finishes, the data appears in your Project file tree and can be accessed directly through MCP or the API.
 
 ---
 
@@ -63,5 +87,9 @@ import { Cards, Card } from 'nextra/components'
   <Card title="Gmail" href="/en/connect/gmail" />
   <Card title="Google Drive" href="/en/connect/google-drive" />
   <Card title="Linear" href="/en/connect/linear" />
+  <Card title="PostHog" href="/en/connect/posthog" />
+  <Card title="Database Connection" href="/en/connect/database" />
+  <Card title="Local Folder Sync" href="/en/connect/local-folder" />
   <Card title="File Upload" href="/en/connect/files" />
+  <Card title="Web Crawling" href="/en/connect/urls" />
 </Cards>

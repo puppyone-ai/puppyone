@@ -1,63 +1,192 @@
 # MCP Protocol
 
-How AI agents access your PuppyOne data.
+Let AI agents access your PuppyOne data directly through MCP.
 
-## What is MCP?
+---
 
-**MCP (Model Context Protocol)** is an open protocol that allows LLMs to access external tools and data sources. It's supported by:
+## What is MCP
 
-- Cursor
-- Claude Desktop
-- Many other AI tools
+**MCP (Model Context Protocol)** is an open protocol introduced by Anthropic that defines how AI models interact with external tools and data sources. It is quickly becoming the standard connector protocol across the agent ecosystem.
 
-PuppyOne provides hosted MCP servers for each of your tables.
+PuppyOne provides hosted MCP servers. Once you create an MCP endpoint, you get a dedicated URL and API key. Any MCP-compatible client can use that endpoint to read and write your data.
 
-## How It Works
+---
+
+## How it works
 
 ```
-┌─────────────┐     MCP Protocol     ┌─────────────┐
-│   AI Agent  │ ◄──────────────────► │  PuppyOne   │
-│  (Cursor)   │     tools/prompts    │ MCP Server  │
-└─────────────┘                      └─────────────┘
+┌─────────────────┐      MCP Protocol      ┌──────────────────┐
+│    AI Agent     │ ◄────────────────────► │    PuppyOne      │
+│ (Cursor, etc.)  │   tool calls / results │    MCP Server    │
+└─────────────────┘                        └──────────────────┘
+                                                  │
+                                          Read/write Content Nodes
+                                                  │
+                                           ┌──────▼──────┐
+                                           │   Project   │
+                                           │  file tree  │
+                                           └─────────────┘
 ```
 
-1. You configure the MCP endpoint in your agent
-2. Agent discovers available tools (query, create, update, etc.)
-3. Agent calls tools to read/write your context data
+1. You create an MCP endpoint in PuppyOne and get a Server URL
+2. You configure that URL in a client such as Cursor or Claude Desktop
+3. The client automatically discovers available tools for querying, creating, updating, and deleting data
+4. The agent uses those tools to work directly with your Content Nodes
 
-## Configuration Example
+---
 
-Add to your `mcp.json` or Cursor settings:
+## MCP server URL
+
+Each MCP endpoint has its own dedicated URL in this format:
+
+```
+https://api.puppyone.ai/api/v1/mcp/server/{API_KEY}
+```
+
+The API key is embedded in the URL, so the client does not need separate authentication settings.
+
+---
+
+## Compatible clients
+
+PuppyOne's MCP server works with any MCP-compatible client:
+
+| Client | Description |
+|--------|------|
+| **Cursor** | AI coding IDE with built-in MCP support |
+| **Claude Desktop** | Anthropic's desktop app |
+| **Claude Code** | Command-line AI coding tool |
+| **Cline** | AI coding assistant for VS Code |
+| **Continue** | Open-source AI coding assistant |
+| **Zed** | High-performance code editor |
+
+And any other client that supports the MCP protocol.
+
+---
+
+## Available tools
+
+Once connected, an agent can use these tools to operate on your data:
+
+| Tool | Type | Description |
+|------|------|------|
+| `get_data_schema` | Read | Fetch the data schema |
+| `get_all_data` | Read | Fetch all data |
+| `query_data` | Read | Query data with conditions |
+| `preview` | Read | Preview data content |
+| `select` | Read | Select data from a specific path |
+| `create` | Write | Create new content |
+| `update` | Write | Update existing content |
+| `delete` | Write | Delete content |
+
+---
+
+## Create an MCP endpoint
+
+### Through the Dashboard
+
+1. Open your Project and click `Connections` in the sidebar
+2. Click `New` and choose `MCP`
+3. Enter an endpoint name and configure access permissions
+4. Copy the Server URL after creation
+
+### Through the CLI
+
+```bash
+$ puppyone conn add mcp "Product Knowledge Base"
+✓ MCP endpoint created
+  Server URL: https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxxxxxxxxxxx
+```
+
+---
+
+## Client configuration
+
+### Cursor
+
+Add the following configuration in Cursor's MCP settings under `Settings -> MCP -> Add new MCP server`:
 
 ```json
 {
   "mcpServers": {
     "puppyone": {
-      "command": "npx -y mcp-remote https://api.puppyone.ai/mcp?api_key=YOUR_KEY"
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxxxxxxxxxxx"
+      ]
     }
   }
 }
 ```
 
-## Available Tools
+### Claude Desktop
 
-When connected, your agent gets access to these tools:
+Edit the Claude Desktop config file at `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
-| Tool | Description |
-|------|-------------|
-| `query_data` | Query data with filters |
-| `get_all_data` | Fetch entire table |
-| `create` | Add new entries |
-| `update` | Modify existing entries |
-| `delete` | Remove entries |
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxxxxxxxxxxx"
+      ]
+    }
+  }
+}
+```
 
-See [Tools & Permissions](/en/concepts/tools) for details.
+### Claude Code
 
+Run this in your project directory:
 
+```bash
+claude mcp add puppyone -- npx -y mcp-remote https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxxxxxxxxxxx
+```
 
+Once configured, restart the client and PuppyOne's tools should appear.
 
+---
 
+## File Level Security (FLS)
 
+Each MCP endpoint can have its own FLS rules to control exactly what an agent can access.
 
+### Tool permissions
 
+Choose which tools the agent may call. For example, you can allow read tools while blocking writes:
 
+```
+✓ get_data_schema
+✓ get_all_data
+✓ query_data
+✗ create
+✗ update
+✗ delete
+```
+
+### Path permissions
+
+Restrict which Content Node paths the agent can access. Unauthorized paths are completely invisible:
+
+```
+✓ /products          → can read product data
+✓ /faq               → can read FAQ
+✗ /internal          → hidden
+✗ /financials        → hidden
+```
+
+By combining tool permissions with path permissions, you can create different MCP endpoints for different jobs: a support agent that can only read products and FAQ, an engineering agent that can edit technical docs, or a management agent with full access.
+
+---
+
+## Best practices
+
+1. **Use one endpoint per use case** - Create separate MCP endpoints for different agents or clients, each with its own permissions
+2. **Follow least privilege** - Only expose the tools and paths an agent actually needs
+3. **Start read-only, then enable writes** - For new endpoints, validate behavior with read access first and grant write access only when needed
+4. **Protect the API key carefully** - The API key is a credential. Do not commit it to public repositories or share it with untrusted parties

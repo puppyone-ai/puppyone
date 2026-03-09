@@ -1,0 +1,256 @@
+# Structured Data Best Practices
+
+How to organize JSON data so Agents can use it more effectively.
+
+---
+
+## Core principles
+
+### 1. Keep it flat
+
+Agents handle flatter structures more easily:
+
+```json
+// ✅ Recommended
+{
+  "products": [...],
+  "categories": [...],
+  "pricing_rules": [...]
+}
+
+// ❌ Avoid
+{
+  "data": {
+    "catalog": {
+      "items": {
+        "products": [...]
+      }
+    }
+  }
+}
+```
+
+### 2. Use clear names
+
+Field names should be self-explanatory:
+
+```json
+// ✅ Recommended
+{
+  "product_name": "Widget Pro",
+  "unit_price": 99.99,
+  "stock_quantity": 150
+}
+
+// ❌ Avoid
+{
+  "pn": "Widget Pro",
+  "p": 99.99,
+  "qty": 150
+}
+```
+
+### 3. Keep types consistent
+
+The same field should use the same type across records:
+
+```json
+// ✅ Recommended
+{
+  "products": [
+    { "price": 99.99 },
+    { "price": 149.99 },
+    { "price": 0 }  // still use a number for free items
+  ]
+}
+
+// ❌ Avoid
+{
+  "products": [
+    { "price": 99.99 },
+    { "price": "149.99" },  // string
+    { "price": "Free" }     // text
+  ]
+}
+```
+
+---
+
+## Common data patterns
+
+### Product catalog
+
+```json
+{
+  "products": [
+    {
+      "id": "SKU-001",
+      "name": "Widget Pro",
+      "description": "Professional-grade widget for...",
+      "price": 99.99,
+      "currency": "CNY",
+      "category": "Electronics",
+      "tags": ["Best seller", "New"],
+      "specs": {
+        "weight": "250g",
+        "dimensions": "10x5x3 cm"
+      },
+      "in_stock": true
+    }
+  ]
+}
+```
+
+**Characteristics**:
+- Use an ID for unique identification
+- Store price and currency separately
+- Put specs in a nested object (moderate nesting is fine)
+
+### FAQ knowledge base
+
+```json
+{
+  "faqs": [
+    {
+      "id": "faq-001",
+      "question": "How do I return an item?",
+      "answer": "You can request a return within 7 days after delivery...",
+      "category": "After-sales service",
+      "keywords": ["return", "refund", "after-sales"]
+    }
+  ]
+}
+```
+
+**Characteristics**:
+- Keep questions and answers clearly separated
+- `keywords` help Agents search
+
+### Team members
+
+```json
+{
+  "team": [
+    {
+      "id": "emp-001",
+      "name": "Zhang San",
+      "role": "Product Manager",
+      "department": "Product",
+      "email": "zhangsan@example.com",
+      "skills": ["Requirements analysis", "Prototyping"],
+      "manager_id": "emp-000"
+    }
+  ]
+}
+```
+
+**Characteristics**:
+- Use IDs for references (`manager_id`)
+- Use an array for `skills` instead of a comma-separated string
+
+---
+
+## Agent-friendly design
+
+### Add metadata
+
+```json
+{
+  "_metadata": {
+    "source": "Notion",
+    "last_synced": "2024-01-20T10:00:00Z",
+    "version": 3
+  },
+  "products": [...]
+}
+```
+
+### Add a summary
+
+For larger datasets, provide a summary so Agents can understand them quickly:
+
+```json
+{
+  "_summary": {
+    "total_products": 150,
+    "categories": ["Electronics", "Clothing", "Food"],
+    "price_range": { "min": 9.9, "max": 9999 }
+  },
+  "products": [...]
+}
+```
+
+### Add an example
+
+Provide an example at the beginning of the data to help Agents understand the structure:
+
+```json
+{
+  "_example": {
+    "query": "Products under 100",
+    "path": "/products",
+    "filter": { "price": { "$lt": 100 } }
+  },
+  "products": [...]
+}
+```
+
+---
+
+## Path design
+
+When designing paths, think about how Agents will query them:
+
+```
+/products              → All products
+/products/0            → The first product
+/products/*/price      → Prices of all products
+/categories            → All categories
+```
+
+**Recommendations**:
+- Use plural nouns for top-level fields (`products` instead of `product`)
+- Avoid special characters (`/`, `.`, `[`, `]`)
+
+---
+
+## Data size recommendations
+
+| Size | Recommendation |
+|------|------|
+| < 100 items | A single JSON Content Node is usually enough |
+| 100 - 1000 items | Consider splitting by category into multiple Content Nodes or folders |
+| > 1000 items | Use pagination or a summary pattern |
+
+For large datasets, consider:
+
+```json
+{
+  "products_summary": {
+    "total": 5000,
+    "categories": {...}
+  },
+  "products_sample": [
+    // First 100 sample items
+  ]
+}
+```
+
+---
+
+## Checklist
+
+Before publishing data for Agents, check:
+
+- [ ] Are field names clear?
+- [ ] Are data types consistent?
+- [ ] Does nesting stay within 3 levels?
+- [ ] Are there null values or missing fields?
+- [ ] Did you add the necessary metadata?
+
+---
+
+## Next steps
+
+- [Version Control](/en/version-control)
+- [Auth for Agents](/en/auth-for-agents)

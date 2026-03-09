@@ -1,0 +1,160 @@
+# 版本对比
+
+将任意两个版本并排对比，精确查看每一处变更。
+
+---
+
+## 什么是版本对比
+
+版本对比（Diff）可以将同一个 Content Node 的任意两个历史版本进行逐行比较，清晰展示：
+
+- **新增内容**（绿色）
+- **删除内容**（红色）
+- **修改内容**（黄色）
+
+无论是 JSON 文件、Markdown 文档还是其他类型的 Content Node，都支持版本对比。
+
+---
+
+## 查看版本对比
+
+### Dashboard
+
+1. 打开 Project → 选择一个文件
+2. 点击 **History** 标签，打开版本历史面板
+3. 选择要对比的两个版本
+4. 点击 **Compare**，查看差异视图
+
+### CLI
+
+```bash
+# 对比版本 2 和版本 5
+puppyone fs diff /docs/readme.md 2 5
+```
+
+输出示例：
+
+```diff
+--- v2
++++ v5
+
+ # 产品文档
+ 
+-## 功能概述
++## 核心功能
+ 
+-本产品支持数据导入和查询。
++本产品支持多源数据连接、实时同步和 Agent 协作。
++
++### 数据连接
++
++支持 15+ 平台的 OAuth 集成。
+ 
+ ## 技术架构
+ 
+ 基于 FastAPI + Supabase 构建。
+-支持单机部署。
++支持单机部署和 Railway 云端部署。
+```
+
+### API
+
+```bash
+# 对比版本 2 和版本 5
+curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/diff/2/5" \
+  -H "Authorization: Bearer {token}"
+```
+
+响应示例：
+
+```json
+{
+  "node_id": "node_001",
+  "v1": 2,
+  "v2": 5,
+  "diff": {
+    "additions": 8,
+    "deletions": 3,
+    "modifications": 2,
+    "patches": [
+      {
+        "path": "/title",
+        "op": "unchanged",
+        "value": "产品文档"
+      },
+      {
+        "path": "/sections/0/heading",
+        "op": "replace",
+        "old_value": "功能概述",
+        "new_value": "核心功能"
+      }
+    ]
+  }
+}
+```
+
+也可以通过协作模块的路径访问：`GET /api/v1/collab/diff/{node_id}/{v1}/{v2}`
+
+---
+
+## 使用场景
+
+### 审查 Agent 的修改
+
+Agent 完成一次写入后，对比写入前后的版本，确认修改符合预期：
+
+```bash
+# 查看最近的版本历史
+puppyone fs versions /docs/product-spec.md
+
+# 对比 Agent 操作前后的版本
+puppyone fs diff /docs/product-spec.md 7 8
+```
+
+如果修改不符合预期，可以直接[回滚](/zh/version-control/versions)到之前的版本。
+
+### 对比同步前后的变化
+
+从外部数据源同步数据后，查看同步引入了哪些变更：
+
+```bash
+# 同步前记住当前版本号（比如 v12）
+puppyone fs versions /research/notion-data.json
+
+# 执行同步
+puppyone conn refresh <connection-id>
+
+# 对比同步前后
+puppyone fs diff /research/notion-data.json 12 13
+```
+
+### 追踪数据随时间的演变
+
+对比间隔较长时间的两个版本，了解数据的整体演变趋势：
+
+```bash
+# 对比一周前和现在的版本
+puppyone fs diff /analytics/metrics.json 3 15
+```
+
+---
+
+## Diff 格式说明
+
+CLI 输出使用标准的 unified diff 格式：
+
+| 标记 | 含义 |
+|------|------|
+| `---` / `+++` | 标识旧版本和新版本 |
+| `-` 开头的行 | 在旧版本中存在，新版本中已删除 |
+| `+` 开头的行 | 在新版本中新增 |
+| 无前缀的行 | 两个版本中相同的内容（上下文） |
+
+对于 JSON 类型的 Content Node，API 返回的 Diff 还会包含结构化的变更路径（JSON Patch 格式），方便程序化处理。
+
+---
+
+## 下一步
+
+- [文件版本历史与回滚](/zh/version-control/versions) — 查看历史并恢复版本
+- [文件夹快照](/zh/version-control/snapshots) — 对整个目录做完整备份

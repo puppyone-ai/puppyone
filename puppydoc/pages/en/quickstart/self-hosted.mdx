@@ -1,46 +1,147 @@
 # Self-Hosted Quick Start
 
-Run PuppyOne on your own infrastructure.
+Run PuppyOne locally.
+
+---
 
 ## Prerequisites
 
-- Docker & Docker Compose
-- 4GB RAM minimum
+- Docker and Docker Compose
+- Or: Python 3.12+, Node.js 18+, and the [uv](https://docs.astral.sh/uv/) package manager
 
-## Step 1: Clone Repository
+---
+
+## Option 1: Docker Compose (recommended)
+
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/puppyone-ai/puppyone.git
 cd puppyone
 ```
 
-## Step 2: Configure Environment
+### 2. Configure environment variables
 
 ```bash
 cp .env.example .env
-# Edit .env with your API keys
 ```
 
-## Step 3: Start Services
+Edit `.env` and fill in the required values. See the environment variable section below.
+
+### 3. Start the services
 
 ```bash
-docker-compose up -d
+docker compose up --build
 ```
 
-## Step 4: Access Dashboard
+### 4. Access the services
 
-Open `http://localhost:3000` in your browser.
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:9090
 
-## Next Steps
+---
 
-- [Core Concepts](/en/concepts)
-- [API Reference](/en/api)
+## Option 2: Start services manually
 
+### 1. Clone the repository
 
+```bash
+git clone https://github.com/puppyone-ai/puppyone.git
+cd puppyone
+```
 
+### 2. Start the backend
 
+```bash
+cd backend
+cp .env.example .env  # configure environment variables
+uv sync
+uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info --no-access-log
+```
 
+### 3. Start the frontend
 
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
 
+### 4. Access the services
 
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:9090
+
+---
+
+## Environment variables
+
+Key settings in your `.env` file:
+
+```bash
+# Supabase (required)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_KEY=your-supabase-service-role-key
+
+# S3 storage
+S3_BUCKET=your-bucket
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+
+# LLM (used for ETL and agent chats)
+OPENAI_API_KEY=sk-...
+
+# Redis (task queue)
+REDIS_URL=redis://localhost:6379
+```
+
+---
+
+## Connect an agent
+
+In a self-hosted setup, your MCP Server URL looks like this:
+
+```
+http://localhost:9090/api/v1/mcp/server/{API_KEY}
+```
+
+Cursor configuration:
+
+```json
+{
+  "mcpServers": {
+    "puppyone-local": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:9090/api/v1/mcp/server/sk_xxx"]
+    }
+  }
+}
+```
+
+---
+
+## Common issues
+
+### Port conflicts
+
+Change the ports in `docker-compose.yml` or in your startup commands.
+
+### Database connection failed
+
+Check that `SUPABASE_URL` and `SUPABASE_KEY` are configured correctly.
+
+### MCP connection failed
+
+Make sure the backend service is running and the API key is valid.
+
+---
+
+## Next steps
+
+- [CLI Quick Start](/en/quickstart/cli) - Manage your data from the command line
+- [Data Connections](/en/connect) - Connect Notion, GitHub, and more
+- [Core Concepts](/en/concepts) - Learn the key ideas behind Content Nodes and Connections
+- [Distribute to Agents](/en/distribute) - Use MCP, OpenClaw, and the REST API
 

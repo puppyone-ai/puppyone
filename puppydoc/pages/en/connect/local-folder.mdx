@@ -1,0 +1,204 @@
+# Local Folder Sync
+
+Sync a local folder with the PuppyOne cloud Context File System in real time, both ways.
+
+---
+
+## What is Local Folder Sync
+
+Local folder sync is built on the OpenClaw protocol and creates a bidirectional real-time sync channel between your local directory and PuppyOne Cloud.
+
+- Local file changes are automatically pushed to the cloud
+- Cloud changes, including writes made by agents, are automatically pulled to your local folder
+- A background daemon keeps running, so no manual action is required
+
+```
+┌──────────────┐         Bidirectional Sync         ┌──────────────────┐
+│              │  ───── Push local changes ─────→ │                  │
+│ Local Folder │                                   │  PuppyOne Cloud  │
+│ ~/workspace  │  ←──── Pull cloud changes ──────  │  Context FS      │
+│              │                                   │                  │
+└──────────────┘            Daemon                 └──────────────────┘
+```
+
+After syncing is set up, agents, MCP clients such as Cursor and Claude Desktop, and the REST API can all access the same content.
+
+---
+
+## Setup methods
+
+### Method 1: One-step CLI setup (recommended)
+
+The simplest option is a single command flow that creates the connection and starts sync:
+
+```bash
+# Add a local folder connection
+puppyone conn add folder ~/workspace --name "My Workspace"
+
+# Start the sync daemon
+puppyone access up ~/workspace
+```
+
+After running these commands, the CLI automatically:
+1. Creates a filesystem connection in the current project
+2. Pushes the local folder contents to the cloud
+3. Starts a background daemon that continuously watches for bidirectional changes
+
+### Method 2: Dashboard + CLI
+
+This works well when you need more control or already have an existing agent configuration:
+
+1. In the Dashboard, open Project → **Connections** → **Add Connection**
+2. Choose **Local Folder (OpenClaw)**
+3. After creating it, copy the Access Key, for example `cli_xxx`
+4. Start sync in the terminal with the Access Key:
+
+```bash
+puppyone access up --key cli_xxx ~/workspace
+```
+
+---
+
+## Daemon management
+
+### Start sync
+
+```bash
+puppyone access up ~/workspace
+```
+
+This starts the background daemon and begins bidirectional sync. The first run performs a full sync.
+
+### Stop sync
+
+```bash
+puppyone access down ~/workspace
+```
+
+This stops the daemon and disconnects sync. Files are not deleted from either your local folder or the cloud.
+
+### Check running status
+
+```bash
+# List all running sync processes
+puppyone access ps
+
+# Check sync status for a specific folder
+puppyone access status ~/workspace
+```
+
+### View logs
+
+```bash
+puppyone access logs ~/workspace
+```
+
+Use the daemon logs to troubleshoot sync issues.
+
+---
+
+## Sync behavior
+
+### Supported file types
+
+| File Type | Push (Local → Cloud) | Pull (Cloud → Local) |
+|----------|:-:|:-:|
+| Text files (`.json`, `.md`, `.txt`, etc.) | Supported | Supported |
+| Binary files (`.png`, `.pdf`, etc.) | Supported | Pull only |
+
+### Sync rules
+
+- **Real-time sync**: file changes trigger sync automatically and usually finish within seconds
+- **Incremental sync**: only changed files are transferred, so unchanged content is not re-synced
+- **Bidirectional conflict handling**: uses a last-write-wins strategy
+- **Version safety net**: all overwritten content stays in version history and can be rolled back anytime
+
+### Ignore rules
+
+The following items are ignored automatically during sync:
+- `.git` directories
+- `node_modules` directories
+- `.env` files
+- Other common temporary files and build artifacts
+
+---
+
+## Conflict handling
+
+If the same file is changed locally and in the cloud at the same time, PuppyOne uses a **last-write-wins** strategy:
+
+1. The most recent change overwrites the earlier version
+2. Overwritten content is not lost and stays in version history
+3. You can recover older content through diff and rollback
+
+```bash
+# View file version history
+puppyone fs versions <node_id>
+
+# Roll back to a specific version
+puppyone fs rollback <node_id> <version>
+```
+
+---
+
+## Using it with Claude Code
+
+Local folder sync is one of the best ways to let AI coding tools work with PuppyOne data:
+
+1. **Set up sync**:
+
+```bash
+puppyone conn add folder ~/ai-workspace --name "AI Workspace"
+puppyone access up ~/ai-workspace
+```
+
+2. **Start Claude Code** so it can work directly with files inside `~/ai-workspace`
+
+3. **Collaborate bidirectionally**:
+   - Files edited locally by Claude Code sync to the cloud automatically
+   - Content changed in the Dashboard or by other agents syncs back to your local folder
+   - Every change is protected by version history
+
+This gives you the editing power of local AI tools while preserving PuppyOne version control, audit logs, and multi-party collaboration.
+
+---
+
+## FAQ
+
+### What should I do if sync is delayed?
+
+Check the daemon status and logs:
+
+```bash
+puppyone access status ~/workspace
+puppyone access logs ~/workspace
+```
+
+If the daemon is not running, just start it again:
+
+```bash
+puppyone access up ~/workspace
+```
+
+### How do I force a full re-sync?
+
+Stop sync and start it again. A full sync runs automatically:
+
+```bash
+puppyone access down ~/workspace
+puppyone access up ~/workspace
+```
+
+### Can I sync multiple folders?
+
+Yes. Each folder gets its own connection and daemon process:
+
+```bash
+puppyone conn add folder ~/project-a --name "Project A"
+puppyone access up ~/project-a
+
+puppyone conn add folder ~/project-b --name "Project B"
+puppyone access up ~/project-b
+```
+
+Use `puppyone access ps` to see all running sync processes.

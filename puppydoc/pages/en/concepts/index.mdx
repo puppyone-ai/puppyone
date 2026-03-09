@@ -1,38 +1,88 @@
-# Core Concepts
+# Core Concepts Overview
 
-Understanding PuppyOne's architecture and data model.
+Understand PuppyOne's data model and core architecture.
 
-## Overview
+---
 
-PuppyOne organizes your context into a simple hierarchy:
+## Data hierarchy
+
+PuppyOne organizes your data in a three-layer structure:
 
 ```
-Workspace (your account)
-└── Project (a context namespace)
-    └── Table (a JSON document)
-        └── Data (structured JSON)
+Organization
+└── Project
+    └── Content Nodes
+        ├── Folder
+        │   ├── JSON file
+        │   ├── Markdown file
+        │   └── Uploaded file
+        └── ...
 ```
 
-## Key Concepts
+### Organization
+
+An Organization is the top-level management unit, typically representing your team or company.
+
+- Manage members and roles
+- Contain multiple Projects
+- Centralize billing and permission management
+
+### Project
+
+A Project is the namespace for a specific set of business data.
+
+- For example: "Product Knowledge Base", "Support FAQ", or "Engineering Docs"
+- Each Project has its own independent Content Node tree
+- You can configure project-level access control and membership
+
+### Content Node
+
+A Content Node is PuppyOne's core data structure: a tree made up of folders, JSON files, Markdown files, and uploaded files.
+
+Unlike a traditional table model, the Content Node tree supports arbitrary nesting and can hold both structured data and unstructured documents, much like a cloud file system.
+
+---
+
+## Core concepts
 
 | Concept | Description |
-|---------|-------------|
-| **Project** | Top-level container. One project = one context namespace. |
-| **Table** | A structured JSON document within a project. |
-| **MCP** | Protocol for serving context to AI agents. |
-| **Tools** | Operations agents can perform (query, create, update, delete). |
+|------|------|
+| **Content Node** | The basic unit of data. Supports four types: folder, JSON, Markdown, and file |
+| **Connection** | The unified abstraction for every external integration: data sync, agents, MCP endpoints, sandboxes, and local folders |
+| **MCP Protocol** | The standard protocol AI models use to access your data directly from clients like Cursor and Claude Desktop |
 
-## Learn More
+---
 
-- [Project & Table](/en/concepts/project-table) — Data organization
-- [MCP Protocol](/en/concepts/mcp) — How agents access your data
-- [Tools & Permissions](/en/concepts/tools) — Access control model
+## Connections: the single entry point for integrations
 
+PuppyOne uses the concept of a connection to manage every external integration in one place:
 
+```
+Connection
+├── Sync Source   - Pull data from Notion, GitHub, Gmail, and more
+├── Agent         - AI agent with model and tool bindings
+├── MCP Endpoint  - Expose data through MCP
+├── Sandbox       - Isolated code execution environment
+└── Filesystem    - Bidirectional local folder sync
+```
 
+Whether you are connecting a Notion source or creating an MCP endpoint for Cursor, you use the same interface:
 
+```bash
+puppyone conn add notion <url>      # Add a Notion data source
+puppyone conn add mcp "My MCP"      # Create an MCP endpoint
+puppyone conn add folder ~/docs     # Mount a local folder
+puppyone conn ls                    # List all connections
+```
 
+---
 
+## Learn more
 
+import { Cards, Card } from 'nextra/components'
 
-
+<Cards>
+  <Card title="Content Node" href="/en/concepts/content-nodes" />
+  <Card title="Unified Connections" href="/en/concepts/connections" />
+  <Card title="MCP Protocol" href="/en/concepts/mcp" />
+</Cards>

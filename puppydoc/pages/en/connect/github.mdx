@@ -1,62 +1,121 @@
 # GitHub
 
-Sync GitHub repositories, Issues, and Pull Requests into your Context File System.
-
-| | |
-|---|---|
-| **Direction** | Pull (GitHub → PuppyOne) |
-| **Trigger** | Incremental sync |
-| **Auth** | GitHub OAuth |
-| **Output** | JSON |
+Import repositories, Issues, and Pull Requests from GitHub into PuppyOne.
 
 ---
 
-## What Gets Synced
+## Supported content
 
-| GitHub Content | Output |
-|----------------|--------|
-| Issues | JSON (title, body, labels, assignees, status) |
-| Pull Requests | JSON (title, diff summary, reviews, status) |
-| Repository metadata | JSON (description, topics, stars) |
-| README / Markdown files | Markdown |
-
----
-
-## Setup
-
-### Step 1: Authorize GitHub
-
-1. Open your Project → **Add Connector** → **GitHub**
-2. Click **Connect with GitHub** and complete OAuth
-3. Select which repositories PuppyOne can access
-
-### Step 2: Configure Sync Scope
-
-| Option | Description |
-|--------|-------------|
-| **Repository** | Which repo to sync |
-| **Content type** | Issues / PRs / Files (select one or more) |
-| **State filter** | `open`, `closed`, or `all` |
-
-### Step 3: Start Sync
-
-Click **Start Sync**. Incremental updates pick up changes since the last sync.
+| Type | Supported | Notes |
+|------|------|------|
+| Repository files | ✅ | Code, README, config files, and more |
+| Issues | ✅ | Includes labels and comments |
+| Pull Requests | ✅ | Includes status and reviews |
+| Wiki | ⚠️ | Partial support |
+| Actions | ❌ | Not supported yet |
 
 ---
 
-## Data Structure Example
+## Setup steps
+
+### Step 1: Start the import
+
+1. Open your Project
+2. Click **Import** → **GitHub**
+
+### Step 2: Authorize GitHub
+
+The first time you use it, you need to complete OAuth authorization:
+
+1. Click **Connect GitHub**
+2. On the GitHub page, choose the authorization scope
+3. Select the repositories you want to authorize, either all or only specific ones
+4. Click **Authorize**
+
+> 💡 **Tip**: It is best to authorize only the repositories you actually need, following the principle of least privilege.
+
+### Step 3: Choose how to import
+
+You can specify what to import in two ways:
+
+**Option 1: Paste a URL**
+
+Paste a GitHub URL directly and PuppyOne will recognize it automatically:
+
+```
+# Entire repository
+https://github.com/owner/repo
+
+# Specific directory
+https://github.com/owner/repo/tree/main/docs
+
+# Specific file
+https://github.com/owner/repo/blob/main/README.md
+
+# Issue list
+https://github.com/owner/repo/issues
+
+# Single issue
+https://github.com/owner/repo/issues/123
+```
+
+**Option 2: Browse and select**
+
+1. Navigate to the target location in the file browser
+2. Check the files or folders you want to import
+3. Click **Import**
+
+### Step 4: Configure import options
+
+| Option | Notes | Default |
+|------|------|--------|
+| Include subdirectories | Whether to recursively import nested folders | ✅ |
+| File type filter | Import only specific extensions such as `.md` or `.py` | All |
+| Branch | Select which branch to import from | Default branch |
+
+---
+
+## Data structure examples
+
+### Repository files → JSON
 
 ```json
 {
+  "repo": "owner/repo",
+  "branch": "main",
+  "files": [
+    {
+      "path": "README.md",
+      "content": "# My Project\n\nThis is...",
+      "language": "markdown"
+    },
+    {
+      "path": "src/main.py",
+      "content": "def hello():\n    print('Hello')",
+      "language": "python"
+    }
+  ]
+}
+```
+
+### Issue → JSON
+
+```json
+{
+  "repo": "owner/repo",
   "issues": [
     {
-      "number": 42,
-      "title": "Add dark mode support",
+      "number": 123,
+      "title": "Bug: Login fails",
       "state": "open",
-      "labels": ["enhancement", "frontend"],
-      "assignee": "alice",
-      "created_at": "2026-02-15T09:00:00Z",
-      "body": "We should add dark mode..."
+      "labels": ["bug", "high-priority"],
+      "body": "## Problem description\n\nUsers reported...",
+      "comments": [
+        {
+          "author": "developer",
+          "body": "Confirmed, working on a fix"
+        }
+      ]
     }
   ]
 }
@@ -64,7 +123,63 @@ Click **Start Sync**. Incremental updates pick up changes since the last sync.
 
 ---
 
-## Notes
+## Use cases
 
-- Private repositories require the appropriate OAuth scopes
-- Large repositories (1000+ issues) may take several minutes on first sync
+### Use case 1: Code knowledge base
+
+Import an entire repository so agents can:
+
+- Answer code-related questions
+- Generate code documentation
+- Assist with code review
+
+```json
+{
+  "path": "/src",
+  "content": "..."
+}
+```
+
+### Use case 2: Project management
+
+Import Issues and PRs so agents can:
+
+- Check project progress
+- Summarize unresolved issues
+- Generate weekly reports
+
+---
+
+## Sync settings
+
+### Manual sync
+
+Click the **Sync** button to pull the latest code and Issues.
+
+### Webhook sync (coming soon)
+
+GitHub Webhook support will be added in the future so content can sync automatically after new commits.
+
+---
+
+## FAQ
+
+### Can private repositories be imported?
+
+Yes, as long as you selected that repository during OAuth authorization.
+
+### What if a large repository fails to import?
+
+It is better to import it in batches. Start with core directories such as `src/` or `docs/` instead of the whole repository.
+
+### Are binary files imported?
+
+No. PuppyOne imports only text files, such as code, Markdown, and config files.
+
+---
+
+## Next steps
+
+- [Manage imported data](/en/editor)
+- [Auth for Agents](/en/auth-for-agents)
+- [Distribute to Agents](/en/distribute)

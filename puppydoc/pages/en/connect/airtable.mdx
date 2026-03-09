@@ -1,61 +1,111 @@
 # Airtable
 
-Sync Airtable bases and tables into structured JSON.
-
-| | |
-|---|---|
-| **Direction** | Pull (Airtable → PuppyOne) |
-| **Trigger** | Full sync |
-| **Auth** | Airtable OAuth |
-| **Output** | JSON |
+Import table data from Airtable into PuppyOne.
 
 ---
 
-## Data Structure
+## Supported content
 
-Each Airtable record becomes a JSON object:
+| Type | Supported | Notes |
+|------|------|------|
+| Tables | ✅ | Full fields and records |
+| Views | ✅ | You can select a specific view |
+| Attachments | ⚠️ | Kept as links |
+| Formula fields | ✅ | Imports computed results |
+
+---
+
+## Setup steps
+
+### Step 1: Start the import
+
+1. Open your Project
+2. Click **Import** → **Airtable**
+
+### Step 2: Authorize Airtable
+
+1. Click **Connect Airtable**
+2. Sign in and authorize on the Airtable page
+3. Select the base you want to share
+
+### Step 3: Choose the tables to import
+
+1. Select a base
+2. Select one or more tables to import
+3. Optionally choose a specific view
+4. Click **Import**
+
+---
+
+## Data structure example
+
+Airtable tables are converted into JSON arrays:
 
 ```json
-[
-  {
-    "id": "rec123abc",
-    "Name": "Widget Pro",
-    "Status": "Active",
-    "Assignee": ["Alice Chen"],
-    "Tags": ["hardware", "featured"],
-    "Created": "2026-01-15T09:00:00Z"
-  }
-]
+{
+  "table_name": "Product Catalog",
+  "records": [
+    {
+      "Name": "Widget Pro",
+      "Price": 99.99,
+      "Category": "Electronics",
+      "Stock": 150,
+      "Launch Date": "2024-01-15"
+    },
+    {
+      "Name": "Gadget X",
+      "Price": 149.99,
+      "Category": "Accessories",
+      "Stock": 80,
+      "Launch Date": "2024-02-01"
+    }
+  ]
+}
 ```
 
 ---
 
-## Setup
+## Field type mapping
 
-### Step 1: Authorize Airtable
-
-1. Open your Project → **Add Connector** → **Airtable**
-2. Click **Connect with Airtable** and complete OAuth
-3. Select which bases PuppyOne can access
-
-### Step 2: Select Table
-
-Choose the base and specific table to sync.
-
-| Option | Description |
-|--------|-------------|
-| **Base** | Which Airtable base |
-| **Table** | Which table within the base |
-| **View** | Optionally use a filtered view |
-
-### Step 3: Start Sync
-
-Click **Start Sync**. Airtable syncs are full pulls — all records are refreshed each time.
+| Airtable Type | PuppyOne JSON Type |
+|---------------|-------------------|
+| Single line text | string |
+| Long text | string |
+| Number | number |
+| Currency | number |
+| Checkbox | boolean |
+| Single select | string |
+| Multiple select | array |
+| Date | string (ISO 8601) |
+| Attachment | array (URLs) |
+| Link to another record | array (record IDs) |
 
 ---
 
-## Notes
+## Use cases
 
-- Linked record fields are stored as arrays of record IDs, not expanded
-- Attachment fields store file metadata only, not the files themselves
-- Airtable API rate limits may slow large table syncs
+### Use case: Product catalog
+
+Import your Airtable product table so a support agent can answer questions like:
+
+- "Which products cost less than 100?"
+- "How much inventory do we have in the electronics category?"
+
+---
+
+## FAQ
+
+### Can I import only some fields?
+
+All fields are imported for now. You can edit the data in PuppyOne afterward and remove fields you do not need.
+
+### How are relation fields handled?
+
+Relation fields are imported as arrays of Record IDs. If you need the full linked data, import the related table too.
+
+---
+
+## Next steps
+
+- [Manage imported data](/en/editor)
+- [Auth for Agents](/en/auth-for-agents)

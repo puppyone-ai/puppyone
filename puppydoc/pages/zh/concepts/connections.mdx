@@ -1,0 +1,131 @@
+# 统一连接
+
+连接（Connection）是 PuppyOne 中管理所有外部集成的统一抽象。
+
+---
+
+## 什么是连接
+
+在 PuppyOne 中，无论你想从 Notion 同步数据、创建一个 AI Agent、暴露 MCP 端点给 Cursor，还是挂载一个本地文件夹——它们都是「连接」。
+
+所有连接存储在同一张 `connections` 表中，通过 `provider`（提供方）和 `direction`（方向）区分类型。这意味着你可以用一套统一的接口来管理所有外部集成，不需要记忆不同的操作方式。
+
+---
+
+## 连接类型
+
+| 类型 | 说明 | 方向 | 典型场景 |
+|------|------|------|----------|
+| **Sync Source** | 外部数据源同步 | Pull（拉取） | 从 Notion / GitHub / Gmail 等拉取数据到 Content Node |
+| **Agent** | AI Agent | — | 绑定模型、系统提示词、工具，进行对话和自动化任务 |
+| **MCP Endpoint** | MCP 协议端点 | 双向 | 为 Cursor / Claude Desktop 等客户端暴露数据访问接口 |
+| **Sandbox** | 代码沙盒 | — | 在隔离的 Docker 或 E2B 容器中执行代码 |
+| **Filesystem** | 本地文件夹 | 双向 | 通过 OpenClaw 协议实现本地文件夹与云端的实时双向同步 |
+
+### Sync Source（数据源同步）
+
+将 Notion 页面、GitHub 仓库、Gmail 邮件等外部数据自动同步到你的 Project 中，转化为结构化的 Content Node。
+
+支持的数据源包括：Notion、GitHub、Gmail、Google Drive、Google Docs、Google Sheets、Google Calendar、Linear、Airtable、文件上传、网页爬取等 15+ 平台。
+
+### Agent
+
+创建一个 AI Agent，配置模型（GPT-4、Claude 等）、系统提示词和工具绑定。Agent 可以通过 SSE 流式对话，也可以定时执行任务。
+
+### MCP Endpoint
+
+创建一个 MCP 端点，生成独立的 URL 和 API Key。任何支持 MCP 协议的客户端（Cursor、Claude Desktop、Claude Code 等）都可以通过这个端点访问你的数据。
+
+### Sandbox
+
+创建一个隔离的代码执行环境。Agent 可以在其中安全地运行代码，支持 Docker 容器和 E2B 云沙盒两种模式。
+
+### Filesystem（本地文件夹）
+
+通过 PuppyOne CLI 将本地文件夹挂载到云端，实现实时双向同步。Claude Code 等本地 Agent 可以直接读写本地文件来操作你的 Context。
+
+---
+
+## 连接属性
+
+每个连接都有以下核心属性：
+
+| 属性 | 说明 |
+|------|------|
+| `id` | 连接唯一 ID |
+| `name` | 连接名称 |
+| `provider` | 提供方类型（如 `notion`、`github`、`mcp`、`agent` 等） |
+| `direction` | 同步方向（`pull` / `push` / `bidirectional`） |
+| `status` | 连接状态 |
+| `access_key` | 访问密钥（MCP 端点、Agent 等场景使用） |
+| `config` | 连接配置（JSON 格式，内容因类型而异） |
+
+---
+
+## 连接生命周期
+
+每个连接有三种状态：
+
+| 状态 | 说明 |
+|------|------|
+| `active` | 正常运行中 |
+| `paused` | 已暂停，可随时恢复 |
+| `error` | 出错，需要检查配置或重新授权 |
+
+---
+
+## 通过 CLI 管理连接
+
+PuppyOne CLI 提供统一的 `conn` 命令来管理所有类型的连接：
+
+```bash
+# 添加连接
+puppyone conn add notion <url>         # 添加 Notion 数据源
+puppyone conn add github <repo>        # 添加 GitHub 仓库
+puppyone conn add mcp "My Endpoint"    # 创建 MCP 端点
+puppyone conn add agent "My Agent"     # 创建 Agent
+puppyone conn add sandbox "My Box"     # 创建沙盒
+puppyone conn add folder ~/my-docs     # 挂载本地文件夹
+
+# 查看连接
+puppyone conn ls                       # 列出所有连接
+puppyone conn info <id>                # 查看连接详情
+
+# 管理连接
+puppyone conn pause <id>               # 暂停连接
+puppyone conn resume <id>              # 恢复连接
+puppyone conn rm <id>                  # 删除连接
+```
+
+### 示例：创建 MCP 端点并查看详情
+
+```bash
+$ puppyone conn add mcp "产品知识库 MCP"
+✓ MCP endpoint created
+  ID:         conn_abc123
+  Name:       产品知识库 MCP
+  API Key:    sk_live_xxxxxxxxxxxx
+  Server URL: https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxxxxxxxxxxx
+
+$ puppyone conn info conn_abc123
+  Name:       产品知识库 MCP
+  Provider:   mcp
+  Status:     active
+  API Key:    sk_live_xxxxxxxxxxxx
+  Created:    2026-03-09T10:00:00Z
+```
+
+---
+
+## 通过 Dashboard 管理连接
+
+进入项目页面，点击侧边栏的「Connections」即可查看和管理所有连接。点击「New」按钮选择连接类型，根据引导完成创建。
+
+---
+
+## 最佳实践
+
+1. **一个 Agent 对应一个连接** — 每个 Agent 有独立的访问密钥和权限配置，便于审计和管理
+2. **按需创建 MCP 端点** — 不同的客户端或场景使用不同的 MCP 端点，各自配置独立的访问权限
+3. **善用暂停功能** — 临时不用的连接可以暂停，而不是删除，方便后续恢复
+4. **定期检查错误状态** — `error` 状态的连接通常是 OAuth 过期或配置变更导致，及时修复

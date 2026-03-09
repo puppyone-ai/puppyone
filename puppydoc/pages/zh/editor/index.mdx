@@ -1,6 +1,6 @@
 # 管理数据
 
-在 PuppyOne 中编辑、组织你的结构化数据。
+在 PuppyOne 中创建、编辑、组织你的数据。
 
 ---
 
@@ -8,26 +8,38 @@
 
 导入的原始数据可能需要：
 
-- **清理**：删除无关字段、修正错误
-- **重组**：调整 JSON 结构，便于 Agent 查询
-- **补充**：添加元数据、标签
+- **清理** — 删除无关字段、修正错误
+- **重组** — 调整 JSON 结构，便于 Agent 查询
+- **补充** — 添加元数据、标签
 
 ---
 
 ## PuppyOne 数据模型
 
+PuppyOne 的数据以 **Content Node** 树形式组织，类似文件系统：
+
 ```
-Workspace（工作区）
-└── Project（项目）
-    └── Table（表）
-        └── JSON Data（结构化数据）
+Project（项目）
+├── 📁 products/              ← 文件夹节点
+│   ├── 📄 catalog.json       ← JSON 节点
+│   └── 📄 intro.md           ← Markdown 节点
+├── 📁 docs/
+│   ├── 📄 readme.md
+│   └── 📁 api/
+│       └── 📄 endpoints.json
+└── 📎 logo.png               ← 文件节点
 ```
 
-| 概念 | 说明 |
-|------|------|
-| **Project** | 顶层容器，一个业务场景对应一个 Project |
-| **Table** | Project 内的数据表，存储一份结构化 JSON |
-| **JSON Data** | 实际数据，可以是对象、数组、嵌套结构 |
+| 节点类型 | 说明 |
+|---------|------|
+| **Folder** | 文件夹，用于组织层级结构 |
+| **JSON** | 结构化数据，支持对象、数组、嵌套 |
+| **Markdown** | 富文本内容，适合文档、知识库 |
+| **File** | 二进制文件（图片、PDF 等） |
+
+每个 Content Node 都有独立的路径、权限控制、版本历史。
+
+了解更多请参考 [核心概念 — Content Node](/zh/concepts/content-nodes)。
 
 ---
 
@@ -37,22 +49,23 @@ Workspace（工作区）
 
 可视化编辑 JSON 数据：
 
-- 📂 树形导航嵌套结构
-- ✏️ 点击即可编辑任意值
-- ➕ 添加新字段或数组项
-- 🗑️ 删除不需要的节点
+- 树形导航嵌套结构
+- 点击即可编辑任意值
+- 添加新字段或数组项
+- 删除不需要的节点
 
 [详细指南 →](/zh/editor/json-tree)
 
-### 版本历史
+### 版本控制
 
 每次修改都会自动保存版本：
 
 - 查看修改历史
-- 对比不同版本
-- 一键回滚
+- 对比不同版本（Diff）
+- 一键回滚到任意版本
+- 文件夹级快照
 
-[了解更多 →](/zh/editor/version)
+[了解版本控制 →](/zh/version-control)
 
 ---
 
@@ -60,7 +73,7 @@ Workspace（工作区）
 
 为了让 Agent 更高效地使用数据，建议：
 
-### ✅ 推荐的结构
+### 推荐的结构
 
 ```json
 {
@@ -78,7 +91,7 @@ Workspace（工作区）
 
 **特点**：扁平化、字段名清晰、类型一致
 
-### ❌ 不推荐的结构
+### 不推荐的结构
 
 ```json
 {
@@ -107,9 +120,6 @@ import { Cards, Card } from 'nextra/components'
 <Cards>
   <Card title="JSON 编辑器" href="/zh/editor/json-tree" />
   <Card title="结构化最佳实践" href="/zh/editor/structure" />
-  <Card title="设置访问权限" href="/zh/access" />
+  <Card title="版本控制" href="/zh/version-control" />
+  <Card title="Auth for Agents" href="/zh/auth-for-agents" />
 </Cards>
-
-
-
-

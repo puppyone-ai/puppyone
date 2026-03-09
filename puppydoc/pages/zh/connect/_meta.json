@@ -9,6 +9,9 @@
   "google-calendar": "Google Calendar",
   "linear": "Linear",
   "airtable": "Airtable",
+  "posthog": "PostHog",
+  "database": "数据库连接",
   "files": "文件上传",
-  "urls": "网页爬取"
+  "urls": "网页爬取",
+  "local-folder": "本地文件夹同步"
 }

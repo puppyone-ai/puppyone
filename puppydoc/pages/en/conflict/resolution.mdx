@@ -1,0 +1,200 @@
+# Conflict Resolution Strategies
+
+Understand the three strategies PuppyOne uses to handle concurrent editing conflicts, and when to use each one.
+
+---
+
+## Three-way merge
+
+Three-way merge is the smartest way to handle concurrent edits. The system compares three versions to decide how to merge:
+
+```
+        Base version
+       ┌──────┴──────┐
+       │             │
+   Changes from A  Changes from B
+    (Agent A)       (Agent B)
+       │             │
+       └──────┬──────┘
+              │
+        Merged result
+```
+
+### Workflow
+
+1. Agent A and Agent B both start editing based on version v3
+2. Agent A commits first, creating v4
+3. When Agent B commits, the system detects that the base version changed
+4. The system compares Base (v3), Agent A's change (v4), and Agent B's change
+5. Non-conflicting parts are merged automatically, and conflicting parts are marked
+
+### When auto-merge succeeds
+
+If the two actors changed different parts of the file, the system can merge automatically:
+
+```json
+// Base version (v3)
+{
+  "title": "API Design Document",
+  "author": "Alice",
+  "status": "draft"
+}
+
+// Agent A changed author
+{
+  "title": "API Design Document",
+  "author": "Alice & Bob",
+  "status": "draft"
+}
+
+// Agent B changed status
+{
+  "title": "API Design Document",
+  "author": "Alice",
+  "status": "review"
+}
+
+// Auto-merged result — both changes are kept
+{
+  "title": "API Design Document",
+  "author": "Alice & Bob",
+  "status": "review"
+}
+```
+
+### When merge conflicts happen
+
+If both actors change the same part of the file, the system cannot choose automatically:
+
+```json
+// Base version
+{ "price": 99 }
+
+// Agent A changes price to 89
+{ "price": 89 }
+
+// Agent B changes price to 79
+{ "price": 79 }
+
+// Conflict! The system cannot merge automatically and needs human input
+```
+
+At that point, the commit returns conflict information containing both versions so you can decide what to keep.
+
+---
+
+## Last-write-wins
+
+The simplest and most direct strategy: the later write overwrites the earlier one without merging.
+
+```
+Timeline:
+  t1: Agent A writes content "Version A"
+  t2: Agent B writes content "Version B"  (t2 > t1)
+
+Result: final content becomes "Version B"
+        "Version A" is automatically preserved in version history
+```
+
+### Common use cases
+
+- **OpenClaw file sync**: this is the default for syncing local folders with the cloud. A local file update is pushed directly to the cloud and overwrites the current version
+- **External data source sync**: when pulling from Notion, GitHub, and similar sources, the newest external content overwrites old data directly
+- **Workloads that need real-time behavior and have low conflict probability**
+
+### Safety net
+
+Even though the strategy is simple, data is not lost:
+
+- Before each overwrite, the current version is automatically saved in version history
+- You can inspect history and roll back anytime
+
+```bash
+# View the version history of a file
+puppyone fs versions /data/config.json
+
+# Roll back to a specific version
+puppyone fs rollback /data/config.json 3
+```
+
+---
+
+## Manual conflict resolution
+
+When three-way merge cannot resolve a conflict automatically, the system returns conflict details and you decide how to proceed.
+
+### Example conflict response
+
+```json
+{
+  "status": "conflict",
+  "base_version": 3,
+  "conflicts": [
+    {
+      "path": "/price",
+      "base_value": 99,
+      "current_value": 89,
+      "incoming_value": 79
+    }
+  ]
+}
+```
+
+### Resolution options
+
+You can choose to:
+
+1. **Keep the current version** - ignore the incoming change
+2. **Use the incoming version** - overwrite the current content
+3. **Merge manually** - combine both changes yourself and submit a new version
+
+---
+
+## Best practices
+
+### Protect critical data with Checkout/Commit
+
+For business-critical data that cannot tolerate mistakes, such as pricing config or API specs, use Checkout/Commit so edits happen under a lock:
+
+```bash
+# Checkout -> edit -> commit, fully exclusive
+curl -X POST ".../api/v1/collab/checkout" \
+  -d '{"node_ids": ["pricing_node"], "project_id": "proj_123"}'
+```
+
+### Reduce conflicts with path permissions
+
+Use FLS (File Level Security) path permissions to assign different working areas to different agents so they do not write to the same files in the first place:
+
+```yaml
+# Agent A can only write to /specs
+Agent A:
+  paths: ["/specs"]
+
+# Agent B can only write to /docs
+Agent B:
+  paths: ["/docs"]
+```
+
+Each agent stays in its own area, so they do not conflict.
+
+### Rely on version history as a safety net
+
+No matter which strategy you use, version history preserves every change. Even if something is overwritten unexpectedly, you can always roll back.
+
+### Watch the audit log
+
+Review the audit log regularly to understand which agents are modifying which files and to catch abnormal concurrent-editing patterns early:
+
+```bash
+puppyone fs audit /critical-data
+```
+
+---
+
+## Next steps
+
+- [Checkout / Commit Workflow](/en/conflict/checkout) - Detailed flow for lock-based editing
+- [Audit Log](/en/audit) - Trace all operations
+- [Version Control](/en/version-control) - View and restore historical versions
+- [Auth for Agents](/en/auth-for-agents) - Use path permissions to reduce conflicts

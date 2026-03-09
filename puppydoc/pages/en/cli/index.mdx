@@ -1,0 +1,169 @@
+# CLI Installation & Configuration
+
+PuppyOne CLI (`puppyone`) is a command-line tool that gives you direct access to the full PuppyOne platform from your terminal: file management, data-source sync, agent chat, MCP endpoints, local folder sync, and more.
+
+---
+
+## Install
+
+Install it globally with npm:
+
+```bash
+npm install -g puppyone
+```
+
+After installation, verify the version:
+
+```bash
+puppyone -V
+```
+
+---
+
+## First-time setup
+
+After installing, complete three setup steps: log in, choose an organization, and choose a project.
+
+```bash
+# 1. Log in
+puppyone auth login -e user@example.com -p password
+
+# 2. Select an organization
+puppyone org use "My Organization"
+
+# 3. Select a project
+puppyone project use "My Project"
+```
+
+Once finished, the CLI stores the current state in its config file, and later commands automatically use the selected organization and project.
+
+You can also run `puppyone init` to do interactive project setup in one step.
+
+---
+
+## Global options
+
+All commands support these global options:
+
+| Option | Description |
+|------|------|
+| `-V, --version` | Show the version number |
+| `-u, --api-url <url>` | Specify the API URL and override the config file |
+| `-k, --api-key <key>` | Specify an API key or token and override the config file |
+| `--json` | Output JSON, useful for scripts and AI agents |
+| `-v, --verbose` | Show verbose output |
+| `-p, --project <id>` | Specify a project ID and override the active project |
+| `-o, --org <id>` | Specify an organization ID and override the active organization |
+
+Example: temporarily run a command against a different project without changing global config:
+
+```bash
+puppyone fs ls -p proj_abc123
+```
+
+---
+
+## JSON output
+
+Every command supports `--json`, which returns machine-readable JSON for integration with scripts, tooling, and AI agents:
+
+```bash
+puppyone fs ls --json
+puppyone conn ls --json
+puppyone access ps --json
+```
+
+---
+
+## Config file
+
+CLI configuration is stored in `~/.puppyone/config.json`, including the API URL, login credentials, and the active organization and project.
+
+### Config commands
+
+```bash
+# Show current config
+puppyone config show
+
+# Set a config value
+puppyone config set api_url https://api.puppyone.ai
+
+# Show config file path
+puppyone config path
+
+# Reset config
+puppyone config reset
+```
+
+---
+
+## Command groups
+
+PuppyOne CLI is organized into these command groups:
+
+| Command | Alias | Description |
+|------|------|------|
+| `puppyone auth` | | Log in, log out, and inspect the current user |
+| `puppyone org` | | Organization management |
+| `puppyone project` | `p` | Project management |
+| `puppyone fs` | | Cloud file system, POSIX-style |
+| `puppyone conn` | `connection` | Unified connection management for data sources, agents, MCP, sandboxes, and folders |
+| `puppyone access` | `openclaw`, `oc` | Two-way local folder sync |
+| `puppyone sync` | | Data source sync |
+| `puppyone ingest` | | File and URL ingestion |
+| `puppyone table` | `t` | Structured data table operations |
+| `puppyone tool` | | Tool management |
+| `puppyone agent` | | Agent management and chat |
+| `puppyone mcp` | | MCP endpoint management |
+| `puppyone sandbox` | `sbx` | Sandbox management and execution |
+| `puppyone publish` | | Public publishing |
+| `puppyone db` | | Database connector |
+| `puppyone config` | | CLI configuration management |
+| `puppyone init` | | Project initialization |
+| `puppyone ps` | | Show running daemons |
+| `puppyone status` | | Project dashboard |
+
+---
+
+## Common workflows
+
+### Browse project data
+
+```bash
+puppyone fs ls              # List the root directory
+puppyone fs tree            # Show a tree view
+puppyone fs cat /docs/readme # Read file content
+```
+
+### Add a data source and sync it
+
+```bash
+puppyone conn add notion https://notion.so/page-id --folder /notion-data
+puppyone conn ls
+```
+
+### Create an agent and chat
+
+```bash
+puppyone conn add agent "My Bot" --model gpt-4o
+puppyone agent chat
+```
+
+### Mount a local folder
+
+```bash
+puppyone access up ~/workspace --key cli_xxx
+puppyone access ps
+```
+
+---
+
+## Get help
+
+Append `--help` to any command to see usage details:
+
+```bash
+puppyone --help
+puppyone fs --help
+puppyone fs ls --help
+```
