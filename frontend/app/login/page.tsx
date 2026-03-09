@@ -98,7 +98,7 @@ export default function LoginPage() {
           {/* Logo & Title */}
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <img
-              src='/puppybase.svg'
+              src='/puppyone-logo.svg'
               alt='PuppyBase'
               width={64}
               height={64}

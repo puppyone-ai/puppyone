@@ -26,7 +26,7 @@ export function ProjectGrid({ projects, onSelect }: ProjectGridProps) {
   const renderContent = (project: ProjectInfo) => (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <img src='/puppybase.svg' alt='' width={18} height={18} />
+        <img src='/puppyone-logo.svg' alt='' width={18} height={18} />
         <div style={{ fontWeight: 600, fontSize: 16 }}>{project.name}</div>
       </div>
       {project.description && (
