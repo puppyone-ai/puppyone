@@ -1,7 +1,12 @@
 import { LanguageSwitcher } from './components/LanguageSwitcher'
 
 export default {
-  logo: <span style={{ fontWeight: 600 }}>puppyone</span>,
+  logo: (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <img src="/doc/puppyone-logo.svg" alt="PuppyOne" width={24} height={24} style={{ borderRadius: 6 }} />
+      <span style={{ fontWeight: 600 }}>puppyone</span>
+    </span>
+  ),
   
   project: {
     link: 'https://github.com/puppyone-ai/puppyone'
@@ -15,14 +20,7 @@ export default {
   },
 
   footer: {
-    text: (
-      <span>
-        {new Date().getFullYear()} ©{' '}
-        <a href="https://puppyone.ai" target="_blank" rel="noopener noreferrer">
-          PuppyOne
-        </a>
-      </span>
-    )
+    component: () => null,
   },
 
   useNextSeoProps() {
