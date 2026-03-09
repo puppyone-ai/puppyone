@@ -5,14 +5,14 @@ import { GithubIcon, NotionIcon, LinearIcon } from '@/lib/nodeTypeConfig';
 interface EmptyWorkspaceStateProps {
   project: ProjectInfo | null;
   onConnectClick: () => void;
-  onOpenGuide: () => void;
   onCreateClick: (e: React.MouseEvent) => void;
 }
+
+const DOCS_URL = 'https://github.com/puppyone-ai/puppyone#readme';
 
 export function EmptyWorkspaceState({
   project,
   onConnectClick,
-  onOpenGuide,
   onCreateClick,
 }: EmptyWorkspaceStateProps) {
   return (
@@ -76,9 +76,11 @@ export function EmptyWorkspaceState({
           <span className="text-[13px] font-medium text-[#d4d4d8] group-hover:text-white transition-colors truncate">Create Empty File</span>
         </button>
 
-        <button 
-          onClick={onOpenGuide}
-          className="group flex items-center gap-3 w-full px-3 py-2 rounded-md bg-[#0a0a0a] border border-transparent hover:border-[#27272a] hover:bg-[#141416] transition-all text-left"
+        <a
+          href={DOCS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group flex items-center gap-3 w-full px-3 py-2 rounded-md bg-[#0a0a0a] border border-transparent hover:border-[#27272a] hover:bg-[#141416] transition-all text-left no-underline"
         >
           <div className="text-[#a1a1aa] group-hover:text-[#e4e4e7] transition-colors shrink-0">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -86,8 +88,8 @@ export function EmptyWorkspaceState({
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
             </svg>
           </div>
-          <span className="text-[13px] font-medium text-[#d4d4d8] group-hover:text-white transition-colors truncate">Read Quick Start</span>
-        </button>
+          <span className="text-[13px] font-medium text-[#d4d4d8] group-hover:text-white transition-colors truncate">Explore Open Source Docs</span>
+        </a>
       </div>
     </div>
   );

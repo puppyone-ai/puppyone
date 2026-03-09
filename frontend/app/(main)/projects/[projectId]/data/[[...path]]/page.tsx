@@ -986,16 +986,6 @@ export default function DataPage({ params }: DataPageProps) {
               <EmptyWorkspaceState
                 project={activeProject}
                 onConnectClick={openSyncCreatePanel}
-                onOpenGuide={() => {
-                  const welcomeNode = contentNodes.find(n => n.name === '01_Welcome.md' || n.name === '01_Welcome');
-                  if (welcomeNode) {
-                    setPendingActiveId(welcomeNode.id);
-                    navigateTo([welcomeNode.id]);
-                  } else {
-                    // Fallback if not found
-                    alert('Welcome guide not found in this folder.');
-                  }
-                }}
                 onCreateClick={handleCreateClick}
               />
             )}

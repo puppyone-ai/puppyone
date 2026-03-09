@@ -36,7 +36,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("APP_ENV", "ENVIRONMENT"),
     )
     DEBUG: bool | None = None
-    VERSION: str = "1.0.0"
+    VERSION: str = "0.0.1"
 
     # 本地存储配置，现在基本都用Supabase
     DATA_PATH: Path = Path("./data")

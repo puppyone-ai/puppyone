@@ -1,10 +1,10 @@
 {
   "name": "puppyone",
-  "version": "1.0.0",
-  "description": "PuppyOne CLI — cloud file system for LLM agents",
+  "version": "0.0.1",
+  "description": "PuppyOne CLI — cloud file system for AI Agents",
   "type": "module",
   "bin": {
-    "puppyone": "./bin/puppyone.js"
+    "puppyone": "bin/puppyone.js"
   },
   "files": [
     "bin/",
@@ -16,11 +16,26 @@
   "keywords": [
     "puppyone",
     "contextbase",
+    "ai-agent",
+    "mcp",
+    "llm",
+    "file-system",
     "sync",
-    "agent",
-    "mcp"
+    "connector",
+    "context",
+    "cli"
   ],
+  "author": "PuppyOne AI <team@puppyone.ai>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/puppyone-ai/puppyone.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/puppyone-ai/puppyone#readme",
+  "bugs": {
+    "url": "https://github.com/puppyone-ai/puppyone/issues"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
     "chokidar": "^5.0.0",

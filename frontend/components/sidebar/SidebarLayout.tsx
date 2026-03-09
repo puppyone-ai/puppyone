@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import UserMenuPanel from '../UserMenuPanel';
 import { type NodeInfo } from '../../lib/contentNodesApi';
 import { ProjectSwitcher, type ProjectOption } from './ProjectSwitcher';
+import { getEnvironmentLabel } from '../../lib/env';
 
 export type NavItem = {
   id: string;
@@ -59,12 +60,14 @@ export function SidebarLayout({
   onBack,
   userInitial,
   userAvatarUrl,
-  environmentLabel = 'Local Dev',
+  environmentLabel,
   isCollapsed = false,
   onCollapsedChange,
   sidebarWidth = DEFAULT_SIDEBAR_WIDTH,
   onSidebarWidthChange,
 }: SidebarLayoutProps) {
+  const resolvedEnvLabel = environmentLabel ?? getEnvironmentLabel();
+
   // 内部 collapsed 状态（非受控模式时使用）
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isControlled = onCollapsedChange !== undefined;
@@ -313,8 +316,8 @@ export function SidebarLayout({
         )}
       >
         {!effectiveCollapsed && (
-          <span className='flex h-7 items-center rounded-[5px] bg-[#2a2a2a] px-2.5 text-sm text-[#808080]'>
-            {environmentLabel}
+          <span className='flex h-7 items-center rounded-[5px] bg-[#2a2a2a] px-2.5 text-xs text-[#808080]'>
+            {resolvedEnvLabel}
           </span>
         )}
 
