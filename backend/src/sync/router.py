@@ -98,6 +98,23 @@ class BootstrapResponse(BaseModel):
     syncs_created: int
 
 
+class CreateSyncRequest(BaseModel):
+    project_id: str
+    provider: str
+    config: dict
+    target_folder_node_id: str
+    credentials_ref: Optional[str] = None
+    direction: str = "inbound"
+    conflict_strategy: str = "three_way_merge"
+    sync_mode: str = "import_once"
+    trigger: Optional[dict] = None
+
+
+class CreateSyncResponse(BaseModel):
+    sync: SyncResponse
+    execution_result: Optional[dict] = None
+
+
 class PullResponse(BaseModel):
     synced: int
     results: list[dict]
@@ -262,6 +279,72 @@ def list_connectors(
 # ============================================================
 # Sync management
 # ============================================================
+
+@router.post("/syncs", response_model=ApiResponse[CreateSyncResponse])
+async def create_sync(
+    body: CreateSyncRequest,
+    sync_svc: SyncService = Depends(get_sync_service),
+    engine: SyncEngine = Depends(get_sync_engine),
+    registry: ConnectorRegistry = Depends(get_connector_registry),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_project_access(project_service, current_user, body.project_id)
+
+    connector = registry.get(body.provider)
+    if not connector:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown connector provider: {body.provider}",
+        )
+
+    spec = connector.spec()
+    if spec.creation_mode != "direct":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Connector {body.provider} must be created via bootstrap",
+        )
+
+    sync = await sync_svc.create_sync(
+        project_id=body.project_id,
+        provider=body.provider,
+        config=body.config,
+        target_folder_node_id=body.target_folder_node_id,
+        credentials_ref=body.credentials_ref,
+        direction=body.direction,
+        conflict_strategy=body.conflict_strategy,
+        sync_mode=body.sync_mode,
+        trigger=body.trigger,
+        user_id=current_user.user_id,
+    )
+
+    if body.sync_mode == "scheduled" and body.trigger:
+        try:
+            from src.scheduler.service import get_scheduler_service
+            scheduler = get_scheduler_service()
+            await scheduler.add_sync_job(
+                sync_id=sync.id,
+                trigger_config=body.trigger,
+                provider=body.provider,
+            )
+        except Exception:
+            pass
+
+    execution_result = None
+    try:
+        execution_result = await engine.execute(sync.id)
+    except Exception as e:
+        from src.utils.logger import log_error
+        log_error(f"[CreateSync] First fetch failed for sync {sync.id}: {e}")
+
+    refreshed_sync = sync_svc.sync_repo.get_by_id(sync.id) or sync
+    return ApiResponse.success(
+        data=CreateSyncResponse(
+            sync=_sync_resp(refreshed_sync),
+            execution_result=execution_result,
+        )
+    )
+
 
 @router.get("/syncs", response_model=ApiResponse[list[SyncResponse]])
 def list_syncs(
@@ -553,10 +636,23 @@ async def bootstrap(
     body: BootstrapRequest,
     sync_svc: SyncService = Depends(get_sync_service),
     engine: SyncEngine = Depends(get_sync_engine),
+    registry: ConnectorRegistry = Depends(get_connector_registry),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, body.project_id)
+
+    connector = registry.get(body.provider)
+    if not connector:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown connector provider: {body.provider}",
+        )
+    if connector.spec().creation_mode != "bootstrap":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Connector {body.provider} must be created via POST /sync/syncs",
+        )
 
     syncs = await sync_svc.bootstrap(
         project_id=body.project_id,

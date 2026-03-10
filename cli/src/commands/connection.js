@@ -25,8 +25,6 @@ const PROVIDER_ALIASES = {
   gdocs: "google_docs", "google-docs": "google_docs",
   gsheets: "google_sheets", "google-sheets": "google_sheets",
   gsc: "google_search_console", "google-search-console": "google_search_console",
-  hn: "hackernews",
-  ph: "posthog",
   web: "url",
   folder: "filesystem", local: "filesystem",
 };
@@ -104,22 +102,6 @@ async function fetchConnectorSpecs(client) {
 function findSpec(specs, provider) {
   return specs.find(s => s.provider === provider);
 }
-
-async function readScriptFile(config) {
-  if (config.script_content && !config.script_content.includes("\n") && config.script_content.length < 260) {
-    try {
-      const { readFileSync } = await import("node:fs");
-      const { resolve } = await import("node:path");
-      const content = readFileSync(resolve(config.script_content), "utf-8");
-      if (!config.runtime) {
-        const ext = config.script_content.split(".").pop();
-        config.runtime = { py: "python", js: "node", sh: "shell" }[ext] ?? "python";
-      }
-      config.script_content = content;
-    } catch { /* not a file path, keep as-is */ }
-  }
-}
-
 
 export function registerConnection(program) {
   const conn = program
@@ -222,7 +204,7 @@ export function registerConnection(program) {
   conn
     .command("add")
     .description("Add a new connection (any type)")
-    .argument("<type>", "provider type: notion | github | gmail | mcp | sandbox | agent | folder | ...")
+    .argument("<type>", "provider type: github | gmail | gcal | gsheets | gdocs | mcp | sandbox | agent | folder | ...")
     .argument("[source]", "source URL, path, or name (depends on type)")
     .option("--name <name>", "connection name")
     .option("--folder <folder>", "target folder path in project (for syncs)")
@@ -232,7 +214,6 @@ export function registerConnection(program) {
     .option("--type <subtype>", "sub-type: chat | devbox (agent), e2b | docker (sandbox)")
     .option("--set <kv...>", "config key=value (repeatable): --set max_results=100 --set query=is:unread")
     .option("--config <json>", "provider-specific config as JSON (merged, lower priority than --set)")
-    .option("--file <path>", "read script content from local file (for script provider)")
     .action(withErrors(async (type, source, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
@@ -345,26 +326,6 @@ export function registerConnection(program) {
             `Use --set ${f.key}=<value> or run \`puppyone conn schema ${type}\` for details.`);
           return;
         }
-      }
-
-      // Handle script: --file or --set script_content=path
-      if (provider === "script") {
-        if (opts.file) {
-          const { readFileSync } = await import("node:fs");
-          const { resolve } = await import("node:path");
-          config.script_content = readFileSync(resolve(opts.file), "utf-8");
-          if (!config.runtime) {
-            const ext = opts.file.split(".").pop();
-            config.runtime = { py: "python", js: "node", sh: "shell" }[ext] ?? "python";
-          }
-        } else {
-          await readScriptFile(config);
-        }
-      }
-
-      // Handle hackernews feed_type from source argument
-      if (provider === "hackernews" && source && !config.feed_type) {
-        config.feed_type = source;
       }
 
       const body = {
@@ -579,7 +540,6 @@ export function registerConnection(program) {
     .argument("<id>", "connection ID")
     .option("--set <kv...>", "config key=value (repeatable)")
     .option("--config <json>", "full config JSON (merged)")
-    .option("--file <path>", "read script content from local file (for script provider)")
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
@@ -596,20 +556,8 @@ export function registerConnection(program) {
       }
       Object.assign(updates, parseSetValues(opts.set));
 
-      // --file reads local file into script_content
-      if (opts.file) {
-        const { readFileSync } = await import("node:fs");
-        const { resolve } = await import("node:path");
-        const filePath = resolve(opts.file);
-        updates.script_content = readFileSync(filePath, "utf-8");
-        if (!updates.runtime && !existingConfig.runtime) {
-          const ext = opts.file.split(".").pop();
-          updates.runtime = { py: "python", js: "node", sh: "shell" }[ext] ?? "python";
-        }
-      }
-
       if (Object.keys(updates).length === 0) {
-        out.error("NO_CHANGES", "No updates provided. Use --set, --config, or --file.");
+        out.error("NO_CHANGES", "No updates provided. Use --set or --config.");
         return;
       }
 

@@ -40,10 +40,21 @@ class GoogleDocsConnector(BaseConnector):
             default_node_type="markdown",
             auth=AuthRequirement.OAUTH,
             oauth_type="docs",
+            oauth_ui_type="google_docs",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="manual",
+            creation_mode="direct",
+            description="Sync documents",
+            accept_types=("folder",),
             config_fields=(
-                ConfigField(key="source_url", label="Google Docs document URL", type="url", required=True, placeholder="https://docs.google.com/document/d/.../edit"),
+                ConfigField(
+                    key="source_url",
+                    label="Google Docs URL",
+                    type="url",
+                    required=True,
+                    placeholder="https://docs.google.com/document/d/.../edit",
+                    hint="Paste the full URL of your Google Docs document",
+                ),
             ),
         )
 

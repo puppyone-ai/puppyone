@@ -29,7 +29,7 @@ class UrlConnector(BaseConnector):
     def spec(self) -> ConnectorSpec:
         return ConnectorSpec(
             provider="url",
-            display_name="Web URL",
+            display_name="Web Page",
             capabilities=Capability.PULL,
             supported_directions=["inbound"],
             default_trigger=TriggerMode.MANUAL,
@@ -37,9 +37,19 @@ class UrlConnector(BaseConnector):
             auth=AuthRequirement.NONE,
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
+            creation_mode="direct",
+            description="Import content from a URL",
+            accept_types=("folder",),
             config_fields=(
-                ConfigField(key="source_url", label="URL to scrape", type="url", required=True, placeholder="https://example.com"),
+                ConfigField(
+                    key="source_url",
+                    label="URL",
+                    type="url",
+                    required=True,
+                    placeholder="https://example.com",
+                ),
             ),
+            icon="🌐",
         )
 
     def __init__(

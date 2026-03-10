@@ -6,20 +6,14 @@ import { withErrors, requireProject, resolvePath, formatDate } from "../helpers.
 // Canonical provider keys and their CLI aliases / display names.
 
 const PROVIDERS = {
-  notion:                 { name: "Notion",                 auth: "oauth",     alias: ["notion"] },
   github:                 { name: "GitHub",                 auth: "oauth",     alias: ["github", "gh"] },
   google_drive:           { name: "Google Drive",           auth: "oauth",     alias: ["google_drive", "gdrive", "google-drive"] },
   google_docs:            { name: "Google Docs",            auth: "oauth",     alias: ["google_docs", "gdocs", "google-docs"] },
   google_sheets:          { name: "Google Sheets",          auth: "oauth",     alias: ["google_sheets", "gsheets", "google-sheets"] },
   gmail:                  { name: "Gmail",                  auth: "oauth",     alias: ["gmail"] },
   google_calendar:        { name: "Google Calendar",        auth: "oauth",     alias: ["google_calendar", "gcal", "google-calendar"] },
-  linear:                 { name: "Linear",                 auth: "oauth",     alias: ["linear"] },
-  airtable:               { name: "Airtable",               auth: "oauth",     alias: ["airtable"] },
   google_search_console:  { name: "Google Search Console",  auth: "oauth",     alias: ["google_search_console", "gsc", "google-search-console"] },
   url:                    { name: "URL / Web Page",         auth: "none",      alias: ["url", "web"] },
-  hackernews:             { name: "Hacker News",            auth: "none",      alias: ["hackernews", "hn"] },
-  posthog:                { name: "PostHog",                auth: "api_key",   alias: ["posthog", "ph"] },
-  script:                 { name: "Custom Script",          auth: "none",      alias: ["script"] },
   openclaw:               { name: "Local Folder (OpenClaw)",auth: "access_key",alias: ["openclaw", "folder"] },
 };
 
@@ -34,15 +28,12 @@ function resolveProvider(input) {
 }
 
 const OAUTH_ENDPOINTS = {
-  notion: "notion",
   github: "github",
   google_drive: "google-drive",
   google_docs: "google-docs",
   google_sheets: "google-sheets",
   gmail: "gmail",
   google_calendar: "google-calendar",
-  linear: "linear",
-  airtable: "airtable",
   google_search_console: "google-search-console",
 };
 
@@ -51,7 +42,7 @@ const OAUTH_ENDPOINTS = {
 export function registerSync(program) {
   const sync = program
     .command("sync")
-    .description("Data source sync — connect Notion, GitHub, Gmail, PostHog, scripts, and more");
+    .description("Data source sync — connect GitHub, Gmail, Google Workspace, and more");
 
   // ── providers ─────────────────────────────────────────────
   sync
@@ -176,15 +167,12 @@ export function registerSync(program) {
   sync
     .command("add")
     .description("Add a new data source sync")
-    .argument("<provider>", "provider (notion, github, gdrive, gmail, url, hn, posthog, script, ...)")
+    .argument("<provider>", "provider (github, gdrive, gmail, gcal, gsheets, gdocs, gsc, url, ...)")
     .argument("[source]", "source URL or identifier (provider-specific)")
     .option("--folder <path>", "target folder path in the project")
     .option("--mode <mode>", "sync mode: import_once, manual, scheduled", "import_once")
-    .option("--api-key <key>", "API key (for posthog, etc.)")
     .option("--config <json>", "provider-specific config as JSON")
     .option("--direction <dir>", "sync direction: inbound, outbound, bidirectional", "inbound")
-    .option("--runtime <rt>", "script runtime: python, node, shell (for script provider)")
-    .option("--script <path>", "local script file path (for script provider)")
     .action(withErrors(async (providerArg, source, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
@@ -212,33 +200,6 @@ export function registerSync(program) {
       }
 
       if (source) config.source_url = source;
-
-      // Provider-specific config building
-      if (provider === "posthog") {
-        if (opts.apiKey) config.api_key = opts.apiKey;
-        if (!config.api_key) {
-          out.error("MISSING_KEY", "PostHog requires --api-key.", "Usage: puppyone sync add posthog --api-key phx_xxx --config '{\"project_id\":\"123\"}'");
-          return;
-        }
-      }
-
-      if (provider === "script") {
-        if (opts.runtime) config.runtime = opts.runtime;
-        if (opts.script) {
-          const { readFileSync } = await import("node:fs");
-          const { resolve } = await import("node:path");
-          config.script_content = readFileSync(resolve(opts.script), "utf-8");
-          if (!config.runtime) {
-            const ext = opts.script.split(".").pop();
-            config.runtime = { py: "python", js: "node", sh: "shell" }[ext] ?? "python";
-          }
-        }
-      }
-
-      if (provider === "hackernews") {
-        if (!config.feed_type && !source) config.feed_type = "topstories";
-        if (source && !config.feed_type) config.feed_type = source;
-      }
 
       const body = {
         project_id: projectId,

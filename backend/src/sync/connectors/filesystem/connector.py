@@ -33,6 +33,10 @@ class OpenClawConnector(BaseConnector):
             default_trigger=TriggerMode.REALTIME,
             default_node_type="folder",
             auth=AuthRequirement.ACCESS_KEY,
+            creation_mode="bootstrap",
+            description="Folder-to-PuppyOne sync via desktop CLI",
+            accept_types=("folder",),
+            icon="🦞",
         )
 
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:

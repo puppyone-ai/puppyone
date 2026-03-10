@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import useSWR from 'swr';
-import { get, post, patch } from '@/lib/apiClient';
+import { get, post, patch, del } from '@/lib/apiClient';
 import { SYNC_MODE_META, getProviderDisplayLabel, getSyncTriggerPolicy } from '@/lib/syncTriggerPolicy';
 import type { SyncModeType } from '@/lib/syncTriggerPolicy';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
@@ -196,6 +196,41 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
     }
   }, [syncId, mutate]);
 
+  const handlePause = useCallback(async () => {
+    if (!syncId) return;
+    try {
+      await post(`/api/v1/sync/syncs/${syncId}/pause`);
+      await mutate();
+    } catch (err) {
+      console.error('Pause failed:', err);
+    }
+  }, [syncId, mutate]);
+
+  const handleResume = useCallback(async () => {
+    if (!syncId) return;
+    try {
+      await post(`/api/v1/sync/syncs/${syncId}/resume`);
+      await mutate();
+    } catch (err) {
+      console.error('Resume failed:', err);
+    }
+  }, [syncId, mutate]);
+
+  const [disconnecting, setDisconnecting] = useState(false);
+  const handleDisconnect = useCallback(async () => {
+    if (!syncId || disconnecting) return;
+    setDisconnecting(true);
+    try {
+      await del(`/api/v1/sync/syncs/${syncId}`);
+      await mutate();
+      onClose?.();
+    } catch (err) {
+      console.error('Disconnect failed:', err);
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [syncId, disconnecting, mutate, onClose]);
+
   if (!sync) {
     return (
       <PanelShell title="Connection" onClose={onClose || (() => {})}>
@@ -332,15 +367,15 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
               <ActionButton label={refreshing ? 'Syncing...' : 'Sync now'} icon="retry" onClick={handleSyncRefresh} />
             )}
             {isActive && (
-              <ActionButton label="Pause" icon="pause" onClick={() => {}} />
+              <ActionButton label="Pause" icon="pause" onClick={handlePause} />
             )}
             {isPaused && (
-              <ActionButton label="Resume" icon="play" onClick={() => {}} />
+              <ActionButton label="Resume" icon="play" onClick={handleResume} />
             )}
             {isError && (
               <ActionButton label="Retry" icon="retry" onClick={handleSyncRefresh} />
             )}
-            <ActionButton label="Disconnect" icon="disconnect" variant="danger" onClick={() => {}} />
+            <ActionButton label={disconnecting ? 'Removing...' : 'Disconnect'} icon="disconnect" variant="danger" onClick={handleDisconnect} />
           </div>
 
           {/* OpenClaw: Access Key */}

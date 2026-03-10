@@ -119,13 +119,6 @@ export function SandboxConfigPanel({ endpoint, onClose }: SandboxConfigPanelProp
         </div>
 
         <div>
-          <SectionLabel>Status</SectionLabel>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: endpoint.status === 'active' ? '#10b981' : '#f59e0b' }} />
-            <span style={{ fontSize: 13, color: '#e4e4e7' }}>{endpoint.status}</span>
-          </div>
-        </div>
-        <div>
           <SectionLabel>Runtime</SectionLabel>
           <span style={{ fontSize: 13, color: '#e4e4e7' }}>{endpoint.runtime}</span>
         </div>

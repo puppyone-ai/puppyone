@@ -47,8 +47,12 @@ class GoogleCalendarConnector(BaseConnector):
             default_node_type="json",
             auth=AuthRequirement.OAUTH,
             oauth_type="calendar",
+            oauth_ui_type="google_calendar",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
+            creation_mode="direct",
+            description="Sync calendar events",
+            accept_types=("folder",),
             config_fields=(
                 ConfigField(key="days_past", label="Days of past events", type="number", default=30),
                 ConfigField(key="days_future", label="Days of future events", type="number", default=30),

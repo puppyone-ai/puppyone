@@ -51,11 +51,36 @@ class GmailConnector(BaseConnector):
             default_node_type="json",
             auth=AuthRequirement.OAUTH,
             oauth_type="gmail",
+            oauth_ui_type="gmail",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
+            creation_mode="direct",
+            description="Sync emails to JSON",
+            accept_types=("folder",),
             config_fields=(
-                ConfigField(key="max_results", label="Max emails to fetch", type="number", default=50),
-                ConfigField(key="query", label="Gmail search query", type="text", placeholder='is:unread, from:alice@example.com, after:2026/01/01'),
+                ConfigField(
+                    key="query",
+                    label="Email filter",
+                    type="select",
+                    default="",
+                    options=[
+                        {"value": "", "label": "All emails"},
+                        {"value": "in:inbox", "label": "Inbox"},
+                        {"value": "is:unread", "label": "Unread"},
+                        {"value": "is:starred", "label": "Starred"},
+                        {"value": "in:sent", "label": "Sent"},
+                        {"value": "is:important", "label": "Important"},
+                        {"value": "in:drafts", "label": "Drafts"},
+                    ],
+                ),
+                ConfigField(
+                    key="max_results",
+                    label="Max emails",
+                    type="number",
+                    required=True,
+                    default=50,
+                    hint="Maximum number of emails to import",
+                ),
             ),
         )
 

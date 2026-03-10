@@ -46,10 +46,21 @@ class GithubConnector(BaseConnector):
             default_node_type="json",
             auth=AuthRequirement.OAUTH,
             oauth_type="github",
+            oauth_ui_type="github",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
+            creation_mode="direct",
+            description="Sync repos, issues, or PRs",
+            accept_types=("folder",),
             config_fields=(
-                ConfigField(key="source_url", label="GitHub repository URL", type="url", required=True, placeholder="https://github.com/org/repo"),
+                ConfigField(
+                    key="source_url",
+                    label="Repository URL",
+                    type="url",
+                    required=True,
+                    placeholder="https://github.com/org/repo",
+                    hint="Full URL of the GitHub repository",
+                ),
             ),
         )
 

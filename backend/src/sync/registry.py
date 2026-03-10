@@ -87,20 +87,26 @@ class ConnectorRegistry:
 
     # ── Serialization (for API response) ─────────────────────
 
-    def specs_to_dicts(self) -> list[dict]:
-        """Serialize all specs to dicts for API response."""
+    def specs_to_dicts(self, include_hidden: bool = False) -> list[dict]:
+        """Serialize specs to dicts for API response. Filters ui_visible=False by default."""
         result = []
         for connector in self._connectors.values():
             s = connector.spec()
+            if not include_hidden and not s.ui_visible:
+                continue
             result.append({
                 "provider": s.provider,
                 "display_name": s.display_name,
+                "description": s.description,
                 "auth": s.auth.value,
                 "oauth_type": s.oauth_type,
+                "oauth_ui_type": s.oauth_ui_type,
                 "default_node_type": s.default_node_type,
                 "supported_sync_modes": list(s.supported_sync_modes),
                 "default_sync_mode": s.default_sync_mode,
+                "creation_mode": s.creation_mode,
                 "supported_directions": s.supported_directions,
+                "accept_types": list(s.accept_types),
                 "config_fields": [
                     {
                         "key": f.key,
@@ -110,6 +116,7 @@ class ConnectorRegistry:
                         "default": f.default,
                         "options": f.options,
                         "placeholder": f.placeholder,
+                        "hint": f.hint,
                     }
                     for f in s.config_fields
                 ],

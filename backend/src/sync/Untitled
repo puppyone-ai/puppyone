@@ -1,0 +1,1 @@
+首先我再担心，如果你这么去分这个文件夹层级，是不是也有问题呀？因为，你像MCP和Agent，对吧？MCP endpoint和Agent endpoint，Fail system endpoint，其实它是跟Synchronize合理一些的connector其实是并列的，对吧。

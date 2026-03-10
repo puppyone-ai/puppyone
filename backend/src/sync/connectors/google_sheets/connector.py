@@ -45,10 +45,21 @@ class GoogleSheetsConnector(BaseConnector):
             default_node_type="json",
             auth=AuthRequirement.OAUTH,
             oauth_type="sheets",
+            oauth_ui_type="google_sheets",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
+            creation_mode="direct",
+            description="Sync spreadsheet data",
+            accept_types=("folder",),
             config_fields=(
-                ConfigField(key="source_url", label="Google Sheets URL", type="url", required=True, placeholder="https://docs.google.com/spreadsheets/d/.../edit"),
+                ConfigField(
+                    key="source_url",
+                    label="Google Sheets URL",
+                    type="url",
+                    required=True,
+                    placeholder="https://docs.google.com/spreadsheets/d/.../edit",
+                    hint="Paste the full URL of your Google Sheets document",
+                ),
             ),
         )
 

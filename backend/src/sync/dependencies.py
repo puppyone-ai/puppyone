@@ -58,20 +58,6 @@ def _build_registry(node_service: ContentNodeService) -> ConnectorRegistry:
     except Exception as e:
         log_error(f"[Registry] Failed to register Gmail: {e}")
 
-    # --- Notion ---
-    try:
-        from src.sync.connectors.notion.connector import NotionConnector
-        from src.oauth.notion_service import NotionOAuthService
-        notion_oauth = NotionOAuthService()
-        registry.register(NotionConnector(
-            node_service=node_service,
-            s3_service=s3,
-            notion_service=notion_oauth,
-        ))
-        registry.register_oauth("notion", notion_oauth)
-    except Exception as e:
-        log_error(f"[Registry] Failed to register Notion: {e}")
-
     # --- GitHub ---
     try:
         from src.sync.connectors.github.connector import GithubConnector
@@ -142,33 +128,12 @@ def _build_registry(node_service: ContentNodeService) -> ConnectorRegistry:
     except Exception as e:
         log_error(f"[Registry] Failed to register Google Calendar: {e}")
 
-    # --- Linear ---
+    # --- Filesystem / OpenClaw (bidirectional, access-key auth) ---
     try:
-        from src.sync.connectors.linear.connector import LinearConnector
-        from src.oauth.linear_service import LinearOAuthService
-        linear_oauth = LinearOAuthService()
-        registry.register(LinearConnector(
-            node_service=node_service,
-            linear_service=linear_oauth,
-            s3_service=s3,
-        ))
-        registry.register_oauth("linear", linear_oauth)
+        from src.sync.connectors.filesystem.connector import OpenClawConnector
+        registry.register(OpenClawConnector())
     except Exception as e:
-        log_error(f"[Registry] Failed to register Linear: {e}")
-
-    # --- Airtable ---
-    try:
-        from src.sync.connectors.airtable.connector import AirtableConnector
-        from src.oauth.airtable_service import AirtableOAuthService
-        airtable_oauth = AirtableOAuthService()
-        registry.register(AirtableConnector(
-            node_service=node_service,
-            airtable_service=airtable_oauth,
-            s3_service=s3,
-        ))
-        registry.register_oauth("airtable", airtable_oauth)
-    except Exception as e:
-        log_error(f"[Registry] Failed to register Airtable: {e}")
+        log_error(f"[Registry] Failed to register Filesystem: {e}")
 
     # --- URL (no OAuth) ---
     try:
@@ -177,33 +142,12 @@ def _build_registry(node_service: ContentNodeService) -> ConnectorRegistry:
     except Exception as e:
         log_error(f"[Registry] Failed to register URL: {e}")
 
-    # --- Hacker News (no OAuth) ---
-    try:
-        from src.sync.connectors.hackernews.connector import HackerNewsConnector
-        registry.register(HackerNewsConnector())
-    except Exception as e:
-        log_error(f"[Registry] Failed to register Hacker News: {e}")
-
-    # --- PostHog (API key in connector config) ---
-    try:
-        from src.sync.connectors.posthog.connector import PosthogConnector
-        registry.register(PosthogConnector())
-    except Exception as e:
-        log_error(f"[Registry] Failed to register PostHog: {e}")
-
     # --- Google Search Console (OAuth) ---
     try:
         from src.sync.connectors.google_search_console.connector import GoogleSearchConsoleConnector
         registry.register(GoogleSearchConsoleConnector())
     except Exception as e:
         log_error(f"[Registry] Failed to register Google Search Console: {e}")
-
-    # --- Script (sandboxed user scripts, no OAuth) ---
-    try:
-        from src.sync.connectors.script.connector import ScriptConnector
-        registry.register(ScriptConnector())
-    except Exception as e:
-        log_error(f"[Registry] Failed to register Script: {e}")
 
     return registry
 

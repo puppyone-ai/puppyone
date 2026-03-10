@@ -17,7 +17,7 @@ from typing import Optional, List, Any, TYPE_CHECKING
 
 from src.sync.connectors._base import BaseConnector
 from src.sync.repository import SyncRepository
-from src.sync.schemas import Sync, PullResult
+from src.sync.schemas import Sync, PullResult, ResourceInfo
 from src.collaboration.schemas import Mutation, MutationType, Operator
 from src.utils.logger import log_info, log_error, log_debug
 
@@ -84,6 +84,10 @@ class SyncService:
         connector = self._get_connector(provider)
         if not connector:
             raise ValueError(f"No connector for provider: {provider}")
+        if connector.spec().creation_mode != "bootstrap":
+            raise ValueError(
+                f"Connector {provider} must use direct sync creation, not bootstrap"
+            )
 
         trigger_data = trigger or {}
         if not trigger_data.get("type"):
@@ -138,6 +142,76 @@ class SyncService:
 
         log_info(f"[L2.5] Bootstrap complete: {len(created_syncs)} syncs created (mode={sync_mode})")
         return created_syncs
+
+    async def create_sync(
+        self,
+        project_id: str,
+        provider: str,
+        config: dict,
+        target_folder_node_id: str,
+        *,
+        credentials_ref: Optional[str] = None,
+        direction: str = "inbound",
+        conflict_strategy: str = "three_way_merge",
+        sync_mode: str = "import_once",
+        trigger: Optional[dict] = None,
+        user_id: Optional[str] = None,
+    ) -> Sync:
+        """
+        Create exactly one sync binding for connectors that fetch a single
+        aggregated resource into one PuppyOne node.
+        """
+        connector = self._get_connector(provider)
+        if not connector:
+            raise ValueError(f"No connector for provider: {provider}")
+
+        spec = connector.spec()
+        if spec.creation_mode != "direct":
+            raise ValueError(
+                f"Connector {provider} does not support direct sync creation"
+            )
+
+        if not target_folder_node_id:
+            raise ValueError("target_folder_node_id is required")
+
+        trigger_data = trigger or {}
+        if not trigger_data.get("type"):
+            trigger_data["type"] = sync_mode
+
+        placeholder = ResourceInfo(
+            external_resource_id=f"direct:{provider}",
+            name=config.get("name") or spec.display_name,
+            node_type=spec.default_node_type,
+        )
+        node_id = await self._ensure_node_exists(
+            project_id=project_id,
+            resource=placeholder,
+            folder_node_id=target_folder_node_id,
+        )
+
+        sync_config = {
+            **config,
+            "external_resource_id": f"direct:{provider}:{node_id}",
+        }
+        if user_id:
+            sync_config["user_id"] = user_id
+
+        sync = self.sync_repo.create(
+            project_id=project_id,
+            node_id=node_id,
+            direction=direction,
+            provider=provider,
+            config=sync_config,
+            credentials_ref=credentials_ref,
+            conflict_strategy=conflict_strategy,
+            trigger=trigger_data,
+            created_by=user_id,
+        )
+        log_info(
+            f"[L2.5] Direct sync created: {provider} → node {node_id} "
+            f"(mode={sync_mode})"
+        )
+        return sync
 
     async def _ensure_node_exists(
         self, project_id: str, resource, folder_node_id: Optional[str],

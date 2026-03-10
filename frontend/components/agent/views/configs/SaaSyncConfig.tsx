@@ -12,10 +12,12 @@ import { getSyncTriggerPolicy, SYNC_MODE_META, type SyncModeType } from '@/lib/s
 export interface SaaSConfigField {
   key: string;
   label: string;
-  type: 'select' | 'text';
+  type: 'select' | 'text' | 'number';
   placeholder?: string;
   options?: { value: string; label: string }[];
   defaultValue?: string;
+  required?: boolean;
+  hint?: string;
 }
 
 type SyncDirection = 'inbound' | 'outbound' | 'bidirectional';
@@ -23,13 +25,15 @@ type SyncDirection = 'inbound' | 'outbound' | 'bidirectional';
 export interface SaaSyncConfigProps {
   provider: string;
   providerLabel: string;
-  oauthType: SaasType;
+  oauthType?: SaasType;
   requiresAuth?: boolean;
   icon: React.ReactNode;
   description: string;
   configFields: SaaSConfigField[];
   accept: AcceptedNodeType[];
   direction: SyncDirection;
+  configValues?: Record<string, string>;
+  onConfigChange?: (key: string, value: string) => void;
 }
 
 type OAuthStatus = { connected: boolean; email?: string } | null;
@@ -40,7 +44,7 @@ const TYPE_ARTICLE: Record<AcceptedNodeType, string> = {
 
 export function SaaSyncConfig({
   provider, providerLabel, oauthType, requiresAuth = true, icon, description,
-  configFields, accept, direction,
+  configFields, accept, direction, configValues, onConfigChange,
 }: SaaSyncConfigProps) {
   const { draftResources, addDraftResource, removeDraftResource } = useAgent();
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus>(null);
@@ -51,23 +55,24 @@ export function SaaSyncConfig({
 
   const primaryType = accept[0];
   const targetRes = draftResources[0] || null;
-  const isConnected = !requiresAuth || !!oauthStatus?.connected;
+  const oauthUnsupported = requiresAuth && !oauthType;
+  const isConnected = !requiresAuth || (!!oauthType && !!oauthStatus?.connected);
 
   // ── OAuth ──
 
   const checkStatus = useCallback(async () => {
-    if (!requiresAuth) { setChecking(false); return; }
+    if (!requiresAuth || !oauthType) {
+      setChecking(false);
+      return;
+    }
     setChecking(true);
     try {
-      const checkers: Record<string, () => Promise<OAuthStatus>> = {
-        gmail: async () => { const { getGmailStatus } = await import('@/lib/oauthApi'); return getGmailStatus(); },
-        calendar: async () => { const { getGoogleCalendarStatus } = await import('@/lib/oauthApi'); return getGoogleCalendarStatus(); },
-        sheets: async () => { const { getGoogleSheetsStatus } = await import('@/lib/oauthApi'); const s = await getGoogleSheetsStatus(); return { connected: s.connected, email: s.workspace_name }; },
-        docs: async () => { const { getGoogleDocsStatus } = await import('@/lib/oauthApi'); return getGoogleDocsStatus(); },
-        github: async () => { const { getGithubStatus } = await import('@/lib/oauthApi'); const s = await getGithubStatus(); return { connected: s.connected, email: s.username }; },
-      };
-      const checker = checkers[oauthType];
-      setOauthStatus(checker ? await checker() : { connected: false });
+      const { oauth } = await import('@/lib/oauthApi');
+      const status = await oauth[oauthType].getStatus();
+      setOauthStatus({
+        connected: status.connected,
+        email: status.email || status.workspace_name || status.username,
+      });
     } catch {
       setOauthStatus({ connected: false });
     } finally {
@@ -78,6 +83,10 @@ export function SaaSyncConfig({
   useEffect(() => { checkStatus(); }, [checkStatus]);
 
   const handleConnect = async () => {
+    if (!oauthType) {
+      setError('OAuth is not available for this connector yet.');
+      return;
+    }
     setConnecting(true); setError(null);
     try { await openOAuthPopup(oauthType); await checkStatus(); }
     catch (err) { setError(err instanceof Error ? err.message : 'Authorization failed'); }
@@ -228,7 +237,15 @@ export function SaaSyncConfig({
               {!oauthStatus?.connected && <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />}
             </div>
 
-            {checking ? (
+            {oauthUnsupported ? (
+              <div style={{
+                padding: '12px 14px', borderRadius: 8,
+                background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)',
+                color: '#fca5a5', fontSize: 12, lineHeight: 1.5,
+              }}>
+                OAuth is not available for this connector yet.
+              </div>
+            ) : checking ? (
               <div style={{ textAlign: 'center', color: '#a1a1aa', fontSize: 13, padding: '8px 0' }}>
                 Checking account...
               </div>
@@ -289,48 +306,66 @@ export function SaaSyncConfig({
         {/* Config fields — show when connected (or always for no-auth providers) */}
         {isConnected && configFields.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
-            {configFields.map(field => (
-              <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{field.label}</label>
-                {field.type === 'select' && field.options ? (
-                  <div style={{ position: 'relative' }}>
-                    <select
+            {configFields.map(field => {
+              const isControlled = !!onConfigChange;
+              const currentValue = isControlled ? (configValues?.[field.key] ?? '') : undefined;
+              return (
+                <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{field.label}</label>
+                    {field.required ? (
+                      <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%', flexShrink: 0 }} title="Required" />
+                    ) : !field.defaultValue ? (
+                      <span style={{ fontSize: 11, color: '#52525b', fontWeight: 400 }}>optional</span>
+                    ) : null}
+                  </div>
+                  {field.hint && (
+                    <span style={{ fontSize: 12, color: '#71717a', marginTop: -2, lineHeight: 1.4 }}>{field.hint}</span>
+                  )}
+                  {field.type === 'select' && field.options ? (
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        id={`sync-cfg-${provider}-${field.key}`}
+                        {...(isControlled ? { value: currentValue } : { defaultValue: field.defaultValue })}
+                        onChange={e => onConfigChange?.(field.key, e.target.value)}
+                        style={{
+                          width: '100%', height: 36, padding: '0 12px', fontSize: 13,
+                          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: 6, color: '#e4e4e7', outline: 'none', appearance: 'none',
+                          cursor: 'pointer', transition: 'border-color 0.2s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                      >
+                        <option value="">Select...</option>
+                        {field.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ position: 'absolute', right: 12, top: 15, pointerEvents: 'none' }}>
+                        <path d="M1 1L5 5L9 1" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <input
                       id={`sync-cfg-${provider}-${field.key}`}
-                      defaultValue={field.defaultValue}
+                      type={field.type === 'number' ? 'number' : 'text'}
+                      placeholder={field.placeholder || field.label}
+                      {...(isControlled ? { value: currentValue } : { defaultValue: field.defaultValue })}
+                      onChange={e => onConfigChange?.(field.key, e.target.value)}
                       style={{
                         width: '100%', height: 36, padding: '0 12px', fontSize: 13,
                         background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 6, color: '#e4e4e7', outline: 'none', appearance: 'none',
-                        cursor: 'pointer', transition: 'border-color 0.2s',
+                        borderRadius: 6, color: '#e4e4e7', outline: 'none',
+                        transition: 'border-color 0.2s',
                       }}
-                      onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'}
-                      onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
-                    >
-                      <option value="">Select...</option>
-                      {field.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ position: 'absolute', right: 12, top: 15, pointerEvents: 'none' }}>
-                      <path d="M1 1L5 5L9 1" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                ) : (
-                  <input
-                    id={`sync-cfg-${provider}-${field.key}`}
-                    type="text" placeholder={field.placeholder || field.label} defaultValue={field.defaultValue}
-                    style={{
-                      width: '100%', height: 36, padding: '0 12px', fontSize: 13,
-                      background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
-                      borderRadius: 6, color: '#e4e4e7', outline: 'none',
-                      transition: 'border-color 0.2s',
-                    }}
-                    onFocus={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}
-                    onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
-                    onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
-                    onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
-                  />
-                )}
-              </div>
-            ))}
+                      onFocus={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}
+                      onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                      onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
+                      onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -380,8 +415,9 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Sync frequency</label>
+        <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%', flexShrink: 0 }} title="Required" />
       </div>
 
       <div style={{ position: 'relative' }}>
@@ -450,7 +486,7 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
 
       {/* Mode description */}
       <div style={{ fontSize: 12, color: '#a1a1aa', padding: '0 2px', lineHeight: 1.5 }}>
-        {draftSyncMode === 'import_once' && 'Data will be imported once. No sync binding will be created.'}
+        {draftSyncMode === 'import_once' && 'A sync binding will be created and imported once. To refresh later, change the mode to Manual or Scheduled.'}
         {draftSyncMode === 'manual' && 'A sync binding will be created. Click "Refresh" anytime to pull the latest data.'}
         {draftSyncMode === 'scheduled' && 'Data will be automatically refreshed on the schedule above.'}
       </div>

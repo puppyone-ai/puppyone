@@ -37,33 +37,17 @@ const PROVIDER_POLICIES: Record<string, TriggerPolicy> = {
     supportedModes: ['import_once', 'manual', 'scheduled'],
     defaultMode: 'import_once',
   },
-  notion: {
-    supportedModes: ['import_once', 'manual', 'scheduled'],
-    defaultMode: 'import_once',
-  },
-  linear: {
-    supportedModes: ['import_once', 'manual', 'scheduled'],
-    defaultMode: 'import_once',
-  },
   url: {
     supportedModes: ['import_once', 'manual', 'scheduled'],
     defaultMode: 'import_once',
   },
-  hackernews: {
-    supportedModes: ['manual', 'scheduled'],
-    defaultMode: 'scheduled',
-  },
-  posthog: {
-    supportedModes: ['manual', 'scheduled'],
+  google_drive: {
+    supportedModes: ['import_once', 'manual', 'scheduled'],
     defaultMode: 'manual',
   },
   google_search_console: {
     supportedModes: ['manual', 'scheduled'],
     defaultMode: 'scheduled',
-  },
-  script: {
-    supportedModes: ['manual', 'scheduled'],
-    defaultMode: 'manual',
   },
 };
 
@@ -83,13 +67,9 @@ const PROVIDER_DISPLAY_LABELS: Record<string, string> = {
   google_sheets: 'Google Sheets',
   google_docs: 'Google Docs',
   github: 'GitHub',
-  notion: 'Notion',
-  linear: 'Linear',
   url: 'Web Page',
-  hackernews: 'Hacker News',
-  posthog: 'PostHog',
+  google_drive: 'Google Drive',
   google_search_console: 'Google Search Console',
-  script: 'Custom Script',
   agent: 'Agent',
   mcp: 'MCP Server',
   sandbox: 'Sandbox',

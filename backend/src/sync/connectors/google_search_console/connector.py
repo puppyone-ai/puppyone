@@ -41,6 +41,9 @@ class GoogleSearchConsoleConnector(BaseConnector):
             oauth_type="google_search_console",
             supported_sync_modes=("manual", "scheduled"),
             default_sync_mode="scheduled",
+            creation_mode="direct",
+            description="Sync search performance data",
+            accept_types=("folder",),
             config_fields=(
                 ConfigField(
                     key="site_url",

@@ -87,6 +87,7 @@ class ConfigField:
     default: Any = None
     options: Optional[List[dict]] = None   # for type=select: [{"value": "...", "label": "..."}]
     placeholder: Optional[str] = None
+    hint: Optional[str] = None
 
 
 # ============================================================
@@ -110,13 +111,18 @@ class ConnectorSpec:
     default_node_type: str = "json"
     auth: AuthRequirement = AuthRequirement.NONE
     oauth_type: Optional[str] = None
+    oauth_ui_type: Optional[str] = None
     config_schema: Optional[dict] = None
 
-    # New fields for dynamic UI and registry
+    # Dynamic UI and registry fields
     supported_sync_modes: tuple[str, ...] = ("import_once", "manual", "scheduled")
     default_sync_mode: str = "import_once"
+    creation_mode: str = "direct"  # direct | bootstrap
     config_fields: tuple[ConfigField, ...] = ()
     icon: Optional[str] = None
+    description: Optional[str] = None
+    accept_types: tuple[str, ...] = ("folder",)
+    ui_visible: bool = True
 
 
 # ============================================================

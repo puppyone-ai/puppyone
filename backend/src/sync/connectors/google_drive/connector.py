@@ -57,11 +57,22 @@ class GoogleDriveConnector(BaseConnector):
             default_node_type="markdown",
             auth=AuthRequirement.OAUTH,
             oauth_type="drive",
+            oauth_ui_type="google_drive",
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="manual",
+            creation_mode="direct",
+            description="Sync files from Drive",
+            accept_types=("folder",),
+            ui_visible=False,
             config_fields=(
-                ConfigField(key="source_url", label="Drive folder or file URL (omit for recent files)", type="url", placeholder="https://drive.google.com/drive/folders/..."),
-                ConfigField(key="max_results", label="Max files to list", type="number", default=50),
+                ConfigField(
+                    key="source_url",
+                    label="Drive folder or file URL",
+                    type="url",
+                    placeholder="https://drive.google.com/drive/folders/...",
+                    hint="Leave empty to import recent files",
+                ),
+                ConfigField(key="max_results", label="Max files", type="number", default=50),
             ),
         )
 
