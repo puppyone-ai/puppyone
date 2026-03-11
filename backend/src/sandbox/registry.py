@@ -204,7 +204,7 @@ async def diff_and_writeback(
 
         # Handle json_path merging
         if entry.node_type == "json" and entry.json_path:
-            from src.agent.sandbox_data import merge_data_by_path
+            from src.connectors.agent.sandbox_data import merge_data_by_path
             node = node_service.get_by_id_unsafe(entry.node_id)
             if node:
                 sandbox_content = merge_data_by_path(

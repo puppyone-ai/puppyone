@@ -15,7 +15,7 @@ from typing import Optional
 from src.workspace.provider import (
     WorkspaceProvider, WorkspaceInfo, WorkspaceChanges,
 )
-from src.sync.schemas import SyncResult
+from src.connectors.datasource.schemas import SyncResult
 from src.utils.logger import log_info, log_debug
 
 

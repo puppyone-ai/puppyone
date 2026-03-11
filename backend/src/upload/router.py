@@ -471,12 +471,12 @@ async def submit_saas_ingest(
 
     All data writes go through CollaborationService (versioned).
     """
-    from src.sync.service import SyncService
-    from src.sync.engine import SyncEngine
-    from src.sync.dependencies import get_connector_registry
+    from src.connectors.datasource.service import SyncService
+    from src.connectors.datasource.engine import SyncEngine
+    from src.connectors.datasource.dependencies import get_connector_registry
     from src.collaboration.dependencies import create_collaboration_service
     from src.supabase.client import SupabaseClient
-    from src.sync.repository import SyncRepository
+    from src.connectors.datasource.repository import SyncRepository
 
     if not project_service.verify_project_access(project_id, current_user.user_id):
         raise HTTPException(status_code=404, detail="Project not found")
@@ -495,7 +495,7 @@ async def submit_saas_ingest(
             if connector:
                 sync_svc.register_connector(connector)
 
-        from src.sync.run_repository import SyncRunRepository
+        from src.connectors.datasource.run_repository import SyncRunRepository
         engine = SyncEngine(
             registry=registry,
             collab_service=collab_service,

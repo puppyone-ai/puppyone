@@ -19,7 +19,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.sync.folder_router import router as folder_router
+from src.connectors.filesystem.router import router as folder_router
 from src.content_node.version_router import router as version_router
 from src.collaboration.audit_router import router as audit_router
 from src.auth.dependencies import get_current_user

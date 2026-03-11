@@ -7,7 +7,7 @@ from typing import Any
 from src.db_connector.repository import DBConnectionRepository
 from src.db_connector.providers import get_provider
 from src.content_node.service import ContentNodeService
-from src.sync.repository import SyncRepository
+from src.connectors.datasource.repository import SyncRepository
 from src.supabase.client import SupabaseClient
 from src.utils.logger import log_info, log_error
 

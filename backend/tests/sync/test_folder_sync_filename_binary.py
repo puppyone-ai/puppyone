@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from src.sync.folder_sync import FolderSyncService
+from src.connectors.filesystem.service import FolderSyncService
 
 
 class FakeS3Client:

@@ -250,9 +250,19 @@ export function registerConnection(program) {
         return;
       }
       if (provider === "filesystem") {
-        const name = opts.name || "Filesystem Sync";
-        const created = await client.post("/agent-config", { name, project_id: projectId, type: "devbox" });
-        out.info(`  Filesystem agent created: ${created.name} (${created.id})`);
+        let nodeId = source;
+        if (!nodeId && opts.folder) {
+          const resolved = await client.get("/nodes/by-path", { project_id: projectId, path: opts.folder });
+          const nodeData = resolved?.data ?? resolved;
+          nodeId = nodeData?.id;
+        }
+        if (!nodeId) {
+          out.error("MISSING_NODE", "Filesystem sync requires a target node ID or --folder <path>.",
+            "Example: puppyone conn add folder --folder /my-docs");
+          return;
+        }
+        const created = await client.post("/filesystem/bootstrap", null, { project_id: projectId, node_id: nodeId });
+        out.info(`  Filesystem sync created: ${created.sync_id}`);
         _showFilesystemGuidance(out, created, source);
         out.success?.({ connection: created });
         return;

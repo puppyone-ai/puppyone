@@ -8,6 +8,7 @@ import { SyncPreview, type AcceptedNodeType } from './SyncPreview';
 import { ScheduleTriggerSection } from './ScheduleAgentConfig';
 import { FolderIcon, JsonIcon, MarkdownIcon, CloseIcon, getNodeIcon } from '../_icons';
 import { getSyncTriggerPolicy, SYNC_MODE_META, type SyncModeType } from '@/lib/syncTriggerPolicy';
+import { useConnectorSpecs } from '@/lib/hooks/useData';
 
 export interface SaaSConfigField {
   key: string;
@@ -386,7 +387,8 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
     draftTriggerConfig, setDraftTriggerConfig, setDraftTriggerType,
   } = useAgent();
   const [isOpen, setIsOpen] = useState(false);
-  const policy = getSyncTriggerPolicy(provider);
+  const { specs } = useConnectorSpecs();
+  const policy = getSyncTriggerPolicy(provider, specs);
   const options = SELECTABLE_SYNC_MODES
     .filter(mode => policy.supportedModes.includes(mode))
     .map(mode => ({ value: mode, label: SYNC_MODE_META[mode].label, desc: SYNC_MODE_META[mode].desc }));

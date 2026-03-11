@@ -1,4 +1,4 @@
-from src.agent.service import extract_data_by_path
+from src.connectors.agent.service import extract_data_by_path
 
 
 def test_extract_data_by_path_root():

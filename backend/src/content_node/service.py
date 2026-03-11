@@ -1128,7 +1128,7 @@ class ContentNodeService:
     # === 废纸篓（软删除） ===
 
     def _create_system_folder(
-        self, project_id: str, name: str, created_by: str
+        self, project_id: str, name: str, created_by: Optional[str] = None
     ) -> ContentNode:
         """
         创建系统级隐藏文件夹（如 .trash），绕过 _validate_name 限制。
@@ -1146,7 +1146,7 @@ class ContentNodeService:
         )
 
     def get_or_create_trash_folder(
-        self, project_id: str, created_by: str
+        self, project_id: str, created_by: Optional[str] = None
     ) -> ContentNode:
         """获取或惰性创建项目的废纸篓文件夹（根级隐藏文件夹 .trash）"""
         children = self.repo.list_children(project_id, None, 0)
@@ -1156,7 +1156,7 @@ class ContentNodeService:
         return self._create_system_folder(project_id, self.TRASH_FOLDER_NAME, created_by)
 
     def soft_delete_node(
-        self, node_id: str, project_id: str, user_id: str
+        self, node_id: str, project_id: str, user_id: Optional[str] = None
     ) -> ContentNode:
         """
         软删除：将节点移入 .trash 文件夹。

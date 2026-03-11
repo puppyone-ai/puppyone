@@ -5,7 +5,16 @@ from typing import Any, Optional, Literal
 
 from pydantic import BaseModel, Field
 
-from src.mcp.schemas import ToolTypeKey
+ToolTypeKey = Literal[
+    "get_data_schema",
+    "get_all_data",
+    "query_data",
+    "create",
+    "update",
+    "delete",
+    "preview",
+    "select",
+]
 
 
 ToolCategory = Literal["builtin", "custom"]

@@ -30,8 +30,8 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         dict with execution results
     """
     from src.supabase.client import SupabaseClient
-    from src.agent.service import AgentService
-    from src.agent.config.service import AgentConfigService
+    from src.connectors.agent.service import AgentService
+    from src.connectors.agent.config.service import AgentConfigService
     from src.content_node.service import ContentNodeService
     from src.content_node.repository import ContentNodeRepository
     from src.sandbox.service import SandboxService

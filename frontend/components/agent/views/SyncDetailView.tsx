@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { get, post, patch, del } from '@/lib/apiClient';
 import { SYNC_MODE_META, getProviderDisplayLabel, getSyncTriggerPolicy } from '@/lib/syncTriggerPolicy';
 import type { SyncModeType } from '@/lib/syncTriggerPolicy';
+import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
 
 interface SyncDetail {
@@ -168,6 +169,7 @@ export { getProviderLogo, PROVIDER_LABELS };
 
 export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewProps) {
   const [refreshing, setRefreshing] = useState(false);
+  const { specs } = useConnectorSpecs();
 
   const { data: syncData, mutate } = useSWR<{ syncs: SyncDetail[] }>(
     projectId ? ['sync-status', projectId] : null,
@@ -241,8 +243,8 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
     );
   }
 
-  const providerLabel = getProviderDisplayLabel(sync.provider) !== sync.provider
-    ? getProviderDisplayLabel(sync.provider)
+  const providerLabel = getProviderDisplayLabel(sync.provider, specs) !== sync.provider
+    ? getProviderDisplayLabel(sync.provider, specs)
     : (PROVIDER_LABELS[sync.provider] || sync.provider);
   const dirLabel = DIRECTION_LABELS[sync.direction] || sync.direction;
   const isActive = sync.status === 'active' || sync.status === 'syncing';
@@ -462,7 +464,8 @@ function TriggerModeSelector({
   currentTrigger: SyncDetail['trigger'];
   onUpdated: () => void;
 }) {
-  const policy = getSyncTriggerPolicy(provider);
+  const { specs } = useConnectorSpecs();
+  const policy = getSyncTriggerPolicy(provider, specs);
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [pendingMode, setPendingMode] = useState<SyncModeType>(currentMode);

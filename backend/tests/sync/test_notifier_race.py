@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from src.sync.notifier import ChangeNotifier
+from src.connectors.filesystem.notifier import ChangeNotifier
 
 
 @pytest.mark.asyncio

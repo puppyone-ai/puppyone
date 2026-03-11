@@ -64,23 +64,28 @@ backend/
 │   ├── content_node/          # Content node tree (folder/JSON/MD/file) & versions
 │   ├── table/                 # Structured data tables (JSON Pointer)
 │   ├── tool/                  # Tool registration & search index
-│   ├── agent/                 # Agent chat (SSE) & config & MCP tool binding
-│   │   ├── config/            # Agent CRUD & access permissions
-│   │   └── mcp/               # MCP v3 tool binding & proxy
-│   ├── mcp/                   # MCP instance management (FastMCP)
-│   ├── mcp_endpoint/          # MCP endpoint CRUD & API key
-│   ├── mcp_config/            # MCP configuration
-│   ├── sandbox/               # Code sandbox (E2B/Docker)
-│   ├── sandbox_endpoint/      # Sandbox endpoint CRUD & API key & exec
-│   ├── sandbox_config/        # Sandbox configuration
-│   ├── connection/            # Unified connection management (connections table CRUD)
-│   ├── sync/                  # Data source sync engine
-│   │   ├── connectors/        # Platform connectors (Notion/GitHub/Gmail/...)
-│   │   │   └── filesystem/    # Local folder sync (OpenClaw)
-│   │   └── folder_router.py   # Folder-level push/pull API
+│   ├── connectors/            # All connection types (peer-level)
+│   │   ├── manager/           # Unified connection CRUD (connections table)
+│   │   ├── datasource/        # SaaS data source providers (Gmail/GitHub/Notion/...)
+│   │   │   ├── gmail/         #   Gmail connector
+│   │   │   ├── github/        #   GitHub connector
+│   │   │   ├── google_drive/  #   Google Drive connector
+│   │   │   ├── google_docs/   #   Google Docs connector
+│   │   │   ├── google_sheets/ #   Google Sheets connector
+│   │   │   ├── google_calendar/ # Google Calendar connector
+│   │   │   ├── google_search_console/ # GSC connector
+│   │   │   ├── url/           #   URL/web page connector
+│   │   │   └── _base.py       #   BaseConnector & ConnectorSpec
+│   │   ├── filesystem/        # Bidirectional local folder sync (OpenClaw)
+│   │   │   └── io/            #   Pure file I/O engine (scan/diff/write/watch)
+│   │   ├── mcp/               # MCP protocol endpoints
+│   │   ├── sandbox/           # Code sandbox endpoints
+│   │   └── agent/             # AI agents (config, chat, MCP tool binding)
+│   │       ├── config/        #   Agent CRUD & access permissions
+│   │       └── mcp/           #   MCP v3 tool binding & proxy
+│   ├── mcp/                   # Legacy MCP instance management (health checks only)
 │   ├── upload/                # File ingestion ETL (MineRU + LLM)
 │   ├── collaboration/         # Collaborative editing & version history & audit logs
-│   ├── access/                # Access control (compatibility layer)
 │   ├── search/                # Vector search (Turbopuffer + RRF)
 │   ├── chunking/              # Text chunking
 │   ├── llm/                   # LLM service (generation + embedding)
@@ -127,9 +132,9 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `org_members` | `organization/repository.py` | Organization membership |
 | `org_invitations` | `organization/repository.py` | Organization invitations |
 | `profiles` | `profile/repository.py` | User profiles |
-| `connections` | `connection/router.py`, `agent/config/repository.py` | Unified connections (agents/MCP/sandbox/sync) |
-| `connection_accesses` | `agent/config/repository.py` | Agent ↔ content node access bindings |
-| `connection_tools` | `agent/config/repository.py`, `tool/service.py` | Agent ↔ tool bindings |
+| `connections` | `connectors/manager/router.py`, `connectors/agent/config/repository.py` | Unified connections (agents/MCP/sandbox/sync) |
+| `connection_accesses` | `connectors/agent/config/repository.py` | Agent ↔ content node access bindings |
+| `connection_tools` | `connectors/agent/config/repository.py`, `tool/service.py` | Agent ↔ tool bindings |
 | `content_nodes` | `content_node/repository.py` | Content tree (folder/JSON/MD/file) |
 | `tools` | `supabase/tools/repository.py` | Registered tools |
 | `mcps` | `supabase/mcps/repository.py`, `supabase/mcp_v2/repository.py` | MCP server instances |
@@ -159,13 +164,13 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `/api/v1/nodes` | content_node | Content nodes (folder/JSON/MD/file) & versions |
 | `/api/v1/tables` | table | Data tables & JSON Pointer operations |
 | `/api/v1/tools` | tool | Tool registration & search index |
-| `/api/v1/agents` | agent | Agent SSE streaming chat |
-| `/api/v1/agent-config` | agent/config | Agent CRUD & access permissions |
-| `/api/v1/mcp` | agent/mcp | MCP v3 tool binding & proxy |
-| `/api/v1/mcp-endpoints` | mcp_endpoint | MCP endpoint CRUD & API key |
-| `/api/v1/sandbox-endpoints` | sandbox_endpoint | Sandbox endpoint CRUD & exec |
-| `/api/v1/connections` | connection | Unified connection management (all types) |
-| `/api/v1/sync` | sync | Data source sync & OpenClaw & folder push/pull |
+| `/api/v1/agents` | connectors/agent | Agent SSE streaming chat |
+| `/api/v1/agent-config` | connectors/agent/config | Agent CRUD & access permissions |
+| `/api/v1/mcp` | connectors/agent/mcp | MCP v3 tool binding & proxy |
+| `/api/v1/mcp-endpoints` | connectors/mcp | MCP endpoint CRUD & API key |
+| `/api/v1/sandbox-endpoints` | connectors/sandbox | Sandbox endpoint CRUD & exec |
+| `/api/v1/connections` | connectors/manager | Unified connection management (all types) |
+| `/api/v1/sync` | connectors/datasource | Data source sync & OpenClaw & folder push/pull |
 | `/api/v1/ingest` | upload | File/URL ingestion ETL |
 | `/api/v1/collab` | collaboration | Collaborative editing & versions & audit |
 | `/api/v1/workspace` | workspace | Workspace management |

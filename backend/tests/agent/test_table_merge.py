@@ -1,4 +1,4 @@
-from src.agent.service import merge_data_by_path
+from src.connectors.agent.service import merge_data_by_path
 
 
 def test_merge_node_data_by_path():

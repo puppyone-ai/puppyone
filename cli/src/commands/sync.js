@@ -3,7 +3,8 @@ import { createOutput } from "../output.js";
 import { withErrors, requireProject, resolvePath, formatDate } from "../helpers.js";
 
 // ─── Provider Metadata ────────────────────────────────────
-// Canonical provider keys and their CLI aliases / display names.
+// Static fallback. The `sync providers` command fetches from the API;
+// these are only used when the API is unreachable.
 
 const PROVIDERS = {
   github:                 { name: "GitHub",                 auth: "oauth",     alias: ["github", "gh"] },
@@ -37,6 +38,34 @@ const OAUTH_ENDPOINTS = {
   google_search_console: "google-search-console",
 };
 
+/**
+ * Fetch connector specs from the backend API.
+ * Returns a provider→{name, auth} map, or null on failure.
+ */
+async function fetchProviderMeta(client) {
+  try {
+    const data = await client.get("/sync/connectors");
+    const specs = Array.isArray(data) ? data : data?.items ?? [];
+    const map = {};
+    for (const s of specs) {
+      map[s.provider] = {
+        name: s.display_name ?? s.provider,
+        auth: s.auth ?? "none",
+        oauth_type: s.oauth_type ?? null,
+        oauth_ui_type: s.oauth_ui_type ?? null,
+      };
+    }
+    return map;
+  } catch {
+    return null;
+  }
+}
+
+function getProviderMeta(provider, dynamicProviders) {
+  if (dynamicProviders && dynamicProviders[provider]) return dynamicProviders[provider];
+  return PROVIDERS[provider] ?? null;
+}
+
 // ─── Register ─────────────────────────────────────────────
 
 export function registerSync(program) {
@@ -57,7 +86,7 @@ export function registerSync(program) {
 
       try {
         if (!projectId) throw new Error("skip");
-        const data = await client.get("/connections/connectors", { project_id: projectId });
+        const data = await client.get("/sync/connectors", { project_id: projectId });
         const connectors = Array.isArray(data) ? data : data?.items ?? [];
         if (connectors.length) {
           out.table(
@@ -100,7 +129,8 @@ export function registerSync(program) {
       const out = createOutput(cmd);
       const client = createClient(cmd);
       const provider = resolveProvider(providerArg);
-      const meta = PROVIDERS[provider];
+      const dynamicProviders = await fetchProviderMeta(client);
+      const meta = getProviderMeta(provider, dynamicProviders);
 
       if (!meta) {
         out.error("UNKNOWN_PROVIDER", `Unknown provider: ${providerArg}`, `Run \`puppyone sync providers\` to see the list.`);
@@ -117,7 +147,7 @@ export function registerSync(program) {
         return;
       }
 
-      const oauthPath = OAUTH_ENDPOINTS[provider];
+      const oauthPath = OAUTH_ENDPOINTS[provider] ?? meta.oauth_ui_type?.replace(/_/g, "-");
       if (!oauthPath) {
         out.error("NO_OAUTH", `OAuth not configured for ${meta.name}.`);
         return;
@@ -155,9 +185,9 @@ export function registerSync(program) {
       const connected = data?.connected ?? data?.is_connected ?? false;
 
       if (connected) {
-        out.info(`${PROVIDERS[provider]?.name ?? providerArg}: authorized ✓`);
+        out.info(`${getProviderMeta(provider, null)?.name ?? providerArg}: authorized ✓`);
       } else {
-        out.info(`${PROVIDERS[provider]?.name ?? providerArg}: not authorized ✗`);
+        out.info(`${getProviderMeta(provider, null)?.name ?? providerArg}: not authorized ✗`);
         out.info(`  Run \`puppyone sync auth ${providerArg}\` to authorize.`);
       }
       out.success({ provider, connected });
@@ -178,7 +208,8 @@ export function registerSync(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
       const provider = resolveProvider(providerArg);
-      const meta = PROVIDERS[provider];
+      const dynamicProviders = await fetchProviderMeta(client);
+      const meta = getProviderMeta(provider, dynamicProviders);
 
       if (!meta) {
         out.error("UNKNOWN_PROVIDER", `Unknown provider: ${providerArg}`, "Run `puppyone sync providers` to see the list.");
@@ -215,7 +246,7 @@ export function registerSync(program) {
       }
 
       out.step(`Adding ${meta.name} sync...`);
-      const result = await client.post("/connections/bootstrap", body);
+      const result = await client.post("/sync/bootstrap", body);
       out.done("done");
 
       const syncId = result?.sync_id ?? result?.id ?? result?.sync?.id;
@@ -239,7 +270,7 @@ export function registerSync(program) {
       const query = { project_id: projectId };
       if (opts.provider) query.provider = resolveProvider(opts.provider);
 
-      const data = await client.get("/connections/syncs", query);
+      const data = await client.get("/sync/syncs", query);
       const syncs = Array.isArray(data) ? data : data?.items ?? [];
 
       out.table(
@@ -275,7 +306,7 @@ export function registerSync(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const syncs = await client.get("/connections/syncs", { project_id: projectId });
+      const syncs = await client.get("/sync/syncs", { project_id: projectId });
       const list = Array.isArray(syncs) ? syncs : syncs?.items ?? [];
       const s = list.find((x) => x.id === id || x.id?.startsWith(id));
 
@@ -284,7 +315,7 @@ export function registerSync(program) {
         return;
       }
 
-      const provName = PROVIDERS[s.provider]?.name ?? s.provider;
+      const provName = getProviderMeta(s.provider, null)?.name ?? s.provider;
       const sourceDesc = s.config?.source_url ?? s.config?.feed_type ?? s.config?.site_url ?? "(configured)";
 
       out.info(`\n  ${provName}  →  ${s.node_name ?? s.node_id ?? "(project root)"}`);
@@ -325,7 +356,7 @@ export function registerSync(program) {
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
-      await client.del(`/connections/syncs/${id}`);
+      await client.del(`/sync/syncs/${id}`);
       out.info(`Sync removed: ${id}`);
       out.success({ deleted: id });
     }));
@@ -338,7 +369,7 @@ export function registerSync(program) {
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
-      await client.post(`/connections/syncs/${id}/refresh`);
+      await client.post(`/sync/syncs/${id}/refresh`);
       out.info(`Sync refresh triggered: ${id}`);
       out.success({ refreshed: id });
     }));
@@ -351,7 +382,7 @@ export function registerSync(program) {
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
-      await client.post(`/connections/syncs/${id}/pause`);
+      await client.post(`/sync/syncs/${id}/pause`);
       out.info(`Sync paused: ${id}`);
       out.success({ paused: id });
     }));
@@ -364,7 +395,7 @@ export function registerSync(program) {
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
-      await client.post(`/connections/syncs/${id}/resume`);
+      await client.post(`/sync/syncs/${id}/resume`);
       out.info(`Sync resumed: ${id}`);
       out.success({ resumed: id });
     }));
@@ -378,7 +409,7 @@ export function registerSync(program) {
     .action(withErrors(async (id, mode, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
-      await client.patch(`/connections/syncs/${id}/trigger`, { sync_mode: mode });
+      await client.patch(`/sync/syncs/${id}/trigger`, { sync_mode: mode });
       out.info(`Sync trigger updated: ${id} → ${mode}`);
       out.success({ sync_id: id, mode });
     }));
@@ -393,7 +424,7 @@ export function registerSync(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const data = await client.get("/connections/changelog", {
+      const data = await client.get("/sync/changelog", {
         project_id: projectId,
         limit: opts.limit,
       });

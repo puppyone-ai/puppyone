@@ -4,9 +4,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
-from src.sync.folder_sync import FolderSyncService
-from src.sync.folder_router import router as folder_sync_router
-import src.sync.folder_router as folder_router_module
+from src.connectors.filesystem.service import FolderSyncService
+from src.connectors.filesystem.router import router as folder_sync_router
+import src.connectors.filesystem.router as folder_router_module
 
 
 def _build_folder_sync_service() -> FolderSyncService:
@@ -104,7 +104,7 @@ def folder_router_client(monkeypatch):
 
     monkeypatch.setattr(
         folder_router_module,
-        "_auth",
+        "_auth_folder",
         lambda access_key, folder_id: (fake_sync, fake_service),
     )
 
@@ -116,7 +116,7 @@ def folder_router_client(monkeypatch):
 
 def test_folder_router_push_invalid_path_returns_400(folder_router_client: TestClient):
     response = folder_router_client.post(
-        "/api/v1/sync/folder-1/push",
+        "/api/v1/filesystem/folder-1/push",
         headers={"X-Access-Key": "k"},
         json={"filename": "../x.md", "content": {}, "base_version": 0, "node_type": "json"},
     )
@@ -125,7 +125,7 @@ def test_folder_router_push_invalid_path_returns_400(folder_router_client: TestC
 
 def test_folder_router_delete_invalid_path_returns_400(folder_router_client: TestClient):
     response = folder_router_client.delete(
-        "/api/v1/sync/folder-1/file/x.md",
+        "/api/v1/filesystem/folder-1/file/x.md",
         headers={"X-Access-Key": "k"},
     )
     assert response.status_code == 400
@@ -133,7 +133,7 @@ def test_folder_router_delete_invalid_path_returns_400(folder_router_client: Tes
 
 def test_folder_router_upload_url_invalid_path_returns_400(folder_router_client: TestClient):
     response = folder_router_client.post(
-        "/api/v1/sync/folder-1/upload-url",
+        "/api/v1/filesystem/folder-1/upload-url",
         headers={"X-Access-Key": "k"},
         json={
             "filename": "../x.bin",
