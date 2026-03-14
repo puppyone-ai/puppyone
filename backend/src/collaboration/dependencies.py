@@ -24,7 +24,7 @@ from src.collaboration.conflict_service import ConflictService
 from src.collaboration.lock_service import LockService
 from src.collaboration.audit_service import AuditService
 from src.collaboration.service import CollaborationService
-from src.sync.changelog import SyncChangelogRepository
+from src.connectors.filesystem.changelog import SyncChangelogRepository
 
 
 def _get_supabase_client() -> SupabaseClient:

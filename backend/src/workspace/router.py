@@ -77,7 +77,7 @@ async def create_workspace(
     3. 返回工作区路径，bind mount 到 Agent 容器
     """
     from src.workspace.provider import get_workspace_provider
-    from src.sync.sync_worker import SyncWorker
+    from src.connectors.filesystem.worker import SyncWorker
     from src.content_node.repository import ContentNodeRepository
     from src.supabase.client import SupabaseClient
 
@@ -141,7 +141,7 @@ async def complete_workspace(
     from src.content_node.service import ContentNodeService
     from src.s3.service import S3Service
     from src.supabase.client import SupabaseClient
-    from src.sync.cache_manager import CacheManager
+    from src.connectors.filesystem.cache import CacheManager
 
     supabase = SupabaseClient()
     node_repo = ContentNodeRepository(supabase)
@@ -149,7 +149,7 @@ async def complete_workspace(
     version_repo = FileVersionRepository(supabase)
     snapshot_repo = FolderSnapshotRepository(supabase)
 
-    from src.sync.changelog import SyncChangelogRepository
+    from src.connectors.filesystem.changelog import SyncChangelogRepository
     changelog_repo = SyncChangelogRepository(supabase)
 
     version_svc = CollabVersionService(
@@ -316,7 +316,7 @@ async def complete_workspace(
     # 5. PUSH: 将已提交的变更推送到关联的 folder access 工作区
     if committed_items:
         try:
-            from src.filesystem.folder_access import FolderAccessService
+            from src.connectors.filesystem.folder_access import FolderAccessService
             fa = FolderAccessService.get_instance()
             if fa:
                 for item in committed_items:

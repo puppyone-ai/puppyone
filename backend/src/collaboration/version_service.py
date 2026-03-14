@@ -208,7 +208,7 @@ class VersionService:
                 folder_id=folder_id,
                 filename=filename,
             )
-            from src.sync.notifier import ChangeNotifier
+            from src.connectors.filesystem.notifier import ChangeNotifier
             ChangeNotifier.get_instance().notify(project_id)
         except Exception as e:
             log_error(f"[Version] Failed to emit changelog for {node_id}: {e}")

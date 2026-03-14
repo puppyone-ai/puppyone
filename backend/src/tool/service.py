@@ -13,7 +13,7 @@ from src.supabase.tools.schemas import (
     ToolUpdate as SbToolUpdate,
 )
 from src.supabase.dependencies import get_supabase_repository
-from src.mcp.cache_invalidator import invalidate_mcp_cache
+from src.connectors.mcp.cache_invalidator import invalidate_mcp_cache
 from src.project.service import ProjectService
 
 
@@ -68,7 +68,7 @@ class ToolService:
         - 获取对应 Agent 的 mcp_api_key
         - 使 MCP 缓存失效
         """
-        from src.agent.config.repository import AgentRepository
+        from src.connectors.agent.config.repository import AgentRepository
         
         try:
             response = self._get_supabase_repository()._client.table("connection_tools").select("connection_id").eq("tool_id", tool_id).execute()
@@ -99,7 +99,7 @@ class ToolService:
         Check if updating tool name would conflict with sibling tools
         in the same connection (Agent or MCP).
         """
-        from src.agent.config.repository import AgentRepository
+        from src.connectors.agent.config.repository import AgentRepository
         
         try:
             response = self._get_supabase_repository()._client.table("connection_tools").select("connection_id").eq("tool_id", tool_id).execute()

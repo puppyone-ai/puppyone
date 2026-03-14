@@ -2,9 +2,10 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import useSWR from 'swr';
-import { get, post, patch } from '@/lib/apiClient';
+import { get, post, patch, del } from '@/lib/apiClient';
 import { SYNC_MODE_META, getProviderDisplayLabel, getSyncTriggerPolicy } from '@/lib/syncTriggerPolicy';
 import type { SyncModeType } from '@/lib/syncTriggerPolicy';
+import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
 
 interface SyncDetail {
@@ -168,6 +169,7 @@ export { getProviderLogo, PROVIDER_LABELS };
 
 export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewProps) {
   const [refreshing, setRefreshing] = useState(false);
+  const { specs } = useConnectorSpecs();
 
   const { data: syncData, mutate } = useSWR<{ syncs: SyncDetail[] }>(
     projectId ? ['sync-status', projectId] : null,
@@ -196,6 +198,41 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
     }
   }, [syncId, mutate]);
 
+  const handlePause = useCallback(async () => {
+    if (!syncId) return;
+    try {
+      await post(`/api/v1/sync/syncs/${syncId}/pause`);
+      await mutate();
+    } catch (err) {
+      console.error('Pause failed:', err);
+    }
+  }, [syncId, mutate]);
+
+  const handleResume = useCallback(async () => {
+    if (!syncId) return;
+    try {
+      await post(`/api/v1/sync/syncs/${syncId}/resume`);
+      await mutate();
+    } catch (err) {
+      console.error('Resume failed:', err);
+    }
+  }, [syncId, mutate]);
+
+  const [disconnecting, setDisconnecting] = useState(false);
+  const handleDisconnect = useCallback(async () => {
+    if (!syncId || disconnecting) return;
+    setDisconnecting(true);
+    try {
+      await del(`/api/v1/sync/syncs/${syncId}`);
+      await mutate();
+      onClose?.();
+    } catch (err) {
+      console.error('Disconnect failed:', err);
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [syncId, disconnecting, mutate, onClose]);
+
   if (!sync) {
     return (
       <PanelShell title="Connection" onClose={onClose || (() => {})}>
@@ -206,8 +243,8 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
     );
   }
 
-  const providerLabel = getProviderDisplayLabel(sync.provider) !== sync.provider
-    ? getProviderDisplayLabel(sync.provider)
+  const providerLabel = getProviderDisplayLabel(sync.provider, specs) !== sync.provider
+    ? getProviderDisplayLabel(sync.provider, specs)
     : (PROVIDER_LABELS[sync.provider] || sync.provider);
   const dirLabel = DIRECTION_LABELS[sync.direction] || sync.direction;
   const isActive = sync.status === 'active' || sync.status === 'syncing';
@@ -332,15 +369,15 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
               <ActionButton label={refreshing ? 'Syncing...' : 'Sync now'} icon="retry" onClick={handleSyncRefresh} />
             )}
             {isActive && (
-              <ActionButton label="Pause" icon="pause" onClick={() => {}} />
+              <ActionButton label="Pause" icon="pause" onClick={handlePause} />
             )}
             {isPaused && (
-              <ActionButton label="Resume" icon="play" onClick={() => {}} />
+              <ActionButton label="Resume" icon="play" onClick={handleResume} />
             )}
             {isError && (
               <ActionButton label="Retry" icon="retry" onClick={handleSyncRefresh} />
             )}
-            <ActionButton label="Disconnect" icon="disconnect" variant="danger" onClick={() => {}} />
+            <ActionButton label={disconnecting ? 'Removing...' : 'Disconnect'} icon="disconnect" variant="danger" onClick={handleDisconnect} />
           </div>
 
           {/* OpenClaw: Access Key */}
@@ -427,7 +464,8 @@ function TriggerModeSelector({
   currentTrigger: SyncDetail['trigger'];
   onUpdated: () => void;
 }) {
-  const policy = getSyncTriggerPolicy(provider);
+  const { specs } = useConnectorSpecs();
+  const policy = getSyncTriggerPolicy(provider, specs);
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [pendingMode, setPendingMode] = useState<SyncModeType>(currentMode);

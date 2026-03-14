@@ -62,13 +62,13 @@ from src.tool.router import router as tool_router
 tool_router_duration = time.time() - tool_router_start
 
 mcp_v3_router_start = time.time()
-from src.agent.mcp.router import router as mcp_v3_router
+from src.connectors.agent.mcp.router import router as mcp_v3_router
 
 mcp_v3_router_duration = time.time() - mcp_v3_router_start
 
 agent_router_start = time.time()
-from src.agent.router import router as agent_router
-from src.agent.config.router import router as agent_config_router
+from src.connectors.agent.router import router as agent_router
+from src.connectors.agent.config.router import router as agent_config_router
 
 agent_router_duration = time.time() - agent_router_start
 
@@ -266,7 +266,7 @@ async def app_lifespan(app: FastAPI):
     registry_init_start = time.time()
     try:
         log_info("🔌 初始化 ConnectorRegistry...")
-        from src.sync.dependencies import init_registry
+        from src.connectors.datasource.dependencies import init_registry
         init_registry()
         registry_duration = time.time() - registry_init_start
         log_info(f"✅ ConnectorRegistry 初始化成功 (耗时: {registry_duration * 1000:.2f}ms)")
@@ -278,9 +278,9 @@ async def app_lifespan(app: FastAPI):
     sync_init_start = time.time()
     try:
         log_info("🔄 初始化 Folder Sync Services...")
-        from src.filesystem.watcher import FolderSourceService
-        from src.filesystem.folder_access import FolderAccessService
-        from src.sync.repository import SyncRepository
+        from src.connectors.filesystem.watcher import FolderSourceService
+        from src.connectors.filesystem.folder_access import FolderAccessService
+        from src.connectors.datasource.repository import SyncRepository
         from src.collaboration.service import CollaborationService
         from src.collaboration.lock_service import LockService
         from src.collaboration.conflict_service import ConflictService
@@ -293,7 +293,7 @@ async def app_lifespan(app: FastAPI):
         from src.s3.service import S3Service
         from src.supabase.client import SupabaseClient
 
-        from src.sync.changelog import SyncChangelogRepository
+        from src.connectors.filesystem.changelog import SyncChangelogRepository
 
         supabase = SupabaseClient()
         node_repo = ContentNodeRepository(supabase)
@@ -363,8 +363,8 @@ async def app_lifespan(app: FastAPI):
 
     # 停止 Folder Sync Services
     try:
-        from src.filesystem.watcher import FolderSourceService
-        from src.filesystem.folder_access import FolderAccessService
+        from src.connectors.filesystem.watcher import FolderSourceService
+        from src.connectors.filesystem.folder_access import FolderAccessService
         fs = FolderSourceService.get_instance()
         if fs:
             await fs.stop()
@@ -426,7 +426,7 @@ def create_app() -> FastAPI:
     app.include_router(mcp_v3_router, prefix="/api/v1", tags=["mcp"])
     app.include_router(agent_router, prefix="/api/v1", tags=["agents"])
     app.include_router(agent_config_router, prefix="/api/v1", tags=["agent-config"])
-    from src.agent.chat.router import router as chat_router
+    from src.connectors.agent.chat.router import router as chat_router
     app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
     app.include_router(context_publish_router, prefix="/api/v1", tags=["publishes"])
     # public short link: /p/{publish_key}
@@ -449,29 +449,23 @@ def create_app() -> FastAPI:
     app.include_router(collab_router, prefix="/api/v1", tags=["collaboration"])
     from src.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
-    from src.sync.router import router as sync_router
+    from src.connectors.datasource.router import router as sync_router
     app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
-    from src.filesystem.router import router as filesystem_router
+    from src.connectors.filesystem.router import router as filesystem_router
     app.include_router(filesystem_router, tags=["filesystem"])
-    from src.sync.folder_router import router as folder_sync_compat_router
-    app.include_router(folder_sync_compat_router, tags=["folder-sync-compat"])
-    from src.sync.connectors.filesystem.router import router as openclaw_compat_router
-    app.include_router(openclaw_compat_router, tags=["sync-openclaw-compat"])
-    from src.access.filesystem.router import router as access_compat_router
-    app.include_router(access_compat_router, tags=["access-openclaw-compat"])
     from src.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
-    from src.mcp_endpoint.router import router as mcp_endpoint_router
+    from src.connectors.mcp.router import router as mcp_endpoint_router
     app.include_router(mcp_endpoint_router, prefix="/api/v1", tags=["mcp-endpoints"])
-    from src.sandbox_endpoint.router import router as sandbox_endpoint_router
+    from src.connectors.sandbox.router import router as sandbox_endpoint_router
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
     from src.project.dashboard_router import router as dashboard_router
     app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])
-    from src.connection.router import router as connection_router
+    from src.connectors.manager.router import router as connection_router
     app.include_router(connection_router, prefix="/api/v1", tags=["connections"])
     router_register_duration = time.time() - router_register_start
 

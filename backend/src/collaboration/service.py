@@ -202,12 +202,15 @@ class CollaborationService:
 
     async def _apply_node_create(self, m: Mutation) -> CommitResult:
         # 1. Apply: 创建节点
+        # created_by must be a valid UUID or None; never fall back to operator.id
+        # which may contain descriptive strings like "system" or "etl:xxx".
+        creator = m.created_by
         if m.node_type == "folder":
             node = self.node_svc.create_folder(
                 project_id=m.project_id,
                 name=m.name,
                 parent_id=m.parent_id,
-                created_by=m.created_by or m.operator.id,
+                created_by=creator,
             )
             # 2. Record: 审计日志（文件夹不创建版本快照）
             self.audit_svc.log_commit(
@@ -230,7 +233,7 @@ class CollaborationService:
                 name=m.name,
                 content=m.content or {},
                 parent_id=m.parent_id,
-                created_by=m.created_by or m.operator.id,
+                created_by=creator,
             )
             content_json = m.content or {}
             content_text = None
@@ -241,7 +244,7 @@ class CollaborationService:
                 name=m.name,
                 content=content_str,
                 parent_id=m.parent_id,
-                created_by=m.created_by or m.operator.id,
+                created_by=creator,
             )
             content_json = None
             content_text = content_str
@@ -275,7 +278,7 @@ class CollaborationService:
         node = self.node_svc.soft_delete_node(
             node_id=m.node_id,
             project_id=m.project_id,
-            user_id=m.operator.id or "system",
+            user_id=m.created_by,
         )
 
         # 2. Record: 审计日志

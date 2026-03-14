@@ -50,7 +50,7 @@ async def reap_idle_sandboxes():
         if _node_repo:
             def _get_changelog_repo(sb):
                 try:
-                    from src.sync.changelog import SyncChangelogRepository
+                    from src.connectors.filesystem.changelog import SyncChangelogRepository
                     return SyncChangelogRepository(sb)
                 except Exception:
                     return None

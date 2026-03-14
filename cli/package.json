@@ -6,6 +6,10 @@
   "bin": {
     "puppyone": "bin/puppyone.js"
   },
+  "scripts": {
+    "test": "bash tests/run.sh",
+    "test:verbose": "bash tests/run.sh --verbose"
+  },
   "files": [
     "bin/",
     "src/"

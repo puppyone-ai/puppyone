@@ -27,8 +27,8 @@ from src.collaboration.schemas import (
     FolderSnapshotHistoryResponse,
     DiffResponse,
 )
-from src.sync.service import SyncService
-from src.sync.dependencies import get_sync_service
+from src.connectors.datasource.service import SyncService
+from src.connectors.datasource.dependencies import get_sync_service
 from src.common_schemas import ApiResponse
 
 

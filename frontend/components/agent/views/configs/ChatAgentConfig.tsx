@@ -14,7 +14,10 @@ export interface AgentConfigProps {
   projectTools?: DbTool[];
 }
 
-export function ChatAgentConfig({ projectTools }: AgentConfigProps) {
+export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }: AgentConfigProps & {
+  targetLabel?: string;
+  targetDescription?: string;
+}) {
   const { draftResources, addDraftResource, updateDraftResource, removeDraftResource } = useAgent();
 
   const [isDragging, setIsDragging] = useState(false);
@@ -114,11 +117,11 @@ export function ChatAgentConfig({ projectTools }: AgentConfigProps) {
           zIndex: 2
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-            <label style={{ ...labelStyle, marginBottom: 0, paddingLeft: 2, color: '#e4e4e7' }}>Agent Access Target</label>
+            <label style={{ ...labelStyle, marginBottom: 0, paddingLeft: 2, color: '#e4e4e7' }}>{targetLabel || 'Agent Access Target'}</label>
             <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
           </div>
           <div style={{ color: '#a1a1aa', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
-            Drag and drop a folder to define the workspace scope this agent can interact with.
+            {targetDescription || 'Drag and drop a folder to define the workspace scope this agent can interact with.'}
           </div>
 
           <div

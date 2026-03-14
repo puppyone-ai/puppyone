@@ -17,7 +17,7 @@ async def _execute_sync_pull_async(sync_id: str) -> dict:
     Pull fresh data for a scheduled sync binding via SyncEngine.
     All writes go through CollaborationService (version management).
     """
-    from src.sync.dependencies import create_sync_engine
+    from src.connectors.datasource.dependencies import create_sync_engine
 
     started_at = datetime.now(timezone.utc)
     log_info(f"[sync-scheduler] Starting pull for sync {sync_id}")
@@ -41,7 +41,7 @@ async def _execute_sync_pull_async(sync_id: str) -> dict:
 
         try:
             from src.supabase.client import SupabaseClient
-            from src.sync.repository import SyncRepository
+            from src.connectors.datasource.repository import SyncRepository
             SyncRepository(SupabaseClient()).update_error(sync_id, str(e))
         except Exception:
             pass

@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List
 
-from src.sync.schemas import SyncResult  # L2.5
+from src.connectors.datasource.schemas import SyncResult  # L2.5
 
 
 @dataclass

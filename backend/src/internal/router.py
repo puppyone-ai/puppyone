@@ -15,8 +15,8 @@ from src.supabase.dependencies import get_supabase_repository
 from src.turbopuffer.internal_router import router as turbopuffer_internal_router
 from src.search.dependencies import get_search_service
 from src.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
-from src.agent.config.service import AgentConfigService
-from src.agent.config.repository import AgentRepository
+from src.connectors.agent.config.service import AgentConfigService
+from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
 from src.tool.models import Tool
 from src.content_node.dependencies import get_content_node_service
@@ -669,12 +669,13 @@ async def create_node(
 
         result = await collab.commit(Mutation(
             type=MutationType.NODE_CREATE,
-            operator=Operator(type="mcp_agent", id=created_by or "system"),
+            operator=Operator(type="mcp_agent", id=created_by),
             project_id=project_id,
             parent_id=parent_id,
             name=name,
             node_type=node_type,
             content=content if node_type != "folder" else None,
+            created_by=created_by,
         ))
 
         node = node_service.get_by_id(result.node_id, project_id)
@@ -713,13 +714,14 @@ async def trash_node(
     """
     try:
         project_id = payload.get("project_id", "")
-        user_id = payload.get("user_id", "system")
+        user_id = payload.get("user_id")
 
         await collab.commit(Mutation(
             type=MutationType.NODE_DELETE,
             operator=Operator(type="mcp_agent", id=user_id),
             node_id=node_id,
             project_id=project_id,
+            created_by=user_id,
         ))
         return {"node_id": node_id, "removed": True, "message": "Moved to trash"}
     except AppException as e:
@@ -1023,7 +1025,7 @@ async def get_agent_by_mcp_key(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_mcp_endpoint_by_key(api_key: str):
-    from src.mcp_endpoint.repository import McpEndpointRepository
+    from src.connectors.mcp.repository import McpEndpointRepository
     from src.content_node.dependencies import get_content_node_repository
     from src.supabase.client import SupabaseClient
 
@@ -1092,7 +1094,7 @@ async def get_mcp_endpoint_by_key(api_key: str):
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_sandbox_endpoint_by_key(access_key: str):
-    from src.sandbox_endpoint.repository import SandboxEndpointRepository
+    from src.connectors.sandbox.repository import SandboxEndpointRepository
     from src.content_node.dependencies import get_content_node_repository
     from src.supabase.client import SupabaseClient
 

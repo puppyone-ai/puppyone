@@ -14,7 +14,7 @@ from src.content_node.service import ContentNodeService
 # 向后兼容：从 collaboration 模块导入
 from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
 from src.collaboration.version_service import VersionService
-from src.sync.changelog import SyncChangelogRepository
+from src.connectors.filesystem.changelog import SyncChangelogRepository
 
 
 def get_supabase_client() -> SupabaseClient:

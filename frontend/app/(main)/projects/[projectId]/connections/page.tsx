@@ -11,6 +11,7 @@ import React, { use, useState, useMemo, useCallback } from 'react';
 import useSWR from 'swr';
 import { get, post, del } from '@/lib/apiClient';
 import { getProviderDisplayLabel, SYNC_MODE_META, type SyncModeType } from '@/lib/syncTriggerPolicy';
+import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { getProviderLogo } from '@/components/agent/views/SyncDetailView';
 
 /* ================================================================
@@ -268,7 +269,8 @@ export default function ConnectionsPage({ params }: { params: Promise<{ projectI
 
 function ConnectionRow({ connection: c, onClick, isLast }: { connection: SyncStatusItem; onClick: () => void; isLast: boolean }) {
   const [hovered, setHovered] = useState(false);
-  const label = getProviderDisplayLabel(c.provider) || PROVIDER_LABELS[c.provider] || c.provider;
+  const { specs } = useConnectorSpecs();
+  const label = getProviderDisplayLabel(c.provider, specs) || PROVIDER_LABELS[c.provider] || c.provider;
   const name = c.name || c.node_name || label;
   const statusColor = STATUS_COLORS[c.status] || '#71717a';
 
@@ -324,8 +326,9 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'settings'>('overview');
   const [syncing, setSyncing] = useState(false);
   const [pausing, setPausing] = useState(false);
+  const { specs } = useConnectorSpecs();
 
-  const label = getProviderDisplayLabel(c.provider) || PROVIDER_LABELS[c.provider] || c.provider;
+  const label = getProviderDisplayLabel(c.provider, specs) || PROVIDER_LABELS[c.provider] || c.provider;
   const name = c.name || c.node_name || label;
 
   const handleSync = useCallback(async () => {
@@ -489,7 +492,8 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
    ================================================================ */
 
 function OverviewTab({ connection: c, projectId }: { connection: SyncStatusItem; projectId: string }) {
-  const label = getProviderDisplayLabel(c.provider) || PROVIDER_LABELS[c.provider] || c.provider;
+  const { specs } = useConnectorSpecs();
+  const label = getProviderDisplayLabel(c.provider, specs) || PROVIDER_LABELS[c.provider] || c.provider;
   const isActive = c.status === 'active' || c.status === 'syncing';
 
   if (c.provider === 'mcp') {
@@ -737,6 +741,7 @@ interface AuditLog {
 
 function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem; onRefresh: () => void }) {
   const [confirming, setConfirming] = useState(false);
+  const { specs } = useConnectorSpecs();
 
   const handleDisconnect = async () => {
     try {
@@ -760,7 +765,7 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
           background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
           borderRadius: 8, display: 'flex', flexDirection: 'column'
         }}>
-          <InfoRow label="Provider" value={getProviderDisplayLabel(c.provider) || c.provider} />
+          <InfoRow label="Provider" value={getProviderDisplayLabel(c.provider, specs) || c.provider} />
           <InfoRow label="Direction" value={DIRECTION_LABELS[c.direction] || c.direction} />
           
           {c.provider !== 'mcp' && c.provider !== 'sandbox' && c.provider !== 'agent' && (

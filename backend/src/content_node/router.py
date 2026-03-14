@@ -509,6 +509,7 @@ async def delete_node(
         operator=Operator(type="user", id=current_user.user_id),
         node_id=node_id,
         project_id=project_id,
+        created_by=current_user.user_id,
     ))
     return ApiResponse.success(message="节点删除成功")
 

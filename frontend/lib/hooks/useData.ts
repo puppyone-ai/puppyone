@@ -20,6 +20,7 @@ import {
   type Tool,
 } from '../mcpApi';
 import { listNodes, type NodeInfo } from '../contentNodesApi';
+import { getConnectorSpecs, type ConnectorSpec } from '../syncApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
 const defaultConfig = {
@@ -376,4 +377,17 @@ export function refreshToolsAndMcp(apiKey?: string) {
   if (apiKey) {
     mutate(['bound-tools', apiKey]);
   }
+}
+
+/**
+ * Connector specs from backend (source of truth for sync providers)
+ */
+export function useConnectorSpecs() {
+  const { data, error, isLoading } = useSWR<ConnectorSpec[]>(
+    'connector-specs',
+    getConnectorSpecs,
+    { ...defaultConfig, dedupingInterval: 300000 }
+  );
+
+  return { specs: data ?? [], isLoading, error };
 }

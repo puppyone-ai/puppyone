@@ -74,7 +74,7 @@ def test_rollback_file_emits_sync_changelog(monkeypatch):
     changelog_repo = FakeChangelogRepo()
     fake_notifier = FakeNotifier()
     monkeypatch.setattr(
-        "src.sync.notifier.ChangeNotifier.get_instance",
+        "src.connectors.filesystem.notifier.ChangeNotifier.get_instance",
         classmethod(lambda cls: fake_notifier),
     )
 
