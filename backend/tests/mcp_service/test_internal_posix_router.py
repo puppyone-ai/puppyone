@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from src.content_node.dependencies import get_content_node_service
 from src.content_node.models import ContentNode
+from src.collaboration.dependencies import get_collaboration_service
 from src.exceptions import BusinessException
 from src.internal import router as internal_router_module
 from src.internal.router import get_agent_config_service, router as internal_router, verify_internal_secret
@@ -24,8 +25,6 @@ def _node(
     name: str,
     node_type: str,
     parent_id: str | None = None,
-    preview_json=None,
-    preview_md: str | None = None,
     s3_key: str | None = None,
 ) -> ContentNode:
     now = datetime.now(UTC)
@@ -33,22 +32,14 @@ def _node(
         id=node_id,
         project_id=project_id,
         created_by="u1",
-        sync_oauth_user_id=None,
         parent_id=parent_id,
         name=name,
         type=node_type,
         id_path=f"/{node_id}" if parent_id is None else f"/{parent_id}/{node_id}",
-        preview_json=preview_json,
-        preview_md=preview_md,
         s3_key=s3_key,
         mime_type="text/plain" if s3_key else None,
         size_bytes=12,
         permissions={"inherit": True},
-        sync_url=None,
-        sync_id=None,
-        sync_config=None,
-        sync_status="idle",
-        last_synced_at=None,
         created_at=now,
         updated_at=now,
     )
@@ -68,7 +59,7 @@ def node_service_mock():
     service.build_display_path = Mock()
     service.list_children = Mock()
     service.get_by_id = Mock()
-    service.update_markdown_content = AsyncMock()
+    service.update_node_metadata = Mock()
     service.update_node = Mock()
     service.create_folder = Mock()
     service.create_json_node = Mock()
@@ -78,9 +69,17 @@ def node_service_mock():
 
 
 @pytest.fixture
-def client(app, node_service_mock):
+def collab_mock():
+    mock = Mock()
+    mock.commit = AsyncMock()
+    return mock
+
+
+@pytest.fixture
+def client(app, node_service_mock, collab_mock):
     app.dependency_overrides[verify_internal_secret] = lambda: None
     app.dependency_overrides[get_content_node_service] = lambda: node_service_mock
+    app.dependency_overrides[get_collaboration_service] = lambda: collab_mock
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
@@ -140,7 +139,7 @@ def test_list_node_children_filters_trash(client, node_service_mock):
 
 def test_read_node_content_json_returns_content(client, node_service_mock):
     node_service_mock.get_by_id.return_value = _node(
-        "json-1", name="users.json", node_type="json", preview_json={"users": []}
+        "json-1", name="users.json", node_type="json"
     )
 
     resp = client.get(
@@ -185,10 +184,10 @@ def test_write_node_content_markdown_requires_string(client, node_service_mock):
     assert "Markdown content must be a string" in resp.json()["detail"]
 
 
-def test_write_node_content_markdown_success(client, node_service_mock):
+def test_write_node_content_markdown_success(client, node_service_mock, collab_mock):
     md_node = _node("md-1", name="readme.md", node_type="markdown")
     node_service_mock.get_by_id.return_value = md_node
-    node_service_mock.update_markdown_content.return_value = md_node
+    collab_mock.commit.return_value = SimpleNamespace(version=1, node_id="md-1", status="clean")
 
     resp = client.put(
         "/internal/nodes/md-1/content",
@@ -198,7 +197,7 @@ def test_write_node_content_markdown_success(client, node_service_mock):
 
     assert resp.status_code == 200
     assert resp.json()["updated"] is True
-    node_service_mock.update_markdown_content.assert_awaited_once_with("md-1", "proj-1", "# title")
+    collab_mock.commit.assert_awaited_once()
 
 
 def test_create_node_routes_to_expected_service_method(client, node_service_mock):

@@ -136,16 +136,22 @@ class DBConnectorService:
             "row_count": result.row_count,
         }
 
-        content_node = await self.node_service.create_synced_node(
+        from src.collaboration.schemas import Mutation, MutationType, Operator
+        from src.collaboration.dependencies import create_collaboration_service
+        collab = create_collaboration_service()
+        commit_result = await collab.commit(Mutation(
+            type=MutationType.NODE_CREATE,
+            operator=Operator(type="db_connector", id=connection_id),
             project_id=project_id,
             name=name,
             content=content_data,
+            node_type="json",
             created_by=user_id,
-        )
+        ))
 
         self.repo.update_last_used(conn.id)
 
         return {
-            "content_node_id": str(content_node.id),
+            "content_node_id": commit_result.node_id,
             "row_count": result.row_count,
         }

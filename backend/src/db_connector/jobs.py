@@ -59,13 +59,23 @@ async def db_sync_job(ctx: dict[str, Any], content_node_id: str) -> dict[str, An
             limit=sync_config.get("limit", 1000),
         )
 
-        # 4. 更新 content_node 的数据
         new_content = {
             "columns": result.columns,
             "rows": result.rows,
             "row_count": result.row_count,
         }
-        node_service.update_sync_content(content_node_id, new_content)
+
+        from src.collaboration.schemas import Mutation, MutationType, Operator
+        from src.collaboration.dependencies import create_collaboration_service
+        collab = create_collaboration_service()
+        await collab.commit(Mutation(
+            type=MutationType.CONTENT_UPDATE,
+            operator=Operator(type="db_connector", id=connection_id),
+            node_id=content_node_id,
+            content=new_content,
+            node_type="json",
+            base_version=0,
+        ))
 
         db_repo.update_last_used(connection_id)
 

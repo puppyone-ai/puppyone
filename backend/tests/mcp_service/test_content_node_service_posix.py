@@ -30,8 +30,6 @@ def _node(
         type=node_type,
         id_path=id_path,
         depth=depth,
-        preview_json=None,
-        preview_md=None,
         s3_key=None,
         mime_type=None,
         size_bytes=0,

@@ -175,7 +175,7 @@ class FolderSourceService:
         content_type: str,
         parent_id: Optional[str],
     ) -> str:
-        """根据文件类型创建对应的 content_node。"""
+        """创建 content_node 元数据（内容稍后通过 MUT commit 写入）。"""
         import os
         name = os.path.splitext(os.path.basename(rel_path))[0]
 
@@ -183,7 +183,6 @@ class FolderSourceService:
             node = self._node_svc.create_json_node(
                 project_id=project_id,
                 name=name,
-                content={},
                 parent_id=parent_id,
                 created_by="folder_source",
             )
@@ -191,7 +190,6 @@ class FolderSourceService:
             node = await self._node_svc.create_markdown_node(
                 project_id=project_id,
                 name=name,
-                content="",
                 parent_id=parent_id,
                 created_by="folder_source",
             )
@@ -229,27 +227,22 @@ class FolderSourceService:
             return False
 
         try:
-            if fc.content_type == "json":
-                from src.collaboration.schemas import Mutation, MutationType, Operator
-                from src.collaboration.dependencies import create_collaboration_service
-                collab = create_collaboration_service()
-                await collab.commit(Mutation(
-                    type=MutationType.CONTENT_UPDATE,
-                    operator=Operator(type="sync", id=f"folder_source:{root_sync.id}"),
-                    node_id=node_sync.node_id,
-                    content=fc.content,
-                    node_type="json",
-                    base_version=0,
-                ))
-            else:
-                content_str = fc.content if isinstance(fc.content, str) else str(fc.content)
-                await self._node_svc.update_markdown_content(
-                    node_id=node_sync.node_id,
-                    project_id=root_sync.project_id,
-                    content=content_str,
-                    operator_type="sync",
-                    operator_id=f"folder_source:{root_sync.id}",
-                )
+            from src.collaboration.schemas import Mutation, MutationType, Operator
+            from src.collaboration.dependencies import create_collaboration_service
+            collab = create_collaboration_service()
+
+            content = fc.content
+            if fc.content_type != "json":
+                content = fc.content if isinstance(fc.content, str) else str(fc.content)
+
+            await collab.commit(Mutation(
+                type=MutationType.CONTENT_UPDATE,
+                operator=Operator(type="sync", id=f"folder_source:{root_sync.id}"),
+                node_id=node_sync.node_id,
+                content=content,
+                node_type=fc.content_type,
+                base_version=0,
+            ))
 
             self._sync_repo.update_sync_point(
                 sync_id=node_sync.id,

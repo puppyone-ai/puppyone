@@ -523,26 +523,28 @@ class MutCompatService:
         return self._derive_mut_path(parent)
 
     def _create_node_in_db(self, m: Mutation):
+        content_bytes = _serialize_content(m.content, m.node_type)
+        size_bytes = len(content_bytes) if content_bytes else None
+
         if m.node_type == "json":
             return self._node_svc.create_json_node(
                 project_id=m.project_id,
                 name=m.name,
-                content=m.content or {},
                 parent_id=m.parent_id,
                 created_by=m.created_by,
+                size_bytes=size_bytes,
             )
         elif m.node_type == "markdown":
             import asyncio
-            content_str = m.content if isinstance(m.content, str) else ""
             try:
                 loop = asyncio.get_event_loop()
                 return loop.run_until_complete(
                     self._node_svc.create_markdown_node(
                         project_id=m.project_id,
                         name=m.name,
-                        content=content_str,
                         parent_id=m.parent_id,
                         created_by=m.created_by,
+                        size_bytes=size_bytes,
                     )
                 )
             except RuntimeError:
@@ -550,9 +552,9 @@ class MutCompatService:
                     self._node_svc.create_markdown_node(
                         project_id=m.project_id,
                         name=m.name,
-                        content=content_str,
                         parent_id=m.parent_id,
                         created_by=m.created_by,
+                        size_bytes=size_bytes,
                     )
                 )
         elif m.node_type == "file":

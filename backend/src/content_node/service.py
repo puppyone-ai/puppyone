@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime
-from typing import Optional, List, Any, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING
 from src.content_node.models import ContentNode
 from src.content_node.repository import ContentNodeRepository
 from src.s3.service import S3Service
@@ -14,10 +14,11 @@ FORBIDDEN_CHARS_RE = re.compile(r'[/\x00-\x1f]')  # 斜杠 + 控制字符
 RESERVED_NAMES = {'.', '..'}
 
 class ContentNodeService:
-    """Content Node 业务逻辑
+    """Content Node 元数据管理层（METADATA ONLY）。
 
-    只负责 content_nodes 表的 CRUD 操作（元数据管理）。
-    版本管理由 MutWriteService 通过 Mut 内核处理，不在此层。
+    本层只负责 content_nodes 表的 CRUD 操作。
+    **所有内容写入必须通过 MutCompatService.commit()** — 这是唯一的内容写入入口。
+    本层不接受任何 content 参数，从架构上杜绝绕过 MUT 的可能。
     """
 
     def __init__(
@@ -27,10 +28,6 @@ class ContentNodeService:
     ):
         self.repo = repo
         self.s3 = s3_service
-
-    def _track_version(self, *args, **kwargs) -> None:
-        """No-op — 版本管理已迁移到 Mut 内核。"""
-        pass
 
     # === 名称校验 ===
 
@@ -481,64 +478,16 @@ class ContentNodeService:
         self, 
         project_id: str,
         name: str, 
-        content: Any,
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
+        size_bytes: Optional[int] = None,
     ) -> ContentNode:
-        """创建 JSON 节点"""
+        """创建 JSON 节点元数据。内容必须通过 MutCompatService.commit() 写入。"""
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
         id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
-        
-        # 计算 JSON 内容的字节大小
-        size_bytes = None
-        if content is not None:
-            import json as _json
-            size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8"))
-
-        node = self.repo.create(
-            project_id=project_id,
-            name=unique_name,
-            node_type="json",
-            id_path=id_path,
-            created_by=created_by,
-            mime_type="application/json",
-            size_bytes=size_bytes,
-        )
-        self._track_version(node.id, "create", content_json=content, operator_id=created_by)
-        return node
-
-    def create_placeholder_node(
-        self,
-        project_id: str,
-        name: str,
-        placeholder_type: str,
-        parent_id: Optional[str] = None,
-        created_by: Optional[str] = None,
-    ) -> ContentNode:
-        """
-        创建占位符节点（未连接状态）。
-        
-        在 Unified Sync 架构下，节点只是普通 json 节点。
-        同步关系通过 syncs 表单独管理。
-        """
-        import uuid
-        name = self._validate_name(name)
-        
-        new_id = str(uuid.uuid4())
-        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
-        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
-        
-        placeholder_content = {
-            "_status": "not_connected",
-            "_placeholder_type": placeholder_type,
-            "_message": f"Click to connect your {placeholder_type.replace('_', ' ').title()} account",
-        }
-        
-        import json as _json
-        size_bytes = len(_json.dumps(placeholder_content, ensure_ascii=False).encode("utf-8"))
 
         return self.repo.create(
             project_id=project_id,
@@ -550,49 +499,61 @@ class ContentNodeService:
             size_bytes=size_bytes,
         )
 
-    async def convert_placeholder_to_synced(
-        self,
-        node_id: str,
-        project_id: str,
-        content: Any,
-    ) -> ContentNode:
-        """将占位符节点更新为有内容的节点（同步关系由 syncs 表管理）"""
-        node = self.get_by_id(node_id, project_id)
-
-        import json as _json
-        size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8")) if content is not None else None
-
-        updated = self.repo.update(
-            node_id=node_id,
-            size_bytes=size_bytes,
-        )
-        self._track_version(node_id, "update", content_json=content, operator_type="sync")
-        return updated
-
-    async def create_synced_node(
+    def create_placeholder_node(
         self,
         project_id: str,
         name: str,
-        content: Any,
+        placeholder_type: str,
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> ContentNode:
-        """
-        创建用于同步的 JSON 节点。
-        
-        同步关系（provider、direction 等）通过 syncs 表单独管理。
-        """
+        """创建占位符节点元数据。占位符内容必须通过 MutCompatService.commit() 写入。"""
         import uuid
         name = self._validate_name(name)
         
         new_id = str(uuid.uuid4())
         id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
-        
-        import json as _json
-        size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8")) if content is not None else None
 
-        node = self.repo.create(
+        return self.repo.create(
+            project_id=project_id,
+            name=unique_name,
+            node_type="json",
+            id_path=id_path,
+            created_by=created_by,
+            mime_type="application/json",
+        )
+
+    async def convert_placeholder_to_synced(
+        self,
+        node_id: str,
+        project_id: str,
+        size_bytes: Optional[int] = None,
+    ) -> ContentNode:
+        """将占位符节点标记为已同步（元数据更新）。内容通过 MutCompatService.commit() 写入。"""
+        self.get_by_id(node_id, project_id)
+        return self.repo.update(
+            node_id=node_id,
+            size_bytes=size_bytes,
+        )
+
+    async def create_synced_node(
+        self,
+        project_id: str,
+        name: str,
+        parent_id: Optional[str] = None,
+        created_by: Optional[str] = None,
+        size_bytes: Optional[int] = None,
+    ) -> ContentNode:
+        """创建同步 JSON 节点元数据。内容必须通过 MutCompatService.commit() 写入。"""
+        import uuid
+        name = self._validate_name(name)
+        
+        new_id = str(uuid.uuid4())
+        id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
+        unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
+
+        return self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="json",
@@ -601,8 +562,6 @@ class ContentNodeService:
             mime_type="application/json",
             size_bytes=size_bytes,
         )
-        self._track_version(node.id, "create", content_json=content, operator_type="sync", operator_id=created_by)
-        return node
 
     async def create_github_repo_node(
         self,
@@ -693,59 +652,51 @@ class ContentNodeService:
         self, 
         project_id: str,
         name: str, 
-        content: str = "",
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
+        size_bytes: Optional[int] = None,
     ) -> ContentNode:
-        """创建 Markdown 节点（内容存 MUT/S3 ObjectStore）"""
+        """创建 Markdown 节点元数据。内容必须通过 MutCompatService.commit() 写入。"""
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
         id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
-        
-        content_bytes = content.encode('utf-8')
-        
-        node = self.repo.create(
+
+        return self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="markdown",
             id_path=id_path,
             created_by=created_by,
             mime_type="text/markdown",
-            size_bytes=len(content_bytes),
+            size_bytes=size_bytes,
         )
-        self._track_version(node.id, "create", content_text=content, size_bytes=len(content_bytes), operator_id=created_by)
-        return node
 
     async def create_synced_markdown_node(
         self, 
         project_id: str,
         name: str, 
-        content: str,
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
+        size_bytes: Optional[int] = None,
     ) -> ContentNode:
-        """创建用于同步的 Markdown 节点（同步关系由 syncs 表管理）"""
+        """创建同步 Markdown 节点元数据。内容必须通过 MutCompatService.commit() 写入。"""
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
         id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
-        
-        content_bytes = content.encode('utf-8')
-        
-        node = self.repo.create(
+
+        return self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="markdown",
             id_path=id_path,
             created_by=created_by,
             mime_type="text/markdown",
-            size_bytes=len(content_bytes),
+            size_bytes=size_bytes,
         )
-        self._track_version(node.id, "create", content_text=content, size_bytes=len(content_bytes), operator_type="sync", operator_id=created_by)
-        return node
 
     async def bulk_create_nodes(
         self,
@@ -790,25 +741,15 @@ class ContentNodeService:
                     id_path, p_id_path, p_depth = self._build_id_path(project_id, real_parent_id, new_id)
                     unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, validated_name)
                     
-                    # node["type"]: folder | json | markdown | file
                     node_type = node["type"]
-                    content = node.get("content")
                     
                     mime_type = None
-                    size_bytes = 0
+                    size_bytes = node.get("size_bytes", 0)
 
-                    if node_type == "folder":
-                        mime_type = None
-                    elif node_type == "json":
+                    if node_type == "json":
                         mime_type = "application/json"
-                        if content is not None:
-                            import json as _json
-                            size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8"))
                     elif node_type == "markdown":
                         mime_type = "text/markdown"
-                        md_text = content if isinstance(content, str) else ""
-                        if md_text:
-                            size_bytes = len(md_text.encode('utf-8'))
                     elif node_type == "file":
                         mime_type = "application/octet-stream"
 
@@ -897,15 +838,10 @@ class ContentNodeService:
         self,
         node_id: str,
         project_id: str,
-        content: str,
         new_name: Optional[str] = None,
+        size_bytes: Optional[int] = None,
     ) -> ContentNode:
-        """
-        完成 pending 节点的处理（ETL/OCR 完成后调用）
-
-        type 保持 "file" 不变。OCR 结果内容存储在 MUT/S3 ObjectStore 中，
-        此处仅更新 size_bytes 元数据。
-        """
+        """完成 pending 节点的元数据更新。内容已通过 MutCompatService.commit() 写入。"""
         node = self.get_by_id(node_id, project_id)
 
         if node.type != "file":
@@ -914,15 +850,11 @@ class ContentNodeService:
                 code=ErrorCode.BAD_REQUEST
             )
 
-        content_bytes = content.encode('utf-8')
-
-        updated = self.repo.update_with_type(
+        return self.repo.update_with_type(
             node_id,
             name=new_name,
-            size_bytes=len(content_bytes),
+            size_bytes=size_bytes,
         )
-        self._track_version(node_id, "update", content_text=content, size_bytes=len(content_bytes), operator_type="system")
-        return updated
 
     def update_node(
         self,
@@ -948,55 +880,18 @@ class ContentNodeService:
 
         return updated
 
-    def update_sync_content(self, node_id: str, content: Any) -> ContentNode:
-        """更新同步节点的 size_bytes 元数据（内容存储已迁移到 MUT/S3）"""
-        import json as _json
-        size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8")) if content is not None else None
-
+    def update_node_metadata(
+        self,
+        node_id: str,
+        size_bytes: Optional[int] = None,
+    ) -> ContentNode:
+        """更新节点元数据（size_bytes 等）。内容变更必须通过 MutCompatService.commit()。"""
         updated = self.repo.update(
             node_id=node_id,
             size_bytes=size_bytes,
         )
         if not updated:
             raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)
-        self._track_version(node_id, "update", content_json=content, operator_type="sync")
-        return updated
-
-    async def update_markdown_content(
-        self,
-        node_id: str,
-        project_id: str,
-        content: str,
-        operator_type: str = "user",
-        operator_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-    ) -> ContentNode:
-        """更新 markdown 节点的 size_bytes 元数据（内容存储已迁移到 MUT/S3）"""
-        import logging
-
-        logger = logging.getLogger(__name__)
-        node = self.get_by_id(node_id, project_id)
-
-        if node.type != "markdown":
-            raise BusinessException(
-                f"Node is not markdown type: type={node.type}",
-                code=ErrorCode.BAD_REQUEST
-            )
-
-        content_bytes = content.encode('utf-8')
-
-        updated = self.repo.update(
-            node_id=node_id,
-            size_bytes=len(content_bytes),
-        )
-        logger.info(f"[ContentNode] Markdown size updated: {node_id}")
-
-        self._track_version(
-            node_id, "update", content_text=content,
-            size_bytes=len(content_bytes),
-            operator_type=operator_type, operator_id=operator_id, session_id=session_id,
-        )
-
         return updated
 
     def move_node(

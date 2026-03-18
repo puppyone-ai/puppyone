@@ -358,31 +358,23 @@ async def create_markdown_node(
 async def bulk_create_nodes(
     request: BulkCreateRequest,
     service: ContentNodeService = Depends(get_content_node_service),
+    collab: CollaborationService = Depends(get_collaboration_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
     批量创建节点，用于文件夹上传场景。
-    
+
     节点通过 temp_id 和 parent_temp_id 建立层级关系：
     - temp_id: 每个节点的临时标识（前端生成）
     - parent_temp_id: 父节点的临时标识，None 表示挂载到 parent_id 指定的节点下
-    
+
     type 字段: folder | json | markdown | file
-    
-    示例：上传文件夹 my-docs/
-    ```json
-    {
-      "project_id": "xxx",
-      "parent_id": null,
-      "nodes": [
-        {"temp_id": "t1", "name": "my-docs", "type": "folder", "parent_temp_id": null},
-        {"temp_id": "t2", "name": "readme.md", "type": "markdown", "parent_temp_id": "t1", "content": "# Hello"},
-        {"temp_id": "t3", "name": "config.json", "type": "json", "parent_temp_id": "t1", "content": {"key": "value"}}
-      ]
-    }
-    ```
+
+    所有带 content 的 JSON/Markdown 节点通过 MUT 写入（collab.commit）。
     """
+    _ensure_project_access(project_service, current_user, request.project_id)
+
     nodes_data = [
         {
             "temp_id": n.temp_id,
@@ -393,15 +385,33 @@ async def bulk_create_nodes(
         }
         for n in request.nodes
     ]
-    
-    _ensure_project_access(project_service, current_user, request.project_id)
+
     results = await service.bulk_create_nodes(
         project_id=request.project_id,
         nodes=nodes_data,
         root_parent_id=request.parent_id,
         created_by=current_user.user_id,
     )
-    
+
+    temp_to_node_id = {r["temp_id"]: r["node_id"] for r in results}
+
+    for n in request.nodes:
+        if n.content is None:
+            continue
+        if n.type not in ("json", "markdown"):
+            continue
+        node_id = temp_to_node_id.get(n.temp_id)
+        if not node_id:
+            continue
+        await collab.commit(Mutation(
+            type=MutationType.CONTENT_UPDATE,
+            operator=Operator(type="user", id=current_user.user_id),
+            project_id=request.project_id,
+            node_id=node_id,
+            content=n.content,
+            node_type=n.type,
+        ))
+
     return ApiResponse.success(
         data=BulkCreateResponse(
             created=[BulkCreateResultItem(**r) for r in results],

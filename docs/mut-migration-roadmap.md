@@ -817,8 +817,8 @@ async def migrate_project(project_id: str):
 |-------|------|------|--------|
 | Phase 1 | PuppyOne 集成基础（后端实现 + repo manager + index sync） | ✅ 已完成 | — |
 | Phase 2 | 写入路径迁移（MutWriteService + MutCompatService + 30 调用点切换） | ✅ 已完成 | — |
-| Phase 3 | 读取路径迁移 + content_nodes 瘦身 | 待做 | 3-5 天 |
-| Phase 4 | Mut 协议端点 + Agent 原生支持 | 待做 | 3-5 天 |
+| Phase 3 | 读取路径迁移 + content_nodes 瘦身 | ✅ 已完成 | — |
+| Phase 4 | Mut 协议端点 + Agent 原生支持 | ✅ 已完成 | — |
 | Phase 5 | Scope 权限 + 清理旧代码 + 数据迁移 | 待做 | 5-7 天 |
 
 **剩余工作：约 11-17 天**

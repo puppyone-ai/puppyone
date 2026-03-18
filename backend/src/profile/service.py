@@ -326,7 +326,11 @@ Output format: Markdown
 """
 
         try:
-            # Step 1: 创建 Tool_Configs 文件夹
+            from src.collaboration.schemas import Mutation, MutationType, Operator
+            from src.collaboration.dependencies import create_collaboration_service
+            collab = create_collaboration_service()
+            op = Operator(type="system", id=user_id, summary="onboarding demo")
+
             tool_folder = self._content_node_service.create_folder(
                 created_by=user_id,
                 project_id=project_id,
@@ -334,63 +338,50 @@ Output format: Markdown
                 parent_id=None,
             )
 
-            # Step 2: 创建 Guide Docs (markdown 文件)
-            markdown_tasks = [
-                self._content_node_service.create_markdown_node(
-                    created_by=user_id, project_id=project_id, name="01_Welcome.md", content=welcome_content, parent_id=None
-                ),
-                self._content_node_service.create_markdown_node(
-                    created_by=user_id, project_id=project_id, name="02_Connect_Your_Data.md", content=connect_content, parent_id=None
-                ),
-                self._content_node_service.create_markdown_node(
-                    created_by=user_id, project_id=project_id, name="03_Multi_Agent_Collaboration.md", content=collab_content, parent_id=None
-                ),
-                self._content_node_service.create_markdown_node(
-                    created_by=user_id, project_id=project_id, name="04_Agent_Access_&_Tools.md", content=distribute_content, parent_id=None
-                ),
+            md_items = [
+                ("01_Welcome.md", welcome_content, None),
+                ("02_Connect_Your_Data.md", connect_content, None),
+                ("03_Multi_Agent_Collaboration.md", collab_content, None),
+                ("04_Agent_Access_&_Tools.md", distribute_content, None),
             ]
-
-            # Tool Config inside folder
             if tool_folder:
-                markdown_tasks.append(
-                    self._content_node_service.create_markdown_node(
-                        created_by=user_id,
-                        project_id=project_id,
-                        name="Report_Generator_Config.md",
-                        content=tool_config_content,
-                        parent_id=tool_folder.id,
-                    )
-                )
+                md_items.append(("Report_Generator_Config.md", tool_config_content, tool_folder.id))
 
-            # 并行执行 markdown 创建任务
-            await asyncio.gather(*markdown_tasks)
+            for name, content, parent_id in md_items:
+                await collab.commit(Mutation(
+                    type=MutationType.NODE_CREATE, operator=op,
+                    project_id=project_id, name=name,
+                    content=content, node_type="markdown",
+                    parent_id=parent_id, created_by=user_id,
+                ))
 
-            # Step 3: 创建占位符节点 (Placeholder Nodes)
-            # 这些节点会显示为"未连接"状态，用户点击后可以去配置 OAuth
-            self._content_node_service.create_placeholder_node(
+            placeholder_content_gmail = {
+                "_status": "not_connected",
+                "_placeholder_type": "gmail",
+                "_message": "Click to connect your Gmail account",
+            }
+            placeholder_content_sheets = {
+                "_status": "not_connected",
+                "_placeholder_type": "sheets",
+                "_message": "Click to connect your Google Sheets account",
+            }
+            for pname, pcontent in [
+                ("Gmail - Connect Your Inbox", placeholder_content_gmail),
+                ("Google Sheets - Connect", placeholder_content_sheets),
+            ]:
+                await collab.commit(Mutation(
+                    type=MutationType.NODE_CREATE, operator=op,
+                    project_id=project_id, name=pname,
+                    content=pcontent, node_type="json",
+                    created_by=user_id,
+                ))
+
+            await collab.commit(Mutation(
+                type=MutationType.NODE_CREATE, operator=op,
+                project_id=project_id, name="Q1_Budget_Data.json",
+                content=json_content, node_type="json",
                 created_by=user_id,
-                project_id=project_id,
-                name="Gmail - Connect Your Inbox",
-                placeholder_type="gmail",
-                parent_id=None,
-            )
-
-            self._content_node_service.create_placeholder_node(
-                created_by=user_id,
-                project_id=project_id,
-                name="Google Sheets - Connect",
-                placeholder_type="sheets",
-                parent_id=None,
-            )
-
-            # Step 4: 创建 JSON 示例数据
-            self._content_node_service.create_json_node(
-                created_by=user_id,
-                project_id=project_id,
-                name="Q1_Budget_Data.json",
-                content=json_content,
-                parent_id=None,
-            )
+            ))
 
             log_info(f"Demo content created for project {project_id}")
 

@@ -8,6 +8,8 @@ Used by both CLI `puppyone init` and web onboarding.
 """
 
 from src.content_node.service import ContentNodeService
+from src.collaboration.schemas import Mutation, MutationType, Operator
+from src.mut_core.compat_service import MutCompatService
 
 
 GETTING_STARTED_MD = """\
@@ -203,21 +205,33 @@ async def seed_default_content(
     service: ContentNodeService,
     project_id: str,
     created_by: str,
+    collab: MutCompatService | None = None,
 ) -> dict:
     """
     Populate a newly created project with default seed content.
 
-    Returns dict with created node IDs:
-        { "getting_started": str, "guides_folder": str,
-          "about": str, "connecting": str, "agent_access": str }
+    All content writes go through MutCompatService.commit() (MUT).
     """
-    getting_started = await service.create_markdown_node(
-        project_id=project_id,
-        name="Getting Started",
-        content=GETTING_STARTED_MD,
-        parent_id=None,
-        created_by=created_by,
-    )
+    if collab is None:
+        from src.collaboration.dependencies import create_collaboration_service
+        collab = create_collaboration_service()
+
+    op = Operator(type="system", id=created_by, summary="seed content")
+
+    async def _create_md(name: str, content: str, parent_id=None) -> str:
+        result = await collab.commit(Mutation(
+            type=MutationType.NODE_CREATE,
+            operator=op,
+            project_id=project_id,
+            name=name,
+            content=content,
+            node_type="markdown",
+            parent_id=parent_id,
+            created_by=created_by,
+        ))
+        return result.node_id
+
+    getting_started_id = await _create_md("Getting Started", GETTING_STARTED_MD)
 
     guides = service.create_folder(
         project_id=project_id,
@@ -226,34 +240,14 @@ async def seed_default_content(
         created_by=created_by,
     )
 
-    about = await service.create_markdown_node(
-        project_id=project_id,
-        name="About PuppyOne",
-        content=ABOUT_PUPPYONE_MD,
-        parent_id=guides.id,
-        created_by=created_by,
-    )
-
-    connecting = await service.create_markdown_node(
-        project_id=project_id,
-        name="Connecting Data",
-        content=CONNECTING_DATA_MD,
-        parent_id=guides.id,
-        created_by=created_by,
-    )
-
-    agent_access = await service.create_markdown_node(
-        project_id=project_id,
-        name="Agent Access",
-        content=AGENT_ACCESS_MD,
-        parent_id=guides.id,
-        created_by=created_by,
-    )
+    about_id = await _create_md("About PuppyOne", ABOUT_PUPPYONE_MD, guides.id)
+    connecting_id = await _create_md("Connecting Data", CONNECTING_DATA_MD, guides.id)
+    agent_access_id = await _create_md("Agent Access", AGENT_ACCESS_MD, guides.id)
 
     return {
-        "getting_started": getting_started.id,
+        "getting_started": getting_started_id,
         "guides_folder": guides.id,
-        "about": about.id,
-        "connecting": connecting.id,
-        "agent_access": agent_access.id,
+        "about": about_id,
+        "connecting": connecting_id,
+        "agent_access": agent_access_id,
     }

@@ -6,8 +6,9 @@ MutRepoManager — per-project Mut repo 工厂
   - HistoryManager (Supabase)       → 版本历史
   - AuditLog (Supabase)             → 审计日志
 
-不使用 Mut 的 ServerRepo（它依赖本地文件系统），
-而是直接组合 Mut core 模块 + 自定义后端。
+提供两种 repo 视图:
+  - ProjectRepo  → 供 MutWriteService 使用（内部写入）
+  - PuppyOneServerRepo → 供 MUT 协议 handlers 使用（clone/push/pull）
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from src.supabase.client import SupabaseClient
 from src.mut_core.backends.s3_storage import S3StorageBackend
 from src.mut_core.backends.supabase_history import SupabaseHistoryManager
 from src.mut_core.backends.supabase_audit import SupabaseAuditManager
+from src.mut_core.server_repo import PuppyOneServerRepo
+from src.utils.logger import log_error
 
 
 @dataclass
@@ -52,6 +55,18 @@ class MutRepoManager:
                 self._cache[project_id] = self._create_repo(project_id)
             return self._cache[project_id]
 
+    def get_server_repo(self, project_id: str) -> PuppyOneServerRepo:
+        """Get a PuppyOneServerRepo for MUT protocol handlers (clone/push/pull)."""
+        proj = self.get_repo(project_id)
+        project_name = self._lookup_project_name(project_id)
+        return PuppyOneServerRepo(
+            project_id=project_id,
+            project_name=project_name,
+            store=proj.store,
+            history=proj.history,
+            audit=proj.audit,
+        )
+
     def _create_repo(self, project_id: str) -> ProjectRepo:
         backend = S3StorageBackend(self._s3, project_id)
         store = ObjectStore(
@@ -69,6 +84,20 @@ class MutRepoManager:
             audit=audit,
             resolver=resolver,
         )
+
+    def _lookup_project_name(self, project_id: str) -> str:
+        try:
+            resp = (
+                self._supabase.client.table("projects")
+                .select("name")
+                .eq("id", project_id)
+                .maybe_single()
+                .execute()
+            )
+            return resp.data.get("name", "project") if resp.data else "project"
+        except Exception as e:
+            log_error(f"[RepoManager] Failed to lookup project name: {e}")
+            return "project"
 
     def init_repo(self, project_id: str) -> ProjectRepo:
         """初始化新 project 的 Mut repo 状态"""

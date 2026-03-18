@@ -422,7 +422,6 @@ class FolderAccessService:
             node = self._node_svc.create_json_node(
                 project_id=root_sync.project_id,
                 name=name,
-                content={},
                 parent_id=None,
                 created_by=agent_name,
             )
@@ -430,7 +429,6 @@ class FolderAccessService:
             node = await self._node_svc.create_markdown_node(
                 project_id=root_sync.project_id,
                 name=name,
-                content="",
                 parent_id=None,
                 created_by=agent_name,
             )

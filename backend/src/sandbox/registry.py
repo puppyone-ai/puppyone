@@ -295,22 +295,30 @@ async def diff_and_writeback(
                 content = read_result.get("content")
                 file_name = relative.split("/")[-1]
 
+                from src.collaboration.schemas import Mutation, MutationType, Operator
+                from src.collaboration.dependencies import create_collaboration_service
+
                 if sandbox_path.endswith(".json"):
-                    node_service.create_json_node(
-                        project_id=project_id,
-                        name=file_name.removesuffix(".json"),
-                        content=content if isinstance(content, (dict, list)) else {},
-                        parent_id=parent_node_id,
-                    )
+                    node_type = "json"
+                    node_name = file_name.removesuffix(".json")
+                    node_content = content if isinstance(content, (dict, list)) else {}
                 elif sandbox_path.endswith(".md"):
-                    await node_service.create_markdown_node(
-                        project_id=project_id,
-                        name=file_name,
-                        content=str(content) if content else "",
-                        parent_id=parent_node_id,
-                    )
+                    node_type = "markdown"
+                    node_name = file_name
+                    node_content = str(content) if content else ""
                 else:
                     continue
+
+                collab = create_collaboration_service()
+                await collab.commit(Mutation(
+                    type=MutationType.NODE_CREATE,
+                    operator=Operator(type="sandbox", id=sandbox_session_id),
+                    project_id=project_id,
+                    name=node_name,
+                    content=node_content,
+                    node_type=node_type,
+                    parent_id=parent_node_id,
+                ))
 
                 logger.info(f"[SandboxRegistry] Created new node for: {relative}")
                 updated_nodes.append({

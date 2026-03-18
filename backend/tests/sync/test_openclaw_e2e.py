@@ -54,8 +54,6 @@ class InMemoryNodes:
             "name": kwargs.get("name", "test"),
             "type": kwargs.get("type", "json"),
             "id_path": id_path,
-            "preview_json": kwargs.get("preview_json"),
-            "preview_md": kwargs.get("preview_md"),
             "s3_key": kwargs.get("s3_key"),
             "current_version": kwargs.get("current_version", 0),
             "content_hash": kwargs.get("content_hash"),

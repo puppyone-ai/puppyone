@@ -174,6 +174,7 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `/api/v1/sync` | connectors/datasource | Data source sync & OpenClaw & folder push/pull |
 | `/api/v1/ingest` | upload | File/URL ingestion ETL |
 | `/api/v1/collab` | collaboration | Collaborative editing & versions & audit |
+| `/api/v1/mut/{project_id}` | mut_core | MUT protocol (clone/push/pull/negotiate) |
 | `/api/v1/workspace` | workspace | Workspace management |
 | `/api/v1/db-connector` | db_connector | External database connections |
 | `/api/v1/publishes` | context_publish | Public JSON short links |

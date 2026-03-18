@@ -435,7 +435,7 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                 await node_service.finalize_pending_node(
                     node_id=mount_node_id,
                     project_id=task.project_id,
-                    content=markdown_content,
+                    size_bytes=len(markdown_content.encode("utf-8")),
                 )
                 logger.info(f"ETL: Filled preview for pending node {mount_node_id}")
             else:

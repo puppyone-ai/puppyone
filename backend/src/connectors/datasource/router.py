@@ -765,26 +765,23 @@ async def push_file(
     )[0]
     target_folder_id = parent_sync.config.get("target_folder_id")
 
-    if is_json:
-        new_node = node_svc.create_json_node(
-            project_id=parent_sync.project_id,
-            name=file_name,
-            content=body.content_json,
-            parent_id=target_folder_id,
-            created_by=current_user.user_id,
-        )
-    else:
-        new_node = await node_svc.create_markdown_node(
-            project_id=parent_sync.project_id,
-            name=file_name,
-            content=body.content_md or "",
-            parent_id=target_folder_id,
-            created_by=current_user.user_id,
-        )
+    from src.collaboration.schemas import Mutation, MutationType, Operator
+    from src.collaboration.dependencies import create_collaboration_service
+    collab = create_collaboration_service()
+    commit_result = await collab.commit(Mutation(
+        type=MutationType.NODE_CREATE,
+        operator=Operator(type="sync", id=f"cli:{body.external_resource_id}"),
+        project_id=parent_sync.project_id,
+        name=file_name,
+        content=body.content_json if is_json else (body.content_md or ""),
+        node_type="json" if is_json else "markdown",
+        parent_id=target_folder_id,
+        created_by=current_user.user_id,
+    ))
 
-    version = new_node.current_version or 0
+    version = commit_result.version or 0
     return ApiResponse.success(data=PushFileResponse(
-        node_id=new_node.id,
+        node_id=commit_result.node_id,
         external_resource_id=body.external_resource_id,
         action="created",
         version=version,
