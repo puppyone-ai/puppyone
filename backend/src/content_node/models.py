@@ -23,10 +23,9 @@ class ContentNode(BaseModel):
       - markdown: Markdown 内容
       - file: 文件
     
-    存储位置（由字段是否有值决定，可同时存在多个）:
-      - preview_json IS NOT NULL → 有 JSON 数据
-      - preview_md IS NOT NULL → 有 Markdown 数据
-      - s3_key IS NOT NULL → 有 S3 文件
+    存储位置:
+      - content_hash → MUT ObjectStore (S3) 中的 blob hash
+      - s3_key IS NOT NULL → 有直传 S3 文件（大文件/二进制）
     
     层级结构:
       - id_path: 唯一 Source of Truth（如 /uuid1/uuid2/uuid3）
@@ -57,9 +56,7 @@ class ContentNode(BaseModel):
             data['parent_id'] = ids[-2]
         return data
     
-    preview_json: Optional[Any] = Field(None, description="JSON 内容")
-    preview_md: Optional[str] = Field(None, description="Markdown 内容")
-    s3_key: Optional[str] = Field(None, description="S3 对象 key")
+    s3_key: Optional[str] = Field(None, description="S3 对象 key（大文件直传）")
     
     mime_type: Optional[str] = Field(None, description="MIME 类型")
     size_bytes: int = Field(0, description="文件大小（字节）")
@@ -67,6 +64,7 @@ class ContentNode(BaseModel):
     
     current_version: int = Field(0, description="当前版本号（乐观锁）")
     content_hash: Optional[str] = Field(None, description="当前内容 SHA-256 哈希")
+    mut_path: Optional[str] = Field(None, description="Mut 树中的人类可读路径（如 docs/notes.md）")
     
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
@@ -116,9 +114,9 @@ class ContentNode(BaseModel):
         return self.type == "file"
 
     @property
-    def has_preview(self) -> bool:
-        return self.preview_json is not None or self.preview_md is not None
+    def has_content(self) -> bool:
+        return self.content_hash is not None
 
     @property
     def is_indexable(self) -> bool:
-        return self.type in ("json", "markdown") or self.preview_json is not None or self.preview_md is not None
+        return self.type in ("json", "markdown") or self.content_hash is not None

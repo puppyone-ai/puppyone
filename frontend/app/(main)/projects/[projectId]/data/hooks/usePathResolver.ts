@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getNode, getNodesBatch, getDownloadUrl } from '@/lib/contentNodesApi';
+import { getNode, getNodesBatch, getDownloadUrl, getNodeContent } from '@/lib/contentNodesApi';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import { setPendingActiveId } from '../components/views';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
@@ -127,19 +127,9 @@ export function usePathResolver(projectId: string, path: string[]) {
           if (nodeConfig.renderAs === 'markdown') {
             setIsLoadingMarkdown(true);
             try {
-              const fullNode = await getCachedNode(lastNode.id, projectId);
+              const content = await getNodeContent(lastNode.id, projectId);
               if (cancelled) return;
-              if (typeof fullNode.preview_md === 'string') {
-                setMarkdownContent(fullNode.preview_md);
-              } else if (fullNode.s3_key) {
-                const { download_url } = await getDownloadUrl(lastNode.id, projectId);
-                if (cancelled) return;
-                const response = await fetch(download_url);
-                if (cancelled) return;
-                setMarkdownContent(await response.text());
-              } else {
-                setMarkdownContent('');
-              }
+              setMarkdownContent(typeof content.content_text === 'string' ? content.content_text : '');
             } catch (err) {
               if (cancelled) return;
               console.error('Failed to load markdown content:', err);

@@ -47,3 +47,8 @@ class OpenClawConnector(BaseConnector):
 
     async def list_resources(self, sync: Sync) -> List[ResourceInfo]:
         return []
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorSetup
+    return ConnectorSetup(connector=OpenClawConnector())

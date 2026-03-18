@@ -20,12 +20,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.connectors.filesystem.router import router as folder_router
-from src.content_node.version_router import router as version_router
 from src.collaboration.audit_router import router as audit_router
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
 from src.project.dependencies import get_project_service
-from src.content_node.dependencies import get_version_service
 
 
 # ============================================================

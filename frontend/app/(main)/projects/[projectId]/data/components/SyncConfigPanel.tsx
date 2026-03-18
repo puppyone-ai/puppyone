@@ -62,30 +62,12 @@ const ENDPOINT_OPTIONS: EndpointOptionDef[] = [
   { id: 'sandbox', label: 'Sandbox', description: 'Isolated script execution environment', icon: <SandboxMini /> },
 ];
 
-const PROVIDER_ICONS: Record<string, React.ReactNode> = {
-  filesystem: <span style={{ fontSize: 14 }}>🦞</span>,
-  gmail: <ProviderImg src="https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png" />,
-  google_calendar: <ProviderImg src="https://www.gstatic.com/images/branding/product/1x/calendar_2020q4_32dp.png" />,
-  google_sheets: <ProviderImg src="https://www.gstatic.com/images/branding/product/1x/sheets_2020q4_32dp.png" />,
-  google_docs: <ProviderImg src="https://www.gstatic.com/images/branding/product/1x/docs_2020q4_32dp.png" />,
-  google_drive: <ProviderImg src="https://www.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png" />,
-  github: <GitHubMini />,
-};
-
 /* ================================================================
    Mini Icon Components
    ================================================================ */
 
 function ProviderImg({ src }: { src: string }) {
   return <img src={src} alt="" width={16} height={16} style={{ display: 'block', borderRadius: 2 }} />;
-}
-
-function GitHubMini() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="#fff">
-      <path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-    </svg>
-  );
 }
 
 function McpMini() {
@@ -159,7 +141,9 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     id: spec.provider,
     label: spec.display_name,
     description: spec.description || '',
-    icon: PROVIDER_ICONS[spec.provider] || <span style={{ fontSize: 14 }}>{spec.icon || '📄'}</span>,
+    icon: spec.icon_url
+      ? <ProviderImg src={spec.icon_url} />
+      : <span style={{ fontSize: 14 }}>{spec.icon || '📄'}</span>,
     oauthType: spec.oauth_ui_type ? spec.oauth_ui_type as SaasType : undefined,
     requiresAuth: spec.auth !== 'none',
     creationMode: spec.creation_mode,

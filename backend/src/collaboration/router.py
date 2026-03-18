@@ -17,7 +17,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
 from src.collaboration.service import CollaborationService
-from src.collaboration.dependencies import get_collaboration_service
+from src.collaboration.dependencies import get_collaboration_service, _get_repo_manager
 from src.collaboration.schemas import (
     CheckoutRequest, CommitRequest, RollbackRequest,
     Mutation, MutationType, Operator,
@@ -26,6 +26,7 @@ from src.collaboration.schemas import (
     RollbackResponse, FolderRollbackResponse,
     FolderSnapshotHistoryResponse,
     DiffResponse,
+    MutProjectHistoryResponse, MutCommitInfo, MutCommitChange, MutCommitConflict,
 )
 from src.connectors.datasource.service import SyncService
 from src.connectors.datasource.dependencies import get_sync_service
@@ -91,7 +92,77 @@ async def commit(
 
 
 # ============================================================
-# 版本历史 & 详情
+# Project-level Mut commit history
+# ============================================================
+
+@router.get("/project-history/{project_id}", response_model=ApiResponse[MutProjectHistoryResponse])
+def get_project_history(
+    project_id: str,
+    limit: int = Query(50, ge=1, le=500),
+    since_version: int = Query(0, ge=0),
+    collab: CollaborationService = Depends(get_collaboration_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """获取项目级 Mut commit 历史（类似 git log）"""
+    from src.mut_core.repo_manager import MutRepoManager
+
+    empty_response = MutProjectHistoryResponse(
+        project_id=project_id, current_version=0,
+        root_hash="", commits=[], total=0,
+    )
+
+    try:
+        repos: MutRepoManager = collab._repos
+        repo = repos.get_repo(project_id)
+        current_version = repo.history.get_latest_version()
+        root_hash = repo.history.get_root_hash()
+        entries = repo.history.get_since(since_version, limit=limit)
+    except Exception:
+        return ApiResponse.success(data=empty_response)
+
+    commits = []
+    for e in entries:
+        changes_raw = e.get("changes", [])
+        conflicts_raw = e.get("conflicts", [])
+
+        changes = [
+            MutCommitChange(path=c.get("path", ""), op=c.get("op", "modified"))
+            for c in (changes_raw if isinstance(changes_raw, list) else [])
+        ]
+        conflicts = [
+            MutCommitConflict(
+                path=c.get("path", ""),
+                strategy=c.get("strategy", ""),
+                detail=c.get("detail"),
+                kept=c.get("kept"),
+            )
+            for c in (conflicts_raw if isinstance(conflicts_raw, list) else [])
+        ]
+
+        commits.append(MutCommitInfo(
+            version=e.get("version", 0),
+            root_hash=e.get("root_hash", ""),
+            scope_path=e.get("scope_path", ""),
+            who=e.get("who", ""),
+            message=e.get("message", ""),
+            changes=changes,
+            conflicts=conflicts,
+            created_at=e.get("created_at"),
+        ))
+
+    commits.reverse()
+
+    return ApiResponse.success(data=MutProjectHistoryResponse(
+        project_id=project_id,
+        current_version=current_version,
+        root_hash=root_hash,
+        commits=commits,
+        total=len(commits),
+    ))
+
+
+# ============================================================
+# 版本历史 & 详情 (per-node)
 # ============================================================
 
 @router.get("/versions/{node_id}", response_model=ApiResponse[VersionHistoryResponse])

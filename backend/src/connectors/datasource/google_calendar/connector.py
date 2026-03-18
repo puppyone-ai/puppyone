@@ -53,6 +53,7 @@ class GoogleCalendarConnector(BaseConnector):
             creation_mode="direct",
             description="Sync calendar events",
             accept_types=("folder",),
+            icon_url="https://www.gstatic.com/images/branding/product/1x/calendar_2020q4_32dp.png",
             config_fields=(
                 ConfigField(key="days_past", label="Days of past events", type="number", default=30),
                 ConfigField(key="days_future", label="Days of future events", type="number", default=30),
@@ -213,3 +214,17 @@ class GoogleCalendarConnector(BaseConnector):
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.oauth.google_calendar_service import GoogleCalendarOAuthService
+    oauth_svc = GoogleCalendarOAuthService()
+    return ConnectorSetup(
+        connector=GoogleCalendarConnector(
+            node_service=deps.node_service,
+            calendar_service=oauth_svc,
+            s3_service=deps.s3_service,
+        ),
+        oauth_bindings={"calendar": oauth_svc},
+    )

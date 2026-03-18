@@ -439,7 +439,11 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                 )
                 logger.info(f"ETL: Filled preview for pending node {mount_node_id}")
             else:
-                existing_content = existing_node.preview_json or {}
+                from src.mut_core.dependencies import read_blob_content
+                existing_json, _ = read_blob_content(
+                    existing_node.project_id, existing_node.content_hash, "json"
+                )
+                existing_content = existing_json or {}
 
                 if mount_json_path:
                     path_parts = [p for p in mount_json_path.split("/") if p]

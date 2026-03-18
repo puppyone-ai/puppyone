@@ -10,7 +10,7 @@ Sync Handler — FolderSourceService (Collection 包装器)
 技术路径：
   folder_sync 引擎 (I/O) → ContentNodeService.update_node() (直接覆写)
   本地文件夹是 source of truth，不走 L2 乐观锁。
-  ContentNodeService._track_version() 会自动记录历史版本。
+  版本管理由 Mut 内核统一处理。
 """
 
 import asyncio
@@ -230,13 +230,17 @@ class FolderSourceService:
 
         try:
             if fc.content_type == "json":
-                self._node_svc.update_node(
+                from src.collaboration.schemas import Mutation, MutationType, Operator
+                from src.collaboration.dependencies import create_collaboration_service
+                collab = create_collaboration_service()
+                await collab.commit(Mutation(
+                    type=MutationType.CONTENT_UPDATE,
+                    operator=Operator(type="sync", id=f"folder_source:{root_sync.id}"),
                     node_id=node_sync.node_id,
-                    project_id=root_sync.project_id,
-                    preview_json=fc.content,
-                    operator_type="sync",
-                    operator_id=f"folder_source:{root_sync.id}",
-                )
+                    content=fc.content,
+                    node_type="json",
+                    base_version=0,
+                ))
             else:
                 content_str = fc.content if isinstance(fc.content, str) else str(fc.content)
                 await self._node_svc.update_markdown_content(

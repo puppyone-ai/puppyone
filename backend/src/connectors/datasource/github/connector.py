@@ -52,6 +52,7 @@ class GithubConnector(BaseConnector):
             creation_mode="direct",
             description="Sync repos, issues, or PRs",
             accept_types=("folder",),
+            icon_url="https://github.githubassets.com/favicons/favicon-dark.svg",
             config_fields=(
                 ConfigField(
                     key="source_url",
@@ -154,3 +155,16 @@ class GithubConnector(BaseConnector):
             node_name=repo,
             summary=f"GitHub repo '{owner}/{repo}' — {len(file_paths)} files, {repo_data.get('stargazers_count', 0)} stars",
         )
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    oauth_svc = GithubOAuthService()
+    return ConnectorSetup(
+        connector=GithubConnector(
+            node_service=deps.node_service,
+            github_service=oauth_svc,
+            s3_service=deps.s3_service,
+        ),
+        oauth_bindings={"github": oauth_svc},
+    )

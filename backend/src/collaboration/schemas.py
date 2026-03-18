@@ -3,9 +3,9 @@ Mut Protocol — 数据模型
 
 包含：
 1. Mutation 类型定义（MutationType, Operator, Mutation）
-2. 协同层核心类型（WorkingCopy, CommitResult, MergeResult）
-3. 版本管理数据模型（FileVersion, FolderSnapshot）
-4. API 响应 Schema
+2. 协同层核心类型（WorkingCopy, CommitResult）
+3. API 响应 Schema（版本历史、diff、回滚）
+4. API 请求 Schema
 """
 
 from enum import Enum
@@ -90,69 +90,8 @@ class CommitResult(BaseModel):
     lww_details: Optional[Dict[str, Any]] = None
 
 
-class MergeResult(BaseModel):
-    """三方合并的内部结果"""
-    node_id: str
-    status: str                             # "clean" | "merged"
-    merged_content: Optional[Any] = None
-    strategy_used: Optional[str] = None
-    lww_applied: bool = False
-    lww_details: Optional[Dict[str, Any]] = None
-
-
 # ============================================================
-# 版本管理数据模型（迁移自 content_node/version_schemas.py）
-# ============================================================
-
-class FileVersion(BaseModel):
-    """文件版本（对应 file_versions 表）"""
-    id: int
-    node_id: str
-    version: int
-
-    content_json: Optional[Any] = None
-    content_text: Optional[str] = None
-    s3_key: Optional[str] = None
-
-    content_hash: str
-    size_bytes: int = 0
-
-    snapshot_id: Optional[int] = None
-
-    operator_type: str
-    operator_id: Optional[str] = None
-    session_id: Optional[str] = None
-
-    operation: str
-    merge_strategy: Optional[str] = None
-    summary: Optional[str] = None
-
-    created_at: Optional[datetime] = None
-
-
-class FolderSnapshot(BaseModel):
-    """文件夹快照（对应 folder_snapshots 表）"""
-    id: int
-    folder_node_id: str
-
-    file_versions_map: Dict[str, int]
-    changed_files: Optional[List[str]] = None
-    files_count: int = 0
-    changed_count: int = 0
-
-    operator_type: str
-    operator_id: Optional[str] = None
-    session_id: Optional[str] = None
-
-    operation: str
-    summary: Optional[str] = None
-    base_snapshot_id: Optional[int] = None
-
-    created_at: Optional[datetime] = None
-
-
-# ============================================================
-# API 响应 Schema
+# API 响应 Schema（版本历史由 Mut 内核提供）
 # ============================================================
 
 class FileVersionInfo(BaseModel):
@@ -266,3 +205,42 @@ class RollbackRequest(BaseModel):
     """rollback 请求"""
     node_id: str
     target_version: int
+
+
+# ============================================================
+# Project-level Mut Commit History
+# ============================================================
+
+class MutCommitChange(BaseModel):
+    """commit 中的单个文件变更"""
+    path: str
+    op: str  # "added" | "modified" | "deleted"
+
+
+class MutCommitConflict(BaseModel):
+    """commit 中的冲突记录"""
+    path: str
+    strategy: str
+    detail: Optional[str] = None
+    kept: Optional[str] = None
+
+
+class MutCommitInfo(BaseModel):
+    """项目级 commit 记录（对应 mut_commits 表中的一行）"""
+    version: int
+    root_hash: str = ""
+    scope_path: str = ""
+    who: str
+    message: str = ""
+    changes: List[MutCommitChange] = []
+    conflicts: List[MutCommitConflict] = []
+    created_at: Optional[datetime] = None
+
+
+class MutProjectHistoryResponse(BaseModel):
+    """项目级 Mut commit 历史"""
+    project_id: str
+    current_version: int
+    root_hash: str = ""
+    commits: List[MutCommitInfo]
+    total: int

@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException
 
-from src.connectors.mcp.repository import McpEndpointRepository
-from src.connectors.mcp.service import McpEndpointService
+from src.mcp.endpoint_repository import McpEndpointRepository
+from src.mcp.endpoint_service import McpEndpointService
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
 

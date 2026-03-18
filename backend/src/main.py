@@ -281,41 +281,17 @@ async def app_lifespan(app: FastAPI):
         from src.connectors.filesystem.watcher import FolderSourceService
         from src.connectors.filesystem.folder_access import FolderAccessService
         from src.connectors.datasource.repository import SyncRepository
-        from src.collaboration.service import CollaborationService
-        from src.collaboration.lock_service import LockService
-        from src.collaboration.conflict_service import ConflictService
-        from src.collaboration.version_service import VersionService as CollabVersionService
-        from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
-        from src.collaboration.audit_service import AuditService
-        from src.collaboration.audit_repository import AuditRepository
         from src.content_node.repository import ContentNodeRepository
         from src.content_node.service import ContentNodeService
         from src.s3.service import S3Service
         from src.supabase.client import SupabaseClient
-
-        from src.connectors.filesystem.changelog import SyncChangelogRepository
+        from src.collaboration.dependencies import create_collaboration_service
 
         supabase = SupabaseClient()
         node_repo = ContentNodeRepository(supabase)
         s3_service = S3Service()
-        changelog_repo = SyncChangelogRepository(supabase)
-        version_svc = CollabVersionService(
-            node_repo=node_repo,
-            version_repo=FileVersionRepository(supabase),
-            snapshot_repo=FolderSnapshotRepository(supabase),
-            s3_service=s3_service,
-            changelog_repo=changelog_repo,
-        )
-        node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service, version_service=version_svc)
-
-        collab_svc = CollaborationService(
-            node_repo=node_repo,
-            node_service=node_svc,
-            lock_service=LockService(node_repo),
-            conflict_service=ConflictService(),
-            version_service=version_svc,
-            audit_service=AuditService(audit_repo=AuditRepository(supabase)),
-        )
+        node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service)
+        collab_svc = create_collaboration_service()
 
         sync_repo = SyncRepository(supabase)
 
@@ -441,8 +417,7 @@ def create_app() -> FastAPI:
         internal_router, tags=["internal"]
     )  # Internal API不加/api/v1前缀
     app.include_router(content_node_router, prefix="/api/v1", tags=["content-nodes"])
-    from src.content_node.version_router import router as version_router
-    app.include_router(version_router, prefix="/api/v1", tags=["content-node-versions"])
+    # version_router removed — version history is now served by Mut (collab_router)
     from src.collaboration.audit_router import router as audit_router
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
     from src.collaboration.router import router as collab_router
@@ -459,9 +434,9 @@ def create_app() -> FastAPI:
     app.include_router(profile_router, tags=["profile"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
-    from src.connectors.mcp.router import router as mcp_endpoint_router
+    from src.mcp.endpoint_router import router as mcp_endpoint_router
     app.include_router(mcp_endpoint_router, prefix="/api/v1", tags=["mcp-endpoints"])
-    from src.connectors.sandbox.router import router as sandbox_endpoint_router
+    from src.sandbox.endpoint_router import router as sandbox_endpoint_router
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
     from src.project.dashboard_router import router as dashboard_router
     app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])

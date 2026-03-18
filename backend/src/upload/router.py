@@ -129,24 +129,24 @@ async def submit_file_ingest(
       - ocr_parse: 智能解析（文本直接存，OCR 文件走 Worker）
     
     Layer 2 - file_type (基于扩展名自动判断):
-      - json: .json → preview_json (不存 S3)
-      - text: .md/.txt/.py/... → preview_md (不存 S3)
-      - ocr_needed: .pdf/.jpg/.docx/... → S3 + ETL Worker → preview_md
+      - json: .json → MUT ObjectStore (content_hash)
+      - text: .md/.txt/.py/... → MUT ObjectStore (content_hash)
+      - ocr_needed: .pdf/.jpg/.docx/... → S3 + ETL Worker → MUT
       - binary: 其他 → S3 only (无预览)
     
     存储规则:
-      ┌──────────┬────────────┬─────────────┬────────────┬────────────┬─────────┐
-      │  mode    │ file_type  │    type     │preview_json│ preview_md │  s3_key │
-      ├──────────┼────────────┼─────────────┼────────────┼────────────┼─────────┤
-      │ raw      │ json       │ json        │ ✓          │ -          │ -       │
-      │ raw      │ text       │ markdown    │ -          │ ✓          │ -       │
-      │ raw      │ ocr_needed │ file        │ -          │ -          │ ✓       │
-      │ raw      │ binary     │ file        │ -          │ -          │ ✓       │
-      │ ocr_parse│ json       │ json        │ ✓          │ -          │ -       │
-      │ ocr_parse│ text       │ markdown    │ -          │ ✓          │ -       │
-      │ ocr_parse│ ocr_needed │ file        │ -          │ ✓ (OCR后)  │ ✓       │
-      │ ocr_parse│ binary     │ file        │ -          │ -          │ ✓       │
-      └──────────┴────────────┴─────────────┴────────────┴────────────┴─────────┘
+      ┌──────────┬────────────┬─────────────┬──────────────┬─────────┐
+      │  mode    │ file_type  │    type     │ content_hash │  s3_key │
+      ├──────────┼────────────┼─────────────┼──────────────┼─────────┤
+      │ raw      │ json       │ json        │ ✓ (MUT)      │ -       │
+      │ raw      │ text       │ markdown    │ ✓ (MUT)      │ -       │
+      │ raw      │ ocr_needed │ file        │ -            │ ✓       │
+      │ raw      │ binary     │ file        │ -            │ ✓       │
+      │ ocr_parse│ json       │ json        │ ✓ (MUT)      │ -       │
+      │ ocr_parse│ text       │ markdown    │ ✓ (MUT)      │ -       │
+      │ ocr_parse│ ocr_needed │ file        │ ✓ (OCR后)    │ ✓       │
+      │ ocr_parse│ binary     │ file        │ -            │ ✓       │
+      └──────────┴────────────┴─────────────┴──────────────┴─────────┘
       
       type 直接决定前端渲染方式（folder/json/markdown/file/github_repo/...）
     """

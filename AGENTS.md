@@ -85,7 +85,7 @@ backend/
 │   │       └── mcp/           #   MCP v3 tool binding & proxy
 │   ├── mcp/                   # Legacy MCP instance management (health checks only)
 │   ├── upload/                # File ingestion ETL (MineRU + LLM)
-│   ├── collaboration/         # Collaborative editing & version history & audit logs
+│   ├── collaboration/         # Mut compat layer & audit logs (version history via mut_core)
 │   ├── search/                # Vector search (Turbopuffer + RRF)
 │   ├── chunking/              # Text chunking
 │   ├── llm/                   # LLM service (generation + embedding)
@@ -147,9 +147,10 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `chat_sessions` | `agent/chat/repository.py` | Agent chat sessions |
 | `chat_messages` | `agent/chat/repository.py` | Agent chat messages |
 | `agent_execution_logs` | `agent/config/repository.py`, `scheduler/jobs/agent_job.py` | Scheduled agent execution logs |
-| `file_versions` | `collaboration/version_repository.py` | File version history |
-| `folder_snapshots` | `collaboration/version_repository.py` | Folder snapshots |
-| `audit_logs` | `collaboration/audit_repository.py` | Audit trail |
+| `file_versions` | _(deprecated — no longer used in code)_ | Legacy file version history |
+| `folder_snapshots` | _(deprecated — no longer used in code)_ | Legacy folder snapshots |
+| `mut_commits` | `mut_core/backends/supabase_history.py` | Mut version history (per-project commits) |
+| `audit_logs` | `collaboration/audit_repository.py`, `mut_core/backends/supabase_audit.py` | Audit trail |
 | `search_index_tasks` | `project/dashboard_router.py` | Search indexing tasks |
 | `ingest_tasks` | `project/dashboard_router.py` | Ingestion tasks |
 | `agent_logs` | `analytics/service.py` | Agent usage analytics |

@@ -23,14 +23,13 @@ class ContentNodeRepository:
             type=row["type"],
             id_path=row["id_path"],
             depth=row.get("depth") or 1,
-            preview_json=row.get("preview_json"),
-            preview_md=row.get("preview_md"),
             s3_key=row.get("s3_key"),
             mime_type=row.get("mime_type"),
             size_bytes=row.get("size_bytes", 0),
             permissions=row.get("permissions", {"inherit": True}),
             current_version=row.get("current_version", 0),
             content_hash=row.get("content_hash"),
+            mut_path=row.get("mut_path"),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
@@ -150,8 +149,6 @@ class ContentNodeRepository:
         node_type: str,  # folder | json | markdown | file
         id_path: str,
         created_by: Optional[str] = None,
-        preview_json: Optional[dict] = None,
-        preview_md: Optional[str] = None,
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
         size_bytes: int = 0,
@@ -162,8 +159,6 @@ class ContentNodeRepository:
             "name": name,
             "type": node_type,
             "id_path": id_path,
-            "preview_json": preview_json,
-            "preview_md": preview_md,
             "s3_key": s3_key,
             "mime_type": mime_type,
             "size_bytes": size_bytes,
@@ -179,38 +174,18 @@ class ContentNodeRepository:
         self,
         node_id: str,
         name: Optional[str] = None,
-        preview_json: Optional[dict] = None,
-        preview_md: Optional[str] = None,
         id_path: Optional[str] = None,
         s3_key: Optional[str] = None,
         size_bytes: Optional[int] = None,
-        clear_preview_json: bool = False,
-        clear_preview_md: bool = False,
         current_version: Optional[int] = None,
         content_hash: Optional[str] = None,
+        mut_path: Optional[str] = None,
         expected_version: Optional[int] = None,
     ) -> Optional[ContentNode]:
-        """更新节点
-        
-        Args:
-            clear_preview_json: 如果为 True，将 preview_json 字段设为 null
-            clear_preview_md: 如果为 True，将 preview_md 字段设为 null
-            current_version: 版本号（版本管理用）
-            content_hash: 内容哈希（版本管理用）
-            expected_version: 乐观锁 — 如果指定，只在数据库中 current_version 
-                             等于此值时才更新。返回 None 表示版本冲突。
-        """
+        """更新节点 metadata（内容存 S3 MUT ObjectStore，不存 PG）"""
         data = {}
         if name is not None:
             data["name"] = name
-        if preview_json is not None:
-            data["preview_json"] = preview_json
-        elif clear_preview_json:
-            data["preview_json"] = None
-        if preview_md is not None:
-            data["preview_md"] = preview_md
-        elif clear_preview_md:
-            data["preview_md"] = None
         if id_path is not None:
             data["id_path"] = id_path
         if s3_key is not None:
@@ -221,6 +196,8 @@ class ContentNodeRepository:
             data["current_version"] = current_version
         if content_hash is not None:
             data["content_hash"] = content_hash
+        if mut_path is not None:
+            data["mut_path"] = mut_path
 
         if not data:
             return self.get_by_id(node_id)
@@ -242,24 +219,18 @@ class ContentNodeRepository:
     def update_with_type(
         self,
         node_id: str,
-        node_type: Optional[str] = None,  # folder | json | markdown | file | github_repo | ...
+        node_type: Optional[str] = None,
         name: Optional[str] = None,
-        preview_json: Optional[dict] = None,
-        preview_md: Optional[str] = None,
         s3_key: Optional[str] = None,
         mime_type: Optional[str] = None,
         size_bytes: Optional[int] = None,
     ) -> Optional[ContentNode]:
-        """更新节点（包括类型变更）"""
+        """更新节点 metadata（包括类型变更）"""
         data = {}
         if node_type is not None:
             data["type"] = node_type
         if name is not None:
             data["name"] = name
-        if preview_json is not None:
-            data["preview_json"] = preview_json
-        if preview_md is not None:
-            data["preview_md"] = preview_md
         if s3_key is not None:
             data["s3_key"] = s3_key
         if mime_type is not None:
@@ -453,3 +424,90 @@ class ContentNodeRepository:
 
         response = query.limit(1).execute()
         return len(response.data) > 0
+
+    # ── Mut path 操作 ──
+
+    def get_by_mut_path(self, project_id: str, mut_path: str) -> Optional[ContentNode]:
+        """根据 Mut 路径查找节点"""
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("*")
+            .eq("project_id", project_id)
+            .eq("mut_path", mut_path)
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            return self._row_to_model(response.data[0])
+        return None
+
+    def update_by_mut_path(
+        self, project_id: str, mut_path: str, **kwargs
+    ) -> Optional[ContentNode]:
+        """根据 Mut 路径更新节点"""
+        if not kwargs:
+            return self.get_by_mut_path(project_id, mut_path)
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .update(kwargs)
+            .eq("project_id", project_id)
+            .eq("mut_path", mut_path)
+            .execute()
+        )
+        if response.data:
+            return self._row_to_model(response.data[0])
+        return None
+
+    def create_node(
+        self,
+        project_id: str,
+        name: str,
+        node_type: str,
+        mut_path: Optional[str] = None,
+        id_path: Optional[str] = None,
+        created_by: Optional[str] = None,
+        s3_key: Optional[str] = None,
+        mime_type: Optional[str] = None,
+        size_bytes: int = 0,
+        content_hash: Optional[str] = None,
+        current_version: int = 0,
+    ) -> ContentNode:
+        """创建节点（支持 mut_path）。内容存 S3 MUT ObjectStore，不存 PG。"""
+        import uuid
+        node_id = str(uuid.uuid4())
+
+        if id_path is None:
+            root_nodes = (
+                self.client.table(self.TABLE_NAME)
+                .select("id_path")
+                .eq("project_id", project_id)
+                .eq("depth", 1)
+                .limit(1)
+                .execute()
+            )
+            if root_nodes.data:
+                root_path = root_nodes.data[0]["id_path"]
+                id_path = f"{root_path}/{node_id}"
+            else:
+                id_path = f"/{node_id}"
+
+        data = {
+            "id": node_id,
+            "project_id": project_id,
+            "name": name,
+            "type": node_type,
+            "id_path": id_path,
+            "s3_key": s3_key,
+            "mime_type": mime_type,
+            "size_bytes": size_bytes,
+            "current_version": current_version,
+        }
+        if mut_path is not None:
+            data["mut_path"] = mut_path
+        if content_hash is not None:
+            data["content_hash"] = content_hash
+        if created_by is not None:
+            data["created_by"] = created_by
+
+        response = self.client.table(self.TABLE_NAME).insert(data).execute()
+        return self._row_to_model(response.data[0])

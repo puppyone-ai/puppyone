@@ -140,16 +140,21 @@ class SyncWorker:
     async def _sync_node(self, project_id: str, node: ContentNode, file_path: str) -> bool:
         """同步单个节点到 Lower 目录"""
         try:
-            if node.preview_json is not None:
-                content = json.dumps(node.preview_json, ensure_ascii=False, indent=2)
+            from src.mut_core.dependencies import read_blob_content
+            json_content, text_content = read_blob_content(
+                node.project_id, node.content_hash, node.type
+            )
+
+            if json_content is not None:
+                content = json.dumps(json_content, ensure_ascii=False, indent=2)
                 if not file_path.endswith(".json"):
                     file_path = f"{file_path}.json"
                 return self._cache.write_file(project_id, file_path, content)
 
-            elif node.preview_md is not None:
+            elif text_content is not None:
                 if not file_path.endswith(".md"):
                     file_path = f"{file_path}.md"
-                return self._cache.write_file(project_id, file_path, node.preview_md)
+                return self._cache.write_file(project_id, file_path, text_content)
 
             elif node.s3_key and self._s3:
                 try:

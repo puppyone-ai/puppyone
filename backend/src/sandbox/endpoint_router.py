@@ -3,13 +3,13 @@ import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Header
 
-from src.connectors.sandbox.service import SandboxEndpointService
-from src.connectors.sandbox.schemas import (
+from src.sandbox.endpoint_service import SandboxEndpointService
+from src.sandbox.endpoint_schemas import (
     SandboxEndpointCreate,
     SandboxEndpointUpdate,
     SandboxEndpointOut,
 )
-from src.connectors.sandbox.dependencies import (
+from src.sandbox.endpoint_dependencies import (
     get_sandbox_endpoint_service,
     get_verified_sandbox_endpoint,
 )

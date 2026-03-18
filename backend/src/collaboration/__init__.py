@@ -1,17 +1,16 @@
 """
-L2: Collaboration 协同层
+Collaboration 协同层
 
-产品核心壁垒。所有数据写入最终经过此层。
+所有数据写入通过 MutCompatService（Mut 内核 + 旧接口兼容层）。
+版本管理、冲突解决、乐观锁均由 Mut 内核处理。
 
 主要组件：
-- CollaborationService: 统一入口（checkout / commit / history / rollback）
-- ConflictService: 三方合并引擎（JSON key-merge / MD line-merge / LWW）
-- VersionService: 版本快照管理
-- LockService: 乐观锁
-- AuditService: 审计日志
+- MutCompatService: 统一写入入口（commit / checkout / history / rollback）
+- AuditRepository: 审计日志读取（audit_logs 表）
+- audit_router: 审计日志 API
 
 依赖关系：
+- 依赖 mut_core（MutWriteService, MutRepoManager）
 - 依赖 L1（content_node, s3）
-- 被 L2.5（sync）、L3（API/SDK）、编排器（agent）调用
-- 不依赖 L2.5、L3、L4
+- 被 sync、API、agent 调用
 """

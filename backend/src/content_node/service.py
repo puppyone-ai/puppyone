@@ -13,59 +13,24 @@ MAX_NAME_LENGTH = 255
 FORBIDDEN_CHARS_RE = re.compile(r'[/\x00-\x1f]')  # 斜杠 + 控制字符
 RESERVED_NAMES = {'.', '..'}
 
-if TYPE_CHECKING:
-    from src.content_node.version_service import VersionService
-
-
 class ContentNodeService:
-    """Content Node 业务逻辑"""
+    """Content Node 业务逻辑
+
+    只负责 content_nodes 表的 CRUD 操作（元数据管理）。
+    版本管理由 MutWriteService 通过 Mut 内核处理，不在此层。
+    """
 
     def __init__(
         self,
         repo: ContentNodeRepository,
         s3_service: S3Service,
-        version_service: Optional["VersionService"] = None,
     ):
         self.repo = repo
         self.s3 = s3_service
-        self.version_service = version_service
 
-    def _track_version(
-        self,
-        node_id: str,
-        operation: str,
-        content_json: Optional[Any] = None,
-        content_text: Optional[str] = None,
-        s3_key: Optional[str] = None,
-        size_bytes: int = 0,
-        operator_type: str = "user",
-        operator_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        summary: Optional[str] = None,
-    ) -> None:
-        """
-        内部方法：为写操作创建版本记录。
-        
-        如果 version_service 未注入，静默跳过（向后兼容）。
-        失败不阻塞主流程。
-        """
-        if not self.version_service:
-            return
-        try:
-            self.version_service.create_version(
-                node_id=node_id,
-                operator_type=operator_type,
-                operation=operation,
-                content_json=content_json,
-                content_text=content_text,
-                s3_key=s3_key,
-                size_bytes=size_bytes,
-                operator_id=operator_id,
-                session_id=session_id,
-                summary=summary,
-            )
-        except Exception:
-            pass  # 版本记录失败不阻塞主流程
+    def _track_version(self, *args, **kwargs) -> None:
+        """No-op — 版本管理已迁移到 Mut 内核。"""
+        pass
 
     # === 名称校验 ===
 
@@ -539,7 +504,6 @@ class ContentNodeService:
             node_type="json",
             id_path=id_path,
             created_by=created_by,
-            preview_json=content,
             mime_type="application/json",
             size_bytes=size_bytes,
         )
@@ -573,14 +537,17 @@ class ContentNodeService:
             "_message": f"Click to connect your {placeholder_type.replace('_', ' ').title()} account",
         }
         
+        import json as _json
+        size_bytes = len(_json.dumps(placeholder_content, ensure_ascii=False).encode("utf-8"))
+
         return self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="json",
             id_path=id_path,
             created_by=created_by,
-            preview_json=placeholder_content,
             mime_type="application/json",
+            size_bytes=size_bytes,
         )
 
     async def convert_placeholder_to_synced(
@@ -591,10 +558,13 @@ class ContentNodeService:
     ) -> ContentNode:
         """将占位符节点更新为有内容的节点（同步关系由 syncs 表管理）"""
         node = self.get_by_id(node_id, project_id)
-        
+
+        import json as _json
+        size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8")) if content is not None else None
+
         updated = self.repo.update(
             node_id=node_id,
-            preview_json=content,
+            size_bytes=size_bytes,
         )
         self._track_version(node_id, "update", content_json=content, operator_type="sync")
         return updated
@@ -619,14 +589,17 @@ class ContentNodeService:
         id_path, p_id_path, p_depth = self._build_id_path(project_id, parent_id, new_id)
         unique_name = self._generate_unique_name(project_id, p_id_path, p_depth, name)
         
+        import json as _json
+        size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8")) if content is not None else None
+
         node = self.repo.create(
             project_id=project_id,
             name=unique_name,
             node_type="json",
             id_path=id_path,
             created_by=created_by,
-            preview_json=content,
             mime_type="application/json",
+            size_bytes=size_bytes,
         )
         self._track_version(node.id, "create", content_json=content, operator_type="sync", operator_id=created_by)
         return node
@@ -654,7 +627,6 @@ class ContentNodeService:
             node_type="file",
             id_path=id_path,
             created_by=created_by,
-            preview_json=metadata,
             s3_key=s3_prefix,
             mime_type="application/x-github-repo",
         )
@@ -725,7 +697,7 @@ class ContentNodeService:
         parent_id: Optional[str] = None,
         created_by: Optional[str] = None,
     ) -> ContentNode:
-        """创建 Markdown 节点（内容直接存 preview_md，不存 S3）"""
+        """创建 Markdown 节点（内容存 MUT/S3 ObjectStore）"""
         import uuid
         name = self._validate_name(name)
         new_id = str(uuid.uuid4())
@@ -740,7 +712,6 @@ class ContentNodeService:
             node_type="markdown",
             id_path=id_path,
             created_by=created_by,
-            preview_md=content,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
         )
@@ -770,7 +741,6 @@ class ContentNodeService:
             node_type="markdown",
             id_path=id_path,
             created_by=created_by,
-            preview_md=content,
             mime_type="text/markdown",
             size_bytes=len(content_bytes),
         )
@@ -824,34 +794,30 @@ class ContentNodeService:
                     node_type = node["type"]
                     content = node.get("content")
                     
-                    # 确定 mime_type, preview_json, preview_md
                     mime_type = None
-                    preview_json = None
-                    preview_md = None
                     size_bytes = 0
-                    
+
                     if node_type == "folder":
                         mime_type = None
                     elif node_type == "json":
                         mime_type = "application/json"
-                        preview_json = content
+                        if content is not None:
+                            import json as _json
+                            size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8"))
                     elif node_type == "markdown":
                         mime_type = "text/markdown"
-                        preview_md = content if isinstance(content, str) else ""
-                        # Markdown 直接存数据库，不存 S3
-                        if preview_md:
-                            size_bytes = len(preview_md.encode('utf-8'))
+                        md_text = content if isinstance(content, str) else ""
+                        if md_text:
+                            size_bytes = len(md_text.encode('utf-8'))
                     elif node_type == "file":
                         mime_type = "application/octet-stream"
-                    
+
                     created = self.repo.create(
                         project_id=project_id,
                         name=unique_name,
                         node_type=node_type,
                         id_path=id_path,
                         created_by=created_by,
-                        preview_json=preview_json,
-                        preview_md=preview_md,
                         mime_type=mime_type,
                         size_bytes=size_bytes,
                     )
@@ -936,33 +902,24 @@ class ContentNodeService:
     ) -> ContentNode:
         """
         完成 pending 节点的处理（ETL/OCR 完成后调用）
-        
-        type 保持 "file" 不变（它的本质就是一个文件）
-        填充 preview_md，让 Agent 能看到 OCR 结果
-        
-        语义:
-        - type = 节点类型（file/markdown/json/folder/github_repo 等）
-        - preview_md/preview_json = 预览内容（可同时存在多个）
+
+        type 保持 "file" 不变。OCR 结果内容存储在 MUT/S3 ObjectStore 中，
+        此处仅更新 size_bytes 元数据。
         """
         node = self.get_by_id(node_id, project_id)
-        
-        # 检查是 file 类型
+
         if node.type != "file":
             raise BusinessException(
-                f"Node is not file type: {node.type}", 
+                f"Node is not file type: {node.type}",
                 code=ErrorCode.BAD_REQUEST
             )
-        
+
         content_bytes = content.encode('utf-8')
-        
-        # type 保持 "file"，只填充 preview
+
         updated = self.repo.update_with_type(
             node_id,
-            # node_type 不传 → type 保持 "file"
             name=new_name,
-            preview_md=content,
             size_bytes=len(content_bytes),
-            # mime_type 保持原始文件的 MIME（如 image/png），不改成 text/markdown
         )
         self._track_version(node_id, "update", content_text=content, size_bytes=len(content_bytes), operator_type="system")
         return updated
@@ -972,63 +929,33 @@ class ContentNodeService:
         node_id: str,
         project_id: str,
         name: Optional[str] = None,
-        preview_json: Optional[Any] = None,
-        preview_md: Optional[str] = None,
-        operator_type: str = "user",
-        operator_id: Optional[str] = None,
-        session_id: Optional[str] = None,
     ) -> ContentNode:
-        """更新节点（重命名只改 name，id_path 不变）"""
+        """更新节点元数据（重命名）。内容更新通过 collab.commit() 处理。"""
         node = self.get_by_id(node_id, project_id)
 
-        # 重命名时进行名称校验和冲突检查
         if name is not None:
             name = self._validate_name(name)
-            # 只有名字真正改变时才检查冲突
             if name != node.name:
                 self._check_name_conflict(
                     project_id, node.parent_id_path, node.parent_depth,
                     name, exclude_node_id=node_id,
                 )
 
-        if preview_md is not None:
-            content_bytes = preview_md.encode("utf-8")
-            updated = self.repo.update(
-                node_id=node_id,
-                name=name,
-                preview_md=preview_md,
-                size_bytes=len(content_bytes),
-                clear_preview_json=True,
-            )
-            self._track_version(
-                node_id, "update", content_text=preview_md,
-                size_bytes=len(content_bytes),
-                operator_type=operator_type, operator_id=operator_id, session_id=session_id,
-            )
-        else:
-            size_bytes = None
-            if preview_json is not None:
-                import json as _json
-                size_bytes = len(_json.dumps(preview_json, ensure_ascii=False).encode("utf-8"))
-            updated = self.repo.update(
-                node_id=node_id,
-                name=name,
-                preview_json=preview_json,
-                size_bytes=size_bytes,
-            )
-            if preview_json is not None:
-                self._track_version(
-                    node_id, "update", content_json=preview_json,
-                    operator_type=operator_type, operator_id=operator_id, session_id=session_id,
-                )
-        
+        updated = self.repo.update(
+            node_id=node_id,
+            name=name,
+        )
+
         return updated
 
     def update_sync_content(self, node_id: str, content: Any) -> ContentNode:
-        """更新节点的 preview_json 数据（用于同步更新等场景）"""
+        """更新同步节点的 size_bytes 元数据（内容存储已迁移到 MUT/S3）"""
+        import json as _json
+        size_bytes = len(_json.dumps(content, ensure_ascii=False).encode("utf-8")) if content is not None else None
+
         updated = self.repo.update(
             node_id=node_id,
-            preview_json=content,
+            size_bytes=size_bytes,
         )
         if not updated:
             raise NotFoundException(f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND)
@@ -1044,35 +971,32 @@ class ContentNodeService:
         operator_id: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> ContentNode:
-        """更新 markdown 节点的内容（直接存数据库，不存 S3）"""
+        """更新 markdown 节点的 size_bytes 元数据（内容存储已迁移到 MUT/S3）"""
         import logging
-        
+
         logger = logging.getLogger(__name__)
         node = self.get_by_id(node_id, project_id)
-        
-        # 检查是 markdown 文件
+
         if node.type != "markdown":
             raise BusinessException(
-                f"Node is not markdown type: type={node.type}", 
+                f"Node is not markdown type: type={node.type}",
                 code=ErrorCode.BAD_REQUEST
             )
-        
+
         content_bytes = content.encode('utf-8')
-        
-        # 直接更新数据库，不存 S3
+
         updated = self.repo.update(
             node_id=node_id,
-            preview_md=content,
             size_bytes=len(content_bytes),
         )
-        logger.info(f"[ContentNode] Markdown saved to DB: {node_id}")
-        
+        logger.info(f"[ContentNode] Markdown size updated: {node_id}")
+
         self._track_version(
             node_id, "update", content_text=content,
             size_bytes=len(content_bytes),
             operator_type=operator_type, operator_id=operator_id, session_id=session_id,
         )
-        
+
         return updated
 
     def move_node(
@@ -1216,19 +1140,6 @@ class ContentNodeService:
                 pass
 
         self.repo.delete_by_id_path_prefix(project_id, node.id_path)
-
-        if self.version_service and node_info_list:
-            for info in node_info_list:
-                try:
-                    self.version_service._emit_changelog(
-                        project_id=project_id,
-                        node_id=info["id"],
-                        action="delete",
-                        node_type=info["type"],
-                        content_hash=info["filename"],
-                    )
-                except Exception:
-                    pass
 
     # === 下载操作 ===
 

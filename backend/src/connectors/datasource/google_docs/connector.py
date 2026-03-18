@@ -46,6 +46,7 @@ class GoogleDocsConnector(BaseConnector):
             creation_mode="direct",
             description="Sync documents",
             accept_types=("folder",),
+            icon_url="https://www.gstatic.com/images/branding/product/1x/docs_2020q4_32dp.png",
             config_fields=(
                 ConfigField(
                     key="source_url",
@@ -212,3 +213,17 @@ class GoogleDocsConnector(BaseConnector):
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.oauth.google_docs_service import GoogleDocsOAuthService
+    oauth_svc = GoogleDocsOAuthService()
+    return ConnectorSetup(
+        connector=GoogleDocsConnector(
+            node_service=deps.node_service,
+            docs_service=oauth_svc,
+            s3_service=deps.s3_service,
+        ),
+        oauth_bindings={"docs": oauth_svc},
+    )

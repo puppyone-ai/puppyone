@@ -29,7 +29,7 @@ export function useMarkdownAutoSave(
       if (!activeNodeId) return;
       setMarkdownSaveStatus('saving');
       try {
-        await updateNode(activeNodeId, projectId, { preview_md: newContent });
+        await updateNode(activeNodeId, projectId, { content_text: newContent });
         setMarkdownSaveStatus('saved');
         statusTimeoutRef.current = setTimeout(() => setMarkdownSaveStatus('idle'), 2000);
       } catch (err) {

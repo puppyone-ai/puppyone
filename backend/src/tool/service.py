@@ -13,7 +13,7 @@ from src.supabase.tools.schemas import (
     ToolUpdate as SbToolUpdate,
 )
 from src.supabase.dependencies import get_supabase_repository
-from src.connectors.mcp.cache_invalidator import invalidate_mcp_cache
+from src.mcp.cache_invalidator import invalidate_mcp_cache
 from src.project.service import ProjectService
 
 

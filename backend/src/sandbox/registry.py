@@ -205,10 +205,14 @@ async def diff_and_writeback(
         # Handle json_path merging
         if entry.node_type == "json" and entry.json_path:
             from src.connectors.agent.sandbox_data import merge_data_by_path
+            from src.mut_core.dependencies import read_blob_content
             node = node_service.get_by_id_unsafe(entry.node_id)
             if node:
+                existing_json, _ = read_blob_content(
+                    node.project_id, node.content_hash, "json"
+                )
                 sandbox_content = merge_data_by_path(
-                    node.preview_json or {}, entry.json_path, sandbox_content
+                    existing_json or {}, entry.json_path, sandbox_content
                 )
 
         # Commit via CollaborationService (handles conflict detection)
@@ -238,12 +242,22 @@ async def diff_and_writeback(
                     f"status={commit_result.status}, strategy={strategy}, v={commit_result.version}"
                 )
             else:
-                if entry.node_type == "json":
-                    parsed = sandbox_content if isinstance(sandbox_content, dict) else json.loads(json.dumps(sandbox_content))
-                    node_service.repo.update(node_id=entry.node_id, preview_json=parsed)
-                elif entry.node_type == "markdown":
-                    md = sandbox_content if isinstance(sandbox_content, str) else str(sandbox_content)
-                    node_service.repo.update(node_id=entry.node_id, preview_md=md)
+                from src.collaboration.dependencies import create_collaboration_service
+                from src.collaboration.schemas import (
+                    Mutation as FbMutation, MutationType as FbMT, Operator as FbOp,
+                )
+                fb_collab = create_collaboration_service()
+                await fb_collab.commit(FbMutation(
+                    type=FbMT.CONTENT_UPDATE,
+                    operator=FbOp(
+                        type=operator_info.get("type", "agent"),
+                        id=operator_info.get("id"),
+                    ),
+                    node_id=entry.node_id,
+                    content=sandbox_content,
+                    node_type=entry.node_type,
+                    base_version=entry.version,
+                ))
                 strategy = "direct_fallback"
 
             node_obj = node_service.get_by_id_unsafe(entry.node_id)

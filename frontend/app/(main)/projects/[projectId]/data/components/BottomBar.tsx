@@ -17,8 +17,8 @@ interface BottomBarProps {
   activeProject: any;
   currentTableData: any;
   markdownContent: string;
-  isVersionHistoryOpen: boolean;
-  onOpenVersionHistory: () => void;
+  isVersionHistoryOpen?: boolean;
+  onOpenVersionHistory?: () => void;
 }
 
 const toggleGroupStyle: React.CSSProperties = {
@@ -119,29 +119,7 @@ export function BottomBar({
         )}
       </div>
 
-      {/* Right: version history */}
-      <div>
-        {isEditorView && !isVersionHistoryOpen && (
-          <button
-            onClick={onOpenVersionHistory}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '3px 8px', borderRadius: 5,
-              border: '1px solid transparent', background: 'transparent',
-              color: '#3f3f46', fontSize: 11, cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.borderColor = '#27272a'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#3f3f46'; e.currentTarget.style.borderColor = 'transparent'; }}
-            title="Version History"
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-            </svg>
-            History
-          </button>
-        )}
-      </div>
+      <div />
     </div>
   );
 }

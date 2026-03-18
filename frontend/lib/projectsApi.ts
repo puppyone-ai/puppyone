@@ -80,8 +80,6 @@ export async function getTable(
   projectId: string,
   nodeId: string
 ): Promise<TableData> {
-  // 调用 content nodes API 获取节点详情
-  // apiRequest 已经自动提取了 response.data，所以这里直接是 node 对象
   const node = await apiRequest<{
     id: string;
     name: string;
@@ -89,7 +87,7 @@ export async function getTable(
     project_id: string;
     id_path: string;
     parent_id: string | null;
-    preview_json: any;  // 已重命名: json_content -> preview_json
+    content_hash: string | null;
     s3_key: string | null;
     permissions: any;
     sync_url: string | null;
@@ -98,35 +96,22 @@ export async function getTable(
     updated_at: string;
   }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`);
 
-  // 获取数据：优先从 preview_json 字段，否则从 S3 下载
-  let data = node.preview_json;
-  
-  // 判断是否为非 JSON 类型（如 markdown），这些类型的内容不应通过 getTable 加载
   const nonJsonTypes = ['markdown', 'image', 'pdf', 'video', 'file'];
   const isNonJsonType = nonJsonTypes.some(t => node.type.includes(t));
-  
-  // 如果 content 为空但有 s3_key，从 S3 下载（仅对 JSON 类型）
-  if (data == null && node.s3_key && !isNonJsonType) {
-    try {
-      const { download_url } = await apiRequest<{ download_url: string }>(
-        `/api/v1/nodes/${nodeId}/download?project_id=${encodeURIComponent(projectId)}`
-      );
-      const response = await fetch(download_url);
-      if (response.ok) {
-        data = await response.json();
-      }
-    } catch (err) {
-      console.error('Failed to load data from S3:', err);
-    }
+
+  let data: any = null;
+
+  if (!isNonJsonType) {
+    const { getNodeContent } = await import('@/lib/contentNodesApi');
+    const content = await getNodeContent(nodeId, projectId);
+    data = content.content_json;
   }
 
-  // 计算行数
   let rows = 0;
   if (data != null) {
     if (Array.isArray(data)) {
       rows = data.length;
     } else if (typeof data === 'object') {
-      // 对于 Notion database，数据格式是 { imported_data: [...] }
       const importedData = data.imported_data;
       if (Array.isArray(importedData)) {
         rows = importedData.length;
@@ -142,7 +127,7 @@ export async function getTable(
     type: node.type,
     rows,
     data: data ?? null,
-    content: node.preview_json,  // 原始内容字段 (preview_json)
+    content: data,
     sync_url: node.sync_url,
   };
 }
@@ -157,8 +142,6 @@ export async function createTable(
     throw new Error('projectId is required for creating JSON node');
   }
 
-  // 使用 content nodes API 创建 JSON 节点
-  // 注意: 请求参数仍使用 content，但响应返回 preview_json
   const body: Record<string, any> = {
     name,
     project_id: projectId,
@@ -168,13 +151,12 @@ export async function createTable(
     body.parent_id = parentId;
   }
 
-  // apiRequest 已经自动提取了 response.data
   const node = await apiRequest<{
     id: string;
     name: string;
     type: string;
     project_id: string;
-    preview_json: any;  // 已重命名: content -> preview_json
+    content_hash: string | null;
     created_at: string;
     updated_at: string;
   }>('/api/v1/nodes/json', {
@@ -182,13 +164,13 @@ export async function createTable(
     body: JSON.stringify(body),
   });
 
-  const nodeContent = node.preview_json;
+  const inputData = data ?? {};
   let rows = 0;
-  if (nodeContent != null) {
-    if (Array.isArray(nodeContent)) {
-      rows = nodeContent.length;
-    } else if (typeof nodeContent === 'object') {
-      rows = Object.keys(nodeContent).length;
+  if (inputData != null) {
+    if (Array.isArray(inputData)) {
+      rows = inputData.length;
+    } else if (typeof inputData === 'object') {
+      rows = Object.keys(inputData).length;
     }
   }
 
@@ -196,7 +178,7 @@ export async function createTable(
     id: node.id,
     name: node.name || '',
     rows,
-    data: nodeContent ?? null,
+    data: inputData,
   };
 }
 
@@ -205,14 +187,12 @@ export async function updateTable(
   nodeId: string,
   name?: string
 ): Promise<TableData> {
-  // 使用 content nodes API 更新节点名称
-  // apiRequest 已经自动提取了 response.data
   const node = await apiRequest<{
     id: string;
     name: string;
     type: string;
     project_id: string;
-    preview_json: any;  // 已重命名: content -> preview_json
+    content_hash: string | null;
     created_at: string;
     updated_at: string;
   }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`, {
@@ -220,7 +200,9 @@ export async function updateTable(
     body: JSON.stringify({ name }),
   });
 
-  const data = node.preview_json;
+  const { getNodeContent } = await import('@/lib/contentNodesApi');
+  const content = await getNodeContent(nodeId, projectId);
+  const data = content.content_json;
   let rows = 0;
   if (data != null) {
     if (Array.isArray(data)) {
@@ -251,30 +233,27 @@ export async function deleteTable(
 export async function updateTableData(
   projectId: string,
   nodeId: string,
-  data: any // 任意 JSON 数据
+  data: any
 ): Promise<TableData> {
-  // 使用 PUT /nodes/{id} 更新内容
-  // apiRequest 已经自动提取了 response.data
   const node = await apiRequest<{
     id: string;
     name: string;
     type: string;
     project_id: string;
-    preview_json: any;  // 已重命名: content -> preview_json
+    content_hash: string | null;
     created_at: string;
     updated_at: string;
   }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`, {
     method: 'PUT',
-    body: JSON.stringify({ preview_json: data }),  // 已重命名: content -> preview_json
+    body: JSON.stringify({ content_json: data }),
   });
 
-  const nodeContent = node.preview_json;
   let rows = 0;
-  if (nodeContent != null) {
-    if (Array.isArray(nodeContent)) {
-      rows = nodeContent.length;
-    } else if (typeof nodeContent === 'object') {
-      rows = Object.keys(nodeContent).length;
+  if (data != null) {
+    if (Array.isArray(data)) {
+      rows = data.length;
+    } else if (typeof data === 'object') {
+      rows = Object.keys(data).length;
     }
   }
 
@@ -282,7 +261,7 @@ export async function updateTableData(
     id: node.id,
     name: node.name || '',
     rows,
-    data: nodeContent ?? null,
+    data: data ?? null,
   };
 }
 

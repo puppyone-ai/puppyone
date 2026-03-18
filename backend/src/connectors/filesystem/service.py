@@ -17,14 +17,7 @@ from src.content_node.repository import ContentNodeRepository
 from src.content_node.service import ContentNodeService
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.filesystem.changelog import SyncChangelogRepository
-from src.collaboration.service import CollaborationService
 from src.collaboration.schemas import Mutation, MutationType, Operator
-from src.collaboration.version_service import VersionService
-from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
-from src.collaboration.lock_service import LockService
-from src.collaboration.conflict_service import ConflictService
-from src.collaboration.audit_service import AuditService
-from src.collaboration.audit_repository import AuditRepository
 from src.s3.service import get_s3_service_instance, S3Service
 from src.supabase.client import SupabaseClient
 from src.utils.logger import log_info, log_error
@@ -47,33 +40,9 @@ class FolderSyncService:
         self._changelog = SyncChangelogRepository(supabase)
         self._s3 = get_s3_service_instance()
 
-    def _build_version_service(self) -> VersionService:
-        return VersionService(
-            node_repo=self._node_repo,
-            version_repo=FileVersionRepository(self._supabase),
-            snapshot_repo=FolderSnapshotRepository(self._supabase),
-            s3_service=self._s3,
-            changelog_repo=self._changelog,
-        )
-
-    def _build_node_service(self) -> ContentNodeService:
-        return ContentNodeService(
-            repo=self._node_repo,
-            s3_service=self._s3,
-            version_service=self._build_version_service(),
-        )
-
-    def _build_collab_service(self) -> CollaborationService:
-        return CollaborationService(
-            node_repo=self._node_repo,
-            node_service=self._build_node_service(),
-            lock_service=LockService(self._node_repo),
-            conflict_service=ConflictService(),
-            version_service=self._build_version_service(),
-            audit_service=AuditService(
-                audit_repo=AuditRepository(self._supabase),
-            ),
-        )
+    def _build_collab_service(self):
+        from src.collaboration.dependencies import create_collaboration_service
+        return create_collaboration_service()
 
     # ----------------------------------------------------------
     # Pull
@@ -457,19 +426,28 @@ class FolderSyncService:
 
         self._node_repo.update(node_id=node.id, size_bytes=size_bytes)
 
-        version_svc = self._build_version_service()
-        is_new = (node.current_version or 0) == 0
         try:
-            version = version_svc.create_version(
+            import asyncio
+            collab_svc = self._build_collab_service()
+            mutation = Mutation(
+                type=MutationType.CONTENT_UPDATE,
+                operator=Operator(type="agent", id=operator_id, summary=f"CLI upload from '{operator_name}'"),
                 node_id=node.id,
-                operator_type="agent",
-                operation="create" if is_new else "update",
-                s3_key=node.s3_key,
-                operator_id=operator_id,
-                summary=f"CLI upload from '{operator_name}'",
+                project_id=project_id,
+                content=node.s3_key,
+                node_type="file",
+                base_version=node.current_version or 0,
             )
-            new_version = version.version if version else 1
 
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    result = pool.submit(asyncio.run, collab_svc.commit(mutation)).result()
+            else:
+                result = asyncio.run(collab_svc.commit(mutation))
+
+            new_version = result.version if result else 1
             log_info(
                 f"[FolderSync] CONFIRM {filename} v{new_version} ({size_bytes} bytes)"
             )
@@ -490,9 +468,11 @@ class FolderSyncService:
             "version": node.current_version or 0,
         }
         if node.type in INLINE_TYPES:
-            entry["content"] = (
-                node.preview_json if node.type == "json" else node.preview_md
+            from src.mut_core.dependencies import read_blob_content
+            json_content, text_content = read_blob_content(
+                node.project_id, node.content_hash, node.type
             )
+            entry["content"] = json_content if node.type == "json" else text_content
         else:
             entry["s3_key"] = node.s3_key
             entry["mime_type"] = node.mime_type

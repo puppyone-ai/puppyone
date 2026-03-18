@@ -26,6 +26,7 @@ export interface ConnectorSpec {
   accept_types: string[];
   config_fields: ConnectorConfigField[];
   icon: string | null;
+  icon_url: string | null;
 }
 
 export interface CreateSyncRequest {
@@ -65,6 +66,10 @@ export interface CreateSyncResult {
 
 export async function getConnectorSpecs(): Promise<ConnectorSpec[]> {
   return get<ConnectorSpec[]>('/api/v1/sync/connectors');
+}
+
+export async function getConnectionTypes(): Promise<ConnectorSpec[]> {
+  return get<ConnectorSpec[]>('/api/v1/connections/types');
 }
 
 export async function createSyncConnection(

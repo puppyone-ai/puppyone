@@ -1,13 +1,10 @@
 """
-L3-Folder: Workspace API — 给外部 Agent 使用的文件夹接口
+Workspace API — 给外部 Agent 使用的文件夹接口
 
 端点：
   POST /workspace/create                创建工作区（返回路径）
-  POST /workspace/{agent_id}/complete   Agent 完成后触发合并（通过 L2 CollaborationService）
+  POST /workspace/{agent_id}/complete   Agent 完成后触发合并（通过 Mut 内核）
   GET  /workspace/{agent_id}/status     查看工作区状态
-
-依赖链：
-  L3-Folder Router → L2.5 SyncWorker → L2 CollaborationService → L1 (PG/S3)
 """
 
 import os
@@ -109,7 +106,7 @@ async def create_workspace(
 
 
 # ============================================================
-# Agent 完成后触发合并（L3-Folder → L2 CollaborationService）
+# Agent 完成后触发合并（通过 Mut 内核）
 # ============================================================
 
 @router.post("/{agent_id}/complete", response_model=ApiResponse[CompleteWorkspaceResponse])
@@ -123,20 +120,14 @@ async def complete_workspace(
 
     1. detect_changes: 对比 workspace vs lower
     2. 构建 file_path → node_id 映射（从 SyncWorker 的 .metadata.json）
-    3. 逐文件 CollaborationService.commit(): 乐观锁 + 三方合并 + 版本记录
+    3. 逐文件 MutCompatService.commit(): 版本管理 + 冲突合并
     4. 处理新建文件 / 删除文件
     5. cleanup workspace
     """
     import json as json_mod
     from src.workspace.provider import get_workspace_provider
-    from src.collaboration.service import CollaborationService
     from src.collaboration.schemas import Mutation, MutationType, Operator
-    from src.collaboration.conflict_service import ConflictService
-    from src.collaboration.lock_service import LockService
-    from src.collaboration.version_service import VersionService as CollabVersionService
-    from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
-    from src.collaboration.audit_service import AuditService
-    from src.collaboration.audit_repository import AuditRepository
+    from src.collaboration.dependencies import create_collaboration_service
     from src.content_node.repository import ContentNodeRepository
     from src.content_node.service import ContentNodeService
     from src.s3.service import S3Service
@@ -146,28 +137,12 @@ async def complete_workspace(
     supabase = SupabaseClient()
     node_repo = ContentNodeRepository(supabase)
     s3_service = S3Service()
-    version_repo = FileVersionRepository(supabase)
-    snapshot_repo = FolderSnapshotRepository(supabase)
 
     from src.connectors.filesystem.changelog import SyncChangelogRepository
     changelog_repo = SyncChangelogRepository(supabase)
 
-    version_svc = CollabVersionService(
-        node_repo=node_repo,
-        version_repo=version_repo,
-        snapshot_repo=snapshot_repo,
-        s3_service=s3_service,
-        changelog_repo=changelog_repo,
-    )
-    node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service, version_service=version_svc)
-    collab_service = CollaborationService(
-        node_repo=node_repo,
-        node_service=node_svc,
-        lock_service=LockService(node_repo),
-        conflict_service=ConflictService(),
-        version_service=version_svc,
-        audit_service=AuditService(audit_repo=AuditRepository(supabase)),
-    )
+    node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service)
+    collab_service = create_collaboration_service()
 
     provider = get_workspace_provider()
 

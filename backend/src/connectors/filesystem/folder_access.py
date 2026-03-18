@@ -485,17 +485,21 @@ class FolderAccessService:
     def _node_to_rel_path(node) -> str:
         """节点 → 文件系统相对路径。"""
         name = node.name or node.id
-        if node.type == "json" or (node.preview_json is not None):
+        if node.type == "json":
             return f"{name}.json" if not name.endswith(".json") else name
         return f"{name}.md" if not name.endswith(".md") else name
 
     @staticmethod
     def _extract_content(node) -> tuple[Any, str]:
-        """从节点提取可写入的内容和类型。"""
-        if node.preview_json is not None:
-            return node.preview_json, "json"
-        if node.preview_md is not None:
-            return node.preview_md, "markdown"
+        """从节点提取可写入的内容和类型（via MUT ObjectStore）。"""
+        from src.mut_core.dependencies import read_blob_content
+        json_content, text_content = read_blob_content(
+            node.project_id, node.content_hash, node.type
+        )
+        if json_content is not None:
+            return json_content, "json"
+        if text_content is not None:
+            return text_content, "markdown"
         return None, "binary"
 
     # ============================================================

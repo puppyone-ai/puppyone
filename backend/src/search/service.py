@@ -213,13 +213,14 @@ class SearchService:
             f"[index_scope] start: project_id={project_id} node_id={node_id} json_path='{json_path}'"
         )
 
-        # 1) 读取 scope 数据（从 content_nodes 获取）
+        # 1) 读取 scope 数据（从 MUT ObjectStore 获取）
         t1 = time.perf_counter()
         node = await asyncio.to_thread(
             self._node_service.get_by_id, node_id, project_id
         )
-        # 从 node.preview_json 获取 JSON 数据，然后提取指定路径的子数据
-        full_data = node.preview_json or {}
+        from src.mut_core.dependencies import read_blob_content
+        _json_data, _ = read_blob_content(node.project_id, node.content_hash, "json")
+        full_data = _json_data or {}
         scope_data = _extract_by_pointer(full_data, scope_pointer)
         log_info(
             f"[index_scope] step1_get_scope_data: node_id={node_id} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
@@ -597,19 +598,21 @@ class SearchService:
         """
         t0 = time.perf_counter()
 
-        # 1) Read file content based on type (check for preview content)
-        is_markdown = file_node.type == "markdown" or file_node.preview_md is not None
-        is_json = file_node.type == "json" or file_node.preview_json is not None
-        
+        # 1) Read file content based on type (from MUT ObjectStore or S3)
+        is_markdown = file_node.type == "markdown"
+        is_json = file_node.type == "json"
+
+        from src.mut_core.dependencies import read_blob_content
+        _fnode_json, _fnode_text = read_blob_content(
+            file_node.project_id, file_node.content_hash, file_node.type
+        )
+
         if is_json:
-            # JSON content is stored in node.preview_json
-            content_data = file_node.preview_json or {}
-            # Use root pointer for JSON files in folder context
+            content_data = _fnode_json or {}
             scope_pointer = ""
         elif is_markdown:
-            # Markdown content: prefer preview_md, fallback to S3
-            if file_node.preview_md:
-                content_data = file_node.preview_md
+            if _fnode_text:
+                content_data = _fnode_text
                 scope_pointer = "/"
             elif file_node.s3_key:
                 try:

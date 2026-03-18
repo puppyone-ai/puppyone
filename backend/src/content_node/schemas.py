@@ -32,8 +32,10 @@ class CreateMarkdownNodeRequest(BaseModel):
 class UpdateNodeRequest(BaseModel):
     """更新节点请求"""
     name: Optional[str] = Field(None, description="新名称")
-    preview_json: Optional[Any] = Field(None, description="新内容（仅 JSON 类型）")
-    preview_md: Optional[str] = Field(None, description="新内容（仅 Markdown 类型）")
+    content_json: Optional[Any] = Field(None, description="JSON 内容（写入 MUT）")
+    content_text: Optional[str] = Field(None, description="Markdown/文本内容（写入 MUT）")
+    preview_json: Optional[Any] = Field(None, description="[deprecated] alias for content_json")
+    preview_md: Optional[str] = Field(None, description="[deprecated] alias for content_text")
 
 
 class MoveNodeRequest(BaseModel):
@@ -95,10 +97,10 @@ class NodeInfo(BaseModel):
 
 
 class NodeDetail(NodeInfo):
-    """节点详情（包含内容）"""
-    preview_json: Optional[Any] = None
-    preview_md: Optional[str] = None
+    """节点详情（metadata only — 内容通过 GET /nodes/{id}/content 读取）"""
+    content_hash: Optional[str] = None
     s3_key: Optional[str] = None
+    mut_path: Optional[str] = None
     permissions: dict = Field(default_factory=lambda: {"inherit": True})
 
 
@@ -106,6 +108,17 @@ class NodeListResponse(BaseModel):
     """节点列表响应"""
     nodes: List[NodeInfo]
     total: int
+
+
+class NodeContentResponse(BaseModel):
+    """节点内容响应（从 S3 MUT ObjectStore 读取）"""
+    node_id: str
+    node_type: str
+    content_hash: Optional[str] = None
+    content_json: Optional[Any] = None
+    content_text: Optional[str] = None
+    download_url: Optional[str] = None
+    size_bytes: int = 0
 
 
 class UploadUrlResponse(BaseModel):

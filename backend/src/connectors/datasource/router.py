@@ -736,15 +736,18 @@ async def push_file(
                 version=existing.last_sync_version,
             ))
 
-        updated = node_svc.update_node(
+        from src.collaboration.schemas import Mutation, MutationType, Operator
+        from src.collaboration.dependencies import create_collaboration_service
+        collab = create_collaboration_service()
+        commit_result = await collab.commit(Mutation(
+            type=MutationType.CONTENT_UPDATE,
+            operator=Operator(type="sync", id=f"cli:{body.external_resource_id}"),
             node_id=existing.node_id,
-            project_id=parent_sync.project_id,
-            preview_json=body.content_json if is_json else None,
-            preview_md=body.content_md if not is_json else None,
-            operator_type="sync",
-            operator_id=f"cli:{body.external_resource_id}",
-        )
-        version = updated.current_version or 0
+            content=body.content_json if is_json else body.content_md,
+            node_type="json" if is_json else "markdown",
+            base_version=0,
+        ))
+        version = commit_result.version or 0
         sync_svc.sync_repo.update_sync_point(
             sync_id=existing.id,
             last_sync_version=version,
@@ -827,12 +830,17 @@ def pull_files(
             continue
 
         ext_resource_id = s.config.get("external_resource_id", "")
-        is_json = node.preview_json is not None
+        is_json = node.type == "json"
+
+        from src.mut_core.dependencies import read_blob_content
+        json_content, text_content = read_blob_content(
+            node.project_id, node.content_hash, node.type
+        )
         files.append(PullFileItem(
             node_id=node.id,
             external_resource_id=ext_resource_id,
-            content_json=node.preview_json if is_json else None,
-            content_md=node.preview_md if not is_json else None,
+            content_json=json_content if is_json else None,
+            content_md=text_content if not is_json else None,
             node_type="json" if is_json else "markdown",
             current_version=node_version,
         ))
@@ -877,7 +885,7 @@ async def trigger_pull(
 @router.post("/push/{node_id}", response_model=ApiResponse[PushResponse])
 async def trigger_push(
     node_id: str,
-    sync_svc: SyncService = Depends(get_sync_service),
+    engine: SyncEngine = Depends(get_sync_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     from src.content_node.repository import ContentNodeRepository
@@ -887,15 +895,20 @@ async def trigger_push(
     if not node:
         return ApiResponse.error(code=1004, message=f"Node not found: {node_id}")
 
-    content = node.preview_json if node.preview_json is not None else node.preview_md
-    node_type = "json" if node.preview_json is not None else "markdown"
+    from src.mut_core.dependencies import read_blob_content
+    json_content, text_content = read_blob_content(
+        node.project_id, node.content_hash, node.type
+    )
+    content = json_content if json_content is not None else text_content
+    node_type = "json" if node.type == "json" else "markdown"
 
-    results = await sync_svc.push_node(
+    result = await engine.push_execute(
         node_id=node_id,
         version=node.current_version or 0,
         content=content,
         node_type=node_type,
     )
+    results = [result] if result else []
     return ApiResponse.success(data=PushResponse(pushed=len(results), results=results))
 
 

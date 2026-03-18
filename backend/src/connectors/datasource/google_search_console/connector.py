@@ -146,3 +146,8 @@ class GoogleSearchConsoleConnector(BaseConnector):
             node_name=f"GSC — {site_url} ({date_range})",
             summary=f"Fetched {len(records)} rows from Search Console ({start_date} to {end_date})",
         )
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorSetup
+    return ConnectorSetup(connector=GoogleSearchConsoleConnector())

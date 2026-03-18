@@ -57,6 +57,7 @@ class GmailConnector(BaseConnector):
             creation_mode="direct",
             description="Sync emails to JSON",
             accept_types=("folder",),
+            icon_url="https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png",
             config_fields=(
                 ConfigField(
                     key="query",
@@ -252,3 +253,16 @@ class GmailConnector(BaseConnector):
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    oauth_svc = GmailOAuthService()
+    return ConnectorSetup(
+        connector=GmailConnector(
+            node_service=deps.node_service,
+            gmail_service=oauth_svc,
+            s3_service=deps.s3_service,
+        ),
+        oauth_bindings={"gmail": oauth_svc},
+    )

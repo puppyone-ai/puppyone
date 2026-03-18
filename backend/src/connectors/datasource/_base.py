@@ -120,6 +120,7 @@ class ConnectorSpec:
     creation_mode: str = "direct"  # direct | bootstrap
     config_fields: tuple[ConfigField, ...] = ()
     icon: Optional[str] = None
+    icon_url: Optional[str] = None
     description: Optional[str] = None
     accept_types: tuple[str, ...] = ("folder",)
     ui_visible: bool = True
@@ -184,6 +185,24 @@ class BaseConnector(ABC):
 
     async def teardown_trigger(self, sync: "Sync") -> None:
         pass
+
+
+# ============================================================
+# Auto-discovery support
+# ============================================================
+
+@dataclass
+class ConnectorDeps:
+    """Shared dependencies injected into connector setup() functions."""
+    node_service: Any
+    s3_service: Any
+
+
+@dataclass
+class ConnectorSetup:
+    """Returned by each connector module's setup() function."""
+    connector: "BaseConnector"
+    oauth_bindings: dict[str, Any] = field(default_factory=dict)
 
 
 from typing import TYPE_CHECKING

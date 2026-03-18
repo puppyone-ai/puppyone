@@ -22,7 +22,7 @@ version management.
 from __future__ import annotations
 
 import json
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 from src.connectors.datasource._base import FetchResult
 from src.connectors.datasource.registry import ConnectorRegistry
@@ -192,6 +192,107 @@ class SyncEngine:
         if results:
             log_info(f"[SyncEngine] execute_all: {len(results)} syncs updated")
         return results
+
+    # ============================================================
+    # PUSH: PuppyOne → External
+    # ============================================================
+
+    async def push_execute(
+        self,
+        node_id: str,
+        version: int,
+        content: Any,
+        node_type: str,
+    ) -> Optional[dict]:
+        """
+        Push content from PuppyOne to the external system bound to this node.
+
+        Called after CollaborationService.commit() succeeds for bidirectional/
+        outbound syncs. Mirrors execute() but in the reverse direction.
+
+        Returns a result dict on success, None if skipped or error.
+        """
+        sync = self.sync_repo.get_by_node(node_id)
+        if not sync:
+            return None
+
+        if sync.direction == "inbound":
+            return None
+
+        if sync.status != "active":
+            log_debug(f"[SyncEngine] push skipped: sync {sync.id} status={sync.status}")
+            return None
+
+        if sync.last_sync_version >= version:
+            return None
+
+        connector = self.registry.get(sync.provider)
+        if not connector:
+            log_error(f"[SyncEngine] push: no connector for provider {sync.provider}")
+            return None
+
+        from src.connectors.datasource._base import Capability
+        spec = connector.spec()
+        if not (spec.capabilities & Capability.PUSH):
+            log_debug(f"[SyncEngine] push skipped: {sync.provider} has no PUSH capability")
+            return None
+
+        run = None
+        if self.run_repo:
+            try:
+                run = self.run_repo.create(sync.id, trigger_type="push")
+            except Exception as e:
+                log_debug(f"[SyncEngine] Could not create push run record: {e}")
+
+        try:
+            push_result = await connector.push(sync, content, node_type)
+
+            if push_result.success:
+                self.sync_repo.update_sync_point(
+                    sync_id=sync.id,
+                    last_sync_version=version,
+                    remote_hash=push_result.remote_hash,
+                )
+                external_resource_id = (sync.config or {}).get("external_resource_id", "")
+                log_info(
+                    f"[SyncEngine] PUSH node {node_id} v{version} → "
+                    f"{sync.provider}:{external_resource_id}"
+                )
+
+                if run and self.run_repo:
+                    self.run_repo.complete(
+                        run.id, status="success",
+                        result_summary=f"Pushed v{version}",
+                    )
+
+                return {
+                    "sync_id": sync.id,
+                    "node_id": node_id,
+                    "provider": sync.provider,
+                    "version": version,
+                    "direction": "push",
+                    "status": "success",
+                    "run_id": run.id if run else None,
+                }
+            else:
+                error = push_result.error or "Push returned failure"
+                log_error(f"[SyncEngine] push failed for {sync.id}: {error}")
+                self.sync_repo.update_error(sync.id, error)
+                if run and self.run_repo:
+                    self.run_repo.complete(run.id, status="failed", error=error)
+                return None
+
+        except NotImplementedError:
+            log_debug(f"[SyncEngine] push not implemented for {sync.provider}")
+            if run and self.run_repo:
+                self.run_repo.complete(run.id, status="skipped", result_summary="Push not implemented")
+            return None
+        except Exception as e:
+            log_error(f"[SyncEngine] push error for sync {sync.id}: {e}")
+            self.sync_repo.update_error(sync.id, str(e))
+            if run and self.run_repo:
+                self.run_repo.complete(run.id, status="failed", error=str(e))
+            return None
 
     def _get_base_content(self, sync: Sync) -> Optional[str]:
         """Get base content for three-way merge."""

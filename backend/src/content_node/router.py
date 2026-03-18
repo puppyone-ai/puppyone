@@ -17,6 +17,7 @@ from src.content_node.schemas import (
     NodeInfo,
     NodeDetail,
     NodeListResponse,
+    NodeContentResponse,
     UploadUrlResponse,
     DownloadUrlResponse,
 )
@@ -41,39 +42,8 @@ router = APIRouter(
 
 
 def _compute_preview_snippet(node, max_len: int = 200) -> str | None:
-    """从 preview_md / preview_json 提取可读的摘要文本"""
-    if node.preview_md:
-        lines = node.preview_md.strip().splitlines()
-        text = " ".join(l.strip().lstrip("#").strip() for l in lines if l.strip())
-        return text[:max_len] if text else None
-    if node.preview_json is not None:
-        pj = node.preview_json
-        if isinstance(pj, list):
-            row_count = len(pj)
-            if row_count > 0 and isinstance(pj[0], dict):
-                # 取第一行的 key: value 作为预览
-                first = pj[0]
-                parts = []
-                for k, v in list(first.items())[:5]:
-                    val = str(v) if v is not None else "–"
-                    if len(val) > 12:
-                        val = val[:12] + "…"
-                    parts.append(f"{k}: {val}")
-                text = "\n".join(parts)
-                text += f"\n… {row_count} rows"
-                return text[:max_len]
-            return f"{row_count} items"
-        if isinstance(pj, dict):
-            parts = []
-            for k, v in list(pj.items())[:6]:
-                val = str(v) if v is not None else "–"
-                if len(val) > 14:
-                    val = val[:14] + "…"
-                parts.append(f"{k}: {val}")
-            if len(pj) > 6:
-                parts.append("…")
-            return "\n".join(parts)[:max_len]
-        return str(pj)[:max_len]
+    """内容已迁移到 S3，snippet 需从 S3 读取。目前返回 None。"""
+    return None
     return None
 
 
@@ -99,7 +69,7 @@ def _node_to_info(
 
 
 def _node_to_detail(node) -> NodeDetail:
-    """转换节点为 NodeDetail"""
+    """转换节点为 NodeDetail（metadata only — 内容通过 /content 端点读取）"""
     return NodeDetail(
         id=node.id,
         name=node.name,
@@ -109,9 +79,9 @@ def _node_to_detail(node) -> NodeDetail:
         type=node.type,
         mime_type=node.mime_type,
         size_bytes=node.size_bytes,
-        preview_json=node.preview_json,
-        preview_md=node.preview_md,
+        content_hash=node.content_hash,
         s3_key=node.s3_key,
+        mut_path=node.mut_path,
         permissions=node.permissions,
         created_at=node.created_at.isoformat(),
         updated_at=node.updated_at.isoformat(),
@@ -196,6 +166,69 @@ def get_node(
     _ensure_project_access(project_service, current_user, project_id)
     node = service.get_by_id(node_id, project_id)
     return ApiResponse.success(data=_node_to_detail(node))
+
+
+@router.get(
+    "/{node_id}/content",
+    response_model=ApiResponse[NodeContentResponse],
+    summary="读取节点内容（从 S3 MUT ObjectStore）",
+)
+def get_node_content(
+    node_id: str,
+    project_id: str = Query(..., description="项目 ID"),
+    service: ContentNodeService = Depends(get_content_node_service),
+    collab: CollaborationService = Depends(get_collaboration_service),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_project_access(project_service, current_user, project_id)
+    node = service.get_by_id(node_id, project_id)
+
+    content_hash = node.content_hash
+    if not content_hash:
+        return ApiResponse.success(data=NodeContentResponse(
+            node_id=node_id,
+            node_type=node.type,
+            content_hash=None,
+            size_bytes=node.size_bytes,
+        ))
+
+    try:
+        repo = collab._repos.get_repo(project_id)
+        content_bytes = repo.store.get(content_hash)
+    except Exception:
+        return ApiResponse.success(data=NodeContentResponse(
+            node_id=node_id,
+            node_type=node.type,
+            content_hash=content_hash,
+            size_bytes=node.size_bytes,
+        ))
+
+    import json as _json
+
+    content_json = None
+    content_text = None
+
+    if node.type == "json":
+        try:
+            content_json = _json.loads(content_bytes.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            content_text = content_bytes.decode("utf-8", errors="replace")
+    elif node.type == "markdown":
+        content_text = content_bytes.decode("utf-8", errors="replace")
+    elif node.type == "file" and node.s3_key:
+        from src.s3.service import S3Service
+        from src.s3.dependencies import get_s3_service
+        pass
+
+    return ApiResponse.success(data=NodeContentResponse(
+        node_id=node_id,
+        node_type=node.type,
+        content_hash=content_hash,
+        content_json=content_json,
+        content_text=content_text,
+        size_bytes=len(content_bytes),
+    ))
 
 
 @router.get(
@@ -440,21 +473,24 @@ async def update_node(
             new_name=request.name,
         ))
 
-    if request.preview_json is not None:
+    json_content = request.content_json or request.preview_json
+    text_content = request.content_text or request.preview_md
+
+    if json_content is not None:
         await collab.commit(Mutation(
             type=MutationType.CONTENT_UPDATE,
             operator=op,
             node_id=node_id,
-            content=request.preview_json,
+            content=json_content,
             node_type="json",
             base_version=0,
         ))
-    elif request.preview_md is not None:
+    elif text_content is not None:
         await collab.commit(Mutation(
             type=MutationType.CONTENT_UPDATE,
             operator=op,
             node_id=node_id,
-            content=request.preview_md,
+            content=text_content,
             node_type="markdown",
             base_version=0,
         ))

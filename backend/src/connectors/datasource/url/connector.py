@@ -23,6 +23,13 @@ from src.connectors.datasource._base import (
 from src.connectors.datasource.utils.url_parser import UrlParser
 
 
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorSetup
+    return ConnectorSetup(
+        connector=UrlConnector(node_service=deps.node_service),
+    )
+
+
 class UrlConnector(BaseConnector):
     """Connector for generic URL imports using Firecrawl."""
 

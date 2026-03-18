@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException
 
-from src.connectors.sandbox.repository import SandboxEndpointRepository
-from src.connectors.sandbox.service import SandboxEndpointService
+from src.sandbox.endpoint_repository import SandboxEndpointRepository
+from src.sandbox.endpoint_service import SandboxEndpointService
 from src.auth.dependencies import get_current_user
 from src.auth.models import CurrentUser
 

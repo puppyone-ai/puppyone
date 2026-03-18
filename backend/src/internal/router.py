@@ -528,12 +528,17 @@ async def read_node_content(
             "updated_at": node.updated_at.isoformat() if node.updated_at else None,
         }
 
-        if node.is_json or (node.preview_json is not None and not node.is_folder):
-            base["content"] = node.preview_json
+        from src.mut_core.dependencies import read_blob_content
+        _ir_json, _ir_text = read_blob_content(
+            node.project_id, node.content_hash, node.type
+        )
+
+        if node.is_json or (node.type == "json" and not node.is_folder):
+            base["content"] = _ir_json
             return base
 
-        if node.is_markdown or node.preview_md is not None:
-            base["content"] = node.preview_md
+        if node.is_markdown or node.type == "markdown":
+            base["content"] = _ir_text
             return base
 
         if node.s3_key:
@@ -558,9 +563,8 @@ async def read_node_content(
             ]
             return base
 
-        # 同步节点等 — 返回 preview_json 如果有
-        if node.preview_json is not None:
-            base["content"] = node.preview_json
+        if _ir_json is not None:
+            base["content"] = _ir_json
         return base
 
     except AppException as e:
@@ -599,9 +603,9 @@ async def write_node_content(
             if not isinstance(content, str):
                 raise HTTPException(status_code=400, detail="Markdown content must be a string")
             node_type = "markdown"
-        elif node.is_json or node.type == "json" or node.preview_json is not None:
+        elif node.is_json or node.type == "json":
             node_type = "json"
-        elif node.preview_md is not None:
+        elif node.type == "markdown":
             if not isinstance(content, str):
                 raise HTTPException(status_code=400, detail="Markdown content must be a string")
             node_type = "markdown"
@@ -1025,7 +1029,7 @@ async def get_agent_by_mcp_key(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_mcp_endpoint_by_key(api_key: str):
-    from src.connectors.mcp.repository import McpEndpointRepository
+    from src.mcp.endpoint_repository import McpEndpointRepository
     from src.content_node.dependencies import get_content_node_repository
     from src.supabase.client import SupabaseClient
 
@@ -1094,7 +1098,7 @@ async def get_mcp_endpoint_by_key(api_key: str):
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_sandbox_endpoint_by_key(access_key: str):
-    from src.connectors.sandbox.repository import SandboxEndpointRepository
+    from src.sandbox.endpoint_repository import SandboxEndpointRepository
     from src.content_node.dependencies import get_content_node_repository
     from src.supabase.client import SupabaseClient
 

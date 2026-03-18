@@ -412,31 +412,8 @@ class AgentService:
                     from src.collaboration.schemas import Mutation as _SchedMutation, MutationType as _SchedMT, Operator as _SchedOp
                     _sched_collab = None
                     try:
-                        from src.collaboration.conflict_service import ConflictService as _CSvc
-                        from src.collaboration.lock_service import LockService as _LSvc
-                        from src.collaboration.version_service import VersionService as _VSvc
-                        from src.collaboration.version_repository import FileVersionRepository as _FVR, FolderSnapshotRepository as _FSR
-                        from src.collaboration.audit_service import AuditService as _ASvc
-                        from src.collaboration.audit_repository import AuditRepository as _AR
-                        from src.collaboration.service import CollaborationService as _CS
-                        from src.supabase.client import SupabaseClient as _SB
-                        from src.s3.service import S3Service as _S3
-
-                        _sb2 = _SB()
-                        _sched_collab = _CS(
-                            node_repo=node_service.repo,
-                            node_service=node_service,
-                            lock_service=_LSvc(node_service.repo),
-                            conflict_service=_CSvc(),
-                            version_service=_VSvc(
-                                node_repo=node_service.repo,
-                                version_repo=_FVR(_sb2),
-                                snapshot_repo=_FSR(_sb2),
-                                s3_service=_S3(),
-                                changelog_repo=_get_changelog_repo(_sb2),
-                            ),
-                            audit_service=_ASvc(audit_repo=_AR(_sb2)),
-                        )
+                        from src.collaboration.dependencies import create_collaboration_service
+                        _sched_collab = create_collaboration_service()
                     except Exception as e:
                         logger.warning(f"[ScheduleAgent] CollaborationService init failed: {e}")
 
@@ -466,29 +443,31 @@ class AgentService:
                                 continue
                             
                             if node_type == "json" and json_path_config:
+                                from src.mut_core.dependencies import read_blob_content
+                                existing_json, _ = read_blob_content(
+                                    node.project_id, node.content_hash, "json"
+                                )
                                 sandbox_content = merge_data_by_path(
-                                    node.preview_json or {}, json_path_config, sandbox_content
+                                    existing_json or {}, json_path_config, sandbox_content
                                 )
 
-                            if _sched_collab:
-                                mutation = _SchedMutation(
-                                    type=_SchedMT.CONTENT_UPDATE,
-                                    operator=_SchedOp(
-                                        type="agent",
-                                        id=agent.id if agent else None,
-                                        summary="Schedule Agent write-back",
-                                    ),
-                                    node_id=node_id,
-                                    content=sandbox_content,
-                                    node_type=node_type,
-                                    base_version=0,
-                                )
-                                await _sched_collab.commit(mutation)
-                            else:
-                                if node_type == "json":
-                                    node_service.repo.update(node_id=node_id, preview_json=sandbox_content)
-                                elif node_type == "markdown":
-                                    node_service.repo.update(node_id=node_id, preview_md=sandbox_content)
+                            if not _sched_collab:
+                                from src.collaboration.dependencies import create_collaboration_service
+                                _sched_collab = create_collaboration_service()
+
+                            mutation = _SchedMutation(
+                                type=_SchedMT.CONTENT_UPDATE,
+                                operator=_SchedOp(
+                                    type="agent",
+                                    id=agent.id if agent else None,
+                                    summary="Schedule Agent write-back",
+                                ),
+                                node_id=node_id,
+                                content=sandbox_content,
+                                node_type=node_type,
+                                base_version=0,
+                            )
+                            await _sched_collab.commit(mutation)
                             
                             result["updated_nodes"].append({
                                 "nodeId": node_id,
@@ -1257,33 +1236,8 @@ class AgentService:
             
             collab_service = None
             try:
-                from src.collaboration.conflict_service import ConflictService
-                from src.collaboration.lock_service import LockService
-                from src.collaboration.version_service import VersionService as CollabVersionService
-                from src.collaboration.version_repository import FileVersionRepository as CollabFileVersionRepo, FolderSnapshotRepository as CollabFolderSnapshotRepo
-                from src.collaboration.audit_service import AuditService
-                from src.collaboration.audit_repository import AuditRepository
-                from src.collaboration.service import CollaborationService
-                from src.supabase.client import SupabaseClient
-                from src.s3.service import S3Service
-
-                _sb = SupabaseClient()
-                _node_repo = node_service.repo if node_service else None
-                if _node_repo:
-                    collab_service = CollaborationService(
-                        node_repo=_node_repo,
-                        node_service=node_service,
-                        lock_service=LockService(_node_repo),
-                        conflict_service=ConflictService(),
-                        version_service=CollabVersionService(
-                            node_repo=_node_repo,
-                            version_repo=CollabFileVersionRepo(_sb),
-                            snapshot_repo=CollabFolderSnapshotRepo(_sb),
-                            s3_service=S3Service(),
-                            changelog_repo=_get_changelog_repo(_sb),
-                        ),
-                        audit_service=AuditService(audit_repo=AuditRepository(_sb)),
-                    )
+                from src.collaboration.dependencies import create_collaboration_service
+                collab_service = create_collaboration_service()
             except Exception as e:
                 logger.warning(f"[Agent] CollaborationService init failed, falling back to direct write: {e}")
             

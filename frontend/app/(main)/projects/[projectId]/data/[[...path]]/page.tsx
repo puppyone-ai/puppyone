@@ -51,6 +51,7 @@ import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import {
   GridView,
   ExplorerSidebar,
+  EndpointIconRenderer,
   ensureExpanded,
   setPendingActiveId,
   usePendingActiveId,
@@ -97,6 +98,226 @@ function endpointToPanelState(ep: SyncEndpointInfo, nodeId: string): PanelState 
   if (ep.provider === 'mcp') return { type: 'mcp_config', nodeId, mcpEndpointId: ep.syncId };
   if (ep.provider === 'sandbox') return { type: 'sandbox_config', nodeId, sandboxEndpointId: ep.syncId };
   return { type: 'sync_config', nodeId };
+}
+
+interface EndpointEntry {
+  ep: SyncEndpointInfo;
+  nodeId: string;
+  name: string;
+  nodeName?: string;
+}
+
+type EndpointCategory = 'agents' | 'sync' | 'infra';
+
+const CATEGORY_CONFIG: Record<EndpointCategory, { label: string; color: string }> = {
+  agents: { label: 'Agents', color: '#a78bfa' },
+  sync: { label: 'Data Sync', color: '#34d399' },
+  infra: { label: 'Infrastructure', color: '#60a5fa' },
+};
+
+function categorizeEndpoint(provider: string): EndpointCategory {
+  if (provider.startsWith('agent:')) return 'agents';
+  if (provider === 'mcp' || provider === 'sandbox') return 'infra';
+  return 'sync';
+}
+
+function GlobalEndpointsAvatarGroup({ 
+  nodeEndpointMap, 
+  onEndpointClick,
+  onEndpointHover,
+  nameMap,
+}: { 
+  nodeEndpointMap: Map<string, SyncEndpointInfo[]>,
+  onEndpointClick: (ep: SyncEndpointInfo, nodeId: string) => void,
+  onEndpointHover?: (nodeId: string | null) => void,
+  nameMap: { agents: Record<string, string>; nodes: Record<string, string>; syncs: Record<string, string> },
+}) {
+  const [hoveredEndpoint, setHoveredEndpoint] = useState<string | null>(null);
+  const [showAllEndpoints, setShowAllEndpoints] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const uniqueEndpoints = useMemo(() => {
+    const map = new Map<string, EndpointEntry>();
+    for (const [nodeId, eps] of nodeEndpointMap.entries()) {
+      for (const ep of eps) {
+        if (!map.has(ep.syncId)) {
+          const isAgent = ep.provider.startsWith('agent:');
+          const name = isAgent
+            ? (nameMap.agents[ep.syncId] || 'Agent')
+            : (nameMap.syncs[ep.syncId] || ep.provider);
+          const nodeName = nameMap.nodes[nodeId];
+          map.set(ep.syncId, { ep, nodeId, name, nodeName });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [nodeEndpointMap, nameMap]);
+
+  const grouped = useMemo(() => {
+    const groups: Record<EndpointCategory, EndpointEntry[]> = { agents: [], sync: [], infra: [] };
+    for (const entry of uniqueEndpoints) {
+      groups[categorizeEndpoint(entry.ep.provider)].push(entry);
+    }
+    return groups;
+  }, [uniqueEndpoints]);
+
+  if (uniqueEndpoints.length === 0) return null;
+
+  const maxVisible = 5;
+  const visibleEndpoints = uniqueEndpoints.slice(0, maxVisible);
+  const hiddenCount = uniqueEndpoints.length - maxVisible;
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setShowAllEndpoints(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setShowAllEndpoints(false);
+      setHoveredEndpoint(null);
+      onEndpointHover?.(null);
+    }, 150);
+  };
+
+  const categoryOrder: EndpointCategory[] = ['agents', 'sync', 'infra'];
+
+  return (
+    <div 
+      style={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative' }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {visibleEndpoints.map(({ ep, nodeId, name }, index) => {
+        const isHovered = hoveredEndpoint === ep.syncId;
+        return (
+          <div
+            key={ep.syncId}
+            title={`${name} (Click to configure)`}
+            onClick={() => onEndpointClick(ep, nodeId)}
+            onMouseEnter={() => {
+              setHoveredEndpoint(ep.syncId);
+              onEndpointHover?.(nodeId);
+            }}
+            onMouseLeave={() => {
+              setHoveredEndpoint(null);
+              onEndpointHover?.(null);
+            }}
+            style={{
+              width: 24, height: 24, borderRadius: 6,
+              background: isHovered ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+              opacity: isHovered ? 1 : 0.85,
+              transition: 'background 0.1s, opacity 0.1s',
+              position: 'relative',
+            }}
+          >
+            {/* For the top header avatars, we only show the icon to save space, no dot */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, color: '#a1a1aa' }}>
+              {ep.provider.startsWith('agent:') ? (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              ) : ep.provider === 'mcp' ? (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+                  <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                  <line x1="6" y1="6" x2="6.01" y2="6" />
+                  <line x1="6" y1="18" x2="6.01" y2="18" />
+                </svg>
+              ) : ep.provider === 'sandbox' ? (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="4 17 10 11 4 5" />
+                  <line x1="12" y1="19" x2="20" y2="19" />
+                </svg>
+              ) : (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22v-5" />
+                  <path d="M9 8V2" />
+                  <path d="M15 8V2" />
+                  <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+                </svg>
+              )}
+            </div>
+            <div style={{
+              position: 'absolute', bottom: 2, right: 2,
+              width: 6, height: 6, borderRadius: '50%',
+              background: ep.status === 'error' ? '#ef4444' : ep.status === 'stopped' ? '#71717a' : '#10b981',
+              boxShadow: '0 0 0 2px #0e0e0e',
+            }} />
+          </div>
+        );
+      })}
+      
+      {hiddenCount > 0 && (
+        <div style={{
+          padding: '0 6px', height: 24, borderRadius: 6,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#a1a1aa', fontSize: 12, fontWeight: 500,
+          cursor: 'default',
+        }}>
+          +{hiddenCount}
+        </div>
+      )}
+
+      {showAllEndpoints && (
+        <div
+          style={{
+            position: 'absolute', top: '100%', right: 0, marginTop: 8,
+            background: '#0e0e0e',
+            border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+            padding: '6px 0', width: 240, maxHeight: 400, overflowY: 'auto',
+            zIndex: 1000,
+          }}
+        >
+          {categoryOrder.map((cat, catIdx) => {
+            const entries = grouped[cat];
+            if (entries.length === 0) return null;
+            return (
+              <div key={cat}>
+                {catIdx > 0 && grouped[categoryOrder[catIdx - 1]].length > 0 && (
+                  <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '4px 8px' }} />
+                )}
+                {entries.map(({ ep, nodeId, name, nodeName }) => (
+                  <div
+                    key={`dropdown-${ep.syncId}`}
+                    onClick={() => { setShowAllEndpoints(false); onEndpointClick(ep, nodeId); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '0 8px', margin: '1px 6px', borderRadius: 6, height: 30,
+                      cursor: 'pointer', color: hoveredEndpoint === ep.syncId ? '#d4d4d4' : '#a1a1aa', fontSize: 13,
+                      transition: 'background 0.1s, color 0.1s',
+                      background: hoveredEndpoint === ep.syncId ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+                      overflow: 'hidden',
+                    }}
+                    onMouseEnter={() => {
+                      setHoveredEndpoint(ep.syncId);
+                      onEndpointHover?.(nodeId);
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredEndpoint(null);
+                      onEndpointHover?.(null);
+                    }}
+                  >
+                    <EndpointIconRenderer ep={ep} size={14} />
+                    <span style={{ 
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      fontWeight: 500, flex: 1, minWidth: 0,
+                    }}>
+                      {name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function DataPage({ params }: DataPageProps) {
@@ -163,6 +384,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
+  const [hoverHighlightNodeId, setHoverHighlightNodeId] = useState<string | null>(null);
 
   // ───── Custom Hooks ─────
 
@@ -401,6 +623,30 @@ export default function DataPage({ params }: DataPageProps) {
     const key = JSON.stringify(tableNameById);
     if (key !== tableNameByIdRef.current) { tableNameByIdRef.current = key; setTableNameById(tableNameById); }
   }, [tableNameById, setTableNameById]);
+
+  const endpointNameMap = useMemo(() => {
+    const agents: Record<string, string> = {};
+    for (const a of savedAgents) { agents[a.id] = a.name; }
+    const nodes: Record<string, string> = { ...tableNameById };
+    if (syncStatusData?.syncs) {
+      for (const s of syncStatusData.syncs) {
+        if (s.node_id && !nodes[s.node_id] && s.name) nodes[s.node_id] = s.name;
+      }
+    }
+    const syncs: Record<string, string> = {};
+    if (syncStatusData?.syncs) {
+      for (const s of syncStatusData.syncs) {
+        const PROVIDER_LABELS: Record<string, string> = {
+          openclaw: 'Local Sync', filesystem: 'File System', gmail: 'Gmail',
+          google_calendar: 'Calendar', google_sheets: 'Sheets', google_drive: 'Drive',
+          google_docs: 'Docs', github: 'GitHub', notion: 'Notion', linear: 'Linear',
+          airtable: 'Airtable', mcp: 'MCP Server', sandbox: 'Sandbox',
+        };
+        syncs[s.id] = s.name || PROVIDER_LABELS[s.provider] || s.provider;
+      }
+    }
+    return { agents, nodes, syncs };
+  }, [savedAgents, tableNameById, syncStatusData]);
 
   useEffect(() => { setAccessPointsToContext(accessPoints); }, [accessPoints, setAccessPointsToContext]);
   useEffect(() => {
@@ -803,7 +1049,7 @@ export default function DataPage({ params }: DataPageProps) {
             }
             syncEndpoints={syncEndpoints}
             nodeEndpointMap={nodeEndpointMap}
-            highlightNodeId={highlightNodeId}
+            highlightNodeId={hoverHighlightNodeId || highlightNodeId}
             style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.06)', background: 'transparent', flexShrink: 0 }}
           />
         )}
@@ -825,7 +1071,20 @@ export default function DataPage({ params }: DataPageProps) {
               display: 'flex', alignItems: 'center', paddingRight: 8,
               borderBottom: '1px solid rgba(255,255,255,0.1)', background: '#0e0e0e',
               height: '100%',
+              gap: 8,
             }}>
+              <GlobalEndpointsAvatarGroup 
+                nodeEndpointMap={nodeEndpointMap} 
+                onEndpointClick={(ep, nodeId) => {
+                  const ps = endpointToPanelState(ep, nodeId);
+                  togglePanel(ps);
+                }}
+                onEndpointHover={setHoverHighlightNodeId}
+                nameMap={endpointNameMap}
+              />
+              {nodeEndpointMap.size > 0 && (
+                <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)' }} />
+              )}
               <button
                 onClick={openSyncCreatePanel}
                 title="New connection"
@@ -860,16 +1119,7 @@ export default function DataPage({ params }: DataPageProps) {
                   </svg>
                 </div>
                 <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
-                <span style={{ 
-                  display: 'flex', alignItems: 'center', gap: 4, 
-                  paddingLeft: 8
-                }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.85 }}>
-                    <path d="M12 22v-5" />
-                    <path d="M9 8V2" />
-                    <path d="M15 8V2" />
-                    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
-                  </svg>
+                <span style={{ paddingLeft: 8 }}>
                   Connect
                 </span>
               </button>
@@ -893,62 +1143,64 @@ export default function DataPage({ params }: DataPageProps) {
 
             {/* Editor View */}
             {isEditorView && activeProject && (
-              <EditorArea
-                activeNodeId={activeNodeId}
-                activeNodeType={activeNodeType}
-                activeProject={activeProject}
-                currentTableData={currentTableData}
-                markdownContent={markdownContent}
-                isLoadingMarkdown={isLoadingMarkdown}
-                markdownSaveStatus={markdownSaveStatus}
-                markdownViewMode={markdownViewMode}
-                handleMarkdownChange={handleMarkdownChange}
-                setMarkdownViewMode={setMarkdownViewMode}
-                editorType={editorType}
-                configuredAccessPoints={configuredAccessPoints}
-                onActiveTableChange={(id: string) => {
-                  const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
-                  const nodePath = currentPath ? `${currentPath}/${id}` : id;
-                  navigateTo(nodePath.split('/').filter(Boolean));
-                }}
-                onAccessPointChange={(apPath: string, permissions: McpToolPermissions) => {
-                  const hasAnyPermission = Object.values(permissions).some(Boolean);
-                  setAccessPoints(prev => {
-                    const existing = prev.find(ap => ap.path === apPath);
-                    if (existing) {
-                      if (!hasAnyPermission) return prev.filter(ap => ap.path !== apPath);
-                      return prev.map(ap => ap.path === apPath ? { ...ap, permissions } : ap);
-                    } else if (hasAnyPermission) {
-                      return [...prev, { id: `ap-${Date.now()}`, path: apPath, permissions }];
+              <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <EditorArea
+                  activeNodeId={activeNodeId}
+                  activeNodeType={activeNodeType}
+                  activeProject={activeProject}
+                  currentTableData={currentTableData}
+                  markdownContent={markdownContent}
+                  isLoadingMarkdown={isLoadingMarkdown}
+                  markdownSaveStatus={markdownSaveStatus}
+                  markdownViewMode={markdownViewMode}
+                  handleMarkdownChange={handleMarkdownChange}
+                  setMarkdownViewMode={setMarkdownViewMode}
+                  editorType={editorType}
+                  configuredAccessPoints={configuredAccessPoints}
+                  onActiveTableChange={(id: string) => {
+                    const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
+                    const nodePath = currentPath ? `${currentPath}/${id}` : id;
+                    navigateTo(nodePath.split('/').filter(Boolean));
+                  }}
+                  onAccessPointChange={(apPath: string, permissions: McpToolPermissions) => {
+                    const hasAnyPermission = Object.values(permissions).some(Boolean);
+                    setAccessPoints(prev => {
+                      const existing = prev.find(ap => ap.path === apPath);
+                      if (existing) {
+                        if (!hasAnyPermission) return prev.filter(ap => ap.path !== apPath);
+                        return prev.map(ap => ap.path === apPath ? { ...ap, permissions } : ap);
+                      } else if (hasAnyPermission) {
+                        return [...prev, { id: `ap-${Date.now()}`, path: apPath, permissions }];
+                      }
+                      return prev;
+                    });
+                    if (activeNodeId) {
+                      syncToolsForPath({ nodeId: activeNodeId, path: apPath, permissions, existingTools: tableTools as any }).then(() => {
+                        refreshTableTools(activeNodeId);
+                        refreshProjectTools(projectId);
+                      });
                     }
-                    return prev;
-                  });
-                  if (activeNodeId) {
-                    syncToolsForPath({ nodeId: activeNodeId, path: apPath, permissions, existingTools: tableTools as any }).then(() => {
-                      refreshTableTools(activeNodeId);
-                      refreshProjectTools(projectId);
-                    });
-                  }
-                }}
-                onAccessPointRemove={(apPath: string) => {
-                  setAccessPoints(prev => prev.filter(ap => ap.path !== apPath));
-                  if (activeNodeId) {
-                    deleteAllToolsForPath({ nodeId: activeNodeId, path: apPath, existingTools: tableTools as any }).then(() => {
-                      refreshTableTools(activeNodeId);
-                      refreshProjectTools(projectId);
-                    });
-                  }
-                }}
-                onOpenDocument={(docPath: string, value: string) => {
-                  setEditorTarget({ path: docPath, value });
-                  setIsEditorFullScreen(false);
-                  closePanel();
-                }}
-                onCreateTool={(path: string) => {
-                  if (!activeNodeId) return;
-                  nodeActions.handleCreateTool(activeNodeId, `${currentTableData?.name || 'File'}`, 'json', path);
-                }}
-              />
+                  }}
+                  onAccessPointRemove={(apPath: string) => {
+                    setAccessPoints(prev => prev.filter(ap => ap.path !== apPath));
+                    if (activeNodeId) {
+                      deleteAllToolsForPath({ nodeId: activeNodeId, path: apPath, existingTools: tableTools as any }).then(() => {
+                        refreshTableTools(activeNodeId);
+                        refreshProjectTools(projectId);
+                      });
+                    }
+                  }}
+                  onOpenDocument={(docPath: string, value: string) => {
+                    setEditorTarget({ path: docPath, value });
+                    setIsEditorFullScreen(false);
+                    closePanel();
+                  }}
+                  onCreateTool={(path: string) => {
+                    if (!activeNodeId) return;
+                    nodeActions.handleCreateTool(activeNodeId, `${currentTableData?.name || 'File'}`, 'json', path);
+                  }}
+                />
+              </div>
             )}
 
             {/* Folder View (Grid mode) */}
@@ -976,7 +1228,7 @@ export default function DataPage({ params }: DataPageProps) {
                     onMoveNode={nodeActions.handleMoveNode}
                     onCreateTool={nodeActions.handleCreateTool}
                     agentResources={agentResources}
-                    highlightNodeId={highlightNodeId}
+                    highlightNodeId={hoverHighlightNodeId || highlightNodeId}
                   />
                 )}
               </div>

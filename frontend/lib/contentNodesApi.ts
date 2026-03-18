@@ -67,8 +67,7 @@ export interface NodeInfo {
 }
 
 export interface NodeDetail extends NodeInfo {
-  preview_json: any | null;    // type=json 或 sync 时的 JSON 预览内容
-  preview_md: string | null;   // type=markdown 时的 Markdown 预览内容
+  content_hash: string | null;
   s3_key: string | null;
   permissions: {
     public: boolean;
@@ -132,20 +131,18 @@ export function isSynced(node: NodeInfo): boolean {
 }
 
 /**
- * 判断节点是否有预览内容
- * 需要 NodeDetail 以检查 preview_json 和 preview_md 字段
+ * 判断节点是否有内容（content_hash 非空）
  */
-export function hasPreview(node: NodeDetail): boolean {
-  return node.preview_json !== null || node.preview_md !== null;
+export function hasContent(node: NodeDetail): boolean {
+  return node.content_hash !== null;
 }
 
 /**
  * 判断节点是否可索引（用于搜索）
- * 需要 NodeDetail 以检查 preview_json 和 preview_md 字段
  */
 export function isIndexable(node: NodeDetail): boolean {
   return node.type === 'json' || node.type === 'markdown' || 
-         node.preview_json !== null || node.preview_md !== null;
+         node.content_hash !== null;
 }
 
 // === API Functions ===
@@ -315,7 +312,7 @@ export async function prepareUpload(
 export async function updateNode(
   nodeId: string,
   projectId: string,
-  updates: { name?: string; preview_json?: any; preview_md?: string }
+  updates: { name?: string; content_json?: any; content_text?: string; preview_json?: any; preview_md?: string }
 ): Promise<NodeDetail> {
   const params = new URLSearchParams({ project_id: projectId });
   return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}?${params.toString()}`, {
@@ -430,7 +427,7 @@ export async function getVersionHistory(
     limit: String(limit),
     offset: String(offset),
   });
-  return apiRequest<VersionHistoryResponse>(`/api/v1/nodes/${nodeId}/versions?${params}`);
+  return apiRequest<VersionHistoryResponse>(`/api/v1/collab/versions/${nodeId}?${params}`);
 }
 
 export async function getVersionContent(
@@ -439,7 +436,7 @@ export async function getVersionContent(
   projectId: string
 ): Promise<FileVersionDetail> {
   const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<FileVersionDetail>(`/api/v1/nodes/${nodeId}/versions/${version}?${params}`);
+  return apiRequest<FileVersionDetail>(`/api/v1/collab/versions/${nodeId}/${version}?${params}`);
 }
 
 export async function rollbackToVersion(
@@ -448,7 +445,7 @@ export async function rollbackToVersion(
   projectId: string
 ): Promise<RollbackResponse> {
   const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<RollbackResponse>(`/api/v1/nodes/${nodeId}/rollback/${version}?${params}`, {
+  return apiRequest<RollbackResponse>(`/api/v1/collab/rollback/${nodeId}/${version}?${params}`, {
     method: 'POST',
   });
 }
@@ -460,7 +457,76 @@ export async function diffVersions(
   projectId: string
 ): Promise<DiffResponse> {
   const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<DiffResponse>(`/api/v1/nodes/${nodeId}/diff/${v1}/${v2}?${params}`);
+  return apiRequest<DiffResponse>(`/api/v1/collab/diff/${nodeId}/${v1}/${v2}?${params}`);
+}
+
+// === Node Content (read from S3 MUT ObjectStore) ===
+
+export interface NodeContentResponse {
+  node_id: string;
+  node_type: string;
+  content_hash: string | null;
+  content_json: any | null;
+  content_text: string | null;
+  download_url: string | null;
+  size_bytes: number;
+}
+
+export async function getNodeContent(
+  nodeId: string,
+  projectId: string
+): Promise<NodeContentResponse> {
+  const params = new URLSearchParams({ project_id: projectId });
+  return apiRequest<NodeContentResponse>(
+    `/api/v1/nodes/${nodeId}/content?${params}`
+  );
+}
+
+// === Project-level Mut Commit History ===
+
+export interface MutCommitChange {
+  path: string;
+  op: string;
+}
+
+export interface MutCommitConflict {
+  path: string;
+  strategy: string;
+  detail?: string;
+  kept?: string;
+}
+
+export interface MutCommitInfo {
+  version: number;
+  root_hash: string;
+  scope_path: string;
+  who: string;
+  message: string;
+  changes: MutCommitChange[];
+  conflicts: MutCommitConflict[];
+  created_at: string | null;
+}
+
+export interface MutProjectHistoryResponse {
+  project_id: string;
+  current_version: number;
+  root_hash: string;
+  commits: MutCommitInfo[];
+  total: number;
+}
+
+export async function getProjectHistory(
+  projectId: string,
+  limit: number = 50,
+  sinceVersion: number = 0
+): Promise<MutProjectHistoryResponse> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    since_version: String(sinceVersion),
+  });
+  return apiRequest<MutProjectHistoryResponse>(
+    `/api/v1/collab/project-history/${projectId}?${params}`
+  );
 }
 
 // === Audit Logs API ===
