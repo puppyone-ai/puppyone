@@ -4,9 +4,9 @@ sys.path.insert(0, '/home/hv/projs/PuppyContext/backend')
 
 from src.etl.callbacks import handle_etl_task_completion
 from src.etl.tasks.repository import ETLTaskRepositorySupabase
-from src.s3.dependencies import get_s3_service
-from src.supabase.tables.repository import TableRepository
-from src.supabase.dependencies import get_supabase_client
+from src.infra.s3.dependencies import get_s3_service
+from src.content.table.supabase_repo import TableRepository
+from src.infra.supabase.dependencies import get_supabase_client
 
 async def main():
     # Initialize services

@@ -52,7 +52,7 @@ logger_duration = time.time() - logger_start
 
 # 记录各路由模块导入时间
 table_router_start = time.time()
-from src.table.router import router as table_router
+from src.content.table.router import router as table_router
 
 table_router_duration = time.time() - table_router_start
 
@@ -80,16 +80,16 @@ context_publish_router_duration = time.time() - context_publish_router_start
 
 # Unified ingest router (file + SaaS imports)
 ingest_router_start = time.time()
-from src.upload.router import router as ingest_router
+from src.ingest.router import router as ingest_router
 
 ingest_router_duration = time.time() - ingest_router_start
 
 project_router_start = time.time()
-from src.project.router import router as project_router
+from src.platform.project.router import router as project_router
 
 project_router_duration = time.time() - project_router_start
 
-from src.organization.router import router as organization_router
+from src.platform.organization.router import router as organization_router
 
 oauth_router_start = time.time()
 from src.oauth.router import router as oauth_router
@@ -102,29 +102,29 @@ from src.internal.router import router as internal_router
 internal_router_duration = time.time() - internal_router_start
 
 content_node_router_start = time.time()
-from src.content_node.router import router as content_node_router
+from src.content.router import router as content_node_router
 
 content_node_router_duration = time.time() - content_node_router_start
 
 analytics_router_start = time.time()
-from src.analytics.router import router as analytics_router
+from src.platform.analytics.router import router as analytics_router
 
 analytics_router_duration = time.time() - analytics_router_start
 
 profile_router_start = time.time()
-from src.profile.router import router as profile_router
+from src.platform.profile.router import router as profile_router
 
 profile_router_duration = time.time() - profile_router_start
 
 db_connector_router_start = time.time()
-from src.db_connector.router import router as db_connector_router
+from src.connectors.database.router import router as db_connector_router
 
 db_connector_router_duration = time.time() - db_connector_router_start
 
 # Scheduler service import
 scheduler_start = time.time()
-from src.scheduler.service import get_scheduler_service
-from src.scheduler.config import scheduler_settings
+from src.infra.scheduler.service import get_scheduler_service
+from src.infra.scheduler.config import scheduler_settings
 
 scheduler_import_duration = time.time() - scheduler_start
 
@@ -241,7 +241,7 @@ async def app_lifespan(app: FastAPI):
         file_ingest_init_start = time.time()
         try:
             log_info("📄 初始化 File Ingest 服务...")
-            from src.upload.file.dependencies import get_etl_service
+            from src.ingest.file.dependencies import get_etl_service
             from pathlib import Path
 
             file_ingest_service = await get_etl_service()
@@ -281,11 +281,11 @@ async def app_lifespan(app: FastAPI):
         from src.connectors.filesystem.watcher import FolderSourceService
         from src.connectors.filesystem.folder_access import FolderAccessService
         from src.connectors.datasource.repository import SyncRepository
-        from src.content_node.repository import ContentNodeRepository
-        from src.content_node.service import ContentNodeService
-        from src.s3.service import S3Service
-        from src.supabase.client import SupabaseClient
-        from src.collaboration.dependencies import create_collaboration_service
+        from src.content.repository import ContentNodeRepository
+        from src.content.service import ContentNodeService
+        from src.infra.s3.service import S3Service
+        from src.infra.supabase.client import SupabaseClient
+        from src.mut_engine.dependencies import create_collaboration_service
 
         supabase = SupabaseClient()
         node_repo = ContentNodeRepository(supabase)
@@ -354,7 +354,7 @@ async def app_lifespan(app: FastAPI):
     # 停止 File Ingest 服务
     if settings.etl_enabled:
         try:
-            from src.upload.file.dependencies import get_etl_service
+            from src.ingest.file.dependencies import get_etl_service
 
             file_ingest_service = await get_etl_service()
             await file_ingest_service.stop()
@@ -418,29 +418,29 @@ def create_app() -> FastAPI:
     )  # Internal API不加/api/v1前缀
     app.include_router(content_node_router, prefix="/api/v1", tags=["content-nodes"])
     # version_router removed — version history is now served by Mut (collab_router)
-    from src.collaboration.audit_router import router as audit_router
+    from src.mut_engine.audit_router import router as audit_router
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
-    from src.collaboration.router import router as collab_router
+    from src.mut_engine.collab_router import router as collab_router
     app.include_router(collab_router, prefix="/api/v1", tags=["collaboration"])
-    from src.mut_core.protocol_router import router as mut_protocol_router
+    from src.mut_engine.protocol_router import router as mut_protocol_router
     app.include_router(mut_protocol_router, tags=["mut-protocol"])
-    from src.workspace.router import router as workspace_router
+    from src.platform.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
     from src.connectors.datasource.router import router as sync_router
     app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
     from src.connectors.filesystem.router import router as filesystem_router
     app.include_router(filesystem_router, tags=["filesystem"])
-    from src.auth.router import router as auth_router
+    from src.platform.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
-    from src.mcp.endpoint_router import router as mcp_endpoint_router
+    from src.endpoints.mcp.router import router as mcp_endpoint_router
     app.include_router(mcp_endpoint_router, prefix="/api/v1", tags=["mcp-endpoints"])
-    from src.sandbox.endpoint_router import router as sandbox_endpoint_router
+    from src.endpoints.sandbox.router import router as sandbox_endpoint_router
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
-    from src.project.dashboard_router import router as dashboard_router
+    from src.platform.project.dashboard_router import router as dashboard_router
     app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])
     from src.connectors.manager.router import router as connection_router
     app.include_router(connection_router, prefix="/api/v1", tags=["connections"])

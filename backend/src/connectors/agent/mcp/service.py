@@ -16,7 +16,7 @@ from src.connectors.agent.config.models import Agent, AgentTool
 from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositoryBase, ToolRepositorySupabase
 from src.tool.models import Tool
-from src.supabase.dependencies import get_supabase_repository
+from src.infra.supabase.dependencies import get_supabase_repository
 from src.mcp.cache_invalidator import invalidate_mcp_cache
 from src.exceptions import NotFoundException, ErrorCode, BusinessException
 

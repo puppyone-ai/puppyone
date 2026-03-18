@@ -8,7 +8,7 @@ capturing status, duration, stdout, errors, and result summary.
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional, List, Any
-from src.supabase.client import SupabaseClient
+from src.infra.supabase.client import SupabaseClient
 
 
 @dataclass

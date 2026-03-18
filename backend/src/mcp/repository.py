@@ -6,7 +6,7 @@ from pathlib import Path
 from src.mcp.models import McpInstance
 from src.mcp.schemas import McpToolsDefinition, ToolTypeKey
 from src.utils.logger import log_error
-from src.supabase.mcps.schemas import McpCreate, McpUpdate
+from src.mcp.supabase_schemas import McpCreate, McpUpdate
 from src.utils.id_generator import generate_uuid_v7
 
 
@@ -285,7 +285,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         """
         if supabase_repo is None:
             # 延迟导入，避免在模块导入时触发
-            from src.supabase.dependencies import get_supabase_repository
+            from src.infra.supabase.dependencies import get_supabase_repository
 
             self._repo = get_supabase_repository()
         else:

@@ -11,10 +11,10 @@ import secrets
 from typing import Optional
 from datetime import datetime
 
-from src.content_node.repository import ContentNodeRepository
+from src.content.repository import ContentNodeRepository
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.schemas import Sync
-from src.supabase.client import SupabaseClient
+from src.infra.supabase.client import SupabaseClient
 from src.utils.logger import log_info
 
 

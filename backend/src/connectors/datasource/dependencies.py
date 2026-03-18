@@ -19,17 +19,17 @@ import pathlib
 from typing import Any, Optional
 
 from fastapi import Depends
-from src.supabase.client import SupabaseClient
+from src.infra.supabase.client import SupabaseClient
 from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
 from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.engine import SyncEngine
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.service import SyncService
 from src.connectors.filesystem.watcher import FolderSourceService
-from src.collaboration.dependencies import get_collaboration_service
-from src.collaboration.service import CollaborationService
-from src.content_node.dependencies import get_content_node_service
-from src.content_node.service import ContentNodeService
+from src.mut_engine.dependencies import get_collaboration_service
+from src.mut_engine.compat_service import CollaborationService
+from src.content.dependencies import get_content_node_service
+from src.content.service import ContentNodeService
 from src.utils.logger import log_info, log_error
 
 
@@ -99,7 +99,7 @@ _registry_instance: Optional[ConnectorRegistry] = None
 
 def _build_registry(node_service: ContentNodeService) -> ConnectorRegistry:
     """Build a ConnectorRegistry by auto-discovering connector modules."""
-    from src.s3.service import S3Service
+    from src.infra.s3.service import S3Service
 
     registry = ConnectorRegistry()
     deps = ConnectorDeps(node_service=node_service, s3_service=S3Service())
@@ -123,8 +123,8 @@ def init_registry() -> ConnectorRegistry:
     """
     global _registry_instance
 
-    from src.content_node.repository import ContentNodeRepository
-    from src.s3.service import S3Service
+    from src.content.repository import ContentNodeRepository
+    from src.infra.s3.service import S3Service
 
     supabase = SupabaseClient()
     node_service = ContentNodeService(
@@ -198,7 +198,7 @@ def _build_sync_service(registry: Optional[ConnectorRegistry] = None) -> SyncSer
     Build a SyncService outside of FastAPI request context.
     Used by the unified POST /api/v1/connections endpoint and other non-DI callers.
     """
-    from src.collaboration.dependencies import create_collaboration_service
+    from src.mut_engine.dependencies import create_collaboration_service
 
     if registry is None:
         registry = get_connector_registry()
@@ -221,7 +221,7 @@ def create_sync_engine() -> SyncEngine:
     Used by scheduler jobs and ARQ workers.
     Reuses the singleton registry if available.
     """
-    from src.collaboration.dependencies import create_collaboration_service
+    from src.mut_engine.dependencies import create_collaboration_service
 
     from src.connectors.datasource.run_repository import SyncRunRepository
 

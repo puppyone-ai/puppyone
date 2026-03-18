@@ -12,23 +12,23 @@ import datetime as dt
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from typing import List, Optional
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.config import settings
-from src.s3.service import S3Service
-from src.search.dependencies import get_search_service
-from src.search.index_task import SearchIndexTaskOut, SearchIndexTaskUpsert
-from src.search.index_task_repository import SearchIndexTaskRepository
-from src.search.service import SearchService
-from src.supabase.client import SupabaseClient
-from src.content_node.dependencies import get_content_node_service
-from src.content_node.service import ContentNodeService
+from src.infra.s3.service import S3Service
+from src.infra.search.dependencies import get_search_service
+from src.infra.search.index_task import SearchIndexTaskOut, SearchIndexTaskUpsert
+from src.infra.search.index_task_repository import SearchIndexTaskRepository
+from src.infra.search.service import SearchService
+from src.infra.supabase.client import SupabaseClient
+from src.content.dependencies import get_content_node_service
+from src.content.service import ContentNodeService
 from src.tool.dependencies import get_tool_service
 from src.tool.schemas import ToolCreate, ToolOut, ToolUpdate
 from src.tool.service import ToolService
 from src.utils.logger import log_error, log_info
-from src.organization.dependencies import resolve_org_id, resolve_org_ids
+from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
 
 
 router = APIRouter(prefix="/tools", tags=["tools"])

@@ -1,7 +1,7 @@
 from unittest.mock import Mock
 
-from src.chunking.config import ChunkingConfig
-from src.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
+from src.infra.chunking.config import ChunkingConfig
+from src.infra.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
 
 
 def _mock_supabase_insert_response(rows):

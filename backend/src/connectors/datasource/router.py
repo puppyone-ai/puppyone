@@ -21,15 +21,15 @@ from typing import Optional, Any
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from pydantic import BaseModel
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.connectors.datasource.service import SyncService
 from src.connectors.datasource.engine import SyncEngine
 from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.dependencies import get_sync_service, get_sync_engine, get_connector_registry
 from src.common_schemas import ApiResponse
-from src.project.dependencies import get_project_service
-from src.project.service import ProjectService
+from src.platform.project.dependencies import get_project_service
+from src.platform.project.service import ProjectService
 
 
 router = APIRouter(prefix="/sync", tags=["sync"])
@@ -215,8 +215,8 @@ async def get_project_sync_status(
     Aggregated sync status for a project.
     Used by the frontend header sync panel.
     """
-    from src.content_node.repository import ContentNodeRepository
-    from src.supabase.client import SupabaseClient
+    from src.content.repository import ContentNodeRepository
+    from src.infra.supabase.client import SupabaseClient
 
     _ensure_project_access(project_service, current_user, project_id)
 
@@ -320,7 +320,7 @@ async def create_sync(
 
     if body.sync_mode == "scheduled" and body.trigger:
         try:
-            from src.scheduler.service import get_scheduler_service
+            from src.infra.scheduler.service import get_scheduler_service
             scheduler = get_scheduler_service()
             await scheduler.add_sync_job(
                 sync_id=sync.id,
@@ -385,7 +385,7 @@ def delete_sync(
     _notify_folder_source("stop", sync_id)
 
     try:
-        from src.scheduler.service import get_scheduler_service
+        from src.infra.scheduler.service import get_scheduler_service
         get_scheduler_service().remove_sync_job(sync_id)
     except Exception:
         pass
@@ -423,7 +423,7 @@ async def update_sync_trigger(
 
     # Manage scheduler job
     try:
-        from src.scheduler.service import get_scheduler_service
+        from src.infra.scheduler.service import get_scheduler_service
         scheduler = get_scheduler_service()
 
         if body.sync_mode == "scheduled" and body.trigger:
@@ -528,7 +528,7 @@ class SyncRunResponse(BaseModel):
 
 def _get_run_repo():
     from src.connectors.datasource.run_repository import SyncRunRepository
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     return SyncRunRepository(SupabaseClient())
 
 
@@ -593,7 +593,7 @@ def bootstrap_openclaw(
     _ensure_project_access(project_service, current_user, project_id)
 
     from src.connectors.filesystem.lifecycle import OpenClawService
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     svc = OpenClawService(
         supabase=SupabaseClient(),
         sync_repo=sync_svc.sync_repo,
@@ -622,7 +622,7 @@ def get_openclaw_status_by_sync(
     _ensure_project_access(project_service, current_user, sync.project_id)
 
     from src.connectors.filesystem.lifecycle import OpenClawService
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     svc = OpenClawService(
         supabase=SupabaseClient(),
         sync_repo=sync_svc.sync_repo,
@@ -669,7 +669,7 @@ async def bootstrap(
 
     if body.sync_mode == "scheduled" and body.trigger:
         try:
-            from src.scheduler.service import get_scheduler_service
+            from src.infra.scheduler.service import get_scheduler_service
             scheduler = get_scheduler_service()
             for s in syncs:
                 await scheduler.add_sync_job(
@@ -709,10 +709,10 @@ async def push_file(
     Creates a new node if no sync binding exists, updates if it does.
     """
     import os
-    from src.content_node.repository import ContentNodeRepository
-    from src.content_node.service import ContentNodeService
-    from src.s3.service import S3Service
-    from src.supabase.client import SupabaseClient
+    from src.content.repository import ContentNodeRepository
+    from src.content.service import ContentNodeService
+    from src.infra.s3.service import S3Service
+    from src.infra.supabase.client import SupabaseClient
 
     parent_sync = sync_svc.sync_repo.get_by_id(sync_id)
     if not parent_sync:
@@ -736,8 +736,8 @@ async def push_file(
                 version=existing.last_sync_version,
             ))
 
-        from src.collaboration.schemas import Mutation, MutationType, Operator
-        from src.collaboration.dependencies import create_collaboration_service
+        from src.mut_engine.schemas import Mutation, MutationType, Operator
+        from src.mut_engine.dependencies import create_collaboration_service
         collab = create_collaboration_service()
         commit_result = await collab.commit(Mutation(
             type=MutationType.CONTENT_UPDATE,
@@ -765,8 +765,8 @@ async def push_file(
     )[0]
     target_folder_id = parent_sync.config.get("target_folder_id")
 
-    from src.collaboration.schemas import Mutation, MutationType, Operator
-    from src.collaboration.dependencies import create_collaboration_service
+    from src.mut_engine.schemas import Mutation, MutationType, Operator
+    from src.mut_engine.dependencies import create_collaboration_service
     collab = create_collaboration_service()
     commit_result = await collab.commit(Mutation(
         type=MutationType.NODE_CREATE,
@@ -801,8 +801,8 @@ def pull_files(
     Returns files that have changed on the server since last sync.
     CLI writes them to local filesystem, then calls ack-pull.
     """
-    from src.content_node.repository import ContentNodeRepository
-    from src.supabase.client import SupabaseClient
+    from src.content.repository import ContentNodeRepository
+    from src.infra.supabase.client import SupabaseClient
 
     parent_sync = sync_svc.sync_repo.get_by_id(sync_id)
     if not parent_sync:
@@ -829,7 +829,7 @@ def pull_files(
         ext_resource_id = s.config.get("external_resource_id", "")
         is_json = node.type == "json"
 
-        from src.mut_core.dependencies import read_blob_content
+        from src.mut_engine.dependencies import read_blob_content
         json_content, text_content = read_blob_content(
             node.project_id, node.content_hash, node.type
         )
@@ -885,14 +885,14 @@ async def trigger_push(
     engine: SyncEngine = Depends(get_sync_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    from src.content_node.repository import ContentNodeRepository
-    from src.supabase.client import SupabaseClient
+    from src.content.repository import ContentNodeRepository
+    from src.infra.supabase.client import SupabaseClient
 
     node = ContentNodeRepository(SupabaseClient()).get_by_id(node_id)
     if not node:
         return ApiResponse.error(code=1004, message=f"Node not found: {node_id}")
 
-    from src.mut_core.dependencies import read_blob_content
+    from src.mut_engine.dependencies import read_blob_content
     json_content, text_content = read_blob_content(
         node.project_id, node.content_hash, node.type
     )
@@ -946,7 +946,7 @@ def get_sync_changelog(
     _ensure_project_access(project_service, current_user, project_id)
 
     from src.connectors.filesystem.changelog import SyncChangelogRepository
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
 
     changelog_repo = SyncChangelogRepository(SupabaseClient())
     entries = changelog_repo.list_since(project_id, cursor=cursor, limit=limit + 1)

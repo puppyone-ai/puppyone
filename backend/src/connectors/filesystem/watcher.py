@@ -27,7 +27,7 @@ from src.connectors.datasource.schemas import Sync
 from src.utils.logger import log_info, log_error, log_debug
 
 if TYPE_CHECKING:
-    from src.content_node.service import ContentNodeService
+    from src.content.service import ContentNodeService
 
 
 class FolderSourceService:
@@ -227,8 +227,8 @@ class FolderSourceService:
             return False
 
         try:
-            from src.collaboration.schemas import Mutation, MutationType, Operator
-            from src.collaboration.dependencies import create_collaboration_service
+            from src.mut_engine.schemas import Mutation, MutationType, Operator
+            from src.mut_engine.dependencies import create_collaboration_service
             collab = create_collaboration_service()
 
             content = fc.content

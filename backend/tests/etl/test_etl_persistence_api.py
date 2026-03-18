@@ -15,11 +15,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
-from src.upload.file.dependencies import get_etl_service
-from src.upload.router import router
-from src.upload.file.tasks.models import ETLTask, ETLTaskStatus
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.ingest.file.dependencies import get_etl_service
+from src.ingest.router import router
+from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus
 from src.exception_handler import (
     app_exception_handler,
     generic_exception_handler,
@@ -27,10 +27,10 @@ from src.exception_handler import (
     validation_exception_handler,
 )
 from src.exceptions import AppException
-from src.project.dependencies import get_project_service
-from src.s3.dependencies import get_s3_service
-from src.s3.exceptions import S3FileSizeExceededError
-from src.table.dependencies import get_table_service
+from src.platform.project.dependencies import get_project_service
+from src.infra.s3.dependencies import get_s3_service
+from src.infra.s3.exceptions import S3FileSizeExceededError
+from src.content.table.dependencies import get_table_service
 
 
 @pytest.fixture

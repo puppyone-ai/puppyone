@@ -17,8 +17,8 @@ from starlette.background import BackgroundTask
 from starlette.requests import ClientDisconnect
 import httpx
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.config import settings
 from src.exceptions import NotFoundException, ErrorCode

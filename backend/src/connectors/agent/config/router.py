@@ -9,8 +9,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
 
 from src.connectors.agent.config.service import AgentConfigService
-from src.scheduler.service import get_scheduler_service
-from src.scheduler.config import scheduler_settings
+from src.infra.scheduler.service import get_scheduler_service
+from src.infra.scheduler.config import scheduler_settings
 from src.utils.logger import log_info, log_error
 from src.connectors.agent.config.dependencies import (
     get_agent_config_service,
@@ -28,8 +28,8 @@ from src.connectors.agent.config.schemas import (
     AgentAccessUpdate,
     AgentAccessOut,
 )
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 
 router = APIRouter(

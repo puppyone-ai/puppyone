@@ -1,4 +1,4 @@
-"""src.content_node.service 新增 POSIX 能力测试。"""
+"""src.content.service 新增 POSIX 能力测试。"""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from src.content_node.models import ContentNode
-from src.content_node.service import ContentNodeService
+from src.content.models import ContentNode
+from src.content.service import ContentNodeService
 from src.exceptions import BusinessException, NotFoundException
 
 

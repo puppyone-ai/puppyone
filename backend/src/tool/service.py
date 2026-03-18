@@ -5,16 +5,16 @@ from pathlib import Path
 from typing import List, Optional, Any
 
 from src.exceptions import NotFoundException, ErrorCode, BusinessException
-from src.content_node.service import ContentNodeService
+from src.content.service import ContentNodeService
 from src.tool.models import Tool
 from src.tool.repository import ToolRepositoryBase
-from src.supabase.tools.schemas import (
+from src.tool.supabase_schemas import (
     ToolCreate as SbToolCreate,
     ToolUpdate as SbToolUpdate,
 )
-from src.supabase.dependencies import get_supabase_repository
+from src.infra.supabase.dependencies import get_supabase_repository
 from src.mcp.cache_invalidator import invalidate_mcp_cache
-from src.project.service import ProjectService
+from src.platform.project.service import ProjectService
 
 
 @lru_cache(maxsize=64)

@@ -205,7 +205,7 @@ async def diff_and_writeback(
         # Handle json_path merging
         if entry.node_type == "json" and entry.json_path:
             from src.connectors.agent.sandbox_data import merge_data_by_path
-            from src.mut_core.dependencies import read_blob_content
+            from src.mut_engine.dependencies import read_blob_content
             node = node_service.get_by_id_unsafe(entry.node_id)
             if node:
                 existing_json, _ = read_blob_content(
@@ -218,7 +218,7 @@ async def diff_and_writeback(
         # Commit via CollaborationService (handles conflict detection)
         try:
             if collab_service:
-                from src.collaboration.schemas import (
+                from src.mut_engine.schemas import (
                     Mutation, MutationType, Operator,
                 )
                 mutation = Mutation(
@@ -242,8 +242,8 @@ async def diff_and_writeback(
                     f"status={commit_result.status}, strategy={strategy}, v={commit_result.version}"
                 )
             else:
-                from src.collaboration.dependencies import create_collaboration_service
-                from src.collaboration.schemas import (
+                from src.mut_engine.dependencies import create_collaboration_service
+                from src.mut_engine.schemas import (
                     Mutation as FbMutation, MutationType as FbMT, Operator as FbOp,
                 )
                 fb_collab = create_collaboration_service()
@@ -295,8 +295,8 @@ async def diff_and_writeback(
                 content = read_result.get("content")
                 file_name = relative.split("/")[-1]
 
-                from src.collaboration.schemas import Mutation, MutationType, Operator
-                from src.collaboration.dependencies import create_collaboration_service
+                from src.mut_engine.schemas import Mutation, MutationType, Operator
+                from src.mut_engine.dependencies import create_collaboration_service
 
                 if sandbox_path.endswith(".json"):
                     node_type = "json"

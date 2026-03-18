@@ -7,8 +7,8 @@ from datetime import datetime, UTC
 from unittest.mock import Mock
 import pytest
 
-from src.table.service import TableService
-from src.table.models import Table
+from src.content.table.service import TableService
+from src.content.table.models import Table
 from src.exceptions import NotFoundException, BusinessException
 
 

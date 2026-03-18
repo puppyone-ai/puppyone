@@ -25,11 +25,11 @@ from typing import Optional, Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
-from src.project.dependencies import get_project_service
-from src.project.service import ProjectService
+from src.platform.project.dependencies import get_project_service
+from src.platform.project.service import ProjectService
 
 router = APIRouter(prefix="/api/v1/filesystem", tags=["filesystem"])
 
@@ -76,7 +76,7 @@ def _get_lifecycle_service():
         return _cached_lifecycle_svc
 
     from src.connectors.datasource.repository import SyncRepository
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     from src.connectors.filesystem.lifecycle import OpenClawService
 
     supabase = SupabaseClient()
@@ -92,7 +92,7 @@ def _get_folder_services():
     if _cached_folder_svc is not None:
         return _cached_folder_svc, _cached_sync_repo
 
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     from src.connectors.datasource.repository import SyncRepository
     from src.connectors.filesystem.service import FolderSyncService
 
@@ -199,7 +199,7 @@ async def connect(
         )
 
     from src.connectors.filesystem.service import FolderSyncService
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     folder_svc = FolderSyncService(SupabaseClient())
     pull_data = folder_svc.pull(
         project_id=sync.project_id,

@@ -13,13 +13,13 @@ import json as _json
 from typing import Optional, Any
 from datetime import datetime
 
-from src.content_node.repository import ContentNodeRepository
-from src.content_node.service import ContentNodeService
+from src.content.repository import ContentNodeRepository
+from src.content.service import ContentNodeService
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.filesystem.changelog import SyncChangelogRepository
-from src.collaboration.schemas import Mutation, MutationType, Operator
-from src.s3.service import get_s3_service_instance, S3Service
-from src.supabase.client import SupabaseClient
+from src.mut_engine.schemas import Mutation, MutationType, Operator
+from src.infra.s3.service import get_s3_service_instance, S3Service
+from src.infra.supabase.client import SupabaseClient
 from src.utils.logger import log_info, log_error
 
 INLINE_TYPES = {"json", "markdown"}
@@ -41,7 +41,7 @@ class FolderSyncService:
         self._s3 = get_s3_service_instance()
 
     def _build_collab_service(self):
-        from src.collaboration.dependencies import create_collaboration_service
+        from src.mut_engine.dependencies import create_collaboration_service
         return create_collaboration_service()
 
     # ----------------------------------------------------------
@@ -468,7 +468,7 @@ class FolderSyncService:
             "version": node.current_version or 0,
         }
         if node.type in INLINE_TYPES:
-            from src.mut_core.dependencies import read_blob_content
+            from src.mut_engine.dependencies import read_blob_content
             json_content, text_content = read_blob_content(
                 node.project_id, node.content_hash, node.type
             )
@@ -517,7 +517,7 @@ class FolderSyncService:
         return f"projects/{project_id}/openclaw/{node_id}/{safe_name}"
 
     def _get_project_owner(self, project_id: str) -> Optional[str]:
-        from src.project.repository import ProjectRepositorySupabase
+        from src.platform.project.repository import ProjectRepositorySupabase
         try:
             repo = ProjectRepositorySupabase()
             project = repo.get_by_id(project_id)

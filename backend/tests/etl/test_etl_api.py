@@ -21,28 +21,28 @@ pytest.skip(
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.exception_handler import (
     app_exception_handler,
     generic_exception_handler,
     http_exception_handler,
     validation_exception_handler,
 )
-from src.upload.file.dependencies import get_etl_service
-from src.upload.file.rules.dependencies import get_rule_repository
-from src.upload.file.exceptions import RuleNotFoundError
-from src.upload.router import router
-from src.upload.file.rules.schemas import ETLRule
-from src.upload.file.tasks.models import ETLTask, ETLTaskResult, ETLTaskStatus
+from src.ingest.file.dependencies import get_etl_service
+from src.ingest.file.rules.dependencies import get_rule_repository
+from src.ingest.file.exceptions import RuleNotFoundError
+from src.ingest.router import router
+from src.ingest.file.rules.schemas import ETLRule
+from src.ingest.file.tasks.models import ETLTask, ETLTaskResult, ETLTaskStatus
 from src.exceptions import AppException
 from src.exceptions import NotFoundException
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from src.project.dependencies import get_project_service
-from src.s3.dependencies import get_s3_service
-from src.s3.exceptions import S3FileSizeExceededError
-from src.table.dependencies import get_table_service
+from src.platform.project.dependencies import get_project_service
+from src.infra.s3.dependencies import get_s3_service
+from src.infra.s3.exceptions import S3FileSizeExceededError
+from src.content.table.dependencies import get_table_service
 
 
 # ============= Fixtures =============

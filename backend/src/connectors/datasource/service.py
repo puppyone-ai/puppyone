@@ -18,11 +18,11 @@ from typing import Optional, List, Any, TYPE_CHECKING
 from src.connectors.datasource._base import BaseConnector
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.schemas import Sync, PullResult, ResourceInfo
-from src.collaboration.schemas import Mutation, MutationType, Operator
+from src.mut_engine.schemas import Mutation, MutationType, Operator
 from src.utils.logger import log_info, log_error, log_debug
 
 if TYPE_CHECKING:
-    from src.collaboration.service import CollaborationService
+    from src.mut_engine.compat_service import CollaborationService
 
 
 class SyncService:

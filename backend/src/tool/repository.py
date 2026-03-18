@@ -3,8 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from src.supabase.repository import SupabaseRepository
-from src.supabase.tools.schemas import (
+from src.infra.supabase.repository import SupabaseRepository
+from src.tool.supabase_schemas import (
     ToolCreate as SbToolCreate,
     ToolUpdate as SbToolUpdate,
 )

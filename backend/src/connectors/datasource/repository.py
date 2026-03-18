@@ -11,7 +11,7 @@ external resource.
 
 from datetime import datetime, timezone
 from typing import Optional, List, Any
-from src.supabase.client import SupabaseClient
+from src.infra.supabase.client import SupabaseClient
 from src.connectors.datasource.schemas import Sync
 
 

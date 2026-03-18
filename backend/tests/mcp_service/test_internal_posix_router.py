@@ -10,9 +10,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.content_node.dependencies import get_content_node_service
-from src.content_node.models import ContentNode
-from src.collaboration.dependencies import get_collaboration_service
+from src.content.dependencies import get_content_node_service
+from src.content.models import ContentNode
+from src.mut_engine.dependencies import get_collaboration_service
 from src.exceptions import BusinessException
 from src.internal import router as internal_router_module
 from src.internal.router import get_agent_config_service, router as internal_router, verify_internal_secret
@@ -290,8 +290,8 @@ def test_get_agent_by_mcp_key_enriches_access_with_node_info(client, app, monkey
     monkeypatch.setattr(internal_router_module, "ToolRepositorySupabase", _FakeToolRepo)
     monkeypatch.setattr(internal_router_module, "get_supabase_repository", lambda: object())
 
-    import src.content_node.dependencies as content_node_deps
-    import src.supabase.client as sb_client
+    import src.content.dependencies as content_node_deps
+    import src.infra.supabase.client as sb_client
 
     monkeypatch.setattr(content_node_deps, "get_content_node_repository", lambda _sb: _FakeNodeRepo())
     monkeypatch.setattr(sb_client, "SupabaseClient", lambda: object())

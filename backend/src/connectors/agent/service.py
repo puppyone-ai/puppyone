@@ -33,7 +33,7 @@ from src.connectors.agent.sandbox_data import (
     SandboxFile, SandboxData,
     prepare_sandbox_data, extract_data_by_path, merge_data_by_path,
 )
-from src.analytics.service import log_context_access, log_bash_execution
+from src.platform.analytics.service import log_context_access, log_bash_execution
 import time as time_module  # For latency tracking
 
 def _get_changelog_repo(supabase_client):
@@ -409,10 +409,10 @@ class AgentService:
             # ========== 7. 回写数据到数据库（Mut Protocol） ==========
             if use_bash and sandbox_service and sandbox_session_id and not sandbox_readonly:
                 if sandbox_data and sandbox_data.node_path_map and node_service:
-                    from src.collaboration.schemas import Mutation as _SchedMutation, MutationType as _SchedMT, Operator as _SchedOp
+                    from src.mut_engine.schemas import Mutation as _SchedMutation, MutationType as _SchedMT, Operator as _SchedOp
                     _sched_collab = None
                     try:
-                        from src.collaboration.dependencies import create_collaboration_service
+                        from src.mut_engine.dependencies import create_collaboration_service
                         _sched_collab = create_collaboration_service()
                     except Exception as e:
                         logger.warning(f"[ScheduleAgent] CollaborationService init failed: {e}")
@@ -443,7 +443,7 @@ class AgentService:
                                 continue
                             
                             if node_type == "json" and json_path_config:
-                                from src.mut_core.dependencies import read_blob_content
+                                from src.mut_engine.dependencies import read_blob_content
                                 existing_json, _ = read_blob_content(
                                     node.project_id, node.content_hash, "json"
                                 )
@@ -452,7 +452,7 @@ class AgentService:
                                 )
 
                             if not _sched_collab:
-                                from src.collaboration.dependencies import create_collaboration_service
+                                from src.mut_engine.dependencies import create_collaboration_service
                                 _sched_collab = create_collaboration_service()
 
                             mutation = _SchedMutation(
@@ -1236,7 +1236,7 @@ class AgentService:
             
             collab_service = None
             try:
-                from src.collaboration.dependencies import create_collaboration_service
+                from src.mut_engine.dependencies import create_collaboration_service
                 collab_service = create_collaboration_service()
             except Exception as e:
                 logger.warning(f"[Agent] CollaborationService init failed, falling back to direct write: {e}")

@@ -19,10 +19,10 @@ import json
 import time
 from typing import Optional, Dict, Any, List
 
-from src.content_node.repository import ContentNodeRepository
-from src.content_node.models import ContentNode
-from src.s3.service import S3Service
-from src.supabase.client import SupabaseClient
+from src.content.repository import ContentNodeRepository
+from src.content.models import ContentNode
+from src.infra.s3.service import S3Service
+from src.infra.supabase.client import SupabaseClient
 from src.connectors.filesystem.cache import CacheManager
 from src.connectors.datasource.schemas import SyncResult
 from src.utils.logger import log_info, log_error, log_debug
@@ -140,7 +140,7 @@ class SyncWorker:
     async def _sync_node(self, project_id: str, node: ContentNode, file_path: str) -> bool:
         """同步单个节点到 Lower 目录"""
         try:
-            from src.mut_core.dependencies import read_blob_content
+            from src.mut_engine.dependencies import read_blob_content
             json_content, text_content = read_blob_content(
                 node.project_id, node.content_hash, node.type
             )

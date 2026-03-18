@@ -31,8 +31,8 @@ from src.connectors.datasource.schemas import Sync
 from src.utils.logger import log_info, log_error, log_debug
 
 if TYPE_CHECKING:
-    from src.collaboration.service import CollaborationService
-    from src.content_node.service import ContentNodeService
+    from src.mut_engine.compat_service import CollaborationService
+    from src.content.service import ContentNodeService
 
 
 class FolderAccessService:
@@ -271,7 +271,7 @@ class FolderAccessService:
         try:
             base_content = self._get_base_content(node_sync)
 
-            from src.collaboration.schemas import Mutation, MutationType, Operator
+            from src.mut_engine.schemas import Mutation, MutationType, Operator
             mutation = Mutation(
                 type=MutationType.CONTENT_UPDATE,
                 operator=Operator(
@@ -463,8 +463,8 @@ class FolderAccessService:
 
     def _get_exportable_nodes(self, project_id: str, node_ids: Optional[list[str]]):
         """获取可导出的节点列表。"""
-        from src.content_node.repository import ContentNodeRepository
-        from src.supabase.client import SupabaseClient
+        from src.content.repository import ContentNodeRepository
+        from src.infra.supabase.client import SupabaseClient
 
         repo = ContentNodeRepository(SupabaseClient())
 
@@ -490,7 +490,7 @@ class FolderAccessService:
     @staticmethod
     def _extract_content(node) -> tuple[Any, str]:
         """从节点提取可写入的内容和类型（via MUT ObjectStore）。"""
-        from src.mut_core.dependencies import read_blob_content
+        from src.mut_engine.dependencies import read_blob_content
         json_content, text_content = read_blob_content(
             node.project_id, node.content_hash, node.type
         )

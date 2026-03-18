@@ -24,9 +24,9 @@ from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
-from src.llm.embedding_service import EmbeddingService
-from src.turbopuffer.config import TurbopufferConfig
-from src.turbopuffer.service import TurbopufferSearchService
+from src.infra.llm.embedding_service import EmbeddingService
+from src.infra.turbopuffer.config import TurbopufferConfig
+from src.infra.turbopuffer.service import TurbopufferSearchService
 from tests.e2e._reporter import E2EReporter
 
 
@@ -377,8 +377,8 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
     print(f"1. 通过 Turbopuffer 控制台查看 namespace: {namespace}")
     print(f"2. 使用以下代码查询数据：")
     print(f"""
-    from src.turbopuffer.service import TurbopufferSearchService
-    from src.turbopuffer.config import TurbopufferConfig
+    from src.infra.turbopuffer.service import TurbopufferSearchService
+    from src.infra.turbopuffer.config import TurbopufferConfig
     import asyncio
 
     svc = TurbopufferSearchService()

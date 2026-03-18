@@ -8,22 +8,22 @@ import json as json_lib
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 from typing import Optional, Dict, Any, List
-from src.table.dependencies import get_table_service
+from src.content.table.dependencies import get_table_service
 from src.config import settings
 from src.exceptions import AppException, NotFoundException, BusinessException
-from src.supabase.dependencies import get_supabase_repository
-from src.turbopuffer.internal_router import router as turbopuffer_internal_router
-from src.search.dependencies import get_search_service
-from src.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
+from src.infra.supabase.dependencies import get_supabase_repository
+from src.infra.turbopuffer.internal_router import router as turbopuffer_internal_router
+from src.infra.search.dependencies import get_search_service
+from src.infra.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
 from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
 from src.tool.models import Tool
-from src.content_node.dependencies import get_content_node_service
-from src.content_node.service import ContentNodeService
-from src.collaboration.service import CollaborationService
-from src.collaboration.dependencies import get_collaboration_service
-from src.collaboration.schemas import Mutation, MutationType, Operator
+from src.content.dependencies import get_content_node_service
+from src.content.service import ContentNodeService
+from src.mut_engine.compat_service import CollaborationService
+from src.mut_engine.dependencies import get_collaboration_service
+from src.mut_engine.schemas import Mutation, MutationType, Operator
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -271,8 +271,8 @@ async def search_tool(
     # - 如果索引任务有 folder_node_id，说明是 folder search
     # - 否则是 scope (JSON) search
     try:
-        from src.search.index_task_repository import SearchIndexTaskRepository
-        from src.supabase.client import SupabaseClient
+        from src.infra.search.index_task_repository import SearchIndexTaskRepository
+        from src.infra.supabase.client import SupabaseClient
         
         sb_client = SupabaseClient().get_client()
         task_repo = SearchIndexTaskRepository(sb_client)
@@ -528,7 +528,7 @@ async def read_node_content(
             "updated_at": node.updated_at.isoformat() if node.updated_at else None,
         }
 
-        from src.mut_core.dependencies import read_blob_content
+        from src.mut_engine.dependencies import read_blob_content
         _ir_json, _ir_text = read_blob_content(
             node.project_id, node.content_hash, node.type
         )
@@ -985,8 +985,8 @@ async def get_agent_by_mcp_key(
             })
     
     # 构建 accesses（包含 node_name 和 node_type）
-    from src.content_node.dependencies import get_content_node_repository
-    from src.supabase.client import SupabaseClient
+    from src.content.dependencies import get_content_node_repository
+    from src.infra.supabase.client import SupabaseClient
 
     node_repo = get_content_node_repository(SupabaseClient())
     accesses_data = []
@@ -1029,9 +1029,9 @@ async def get_agent_by_mcp_key(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_mcp_endpoint_by_key(api_key: str):
-    from src.mcp.endpoint_repository import McpEndpointRepository
-    from src.content_node.dependencies import get_content_node_repository
-    from src.supabase.client import SupabaseClient
+    from src.endpoints.mcp.repository import McpEndpointRepository
+    from src.content.dependencies import get_content_node_repository
+    from src.infra.supabase.client import SupabaseClient
 
     repo = McpEndpointRepository()
     endpoint = repo.get_by_api_key(api_key)
@@ -1098,9 +1098,9 @@ async def get_mcp_endpoint_by_key(api_key: str):
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_sandbox_endpoint_by_key(access_key: str):
-    from src.sandbox.endpoint_repository import SandboxEndpointRepository
-    from src.content_node.dependencies import get_content_node_repository
-    from src.supabase.client import SupabaseClient
+    from src.endpoints.sandbox.repository import SandboxEndpointRepository
+    from src.content.dependencies import get_content_node_repository
+    from src.infra.supabase.client import SupabaseClient
 
     repo = SandboxEndpointRepository()
     endpoint = repo.get_by_access_key(access_key)

@@ -13,9 +13,9 @@ from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
-from src.turbopuffer.config import TurbopufferConfig
-from src.turbopuffer.exceptions import TurbopufferNotFound, TurbopufferRequestError
-from src.turbopuffer.service import TurbopufferSearchService
+from src.infra.turbopuffer.config import TurbopufferConfig
+from src.infra.turbopuffer.exceptions import TurbopufferNotFound, TurbopufferRequestError
+from src.infra.turbopuffer.service import TurbopufferSearchService
 from tests.e2e._reporter import E2EReporter
 
 

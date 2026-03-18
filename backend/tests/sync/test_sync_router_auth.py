@@ -4,9 +4,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
-from src.project.dependencies import get_project_service
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.project.dependencies import get_project_service
 from src.connectors.datasource.dependencies import get_sync_service
 from src.connectors.datasource.router import router
 

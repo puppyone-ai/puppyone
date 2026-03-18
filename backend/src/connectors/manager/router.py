@@ -15,12 +15,12 @@ from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, Query, Path, status, HTTPException
 from pydantic import BaseModel, Field
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.exceptions import NotFoundException, ErrorCode
-from src.supabase.client import SupabaseClient
-from src.organization.dependencies import resolve_org_ids
+from src.infra.supabase.client import SupabaseClient
+from src.platform.organization.dependencies import resolve_org_ids
 
 
 router = APIRouter(prefix="/connections", tags=["connections"])
@@ -434,9 +434,9 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 
 
 def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
-    from src.mcp.endpoint_repository import McpEndpointRepository
-    from src.mcp.endpoint_service import McpEndpointService
-    from src.mcp.endpoint_schemas import McpAccessItem, McpToolItem
+    from src.endpoints.mcp.repository import McpEndpointRepository
+    from src.endpoints.mcp.service import McpEndpointService
+    from src.endpoints.mcp.schemas import McpAccessItem, McpToolItem
 
     service = McpEndpointService(repository=McpEndpointRepository())
 
@@ -461,9 +461,9 @@ def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 
 
 def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
-    from src.sandbox.endpoint_repository import SandboxEndpointRepository
-    from src.sandbox.endpoint_service import SandboxEndpointService
-    from src.sandbox.endpoint_schemas import SandboxMountItem, SandboxResourceLimits
+    from src.endpoints.sandbox.repository import SandboxEndpointRepository
+    from src.endpoints.sandbox.service import SandboxEndpointService
+    from src.endpoints.sandbox.schemas import SandboxMountItem, SandboxResourceLimits
 
     service = SandboxEndpointService(repository=SandboxEndpointRepository())
 
@@ -509,7 +509,7 @@ async def create_connection(
     - mcp: creates an MCP endpoint
     - sandbox: creates a sandbox endpoint
     """
-    from src.project.repository import ProjectRepositorySupabase
+    from src.platform.project.repository import ProjectRepositorySupabase
     project_repo = ProjectRepositorySupabase()
     if not project_repo.verify_project_access(payload.project_id, current_user.user_id):
         raise HTTPException(status_code=403, detail="Access denied to this project")

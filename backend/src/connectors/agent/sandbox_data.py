@@ -62,7 +62,7 @@ async def prepare_sandbox_data(
     node_type = node.type or "json"
 
     if node_type == "json":
-        from src.mut_core.dependencies import read_blob_content
+        from src.mut_engine.dependencies import read_blob_content
         json_content, _ = read_blob_content(node.project_id, node.content_hash, "json")
         content = json_content or {}
         if json_path:
@@ -115,7 +115,7 @@ async def prepare_sandbox_data(
             child_version = getattr(child, "current_version", 0)
 
             if child.type == "json":
-                from src.mut_core.dependencies import read_blob_content
+                from src.mut_engine.dependencies import read_blob_content
                 child_json, _ = read_blob_content(child.project_id, child.content_hash, "json")
                 files.append(SandboxFile(
                     path=f"/workspace/{relative_path}.json",
@@ -126,7 +126,7 @@ async def prepare_sandbox_data(
                     base_version=child_version,
                 ))
             elif child.type == "markdown":
-                from src.mut_core.dependencies import read_blob_content
+                from src.mut_engine.dependencies import read_blob_content
                 _, child_text = read_blob_content(child.project_id, child.content_hash, "markdown")
                 if child_text is not None:
                     md_path = relative_path if relative_path.endswith(".md") else f"{relative_path}.md"
@@ -150,7 +150,7 @@ async def prepare_sandbox_data(
     else:
         file_name = node.name or "file"
 
-        from src.mut_core.dependencies import read_blob_content
+        from src.mut_engine.dependencies import read_blob_content
         fallback_json, _ = read_blob_content(node.project_id, node.content_hash, "json")
         if fallback_json and isinstance(fallback_json, (dict, list)):
             files.append(SandboxFile(

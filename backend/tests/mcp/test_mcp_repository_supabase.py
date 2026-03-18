@@ -8,7 +8,7 @@ from unittest.mock import Mock
 from datetime import datetime
 
 from src.mcp.repository import McpInstanceRepositorySupabase
-from src.supabase.mcps.schemas import McpResponse
+from src.mcp.supabase_schemas import McpResponse
 
 
 # ============= Fixtures =============

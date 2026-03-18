@@ -13,7 +13,7 @@ Usage:
 from typing import Optional, List
 from dataclasses import dataclass
 
-from src.supabase.client import SupabaseClient
+from src.infra.supabase.client import SupabaseClient
 
 
 @dataclass

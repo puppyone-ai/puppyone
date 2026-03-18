@@ -1,0 +1,257 @@
+"""
+Default seed content for new projects.
+
+Creates a Getting Started.md at root + a Guides/ folder with
+About PuppyOne.md, Connecting Data.md, and Agent Access.md.
+
+Used by both CLI `puppyone init` and web onboarding.
+"""
+
+from src.content.service import ContentNodeService
+from src.mut_engine.schemas import Mutation, MutationType, Operator
+from src.mut_engine.compat_service import MutCompatService
+
+
+GETTING_STARTED_MD = """\
+# Getting Started
+
+Your context space is ready. Here's how to start using it.
+
+## 1. Connect your first data source
+
+Bring in data from Gmail, GitHub, Notion, local folders, or any URL.
+
+**Web:** Click "+ Add Connection" in the sidebar
+**CLI:** `puppyone conn add <provider>`
+
+Examples:
+
+    puppyone conn add gmail
+    puppyone conn add github https://github.com/org/repo
+    puppyone conn add folder ~/my-notes
+    puppyone conn add url https://example.com
+
+## 2. Give an AI agent access
+
+Create an MCP endpoint so Claude, Cursor, or any MCP-compatible agent can read and write your context space.
+
+**Web:** Go to Connections → Add → MCP Endpoint
+**CLI:** `puppyone conn add mcp --name my-endpoint`
+
+## 3. Explore your data
+
+**Web:** Browse files in the data explorer
+**CLI:**
+
+    puppyone node ls
+    puppyone node tree
+    puppyone conn ls
+    puppyone status
+
+## Learn more
+
+See the **Guides** folder for detailed information:
+- **About PuppyOne** — what is a context space
+- **Connecting Data** — all supported data sources
+- **Agent Access** — MCP, sandbox, and permissions
+"""
+
+ABOUT_PUPPYONE_MD = """\
+# About PuppyOne
+
+**The cloud file system built for AI Agents.**
+
+PuppyOne unifies your scattered data from Notion, GitHub, Gmail, Airtable, \
+local files, and more into a single context space designed for multi-agent \
+collaboration. Connect any agent to this one space, and it instantly accesses \
+all your context.
+
+## What Problems Does It Solve?
+
+### Data is scattered; agents can't see the full picture
+Your data might be in 30 different places: product specs in Notion, code in \
+GitHub, customer info in Airtable, pricing in Google Sheets, plus piles of \
+PDFs locally. Every time you want an agent to use this data, you have to \
+connect it all over again.
+
+### Different agents need different permissions
+A support agent should read product catalogs but not change prices. A dev \
+agent needs to edit specs. A sales agent can view quotes but not delete \
+customer records. You need fine-grained, centralized access control — not \
+just "all or nothing."
+
+### Every agent connects differently; maintenance is expensive
+Cursor needs MCP, backend scripts use REST APIs, real-time scenarios \
+require SSE, and complex tasks need agents running code in a sandbox. You \
+need unified logging and monitoring for every connection.
+
+## Two Core Pillars
+
+### Connect
+PuppyOne's answer is a **cloud folder**. Whether your data comes from \
+Notion, GitHub, Airtable, or local PDFs, once connected to PuppyOne, \
+they all become nodes in this folder.
+
+- Notion pages → Markdown
+- GitHub repos → Code directories
+- Airtable bases → Structured documents
+- Gmail → Summarized threads
+
+For your agent, the world is now just **one single folder**, not 30 \
+different SaaS silos.
+
+### Collaborate
+PuppyOne provides a complete infrastructure for human-agent collaboration:
+
+- **Version history** — every change is tracked with full audit trail
+- **Access control** — fine-grained permissions for users and agents
+- **MCP protocol** — any MCP-compatible agent can read/write natively
+- **Sandbox execution** — agents can run code in isolated environments
+- **Real-time sync** — changes propagate instantly across all consumers
+"""
+
+CONNECTING_DATA_MD = """\
+# Connecting Data
+
+PuppyOne connects to your real work apps and data sources. Everything \
+you connect becomes part of your context space as regular files and \
+folders that both you and your agents can read.
+
+## Supported Sources
+
+### Cloud Services (OAuth)
+These require a one-time authorization through your browser:
+- **Gmail** — email threads, summarized by date
+- **Google Calendar** — upcoming and past events
+- **Google Drive** — documents, spreadsheets, files
+- **Google Docs** — individual documents
+- **Google Sheets** — spreadsheet data
+- **Notion** — pages and databases
+- **GitHub** — repositories, issues, code
+- **Linear** — issues and projects
+- **Airtable** — bases and tables
+
+### Local Sources
+- **Folder sync** — mount a local directory and keep it in sync
+- **File upload** — drag-and-drop or CLI upload for PDFs, CSVs, and more
+
+### Web & API Sources
+- **URL** — pull content from any public webpage
+- **Custom scripts** — write Python or Node.js scripts that fetch data \
+from any API, database, or service
+
+### Databases
+- **PostgreSQL**, **MySQL** — connect directly and sync query results
+
+## How Sync Works
+
+Each connected source creates one or more nodes in your context space. \
+PuppyOne periodically fetches the latest data, detects changes, and \
+updates the nodes. You can also trigger a manual sync at any time.
+
+All sync operations are logged with timestamps, status, and error \
+details for full visibility.
+"""
+
+AGENT_ACCESS_MD = """\
+# Agent Access
+
+PuppyOne provides multiple ways for AI agents to access your context space.
+
+## MCP Protocol
+
+MCP (Model Context Protocol) is the primary way agents interact with \
+PuppyOne. Create an MCP endpoint, and any MCP-compatible agent — \
+Claude, Cursor, Windsurf, and others — can read and write your \
+context space natively.
+
+Each MCP endpoint gets its own URL and access credentials. You control \
+exactly which parts of the context space each endpoint can access.
+
+## Sandbox Execution
+
+For agents that need to run code, PuppyOne provides isolated sandbox \
+environments. Agents can execute Python, Node.js, or shell commands \
+in a secure container with access to your context data.
+
+Sandboxes are ephemeral — they spin up, execute, and shut down \
+automatically. All execution is logged.
+
+## Access Control
+
+PuppyOne gives you fine-grained control over what each agent can do:
+
+- **Read-only** — agent can browse and read files
+- **Read-write** — agent can also create and modify files
+- **Scoped access** — limit an agent to specific folders or nodes
+
+Permissions are managed per-connection, so each agent or integration \
+gets exactly the access it needs.
+
+## Monitoring
+
+Every agent interaction is logged:
+- Which agent accessed which files
+- What queries were made
+- When it happened
+- Whether it succeeded or failed
+
+Use the dashboard or CLI (`puppyone status`) to see a unified view \
+of all agent activity.
+"""
+
+
+async def seed_default_content(
+    service: ContentNodeService,
+    project_id: str,
+    created_by: str,
+    collab: MutCompatService | None = None,
+) -> dict:
+    """
+    Populate a newly created project with default seed content.
+
+    All content writes go through MutCompatService.commit() (MUT).
+    """
+    if collab is None:
+        from src.mut_engine.dependencies import create_collaboration_service
+        collab = create_collaboration_service()
+
+    op = Operator(type="system", id=created_by, summary="seed content")
+
+    async def _create_md(name: str, content: str, parent_id=None) -> str:
+        result = await collab.commit(Mutation(
+            type=MutationType.NODE_CREATE,
+            operator=op,
+            project_id=project_id,
+            name=name,
+            content=content,
+            node_type="markdown",
+            parent_id=parent_id,
+            created_by=created_by,
+        ))
+        return result.node_id
+
+    getting_started_id = await _create_md("Getting Started", GETTING_STARTED_MD)
+
+    guides_result = await collab.commit(Mutation(
+        type=MutationType.NODE_CREATE,
+        operator=op,
+        project_id=project_id,
+        name="Guides",
+        node_type="folder",
+        parent_id=None,
+        created_by=created_by,
+    ))
+    guides_folder_id = guides_result.node_id
+
+    about_id = await _create_md("About PuppyOne", ABOUT_PUPPYONE_MD, guides_folder_id)
+    connecting_id = await _create_md("Connecting Data", CONNECTING_DATA_MD, guides_folder_id)
+    agent_access_id = await _create_md("Agent Access", AGENT_ACCESS_MD, guides_folder_id)
+
+    return {
+        "getting_started": getting_started_id,
+        "guides_folder": guides_folder_id,
+        "about": about_id,
+        "connecting": connecting_id,
+        "agent_access": agent_access_id,
+    }

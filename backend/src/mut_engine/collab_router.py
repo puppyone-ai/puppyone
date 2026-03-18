@@ -1,0 +1,263 @@
+"""
+Mut Protocol — Collaboration API 路由
+
+端点：
+  POST /collab/checkout           checkout 工作副本
+  POST /collab/commit             commit 修改（乐观锁 + 三方合并）
+  GET  /collab/versions/{node_id}               版本历史
+  GET  /collab/versions/{node_id}/{version}      版本详情
+  POST /collab/rollback/{node_id}/{version}      单文件回滚
+  GET  /collab/diff/{node_id}/{v1}/{v2}          版本对比
+  GET  /collab/snapshots/{folder_id}             文件夹快照历史
+  POST /collab/rollback-snapshot/{folder_id}/{snapshot_id}  文件夹回滚
+"""
+
+from typing import List
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.mut_engine.compat_service import MutCompatService as CollaborationService
+from src.mut_engine.dependencies import get_collaboration_service
+from src.mut_engine.schemas import (
+    CheckoutRequest, CommitRequest, RollbackRequest,
+    Mutation, MutationType, Operator,
+    WorkingCopy, CommitResult,
+    VersionHistoryResponse, FileVersionDetail,
+    RollbackResponse, FolderRollbackResponse,
+    FolderSnapshotHistoryResponse,
+    DiffResponse,
+    MutProjectHistoryResponse, MutCommitInfo, MutCommitChange, MutCommitConflict,
+)
+from src.connectors.datasource.service import SyncService
+from src.connectors.datasource.dependencies import get_sync_service
+from src.common_schemas import ApiResponse
+
+
+router = APIRouter(
+    prefix="/collab",
+    tags=["collaboration"],
+)
+
+
+# ============================================================
+# checkout / commit
+# ============================================================
+
+@router.post("/checkout", response_model=ApiResponse[List[WorkingCopy]])
+def checkout(
+    body: CheckoutRequest,
+    collab: CollaborationService = Depends(get_collaboration_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """checkout 一组文件的工作副本"""
+    copies = collab.checkout_batch(
+        node_ids=body.node_ids,
+        operator_type="user",
+        operator_id=current_user.user_id,
+    )
+    return ApiResponse.success(data=copies)
+
+
+@router.post("/commit", response_model=ApiResponse[CommitResult])
+async def commit(
+    body: CommitRequest,
+    background_tasks: BackgroundTasks,
+    collab: CollaborationService = Depends(get_collaboration_service),
+    sync_svc: SyncService = Depends(get_sync_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """commit 单个文件的修改（Mut Protocol 统一入口）"""
+    mutation = Mutation(
+        type=MutationType.CONTENT_UPDATE,
+        operator=Operator(
+            type="user",
+            id=body.operator or current_user.user_id,
+        ),
+        node_id=body.node_id,
+        content=body.content,
+        node_type=body.node_type,
+        base_version=body.base_version,
+    )
+    result = await collab.commit(mutation)
+
+    background_tasks.add_task(
+        sync_svc.push_node,
+        node_id=body.node_id,
+        version=result.version,
+        content=result.final_content,
+        node_type=body.node_type,
+    )
+
+    return ApiResponse.success(data=result)
+
+
+# ============================================================
+# Project-level Mut commit history
+# ============================================================
+
+@router.get("/project-history/{project_id}", response_model=ApiResponse[MutProjectHistoryResponse])
+def get_project_history(
+    project_id: str,
+    limit: int = Query(50, ge=1, le=500),
+    since_version: int = Query(0, ge=0),
+    collab: CollaborationService = Depends(get_collaboration_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """获取项目级 Mut commit 历史（类似 git log）"""
+    from src.mut_engine.repo_manager import MutRepoManager
+
+    empty_response = MutProjectHistoryResponse(
+        project_id=project_id, current_version=0,
+        root_hash="", commits=[], total=0,
+    )
+
+    try:
+        repos: MutRepoManager = collab._repos
+        repo = repos.get_repo(project_id)
+        current_version = repo.history.get_latest_version()
+        root_hash = repo.history.get_root_hash()
+        entries = repo.history.get_since(since_version, limit=limit)
+    except Exception:
+        return ApiResponse.success(data=empty_response)
+
+    commits = []
+    for e in entries:
+        changes_raw = e.get("changes", [])
+        conflicts_raw = e.get("conflicts", [])
+
+        changes = [
+            MutCommitChange(path=c.get("path", ""), op=c.get("op", "modified"))
+            for c in (changes_raw if isinstance(changes_raw, list) else [])
+        ]
+        conflicts = [
+            MutCommitConflict(
+                path=c.get("path", ""),
+                strategy=c.get("strategy", ""),
+                detail=c.get("detail"),
+                kept=c.get("kept"),
+            )
+            for c in (conflicts_raw if isinstance(conflicts_raw, list) else [])
+        ]
+
+        commits.append(MutCommitInfo(
+            version=e.get("version", 0),
+            root_hash=e.get("root_hash", ""),
+            scope_path=e.get("scope_path", ""),
+            who=e.get("who", ""),
+            message=e.get("message", ""),
+            changes=changes,
+            conflicts=conflicts,
+            created_at=e.get("created_at"),
+        ))
+
+    commits.reverse()
+
+    return ApiResponse.success(data=MutProjectHistoryResponse(
+        project_id=project_id,
+        current_version=current_version,
+        root_hash=root_hash,
+        commits=commits,
+        total=len(commits),
+    ))
+
+
+# ============================================================
+# 版本历史 & 详情 (per-node)
+# ============================================================
+
+@router.get("/versions/{node_id}", response_model=ApiResponse[VersionHistoryResponse])
+def get_version_history(
+    node_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    collab: CollaborationService = Depends(get_collaboration_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """获取文件的版本历史"""
+    history = collab.get_version_history(node_id, limit, offset)
+    return ApiResponse.success(data=history)
+
+
+@router.get("/versions/{node_id}/{version}", response_model=ApiResponse[FileVersionDetail])
+def get_version_content(
+    node_id: str,
+    version: int,
+    collab: CollaborationService = Depends(get_collaboration_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """获取某个版本的完整内容"""
+    detail = collab.get_version_content(node_id, version)
+    return ApiResponse.success(data=detail)
+
+
+# ============================================================
+# 回滚
+# ============================================================
+
+@router.post("/rollback/{node_id}/{version}", response_model=ApiResponse[RollbackResponse])
+async def rollback_file(
+    node_id: str,
+    version: int,
+    collab: CollaborationService = Depends(get_collaboration_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """回滚文件到指定版本"""
+    result = await collab.rollback_file(
+        node_id=node_id,
+        target_version=version,
+        operator_id=current_user.user_id,
+    )
+    return ApiResponse.success(data=result, message=f"Rolled back to v{version}")
+
+
+@router.post(
+    "/rollback-snapshot/{folder_id}/{snapshot_id}",
+    response_model=ApiResponse[FolderRollbackResponse],
+)
+def rollback_folder(
+    folder_id: str,
+    snapshot_id: int,
+    collab: CollaborationService = Depends(get_collaboration_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """回滚文件夹到指定快照"""
+    result = collab.rollback_folder(
+        folder_node_id=folder_id,
+        target_snapshot_id=snapshot_id,
+        operator_id=current_user.user_id,
+    )
+    return ApiResponse.success(data=result, message=f"Rolled back to snapshot #{snapshot_id}")
+
+
+# ============================================================
+# 版本对比
+# ============================================================
+
+@router.get("/diff/{node_id}/{v1}/{v2}", response_model=ApiResponse[DiffResponse])
+def diff_versions(
+    node_id: str,
+    v1: int,
+    v2: int,
+    collab: CollaborationService = Depends(get_collaboration_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """对比两个版本的差异"""
+    diff = collab.compute_diff(node_id, v1, v2)
+    return ApiResponse.success(data=diff)
+
+
+# ============================================================
+# 文件夹快照
+# ============================================================
+
+@router.get("/snapshots/{folder_id}", response_model=ApiResponse[FolderSnapshotHistoryResponse])
+def get_snapshot_history(
+    folder_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    collab: CollaborationService = Depends(get_collaboration_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """获取文件夹的快照历史"""
+    history = collab.get_snapshot_history(folder_id, limit, offset)
+    return ApiResponse.success(data=history)

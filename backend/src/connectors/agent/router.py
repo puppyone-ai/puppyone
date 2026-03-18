@@ -4,12 +4,12 @@ from src.connectors.agent.schemas import AgentRequest
 from src.connectors.agent.dependencies import get_agent_service
 from src.sandbox.dependencies import get_sandbox_service
 from src.connectors.agent.chat.dependencies import get_chat_service
-from src.auth.dependencies import get_current_user_optional
-from src.content_node.dependencies import get_content_node_service
+from src.platform.auth.dependencies import get_current_user_optional
+from src.content.dependencies import get_content_node_service
 from src.tool.dependencies import get_tool_service
-from src.s3.dependencies import get_s3_service
+from src.infra.s3.dependencies import get_s3_service
 from src.connectors.agent.config.dependencies import get_agent_config_service
-from src.search.dependencies import get_search_service
+from src.infra.search.dependencies import get_search_service
 from fastapi.responses import StreamingResponse
 
 

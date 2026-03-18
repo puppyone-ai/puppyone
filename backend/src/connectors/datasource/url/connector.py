@@ -9,7 +9,7 @@ Handles:
 import hashlib
 import json
 
-from src.content_node.service import ContentNodeService
+from src.content.service import ContentNodeService
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,

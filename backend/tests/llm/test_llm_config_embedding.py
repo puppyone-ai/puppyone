@@ -1,6 +1,6 @@
 import pytest
 
-from src.llm.config import LLMConfig
+from src.infra.llm.config import LLMConfig
 
 
 def test_embedding_batch_size_out_of_range_falls_back_to_default():

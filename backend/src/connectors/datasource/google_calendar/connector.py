@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from src.content_node.service import ContentNodeService
+from src.content.service import ContentNodeService
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -27,7 +27,7 @@ from src.connectors.datasource._base import (
     ConfigField,
 )
 from src.oauth.google_calendar_service import GoogleCalendarOAuthService
-from src.s3.service import S3Service
+from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
 
 

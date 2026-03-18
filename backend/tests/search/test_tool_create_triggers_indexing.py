@@ -2,7 +2,7 @@ import datetime as dt
 from types import SimpleNamespace
 
 import src.tool.router as tool_router
-from src.auth.models import CurrentUser
+from src.platform.auth.models import CurrentUser
 from src.tool.models import Tool
 from src.tool.router import create_search_tool_async
 from src.tool.schemas import ToolCreate

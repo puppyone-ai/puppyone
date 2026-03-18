@@ -82,7 +82,7 @@ class AgentRepository:
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:
-            from src.supabase.dependencies import get_supabase_client
+            from src.infra.supabase.dependencies import get_supabase_client
             self._client = get_supabase_client()
         else:
             self._client = supabase_client
@@ -340,7 +340,7 @@ class AgentRepository:
         org_id = response.data[0].get("org_id")
         if not org_id:
             return False
-        from src.organization.repository import OrganizationRepository
+        from src.platform.organization.repository import OrganizationRepository
         org_repo = OrganizationRepository(supabase_client=self._client)
         member = org_repo.get_member(org_id, user_id)
         return member is not None

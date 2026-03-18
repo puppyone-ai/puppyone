@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from src.supabase.dependencies import get_supabase_repository
-from src.supabase.client import SupabaseClient
+from src.infra.supabase.dependencies import get_supabase_repository
+from src.infra.supabase.client import SupabaseClient
 from src.tool.repository import ToolRepositorySupabase
 from src.tool.service import ToolService
-from src.content_node.repository import ContentNodeRepository
-from src.content_node.service import ContentNodeService
-from src.s3.dependencies import get_s3_service
-from src.project.dependencies import get_project_service
+from src.content.repository import ContentNodeRepository
+from src.content.service import ContentNodeService
+from src.infra.s3.dependencies import get_s3_service
+from src.platform.project.dependencies import get_project_service
 
 
 _tool_service: ToolService | None = None
