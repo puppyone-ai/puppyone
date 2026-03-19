@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from src.content.service import ContentNodeService
+from typing import Any
 from src.oauth.github_service import GithubOAuthService
 from src.infra.s3.service import S3Service
 from src.connectors.datasource._base import (
@@ -67,9 +67,9 @@ class GithubConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
         github_service: GithubOAuthService,
         s3_service: S3Service,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.github_service = github_service
@@ -162,9 +162,9 @@ def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
     oauth_svc = GithubOAuthService()
     return ConnectorSetup(
         connector=GithubConnector(
-            node_service=deps.node_service,
             github_service=oauth_svc,
             s3_service=deps.s3_service,
+            node_service=deps.node_service,
         ),
         oauth_bindings={"github": oauth_svc},
     )

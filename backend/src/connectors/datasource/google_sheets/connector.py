@@ -10,11 +10,9 @@ Architecture:
 import hashlib
 import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
-
-from src.content.service import ContentNodeService
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -66,9 +64,9 @@ class GoogleSheetsConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
         sheets_service: GoogleSheetsOAuthService,
         s3_service: S3Service,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.sheets_service = sheets_service
@@ -232,9 +230,9 @@ def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
     oauth_svc = GoogleSheetsOAuthService()
     return ConnectorSetup(
         connector=GoogleSheetsConnector(
-            node_service=deps.node_service,
             sheets_service=oauth_svc,
             s3_service=deps.s3_service,
+            node_service=deps.node_service,
         ),
         oauth_bindings={"sheets": oauth_svc},
     )

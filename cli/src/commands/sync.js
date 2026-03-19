@@ -1,6 +1,6 @@
 import { createClient } from "../api.js";
 import { createOutput } from "../output.js";
-import { withErrors, requireProject, resolvePath, formatDate } from "../helpers.js";
+import { withErrors, requireProject, normalizePath, formatDate } from "../helpers.js";
 
 // ─── Provider Metadata ────────────────────────────────────
 // Static fallback. The `sync providers` command fetches from the API;
@@ -241,8 +241,8 @@ export function registerSync(program) {
       };
 
       if (opts.folder) {
-        const folderId = await resolvePath(client, projectId, opts.folder);
-        if (folderId) body.target_folder_node_id = folderId;
+        const folderPath = normalizePath(opts.folder);
+        body.target_folder_path = folderPath;
       }
 
       out.step(`Adding ${meta.name} sync...`);

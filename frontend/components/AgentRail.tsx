@@ -29,14 +29,7 @@ export interface AccessResource {
   nodeName: string;
   nodeType: 'folder' | 'json' | 'file';
   jsonPath?: string;
-  readonly: boolean;  // 新版：只有一个 readonly 字段
-  
-  // 向后兼容的字段（将被废弃）
-  terminal?: boolean;
-  terminalReadonly?: boolean;
-  canRead?: boolean;
-  canWrite?: boolean;
-  canDelete?: boolean;
+  readonly: boolean;
 }
 
 export interface SavedAgent {

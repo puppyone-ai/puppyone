@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Any
 
 from src.exceptions import NotFoundException, ErrorCode, BusinessException
-from src.content.service import ContentNodeService
+from src.mut_engine.tree_reader import MutTreeReader
 from src.tool.models import Tool
 from src.tool.repository import ToolRepositoryBase
 from src.tool.supabase_schemas import (
@@ -37,12 +37,12 @@ class ToolService:
     def __init__(
         self,
         repo: ToolRepositoryBase,
-        node_service: ContentNodeService,
+        tree_reader: MutTreeReader,
         project_service: ProjectService,
         supabase_repository: Optional[Any] = None,
     ):
         self.repo = repo
-        self.node_service = node_service
+        self._tree_reader = tree_reader
         self.project_service = project_service
         self._sb = supabase_repository
 
@@ -52,12 +52,37 @@ class ToolService:
         return self._sb
 
     def get_node_with_access_check(self, user_id: str, node_id: str):
-        node = self.node_service.get_by_id_unsafe(node_id)
-        if not self.project_service.verify_project_access(node.project_id, user_id):
-            raise NotFoundException(
-                f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND
-            )
-        return node
+        """Check that a node_id (path) is accessible.
+
+        Returns a simple object with project_id and type attributes.
+        For path-based nodes, node_id is the path in a project.
+        """
+        from types import SimpleNamespace
+        tool = self.repo.get_by_node_id(node_id) if hasattr(self.repo, 'get_by_node_id') else None
+        project_id = tool.project_id if tool else None
+
+        if not project_id:
+            all_tools = self.repo.get_by_node_id_simple(node_id) if hasattr(self.repo, 'get_by_node_id_simple') else []
+            if all_tools:
+                project_id = all_tools[0].project_id
+
+        if project_id:
+            if not self.project_service.verify_project_access(project_id, user_id):
+                raise NotFoundException(
+                    f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND
+                )
+            entry = self._tree_reader.stat(project_id, node_id)
+            if entry:
+                return SimpleNamespace(
+                    project_id=project_id,
+                    type=entry.type,
+                    name=entry.name,
+                    path=entry.path,
+                )
+
+        raise NotFoundException(
+            f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND
+        )
 
     def _invalidate_bound_agents_mcp(self, tool_id: str) -> None:
         """
@@ -232,12 +257,7 @@ class ToolService:
 
         node_id = patch.get("node_id")
         if node_id is not None:
-            node = self.get_node_with_access_check(user_id, node_id)
-            if existing.project_id and node.project_id != existing.project_id:
-                raise BusinessException(
-                    "cannot move tool across projects via node_id update",
-                    code=ErrorCode.VALIDATION_ERROR,
-                )
+            self.get_node_with_access_check(user_id, node_id)
 
         updated = self.repo.update(
             tool_id,

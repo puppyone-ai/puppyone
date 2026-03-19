@@ -240,7 +240,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         from src.content.table.supabase_schemas import TableResponse
 
         response = (
-            self._supabase_repo._client.table("content_nodes")
+            self._supabase_repo._client.table("tables")
             .select("*")
             .eq("created_by", created_by)
             .is_("project_id", "null")

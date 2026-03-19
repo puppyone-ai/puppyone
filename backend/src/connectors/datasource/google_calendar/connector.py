@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from src.content.service import ContentNodeService
+from typing import Any
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -63,9 +63,9 @@ class GoogleCalendarConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
         calendar_service: GoogleCalendarOAuthService,
         s3_service: S3Service,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.calendar_service = calendar_service
@@ -222,9 +222,9 @@ def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
     oauth_svc = GoogleCalendarOAuthService()
     return ConnectorSetup(
         connector=GoogleCalendarConnector(
-            node_service=deps.node_service,
             calendar_service=oauth_svc,
             s3_service=deps.s3_service,
+            node_service=deps.node_service,
         ),
         oauth_bindings={"calendar": oauth_svc},
     )

@@ -23,7 +23,7 @@ class FakeNodeRepo:
         self._folder_node = SimpleNamespace(
             id=folder_id,
             project_id=project_id,
-            id_path=f"/{folder_id}",
+            mut_path=f"root",
             depth=1,
             type="folder",
             name="root",
@@ -34,9 +34,9 @@ class FakeNodeRepo:
             return self._folder_node
         return None
 
-    def get_child_by_name(self, project_id: str, parent_id_path: str | None, parent_depth: int, name: str):
+    def get_child_by_name(self, project_id: str, parent_mut_path: str | None, parent_depth: int, name: str):
         self.lookup_names.append(name)
-        parent_id = parent_id_path.strip("/").split("/")[-1] if parent_id_path else None
+        parent_id = parent_mut_path.strip("/").split("/")[-1] if parent_mut_path else None
         return self._existing.get((project_id, parent_id, name))
 
     def create(
@@ -45,14 +45,14 @@ class FakeNodeRepo:
         project_id: str,
         name: str,
         node_type: str,
-        id_path: str,
+        mut_path: str,
         created_by: str,
         s3_key: str,
         mime_type: str,
         size_bytes: int,
         **kwargs,
     ):
-        node_id = id_path.split("/")[-1]
+        node_id = mut_path.split("/")[-1]
         node = SimpleNamespace(
             id=node_id,
             name=name,
@@ -60,7 +60,7 @@ class FakeNodeRepo:
             s3_key=s3_key,
             current_version=0,
         )
-        parent_node_id = id_path.rsplit("/", 1)[0].split("/")[-1] if "/" in id_path.strip("/") else None
+        parent_node_id = mut_path.rsplit("/", 1)[0].split("/")[-1] if "/" in mut_path.strip("/") else None
         self.created.append(
             {
                 "project_id": project_id,

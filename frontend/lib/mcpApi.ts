@@ -70,7 +70,7 @@ export interface Tool {
   user_id: string;
   created_at: string;
 
-  node_id: string | null;  // 绑定的 content_nodes 节点 ID
+  node_id: string | null;  // 绑定的节点路径 (path)
   json_path: string;
   type: McpToolType;
   name: string;
@@ -91,7 +91,7 @@ export interface Tool {
  * 创建 Tool 请求
  */
 export interface ToolCreateRequest {
-  node_id?: string | null;  // 绑定的 content_nodes 节点 ID
+  node_id?: string | null;  // 绑定的节点路径 (path)
   json_path?: string; // 默认 ""
   type: McpToolType;
   name: string;

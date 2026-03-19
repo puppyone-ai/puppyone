@@ -250,18 +250,18 @@ export function registerConnection(program) {
         return;
       }
       if (provider === "filesystem") {
-        let nodeId = source;
-        if (!nodeId && opts.folder) {
-          const resolved = await client.get("/nodes/by-path", { project_id: projectId, path: opts.folder });
-          const nodeData = resolved?.data ?? resolved;
-          nodeId = nodeData?.id;
-        }
-        if (!nodeId) {
-          out.error("MISSING_NODE", "Filesystem sync requires a target node ID or --folder <path>.",
-            "Example: puppyone conn add folder --folder /my-docs");
+        const folderPath = source || opts.folder;
+        if (!folderPath) {
+          out.error("MISSING_PATH", "Filesystem sync requires a folder path.",
+            "Example: puppyone conn add folder /my-docs");
           return;
         }
-        const created = await client.post("/filesystem/bootstrap", null, { project_id: projectId, node_id: nodeId });
+        const normalizedPath = folderPath.replace(/^\/+/, "").replace(/\/+$/, "");
+        await client.post(`/tree/${projectId}/mkdir`, { path: normalizedPath });
+        const created = await client.post("/filesystem/bootstrap", null, {
+          project_id: projectId,
+          path: normalizedPath,
+        });
         out.info(`  Filesystem sync created: ${created.sync_id}`);
         _showFilesystemGuidance(out, created, source);
         out.success?.({ connection: created });
@@ -345,41 +345,9 @@ export function registerConnection(program) {
         sync_mode: opts.mode || "import_once",
       };
       if (opts.folder) {
-        let nodeData;
-        try {
-          const resolved = await client.get("/nodes/by-path", { project_id: projectId, path: opts.folder });
-          nodeData = resolved?.data ?? resolved;
-        } catch {
-          nodeData = null;
-        }
-
-        if (nodeData?.id) {
-          if (nodeData.type !== "folder") {
-            out.error("NOT_A_FOLDER", `"${opts.folder}" is a ${nodeData.type}, not a folder.`, "Provide a folder path, e.g. --folder /docs");
-            return;
-          }
-          body.target_folder_node_id = nodeData.id;
-        } else {
-          const segments = opts.folder.replace(/^\/+/, "").replace(/\/+$/, "").split("/").filter(Boolean);
-          let parentId = null;
-          for (const seg of segments) {
-            try {
-              const created = await client.post("/nodes/folder", { project_id: projectId, name: seg, parent_id: parentId });
-              const node = created?.data ?? created;
-              parentId = node.id;
-            } catch (e) {
-              if (e.status === 409 || e.message?.includes("already exists")) {
-                const children = await client.get("/nodes", { project_id: projectId, parent_id: parentId });
-                const list = Array.isArray(children) ? children : children?.data?.nodes ?? children?.items ?? [];
-                const match = list.find(n => n.name === seg);
-                if (match) { parentId = match.id; continue; }
-              }
-              out.error("FOLDER_CREATE_FAILED", `Could not create folder "${seg}": ${e.message}`);
-              return;
-            }
-          }
-          body.target_folder_node_id = parentId;
-        }
+        const folderPath = opts.folder.replace(/^\/+/, "").replace(/\/+$/, "");
+        await client.post(`/tree/${projectId}/mkdir`, { path: folderPath });
+        body.target_folder_path = folderPath;
       }
 
       out.step(`Adding ${spec.display_name} sync...`);

@@ -3,7 +3,7 @@ PuppyOneAuthenticator — MUT 协议认证适配器
 
 将 PuppyOne 的认证体系映射到 MUT 的 (agent, _scope) 模型:
   - JWT Bearer → user + full project scope (mode=rw)
-  - Access Key → connection + restricted scope (from connections.config)
+  - Access Key → connection + restricted scope (via ScopeManager)
 """
 
 from __future__ import annotations
@@ -38,7 +38,6 @@ class PuppyOneAuthenticator:
                 "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
             }
 
-        # Try JWT first
         user = self._try_jwt(token)
         if user:
             return {
@@ -46,29 +45,35 @@ class PuppyOneAuthenticator:
                 "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
             }
 
-        # Try Access Key (connections table)
         conn = self._try_access_key(token, project_id)
         if conn:
-            cfg = conn.get("config") or {}
-            scope = cfg.get("scope", {})
+            scope = self._resolve_scope(conn, project_id)
             return {
                 "agent": conn["id"],
-                "_scope": {
-                    "id": conn["id"],
-                    "path": scope.get("path", ""),
-                    "exclude": scope.get("exclude", []),
-                    "mode": scope.get("mode", "rw"),
-                },
+                "_scope": scope,
             }
 
         raise HTTPException(status_code=401, detail="Invalid MUT credentials")
 
+    def _resolve_scope(self, conn: dict, project_id: str) -> dict:
+        """Read scope through ScopeManager (SupabaseScopeBackend)."""
+        from src.mut_engine.backends.supabase_scope import SupabaseScopeBackend
+        from mut.server.scope_manager import ScopeManager
+
+        backend = SupabaseScopeBackend(SupabaseClient(), project_id)
+        manager = ScopeManager(backend)
+        scope = manager.get_by_id(conn["id"])
+
+        if scope:
+            scope.setdefault("mode", "rw")
+            return scope
+
+        return {"id": conn["id"], "path": "", "exclude": [], "mode": "rw"}
+
     def _try_jwt(self, token: str) -> Optional[dict]:
         try:
             from src.platform.auth.service import AuthService
-            auth_svc = AuthService(
-                SupabaseClient()
-            )
+            auth_svc = AuthService(SupabaseClient())
             user = auth_svc.get_current_user(token)
             return {"user_id": user.user_id}
         except Exception:
@@ -78,7 +83,7 @@ class PuppyOneAuthenticator:
         try:
             resp = (
                 self._client.table("connections")
-                .select("id, project_id, config, provider")
+                .select("id, project_id, provider")
                 .eq("access_key", key)
                 .maybe_single()
                 .execute()

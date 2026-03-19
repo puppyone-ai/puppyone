@@ -32,10 +32,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
     from src.infra.supabase.client import SupabaseClient
     from src.connectors.agent.service import AgentService
     from src.connectors.agent.config.service import AgentConfigService
-    from src.content.service import ContentNodeService
-    from src.content.repository import ContentNodeRepository
     from src.sandbox.service import SandboxService
-    from src.infra.s3.service import S3Service
     
     started_at = datetime.now(timezone.utc)
     execution_id: Optional[str] = None
@@ -97,9 +94,6 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         supabase_client = SupabaseClient()
         agent_service = AgentService()
         agent_config_service = AgentConfigService()
-        node_repository = ContentNodeRepository(supabase_client)
-        s3_service = S3Service()
-        node_service = ContentNodeService(node_repository, s3_service)
         sandbox_service = SandboxService()
         
         # 4. Execute the agent task using AgentService
@@ -109,9 +103,8 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
             agent_id=agent_id,
             task_content=task_content,
             user_id=user_id,
-            node_service=node_service,
+            tree_reader=None,
             sandbox_service=sandbox_service,
-            s3_service=s3_service,
             agent_config_service=agent_config_service,
         )
         

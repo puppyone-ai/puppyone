@@ -7,7 +7,6 @@ from src.connectors.database.models import DBConnection
 from src.connectors.database.repository import DBConnectionRepository
 from src.connectors.database.providers import get_provider
 from src.connectors.database.providers.base import QueryResult, TableInfo
-from src.content.service import ContentNodeService
 from src.platform.project.service import ProjectService
 from src.exceptions import NotFoundException, ErrorCode
 
@@ -21,17 +20,15 @@ class DBConnectorService:
     职责：
     - 连接管理（CRUD）
     - 列出表 / 预览表数据
-    - 保存整张表为 content_node
+    - 保存整张表为 Mut tree file
     """
 
     def __init__(
         self,
         repo: DBConnectionRepository,
-        node_service: ContentNodeService,
         project_service: ProjectService,
     ):
         self.repo = repo
-        self.node_service = node_service
         self.project_service = project_service
 
     # === 连接管理 ===
@@ -120,7 +117,7 @@ class DBConnectorService:
         table: str,
         limit: int = 1000,
     ) -> dict[str, Any]:
-        """拉取整张表数据并保存为 content_node。"""
+        """拉取整张表数据并保存为 Mut tree file。"""
         conn = self.get_connection(connection_id, user_id)
         provider = get_provider(conn.provider)
 
@@ -136,22 +133,25 @@ class DBConnectorService:
             "row_count": result.row_count,
         }
 
-        from src.mut_engine.schemas import Mutation, MutationType, Operator
-        from src.mut_engine.dependencies import create_collaboration_service
-        collab = create_collaboration_service()
-        commit_result = await collab.commit(Mutation(
-            type=MutationType.NODE_CREATE,
-            operator=Operator(type="db_connector", id=connection_id),
-            project_id=project_id,
-            name=name,
-            content=content_data,
-            node_type="json",
-            created_by=user_id,
-        ))
+        import json
+        from src.mut_engine.dependencies import create_ephemeral_client
+        auth_ctx = {
+            "agent": f"db_connector:{connection_id}",
+            "_scope": {"id": "_db_conn", "path": "", "exclude": [], "mode": "rw"},
+        }
+        client = create_ephemeral_client(project_id, auth_ctx)
+        client.clone()
+        content_bytes = json.dumps(content_data, ensure_ascii=False, indent=2).encode("utf-8")
+        file_path = f"{name}.json" if not name.endswith(".json") else name
+        push_result = client.push(
+            modified={file_path: content_bytes},
+            message=f"Save table '{table}' from DB connector",
+            who=f"db_connector:{connection_id}",
+        )
 
         self.repo.update_last_used(conn.id)
 
         return {
-            "content_node_id": commit_result.node_id,
+            "content_node_id": file_path,
             "row_count": result.row_count,
         }

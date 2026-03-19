@@ -1,8 +1,7 @@
 """
-Mut Core — FastAPI 依赖注入
+Mut Engine — FastAPI 依赖注入
 
-提供 MutWriteService 的 DI 工厂函数，替代 collaboration/dependencies.py 中的
-6 个子服务注入。
+提供 MutWriteService、MutTreeReader、MutEphemeralClient 的 DI 工厂函数。
 """
 
 from __future__ import annotations
@@ -12,12 +11,11 @@ from fastapi import Depends
 from src.infra.s3.service import S3Service
 from src.infra.s3.dependencies import get_s3_service
 from src.infra.supabase.client import SupabaseClient
-from src.content.repository import ContentNodeRepository
-from src.content.dependencies import get_content_node_repository
 
 from src.mut_engine.repo_manager import MutRepoManager
-from src.mut_engine.index_sync import IndexSync
 from src.mut_engine.write_service import MutWriteService
+from src.mut_engine.tree_reader import MutTreeReader
+from src.mut_engine.ephemeral_client import MutEphemeralClient
 
 
 _repo_manager: MutRepoManager | None = None
@@ -37,18 +35,16 @@ def get_repo_manager(
     return _repo_manager
 
 
-def get_index_sync(
-    node_repo: ContentNodeRepository = Depends(get_content_node_repository),
-) -> IndexSync:
-    return IndexSync(node_repo)
-
-
 def get_mut_write_service(
     repo_manager: MutRepoManager = Depends(get_repo_manager),
-    node_repo: ContentNodeRepository = Depends(get_content_node_repository),
-    index_sync: IndexSync = Depends(get_index_sync),
 ) -> MutWriteService:
-    return MutWriteService(repo_manager, node_repo, index_sync)
+    return MutWriteService(repo_manager)
+
+
+def get_tree_reader(
+    repo_manager: MutRepoManager = Depends(get_repo_manager),
+) -> MutTreeReader:
+    return MutTreeReader(repo_manager)
 
 
 def get_repo_manager_standalone() -> MutRepoManager:
@@ -63,7 +59,6 @@ def read_blob_content(project_id: str, content_hash: str | None, node_type: str 
     """Read content from MUT ObjectStore via content_hash.
 
     Returns (json_content, text_content). One of them will be None.
-    Gracefully returns (None, None) on any failure.
     """
     if not content_hash:
         return None, None
@@ -82,59 +77,44 @@ def create_mut_write_service() -> MutWriteService:
     """在非请求上下文中构造 MutWriteService。
 
     用于 Scheduler job、ARQ worker、测试等无法使用 FastAPI Depends 的场景。
-    替代旧的 create_collaboration_service()。
     """
-    supabase = SupabaseClient()
-    s3 = S3Service()
-    node_repo = ContentNodeRepository(supabase)
-
-    repo_manager = MutRepoManager(s3, supabase)
-    index_sync = IndexSync(node_repo)
-
-    return MutWriteService(repo_manager, node_repo, index_sync)
+    repo_manager = get_repo_manager_standalone()
+    return MutWriteService(repo_manager)
 
 
-# ============================================================
-# MutCompatService (CollaborationService) DI
-# ============================================================
-
-from src.content.service import ContentNodeService
-from src.content.dependencies import get_content_node_service
-from src.mut_engine.compat_service import MutCompatService
+def create_tree_reader() -> MutTreeReader:
+    """在非请求上下文中构造 MutTreeReader。"""
+    repo_manager = get_repo_manager_standalone()
+    return MutTreeReader(repo_manager)
 
 
-def get_collaboration_service(
-    node_repo: ContentNodeRepository = Depends(get_content_node_repository),
-    node_service: ContentNodeService = Depends(get_content_node_service),
-    mut_write: MutWriteService = Depends(get_mut_write_service),
-    repo_manager: MutRepoManager = Depends(get_repo_manager),
-) -> MutCompatService:
-    """获取 MutCompatService（Mut 内核 + 旧接口兼容）— FastAPI DI 版"""
-    return MutCompatService(
-        node_repo=node_repo,
-        node_service=node_service,
-        mut_write=mut_write,
-        repo_manager=repo_manager,
-    )
+def create_ephemeral_client(
+    project_id: str,
+    auth_context: dict,
+) -> MutEphemeralClient:
+    """Create a MutEphemeralClient for in-process MUT protocol access.
 
+    Used by Agent, Sandbox, MCP, and Web UI.
 
-def create_collaboration_service() -> MutCompatService:
-    """在非请求上下文中构造 MutCompatService。
-
-    用于 Scheduler job、ARQ worker、测试等无法使用 FastAPI Depends 的场景。
+    Args:
+        project_id: target project
+        auth_context: MUT auth dict with "agent" and "_scope" keys
     """
-    supabase = SupabaseClient()
-    s3 = S3Service()
-    node_repo = ContentNodeRepository(supabase)
-    node_service = ContentNodeService(node_repo, s3)
+    repo_manager = get_repo_manager_standalone()
+    return MutEphemeralClient(repo_manager, project_id, auth_context)
 
-    repo_manager = MutRepoManager(s3, supabase)
-    index_sync = IndexSync(node_repo)
-    mut_write = MutWriteService(repo_manager, node_repo, index_sync)
 
-    return MutCompatService(
-        node_repo=node_repo,
-        node_service=node_service,
-        mut_write=mut_write,
-        repo_manager=repo_manager,
-    )
+def create_user_ephemeral_client(
+    project_id: str,
+    user_id: str,
+) -> MutEphemeralClient:
+    """Create a MutEphemeralClient for a human user (full rw scope).
+
+    Web UI calls use this — user gets root scope with full rw access.
+    """
+    auth_context = {
+        "agent": f"user:{user_id}",
+        "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
+    }
+    return create_ephemeral_client(project_id, auth_context)
+

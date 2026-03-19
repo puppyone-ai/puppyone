@@ -5,11 +5,11 @@ from src.connectors.agent.dependencies import get_agent_service
 from src.sandbox.dependencies import get_sandbox_service
 from src.connectors.agent.chat.dependencies import get_chat_service
 from src.platform.auth.dependencies import get_current_user_optional
-from src.content.dependencies import get_content_node_service
 from src.tool.dependencies import get_tool_service
 from src.infra.s3.dependencies import get_s3_service
 from src.connectors.agent.config.dependencies import get_agent_config_service
 from src.infra.search.dependencies import get_search_service
+from src.mut_engine.dependencies import get_tree_reader
 from fastapi.responses import StreamingResponse
 
 
@@ -34,7 +34,7 @@ async def create_agent_session(
     agent_service=Depends(get_agent_service),
     sandbox_service=Depends(get_sandbox_service),
     chat_service=Depends(get_chat_service),
-    node_service=Depends(get_content_node_service),
+    tree_reader=Depends(get_tree_reader),
     tool_service=Depends(get_tool_service),
     s3_service=Depends(get_s3_service),
     agent_config_service=Depends(get_agent_config_service),
@@ -45,7 +45,7 @@ async def create_agent_session(
             async for event in agent_service.stream_events(
                 request=agent_request,
                 current_user=current_user,
-                node_service=node_service,
+                tree_reader=tree_reader,
                 tool_service=tool_service,
                 sandbox_service=sandbox_service,
                 chat_service=chat_service,

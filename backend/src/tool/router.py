@@ -22,8 +22,6 @@ from src.infra.search.index_task import SearchIndexTaskOut, SearchIndexTaskUpser
 from src.infra.search.index_task_repository import SearchIndexTaskRepository
 from src.infra.search.service import SearchService
 from src.infra.supabase.client import SupabaseClient
-from src.content.dependencies import get_content_node_service
-from src.content.service import ContentNodeService
 from src.tool.dependencies import get_tool_service
 from src.tool.schemas import ToolCreate, ToolOut, ToolUpdate
 from src.tool.service import ToolService

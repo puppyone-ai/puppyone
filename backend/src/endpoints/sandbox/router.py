@@ -16,8 +16,6 @@ from src.endpoints.sandbox.dependencies import (
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
-from src.content.dependencies import get_content_node_service
-from src.content.service import ContentNodeService
 from src.sandbox.dependencies import get_sandbox_service
 from src.sandbox.service import SandboxService
 from src.connectors.agent.sandbox_data import prepare_sandbox_data, SandboxFile
@@ -107,10 +105,8 @@ def _validate_command(command: str, mounts: List[Dict[str, Any]]) -> None:
 
 async def _build_sandbox_files(
     endpoint: Dict[str, Any],
-    node_service: ContentNodeService,
 ) -> List[SandboxFile]:
     files: List[SandboxFile] = []
-    project_id = endpoint["project_id"]
     mounts = endpoint.get("mounts", [])
 
     for mount in mounts:
@@ -119,7 +115,7 @@ async def _build_sandbox_files(
             continue
         mount_path = _normalize_mount_path(mount.get("mount_path", "/workspace"))
         prepared = await prepare_sandbox_data(
-            node_service=node_service,
+            node_service=None,
             node_id=node_id,
             json_path="",
             user_id="sandbox_endpoint",
@@ -275,7 +271,6 @@ async def exec_command(
     x_access_key: str = Header(..., alias="X-Access-Key"),
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
     sandbox_service: SandboxService = Depends(get_sandbox_service),
-    node_service: ContentNodeService = Depends(get_content_node_service),
 ):
     endpoint = service.get_endpoint(endpoint_id)
     if not endpoint:
@@ -291,7 +286,7 @@ async def exec_command(
 
     mounts = endpoint.get("mounts", [])
     _validate_command(command, mounts)
-    files = await _build_sandbox_files(endpoint, node_service)
+    files = await _build_sandbox_files(endpoint)
     if not files:
         raise HTTPException(status_code=400, detail="No mount files resolved for this sandbox endpoint")
 
@@ -300,7 +295,7 @@ async def exec_command(
         session_id=session_id,
         files=files,
         readonly=False,
-        s3_service=getattr(node_service, "s3", None),
+        s3_service=None,
     )
     if not start_res.get("success"):
         raise HTTPException(status_code=500, detail=start_res.get("error", "Failed to start sandbox session"))

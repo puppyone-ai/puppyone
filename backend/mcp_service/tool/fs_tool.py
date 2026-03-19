@@ -1,13 +1,13 @@
 """
-POSIX 风格文件系统工具实现
-无状态设计 — 每次调用完全自包含，通过全路径寻址。
+POSIX-style file system tool implementation (Mut-Native).
+Stateless — all operations addressed by path, resolved server-side.
 
-工具清单:
-  ls    — 列出目录内容
-  cat   — 读取文件内容
-  write — 写入/创建文件
-  mkdir — 创建文件夹
-  rm    — 移入废纸篓（软删除）
+Tools:
+  ls    — list directory
+  cat   — read file content
+  write — write/create file
+  mkdir — create directory
+  rm    — soft delete (move to .trash)
 """
 
 from __future__ import annotations
@@ -18,61 +18,13 @@ from ..rpc.client import InternalApiClient
 
 
 class FsToolImplementation:
-    """无状态 POSIX 风格文件系统工具"""
+    """Stateless POSIX-style file system tools backed by Tree API."""
 
     def __init__(self, rpc_client: InternalApiClient):
         self.rpc = rpc_client
 
     # ------------------------------------------------------------------
-    # 内部辅助
-    # ------------------------------------------------------------------
-
-    def _build_root_accesses(self, accesses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """从 Agent config 的 accesses 中提取路径解析所需的 root_accesses 结构（保留权限字段）"""
-        return [
-            {
-                "node_id": a.get("node_id", ""),
-                "node_name": a.get("node_name", ""),
-                "node_type": a.get("node_type", ""),
-                "bash_readonly": a.get("bash_readonly", True),
-            }
-            for a in accesses
-        ]
-
-    def _is_single_root(self, accesses: List[Dict[str, Any]]) -> bool:
-        """判断是否为单根模式（仅一个 folder access）"""
-        return (
-            len(accesses) == 1
-            and accesses[0].get("node_type") == "folder"
-        )
-
-    def _format_entry(
-        self,
-        child: Dict[str, Any],
-        parent_path: str,
-    ) -> Dict[str, Any]:
-        """格式化单个条目，附带完整路径"""
-        name = child.get("name", "")
-        child_type = child.get("type", "")
-        # folder 名称后缀加 /
-        display_name = f"{name}/" if child_type == "folder" else name
-        child_path = f"{parent_path.rstrip('/')}/{name}" if parent_path != "/" else f"/{name}"
-
-        entry: Dict[str, Any] = {
-            "name": display_name,
-            "path": child_path,
-            "type": child_type,
-        }
-        if child_type == "folder":
-            pass  # 文件夹不需要 size_bytes
-        else:
-            entry["size_bytes"] = child.get("size_bytes", 0)
-        if child.get("updated_at"):
-            entry["updated_at"] = child["updated_at"]
-        return entry
-
-    # ------------------------------------------------------------------
-    # ls — 列出目录内容
+    # ls
     # ------------------------------------------------------------------
 
     async def ls(
@@ -81,49 +33,23 @@ class FsToolImplementation:
         accesses: List[Dict[str, Any]],
         path: str = "/",
     ) -> Dict[str, Any]:
-        """
-        列出目录内容，返回带完整 path 的条目列表。
-        不传 path 或传 "/" 默认列出根目录。
-        """
-        root_accesses = self._build_root_accesses(accesses)
         path = (path or "/").strip() or "/"
+        normalized = path.lstrip("/")
 
-        # 解析路径
-        resolved = await self.rpc.resolve_path(project_id, root_accesses, path)
+        scope = self._extract_scope(accesses)
+        if scope and normalized and not self._path_in_scope(normalized, scope):
+            return {"error": f"Access denied: {path}"}
 
-        if resolved.get("virtual_root"):
-            # 多根模式的虚拟根 — 直接把 accesses 作为条目返回
-            entries = []
-            for a in accesses:
-                name = a.get("node_name", "")
-                node_type = a.get("node_type", "")
-                display_name = f"{name}/" if node_type == "folder" else name
-                entries.append({
-                    "name": display_name,
-                    "path": f"/{name}",
-                    "type": node_type,
-                })
-            return {"path": "/", "entries": entries}
+        result = await self.rpc.list_dir(project_id, normalized)
+        entries = result.get("entries", [])
 
-        node_id = resolved["node_id"]
-        node_type = resolved.get("type", "")
-        display_path = resolved.get("path", path)
+        if scope:
+            entries = [e for e in entries if self._entry_in_scope(e, scope)]
 
-        if node_type != "folder":
-            return {"error": f"Not a directory: {display_path}"}
-
-        result = await self.rpc.list_children(node_id, project_id)
-        children = result.get("children", [])
-
-        entries = [
-            self._format_entry(child, display_path)
-            for child in children
-        ]
-
-        return {"path": display_path, "entries": entries}
+        return {"path": path, "entries": entries}
 
     # ------------------------------------------------------------------
-    # cat — 读取文件内容
+    # cat
     # ------------------------------------------------------------------
 
     async def cat(
@@ -132,27 +58,20 @@ class FsToolImplementation:
         accesses: List[Dict[str, Any]],
         path: str,
     ) -> Dict[str, Any]:
-        """读取文件内容。如果是文件夹则等同 ls。"""
-        root_accesses = self._build_root_accesses(accesses)
-        resolved = await self.rpc.resolve_path(project_id, root_accesses, path)
-
-        if resolved.get("virtual_root"):
+        normalized = path.strip().lstrip("/")
+        if not normalized:
             return await self.ls(project_id, accesses, "/")
 
-        node_id = resolved["node_id"]
-        node_type = resolved.get("type", "")
-        display_path = resolved.get("path", path)
+        scope = self._extract_scope(accesses)
+        if scope and not self._path_in_scope(normalized, scope):
+            return {"error": f"Access denied: {path}"}
 
-        if node_type == "folder":
-            # 文件夹 — 列出内容
-            return await self.ls(project_id, accesses, path)
-
-        content_data = await self.rpc.read_node_content(node_id, project_id)
-        content_data["path"] = display_path
-        return content_data
+        result = await self.rpc.read_file(project_id, normalized)
+        result["path"] = path
+        return result
 
     # ------------------------------------------------------------------
-    # write — 写入/创建文件
+    # write
     # ------------------------------------------------------------------
 
     async def write(
@@ -162,87 +81,32 @@ class FsToolImplementation:
         path: str,
         content: Any,
     ) -> Dict[str, Any]:
-        """
-        写入/创建文件。
-        - 文件已存在: 更新内容
-        - 文件不存在: 创建新文件（按扩展名推断类型）
-        """
-        root_accesses = self._build_root_accesses(accesses)
-
-        # 尝试解析路径 — 如果存在则更新
-        try:
-            resolved = await self.rpc.resolve_path(project_id, root_accesses, path)
-            if not resolved.get("virtual_root"):
-                node_id = resolved["node_id"]
-                display_path = resolved.get("path", path)
-                result = await self.rpc.write_node_content(node_id, project_id, content)
-                result["path"] = display_path
-                return result
-        except RuntimeError:
-            pass  # 路径不存在，继续创建
-
-        # 文件不存在 — 解析父路径并创建
-        path_clean = path.strip().rstrip("/")
-        segments = [s for s in path_clean.strip("/").split("/") if s]
-        if not segments:
+        normalized = path.strip().lstrip("/")
+        if not normalized:
             return {"error": "Path cannot be empty"}
 
-        file_name = segments[-1]
-        parent_segments = segments[:-1]
+        scope = self._extract_scope(accesses)
+        if scope and not self._path_in_scope(normalized, scope):
+            return {"error": f"Access denied: {path}"}
+        if scope and self._is_readonly(accesses):
+            return {"error": f"Read-only access: {path}"}
 
-        # 解析父目录
-        if parent_segments:
-            parent_path = "/" + "/".join(parent_segments)
-            try:
-                parent_resolved = await self.rpc.resolve_path(
-                    project_id, root_accesses, parent_path
-                )
-                if parent_resolved.get("virtual_root"):
-                    return {"error": "Cannot create files at virtual root in multi-root mode"}
-                parent_id = parent_resolved["node_id"]
-            except RuntimeError as e:
-                return {"error": f"Parent directory not found: {str(e)[:200]}"}
-        else:
-            # 根目录下创建
-            if self._is_single_root(accesses):
-                parent_id = accesses[0]["node_id"]
-            else:
-                return {"error": "Cannot create files at virtual root in multi-root mode"}
-
-        # 推断类型
-        node_type = self._infer_type(file_name, content)
-        if node_type is None:
-            return {"error": f"Cannot infer file type for: {file_name}. Use .md or .json extension."}
-
-        result = await self.rpc.create_node(
-            project_id=project_id,
-            parent_id=parent_id,
-            name=file_name,
-            node_type=node_type,
-            content=content,
+        file_type = self._infer_type(normalized, content)
+        content_str = content if isinstance(content, str) else (
+            __import__("json").dumps(content, ensure_ascii=False, indent=2)
         )
-        # 构建显示路径
+
+        result = await self.rpc.write_file(
+            project_id=project_id,
+            path=normalized,
+            content=content_str,
+            file_type=file_type,
+        )
         result["path"] = path
         return result
 
-    @staticmethod
-    def _infer_type(name: str, content: Any) -> Optional[str]:
-        """从文件名和内容推断节点类型"""
-        lower = name.lower()
-        if lower.endswith(".md") or lower.endswith(".markdown"):
-            return "markdown"
-        if lower.endswith(".json"):
-            return "json"
-        # 如果 content 是 dict 或 list，认为是 JSON
-        if isinstance(content, (dict, list)):
-            return "json"
-        # 如果 content 是字符串，默认 markdown
-        if isinstance(content, str):
-            return "markdown"
-        return None
-
     # ------------------------------------------------------------------
-    # mkdir — 创建文件夹
+    # mkdir
     # ------------------------------------------------------------------
 
     async def mkdir(
@@ -251,45 +115,22 @@ class FsToolImplementation:
         accesses: List[Dict[str, Any]],
         path: str,
     ) -> Dict[str, Any]:
-        """创建文件夹"""
-        root_accesses = self._build_root_accesses(accesses)
-
-        path_clean = path.strip().rstrip("/")
-        segments = [s for s in path_clean.strip("/").split("/") if s]
-        if not segments:
+        normalized = path.strip().lstrip("/").rstrip("/")
+        if not normalized:
             return {"error": "Path cannot be empty"}
 
-        folder_name = segments[-1]
-        parent_segments = segments[:-1]
+        scope = self._extract_scope(accesses)
+        if scope and not self._path_in_scope(normalized, scope):
+            return {"error": f"Access denied: {path}"}
+        if scope and self._is_readonly(accesses):
+            return {"error": f"Read-only access: {path}"}
 
-        if parent_segments:
-            parent_path = "/" + "/".join(parent_segments)
-            try:
-                parent_resolved = await self.rpc.resolve_path(
-                    project_id, root_accesses, parent_path
-                )
-                if parent_resolved.get("virtual_root"):
-                    return {"error": "Cannot create folders at virtual root in multi-root mode"}
-                parent_id = parent_resolved["node_id"]
-            except RuntimeError as e:
-                return {"error": f"Parent directory not found: {str(e)[:200]}"}
-        else:
-            if self._is_single_root(accesses):
-                parent_id = accesses[0]["node_id"]
-            else:
-                return {"error": "Cannot create folders at virtual root in multi-root mode"}
-
-        result = await self.rpc.create_node(
-            project_id=project_id,
-            parent_id=parent_id,
-            name=folder_name,
-            node_type="folder",
-        )
+        result = await self.rpc.mkdir(project_id, normalized)
         result["path"] = path
         return result
 
     # ------------------------------------------------------------------
-    # rm — 移入废纸篓
+    # rm
     # ------------------------------------------------------------------
 
     async def rm(
@@ -299,20 +140,75 @@ class FsToolImplementation:
         path: str,
         user_id: str = "system",
     ) -> Dict[str, Any]:
-        """软删除：将节点移入 .trash 文件夹"""
-        root_accesses = self._build_root_accesses(accesses)
-
-        try:
-            resolved = await self.rpc.resolve_path(project_id, root_accesses, path)
-        except RuntimeError as e:
-            return {"error": f"No such file or directory: {str(e)[:200]}"}
-
-        if resolved.get("virtual_root"):
+        normalized = path.strip().lstrip("/")
+        if not normalized:
             return {"error": "Cannot remove the root directory"}
 
-        node_id = resolved["node_id"]
-        display_path = resolved.get("path", path)
+        scope = self._extract_scope(accesses)
+        if scope and not self._path_in_scope(normalized, scope):
+            return {"error": f"Access denied: {path}"}
+        if scope and self._is_readonly(accesses):
+            return {"error": f"Read-only access: {path}"}
 
-        result = await self.rpc.trash_node(node_id, project_id, user_id)
-        result["path"] = display_path
+        result = await self.rpc.trash(project_id, normalized)
+        result["path"] = path
         return result
+
+    # ------------------------------------------------------------------
+    # Scope helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_scope(accesses: List[Dict[str, Any]]) -> Optional[List[str]]:
+        """Extract allowed path prefixes from scope config."""
+        if not accesses:
+            return None
+        paths = []
+        for a in accesses:
+            scope = a.get("scope", {}) if isinstance(a, dict) else {}
+            prefix = scope.get("path_prefix", "")
+            if prefix:
+                paths.append(prefix.strip("/"))
+            elif a.get("node_id"):
+                paths.append(a["node_id"])
+        return paths if paths else None
+
+    @staticmethod
+    def _path_in_scope(path: str, scope_prefixes: List[str]) -> bool:
+        if not scope_prefixes:
+            return True
+        for prefix in scope_prefixes:
+            if path == prefix or path.startswith(prefix + "/"):
+                return True
+        return False
+
+    @staticmethod
+    def _entry_in_scope(entry: Dict[str, Any], scope_prefixes: List[str]) -> bool:
+        entry_path = entry.get("path", "").lstrip("/")
+        if not entry_path:
+            return True
+        for prefix in scope_prefixes:
+            if entry_path == prefix or entry_path.startswith(prefix + "/") or prefix.startswith(entry_path + "/"):
+                return True
+        return False
+
+    @staticmethod
+    def _is_readonly(accesses: List[Dict[str, Any]]) -> bool:
+        for a in accesses:
+            scope = a.get("scope", {}) if isinstance(a, dict) else {}
+            if scope.get("mode") == "rw" or not scope.get("readonly", True):
+                return False
+        return True
+
+    @staticmethod
+    def _infer_type(name: str, content: Any) -> Optional[str]:
+        lower = name.lower()
+        if lower.endswith(".md") or lower.endswith(".markdown"):
+            return "markdown"
+        if lower.endswith(".json"):
+            return "json"
+        if isinstance(content, (dict, list)):
+            return "json"
+        if isinstance(content, str):
+            return "markdown"
+        return None

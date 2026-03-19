@@ -14,8 +14,8 @@ from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.platform.project.dependencies import get_verified_project
 from src.platform.project.models import Project
-from src.content.dependencies import get_content_node_repository
-from src.content.repository import ContentNodeRepository
+from src.mut_engine.dependencies import get_tree_reader
+from src.mut_engine.tree_reader import MutTreeReader
 from src.infra.supabase.client import SupabaseClient
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -86,16 +86,16 @@ class ProjectDashboard(BaseModel):
 )
 def get_project_dashboard(
     project: Project = Depends(get_verified_project),
-    node_repo: ContentNodeRepository = Depends(get_content_node_repository),
+    tree_reader: MutTreeReader = Depends(get_tree_reader),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     project_id = str(project.id)
     sb = SupabaseClient().client
 
-    # 1. Node counts
-    type_counts = node_repo.count_by_project(project_id)
-    folder_count = type_counts.pop("folder", 0)
-    file_count = sum(type_counts.values())
+    # 1. Node counts — from Mut tree
+    all_entries = tree_reader.list_tree(project_id, "", max_depth=-1)
+    folder_count = sum(1 for e in all_entries if e.type == "folder")
+    file_count = sum(1 for e in all_entries if e.type != "folder")
     node_counts = DashboardNodeCounts(
         total=folder_count + file_count,
         folders=folder_count,
@@ -111,18 +111,6 @@ def get_project_dashboard(
         .execute()
     ).data
 
-    # Resolve node names in batch
-    node_ids = [r["node_id"] for r in conn_rows if r.get("node_id")]
-    node_name_map: dict[str, str] = {}
-    if node_ids:
-        node_rows = (
-            sb.table("content_nodes")
-            .select("id, name")
-            .in_("id", list(set(node_ids)))
-            .execute()
-        ).data
-        node_name_map = {r["id"]: r["name"] for r in node_rows}
-
     connections = []
     for r in conn_rows:
         cfg = r.get("config") or {}
@@ -132,7 +120,7 @@ def get_project_dashboard(
             provider=r["provider"],
             name=name,
             node_id=r.get("node_id"),
-            node_name=node_name_map.get(r.get("node_id") or "", None),
+            node_name=None,
             direction=r.get("direction"),
             status=r.get("status", "active"),
             access_key=_mask_key(r.get("access_key")),
@@ -142,7 +130,7 @@ def get_project_dashboard(
             created_at=r.get("created_at"),
         ))
 
-    # 3. Tools + search index status (LEFT JOIN via two queries)
+    # 3. Tools + search index status
     tool_rows = (
         sb.table("tools")
         .select("id, name, type")
@@ -212,7 +200,6 @@ def get_project_dashboard(
 
 
 def _mask_key(key: Optional[str]) -> Optional[str]:
-    """Show prefix + last 4 chars, mask the rest."""
     if not key or len(key) < 8:
         return key
     prefix_end = key.index("_") + 1 if "_" in key else 4

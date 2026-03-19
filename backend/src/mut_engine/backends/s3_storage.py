@@ -25,27 +25,18 @@ _thread_pool = ThreadPoolExecutor(max_workers=4)
 
 
 def _run_async(coro):
-    """在线程池中运行异步协程（安全地从同步上下文调用异步代码）"""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
+    """从同步上下文安全地执行异步协程。
 
-    if loop and loop.is_running():
-        import concurrent.futures
-        future = concurrent.futures.Future()
+    策略：始终在独立线程中用新的 event loop 运行，
+    避免与调用方的 event loop 产生死锁。
+    """
+    import concurrent.futures
 
-        async def _wrapper():
-            try:
-                result = await coro
-                future.set_result(result)
-            except Exception as e:
-                future.set_exception(e)
-
-        loop.create_task(_wrapper())
-        return future.result(timeout=30)
-    else:
+    def _run_in_thread():
         return asyncio.run(coro)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(_run_in_thread).result(timeout=30)
 
 
 class S3StorageBackend(StorageBackend):

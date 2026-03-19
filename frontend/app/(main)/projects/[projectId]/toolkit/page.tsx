@@ -23,7 +23,7 @@ import {
   getSearchIndexStatus,
   SearchIndexTask,
 } from '@/lib/mcpApi';
-import { listNodes, type NodeInfo } from '@/lib/contentNodesApi';
+import { listDir, type NodeInfo } from '@/lib/contentNodesApi';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 
 // ================= Types =================
@@ -357,7 +357,7 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
 
   useEffect(() => {
     setLoading(true);
-    listNodes(projectId, null)
+    listDir(projectId, '')
       .then(res => setNodes(res.nodes))
       .finally(() => setLoading(false));
   }, [projectId]);
@@ -372,7 +372,7 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
     } else {
       setExpandedFolders(prev => new Set([...prev, folderId]));
       if (!childNodes[folderId]) {
-        const res = await listNodes(projectId, folderId);
+        const res = await listDir(projectId, folderId);
         setChildNodes(prev => ({ ...prev, [folderId]: res.nodes }));
       }
     }

@@ -301,15 +301,11 @@ export function registerAgentSubcommands(oc) {
 
           const folderName = absPath.split("/").pop() || "workspace";
           out.step(`Creating folder "${folderName}"...`);
-          const folder = await jwtClient.post("/nodes/folders", {
-            project_id: projectId,
-            name: folderName,
-          });
-          const nodeId = folder.id;
-          out.done(`node ${nodeId.slice(0, 8)}...`);
+          await jwtClient.post(`/tree/${projectId}/mkdir`, { path: folderName });
+          out.done(`${folderName}`);
 
           out.step("Bootstrapping filesystem connection...");
-          const sync = await jwtClient.post(`/filesystem/bootstrap?project_id=${projectId}&node_id=${nodeId}`);
+          const sync = await jwtClient.post(`/filesystem/bootstrap?project_id=${projectId}&path=${encodeURIComponent(folderName)}`);
           accessKey = sync.access_key;
           if (!accessKey) {
             out.done("");

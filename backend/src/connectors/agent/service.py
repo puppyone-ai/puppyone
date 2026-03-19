@@ -33,6 +33,7 @@ from src.connectors.agent.sandbox_data import (
     SandboxFile, SandboxData,
     prepare_sandbox_data, extract_data_by_path, merge_data_by_path,
 )
+from src.mut_engine.tree_reader import MutTreeReader
 from src.platform.analytics.service import log_context_access, log_bash_execution
 import time as time_module  # For latency tracking
 
@@ -116,7 +117,7 @@ class AgentService:
         agent_id: str,
         task_content: str,
         user_id: str,
-        node_service,
+        tree_reader: MutTreeReader | None,
         sandbox_service,
         s3_service=None,
         agent_config_service=None,
@@ -131,7 +132,7 @@ class AgentService:
             agent_id: Agent ID
             task_content: 任务内容（来自 agent.task_content）
             user_id: 用户 ID（agent 的 owner）
-            node_service: ContentNodeService
+            tree_reader: MutTreeReader for reading Mut tree
             sandbox_service: SandboxService
             s3_service: S3Service（可选）
             agent_config_service: AgentConfigService
@@ -167,14 +168,13 @@ class AgentService:
             
             # ========== 2. 收集 bash tools ==========
             bash_tools: list[dict] = []
-            for access in agent.accesses:
-                if access.terminal:
-                    bash_tools.append({
-                        "node_id": access.node_id,
-                        "json_path": (access.json_path or "").strip(),
-                        "readonly": access.terminal_readonly,
-                    })
-                    logger.info(f"[ScheduleAgent] Found bash access: node_id={access.node_id}")
+            for ba in agent.bash_accesses:
+                bash_tools.append({
+                    "node_id": ba.node_id,
+                    "json_path": (ba.json_path or "").strip(),
+                    "readonly": ba.readonly,
+                })
+                logger.info(f"[ScheduleAgent] Found bash access: node_id={ba.node_id}")
             
             use_bash = len(bash_tools) > 0
             sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
@@ -184,7 +184,7 @@ class AgentService:
             sandbox_session_id = None
             node_path_map: dict = {}
             
-            if use_bash and node_service:
+            if use_bash and tree_reader:
                 all_files: list[SandboxFile] = []
                 primary_node_type = "folder"
                 primary_node_id = ""
@@ -193,8 +193,9 @@ class AgentService:
                 for i, tool in enumerate(bash_tools):
                     try:
                         data = await prepare_sandbox_data(
-                            node_service=node_service,
-                            node_id=tool["node_id"],
+                            tree_reader=tree_reader,
+                            project_id=agent.project_id,
+                            path=tool["node_id"],
                             json_path=tool["json_path"],
                             user_id=user_id,
                         )
@@ -408,75 +409,84 @@ class AgentService:
             
             # ========== 7. 回写数据到数据库（Mut Protocol） ==========
             if use_bash and sandbox_service and sandbox_session_id and not sandbox_readonly:
-                if sandbox_data and sandbox_data.node_path_map and node_service:
-                    from src.mut_engine.schemas import Mutation as _SchedMutation, MutationType as _SchedMT, Operator as _SchedOp
-                    _sched_collab = None
-                    try:
-                        from src.mut_engine.dependencies import create_collaboration_service
-                        _sched_collab = create_collaboration_service()
-                    except Exception as e:
-                        logger.warning(f"[ScheduleAgent] CollaborationService init failed: {e}")
+                if sandbox_data and sandbox_data.node_path_map:
+                    from src.mut_engine.dependencies import create_ephemeral_client
+                    agent_identity = f"agent:{agent.id}" if agent else "agent:unknown"
+                    scope_path = ""
+                    for info in sandbox_data.node_path_map.values():
+                        p = info.get("path", "")
+                        if "/" in p:
+                            candidate = p.rsplit("/", 1)[0]
+                            if not scope_path or len(candidate) < len(scope_path):
+                                scope_path = candidate
 
+                    auth_ctx = {
+                        "agent": agent_identity,
+                        "_scope": {"id": "_agent", "path": scope_path, "exclude": [], "mode": "rw"},
+                    }
+                    ephemeral = create_ephemeral_client(agent.project_id, auth_ctx)
+                    ephemeral.clone()
+
+                    modified_files: dict[str, bytes] = {}
                     for node_id, info in sandbox_data.node_path_map.items():
                         if info.get("readonly"):
                             continue
-                        
+
                         node_type = info.get("node_type", "")
                         sandbox_path = info.get("path", "")
                         json_path_config = info.get("json_path", "")
-                        
+
                         if node_type not in ("json", "markdown"):
                             continue
-                        
+
                         try:
                             parse_json = (node_type == "json")
                             read_result = await sandbox_service.read_file(
                                 sandbox_session_id, sandbox_path, parse_json=parse_json
                             )
-                            
+
                             if not read_result.get("success"):
                                 continue
-                            
+
                             sandbox_content = read_result.get("content")
-                            node = node_service.get_by_id_unsafe(node_id)
-                            if not node:
-                                continue
-                            
+
                             if node_type == "json" and json_path_config:
-                                from src.mut_engine.dependencies import read_blob_content
-                                existing_json, _ = read_blob_content(
-                                    node.project_id, node.content_hash, "json"
-                                )
+                                try:
+                                    import json as _json_mod
+                                    existing = ephemeral.read_file(node_id)
+                                    existing_json = _json_mod.loads(existing.decode("utf-8")) if existing else {}
+                                except Exception:
+                                    existing_json = {}
                                 sandbox_content = merge_data_by_path(
                                     existing_json or {}, json_path_config, sandbox_content
                                 )
 
-                            if not _sched_collab:
-                                from src.mut_engine.dependencies import create_collaboration_service
-                                _sched_collab = create_collaboration_service()
+                            if isinstance(sandbox_content, (dict, list)):
+                                content_bytes = json.dumps(sandbox_content, ensure_ascii=False, indent=2).encode("utf-8")
+                            elif isinstance(sandbox_content, str):
+                                content_bytes = sandbox_content.encode("utf-8")
+                            else:
+                                content_bytes = str(sandbox_content).encode("utf-8")
 
-                            mutation = _SchedMutation(
-                                type=_SchedMT.CONTENT_UPDATE,
-                                operator=_SchedOp(
-                                    type="agent",
-                                    id=agent.id if agent else None,
-                                    summary="Schedule Agent write-back",
-                                ),
-                                node_id=node_id,
-                                content=sandbox_content,
-                                node_type=node_type,
-                                base_version=0,
-                            )
-                            await _sched_collab.commit(mutation)
-                            
+                            modified_files[node_id] = content_bytes
                             result["updated_nodes"].append({
                                 "nodeId": node_id,
-                                "nodeName": node.name,
+                                "nodeName": node_id.rsplit("/", 1)[-1] if "/" in node_id else node_id,
                             })
-                            logger.info(f"[ScheduleAgent] Wrote back data to node: {node_id}")
-                            
+
                         except Exception as e:
-                            logger.warning(f"[ScheduleAgent] Failed to write back: {e}")
+                            logger.warning(f"[ScheduleAgent] Failed to read sandbox file: {e}")
+
+                    if modified_files:
+                        try:
+                            ephemeral.push(
+                                modified=modified_files,
+                                message="Schedule Agent write-back",
+                                who=agent_identity,
+                            )
+                            logger.info(f"[ScheduleAgent] Pushed {len(modified_files)} files via MUT protocol")
+                        except Exception as e:
+                            logger.warning(f"[ScheduleAgent] MUT push failed: {e}")
                 
                 # 停止沙盒
                 await sandbox_service.stop(sandbox_session_id)
@@ -497,13 +507,13 @@ class AgentService:
         self,
         request: AgentRequest,
         current_user,
-        node_service,  # ContentNodeService，用于获取 content_nodes 数据
+        tree_reader: MutTreeReader | None,
         tool_service,
         sandbox_service,
         chat_service: Optional[ChatService] = None,
-        s3_service=None,  # S3Service，用于下载文件
-        agent_config_service: Optional[AgentConfigService] = None,  # 新版 agent 配置服务
-        search_service=None,  # SearchService，用于 search tool 执行
+        s3_service=None,
+        agent_config_service: Optional[AgentConfigService] = None,
+        search_service=None,
         max_iterations: int = 15,
     ) -> AsyncGenerator[dict, None]:
         """
@@ -572,7 +582,7 @@ class AgentService:
                         
                         # 获取节点信息以确定搜索类型
                         try:
-                            node = node_service.get_by_id_unsafe(tool_info.node_id)
+                            node = tree_reader.stat(agent_for_tools.project_id, tool_info.node_id) if tree_reader else None
                             if not node:
                                 continue
                         except Exception:
@@ -589,7 +599,7 @@ class AgentService:
                             tool_id=tool_info.id,
                             node_id=tool_info.node_id,
                             json_path=tool_info.json_path or "",
-                            project_id=tool_info.project_id or node.project_id,
+                            project_id=tool_info.project_id or agent_for_tools.project_id,
                             node_type=node.type or "json",
                             name=tool_info.name,
                             description=tool_info.description or f"Search in {tool_info.name}",
@@ -664,23 +674,32 @@ class AgentService:
         use_bash = len(bash_tools) > 0
         sandbox_data: SandboxData | None = None
         sandbox_session_id = None
+        _agent_project_id = ""
         # 如果任意一个 access 不是 readonly，则整个沙盒不是 readonly
         sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
         
-        if use_bash and node_service and current_user:
+        if use_bash and tree_reader and current_user:
             # 收集所有 bash access 的文件
             all_files: list[SandboxFile] = []
             primary_node_type = "folder"  # 默认类型
             primary_node_id = ""
             primary_node_name = ""
             # 追踪每个 node 对应的沙盒路径和类型，用于回写
-            node_path_map: dict = {}  # {node_id: {path, node_type, json_path}}
+            node_path_map: dict = {}  # {path: {path, node_type, json_path}}
+            
+            # Determine project_id from agent config
+            _agent_project_id = ""
+            if request.agent_id and agent_config_service:
+                _agent_obj = agent_config_service.get_agent(request.agent_id)
+                if _agent_obj:
+                    _agent_project_id = _agent_obj.project_id
             
             for i, tool in enumerate(bash_tools):
                 try:
                     data = await prepare_sandbox_data(
-                        node_service=node_service,
-                        node_id=tool["node_id"],
+                        tree_reader=tree_reader,
+                        project_id=_agent_project_id,
+                        path=tool["node_id"],
                         json_path=tool["json_path"],
                         user_id=current_user.user_id,
                     )
@@ -1234,35 +1253,43 @@ class AgentService:
             chat_key = persisted_session_id or f"agent-{request.agent_id}-ephemeral"
             live_session = sandbox_registry.get(chat_key)
             
-            collab_service = None
-            try:
-                from src.mut_engine.dependencies import create_collaboration_service
-                collab_service = create_collaboration_service()
-            except Exception as e:
-                logger.warning(f"[Agent] CollaborationService init failed, falling back to direct write: {e}")
-            
             updated_nodes = []
-            if live_session and live_session.manifest.files and node_service and current_user:
+            if live_session and live_session.manifest.files and current_user:
                 _project_id = ""
-                _parent_node_id = ""
+                _parent_path = ""
                 if sandbox_data:
-                    root_node = node_service.get_by_id_unsafe(sandbox_data.root_node_id)
-                    if root_node:
-                        _project_id = root_node.project_id or ""
-                        _parent_node_id = root_node.id if root_node.type == "folder" else (root_node.parent_id or "")
+                    _project_id = _agent_project_id
+                    root_path = sandbox_data.root_node_id
+                    root_entry = tree_reader.stat(_project_id, root_path) if _project_id and tree_reader else None
+                    if root_entry:
+                        if root_entry.type == "folder":
+                            _parent_path = root_path
+                        else:
+                            _parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
+
+                ephemeral_client = None
+                if _project_id:
+                    from src.mut_engine.dependencies import create_ephemeral_client
+                    auth_context = {
+                        "agent": f"agent:{request.agent_id}",
+                        "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
+                    }
+                    ephemeral_client = create_ephemeral_client(_project_id, auth_context)
+                    import asyncio
+                    await asyncio.to_thread(ephemeral_client.clone)
+
                 operator_info = {
                     "type": "agent",
                     "id": request.agent_id,
                     "session_id": request.session_id,
                     "project_id": _project_id,
-                    "parent_node_id": _parent_node_id,
+                    "parent_path": _parent_path,
                 }
                 updated_nodes = await diff_and_writeback(
                     sandbox_service=sandbox_service,
                     sandbox_session_id=sandbox_session_id,
                     manifest=live_session.manifest,
-                    node_service=node_service,
-                    collab_service=collab_service,
+                    ephemeral_client=ephemeral_client,
                     operator_info=operator_info,
                 )
             

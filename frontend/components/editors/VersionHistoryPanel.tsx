@@ -10,55 +10,234 @@ import {
   type FileVersionInfo,
   type FileVersionDetail,
   type DiffResponse,
+  type MutCommitChange,
 } from '@/lib/contentNodesApi';
 
 interface VersionHistoryPanelProps {
-  nodeId: string;
+  nodeId: string;  // File path (Mut path)
   projectId: string;
   onClose: () => void;
   onRollbackComplete?: () => void;
 }
 
-const OP_LABELS: Record<string, string> = {
-  create: 'Created',
-  update: 'Updated',
-  delete: 'Deleted',
-  rollback: 'Rollback',
-  merge: 'Merged',
-};
-
 const OP_COLORS: Record<string, string> = {
-  create: '#22c55e',
-  update: '#3b82f6',
-  delete: '#ef4444',
-  rollback: '#eab308',
-  merge: '#a855f7',
-};
-
-const OPERATOR_LABELS: Record<string, string> = {
-  user: 'User',
-  agent: 'Agent',
-  system: 'System',
-  sync: 'Sync',
+  added: '#22c55e',
+  modified: '#3b82f6',
+  deleted: '#ef4444',
 };
 
 function formatTime(iso: string | null): string {
-  if (!iso) return '-';
+  if (!iso) return '';
   const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
   });
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function formatFullTime(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+}
+
+function parseOperator(who: string): { type: string; id: string } {
+  if (who.includes(':')) {
+    const [type, ...rest] = who.split(':');
+    return { type, id: rest.join(':') };
+  }
+  return { type: who || 'system', id: '' };
+}
+
+function OperatorBadge({ who }: { who: string }) {
+  const { type, id } = parseOperator(who);
+  const colors: Record<string, { bg: string; text: string }> = {
+    user: { bg: 'rgba(59,130,246,0.15)', text: '#60a5fa' },
+    agent: { bg: 'rgba(168,85,247,0.15)', text: '#c084fc' },
+    sync: { bg: 'rgba(34,197,94,0.15)', text: '#4ade80' },
+    system: { bg: 'rgba(161,161,170,0.15)', text: '#a1a1aa' },
+  };
+  const c = colors[type] || colors.system;
+  const label = type.charAt(0).toUpperCase() + type.slice(1);
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      fontSize: 11, padding: '2px 8px', borderRadius: 4,
+      background: c.bg, color: c.text, fontWeight: 500,
+    }}>
+      {label}
+      {id && <span style={{ opacity: 0.7, fontWeight: 400 }}>{id.slice(0, 8)}</span>}
+    </span>
+  );
+}
+
+function ChangeSummary({ changes }: { changes: MutCommitChange[] }) {
+  const summary = useMemo(() => {
+    const counts = { added: 0, modified: 0, deleted: 0 };
+    for (const c of changes) {
+      if (c.op in counts) counts[c.op as keyof typeof counts]++;
+    }
+    return counts;
+  }, [changes]);
+
+  return (
+    <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
+      {summary.added > 0 && <span style={{ color: OP_COLORS.added }}>+{summary.added}</span>}
+      {summary.modified > 0 && <span style={{ color: OP_COLORS.modified }}>~{summary.modified}</span>}
+      {summary.deleted > 0 && <span style={{ color: OP_COLORS.deleted }}>-{summary.deleted}</span>}
+    </div>
+  );
+}
+
+function CommitRow({
+  commit,
+  isCurrent,
+  onViewDetail,
+  onRollback,
+}: {
+  commit: FileVersionInfo;
+  isCurrent: boolean;
+  onViewDetail: (v: number) => void;
+  onRollback: (v: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div style={{ position: 'relative', paddingLeft: 24 }}>
+      <div style={{
+        position: 'absolute', left: 7, top: 16,
+        width: 8, height: 8, borderRadius: '50%',
+        background: isCurrent ? '#22c55e' : '#27272a',
+        border: `2px solid ${isCurrent ? '#22c55e' : '#3f3f46'}`,
+        zIndex: 1,
+      }} />
+
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          padding: '10px 12px',
+          borderRadius: 6,
+          border: '1px solid rgba(255,255,255,0.06)',
+          background: expanded ? '#111113' : 'transparent',
+          cursor: 'pointer',
+          transition: 'background 0.1s',
+          marginBottom: 2,
+        }}
+        onMouseEnter={e => { if (!expanded) e.currentTarget.style.background = '#0d0d0f'; }}
+        onMouseLeave={e => { if (!expanded) e.currentTarget.style.background = 'transparent'; }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <span style={{
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              fontSize: 11, fontWeight: 600,
+              color: isCurrent ? '#22c55e' : '#e4e4e7',
+              flexShrink: 0,
+            }}>
+              v{commit.version}
+            </span>
+            {isCurrent && (
+              <span style={{
+                fontSize: 9, padding: '1px 5px', borderRadius: 3,
+                background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 500,
+              }}>
+                HEAD
+              </span>
+            )}
+            <span style={{
+              fontSize: 12, color: '#d4d4d8',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {commit.message || '(no message)'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <ChangeSummary changes={commit.changes} />
+            <span style={{ fontSize: 10, color: '#52525b', whiteSpace: 'nowrap' }} title={formatFullTime(commit.created_at)}>
+              {formatTime(commit.created_at)}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <OperatorBadge who={commit.who} />
+          {commit.root_hash && (
+            <span style={{
+              fontSize: 10, color: '#3f3f46', marginLeft: 'auto',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            }}>
+              {commit.root_hash.slice(0, 10)}
+            </span>
+          )}
+        </div>
+
+        {expanded && commit.changes.length > 0 && (
+          <div style={{
+            marginTop: 10, paddingTop: 10,
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+          }}>
+            <div style={{ fontSize: 10, color: '#71717a', marginBottom: 6 }}>
+              {commit.changes.length} file{commit.changes.length !== 1 ? 's' : ''} changed
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {commit.changes.map((change, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '3px 6px', borderRadius: 4, fontSize: 11,
+                }}>
+                  <span style={{
+                    width: 6, height: 6, borderRadius: 2,
+                    background: OP_COLORS[change.op] || '#71717a',
+                    flexShrink: 0,
+                  }} />
+                  <span style={{
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                    color: '#a1a1aa',
+                  }}>
+                    {change.path}
+                  </span>
+                  <span style={{
+                    fontSize: 9, color: OP_COLORS[change.op] || '#71717a',
+                    marginLeft: 'auto', flexShrink: 0,
+                  }}>
+                    {change.op}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+              {!isCurrent && (
+                <button
+                  onClick={() => onRollback(commit.version)}
+                  style={{
+                    fontSize: 10, padding: '3px 10px', borderRadius: 4,
+                    border: '1px solid rgba(234,179,8,0.3)',
+                    background: 'rgba(234,179,8,0.1)',
+                    color: '#eab308', cursor: 'pointer',
+                  }}
+                >
+                  Rollback to v{commit.version}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function VersionHistoryPanel({
@@ -67,11 +246,8 @@ export function VersionHistoryPanel({
   onClose,
   onRollbackComplete,
 }: VersionHistoryPanelProps) {
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
-  const [diffTarget, setDiffTarget] = useState<{ v1: number; v2: number } | null>(null);
   const [rollbackConfirm, setRollbackConfirm] = useState<number | null>(null);
   const [isRollingBack, setIsRollingBack] = useState(false);
-  const [view, setView] = useState<'list' | 'detail' | 'diff'>('list');
 
   const { data: history, error: historyError, mutate: refreshHistory } = useSWR(
     nodeId ? ['version-history', nodeId, projectId] : null,
@@ -79,34 +255,11 @@ export function VersionHistoryPanel({
     { revalidateOnFocus: false },
   );
 
-  const { data: versionDetail } = useSWR(
-    selectedVersion !== null ? ['version-detail', nodeId, selectedVersion, projectId] : null,
-    () => getVersionContent(nodeId, selectedVersion!, projectId),
-    { revalidateOnFocus: false },
-  );
-
-  const { data: diffResult } = useSWR(
-    diffTarget ? ['version-diff', nodeId, diffTarget.v1, diffTarget.v2, projectId] : null,
-    () => diffVersions(nodeId, diffTarget!.v1, diffTarget!.v2, projectId),
-    { revalidateOnFocus: false },
-  );
-
-  const handleViewDetail = useCallback((version: number) => {
-    setSelectedVersion(version);
-    setView('detail');
-  }, []);
-
-  const handleDiff = useCallback((v1: number, v2: number) => {
-    setDiffTarget({ v1, v2 });
-    setView('diff');
-  }, []);
-
   const handleRollback = useCallback(async (version: number) => {
     setIsRollingBack(true);
     try {
       await rollbackToVersion(nodeId, version, projectId);
       setRollbackConfirm(null);
-      setView('list');
       await refreshHistory();
       onRollbackComplete?.();
     } catch (err) {
@@ -116,8 +269,10 @@ export function VersionHistoryPanel({
     }
   }, [nodeId, projectId, refreshHistory, onRollbackComplete]);
 
-  const versions = history?.versions ?? [];
+  const commits = history?.commits ?? [];
   const currentVersion = history?.current_version ?? 0;
+
+  const fileName = nodeId.includes('/') ? nodeId.split('/').pop() : nodeId;
 
   return (
     <div style={{
@@ -136,38 +291,23 @@ export function VersionHistoryPanel({
         borderBottom: '1px solid #27272a',
         flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {view !== 'list' && (
-            <button
-              onClick={() => { setView('list'); setSelectedVersion(null); setDiffTarget(null); }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#71717a',
-                cursor: 'pointer',
-                padding: 2,
-                display: 'flex',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </button>
-          )}
-          <span style={{ fontSize: 13, fontWeight: 500 }}>
-            {view === 'list' && 'Version History'}
-            {view === 'detail' && `Version ${selectedVersion}`}
-            {view === 'diff' && `Diff v${diffTarget?.v1} vs v${diffTarget?.v2}`}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          <span style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {fileName}
           </span>
           {history && (
-            <span style={{ fontSize: 11, color: '#52525b' }}>
-              ({history.total} versions)
+            <span style={{ fontSize: 11, color: '#52525b', flexShrink: 0 }}>
+              {history.total} commit{history.total !== 1 ? 's' : ''}
             </span>
           )}
         </div>
         <button
           onClick={onClose}
-          style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: 2 }}
+          style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: 2, flexShrink: 0 }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -176,7 +316,7 @@ export function VersionHistoryPanel({
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
         {historyError && (
           <div style={{ padding: 24, textAlign: 'center', color: '#ef4444', fontSize: 13 }}>
             Failed to load version history
@@ -189,79 +329,65 @@ export function VersionHistoryPanel({
           </div>
         )}
 
-        {/* List View */}
-        {view === 'list' && versions.length > 0 && (
-          <div>
-            {versions.map((v, idx) => (
-              <VersionRow
-                key={v.id}
-                version={v}
-                isCurrent={v.version === currentVersion}
-                prevVersion={idx < versions.length - 1 ? versions[idx + 1].version : null}
-                onViewDetail={handleViewDetail}
-                onDiff={handleDiff}
+        {commits.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            <div style={{
+              position: 'absolute', left: 10, top: 20, bottom: 20,
+              width: 2, background: '#1f1f23',
+            }} />
+            {commits.map((commit) => (
+              <CommitRow
+                key={commit.version}
+                commit={commit}
+                isCurrent={commit.version === currentVersion}
+                onViewDetail={() => {}}
                 onRollback={(ver) => setRollbackConfirm(ver)}
               />
             ))}
           </div>
         )}
 
-        {view === 'list' && versions.length === 0 && history && (
-          <div style={{ padding: 40, textAlign: 'center', color: '#3f3f46', fontSize: 13 }}>
-            No version history available
+        {commits.length === 0 && history && (
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            height: 200, gap: 8, color: '#3f3f46',
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span style={{ fontSize: 13 }}>No commits for this file</span>
           </div>
-        )}
-
-        {/* Detail View */}
-        {view === 'detail' && versionDetail && (
-          <VersionDetailView detail={versionDetail} />
-        )}
-
-        {/* Diff View */}
-        {view === 'diff' && diffResult && (
-          <DiffView diff={diffResult} />
         )}
       </div>
 
-      {/* Rollback Confirmation Dialog */}
+      {/* Rollback Confirmation */}
       {rollbackConfirm !== null && (
         <div style={{
-          position: 'absolute',
-          inset: 0,
+          position: 'absolute', inset: 0,
           background: 'rgba(0,0,0,0.6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 100,
-          backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 100, backdropFilter: 'blur(4px)',
         }}>
           <div style={{
-            background: '#18181b',
-            border: '1px solid #27272a',
-            borderRadius: 10,
-            padding: 24,
-            maxWidth: 400,
-            width: '90%',
+            background: '#18181b', border: '1px solid #27272a',
+            borderRadius: 10, padding: 24, maxWidth: 400, width: '90%',
           }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 500, color: '#e4e4e7' }}>
               Confirm Rollback
             </h3>
             <p style={{ margin: '0 0 20px', fontSize: 13, color: '#a1a1aa', lineHeight: 1.5 }}>
               This will create a new version with the content from <strong>v{rollbackConfirm}</strong>.
-              The current version will be preserved in history. This action cannot be undone.
+              The current version will be preserved in history.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setRollbackConfirm(null)}
                 disabled={isRollingBack}
                 style={{
-                  padding: '6px 16px',
-                  borderRadius: 6,
-                  border: '1px solid #27272a',
-                  background: 'transparent',
-                  color: '#a1a1aa',
-                  fontSize: 13,
-                  cursor: 'pointer',
+                  padding: '6px 16px', borderRadius: 6,
+                  border: '1px solid #27272a', background: 'transparent',
+                  color: '#a1a1aa', fontSize: 13, cursor: 'pointer',
                 }}
               >
                 Cancel
@@ -270,14 +396,9 @@ export function VersionHistoryPanel({
                 onClick={() => handleRollback(rollbackConfirm)}
                 disabled={isRollingBack}
                 style={{
-                  padding: '6px 16px',
-                  borderRadius: 6,
-                  border: 'none',
-                  background: '#eab308',
-                  color: '#000',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: isRollingBack ? 'not-allowed' : 'pointer',
+                  padding: '6px 16px', borderRadius: 6, border: 'none',
+                  background: '#eab308', color: '#000', fontSize: 13,
+                  fontWeight: 500, cursor: isRollingBack ? 'not-allowed' : 'pointer',
                   opacity: isRollingBack ? 0.6 : 1,
                 }}
               >
@@ -287,256 +408,6 @@ export function VersionHistoryPanel({
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// === Sub-components ===
-
-function VersionRow({
-  version,
-  isCurrent,
-  prevVersion,
-  onViewDetail,
-  onDiff,
-  onRollback,
-}: {
-  version: FileVersionInfo;
-  isCurrent: boolean;
-  prevVersion: number | null;
-  onViewDetail: (v: number) => void;
-  onDiff: (v1: number, v2: number) => void;
-  onRollback: (v: number) => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const opColor = OP_COLORS[version.operation] || '#71717a';
-  const opLabel = OP_LABELS[version.operation] || version.operation;
-
-  return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        padding: '10px 16px',
-        borderBottom: '1px solid #1a1a1a',
-        background: hovered ? '#111113' : 'transparent',
-        cursor: 'pointer',
-        transition: 'background 0.1s',
-      }}
-      onClick={() => onViewDetail(version.version)}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            fontSize: 12,
-            fontWeight: 600,
-            fontFamily: 'monospace',
-            color: isCurrent ? '#22c55e' : '#e4e4e7',
-          }}>
-            v{version.version}
-          </span>
-          {isCurrent && (
-            <span style={{
-              fontSize: 10,
-              padding: '1px 6px',
-              borderRadius: 3,
-              background: 'rgba(34,197,94,0.15)',
-              color: '#22c55e',
-              fontWeight: 500,
-            }}>
-              current
-            </span>
-          )}
-          <span style={{
-            fontSize: 10,
-            padding: '1px 6px',
-            borderRadius: 3,
-            background: `${opColor}15`,
-            color: opColor,
-            fontWeight: 500,
-          }}>
-            {opLabel}
-          </span>
-        </div>
-        <span style={{ fontSize: 11, color: '#52525b' }}>
-          {formatTime(version.created_at)}
-        </span>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 11, color: '#71717a' }}>
-          {OPERATOR_LABELS[version.operator_type] || version.operator_type}
-          {version.operator_id && <span style={{ color: '#52525b' }}> ({version.operator_id})</span>}
-          {version.summary && <span style={{ color: '#52525b', marginLeft: 8 }}>{version.summary}</span>}
-        </div>
-
-        {hovered && (
-          <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
-            {prevVersion !== null && (
-              <button
-                onClick={() => onDiff(prevVersion, version.version)}
-                style={{
-                  fontSize: 10,
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  border: '1px solid #27272a',
-                  background: '#18181b',
-                  color: '#a1a1aa',
-                  cursor: 'pointer',
-                }}
-              >
-                Diff
-              </button>
-            )}
-            {!isCurrent && (
-              <button
-                onClick={() => onRollback(version.version)}
-                style={{
-                  fontSize: 10,
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  border: '1px solid rgba(234,179,8,0.3)',
-                  background: 'rgba(234,179,8,0.1)',
-                  color: '#eab308',
-                  cursor: 'pointer',
-                }}
-              >
-                Rollback
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div style={{ fontSize: 10, color: '#3f3f46', marginTop: 2 }}>
-        {formatBytes(version.size_bytes)}
-        {version.merge_strategy && (
-          <span style={{ marginLeft: 8 }}>Strategy: {version.merge_strategy}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function VersionDetailView({ detail }: { detail: FileVersionDetail }) {
-  const content = detail.content_json
-    ? JSON.stringify(detail.content_json, null, 2)
-    : detail.content_text || '(no content)';
-
-  return (
-    <div style={{ padding: 16 }}>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: 12,
-        marginBottom: 16,
-      }}>
-        <InfoBlock label="Version" value={`v${detail.version}`} />
-        <InfoBlock label="Operation" value={OP_LABELS[detail.operation] || detail.operation} />
-        <InfoBlock label="Operator" value={`${OPERATOR_LABELS[detail.operator_type] || detail.operator_type}${detail.operator_id ? ` (${detail.operator_id})` : ''}`} />
-        <InfoBlock label="Size" value={formatBytes(detail.size_bytes)} />
-        <InfoBlock label="Time" value={formatTime(detail.created_at)} />
-        <InfoBlock label="Hash" value={detail.content_hash?.substring(0, 12) + '...'} />
-      </div>
-      {detail.summary && (
-        <div style={{ marginBottom: 12, fontSize: 12, color: '#a1a1aa', fontStyle: 'italic' }}>
-          {detail.summary}
-        </div>
-      )}
-      <div style={{
-        background: '#09090b',
-        border: '1px solid #27272a',
-        borderRadius: 6,
-        padding: 12,
-        maxHeight: 400,
-        overflow: 'auto',
-      }}>
-        <pre style={{
-          margin: 0,
-          fontSize: 11,
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-          color: '#a1a1aa',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all',
-        }}>
-          {content}
-        </pre>
-      </div>
-    </div>
-  );
-}
-
-function DiffView({ diff }: { diff: DiffResponse }) {
-  if (diff.changes.length === 0) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: '#3f3f46', fontSize: 13 }}>
-        No differences found
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 12, color: '#71717a', marginBottom: 12 }}>
-        {diff.changes.length} change{diff.changes.length !== 1 ? 's' : ''} between v{diff.v1} and v{diff.v2}
-      </div>
-      {diff.changes.map((change, idx) => {
-        const color = change.change_type === 'added' ? '#22c55e'
-          : change.change_type === 'removed' ? '#ef4444'
-          : '#3b82f6';
-        return (
-          <div key={idx} style={{
-            marginBottom: 8,
-            borderRadius: 6,
-            border: '1px solid #27272a',
-            overflow: 'hidden',
-          }}>
-            <div style={{
-              padding: '6px 12px',
-              background: '#18181b',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: 12,
-            }}>
-              <span style={{
-                fontSize: 10,
-                padding: '1px 6px',
-                borderRadius: 3,
-                background: `${color}15`,
-                color,
-                fontWeight: 500,
-              }}>
-                {change.change_type}
-              </span>
-              <span style={{ fontFamily: 'monospace', color: '#a1a1aa' }}>{change.path}</span>
-            </div>
-            <div style={{ padding: '8px 12px', fontSize: 11, fontFamily: 'monospace' }}>
-              {change.old_value !== null && change.old_value !== undefined && (
-                <div style={{ color: '#ef4444', marginBottom: 4 }}>
-                  - {typeof change.old_value === 'string' ? change.old_value : JSON.stringify(change.old_value)}
-                </div>
-              )}
-              {change.new_value !== null && change.new_value !== undefined && (
-                <div style={{ color: '#22c55e' }}>
-                  + {typeof change.new_value === 'string' ? change.new_value : JSON.stringify(change.new_value)}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function InfoBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div style={{ fontSize: 10, color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 12, color: '#e4e4e7' }}>{value}</div>
     </div>
   );
 }

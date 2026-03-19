@@ -35,7 +35,7 @@ def _node(
         parent_id=parent_id,
         name=name,
         type=node_type,
-        id_path=f"/{node_id}" if parent_id is None else f"/{parent_id}/{node_id}",
+        mut_path=name if parent_id is None else f"{parent_id}/{name}",
         s3_key=s3_key,
         mime_type="text/plain" if s3_key else None,
         size_bytes=12,

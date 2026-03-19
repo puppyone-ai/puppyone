@@ -59,24 +59,20 @@ def _get_client():
 
 
 def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
-    """Resolve node names and extract config.name for display."""
-    node_ids = list({r["node_id"] for r in rows if r.get("node_id")})
-    node_map: dict[str, str] = {}
-    if node_ids:
-        nr = sb_client.table("content_nodes").select("id, name").in_("id", node_ids).execute()
-        node_map = {r["id"]: r["name"] for r in nr.data}
-
+    """Resolve node names from paths and extract config.name for display."""
     out: list[ConnectionOut] = []
     for r in rows:
         cfg = r.get("config") or {}
         name = cfg.get("name") or cfg.get("sync_url") or r.get("provider", "")
+        node_id = r.get("node_id") or ""
+        node_name = node_id.rsplit("/", 1)[-1] if node_id else None
         out.append(ConnectionOut(
             id=r["id"],
             project_id=r["project_id"],
             provider=r["provider"],
             name=name,
-            node_id=r.get("node_id"),
-            node_name=node_map.get(r.get("node_id") or ""),
+            node_id=node_id or None,
+            node_name=node_name,
             direction=r.get("direction"),
             status=r.get("status", "active"),
             access_key=r.get("access_key"),
@@ -402,13 +398,20 @@ async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> 
 def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     from src.connectors.agent.config.repository import AgentRepository
     from src.connectors.agent.config.service import AgentConfigService
-    from src.connectors.agent.config.schemas import AgentAccessCreate
+    from src.connectors.agent.config.schemas import AgentBashCreate
 
     service = AgentConfigService(repository=AgentRepository())
 
-    accesses = []
+    bash_accesses = []
     if payload.accesses:
-        accesses = [AgentAccessCreate(**a) for a in payload.accesses]
+        bash_accesses = [
+            AgentBashCreate(
+                node_id=a["node_id"],
+                json_path=a.get("json_path", ""),
+                readonly=a.get("readonly", a.get("terminal_readonly", True)),
+            )
+            for a in payload.accesses
+        ]
 
     cfg = payload.config
     agent = service.create_agent(
@@ -417,7 +420,7 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         icon=cfg.get("icon", "✨"),
         type=cfg.get("type", "chat"),
         description=cfg.get("description"),
-        accesses=accesses,
+        bash_accesses=bash_accesses,
         trigger_type=cfg.get("trigger_type", "manual"),
         trigger_config=cfg.get("trigger_config"),
         task_content=cfg.get("task_content"),

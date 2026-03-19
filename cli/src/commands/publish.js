@@ -1,6 +1,6 @@
 import { createClient } from "../api.js";
 import { createOutput } from "../output.js";
-import { withErrors, requireProject, formatDate } from "../helpers.js";
+import { withErrors, requireProject, normalizePath, formatDate } from "../helpers.js";
 
 export function registerPublish(program) {
   const pub = program
@@ -23,13 +23,13 @@ export function registerPublish(program) {
         publishes.map((p) => ({
           id: (p.id ?? "").slice(0, 8),
           key: p.publish_key ?? p.key ?? "-",
-          node: p.node_name ?? p.node_id?.slice(0, 8) ?? "-",
+          path: p.path ?? p.node_id ?? "-",
           updated: formatDate(p.updated_at),
         })),
         [
           { key: "id", label: "ID" },
           { key: "key", label: "KEY" },
-          { key: "node", label: "NODE" },
+          { key: "path", label: "PATH" },
           { key: "updated", label: "UPDATED" },
         ]
       );
@@ -40,14 +40,15 @@ export function registerPublish(program) {
   pub
     .command("create")
     .description("Create a published endpoint")
-    .argument("<node-id>", "content node ID to publish")
+    .argument("<path>", "file path to publish")
     .option("--key <key>", "custom publish key (slug)")
-    .action(withErrors(async (nodeId, opts, cmd) => {
+    .action(withErrors(async (pathArg, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const body = { node_id: nodeId, project_id: projectId };
+      const path = normalizePath(pathArg);
+      const body = { path, project_id: projectId };
       if (opts.key) body.publish_key = opts.key;
 
       const created = await client.post("/publishes", body);

@@ -5,11 +5,9 @@ Imports Google Docs documents into content nodes as Markdown.
 """
 
 import hashlib
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
-
-from src.content.service import ContentNodeService
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -61,9 +59,9 @@ class GoogleDocsConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
         docs_service: GoogleDocsOAuthService,
         s3_service: S3Service,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.docs_service = docs_service
@@ -221,9 +219,9 @@ def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
     oauth_svc = GoogleDocsOAuthService()
     return ConnectorSetup(
         connector=GoogleDocsConnector(
-            node_service=deps.node_service,
             docs_service=oauth_svc,
             s3_service=deps.s3_service,
+            node_service=deps.node_service,
         ),
         oauth_bindings={"docs": oauth_svc},
     )

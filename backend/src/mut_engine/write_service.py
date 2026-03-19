@@ -1,23 +1,23 @@
 """
 MutWriteService — PuppyOne 的唯一内容写入入口
 
-替代 CollaborationService。所有内容变更通过 Mut 操作:
+所有内容变更通过 Mut 操作:
   1. 内容 → ObjectStore (S3, content-addressable)
   2. 树更新 → Merkle tree (graft)
   3. 版本记录 → SupabaseHistoryManager
   4. 审计日志 → SupabaseAuditManager
-  5. Index 同步 → content_nodes 表
+  5. 一致性维护 → post-commit hook (connections node_id + scope path)
 
 设计原则：
-  - Mut 是 source of truth（内容 + 树结构）
-  - content_nodes 是 read index（从 Mut 同步）
-  - commit 永远成功（三方合并 + LWW 兜底）
+  - Mut tree 是唯一 SOT（内容 + 树结构）
+  - connections.node_id 和 scope.path 通过 post-commit 保持一致
 """
 
 from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Optional, Any
 
 from mut.core.object_store import ObjectStore
@@ -26,9 +26,7 @@ from mut.core.merge import three_way_merge, ConflictResolver
 from mut.core.diff import diff_trees
 from mut.server.graft import graft_subtree
 
-from src.content.repository import ContentNodeRepository
 from src.mut_engine.repo_manager import MutRepoManager, ProjectRepo
-from src.mut_engine.index_sync import IndexSync
 from src.mut_engine.schemas import WriteResult, DeleteResult, MoveResult
 from src.utils.logger import log_info, log_error, log_warning
 
@@ -36,15 +34,151 @@ from src.utils.logger import log_info, log_error, log_warning
 class MutWriteService:
     """PuppyOne 的唯一写入入口。所有内容变更通过 Mut 操作。"""
 
-    def __init__(
-        self,
-        repo_manager: MutRepoManager,
-        node_repo: ContentNodeRepository,
-        index_sync: IndexSync,
-    ):
+    def __init__(self, repo_manager: MutRepoManager):
         self._repos = repo_manager
-        self._node_repo = node_repo
-        self._index_sync = index_sync
+
+    def _get_supabase_client(self):
+        from src.infra.supabase.client import SupabaseClient
+        return SupabaseClient()
+
+    # ================================================================
+    # Post-commit hook: 维护 connections 表一致性
+    # ================================================================
+
+    def _post_commit_delete(self, project_id: str, deleted_paths: list[str]) -> None:
+        """After deleting paths from MUT tree, clean up dangling connections.
+
+        Nullifies node_id on connections that referenced deleted paths.
+        Also updates scope.path if it falls under a deleted subtree.
+        """
+        if not deleted_paths:
+            return
+        try:
+            client = self._get_supabase_client().client
+            resp = (
+                client.table("connections")
+                .select("id, node_id, config")
+                .eq("project_id", project_id)
+                .execute()
+            )
+            for row in resp.data or []:
+                node_id = row.get("node_id") or ""
+                conn_id = row["id"]
+
+                if node_id and self._path_matches_any(node_id, deleted_paths):
+                    client.table("connections").update(
+                        {"node_id": None}
+                    ).eq("id", conn_id).execute()
+                    log_info(f"[PostCommit] Cleared dangling node_id on connection {conn_id}")
+
+                config = row.get("config") or {}
+                scope = config.get("scope") or {}
+                scope_path = scope.get("path", "")
+                if scope_path and self._path_matches_any(scope_path, deleted_paths):
+                    config = dict(config)
+                    config["scope"] = {**scope, "path": "", "_orphaned_from": scope_path}
+                    client.table("connections").update(
+                        {"config": config}
+                    ).eq("id", conn_id).execute()
+                    log_warning(f"[PostCommit] Orphaned scope path on connection {conn_id}")
+
+        except Exception as e:
+            log_error(f"[PostCommit] delete hook failed: {e}")
+
+    def _post_commit_move(self, project_id: str, old_prefix: str, new_prefix: str) -> None:
+        """After moving/renaming paths in MUT tree, update connections references."""
+        try:
+            client = self._get_supabase_client().client
+            resp = (
+                client.table("connections")
+                .select("id, node_id, config")
+                .eq("project_id", project_id)
+                .execute()
+            )
+            for row in resp.data or []:
+                node_id = row.get("node_id") or ""
+                conn_id = row["id"]
+                updates: dict = {}
+
+                if node_id:
+                    new_node_id = self._rewrite_path(node_id, old_prefix, new_prefix)
+                    if new_node_id != node_id:
+                        updates["node_id"] = new_node_id
+
+                config = row.get("config") or {}
+                scope = config.get("scope") or {}
+                scope_path = scope.get("path", "")
+                if scope_path:
+                    new_scope_path = self._rewrite_path(scope_path, old_prefix, new_prefix)
+                    if new_scope_path != scope_path:
+                        config = dict(config)
+                        config["scope"] = {**scope, "path": new_scope_path}
+                        updates["config"] = config
+
+                if updates:
+                    client.table("connections").update(updates).eq("id", conn_id).execute()
+                    log_info(f"[PostCommit] Updated connection {conn_id} after move")
+
+        except Exception as e:
+            log_error(f"[PostCommit] move hook failed: {e}")
+
+    @staticmethod
+    def _path_matches_any(path: str, deleted_paths: list[str]) -> bool:
+        """Check if path equals or is a child of any deleted path."""
+        normalized = path.strip("/")
+        for dp in deleted_paths:
+            dp_norm = dp.strip("/")
+            if normalized == dp_norm or normalized.startswith(dp_norm + "/"):
+                return True
+        return False
+
+    @staticmethod
+    def _rewrite_path(path: str, old_prefix: str, new_prefix: str) -> str:
+        """Replace old_prefix with new_prefix in path."""
+        old_norm = old_prefix.rstrip("/")
+        new_norm = new_prefix.rstrip("/")
+        if path == old_norm:
+            return new_norm
+        if path.startswith(old_norm + "/"):
+            return new_norm + path[len(old_norm):]
+        return path
+
+    # ================================================================
+    # 初始化
+    # ================================================================
+
+    async def init_tree(self, project_id: str) -> str:
+        """为项目初始化一个空的 Mut tree。
+
+        如果项目已有 root_hash 且 blob 存在于 S3，则不操作（幂等）。
+        返回 root_hash。
+        """
+        repo = self._repos.get_repo(project_id)
+        existing = repo.history.get_root_hash()
+        backend = repo.store._backend
+
+        if existing and hasattr(backend, 'async_exists'):
+            if await backend.async_exists(existing):
+                return existing
+            log_warning(f"[MutWrite] root_hash {existing} set in PG but missing in S3, re-uploading")
+
+        empty_tree = json.dumps({}, sort_keys=True).encode()
+
+        from mut.core.object_store import hash_bytes
+        root_hash = hash_bytes(empty_tree)
+
+        if hasattr(backend, 'async_put'):
+            await backend.async_put(root_hash, empty_tree)
+        else:
+            import asyncio
+            await asyncio.to_thread(repo.store.put, empty_tree)
+
+        repo.history.set_root_hash(root_hash)
+        if not existing:
+            repo.history.set_latest_version(0)
+
+        log_info(f"[MutWrite] Initialized empty tree for project {project_id}")
+        return root_hash
 
     # ================================================================
     # 写入操作
@@ -59,19 +193,7 @@ class MutWriteService:
         message: str = "",
         base_version: int = 0,
     ) -> WriteResult:
-        """创建或更新文件 — 核心写操作。
-
-        Args:
-            project_id: 项目 ID
-            path: Mut 树中的文件路径（如 "docs/notes.md"）
-            content: 文件内容（bytes）
-            operator: 操作者标识（如 "user:uuid", "agent:uuid", "sync:gmail"）
-            message: commit message
-            base_version: 客户端基于的版本号（用于冲突检测，0 = 不检测）
-
-        Returns:
-            WriteResult
-        """
+        """创建或更新文件 — 核心写操作。"""
         repo = self._repos.get_repo(project_id)
 
         blob_hash = repo.store.put(content)
@@ -113,9 +235,7 @@ class MutWriteService:
             existing = _resolve_path_hash(repo.store, current_root, path)
             if existing:
                 if existing == final_hash:
-                    node = self._node_repo.get_by_mut_path(project_id, path)
                     return WriteResult(
-                        node_id=node.id if node else "",
                         version=current_version,
                         content_hash=final_hash,
                         root_hash=current_root,
@@ -143,17 +263,9 @@ class MutWriteService:
 
         repo.audit.record("write", operator, {"path": path, "op": op, "version": new_version})
 
-        await self._index_sync.sync_changeset(
-            project_id, repo.store, changes, new_root, new_version, operator
-        )
-
-        node = self._node_repo.get_by_mut_path(project_id, path)
-        node_id = node.id if node else ""
-
         log_info(f"[MutWrite] v{new_version}: {op} {path} (project={project_id})")
 
         return WriteResult(
-            node_id=node_id,
             version=new_version,
             content_hash=final_hash,
             root_hash=new_root,
@@ -169,13 +281,10 @@ class MutWriteService:
         operator: str,
         message: str = "",
     ) -> DeleteResult:
-        """删除文件"""
+        """删除文件（从 Mut tree 中移除）。"""
         repo = self._repos.get_repo(project_id)
         current_root = repo.history.get_root_hash()
         current_version = repo.history.get_latest_version()
-
-        node = self._node_repo.get_by_mut_path(project_id, path)
-        node_id = node.id if node else ""
 
         new_root = _remove_from_tree(repo.store, current_root, path)
 
@@ -195,14 +304,11 @@ class MutWriteService:
 
         repo.audit.record("delete", operator, {"path": path, "version": new_version})
 
-        await self._index_sync.sync_changeset(
-            project_id, repo.store, changes, new_root, new_version, operator
-        )
-
         log_info(f"[MutWrite] v{new_version}: deleted {path}")
 
+        self._post_commit_delete(project_id, [path])
+
         return DeleteResult(
-            node_id=node_id,
             version=new_version,
             root_hash=new_root,
             path=path,
@@ -216,13 +322,10 @@ class MutWriteService:
         operator: str,
         message: str = "",
     ) -> MoveResult:
-        """移动/重命名文件"""
+        """移动/重命名文件。"""
         repo = self._repos.get_repo(project_id)
         current_root = repo.history.get_root_hash()
         current_version = repo.history.get_latest_version()
-
-        node = self._node_repo.get_by_mut_path(project_id, old_path)
-        node_id = node.id if node else ""
 
         blob_hash = _resolve_path_hash(repo.store, current_root, old_path)
         if not blob_hash:
@@ -252,38 +355,196 @@ class MutWriteService:
             "old_path": old_path, "new_path": new_path, "version": new_version
         })
 
-        await self._index_sync.sync_changeset(
-            project_id, repo.store, changes, new_root, new_version, operator
-        )
-
         log_info(f"[MutWrite] v{new_version}: moved {old_path} → {new_path}")
 
+        self._post_commit_move(project_id, old_path, new_path)
+
         return MoveResult(
-            node_id=node_id,
             version=new_version,
             root_hash=new_root,
             old_path=old_path,
             new_path=new_path,
         )
 
-    async def create_folder(
+    async def move_folder(
+        self,
+        project_id: str,
+        old_path: str,
+        new_path: str,
+        operator: str,
+        message: str = "",
+    ) -> MoveResult:
+        """移动/重命名文件夹（批量移动子树中所有文件）。"""
+        repo = self._repos.get_repo(project_id)
+        current_root = repo.history.get_root_hash()
+        current_version = repo.history.get_latest_version()
+
+        if not current_root:
+            raise ValueError(f"Folder not found: {old_path}")
+
+        flat = tree_to_flat(repo.store, current_root)
+
+        old_prefix = old_path.rstrip("/") + "/"
+        files_to_move = {p: h for p, h in flat.items() if p.startswith(old_prefix) or p == old_path}
+
+        if not files_to_move:
+            raise ValueError(f"Folder not found or empty: {old_path}")
+
+        new_flat = dict(flat)
+        changes = []
+        for old_p, blob_hash in files_to_move.items():
+            new_p = new_path + old_p[len(old_path.rstrip("/")):]
+            del new_flat[old_p]
+            new_flat[new_p] = blob_hash
+            changes.append({"path": old_p, "op": "deleted"})
+            changes.append({"path": new_p, "op": "added"})
+
+        new_root = _build_tree_from_flat(repo.store, new_flat)
+
+        new_version = current_version + 1
+        repo.history.record(
+            version=new_version,
+            who=operator,
+            message=message or f"moved folder {old_path} → {new_path}",
+            scope_path="",
+            changes=changes,
+            root_hash=new_root,
+        )
+        repo.history.set_latest_version(new_version)
+        repo.history.set_root_hash(new_root)
+
+        repo.audit.record("move_folder", operator, {
+            "old_path": old_path, "new_path": new_path, "version": new_version
+        })
+
+        log_info(f"[MutWrite] v{new_version}: moved folder {old_path} → {new_path}")
+
+        self._post_commit_move(project_id, old_path, new_path)
+
+        return MoveResult(
+            version=new_version,
+            root_hash=new_root,
+            old_path=old_path,
+            new_path=new_path,
+        )
+
+    async def mkdir(
         self,
         project_id: str,
         path: str,
         operator: str,
-    ) -> str:
-        """创建文件夹（在 content_nodes 中创建 folder 类型节点）。
-
-        Mut 树中文件夹是隐式的（通过路径前缀），这里只更新 index。
-        """
-        node = self._node_repo.create_node(
+    ) -> WriteResult:
+        """创建空目录（通过写入 .keep sentinel 文件）。"""
+        keep_path = f"{path}/.keep"
+        return await self.write_file(
             project_id=project_id,
-            name=os.path.basename(path),
-            node_type="folder",
-            mut_path=path,
+            path=keep_path,
+            content=b"",
+            operator=operator,
+            message=f"mkdir {path}",
         )
-        log_info(f"[MutWrite] Created folder: {path}")
-        return node.id if hasattr(node, "id") else ""
+
+    async def trash(
+        self,
+        project_id: str,
+        path: str,
+        operator: str,
+    ) -> MoveResult:
+        """软删除：移动到 .trash/ 目录。"""
+        basename = path.rsplit("/", 1)[-1] if "/" in path else path
+        trash_path = f".trash/{basename}_{int(time.time())}"
+
+        from src.mut_engine.tree_reader import MutTreeReader
+        reader = MutTreeReader(self._repos)
+        entry = reader.stat(project_id, path)
+
+        if entry and entry.type == "folder":
+            return await self.move_folder(
+                project_id, path, trash_path, operator, f"trash {basename}",
+            )
+        return await self.move_file(
+            project_id, path, trash_path, operator, f"trash {basename}",
+        )
+
+    async def restore(
+        self,
+        project_id: str,
+        trash_path: str,
+        original_path: str,
+        operator: str,
+    ) -> MoveResult:
+        """从 .trash 恢复。"""
+        from src.mut_engine.tree_reader import MutTreeReader
+        reader = MutTreeReader(self._repos)
+        entry = reader.stat(project_id, trash_path)
+
+        if entry and entry.type == "folder":
+            return await self.move_folder(
+                project_id, trash_path, original_path, operator, f"restore {original_path}",
+            )
+        return await self.move_file(
+            project_id, trash_path, original_path, operator, f"restore {original_path}",
+        )
+
+    async def delete_folder(
+        self,
+        project_id: str,
+        path: str,
+        operator: str,
+        message: str = "",
+    ) -> DeleteResult:
+        """删除文件夹（从 Mut tree 中移除所有子文件）。"""
+        repo = self._repos.get_repo(project_id)
+        current_root = repo.history.get_root_hash()
+        current_version = repo.history.get_latest_version()
+
+        if not current_root:
+            raise ValueError(f"Folder not found: {path}")
+
+        flat = tree_to_flat(repo.store, current_root)
+        prefix = path.rstrip("/") + "/"
+        changes = []
+
+        new_flat = {}
+        for p, h in flat.items():
+            if p.startswith(prefix) or p == path:
+                changes.append({"path": p, "op": "deleted"})
+            else:
+                new_flat[p] = h
+
+        if not changes:
+            raise ValueError(f"Folder not found or empty: {path}")
+
+        if new_flat:
+            new_root = _build_tree_from_flat(repo.store, new_flat)
+        else:
+            new_root = repo.store.put(json.dumps({}, sort_keys=True).encode())
+
+        new_version = current_version + 1
+        repo.history.record(
+            version=new_version,
+            who=operator,
+            message=message or f"deleted folder {path}",
+            scope_path="",
+            changes=changes,
+            root_hash=new_root,
+        )
+        repo.history.set_latest_version(new_version)
+        repo.history.set_root_hash(new_root)
+
+        repo.audit.record("delete_folder", operator, {"path": path, "version": new_version})
+
+        log_info(f"[MutWrite] v{new_version}: deleted folder {path} ({len(changes)} files)")
+
+        deleted_paths = [c["path"] for c in changes]
+        deleted_paths.append(path)
+        self._post_commit_delete(project_id, deleted_paths)
+
+        return DeleteResult(
+            version=new_version,
+            root_hash=new_root,
+            path=path,
+        )
 
     # ================================================================
     # 读取操作
@@ -368,7 +629,7 @@ class MutWriteService:
         target_version: int,
         operator: str,
     ) -> int:
-        """回滚到指定版本（创建新版本，内容来自目标版本的 tree）"""
+        """回滚到指定版本"""
         repo = self._repos.get_repo(project_id)
 
         entry = repo.history.get_entry(target_version)
@@ -400,11 +661,14 @@ class MutWriteService:
             "target_version": target_version, "new_version": new_version
         })
 
-        await self._index_sync.sync_changeset(
-            project_id, repo.store, changes_list, target_root, new_version, operator
-        )
-
         log_info(f"[MutWrite] Rolled back to v{target_version} as v{new_version}")
+
+        deleted_in_rollback = [
+            c["path"] for c in changes_list if c.get("op") == "deleted"
+        ]
+        if deleted_in_rollback:
+            self._post_commit_delete(project_id, deleted_in_rollback)
+
         return new_version
 
 
@@ -413,7 +677,6 @@ class MutWriteService:
 # ================================================================
 
 def _resolve_path_hash(store: ObjectStore, root_hash: str, path: str) -> str:
-    """从 Merkle tree 中解析文件路径对应的 blob hash"""
     if not root_hash:
         return ""
     try:
@@ -424,11 +687,6 @@ def _resolve_path_hash(store: ObjectStore, root_hash: str, path: str) -> str:
 
 
 def _update_tree(store: ObjectStore, current_root: str, path: str, blob_hash: str) -> str:
-    """在 Merkle tree 中添加或更新文件，返回新的 root hash。
-
-    策略：读取当前 tree 的扁平映射，更新目标路径，重建整棵树。
-    简单可靠，避免 graft 层级计算出错。
-    """
     if not current_root:
         return _build_tree_from_single_file(store, path, blob_hash)
 
@@ -438,7 +696,6 @@ def _update_tree(store: ObjectStore, current_root: str, path: str, blob_hash: st
 
 
 def _build_tree_from_single_file(store: ObjectStore, path: str, blob_hash: str) -> str:
-    """从单个文件构建 Merkle tree"""
     parts = path.split("/")
     if len(parts) == 1:
         entries = {parts[0]: ["B", blob_hash]}
@@ -454,9 +711,7 @@ def _build_tree_from_single_file(store: ObjectStore, path: str, blob_hash: str) 
     return current_hash
 
 
-
 def _remove_from_tree(store: ObjectStore, root_hash: str, path: str) -> str:
-    """从 Merkle tree 中删除文件，返回新的 root hash"""
     if not root_hash:
         return ""
 
@@ -470,7 +725,6 @@ def _remove_from_tree(store: ObjectStore, root_hash: str, path: str) -> str:
 
 
 def _build_tree_from_flat(store: ObjectStore, flat: dict[str, str]) -> str:
-    """从扁平的 {path: blob_hash} 字典构建 Merkle tree"""
     nested: dict = {}
     for filepath, blob_hash in flat.items():
         parts = filepath.split("/")
@@ -483,7 +737,6 @@ def _build_tree_from_flat(store: ObjectStore, flat: dict[str, str]) -> str:
 
 
 def _write_nested_tree(store: ObjectStore, node: dict) -> str:
-    """递归写入嵌套树结构"""
     entries: dict = {}
     for name, val in sorted(node.items()):
         if isinstance(val, tuple):

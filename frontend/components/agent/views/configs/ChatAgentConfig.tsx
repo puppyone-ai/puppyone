@@ -67,7 +67,7 @@ export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }
   const toggleReadonly = (nodeId: string) => {
     const resource = draftResources.find(r => r.nodeId === nodeId);
     if (!resource) return;
-    const current = resource.readonly ?? resource.terminalReadonly ?? true;
+    const current = resource.readonly ?? true;
     updateDraftResource(nodeId, { readonly: !current });
   };
 
@@ -142,7 +142,7 @@ export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }
               const pathDisplay = resource.jsonPath
                 ? `${resource.nodeName} (${resource.jsonPath})`
                 : resource.nodeName;
-              const isReadonly = resource.readonly ?? resource.terminalReadonly ?? true;
+              const isReadonly = resource.readonly ?? true;
               return (
                 <div
                   key={resource.nodeId}

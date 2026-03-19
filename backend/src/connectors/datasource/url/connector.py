@@ -8,8 +8,8 @@ Handles:
 
 import hashlib
 import json
+from typing import Any
 
-from src.content.service import ContentNodeService
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -61,7 +61,7 @@ class UrlConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.url_parser = UrlParser()

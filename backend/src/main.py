@@ -101,10 +101,10 @@ from src.internal.router import router as internal_router
 
 internal_router_duration = time.time() - internal_router_start
 
-content_node_router_start = time.time()
-from src.content.router import router as content_node_router
+tree_router_start = time.time()
+from src.mut_engine.tree_router import router as tree_api_router
 
-content_node_router_duration = time.time() - content_node_router_start
+tree_router_duration = time.time() - tree_router_start
 
 analytics_router_start = time.time()
 from src.platform.analytics.router import router as analytics_router
@@ -158,7 +158,7 @@ routers_duration = (
     + project_router_duration
     + oauth_router_duration
     + internal_router_duration
-    + content_node_router_duration
+    + tree_router_duration
     + analytics_router_duration
     + profile_router_duration
     + db_connector_router_duration
@@ -195,7 +195,7 @@ async def app_lifespan(app: FastAPI):
     log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ internal_router: {internal_router_duration * 1000:.2f}ms")
-    log_info(f"  │  └─ content_node_router: {content_node_router_duration * 1000:.2f}ms")
+    log_info(f"  │  └─ tree_router: {tree_router_duration * 1000:.2f}ms")
     log_info(f"  └─ 路由总耗时: {routers_duration * 1000:.2f}ms")
     log_info(f"📊 总导入时间: {(time.time() - APP_START_TIME) * 1000:.2f}ms")
     log_info("")
@@ -274,45 +274,39 @@ async def app_lifespan(app: FastAPI):
         registry_duration = time.time() - registry_init_start
         log_error(f"❌ ConnectorRegistry 初始化失败 (耗时: {registry_duration * 1000:.2f}ms): {e}")
 
-    # 5. 初始化 FolderSourceService + FolderAccessService（启动文件夹同步）
-    sync_init_start = time.time()
+    # 5. Mut tree 初始化：为所有 mut_root_hash 为空的 project 自动初始化空 Mut tree
+    mut_init_start = time.time()
     try:
-        log_info("🔄 初始化 Folder Sync Services...")
-        from src.connectors.filesystem.watcher import FolderSourceService
-        from src.connectors.filesystem.folder_access import FolderAccessService
-        from src.connectors.datasource.repository import SyncRepository
-        from src.content.repository import ContentNodeRepository
-        from src.content.service import ContentNodeService
-        from src.infra.s3.service import S3Service
-        from src.infra.supabase.client import SupabaseClient
-        from src.mut_engine.dependencies import create_collaboration_service
+        log_info("🌳 检查并初始化 Mut tree...")
+        from src.infra.supabase.client import SupabaseClient as _SC
+        from src.mut_engine.dependencies import create_mut_write_service as _cms
 
-        supabase = SupabaseClient()
-        node_repo = ContentNodeRepository(supabase)
-        s3_service = S3Service()
-        node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service)
-        collab_svc = create_collaboration_service()
-
-        sync_repo = SyncRepository(supabase)
-
-        folder_source = FolderSourceService(
-            node_service=node_svc,
-            sync_repo=sync_repo,
+        _sb = _SC()
+        resp = (
+            _sb.client.table("projects")
+            .select("id")
+            .or_("mut_root_hash.is.null,mut_root_hash.eq.")
+            .execute()
         )
-        await folder_source.start()
-
-        folder_access = FolderAccessService(
-            collab_service=collab_svc,
-            node_service=node_svc,
-            sync_repo=sync_repo,
-        )
-        await folder_access.start()
-
-        sync_duration = time.time() - sync_init_start
-        log_info(f"✅ Folder Sync Services 启动成功 (耗时: {sync_duration * 1000:.2f}ms)")
+        uninit_projects = resp.data or []
+        if uninit_projects:
+            _writer = _cms()
+            for row in uninit_projects:
+                try:
+                    await _writer.init_tree(row["id"])
+                except Exception as init_err:
+                    log_error(f"  ❌ Failed to init Mut tree for {row['id']}: {init_err}")
+            log_info(f"  ✅ Initialized Mut tree for {len(uninit_projects)} project(s)")
+        else:
+            log_info("  ✅ All projects already have Mut tree")
+        mut_init_duration = time.time() - mut_init_start
+        log_info(f"✅ Mut tree 检查完成 (耗时: {mut_init_duration * 1000:.2f}ms)")
     except Exception as e:
-        sync_duration = time.time() - sync_init_start
-        log_error(f"❌ Folder Sync Services 启动失败 (耗时: {sync_duration * 1000:.2f}ms): {e}")
+        mut_init_duration = time.time() - mut_init_start
+        log_error(f"❌ Mut tree 初始化失败 (耗时: {mut_init_duration * 1000:.2f}ms): {e}")
+
+    # 6. Filesystem sync is now client-side via MUT protocol — no server-side init needed
+    log_info("📁 Filesystem sync: client-side via MUT protocol (no server init needed)")
 
     # 输出总启动时间
     total_startup_time = time.time() - APP_START_TIME
@@ -337,19 +331,8 @@ async def app_lifespan(app: FastAPI):
         except Exception as e:
             log_error(f"Failed to stop Scheduler service: {e}")
 
-    # 停止 Folder Sync Services
-    try:
-        from src.connectors.filesystem.watcher import FolderSourceService
-        from src.connectors.filesystem.folder_access import FolderAccessService
-        fs = FolderSourceService.get_instance()
-        if fs:
-            await fs.stop()
-        fa = FolderAccessService.get_instance()
-        if fa:
-            await fa.stop()
-        log_info("Folder Sync Services stopped successfully")
-    except Exception as e:
-        log_error(f"Failed to stop Folder Sync Services: {e}")
+    # Filesystem sync is client-side — no server cleanup needed
+    log_info("Filesystem sync: client-side, no cleanup needed")
 
     # 停止 File Ingest 服务
     if settings.etl_enabled:
@@ -416,12 +399,10 @@ def create_app() -> FastAPI:
     app.include_router(
         internal_router, tags=["internal"]
     )  # Internal API不加/api/v1前缀
-    app.include_router(content_node_router, prefix="/api/v1", tags=["content-nodes"])
-    # version_router removed — version history is now served by Mut (collab_router)
+    from src.mut_engine.tree_router import router as tree_router
+    app.include_router(tree_router, prefix="/api/v1", tags=["tree"])
     from src.mut_engine.audit_router import router as audit_router
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
-    from src.mut_engine.collab_router import router as collab_router
-    app.include_router(collab_router, prefix="/api/v1", tags=["collaboration"])
     from src.mut_engine.protocol_router import router as mut_protocol_router
     app.include_router(mut_protocol_router, tags=["mut-protocol"])
     from src.platform.workspace.router import router as workspace_router

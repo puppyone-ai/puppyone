@@ -1,54 +1,100 @@
 """
-负责Table（知识库）内容的管理
+Table (知识库) 内容管理
+
+写操作走 MUT protocol (MutEphemeralClient)，
+读操作从 MUT ObjectStore 读取 JSON 内容。
+DB 中的 tables 表仅用于存储元数据和 orphan tables。
 """
 
-from typing import List, Optional, Dict, Any
-from jsonpointer import resolve_pointer
 import json
+from typing import List, Optional, Dict, Any
+
 import jmespath
+from jsonpointer import resolve_pointer
+
 from src.content.table.models import Table
 from src.content.table.repository import TableRepositoryBase
 from src.content.table.schemas import ProjectWithTables
 from src.exceptions import NotFoundException, BusinessException, ErrorCode
+from src.utils.logger import log_info
 
 
 class TableService:
-    """封装业务逻辑层"""
 
-    def __init__(self, repo: TableRepositoryBase):
+    def __init__(
+        self,
+        repo: TableRepositoryBase,
+        mut_write=None,
+        repo_manager=None,
+        node_repo=None,
+    ):
         self.repo = repo
+        self._mut = mut_write
+        self._repos = repo_manager
+        self._node_repo = node_repo
+
+    # ================================================================
+    # MUT helpers
+    # ================================================================
+
+    def _ensure_mut(self):
+        if self._repos is None:
+            raise BusinessException(
+                "MUT repo_manager not configured",
+                code=ErrorCode.INTERNAL_SERVER_ERROR,
+            )
+
+    def _make_ephemeral_client(self, project_id: str, operator: str = "system:table"):
+        from src.mut_engine.dependencies import create_ephemeral_client
+        auth_ctx = {
+            "agent": operator,
+            "_scope": {"id": "_table", "path": "", "exclude": [], "mode": "rw"},
+        }
+        return create_ephemeral_client(project_id, auth_ctx)
+
+    def _table_mut_path(self, project_id: str, table_id: str) -> str:
+        """Table 在 MUT 树中的标准路径"""
+        return f"tables/{table_id}.json"
+
+    def _read_json_from_mut(self, project_id: str, mut_path: str) -> dict:
+        """从 MUT ObjectStore 读取 JSON (source of truth)"""
+        repo = self._repos.get_repo(project_id)
+        root = repo.history.get_root_hash()
+        if not root:
+            return {}
+        from mut.core.tree import tree_to_flat
+        flat = tree_to_flat(repo.store, root)
+        blob_hash = flat.get(mut_path, "")
+        if not blob_hash:
+            return {}
+        raw = repo.store.get(blob_hash)
+        return json.loads(raw.decode("utf-8"))
+
+    def _read_table_data(self, table: Table) -> dict:
+        """读取 Table 的 JSON data — 优先从 MUT 读，回退到 DB"""
+        if table.project_id and self._repos:
+            try:
+                mut_path = self._table_mut_path(table.project_id, table.id)
+                data = self._read_json_from_mut(table.project_id, mut_path)
+                if data:
+                    return data
+            except Exception:
+                pass
+        return table.data or {}
+
+    # ================================================================
+    # 只读查询 (从 DB index 或 MUT)
+    # ================================================================
 
     def get_projects_with_tables_by_org_id(
         self, org_id: str
     ) -> List[ProjectWithTables]:
-        """
-        获取组织的所有项目及其下的所有表格
-
-        Args:
-            org_id: 组织ID
-
-        Returns:
-            包含项目信息和其下所有表格的列表
-        """
         return self.repo.get_projects_with_tables_by_org_id(org_id)
 
     def get_by_id(self, table_id: str) -> Optional[Table]:
         return self.repo.get_by_id(table_id)
 
     def get_by_id_with_access_check(self, table_id: str, user_id: str) -> Table:
-        """
-        获取表格并验证用户权限
-
-        Args:
-            table_id: 表格ID
-            user_id: 用户ID
-
-        Returns:
-            已验证的 Table 对象
-
-        Raises:
-            NotFoundException: 如果表格不存在或用户无权限
-        """
         table = self.get_by_id(table_id)
         if not table:
             raise NotFoundException(
@@ -64,19 +110,16 @@ class TableService:
         return table
 
     def verify_project_access(self, project_id: str, user_id: str) -> bool:
-        """
-        验证用户是否有权限访问指定的项目
-
-        Args:
-            project_id: 项目ID
-            user_id: 用户ID
-
-        Returns:
-            如果用户有权限返回True，否则返回False
-        """
         return self.repo.verify_project_access(project_id, user_id)
 
-    def create(
+    def get_orphan_tables_by_created_by(self, user_id: str) -> List[Table]:
+        return self.repo.get_orphan_tables_by_created_by(user_id)
+
+    # ================================================================
+    # 写操作 — 全部通过 MUT protocol (MutEphemeralClient)
+    # ================================================================
+
+    async def create(
         self,
         user_id: str,
         name: str,
@@ -84,63 +127,139 @@ class TableService:
         data: dict,
         project_id: Optional[str] = None,
     ) -> Table:
-        return self.repo.create(
-            created_by=user_id,
-            name=name,
-            description=description,
-            data=data,
-            project_id=project_id,
-        )
+        self._ensure_mut()
 
-    def get_orphan_tables_by_created_by(self, user_id: str) -> List[Table]:
-        """获取用户的所有裸 Table（不属于任何 Project）"""
-        return self.repo.get_orphan_tables_by_created_by(user_id)
+        from src.utils.id_generator import generate_uuid_v7
+        table_id = generate_uuid_v7()
+        mut_path = self._table_mut_path(project_id or "__orphan__", table_id)
 
-    def update(
+        table_blob = {
+            "id": table_id,
+            "name": name,
+            "description": description,
+            "data": data,
+        }
+        content = json.dumps(table_blob, ensure_ascii=False, indent=2).encode("utf-8")
+
+        if project_id:
+            client = self._make_ephemeral_client(project_id, f"user:{user_id}")
+            client.clone()
+            push_result = client.push(
+                modified={mut_path: content},
+                message=f"create table {name}",
+                who=f"user:{user_id}",
+            )
+            log_info(f"[Table] Created table {table_id} via MUT")
+        else:
+            self.repo.create(
+                created_by=user_id,
+                name=name,
+                description=description,
+                data=data,
+                project_id=None,
+            )
+            log_info(f"[Table] Created orphan table {table_id} (no project, DB direct)")
+
+        table = self.repo.get_by_id(table_id)
+        if not table:
+            return Table(
+                id=table_id,
+                name=name,
+                project_id=project_id,
+                created_by=user_id,
+                description=description,
+                data=data,
+                created_at=__import__("datetime").datetime.now(),
+            )
+        return table
+
+    async def update(
         self,
         table_id: str,
         name: Optional[str],
         description: Optional[str],
         data: Optional[dict],
     ) -> Table:
-        updated = self.repo.update(table_id, name, description, data)
-        if not updated:
-            raise NotFoundException(
-                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
-            )
-        return updated
+        self._ensure_mut()
 
-    def delete(self, table_id: str) -> None:
-        success = self.repo.delete(table_id)
-        if not success:
-            raise NotFoundException(
-                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
-            )
-
-    def create_context_data(
-        self, table_id: str, mounted_json_pointer_path: str, elements: List[Dict]
-    ) -> Any:
-        """
-        在 data 字段的指定路径下创建新数据
-
-        Args:
-            table_id: Table ID
-            mounted_json_pointer_path: JSON指针路径，数据将挂载到此路径下
-            elements: 要创建的元素数组，每个元素包含 key 和 content
-
-
-        """
         table = self.repo.get_by_id(table_id)
         if not table:
             raise NotFoundException(
                 f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
-        data = (table.data or {}).copy()
+        if table.project_id:
+            mut_path = self._table_mut_path(table.project_id, table_id)
+            current_data = self._read_table_data(table)
 
-        # 获取挂载点的父节点
+            table_blob = {
+                "id": table_id,
+                "name": name or table.name,
+                "description": description if description is not None else table.description,
+                "data": data if data is not None else current_data.get("data", table.data),
+            }
+            content = json.dumps(table_blob, ensure_ascii=False, indent=2).encode("utf-8")
+
+            client = self._make_ephemeral_client(table.project_id, "system:table_update")
+            client.clone()
+            push_result = client.push(
+                modified={mut_path: content},
+                message=f"update table {table_id}",
+                who="system:table_update",
+            )
+            log_info(f"[Table] Updated table {table_id} via MUT")
+        else:
+            self.repo.update(table_id, name, description, data)
+
+        updated = self.repo.get_by_id(table_id)
+        return updated or table
+
+    async def delete(self, table_id: str) -> None:
+        table = self.repo.get_by_id(table_id)
+        if not table:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        if table.project_id and self._repos:
+            mut_path = self._table_mut_path(table.project_id, table_id)
+            try:
+                client = self._make_ephemeral_client(table.project_id, "system:table_delete")
+                client.clone()
+                client.push(
+                    deleted=[mut_path],
+                    message=f"delete table {table_id}",
+                    who="system:table_delete",
+                )
+                log_info(f"[Table] Deleted table {table_id} via MUT")
+                return
+            except Exception:
+                pass
+
+        success = self.repo.delete(table_id)
+        if not success:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+
+    # ================================================================
+    # Context Data 操作 — JSON Pointer + MUT write
+    # ================================================================
+
+    async def create_context_data(
+        self, table_id: str, mounted_json_pointer_path: str, elements: List[Dict]
+    ) -> Any:
+        table = self.repo.get_by_id(table_id)
+        if not table:
+            raise NotFoundException(
+                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+            )
+
+        data = self._read_table_data(table).copy()
+        actual_data = data.get("data", data) if "data" in data else data
+
         try:
-            parent = resolve_pointer(data, mounted_json_pointer_path, None)
+            parent = resolve_pointer(actual_data, mounted_json_pointer_path, None)
         except Exception as e:
             raise BusinessException(
                 f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
@@ -152,9 +271,7 @@ class TableService:
                 code=ErrorCode.BAD_REQUEST,
             )
 
-        # dict 挂载点：按 key 写入；list 挂载点：按顺序 append content
         if isinstance(parent, dict):
-            # 检查是否有重复的 key
             for element in elements:
                 if "key" not in element:
                     raise BusinessException(
@@ -166,7 +283,6 @@ class TableService:
                         f"Key '{key}' already exists", code=ErrorCode.VALIDATION_ERROR
                     )
 
-            # 检查 content 是否重复（深度比较）
             existing_content_strs = {
                 json.dumps(parent[k], sort_keys=True) for k in parent.keys()
             }
@@ -176,22 +292,16 @@ class TableService:
                         "Element missing 'content' field",
                         code=ErrorCode.VALIDATION_ERROR,
                     )
-                content = element["content"]
-                # 深度比较：序列化后比较字符串
-                content_str = json.dumps(content, sort_keys=True)
+                content_str = json.dumps(element["content"], sort_keys=True)
                 if content_str in existing_content_strs:
                     raise BusinessException(
                         f"Content already exists for key: {element['key']}",
                         code=ErrorCode.VALIDATION_ERROR,
                     )
 
-            # 创建新数据
             for element in elements:
-                key = element["key"]
-                content = element["content"]
-                parent[key] = content
+                parent[element["key"]] = element["content"]
         elif isinstance(parent, list):
-            # list 挂载点：忽略 key，追加 content
             for element in elements:
                 if "content" not in element:
                     raise BusinessException(
@@ -204,35 +314,26 @@ class TableService:
                 "Path points to non-dict/list node", code=ErrorCode.BAD_REQUEST
             )
 
-        # 更新 data 字段
-        updated_table = self.repo.update_context_data(table_id, data)
-        if not updated_table:
-            raise BusinessException(
-                "Update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
-            )
-
-        # 返回创建后的数据
-        result = resolve_pointer(updated_table.data or {}, mounted_json_pointer_path)
-        return result
+        await self._write_table_data(table, data)
+        return resolve_pointer(actual_data, mounted_json_pointer_path)
 
     def get_context_data(self, table_id: str, json_pointer_path: str) -> Any:
-        """
-        获取 data 字段中指定路径的数据
-        """
         table = self.repo.get_by_id(table_id)
         if not table:
             raise NotFoundException(
                 f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
+        data = self._read_table_data(table)
+        actual_data = data.get("data", data) if "data" in data else data
+
         try:
-            data = resolve_pointer(table.data or {}, json_pointer_path, None)
-            if data is None:
-                # 为了保险，我们认为如果 resolve 返回 default (None)，就是没找到。
+            result = resolve_pointer(actual_data, json_pointer_path, None)
+            if result is None:
                 raise NotFoundException(
                     f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
                 )
-            return data
+            return result
         except Exception as e:
             if isinstance(e, NotFoundException):
                 raise
@@ -240,23 +341,20 @@ class TableService:
                 f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
             )
 
-    def update_context_data(
+    async def update_context_data(
         self, table_id: str, json_pointer_path: str, elements: List[Dict]
     ) -> Any:
-        """
-        更新 data 字段中指定路径的数据
-        """
         table = self.repo.get_by_id(table_id)
         if not table:
             raise NotFoundException(
                 f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
-        data = (table.data or {}).copy()
+        data = self._read_table_data(table).copy()
+        actual_data = data.get("data", data) if "data" in data else data
 
-        # 获取要更新的父节点
         try:
-            parent = resolve_pointer(data, json_pointer_path, None)
+            parent = resolve_pointer(actual_data, json_pointer_path, None)
         except Exception as e:
             raise BusinessException(
                 f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
@@ -268,31 +366,25 @@ class TableService:
             )
 
         if isinstance(parent, dict):
-            # 检查所有要更新的 key 是否存在
             for element in elements:
                 if "key" not in element:
                     raise BusinessException(
                         "Element missing 'key' field",
                         code=ErrorCode.VALIDATION_ERROR,
                     )
-                key = element["key"]
-                if key not in parent:
+                if element["key"] not in parent:
                     raise NotFoundException(
-                        f"Key '{key}' not found", code=ErrorCode.NOT_FOUND
+                        f"Key '{element['key']}' not found", code=ErrorCode.NOT_FOUND
                     )
 
-            # 更新数据（整值替换，不做深层 merge）
             for element in elements:
                 if "content" not in element:
                     raise BusinessException(
                         "Element missing 'content' field",
                         code=ErrorCode.VALIDATION_ERROR,
                     )
-                key = element["key"]
-                content = element["content"]
-                parent[key] = content
+                parent[element["key"]] = element["content"]
         elif isinstance(parent, list):
-            # list 挂载点：key 视为下标（支持 str/int），对该位置整值替换
             for element in elements:
                 if "key" not in element:
                     raise BusinessException(
@@ -321,34 +413,23 @@ class TableService:
                 "Path points to non-dict/list node", code=ErrorCode.BAD_REQUEST
             )
 
-        # 更新 data 字段
-        updated_table = self.repo.update_context_data(table_id, data)
-        if not updated_table:
-            raise BusinessException(
-                "Update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
-            )
+        await self._write_table_data(table, data)
+        return resolve_pointer(actual_data, json_pointer_path)
 
-        # 返回更新后的数据
-        result = resolve_pointer(updated_table.data or {}, json_pointer_path)
-        return result
-
-    def delete_context_data(
+    async def delete_context_data(
         self, table_id: str, json_pointer_path: str, keys: List[str]
     ) -> Any:
-        """
-        删除 data 字段中指定路径下的 keys
-        """
         table = self.repo.get_by_id(table_id)
         if not table:
             raise NotFoundException(
                 f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
-        data = (table.data or {}).copy()
+        data = self._read_table_data(table).copy()
+        actual_data = data.get("data", data) if "data" in data else data
 
-        # 获取要删除的父节点
         try:
-            parent = resolve_pointer(data, json_pointer_path, None)
+            parent = resolve_pointer(actual_data, json_pointer_path, None)
         except Exception as e:
             raise BusinessException(
                 f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
@@ -360,18 +441,15 @@ class TableService:
             )
 
         if isinstance(parent, dict):
-            # 检查所有要删除的 key 是否存在
             for key in keys:
                 if key not in parent:
                     raise NotFoundException(
                         f"Key '{key}' not found", code=ErrorCode.NOT_FOUND
                     )
 
-            # 删除数据
             for key in keys:
                 del parent[key]
         elif isinstance(parent, list):
-            # list 挂载点：key 视为下标（支持 str/int），按倒序删除避免下标位移
             indices: list[int] = []
             for key in keys:
                 try:
@@ -393,23 +471,32 @@ class TableService:
                 "Path points to non-dict/list node", code=ErrorCode.BAD_REQUEST
             )
 
-        # 更新 data 字段
-        updated_table = self.repo.update_context_data(table_id, data)
-        if not updated_table:
-            raise BusinessException(
-                "Update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
-            )
+        await self._write_table_data(table, data)
+        return resolve_pointer(actual_data, json_pointer_path)
 
-        # 返回删除后的数据
-        result = resolve_pointer(updated_table.data or {}, json_pointer_path)
-        return result
+    async def _write_table_data(self, table: Table, full_blob: dict) -> None:
+        """将完整的 table JSON 写入 MUT (唯一写入点)"""
+        if table.project_id and self._repos:
+            mut_path = self._table_mut_path(table.project_id, table.id)
+            content = json.dumps(full_blob, ensure_ascii=False, indent=2).encode("utf-8")
+            client = self._make_ephemeral_client(table.project_id, "system:table_edit")
+            client.clone()
+            client.push(
+                modified={mut_path: content},
+                message=f"edit table data {table.id}",
+                who="system:table_edit",
+            )
+        else:
+            actual_data = full_blob.get("data", full_blob)
+            self.repo.update_context_data(table.id, actual_data)
+
+    # ================================================================
+    # 查询操作 (只读)
+    # ================================================================
 
     def query_context_data_with_jmespath(
         self, table_id: str, json_pointer_path: str, query: str
     ) -> Optional[Any]:
-        """
-        使用 JMESPath 查询 data 字段中指定路径的数据
-        """
         table = self.repo.get_by_id(table_id)
         if not table:
             raise NotFoundException(
@@ -417,18 +504,15 @@ class TableService:
             )
 
         try:
-            # 先获取指定路径的数据
-            base_data = resolve_pointer(table.data or {}, json_pointer_path, None)
+            data = self._read_table_data(table)
+            actual_data = data.get("data", data) if "data" in data else data
+            base_data = resolve_pointer(actual_data, json_pointer_path, None)
             if base_data is None:
                 raise NotFoundException(
                     f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
                 )
 
-            # 使用 JMESPath 查询数据
             result = jmespath.search(query, base_data)
-
-            # 处理空结果 (JMESPath returns None if nothing matched)
-            # 我们认为这也是一种成功结果，只是数据为空
             return result
 
         except jmespath.exceptions.ParseError as e:
@@ -443,9 +527,6 @@ class TableService:
             )
 
     def get_context_structure(self, table_id: str, json_pointer_path: str) -> Dict:
-        """
-        获取 data 字段中指定路径的数据结构（不包含实际数据值）
-        """
         table = self.repo.get_by_id(table_id)
         if not table:
             raise NotFoundException(
@@ -453,15 +534,15 @@ class TableService:
             )
 
         try:
-            data = resolve_pointer(table.data or {}, json_pointer_path, None)
-            if data is None:
+            data = self._read_table_data(table)
+            actual_data = data.get("data", data) if "data" in data else data
+            target = resolve_pointer(actual_data, json_pointer_path, None)
+            if target is None:
                 raise NotFoundException(
                     f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
                 )
 
-            # 提取结构信息
-            structure = self._extract_structure(data)
-            return structure
+            return self._extract_structure(target)
 
         except Exception as e:
             if isinstance(e, NotFoundException):
@@ -472,21 +553,11 @@ class TableService:
             )
 
     def _extract_structure(self, data: Any) -> Any:
-        """
-        递归提取数据结构，保留类型信息但不保留实际值
-        """
         if isinstance(data, dict):
-            structure = {}
-            for key, value in data.items():
-                structure[key] = self._extract_structure(value)
-            return structure
+            return {key: self._extract_structure(value) for key, value in data.items()}
         elif isinstance(data, list):
             if len(data) > 0:
-                # 使用第一个元素的结构作为模板
                 return [self._extract_structure(data[0])]
-            else:
-                return []
+            return []
         else:
-            # 对于基本类型，返回类型名称
-            type_name = type(data).__name__
-            return f"<{type_name}>"
+            return f"<{type(data).__name__}>"

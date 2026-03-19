@@ -75,36 +75,22 @@ export async function deleteProject(projectId: string): Promise<void> {
   });
 }
 
-// 表/节点相关API - 使用 /api/v1/nodes/ 路径（从 content_nodes 获取）
+// 表/节点相关API - 使用 Tree API (path-based)
 export async function getTable(
   projectId: string,
-  nodeId: string
+  nodePath: string
 ): Promise<TableData> {
-  const node = await apiRequest<{
-    id: string;
-    name: string;
-    type: string;
-    project_id: string;
-    id_path: string;
-    parent_id: string | null;
-    content_hash: string | null;
-    s3_key: string | null;
-    permissions: any;
-    sync_url: string | null;
-    sync_id: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`);
+  const { stat, readFile } = await import('@/lib/contentNodesApi');
+  const s = await stat(projectId, nodePath);
 
   const nonJsonTypes = ['markdown', 'image', 'pdf', 'video', 'file'];
-  const isNonJsonType = nonJsonTypes.some(t => node.type.includes(t));
+  const isNonJsonType = nonJsonTypes.some(t => s.type.includes(t));
 
   let data: any = null;
 
   if (!isNonJsonType) {
-    const { getNodeContent } = await import('@/lib/contentNodesApi');
-    const content = await getNodeContent(nodeId, projectId);
-    data = content.content_json;
+    const content = await readFile(projectId, nodePath);
+    data = content.content;
   }
 
   let rows = 0;
@@ -122,13 +108,13 @@ export async function getTable(
   }
 
   return {
-    id: node.id,
-    name: node.name || '',
-    type: node.type,
+    id: nodePath,
+    name: s.name || '',
+    type: s.type,
     rows,
     data: data ?? null,
     content: data,
-    sync_url: node.sync_url,
+    sync_url: null,
   };
 }
 
@@ -136,33 +122,15 @@ export async function createTable(
   projectId: string | null,
   name: string,
   data?: Record<string, any> | Array<Record<string, any>>,
-  parentId?: string | null
+  parentPath?: string | null
 ): Promise<TableData> {
   if (!projectId) {
     throw new Error('projectId is required for creating JSON node');
   }
 
-  const body: Record<string, any> = {
-    name,
-    project_id: projectId,
-    content: data ?? {},
-  };
-  if (parentId) {
-    body.parent_id = parentId;
-  }
-
-  const node = await apiRequest<{
-    id: string;
-    name: string;
-    type: string;
-    project_id: string;
-    content_hash: string | null;
-    created_at: string;
-    updated_at: string;
-  }>('/api/v1/nodes/json', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
+  const { writeFile } = await import('@/lib/contentNodesApi');
+  const fullPath = parentPath ? `${parentPath}/${name}` : name;
+  await writeFile(projectId, fullPath, data ?? {}, 'json');
 
   const inputData = data ?? {};
   let rows = 0;
@@ -175,8 +143,8 @@ export async function createTable(
   }
 
   return {
-    id: node.id,
-    name: node.name || '',
+    id: fullPath,
+    name: name || '',
     rows,
     data: inputData,
   };
@@ -184,25 +152,21 @@ export async function createTable(
 
 export async function updateTable(
   projectId: string,
-  nodeId: string,
+  nodePath: string,
   name?: string
 ): Promise<TableData> {
-  const node = await apiRequest<{
-    id: string;
-    name: string;
-    type: string;
-    project_id: string;
-    content_hash: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`, {
-    method: 'PUT',
-    body: JSON.stringify({ name }),
-  });
+  const { moveFile, readFile } = await import('@/lib/contentNodesApi');
 
-  const { getNodeContent } = await import('@/lib/contentNodesApi');
-  const content = await getNodeContent(nodeId, projectId);
-  const data = content.content_json;
+  let currentPath = nodePath;
+  if (name) {
+    const parentDir = nodePath.includes('/') ? nodePath.substring(0, nodePath.lastIndexOf('/')) : '';
+    const newPath = parentDir ? `${parentDir}/${name}` : name;
+    await moveFile(projectId, nodePath, newPath);
+    currentPath = newPath;
+  }
+
+  const content = await readFile(projectId, currentPath);
+  const data = content.content;
   let rows = 0;
   if (data != null) {
     if (Array.isArray(data)) {
@@ -213,8 +177,8 @@ export async function updateTable(
   }
 
   return {
-    id: node.id,
-    name: node.name || '',
+    id: currentPath,
+    name: name || currentPath.split('/').pop() || '',
     rows,
     data: data ?? null,
   };
@@ -222,31 +186,19 @@ export async function updateTable(
 
 export async function deleteTable(
   projectId: string,
-  nodeId: string
+  nodePath: string
 ): Promise<void> {
-  // 使用 content nodes API 删除节点
-  return apiRequest<void>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`, {
-    method: 'DELETE',
-  });
+  const { removeFile } = await import('@/lib/contentNodesApi');
+  await removeFile(projectId, nodePath);
 }
 
 export async function updateTableData(
   projectId: string,
-  nodeId: string,
+  nodePath: string,
   data: any
 ): Promise<TableData> {
-  const node = await apiRequest<{
-    id: string;
-    name: string;
-    type: string;
-    project_id: string;
-    content_hash: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(`/api/v1/nodes/${nodeId}?project_id=${encodeURIComponent(projectId)}`, {
-    method: 'PUT',
-    body: JSON.stringify({ content_json: data }),
-  });
+  const { writeFile } = await import('@/lib/contentNodesApi');
+  await writeFile(projectId, nodePath, data, 'json');
 
   let rows = 0;
   if (data != null) {
@@ -258,8 +210,8 @@ export async function updateTableData(
   }
 
   return {
-    id: node.id,
-    name: node.name || '',
+    id: nodePath,
+    name: nodePath.split('/').pop() || '',
     rows,
     data: data ?? null,
   };

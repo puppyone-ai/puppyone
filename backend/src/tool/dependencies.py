@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from src.infra.supabase.dependencies import get_supabase_repository
-from src.infra.supabase.client import SupabaseClient
 from src.tool.repository import ToolRepositorySupabase
 from src.tool.service import ToolService
-from src.content.repository import ContentNodeRepository
-from src.content.service import ContentNodeService
-from src.infra.s3.dependencies import get_s3_service
+from src.mut_engine.dependencies import create_tree_reader
 from src.platform.project.dependencies import get_project_service
 
 
@@ -17,15 +14,11 @@ def get_tool_service() -> ToolService:
     global _tool_service
     if _tool_service is None:
         repo = ToolRepositorySupabase(get_supabase_repository())
-        # 创建 ContentNodeService
-        sb_client = SupabaseClient()
-        node_repo = ContentNodeRepository(sb_client)
-        s3_service = get_s3_service()
-        node_service = ContentNodeService(node_repo, s3_service)
+        tree_reader = create_tree_reader()
         project_service = get_project_service()
         _tool_service = ToolService(
             repo=repo,
-            node_service=node_service,
+            tree_reader=tree_reader,
             project_service=project_service,
         )
     return _tool_service

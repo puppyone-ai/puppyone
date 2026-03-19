@@ -7,6 +7,7 @@ Workspace API — 给外部 Agent 使用的文件夹接口
   GET  /workspace/{agent_id}/status     查看工作区状态
 """
 
+import json as json_mod
 import os
 import time as time_mod
 
@@ -58,7 +59,7 @@ class WorkspaceStatusResponse(BaseModel):
 
 
 # ============================================================
-# 创建工作区（L3-Folder → L2.5 Sync → L3 Provider）
+# 创建工作区
 # ============================================================
 
 @router.post("/create", response_model=ApiResponse[CreateWorkspaceResponse])
@@ -66,24 +67,16 @@ async def create_workspace(
     request: CreateWorkspaceRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """
-    创建 Agent 工作区
-
-    1. SyncWorker 同步 PG/S3 数据到 Lower 目录
-    2. WorkspaceProvider 创建隔离工作区（APFS Clone / 全量复制）
-    3. 返回工作区路径，bind mount 到 Agent 容器
-    """
     from src.platform.workspace.provider import get_workspace_provider
     from src.connectors.filesystem.worker import SyncWorker
-    from src.content.repository import ContentNodeRepository
-    from src.infra.supabase.client import SupabaseClient
+    from src.mut_engine.dependencies import create_tree_reader
 
     agent_id = request.agent_id or f"ext-{int(time_mod.time() * 1000)}"
 
     provider = get_workspace_provider()
-    node_repo = ContentNodeRepository(SupabaseClient())
+    tree_reader = create_tree_reader()
     sync_worker = SyncWorker(
-        node_repo=node_repo,
+        tree_reader=tree_reader,
         base_dir=provider._base_dir if hasattr(provider, '_base_dir') else "/tmp/contextbase",
     )
 
@@ -106,7 +99,7 @@ async def create_workspace(
 
 
 # ============================================================
-# Agent 完成后触发合并（通过 Mut 内核）
+# Agent 完成后触发合并（通过 MutWriteService）
 # ============================================================
 
 @router.post("/{agent_id}/complete", response_model=ApiResponse[CompleteWorkspaceResponse])
@@ -116,37 +109,19 @@ async def complete_workspace(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    外部 Agent 完成后调用此接口
+    外部 Agent 完成后调用此接口 — 通过 MUT protocol push 变更
 
     1. detect_changes: 对比 workspace vs lower
-    2. 构建 file_path → node_id 映射（从 SyncWorker 的 .metadata.json）
-    3. 逐文件 MutCompatService.commit(): 版本管理 + 冲突合并
-    4. 处理新建文件 / 删除文件
-    5. cleanup workspace
+    2. 构建修改/删除列表
+    3. 通过 MutEphemeralClient clone → push 完成原子提交
     """
-    import json as json_mod
     from src.platform.workspace.provider import get_workspace_provider
-    from src.mut_engine.schemas import Mutation, MutationType, Operator
-    from src.mut_engine.dependencies import create_collaboration_service
-    from src.content.repository import ContentNodeRepository
-    from src.content.service import ContentNodeService
-    from src.infra.s3.service import S3Service
-    from src.infra.supabase.client import SupabaseClient
+    from src.mut_engine.dependencies import create_ephemeral_client
     from src.connectors.filesystem.cache import CacheManager
-
-    supabase = SupabaseClient()
-    node_repo = ContentNodeRepository(supabase)
-    s3_service = S3Service()
-
-    from src.connectors.filesystem.changelog import SyncChangelogRepository
-    changelog_repo = SyncChangelogRepository(supabase)
-
-    node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service)
-    collab_service = create_collaboration_service()
+    import asyncio
 
     provider = get_workspace_provider()
 
-    # 1. 检测改动 (返回 {rel_path: content} 和 [rel_path])
     changes = await provider.detect_changes(agent_id)
 
     if not changes.modified and not changes.deleted:
@@ -155,164 +130,51 @@ async def complete_workspace(
             agent_id=agent_id, total_files=0, committed=0, conflict_count=0,
         ), message="No changes detected")
 
-    # 2. 从 .metadata.json 构建 file_path → (node_id, version) 映射
-    #    SyncWorker 同步时已经记录了 {node_id: {file_path, version, ...}}
-    base_dir = provider._base_dir if hasattr(provider, '_base_dir') else "/tmp/contextbase"
-    cache = CacheManager(base_dir=base_dir)
-    sync_metadata = cache.read_metadata(project_id)
+    auth_context = {
+        "agent": f"agent:{agent_id}",
+        "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
+    }
+    client = create_ephemeral_client(project_id, auth_context)
+    await asyncio.to_thread(client.clone)
 
-    path_to_node: dict[str, dict] = {}
-    for node_id, meta in sync_metadata.items():
-        fp = meta.get("file_path", "")
-        if fp:
-            path_to_node[fp] = {
-                "node_id": node_id,
-                "version": meta.get("version", 0),
-                "type": meta.get("type", "json"),
-            }
-
-    # 3. 逐文件提交修改（并收集成功提交的项用于 L2.5 PUSH）
-    committed = 0
-    conflict_count = 0
-    strategies: list[str] = []
-    created_nodes: list[str] = []
-    committed_items: list[dict] = []
-
+    modified: dict[str, bytes] = {}
     for rel_path, content in changes.modified.items():
-        node_type = "json" if rel_path.endswith(".json") else "markdown"
-
-        try:
-            new_content = json_mod.loads(content) if node_type == "json" else content
-        except (json_mod.JSONDecodeError, TypeError):
-            new_content = content
-            node_type = "markdown"
-
-        mapping = path_to_node.get(rel_path)
-
-        if mapping:
-            # --- 已有节点：通过 Mut commit ---
-            node_id = mapping["node_id"]
-            base_version = mapping["version"]
-
-            base_content = None
-            if base_version > 0:
-                try:
-                    ver_detail = collab_service.get_version_content(node_id, base_version)
-                    if ver_detail.content_text:
-                        base_content = ver_detail.content_text
-                    elif ver_detail.content_json is not None:
-                        base_content = json_mod.dumps(ver_detail.content_json, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
-
-            try:
-                mutation = Mutation(
-                    type=MutationType.CONTENT_UPDATE,
-                    operator=Operator(
-                        type="agent",
-                        id=agent_id,
-                        summary=f"Agent write-back: {rel_path}",
-                    ),
-                    node_id=node_id,
-                    content=new_content,
-                    base_version=base_version,
-                    node_type=node_type,
-                    base_content=base_content,
-                )
-                result = await collab_service.commit(mutation)
-                committed += 1
-                committed_items.append({
-                    "node_id": node_id,
-                    "version": result.version,
-                    "content": result.final_content,
-                    "node_type": node_type,
-                })
-                if result.strategy and result.strategy != "direct":
-                    strategies.append(result.strategy)
-                log_info(
-                    f"[Workspace API] Committed {rel_path} → node {node_id} "
-                    f"v{base_version}→v{result.version} ({result.status})"
-                )
-            except Exception as e:
-                conflict_count += 1
-                log_error(f"[Workspace API] Commit failed for {rel_path} (node {node_id}): {e}")
-
+        if isinstance(content, str):
+            modified[rel_path] = content.encode("utf-8")
+        elif isinstance(content, bytes):
+            modified[rel_path] = content
         else:
-            # --- 新建文件：Agent 在沙盒中创建了一个 lower 中没有的文件 ---
-            node_name = os.path.basename(rel_path)
-            base_name = os.path.splitext(node_name)[0] if "." in node_name else node_name
+            modified[rel_path] = str(content).encode("utf-8")
 
-            try:
-                mutation = Mutation(
-                    type=MutationType.NODE_CREATE,
-                    operator=Operator(type="agent", id=agent_id),
-                    project_id=project_id,
-                    name=base_name,
-                    node_type=node_type,
-                    content=new_content if node_type == "json" else (
-                        new_content if isinstance(new_content, str) else str(new_content)
-                    ),
-                    created_by=current_user.user_id,
-                )
-                result = await collab_service.commit(mutation)
-                committed += 1
-                created_nodes.append(rel_path)
-                log_info(
-                    f"[Workspace API] Created new node {result.node_id} "
-                    f"for {rel_path} (type={node_type})"
-                )
-            except Exception as e:
-                conflict_count += 1
-                log_error(f"[Workspace API] Failed to create node for {rel_path}: {e}")
+    deleted = list(changes.deleted)
 
-    # 4. 处理删除（通过 Mut commit → soft delete）
-    deleted_count = 0
-    for rel_path in changes.deleted:
-        mapping = path_to_node.get(rel_path)
-        if mapping:
-            node_id = mapping["node_id"]
-            try:
-                mutation = Mutation(
-                    type=MutationType.NODE_DELETE,
-                    operator=Operator(
-                        type="agent",
-                        id=agent_id,
-                        summary=f"Agent deleted: {rel_path}",
-                    ),
-                    node_id=node_id,
-                    project_id=project_id,
-                )
-                await collab_service.commit(mutation)
-                deleted_count += 1
-                log_info(f"[Workspace API] Deleted node {node_id} ({rel_path})")
-            except Exception as e:
-                log_error(f"[Workspace API] Delete failed for {rel_path} (node {node_id}): {e}")
+    try:
+        result = await asyncio.to_thread(
+            client.push,
+            modified=modified,
+            deleted=deleted,
+            message=f"Agent workspace merge ({len(modified)} modified, {len(deleted)} deleted)",
+            who=agent_id,
+        )
+        committed = len(modified)
+        conflict_count = result.get("conflicts", 0)
+        strategies = ["merge"] if result.get("merged") else []
+        log_info(
+            f"[Workspace API] MUT push: v={result.get('version')} "
+            f"merged={result.get('merged', False)} files={committed}"
+        )
+    except Exception as e:
+        committed = 0
+        conflict_count = len(modified)
+        strategies = []
+        log_error(f"[Workspace API] MUT push failed: {e}")
 
-    # 5. PUSH: 将已提交的变更推送到关联的 folder access 工作区
-    if committed_items:
-        try:
-            from src.connectors.filesystem.folder_access import FolderAccessService
-            fa = FolderAccessService.get_instance()
-            if fa:
-                for item in committed_items:
-                    await fa.push_node_to_workspace(
-                        source_id=item.get("source_id", 0),
-                        node_id=item["node_id"],
-                        version=item["version"],
-                        content=item["content"],
-                        node_type=item["node_type"],
-                    )
-        except Exception as e:
-            log_error(f"[Workspace API] Folder Access PUSH failed: {e}")
-
-    # 6. 清理工作区
     await provider.cleanup(agent_id)
 
     total_files = len(changes.modified) + len(changes.deleted)
     log_info(
         f"[Workspace API] Completed: agent={agent_id}, "
-        f"committed={committed}, conflicts={conflict_count}, "
-        f"deleted={deleted_count}, new_files={len(created_nodes)}"
+        f"committed={committed}, conflicts={conflict_count}"
     )
 
     return ApiResponse.success(data=CompleteWorkspaceResponse(
@@ -333,7 +195,6 @@ async def workspace_status(
     agent_id: str,
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """查看工作区是否存在"""
     from src.platform.workspace.provider import get_workspace_provider
 
     provider = get_workspace_provider()

@@ -19,8 +19,8 @@ from src.platform.project.schemas import (
     AddProjectMember,
     UpdateProjectMemberRole,
 )
-from src.content.dependencies import get_content_node_service
-from src.content.service import ContentNodeService
+from src.mut_engine.dependencies import get_tree_reader
+from src.mut_engine.tree_reader import MutTreeReader
 from src.platform.auth.models import CurrentUser
 from src.platform.auth.dependencies import get_current_user
 from src.common_schemas import ApiResponse
@@ -37,16 +37,16 @@ router = APIRouter(
 )
 
 
-def _convert_to_project_out(project: Project, nodes=None) -> ProjectOut:
-    """将 Project 转换为 ProjectOut（使用 content_nodes）"""
+def _convert_to_project_out(project: Project, entries=None) -> ProjectOut:
+    """将 Project 转换为 ProjectOut（使用 MutTreeReader entries）"""
     node_infos = []
-    if nodes:
-        for node in nodes:
+    if entries:
+        for entry in entries:
             node_infos.append(
                 NodeInfo(
-                    id=node.id,
-                    name=node.name,
-                    type=node.type,
+                    id=entry.path,
+                    name=entry.name,
+                    type=entry.type,
                     rows=None,
                 )
             )
@@ -63,14 +63,14 @@ def _convert_to_project_out(project: Project, nodes=None) -> ProjectOut:
     "/",
     response_model=ApiResponse[List[ProjectOut]],
     summary="获取项目列表",
-    description="获取指定组织下的所有项目列表，包含每个项目下的内容节点。",
-    response_description="返回组织的所有项目列表，每个项目包含其根目录下的内容节点",
+    description="获取指定组织下的所有项目列表，包含每个项目下的根目录条目。",
+    response_description="返回组织的所有项目列表",
     status_code=status.HTTP_200_OK,
 )
 def list_projects(
     org_id: Optional[str] = Query(None, description="组织ID（不传则返回用户所有组织的项目）"),
     project_service: ProjectService = Depends(get_project_service),
-    content_node_service: ContentNodeService = Depends(get_content_node_service),
+    tree_reader: MutTreeReader = Depends(get_tree_reader),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     oids = resolve_org_ids(org_id, current_user.user_id)
@@ -81,8 +81,8 @@ def list_projects(
 
     result = []
     for p in all_projects:
-        nodes = content_node_service.list_root_nodes(str(p.id))
-        result.append(_convert_to_project_out(p, nodes))
+        entries = tree_reader.list_dir(str(p.id), "")
+        result.append(_convert_to_project_out(p, entries))
     return ApiResponse.success(data=result, message="项目列表获取成功")
 
 
@@ -90,19 +90,18 @@ def list_projects(
     "/{project_id}",
     response_model=ApiResponse[ProjectOut],
     summary="获取项目详情",
-    description="根据项目 ID 获取项目详情，包含内容节点。如果项目不存在或用户无权限，将返回错误。",
+    description="根据项目 ID 获取项目详情，包含根目录条目。",
     response_description="返回项目详细信息",
     status_code=status.HTTP_200_OK,
 )
 def get_project(
     project: Project = Depends(get_verified_project),
-    content_node_service: ContentNodeService = Depends(get_content_node_service),
+    tree_reader: MutTreeReader = Depends(get_tree_reader),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # 从 content_nodes 获取项目下的根目录内容
-    nodes = content_node_service.list_root_nodes(str(project.id))
+    entries = tree_reader.list_dir(str(project.id), "")
     return ApiResponse.success(
-        data=_convert_to_project_out(project, nodes), message="项目获取成功"
+        data=_convert_to_project_out(project, entries), message="项目获取成功"
     )
 
 
@@ -117,7 +116,7 @@ def get_project(
 async def create_project(
     payload: ProjectCreate,
     project_service: ProjectService = Depends(get_project_service),
-    content_node_service: ContentNodeService = Depends(get_content_node_service),
+    tree_reader: MutTreeReader = Depends(get_tree_reader),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     resolved_org_id = resolve_org_id(payload.org_id, current_user.user_id)
@@ -129,18 +128,21 @@ async def create_project(
         created_by=current_user.user_id,
     )
 
-    nodes = []
+    from src.mut_engine.dependencies import create_mut_write_service
+    writer = create_mut_write_service()
+    await writer.init_tree(str(project.id))
+
+    entries = []
     if payload.seed:
         from src.platform.project.seed_content import seed_default_content
         await seed_default_content(
-            service=content_node_service,
             project_id=str(project.id),
             created_by=current_user.user_id,
         )
-        nodes = content_node_service.list_root_nodes(str(project.id))
+        entries = tree_reader.list_dir(str(project.id), "")
 
     return ApiResponse.success(
-        data=_convert_to_project_out(project, nodes), message="项目创建成功"
+        data=_convert_to_project_out(project, entries), message="项目创建成功"
     )
 
 
@@ -148,7 +150,7 @@ async def create_project(
     "/{project_id}",
     response_model=ApiResponse[ProjectOut],
     summary="更新项目",
-    description="更新项目信息。所有字段都是可选的，只更新用户提供的字段，未提供的字段保持不变。如果项目不存在或用户无权限，将返回错误。",
+    description="更新项目信息。",
     response_description="返回更新后的项目信息",
     status_code=status.HTTP_200_OK,
 )
@@ -156,20 +158,18 @@ def update_project(
     project: Project = Depends(get_verified_project),
     payload: ProjectUpdate = ...,
     project_service: ProjectService = Depends(get_project_service),
-    content_node_service: ContentNodeService = Depends(get_content_node_service),
+    tree_reader: MutTreeReader = Depends(get_tree_reader),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # 更新项目
     updated_project = project_service.update(
         project_id=project.id,
         name=payload.name,
         description=payload.description,
     )
 
-    # 从 content_nodes 获取项目下的根目录内容
-    nodes = content_node_service.list_root_nodes(str(project.id))
+    entries = tree_reader.list_dir(str(project.id), "")
     return ApiResponse.success(
-        data=_convert_to_project_out(updated_project, nodes), message="项目更新成功"
+        data=_convert_to_project_out(updated_project, entries), message="项目更新成功"
     )
 
 
@@ -177,7 +177,7 @@ def update_project(
     "/{project_id}",
     response_model=ApiResponse[None],
     summary="删除项目",
-    description="删除指定项目。如果项目不存在或用户无权限，将返回错误。",
+    description="删除指定项目。",
     response_description="删除成功，返回空数据",
     status_code=status.HTTP_200_OK,
 )
@@ -198,12 +198,10 @@ def delete_project(
 )
 async def seed_project(
     project: Project = Depends(get_verified_project),
-    content_node_service: ContentNodeService = Depends(get_content_node_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     from src.platform.project.seed_content import seed_default_content
     result = await seed_default_content(
-        service=content_node_service,
         project_id=str(project.id),
         created_by=current_user.user_id,
     )

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import importlib
 import pathlib
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import Depends
 from src.infra.supabase.client import SupabaseClient
@@ -25,11 +25,6 @@ from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.engine import SyncEngine
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.service import SyncService
-from src.connectors.filesystem.watcher import FolderSourceService
-from src.mut_engine.dependencies import get_collaboration_service
-from src.mut_engine.compat_service import CollaborationService
-from src.content.dependencies import get_content_node_service
-from src.content.service import ContentNodeService
 from src.utils.logger import log_info, log_error
 
 
@@ -42,9 +37,7 @@ def _get_supabase_client() -> SupabaseClient:
 # ============================================================
 
 _SCAN_PATHS: list[tuple[str, str]] = [
-    # (directory_path_relative_to_backend/src, python_module_prefix)
     ("connectors/datasource", "src.connectors.datasource"),
-    ("connectors/filesystem", "src.connectors.filesystem"),
 ]
 
 
@@ -64,7 +57,6 @@ def _discover_connectors(deps: ConnectorDeps) -> list[ConnectorSetup]:
         for child in sorted(scan_dir.iterdir()):
             connector_file = child / "connector.py" if child.is_dir() else None
 
-            # Also handle flat connector.py (e.g. connectors/filesystem/connector.py)
             if child.name == "connector.py" and not child.is_dir():
                 connector_file = child
 
@@ -97,12 +89,12 @@ def _discover_connectors(deps: ConnectorDeps) -> list[ConnectorSetup]:
 _registry_instance: Optional[ConnectorRegistry] = None
 
 
-def _build_registry(node_service: ContentNodeService) -> ConnectorRegistry:
+def _build_registry() -> ConnectorRegistry:
     """Build a ConnectorRegistry by auto-discovering connector modules."""
     from src.infra.s3.service import S3Service
 
     registry = ConnectorRegistry()
-    deps = ConnectorDeps(node_service=node_service, s3_service=S3Service())
+    deps = ConnectorDeps(s3_service=S3Service())
 
     for setup_result in _discover_connectors(deps):
         try:
@@ -122,17 +114,7 @@ def init_registry() -> ConnectorRegistry:
     Called once during app startup (app_lifespan).
     """
     global _registry_instance
-
-    from src.content.repository import ContentNodeRepository
-    from src.infra.s3.service import S3Service
-
-    supabase = SupabaseClient()
-    node_service = ContentNodeService(
-        repo=ContentNodeRepository(supabase),
-        s3_service=S3Service(),
-    )
-
-    _registry_instance = _build_registry(node_service)
+    _registry_instance = _build_registry()
     log_info(f"[Registry] Initialized with {len(_registry_instance.providers())} connectors: {_registry_instance.providers()}")
     return _registry_instance
 
@@ -150,26 +132,21 @@ def get_connector_registry() -> ConnectorRegistry:
 
 def get_sync_engine(
     registry: ConnectorRegistry = Depends(get_connector_registry),
-    collab_service: CollaborationService = Depends(get_collaboration_service),
     supabase: SupabaseClient = Depends(_get_supabase_client),
 ) -> SyncEngine:
     from src.connectors.datasource.run_repository import SyncRunRepository
     return SyncEngine(
         registry=registry,
-        collab_service=collab_service,
         sync_repo=SyncRepository(supabase),
         run_repo=SyncRunRepository(supabase),
     )
 
 
 def get_sync_service(
-    collab_service: CollaborationService = Depends(get_collaboration_service),
     registry: ConnectorRegistry = Depends(get_connector_registry),
     supabase: SupabaseClient = Depends(_get_supabase_client),
 ) -> SyncService:
-    """SyncService still handles lifecycle, bootstrap, and push."""
     svc = SyncService(
-        collab_service=collab_service,
         sync_repo=SyncRepository(supabase),
     )
     for provider in registry.providers():
@@ -177,16 +154,6 @@ def get_sync_service(
         if connector:
             svc.register_connector(connector)
     return svc
-
-
-def get_folder_source_service(
-    node_service: ContentNodeService = Depends(get_content_node_service),
-    supabase: SupabaseClient = Depends(_get_supabase_client),
-) -> FolderSourceService:
-    return FolderSourceService(
-        node_service=node_service,
-        sync_repo=SyncRepository(supabase),
-    )
 
 
 # ============================================================
@@ -198,14 +165,10 @@ def _build_sync_service(registry: Optional[ConnectorRegistry] = None) -> SyncSer
     Build a SyncService outside of FastAPI request context.
     Used by the unified POST /api/v1/connections endpoint and other non-DI callers.
     """
-    from src.mut_engine.dependencies import create_collaboration_service
-
     if registry is None:
         registry = get_connector_registry()
-    collab_service = create_collaboration_service()
     supabase = SupabaseClient()
     svc = SyncService(
-        collab_service=collab_service,
         sync_repo=SyncRepository(supabase),
     )
     for provider in registry.providers():
@@ -219,20 +182,15 @@ def create_sync_engine() -> SyncEngine:
     """
     Build a SyncEngine outside of FastAPI request context.
     Used by scheduler jobs and ARQ workers.
-    Reuses the singleton registry if available.
     """
-    from src.mut_engine.dependencies import create_collaboration_service
-
     from src.connectors.datasource.run_repository import SyncRunRepository
 
     registry = get_connector_registry()
-    collab_service = create_collaboration_service()
     supabase = SupabaseClient()
     sync_repo = SyncRepository(supabase)
 
     return SyncEngine(
         registry=registry,
-        collab_service=collab_service,
         sync_repo=sync_repo,
         run_repo=SyncRunRepository(supabase),
     )

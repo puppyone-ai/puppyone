@@ -692,7 +692,7 @@ function SandboxOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
 
 function HistoryTab({ connectionId, projectId }: { connectionId: string; projectId: string }) {
   const { data: logs } = useSWR(
-    connectionId ? `/api/v1/collaboration/audit-logs?project_id=${projectId}&entity_id=${connectionId}&limit=50` : null,
+    connectionId ? `/api/v1/nodes/${connectionId}/audit-logs?project_id=${projectId}&limit=50` : null,
     (url: string) => get<{ logs: AuditLog[] }>(url),
   );
 

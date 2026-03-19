@@ -143,12 +143,12 @@ async def diff_and_writeback(
     sandbox_service,
     sandbox_session_id: str,
     manifest: SandboxManifest,
-    node_service,
-    collab_service,
+    ephemeral_client,
     operator_info: dict,
 ):
     """
-    Diff sandbox state against manifest, write back only changed files.
+    Diff sandbox state against manifest, write back only changed files
+    via MUT protocol (MutEphemeralClient.push()).
 
     Returns list of updated node info dicts.
     """
@@ -156,7 +156,6 @@ async def diff_and_writeback(
 
     updated_nodes = []
 
-    # Get current file hashes from sandbox
     hash_result = await sandbox_service.exec(
         sandbox_session_id,
         "find /workspace -type f -exec sha256sum {} \\; 2>/dev/null"
@@ -175,7 +174,11 @@ async def diff_and_writeback(
         if len(parts) == 2:
             current_hashes[parts[1]] = parts[0]
 
-    # Diff: find changed files
+    project_id = operator_info.get("project_id", "")
+    operator_str = f"{operator_info.get('type', 'agent')}:{operator_info.get('id', 'unknown')}"
+
+    modified_files: dict[str, bytes] = {}
+
     for sandbox_path, entry in manifest.files.items():
         if entry.readonly:
             continue
@@ -190,7 +193,6 @@ async def diff_and_writeback(
             logger.info(f"[SandboxRegistry] File deleted in sandbox: {sandbox_path}")
             continue
 
-        # File changed — read it back
         parse_json = (entry.node_type == "json")
         read_result = await sandbox_service.read_file(
             sandbox_session_id, sandbox_path, parse_json=parse_json
@@ -202,77 +204,39 @@ async def diff_and_writeback(
 
         sandbox_content = read_result.get("content")
 
-        # Handle json_path merging
-        if entry.node_type == "json" and entry.json_path:
+        if entry.node_type == "json" and entry.json_path and ephemeral_client:
             from src.connectors.agent.sandbox_data import merge_data_by_path
-            from src.mut_engine.dependencies import read_blob_content
-            node = node_service.get_by_id_unsafe(entry.node_id)
-            if node:
-                existing_json, _ = read_blob_content(
-                    node.project_id, node.content_hash, "json"
-                )
-                sandbox_content = merge_data_by_path(
-                    existing_json or {}, entry.json_path, sandbox_content
-                )
+            cloned_files = ephemeral_client.files
+            existing_bytes = cloned_files.get(entry.node_id, b"{}")
+            try:
+                existing_json = json.loads(existing_bytes.decode("utf-8"))
+            except Exception:
+                existing_json = {}
+            sandbox_content = merge_data_by_path(
+                existing_json or {}, entry.json_path, sandbox_content
+            )
 
-        # Commit via CollaborationService (handles conflict detection)
         try:
-            if collab_service:
-                from src.mut_engine.schemas import (
-                    Mutation, MutationType, Operator,
-                )
-                mutation = Mutation(
-                    type=MutationType.CONTENT_UPDATE,
-                    operator=Operator(
-                        type=operator_info.get("type", "agent"),
-                        id=operator_info.get("id"),
-                        session_id=operator_info.get("session_id"),
-                        summary="Agent write-back via sandbox",
-                    ),
-                    node_id=entry.node_id,
-                    content=sandbox_content,
-                    base_version=entry.version,
-                    node_type=entry.node_type,
-                    base_content=entry.base_content,
-                )
-                commit_result = await collab_service.commit(mutation)
-                strategy = commit_result.strategy or "direct"
-                logger.info(
-                    f"[SandboxRegistry] Committed {entry.node_id}: "
-                    f"status={commit_result.status}, strategy={strategy}, v={commit_result.version}"
-                )
+            if isinstance(sandbox_content, (dict, list)):
+                content_bytes = json.dumps(sandbox_content, ensure_ascii=False, indent=2).encode("utf-8")
+            elif isinstance(sandbox_content, str):
+                content_bytes = sandbox_content.encode("utf-8")
             else:
-                from src.mut_engine.dependencies import create_collaboration_service
-                from src.mut_engine.schemas import (
-                    Mutation as FbMutation, MutationType as FbMT, Operator as FbOp,
-                )
-                fb_collab = create_collaboration_service()
-                await fb_collab.commit(FbMutation(
-                    type=FbMT.CONTENT_UPDATE,
-                    operator=FbOp(
-                        type=operator_info.get("type", "agent"),
-                        id=operator_info.get("id"),
-                    ),
-                    node_id=entry.node_id,
-                    content=sandbox_content,
-                    node_type=entry.node_type,
-                    base_version=entry.version,
-                ))
-                strategy = "direct_fallback"
+                content_bytes = str(sandbox_content).encode("utf-8")
 
-            node_obj = node_service.get_by_id_unsafe(entry.node_id)
+            modified_files[entry.node_id] = content_bytes
+
+            node_name = entry.node_id.rsplit("/", 1)[-1] if "/" in entry.node_id else entry.node_id
             updated_nodes.append({
                 "nodeId": entry.node_id,
-                "nodeName": node_obj.name if node_obj else entry.node_id,
-                "mergeStrategy": strategy,
+                "nodeName": node_name,
+                "mergeStrategy": "mut_push",
             })
         except Exception as e:
-            logger.warning(f"[SandboxRegistry] Write-back failed for {entry.node_id}: {e}")
+            logger.warning(f"[SandboxRegistry] Prepare write-back failed for {entry.node_id}: {e}")
 
-    # Detect new files (in sandbox but not in manifest) → create nodes
-    if node_service and operator_info.get("project_id") and operator_info.get("parent_node_id"):
-        project_id = operator_info["project_id"]
-        parent_node_id = operator_info["parent_node_id"]
+    if project_id and operator_info.get("parent_path") is not None:
+        parent_path = operator_info["parent_path"]
 
         for sandbox_path, current_hash in current_hashes.items():
             if not sandbox_path.startswith("/workspace/"):
@@ -281,7 +245,6 @@ async def diff_and_writeback(
                 continue
 
             relative = sandbox_path.replace("/workspace/", "", 1)
-            # Skip hidden files and common temp files
             if any(part.startswith(".") for part in relative.split("/")):
                 continue
 
@@ -295,39 +258,41 @@ async def diff_and_writeback(
                 content = read_result.get("content")
                 file_name = relative.split("/")[-1]
 
-                from src.mut_engine.schemas import Mutation, MutationType, Operator
-                from src.mut_engine.dependencies import create_collaboration_service
-
                 if sandbox_path.endswith(".json"):
-                    node_type = "json"
-                    node_name = file_name.removesuffix(".json")
                     node_content = content if isinstance(content, (dict, list)) else {}
+                    content_bytes = json.dumps(node_content, ensure_ascii=False, indent=2).encode("utf-8")
                 elif sandbox_path.endswith(".md"):
-                    node_type = "markdown"
-                    node_name = file_name
-                    node_content = str(content) if content else ""
+                    content_bytes = (str(content) if content else "").encode("utf-8")
                 else:
                     continue
 
-                collab = create_collaboration_service()
-                await collab.commit(Mutation(
-                    type=MutationType.NODE_CREATE,
-                    operator=Operator(type="sandbox", id=sandbox_session_id),
-                    project_id=project_id,
-                    name=node_name,
-                    content=node_content,
-                    node_type=node_type,
-                    parent_id=parent_node_id,
-                ))
+                new_path = f"{parent_path}/{file_name}" if parent_path else file_name
+                modified_files[new_path] = content_bytes
 
-                logger.info(f"[SandboxRegistry] Created new node for: {relative}")
                 updated_nodes.append({
-                    "nodeId": "new",
+                    "nodeId": new_path,
                     "nodeName": file_name,
                     "mergeStrategy": "created",
                 })
             except Exception as e:
-                logger.warning(f"[SandboxRegistry] Failed to create node for {sandbox_path}: {e}")
+                logger.warning(f"[SandboxRegistry] Failed to prepare new file {sandbox_path}: {e}")
+
+    if modified_files and ephemeral_client:
+        try:
+            import asyncio
+            result = await asyncio.to_thread(
+                ephemeral_client.push,
+                modified=modified_files,
+                message=f"Agent write-back ({len(modified_files)} files)",
+                who=operator_str,
+            )
+            logger.info(
+                f"[SandboxRegistry] MUT push: v={result.get('version')} "
+                f"merged={result.get('merged', False)} files={len(modified_files)}"
+            )
+        except Exception as e:
+            logger.error(f"[SandboxRegistry] MUT push failed: {e}")
+            updated_nodes = []
 
     return updated_nodes
 

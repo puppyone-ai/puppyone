@@ -19,7 +19,7 @@ import {
   getToolsByNodeId,
   type Tool,
 } from '../mcpApi';
-import { listNodes, type NodeInfo } from '../contentNodesApi';
+import { listDir, type NodeInfo } from '../contentNodesApi';
 import { getConnectorSpecs, type ConnectorSpec } from '../syncApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
@@ -142,14 +142,14 @@ export function updateTableCache(
 }
 
 /**
- * 获取指定文件夹下的子节点列表（SWR 缓存）
+ * Fetch directory listing for a given path (SWR cached).
  *
- * - 全局缓存：ExplorerSidebar / GridView / ListView 共享同一份数据
- * - 组件重挂后瞬间返回缓存，不显示 Loading
- * - keepPreviousData: 切换文件夹时保留旧列表直到新数据到达
+ * - Global cache: ExplorerSidebar / GridView / ListView share same data
+ * - keepPreviousData: preserves old list while new data loads
  */
-export function useContentNodes(projectId: string, parentId: string | null | undefined) {
-  const key = projectId ? ['nodes', projectId, parentId ?? '__root__'] : null;
+export function useTreeDir(projectId: string, dirPath: string | null | undefined) {
+  const normalizedPath = dirPath ?? '';
+  const key = projectId ? ['tree', projectId, normalizedPath] : null;
   const {
     data,
     error,
@@ -157,7 +157,7 @@ export function useContentNodes(projectId: string, parentId: string | null | und
     mutate: revalidate,
   } = useSWR<NodeInfo[]>(
     key,
-    () => listNodes(projectId, parentId ?? undefined).then(r => r.nodes),
+    () => listDir(projectId, normalizedPath).then(r => r.nodes),
     {
       ...defaultConfig,
       dedupingInterval: 30000,
@@ -174,20 +174,26 @@ export function useContentNodes(projectId: string, parentId: string | null | und
 }
 
 /**
- * 手动刷新指定文件夹下的节点列表
- * parentId = null 表示项目根目录
+ * Backward-compatible alias for useTreeDir.
+ * parentId is now treated as a directory path.
  */
-export function refreshContentNodes(projectId: string, parentId: string | null) {
-  return mutate(['nodes', projectId, parentId ?? '__root__']);
+export function useContentNodes(projectId: string, parentPath: string | null | undefined) {
+  return useTreeDir(projectId, parentPath);
 }
 
 /**
- * 刷新整个项目的所有文件夹缓存（用于外部变更：MCP/Bot/Sync）
- * 使用 SWR 的 key matcher 匹配所有 ['nodes', projectId, *] 的缓存
+ * Manually refresh directory listing for a given path.
+ */
+export function refreshContentNodes(projectId: string, dirPath: string | null) {
+  return mutate(['tree', projectId, dirPath ?? '']);
+}
+
+/**
+ * Refresh all directory caches for a project (used after external changes: MCP/Bot/Sync).
  */
 export function refreshAllContentNodes(projectId: string) {
   return mutate(
-    key => Array.isArray(key) && key[0] === 'nodes' && key[1] === projectId,
+    key => Array.isArray(key) && key[0] === 'tree' && key[1] === projectId,
     undefined,
     { revalidate: true }
   );

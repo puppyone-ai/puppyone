@@ -2,7 +2,7 @@
 PuppyOneServerRepo — MUT ServerRepo 的 S3/PG 适配器
 
 实现 MUT handlers.py 需要的 ServerRepo 接口，但底层用
-S3 ObjectStore + Supabase History/Audit 而不是本地文件系统。
+S3 ObjectStore + Supabase History/Audit/Scope 而不是本地文件系统。
 
 关键区别：
   - 没有 current/ 目录
@@ -20,9 +20,11 @@ from typing import Optional
 from mut.core.object_store import ObjectStore
 from mut.core.tree import read_tree, tree_to_flat
 from mut.core.protocol import normalize_path
+from mut.server.scope_manager import ScopeManager
 
 from src.mut_engine.backends.supabase_history import SupabaseHistoryManager
 from src.mut_engine.backends.supabase_audit import SupabaseAuditManager
+from src.mut_engine.backends.supabase_scope import SupabaseScopeBackend
 from src.utils.logger import log_error
 
 
@@ -36,32 +38,31 @@ class PuppyOneServerRepo:
         store: ObjectStore,
         history: SupabaseHistoryManager,
         audit: SupabaseAuditManager,
+        scopes: ScopeManager,
     ):
         self._project_id = project_id
         self._project_name = project_name
         self.store = store
         self.history = history
         self.audit = audit
+        self.scopes = scopes
 
         self._scope_locks: dict[str, threading.Lock] = {}
         self._scope_locks_guard = threading.Lock()
 
-        # Push 操作期间的临时状态:
-        # scope_key -> (scope_path, {rel_path: bytes})
         self._pending_scope: dict[str, tuple[str, dict[str, bytes]]] = {}
-        # 上一次 build_scope_tree 的结果（供 build_full_tree fallback 使用）
-        self._last_scope_build: Optional[tuple[str, str]] = None  # (scope_path, tree_hash)
+        self._last_scope_build: Optional[tuple[str, str]] = None
 
     # ── Project info ──
 
     def get_project_name(self) -> str:
         return self._project_name
 
-    # ── Scope (stub — scopes come from auth["_scope"]) ──
+    # ── Scope (delegated to ScopeManager) ──
 
     def add_scope(self, scope_id: str, path: str,
                   exclude: list | None = None) -> dict:
-        return {"id": scope_id, "path": path, "exclude": exclude or [], "mode": "rw"}
+        return self.scopes.add(scope_id, path, exclude)
 
     # ── Version / Root (delegate to SupabaseHistoryManager) ──
 

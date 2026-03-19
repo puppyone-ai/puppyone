@@ -295,12 +295,12 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
                       flexShrink: 0,
                       padding: '1px 5px',
                       borderRadius: 3,
-                      background: agentResource?.terminalReadonly ? 'rgba(100, 100, 100, 0.25)' : 'rgba(249, 115, 22, 0.2)',
+                      background: agentResource?.readonly ? 'rgba(100, 100, 100, 0.25)' : 'rgba(249, 115, 22, 0.2)',
                       fontSize: 10,
                       fontWeight: 500,
-                      color: agentResource?.terminalReadonly ? '#a1a1aa' : '#fb923c',
+                      color: agentResource?.readonly ? '#a1a1aa' : '#fb923c',
                     }}>
-                      {agentResource?.terminalReadonly ? 'View' : 'Edit'}
+                      {agentResource?.readonly ? 'View' : 'Edit'}
                     </div>
                   )}
 

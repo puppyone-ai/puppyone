@@ -7,6 +7,8 @@ Agent — 沙盒数据准备
 - extract_data_by_path() / merge_data_by_path() JSON 路径工具
 
 职责：根据 access point 的节点类型，准备要挂载到沙盒的文件列表。
+
+NOTE: 使用 MutTreeReader 直接从 Mut Merkle tree 读取，不依赖 content_nodes (PG)。
 """
 
 import json
@@ -39,8 +41,9 @@ class SandboxData:
 
 
 async def prepare_sandbox_data(
-    node_service,
-    node_id: str,
+    tree_reader,
+    project_id: str,
+    path: str,
     json_path: str | None,
     user_id: str,
 ) -> SandboxData:
@@ -51,20 +54,30 @@ async def prepare_sandbox_data(
     - json: 导出 content 为 data.json（可选 json_path 提取子数据）
     - folder: 递归获取子文件列表
     - file/pdf/image/etc: 单个文件信息
-    """
-    node = node_service.get_by_id_unsafe(node_id)
-    if not node:
-        raise ValueError(f"Node not found: {node_id}")
 
-    logger.info(f"[prepare_sandbox_data] node.id={node.id}, type={node.type}, name={node.name}")
+    Args:
+        tree_reader: MutTreeReader instance
+        project_id: project UUID
+        path: Mut tree path (e.g. "my-folder" or "data.json")
+        json_path: optional JSON Pointer sub-path
+        user_id: current user id (for logging)
+    """
+    entry = tree_reader.stat(project_id, path)
+    if not entry:
+        raise ValueError(f"Path not found: {path}")
+
+    logger.info(f"[prepare_sandbox_data] path={path}, type={entry.type}, name={entry.name}")
 
     files: list[SandboxFile] = []
-    node_type = node.type or "json"
+    node_type = entry.type or "json"
+    node_name = entry.name or path.rsplit("/", 1)[-1]
 
     if node_type == "json":
-        from src.mut_engine.dependencies import read_blob_content
-        json_content, _ = read_blob_content(node.project_id, node.content_hash, "json")
-        content = json_content or {}
+        raw = tree_reader.read_file(project_id, path)
+        try:
+            content = json.loads(raw.decode("utf-8"))
+        except Exception:
+            content = {}
         if json_path:
             content = extract_data_by_path(content, json_path)
 
@@ -72,106 +85,95 @@ async def prepare_sandbox_data(
             path="/workspace/data.json",
             content=json.dumps(content, ensure_ascii=False, indent=2),
             content_type="application/json",
-            node_id=node.id,
+            node_id=path,
             node_type="json",
-            base_version=getattr(node, "current_version", 0),
         ))
         logger.info(f"[prepare_sandbox_data] JSON node, content size={len(str(content))}")
 
     elif node_type == "folder":
-        children = node_service.list_descendants(node.project_id, node_id)
+        children = tree_reader.list_tree(project_id, path)
         logger.info(f"[prepare_sandbox_data] Folder node, children count={len(children)}")
 
-        id_to_node: dict[str, Any] = {node.id: node}
-        for child in children:
-            id_to_node[child.id] = child
-
-        folder_name = node.name or "data"
-
-        def build_name_path(target_node) -> str:
-            """基于 id_path 构建名称路径（无递归，无环风险）。"""
-            all_ids = [s for s in target_node.id_path.strip("/").split("/") if s]
-            root_idx = next((i for i, nid in enumerate(all_ids) if nid == node.id), -1)
-            if root_idx >= 0:
-                relevant_ids = all_ids[root_idx:]
-            else:
-                relevant_ids = all_ids
-            parts = []
-            for nid in relevant_ids:
-                if nid in id_to_node:
-                    parts.append(id_to_node[nid].name)
-                else:
-                    parts.append(nid)
-            return "/".join(parts) if parts else folder_name
+        folder_name = node_name or "data"
 
         for child in children:
             if child.type == "folder":
                 continue
 
-            relative_path = build_name_path(child)
+            relative_path = child.path
+            if relative_path.startswith(path + "/"):
+                relative_path = relative_path[len(path) + 1:]
+
             if not relative_path:
                 relative_path = f"{folder_name}/{child.name}"
 
-            child_version = getattr(child, "current_version", 0)
-
             if child.type == "json":
-                from src.mut_engine.dependencies import read_blob_content
-                child_json, _ = read_blob_content(child.project_id, child.content_hash, "json")
+                try:
+                    child_raw = tree_reader.read_file(project_id, child.path)
+                    child_json = json.loads(child_raw.decode("utf-8"))
+                except Exception:
+                    child_json = {}
                 files.append(SandboxFile(
-                    path=f"/workspace/{relative_path}.json",
-                    content=json.dumps(child_json or {}, ensure_ascii=False, indent=2),
+                    path=f"/workspace/{relative_path}",
+                    content=json.dumps(child_json, ensure_ascii=False, indent=2),
                     content_type="application/json",
-                    node_id=child.id,
+                    node_id=child.path,
                     node_type="json",
-                    base_version=child_version,
                 ))
             elif child.type == "markdown":
-                from src.mut_engine.dependencies import read_blob_content
-                _, child_text = read_blob_content(child.project_id, child.content_hash, "markdown")
+                try:
+                    child_raw = tree_reader.read_file(project_id, child.path)
+                    child_text = child_raw.decode("utf-8", errors="replace")
+                except Exception:
+                    child_text = None
                 if child_text is not None:
                     md_path = relative_path if relative_path.endswith(".md") else f"{relative_path}.md"
                     files.append(SandboxFile(
                         path=f"/workspace/{md_path}",
                         content=child_text,
                         content_type="text/markdown",
-                        node_id=child.id,
+                        node_id=child.path,
                         node_type="markdown",
-                        base_version=child_version,
                     ))
-            elif child.s3_key:
+            elif child.content_hash:
                 files.append(SandboxFile(
                     path=f"/workspace/{relative_path}",
-                    s3_key=child.s3_key,
+                    s3_key=None,
                     content_type=child.mime_type or "application/octet-stream",
-                    node_id=child.id,
+                    node_id=child.path,
                     node_type=child.type or "file",
-                    base_version=child_version,
                 ))
     else:
-        file_name = node.name or "file"
+        file_name = node_name or "file"
 
-        from src.mut_engine.dependencies import read_blob_content
-        fallback_json, _ = read_blob_content(node.project_id, node.content_hash, "json")
+        try:
+            raw = tree_reader.read_file(project_id, path)
+            fallback_json = json.loads(raw.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            fallback_json = None
+        except FileNotFoundError:
+            fallback_json = None
+
         if fallback_json and isinstance(fallback_json, (dict, list)):
             files.append(SandboxFile(
                 path=f"/workspace/{file_name}.json",
                 content=json.dumps(fallback_json, ensure_ascii=False, indent=2),
                 content_type="application/json",
             ))
-        elif node.s3_key:
+        elif entry.content_hash:
             files.append(SandboxFile(
                 path=f"/workspace/{file_name}",
-                s3_key=node.s3_key,
-                content_type=node.mime_type or "application/octet-stream",
+                s3_key=None,
+                content_type=entry.mime_type or "application/octet-stream",
             ))
         else:
-            logger.warning(f"[prepare_sandbox_data] Node has no content or s3_key: {node_id}")
+            logger.warning(f"[prepare_sandbox_data] Path has no content: {path}")
 
     return SandboxData(
         files=files,
         node_type=node_type,
-        root_node_id=node.id,
-        root_node_name=node.name or "",
+        root_node_id=path,
+        root_node_name=node_name,
     )
 
 

@@ -527,34 +527,15 @@ function subscribeToChanges(supabase, api, conn, out) {
     .on(
       "postgres_changes",
       {
-        event: "UPDATE",
-        schema: "public",
-        table: "content_nodes",
-        filter: `sync_source_id=eq.${conn.source_id}`,
-      },
-      async (payload) => {
-        const row = payload.new;
-        const version = row.current_version ?? 0;
-        const lastSync = row.last_sync_version ?? 0;
-        if (version <= lastSync) return;
-        await triggerPull();
-      },
-    );
-
-  if (conn.target_folder_id) {
-    channel.on(
-      "postgres_changes",
-      {
         event: "INSERT",
         schema: "public",
-        table: "content_nodes",
-        filter: `parent_id=eq.${conn.target_folder_id}`,
+        table: "mut_commits",
+        filter: `project_id=eq.${conn.project_id}`,
       },
       async () => {
         await triggerPull();
       },
     );
-  }
 
   channel.subscribe();
   return channel;

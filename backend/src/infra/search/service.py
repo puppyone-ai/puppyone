@@ -11,8 +11,7 @@ from src.infra.chunking.config import ChunkingConfig
 from src.infra.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
 from src.infra.chunking.schemas import Chunk
 from src.infra.chunking.service import ChunkingService, iter_large_string_nodes_for_chunking
-from src.content.models import ContentNode
-from src.content.service import ContentNodeService
+from src.mut_engine.tree_reader import MutTreeReader, MutEntry
 from src.infra.llm.embedding_service import EmbeddingService
 from src.infra.s3.service import S3Service
 from src.infra.turbopuffer.schemas import TurbopufferRow
@@ -135,7 +134,7 @@ class SearchService:
     def __init__(
         self,
         *,
-        node_service: ContentNodeService,
+        tree_reader: MutTreeReader,
         chunk_repo: ChunkRepository,
         project_service: ProjectService,
         chunking_service: ChunkingService | None = None,
@@ -143,7 +142,7 @@ class SearchService:
         embedding_service: EmbeddingService | None = None,
         turbopuffer_service: TurbopufferSearchService | None = None,
     ) -> None:
-        self._node_service = node_service
+        self._tree_reader = tree_reader
         self._chunk_repo = chunk_repo
         self._project_service = project_service
         self._chunking_service = chunking_service or ChunkingService()
@@ -215,12 +214,14 @@ class SearchService:
 
         # 1) 读取 scope 数据（从 MUT ObjectStore 获取）
         t1 = time.perf_counter()
-        node = await asyncio.to_thread(
-            self._node_service.get_by_id, node_id, project_id
+        content_bytes = await asyncio.to_thread(
+            self._tree_reader.read_file, project_id, node_id
         )
-        from src.mut_engine.dependencies import read_blob_content
-        _json_data, _ = read_blob_content(node.project_id, node.content_hash, "json")
-        full_data = _json_data or {}
+        import json as _json_mod
+        try:
+            full_data = _json_mod.loads(content_bytes.decode("utf-8"))
+        except Exception:
+            full_data = {}
         scope_data = _extract_by_pointer(full_data, scope_pointer)
         log_info(
             f"[index_scope] step1_get_scope_data: node_id={node_id} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
@@ -496,11 +497,12 @@ class SearchService:
 
         # 1) Get all indexable descendants
         t1 = time.perf_counter()
-        indexable_files = await asyncio.to_thread(
-            self._node_service.list_indexable_descendants,
-            project_id,
-            folder_node_id,
+        all_entries = await asyncio.to_thread(
+            self._tree_reader.list_tree, project_id, folder_node_id
         )
+        indexable_files = [
+            e for e in all_entries if e.type in ("json", "markdown")
+        ]
         total_files = len(indexable_files)
         log_info(
             f"[index_folder] step1_get_indexable_files: folder_node_id={folder_node_id} "
@@ -537,6 +539,7 @@ class SearchService:
                     file_node=file_node,
                     namespace=namespace,
                     s3_service=s3_service,
+                    project_id=project_id,
                 )
                 total_nodes += stats.nodes_count
                 total_chunks += stats.chunks_count
@@ -545,7 +548,7 @@ class SearchService:
 
                 log_info(
                     f"[index_folder] file_indexed: {i + 1}/{total_files} "
-                    f"file_node_id={file_node.id} name={file_node.name} "
+                    f"file_path={file_node.path} name={file_node.name} "
                     f"chunks={stats.chunks_count} elapsed_ms={int((time.perf_counter() - t_file) * 1000)}"
                 )
 
@@ -558,7 +561,7 @@ class SearchService:
 
             except Exception as e:
                 log_error(
-                    f"[index_folder] file_error: file_node_id={file_node.id} "
+                    f"[index_folder] file_error: file_path={file_node.path} "
                     f"name={file_node.name} error={e}"
                 )
                 # Continue with other files even if one fails
@@ -581,54 +584,45 @@ class SearchService:
     async def _index_file_node(
         self,
         *,
-        file_node: ContentNode,
+        file_node: MutEntry,
         namespace: str,
         s3_service: S3Service,
+        project_id: str,
     ) -> SearchIndexStats:
         """
-        Index a single file node (json or markdown) into the folder namespace.
-        
-        Args:
-            file_node: The file node to index
-            namespace: Turbopuffer namespace for the folder
-            s3_service: S3 service for reading markdown content
-        
-        Returns:
-            SearchIndexStats for this file
+        Index a single file entry (json or markdown) into the folder namespace.
         """
         t0 = time.perf_counter()
 
-        # 1) Read file content based on type (from MUT ObjectStore or S3)
         is_markdown = file_node.type == "markdown"
         is_json = file_node.type == "json"
 
-        from src.mut_engine.dependencies import read_blob_content
-        _fnode_json, _fnode_text = read_blob_content(
-            file_node.project_id, file_node.content_hash, file_node.type
-        )
+        try:
+            content_bytes = self._tree_reader.read_file(
+                project_id, file_node.path
+            )
+        except Exception:
+            content_bytes = None
 
         if is_json:
-            content_data = _fnode_json or {}
+            if content_bytes:
+                import json as _json_mod
+                try:
+                    content_data = _json_mod.loads(content_bytes.decode("utf-8"))
+                except Exception:
+                    content_data = {}
+            else:
+                content_data = {}
             scope_pointer = ""
         elif is_markdown:
-            if _fnode_text:
-                content_data = _fnode_text
+            if content_bytes:
+                content_data = content_bytes.decode("utf-8", errors="replace")
                 scope_pointer = "/"
-            elif file_node.s3_key:
-                try:
-                    content_bytes = await s3_service.download_file(file_node.s3_key)
-                    content_text = content_bytes.decode("utf-8")
-                    content_data = content_text
-                    scope_pointer = "/"
-                except Exception as e:
-                    log_error(f"[_index_file_node] s3_download_error: {file_node.id} error={e}")
-                    return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
             else:
-                log_info(f"[_index_file_node] skip: no content for markdown node {file_node.id}")
+                log_info(f"[_index_file_node] skip: no content for markdown {file_node.path}")
                 return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
         else:
-            # Unsupported type
-            log_info(f"[_index_file_node] skip: unsupported type={file_node.type} (no preview content)")
+            log_info(f"[_index_file_node] skip: unsupported type={file_node.type}")
             return SearchIndexStats(nodes_count=0, chunks_count=0, indexed_chunks_count=0)
 
         # 2) Extract large string nodes or use content directly
@@ -664,12 +658,13 @@ class SearchService:
         # 3) Ensure chunks (idempotent)
         t3 = time.perf_counter()
         all_chunks: list[Chunk] = []
+        file_id = file_node.path
         for n in nodes:
             ensured = await asyncio.to_thread(
                 ensure_chunks_for_pointer,
                 repo=self._chunk_repo,
                 service=self._chunking_service,
-                node_id=file_node.id,  # Use file node ID, not folder ID
+                node_id=file_id,
                 json_pointer=n.json_pointer,
                 content=n.content,
                 config=self._chunking_config,
@@ -677,7 +672,7 @@ class SearchService:
             all_chunks.extend(list(ensured.chunks))
 
         log_info(
-            f"[_index_file_node] ensure_chunks: file={file_node.id} chunks={len(all_chunks)} "
+            f"[_index_file_node] ensure_chunks: file={file_node.path} chunks={len(all_chunks)} "
             f"elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
         )
 
@@ -691,7 +686,7 @@ class SearchService:
         texts = [c.chunk_text for c in all_chunks]
         vectors = await self._embedding.generate_embeddings_batch(texts)
         log_info(
-            f"[_index_file_node] embedding: file={file_node.id} vectors={len(vectors)} "
+            f"[_index_file_node] embedding: file={file_node.path} vectors={len(vectors)} "
             f"elapsed_ms={int((time.perf_counter() - t4) * 1000)}"
         )
 
@@ -702,7 +697,7 @@ class SearchService:
 
         for c, vec in zip(all_chunks, vectors, strict=True):
             doc_id = self.build_folder_doc_id(
-                file_node_id=file_node.id,
+                file_node_id=file_id,
                 json_pointer=c.json_pointer,
                 content_hash=c.content_hash,
                 chunk_index=c.chunk_index,
@@ -712,7 +707,6 @@ class SearchService:
                 {
                     "id": doc_id,
                     "vector": vec,
-                    # Existing metadata fields
                     "json_pointer": c.json_pointer,
                     "chunk_index": c.chunk_index,
                     "total_chunks": c.total_chunks,
@@ -720,9 +714,8 @@ class SearchService:
                     "char_end": c.char_end,
                     "content_hash": c.content_hash,
                     "chunk_id": int(c.id),
-                    # Folder search specific fields
-                    "file_node_id": file_node.id,
-                    "file_id_path": file_node.id_path,
+                    "file_node_id": file_id,
+                    "file_mut_path": file_node.path,
                     "file_name": file_node.name,
                     "file_type": file_node.type,
                 }
@@ -734,7 +727,7 @@ class SearchService:
             distance_metric="cosine_distance",
         )
         log_info(
-            f"[_index_file_node] turbopuffer: file={file_node.id} rows={len(upsert_rows)} "
+            f"[_index_file_node] turbopuffer: file={file_node.path} rows={len(upsert_rows)} "
             f"elapsed_ms={int((time.perf_counter() - t5) * 1000)}"
         )
 
@@ -758,7 +751,7 @@ class SearchService:
                 pass  # Don't block on chunk update failures
 
         log_info(
-            f"[_index_file_node] done: file={file_node.id} "
+            f"[_index_file_node] done: file={file_node.path} "
             f"total_ms={int((time.perf_counter() - t0) * 1000)}"
         )
 
@@ -833,7 +826,7 @@ class SearchService:
             
             # Extract file information
             file_node_id = str(attrs.get("file_node_id") or "")
-            file_id_path = str(attrs.get("file_id_path") or "")
+            file_mut_path = str(attrs.get("file_mut_path") or attrs.get("file_id_path") or "")
             file_name = str(attrs.get("file_name") or "")
             file_type = str(attrs.get("file_type") or "")
             
@@ -865,7 +858,7 @@ class SearchService:
                     "score": float(score),
                     "file": {
                         "node_id": file_node_id,
-                        "id_path": file_id_path,
+                        "mut_path": file_mut_path,
                         "name": file_name,
                         "type": file_type,
                     },

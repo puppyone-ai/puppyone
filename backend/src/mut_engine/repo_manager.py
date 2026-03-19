@@ -24,6 +24,7 @@ from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.backends.s3_storage import S3StorageBackend
 from src.mut_engine.backends.supabase_history import SupabaseHistoryManager
 from src.mut_engine.backends.supabase_audit import SupabaseAuditManager
+from src.mut_engine.backends.supabase_scope import SupabaseScopeBackend
 from src.mut_engine.server_repo import PuppyOneServerRepo
 from src.utils.logger import log_error
 
@@ -59,12 +60,15 @@ class MutRepoManager:
         """Get a PuppyOneServerRepo for MUT protocol handlers (clone/push/pull)."""
         proj = self.get_repo(project_id)
         project_name = self._lookup_project_name(project_id)
+        from mut.server.scope_manager import ScopeManager
+        scope_backend = SupabaseScopeBackend(self._supabase, project_id)
         return PuppyOneServerRepo(
             project_id=project_id,
             project_name=project_name,
             store=proj.store,
             history=proj.history,
             audit=proj.audit,
+            scopes=ScopeManager(scope_backend),
         )
 
     def _create_repo(self, project_id: str) -> ProjectRepo:

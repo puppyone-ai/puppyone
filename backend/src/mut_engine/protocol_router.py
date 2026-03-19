@@ -7,7 +7,6 @@ MUT Protocol Router — clone/push/pull/negotiate 端点
   - Sandbox 通过 `mut clone` 加载文件，`mut push` 写回
 
 所有端点使用 PuppyOneServerRepo 适配器，底层 S3 + Supabase。
-Push 后自动触发 IndexSync 保持 content_nodes 同步。
 """
 
 from __future__ import annotations
@@ -26,21 +25,12 @@ from mut.server.handlers import (
 from mut.foundation.error import PermissionDenied, LockError
 
 from src.mut_engine.auth import get_mut_auth
-from src.mut_engine.dependencies import get_repo_manager, get_index_sync
+from src.mut_engine.dependencies import get_repo_manager
 from src.mut_engine.repo_manager import MutRepoManager
-from src.mut_engine.index_sync import IndexSync
+from src.mut_engine.write_service import MutWriteService
 from src.utils.logger import log_info, log_error
 
 router = APIRouter(prefix="/api/v1/mut")
-
-
-def _map_changeset_ops(changes: list[dict]) -> list[dict]:
-    """Map MUT handler changeset format (action) to IndexSync format (op)."""
-    op_map = {"add": "added", "update": "modified", "delete": "deleted"}
-    return [
-        {"path": c["path"], "op": op_map.get(c.get("action", ""), c.get("action", ""))}
-        for c in changes
-    ]
 
 
 @router.post("/{project_id}/clone")
@@ -72,7 +62,6 @@ async def mut_push(
     request: Request,
     auth: dict = Depends(get_mut_auth),
     repo_manager: MutRepoManager = Depends(get_repo_manager),
-    index_sync: IndexSync = Depends(get_index_sync),
 ):
     """Push changes to server (like `git push`). Includes server-side merge."""
     body = await request.json()
@@ -88,24 +77,7 @@ async def mut_push(
         log_error(f"[MUT] push failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Push failed: {e}")
 
-    if result.get("status") == "ok" and result.get("version"):
-        changes = result.get("changes", [])
-        if not changes:
-            changes = body.get("_changes", [])
-        mapped = _map_changeset_ops(changes)
-        if mapped:
-            proj_repo = repo_manager.get_repo(project_id)
-            try:
-                await index_sync.sync_changeset(
-                    project_id=project_id,
-                    store=proj_repo.store,
-                    changes=mapped,
-                    root_hash=result.get("root", ""),
-                    version=result["version"],
-                    operator_id=auth.get("agent"),
-                )
-            except Exception as e:
-                log_error(f"[MUT] IndexSync failed after push: {e}")
+    _run_post_push_hook(project_id, repo_manager, result)
 
     log_info(
         f"[MUT] push project={project_id} agent={auth['agent']} "
@@ -158,3 +130,39 @@ async def mut_negotiate(
         raise HTTPException(status_code=500, detail=f"Negotiate failed: {e}")
 
     return JSONResponse(result)
+
+
+def _run_post_push_hook(
+    project_id: str, repo_manager: MutRepoManager, push_result: dict
+) -> None:
+    """Run post-commit consistency hook after MUT protocol push.
+
+    Reads the newly created history entry to extract changes,
+    then delegates to MutWriteService's consistency hooks.
+    """
+    version = push_result.get("version")
+    if not version or push_result.get("status") != "ok":
+        return
+
+    try:
+        repo = repo_manager.get_repo(project_id)
+        entry = repo.history.get_entry(version)
+        if not entry:
+            return
+
+        changes = entry.get("changes", [])
+        if isinstance(changes, str):
+            import json
+            changes = json.loads(changes)
+
+        deleted_paths = [
+            c["path"] for c in changes
+            if c.get("action") == "delete" or c.get("op") == "deleted"
+        ]
+
+        if deleted_paths:
+            write_svc = MutWriteService(repo_manager)
+            write_svc._post_commit_delete(project_id, deleted_paths)
+
+    except Exception as e:
+        log_error(f"[MUT] post-push hook failed for project {project_id}: {e}")

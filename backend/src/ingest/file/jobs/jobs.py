@@ -23,8 +23,6 @@ from src.ingest.file.state.models import ETLPhase, ETLRuntimeState
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTaskResult, ETLTaskStatus
 from src.exceptions import BusinessException, ErrorCode
-from src.content.repository import ContentNodeRepository
-from src.content.service import ContentNodeService
 from src.infra.s3.service import S3Service
 from src.infra.supabase.client import SupabaseClient
 
@@ -373,29 +371,26 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
         mount_json_path = task.metadata.get("mount_json_path") or ""
         mount_key = task.metadata.get("mount_key") or Path(task.filename).name
 
-        from src.mut_engine.dependencies import create_collaboration_service
-        from src.mut_engine.schemas import Mutation, MutationType, Operator
-        collab_service = create_collaboration_service()
+        from src.mut_engine.dependencies import create_ephemeral_client, create_tree_reader
+        tree_reader = create_tree_reader()
 
-        _supabase = SupabaseClient()
-        _repo = ContentNodeRepository(_supabase)
-        _s3 = S3Service()
-        node_service = ContentNodeService(_repo, _s3)
+        auth_ctx = {
+            "agent": f"etl:{task_id}",
+            "_scope": {"id": "_etl", "path": "", "exclude": [], "mode": "rw"},
+        }
+        client = create_ephemeral_client(task.project_id, auth_ctx)
+        client.clone()
 
         if not mount_node_id:
             auto_name = task.metadata.get("auto_node_name") or f"{task_id}"
             auto_name = str(auto_name)[:12]
-            create_result = await collab_service.commit(Mutation(
-                type=MutationType.NODE_CREATE,
-                operator=Operator(type="system", id=f"etl:{task_id}", summary=f"ETL auto-create for {task.filename}"),
-                project_id=task.project_id,
-                name=auto_name,
-                content={},
-                parent_id=None,
-                node_type="json",
-                created_by=_creator_id(task),
-            ))
-            mount_node_id = create_result.node_id
+            mount_node_id = f"{auto_name}.json"
+            client.push(
+                modified={mount_node_id: json.dumps({}, ensure_ascii=False).encode("utf-8")},
+                message=f"ETL auto-create for {task.filename}",
+                who=f"etl:{task_id}",
+            )
+            client.clone()
             task.metadata["mount_node_id"] = mount_node_id
             task.metadata["auto_node_created"] = True
 
@@ -410,11 +405,9 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
             mount_value = output_obj
 
         try:
-            existing_node = await asyncio.to_thread(
-                node_service.get_by_id, mount_node_id, task.project_id
-            )
+            entry = tree_reader.stat(task.project_id, mount_node_id)
 
-            is_pending = existing_node.type == "file" and not existing_node.has_preview
+            is_pending = entry and entry.type == "file"
             if is_pending:
                 if isinstance(mount_value, dict) and "content" in mount_value:
                     markdown_content = mount_value["content"]
@@ -423,27 +416,22 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                 else:
                     markdown_content = markdown
 
-                current_version = existing_node.current_version or 0
-                await collab_service.commit(Mutation(
-                    type=MutationType.CONTENT_UPDATE,
-                    operator=Operator(type="system", id=f"etl:{task_id}", summary=f"OCR result for {task.filename}"),
-                    node_id=mount_node_id,
-                    content=markdown_content,
-                    node_type="markdown",
-                    base_version=current_version,
-                ))
-                await node_service.finalize_pending_node(
-                    node_id=mount_node_id,
-                    project_id=task.project_id,
-                    size_bytes=len(markdown_content.encode("utf-8")),
+                md_path = mount_node_id
+                if not md_path.endswith(".md"):
+                    md_path = md_path.rsplit(".", 1)[0] + ".md" if "." in md_path else md_path + ".md"
+
+                client.push(
+                    modified={md_path: markdown_content.encode("utf-8")},
+                    message=f"OCR result for {task.filename}",
+                    who=f"etl:{task_id}",
                 )
                 logger.info(f"ETL: Filled preview for pending node {mount_node_id}")
             else:
-                from src.mut_engine.dependencies import read_blob_content
-                existing_json, _ = read_blob_content(
-                    existing_node.project_id, existing_node.content_hash, "json"
-                )
-                existing_content = existing_json or {}
+                try:
+                    existing_bytes = tree_reader.read_file(task.project_id, mount_node_id)
+                    existing_content = json.loads(existing_bytes.decode("utf-8"))
+                except Exception:
+                    existing_content = {}
 
                 if mount_json_path:
                     path_parts = [p for p in mount_json_path.split("/") if p]
@@ -459,15 +447,11 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                 else:
                     existing_content[mount_key] = mount_value
 
-                current_version = existing_node.current_version or 0
-                await collab_service.commit(Mutation(
-                    type=MutationType.CONTENT_UPDATE,
-                    operator=Operator(type="system", id=f"etl:{task_id}", summary=f"ETL mount for {task.filename}"),
-                    node_id=mount_node_id,
-                    content=existing_content,
-                    node_type="json",
-                    base_version=current_version,
-                ))
+                client.push(
+                    modified={mount_node_id: json.dumps(existing_content, ensure_ascii=False, indent=2).encode("utf-8")},
+                    message=f"ETL mount for {task.filename}",
+                    who=f"etl:{task_id}",
+                )
         except Exception as e:
             # Mount failure => task failed (output exists in S3, but contract is "completed means mounted")
             err = f"Mount failed: {e}"

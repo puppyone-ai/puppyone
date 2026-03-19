@@ -11,7 +11,6 @@ import secrets
 from typing import Optional
 from datetime import datetime
 
-from src.content.repository import ContentNodeRepository
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.schemas import Sync
 from src.infra.supabase.client import SupabaseClient
@@ -32,7 +31,6 @@ class OpenClawService:
     ):
         self._supabase = supabase
         self._sync_repo = sync_repo
-        self._node_repo = ContentNodeRepository(supabase)
 
     # ----------------------------------------------------------
     # Auth: access key → Sync
@@ -58,7 +56,7 @@ class OpenClawService:
         project_id: str,
         node_id: str,
     ) -> Sync:
-        """Create a new filesystem sync endpoint bound to a folder.
+        """Create a new filesystem sync endpoint bound to a folder path.
         Returns the sync with a fresh access_key for CLI auth."""
         existing = self._sync_repo.get_by_node(node_id)
         if existing and existing.provider == "filesystem":
@@ -74,7 +72,7 @@ class OpenClawService:
             trigger={"type": "cli_push"},
             conflict_strategy="three_way_merge",
         )
-        log_info(f"[Filesystem] Bootstrapped sync #{sync.id} for node {node_id}")
+        log_info(f"[Filesystem] Bootstrapped sync #{sync.id} for path {node_id}")
         return sync
 
     # ----------------------------------------------------------

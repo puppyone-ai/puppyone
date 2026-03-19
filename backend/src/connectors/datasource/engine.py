@@ -2,7 +2,7 @@
 SyncEngine — Unified execution engine for all sync operations.
 
 Sits at the center of the three-layer architecture:
-  Trigger Layer → SyncEngine → Connector Layer + Write Layer
+  Trigger Layer → SyncEngine → Connector Layer + MUT Protocol Layer
 
 All sync scenarios (bootstrap, manual refresh, scheduled, webhook)
 converge into a single execute() call. The engine:
@@ -12,11 +12,10 @@ converge into a single execute() call. The engine:
   3. Resolves OAuth credentials
   4. Calls connector.fetch(config, credentials) → FetchResult
   5. Compares content_hash with sync.remote_hash
-  6. If changed → constructs Mutation → CollaborationService.commit()
+  6. If changed → MutEphemeralClient.push() at the sync path
   7. Updates the sync record (remote_hash, last_sync_version)
 
-This ensures ALL data writes — including first import — go through
-version management.
+All data writes go through MUT protocol (clone → push).
 """
 
 from __future__ import annotations
@@ -29,11 +28,7 @@ from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.run_repository import SyncRunRepository
 from src.connectors.datasource.schemas import Sync
-from src.mut_engine.schemas import Mutation, MutationType, Operator
 from src.utils.logger import log_info, log_error, log_debug
-
-if TYPE_CHECKING:
-    from src.mut_engine.compat_service import CollaborationService
 
 
 class SyncEngine:
@@ -45,14 +40,27 @@ class SyncEngine:
     def __init__(
         self,
         registry: ConnectorRegistry,
-        collab_service: "CollaborationService",
         sync_repo: SyncRepository,
         run_repo: Optional[SyncRunRepository] = None,
     ):
         self.registry = registry
-        self.collab = collab_service
         self.sync_repo = sync_repo
         self.run_repo = run_repo
+
+    def _make_ephemeral_client(self, project_id: str, sync: Sync):
+        """Create a MutEphemeralClient scoped to this sync's target path."""
+        from src.mut_engine.dependencies import create_ephemeral_client
+        external_resource_id = (sync.config or {}).get("external_resource_id", "")
+        auth_context = {
+            "agent": f"sync:{sync.provider}:{external_resource_id}",
+            "_scope": {
+                "id": f"_sync_{sync.id}",
+                "path": "",
+                "exclude": [],
+                "mode": "rw",
+            },
+        }
+        return create_ephemeral_client(project_id, auth_context)
 
     async def execute(
         self, sync_id: str, trigger_type: str = "manual",
@@ -60,9 +68,6 @@ class SyncEngine:
         """
         Execute a sync: fetch data → compare → write if changed.
         Records execution in sync_runs if run_repo is available.
-
-        Returns a result dict on successful write, None if skipped
-        (no changes or error).
         """
         sync = self.sync_repo.get_by_id(sync_id)
         if not sync:
@@ -78,7 +83,6 @@ class SyncEngine:
             log_error(f"[SyncEngine] No connector registered for provider: {sync.provider}")
             return None
 
-        # Start a run record
         run = None
         if self.run_repo:
             try:
@@ -89,7 +93,6 @@ class SyncEngine:
         try:
             self.sync_repo.update_status(sync_id, "syncing")
 
-            # Resolve credentials (user_id for OAuth comes from created_by or config)
             spec = connector.spec()
             user_id = sync.created_by or (sync.config or {}).get("user_id", "")
             credentials = await self.registry.resolve_credentials(
@@ -97,10 +100,8 @@ class SyncEngine:
                 user_id=user_id,
             )
 
-            # Fetch data from external source
             result = await connector.fetch(sync.config or {}, credentials)
 
-            # Compare hash — skip write if unchanged
             if result.content_hash and result.content_hash == sync.remote_hash:
                 self.sync_repo.update_status(sync_id, "active")
                 log_debug(
@@ -113,43 +114,41 @@ class SyncEngine:
                     )
                 return None
 
-            # Construct mutation and commit through CollaborationService
-            base_content = self._get_base_content(sync)
+            file_path = sync.node_id
             external_resource_id = (sync.config or {}).get("external_resource_id", "")
 
-            mutation = Mutation(
-                type=MutationType.CONTENT_UPDATE,
-                operator=Operator(
-                    type="sync",
-                    id=f"{sync.provider}:{external_resource_id}",
-                    summary=result.summary or f"Sync from {sync.provider}",
-                ),
-                node_id=sync.node_id,
-                content=result.content,
-                base_version=sync.last_sync_version,
-                node_type=result.node_type,
-                base_content=base_content,
+            content = result.content
+            if isinstance(content, dict) or isinstance(content, list):
+                content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
+            elif isinstance(content, str):
+                content_bytes = content.encode("utf-8")
+            elif isinstance(content, bytes):
+                content_bytes = content
+            else:
+                content_bytes = str(content).encode("utf-8")
+
+            operator = f"sync:{sync.provider}:{external_resource_id}"
+            client = self._make_ephemeral_client(sync.project_id, sync)
+            client.clone()
+            push_result = client.push(
+                modified={file_path: content_bytes},
+                message=result.summary or f"Sync from {sync.provider}",
+                who=operator,
             )
 
-            # Update node name if connector provides one (e.g. first fetch)
-            if result.node_name and sync.last_sync_version == 0:
-                mutation.name = result.node_name
+            new_version = push_result.get("version", 0)
 
-            commit_result = await self.collab.commit(mutation)
-
-            # Update sync record
             self.sync_repo.update_sync_point(
                 sync_id=sync.id,
-                last_sync_version=commit_result.version,
+                last_sync_version=new_version,
                 remote_hash=result.content_hash,
             )
 
             log_info(
                 f"[SyncEngine] {sync.provider}:{external_resource_id} → "
-                f"node {sync.node_id} v{commit_result.version} ({commit_result.status})"
+                f"{file_path} v{new_version}"
             )
 
-            # Complete run record
             if run and self.run_repo:
                 self.run_repo.complete(
                     run.id, status="success",
@@ -158,10 +157,9 @@ class SyncEngine:
 
             return {
                 "sync_id": sync.id,
-                "node_id": sync.node_id,
+                "path": file_path,
                 "provider": sync.provider,
-                "version": commit_result.version,
-                "status": commit_result.status,
+                "version": new_version,
                 "summary": result.summary,
                 "run_id": run.id if run else None,
             }
@@ -199,20 +197,16 @@ class SyncEngine:
 
     async def push_execute(
         self,
-        node_id: str,
+        path: str,
         version: int,
         content: Any,
         node_type: str,
     ) -> Optional[dict]:
         """
-        Push content from PuppyOne to the external system bound to this node.
-
-        Called after CollaborationService.commit() succeeds for bidirectional/
-        outbound syncs. Mirrors execute() but in the reverse direction.
-
-        Returns a result dict on success, None if skipped or error.
+        Push content from PuppyOne to the external system bound to this path.
+        Called after a successful write for bidirectional/outbound syncs.
         """
-        sync = self.sync_repo.get_by_node(node_id)
+        sync = self.sync_repo.get_by_node(path)
         if not sync:
             return None
 
@@ -255,7 +249,7 @@ class SyncEngine:
                 )
                 external_resource_id = (sync.config or {}).get("external_resource_id", "")
                 log_info(
-                    f"[SyncEngine] PUSH node {node_id} v{version} → "
+                    f"[SyncEngine] PUSH {path} v{version} → "
                     f"{sync.provider}:{external_resource_id}"
                 )
 
@@ -267,7 +261,7 @@ class SyncEngine:
 
                 return {
                     "sync_id": sync.id,
-                    "node_id": node_id,
+                    "path": path,
                     "provider": sync.provider,
                     "version": version,
                     "direction": "push",
@@ -293,21 +287,3 @@ class SyncEngine:
             if run and self.run_repo:
                 self.run_repo.complete(run.id, status="failed", error=str(e))
             return None
-
-    def _get_base_content(self, sync: Sync) -> Optional[str]:
-        """Get base content for three-way merge."""
-        if sync.last_sync_version <= 0:
-            return None
-        try:
-            ver = self.collab.get_version_content(
-                sync.node_id, sync.last_sync_version
-            )
-            if ver.content_text:
-                return ver.content_text
-            if ver.content_json is not None:
-                return json.dumps(ver.content_json, ensure_ascii=False, indent=2)
-        except Exception:
-            log_debug(
-                f"[SyncEngine] Could not load base content for v{sync.last_sync_version}"
-            )
-        return None

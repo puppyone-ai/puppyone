@@ -2,14 +2,14 @@
 
 import { useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useContentNodes } from '@/lib/hooks/useData';
+import { useTreeDir } from '@/lib/hooks/useData';
 
 interface MoveToDialogProps {
   isOpen: boolean;
   projectId: string;
   nodeId: string;
   nodeName: string;
-  nodeIdPath?: string;
+  nodeMutPath?: string;
   onConfirm: (targetFolderId: string | null) => void;
   onClose: () => void;
 }
@@ -20,7 +20,7 @@ function FolderTreeItem({
   depth,
   projectId,
   excludeId,
-  excludeIdPath,
+  excludeMutPath,
   selectedId,
   onSelect,
 }: {
@@ -29,14 +29,14 @@ function FolderTreeItem({
   depth: number;
   projectId: string;
   excludeId: string;
-  excludeIdPath?: string;
+  excludeMutPath?: string;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isSelected = selectedId === id;
 
-  const { nodes: children, isLoading } = useContentNodes(
+  const { nodes: children, isLoading } = useTreeDir(
     expanded ? projectId : '',
     expanded ? id : undefined,
   );
@@ -44,7 +44,7 @@ function FolderTreeItem({
   const childFolders = children.filter((n) => {
     if (n.type !== 'folder') return false;
     if (n.id === excludeId) return false;
-    if (excludeIdPath && n.id_path?.startsWith(excludeIdPath + '/')) return false;
+    if (excludeMutPath && n.mut_path?.startsWith(excludeMutPath + '/')) return false;
     return true;
   });
 
@@ -164,7 +164,7 @@ function FolderTreeItem({
               depth={depth + 1}
               projectId={projectId}
               excludeId={excludeId}
-              excludeIdPath={excludeIdPath}
+              excludeMutPath={excludeMutPath}
               selectedId={selectedId}
               onSelect={onSelect}
             />
@@ -195,14 +195,14 @@ export function MoveToDialog({
   projectId,
   nodeId,
   nodeName,
-  nodeIdPath,
+  nodeMutPath,
   onConfirm,
   onClose,
 }: MoveToDialogProps) {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const isRootSelected = selectedFolderId === null;
 
-  const { nodes: rootNodes, isLoading: rootLoading } = useContentNodes(
+  const { nodes: rootNodes, isLoading: rootLoading } = useTreeDir(
     isOpen ? projectId : '',
     isOpen ? null : undefined,
   );
@@ -210,7 +210,7 @@ export function MoveToDialog({
   const rootFolders = rootNodes.filter((n) => {
     if (n.type !== 'folder') return false;
     if (n.id === nodeId) return false;
-    if (nodeIdPath && n.id_path?.startsWith(nodeIdPath + '/')) return false;
+    if (nodeMutPath && n.mut_path?.startsWith(nodeMutPath + '/')) return false;
     return true;
   });
 
@@ -370,7 +370,7 @@ export function MoveToDialog({
                 depth={0}
                 projectId={projectId}
                 excludeId={nodeId}
-                excludeIdPath={nodeIdPath}
+                excludeMutPath={nodeMutPath}
                 selectedId={selectedFolderId}
                 onSelect={handleSelect}
               />

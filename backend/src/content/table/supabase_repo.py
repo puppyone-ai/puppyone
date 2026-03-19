@@ -1,7 +1,7 @@
 """
 Table 数据访问层
 
-提供针对 table 表的增删改查操作。
+提供针对 tables 表的增删改查操作。
 """
 
 from typing import List, Optional
@@ -18,50 +18,23 @@ from src.content.table.supabase_schemas import (
 class TableRepository:
     """Table 数据访问仓库"""
 
-    def __init__(self, client: Client):
-        """
-        初始化仓库
+    TABLE_NAME = "tables"
 
-        Args:
-            client: Supabase 客户端实例
-        """
+    def __init__(self, client: Client):
         self._client = client
 
     def create(self, table_data: TableCreate) -> TableResponse:
-        """
-        创建表
-
-        Args:
-            table_data: 表创建数据
-
-        Returns:
-            创建的表数据
-
-        Raises:
-            SupabaseException: 当创建失败时
-        """
         try:
             data = table_data.model_dump(exclude_none=True)
-            # 确保不包含 created_at（由数据库自动生成）
-            # 注意：id 现在由后端生成，所以需要包含在 insert 数据中
             data.pop("created_at", None)
-            response = self._client.table("content_nodes").insert(data).execute()
+            response = self._client.table(self.TABLE_NAME).insert(data).execute()
             return TableResponse(**response.data[0])
         except Exception as e:
             raise handle_supabase_error(e, "创建表")
 
     def get_by_id(self, table_id: str) -> Optional[TableResponse]:
-        """
-        根据 ID 获取表
-
-        Args:
-            table_id: 表 ID
-
-        Returns:
-            表数据，如果不存在则返回 None
-        """
         response = (
-            self._client.table("content_nodes").select("*").eq("id", table_id).execute()
+            self._client.table(self.TABLE_NAME).select("*").eq("id", table_id).execute()
         )
         if response.data:
             return TableResponse(**response.data[0])
@@ -74,19 +47,7 @@ class TableRepository:
         project_id: Optional[str] = None,
         name: Optional[str] = None,
     ) -> List[TableResponse]:
-        """
-        获取表列表
-
-        Args:
-            skip: 跳过记录数
-            limit: 返回记录数
-            project_id: 可选，按项目 ID 过滤
-            name: 可选，按名称过滤
-
-        Returns:
-            表列表
-        """
-        query = self._client.table("content_nodes").select("*")
+        query = self._client.table(self.TABLE_NAME).select("*")
 
         if project_id is not None:
             query = query.eq("project_id", project_id)
@@ -98,30 +59,16 @@ class TableRepository:
         return [TableResponse(**item) for item in response.data]
 
     def update(self, table_id: str, table_data: TableUpdate) -> Optional[TableResponse]:
-        """
-        更新表
-
-        Args:
-            table_id: 表 ID
-            table_data: 表更新数据
-
-        Returns:
-            更新后的表数据，如果不存在则返回 None
-
-        Raises:
-            SupabaseException: 当更新失败时
-        """
         try:
             data = table_data.model_dump(exclude_none=True)
             if not data:
                 return self.get_by_id(table_id)
 
-            # 确保不包含 id 和 created_at
             data.pop("id", None)
             data.pop("created_at", None)
 
             response = (
-                self._client.table("content_nodes")
+                self._client.table(self.TABLE_NAME)
                 .update(data)
                 .eq("id", table_id)
                 .execute()
@@ -133,16 +80,7 @@ class TableRepository:
             raise handle_supabase_error(e, "更新表")
 
     def delete(self, table_id: str) -> bool:
-        """
-        删除表
-
-        Args:
-            table_id: 表 ID
-
-        Returns:
-            是否删除成功
-        """
         response = (
-            self._client.table("content_nodes").delete().eq("id", table_id).execute()
+            self._client.table(self.TABLE_NAME).delete().eq("id", table_id).execute()
         )
         return len(response.data) > 0

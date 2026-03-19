@@ -6,11 +6,9 @@ Imports files from Google Drive into content nodes.
 
 import hashlib
 import json
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
-
-from src.content.service import ContentNodeService
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -79,9 +77,9 @@ class GoogleDriveConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
         drive_service: GoogleDriveOAuthService,
         s3_service: S3Service,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.drive_service = drive_service
@@ -220,9 +218,9 @@ def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
     oauth_svc = GoogleDriveOAuthService()
     return ConnectorSetup(
         connector=GoogleDriveConnector(
-            node_service=deps.node_service,
             drive_service=oauth_svc,
             s3_service=deps.s3_service,
+            node_service=deps.node_service,
         ),
         oauth_bindings={"drive": oauth_svc},
     )

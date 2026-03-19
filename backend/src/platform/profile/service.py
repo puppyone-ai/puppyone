@@ -12,14 +12,12 @@ from typing import TYPE_CHECKING, Optional, Tuple
 from src.platform.profile.models import Profile, ProfileUpdate
 from src.platform.profile.repository import ProfileRepositorySupabase
 from src.platform.project.service import ProjectService
-from src.content.service import ContentNodeService
 from src.utils.logger import log_info, log_error
 
 if TYPE_CHECKING:
     from src.platform.auth.initialization import UserInitializationService
 
 
-# Demo Project 配置
 DEMO_PROJECT_NAME = "Get Started"
 DEMO_PROJECT_DESCRIPTION = (
     "Your first project to explore PuppyOne. "
@@ -35,35 +33,20 @@ class ProfileService:
         profile_repository: ProfileRepositorySupabase,
         initialization_service: Optional[UserInitializationService] = None,
         project_service: Optional[ProjectService] = None,
-        content_node_service: Optional[ContentNodeService] = None,
     ):
         self._profile_repo = profile_repository
         self._init_service = initialization_service
         self._project_service = project_service
-        self._content_node_service = content_node_service
 
     def get_profile(self, user_id: str) -> Optional[Profile]:
-        """获取用户 Profile"""
         return self._profile_repo.get_by_user_id(user_id)
 
     def update_profile(self, user_id: str, data: ProfileUpdate) -> Optional[Profile]:
-        """更新用户 Profile"""
         return self._profile_repo.update(user_id, data)
 
     def check_onboarding_status(
         self, user_id: str, email: Optional[str] = None
     ) -> Tuple[bool, Optional[int], str]:
-        """
-        检查用户 Onboarding 状态，同时幂等地确保 org 已初始化。
-
-        Args:
-            user_id: 用户ID
-            email: 用户邮箱（用于自动创建 Profile）
-
-        Returns:
-            Tuple[has_onboarded, demo_project_id, redirect_to]
-        """
-        # 如果提供了 email，使用 get_or_create 确保 Profile 存在
         if email:
             profile = self._profile_repo.get_or_create(user_id, email)
         else:
@@ -73,7 +56,6 @@ class ProfileService:
             log_error(f"Profile not found for user {user_id}, and unable to create")
             return False, None, "/home"
 
-        # 幂等初始化：确保 org + membership 存在
         if self._init_service:
             try:
                 self._init_service.ensure_initialized(
@@ -92,20 +74,6 @@ class ProfileService:
     async def complete_onboarding(
         self, user_id: str, email: Optional[str] = None, demo_project_id: Optional[int] = None
     ) -> Tuple[bool, str, Optional[int]]:
-        """
-        完成 Onboarding 流程
-
-        如果没有提供 demo_project_id，会自动创建 Demo Project
-
-        Args:
-            user_id: 用户ID
-            email: 用户邮箱（用于自动创建 Profile）
-            demo_project_id: 可选的 Demo Project ID
-
-        Returns:
-            Tuple[success, redirect_to, demo_project_id]
-        """
-        # 如果提供了 email，使用 get_or_create 确保 Profile 存在
         if email:
             profile = self._profile_repo.get_or_create(user_id, email)
         else:
@@ -115,7 +83,6 @@ class ProfileService:
             log_error(f"Profile not found for user {user_id}, and unable to create")
             return False, "/home", None
 
-        # 幂等初始化：确保 org 存在（_create_demo_project 需要 org）
         if self._init_service:
             try:
                 self._init_service.ensure_initialized(
@@ -127,11 +94,9 @@ class ProfileService:
                 log_error(f"User initialization failed for {user_id}: {e}")
 
         if profile.has_onboarded:
-            # 已经完成过 Onboarding
             log_info(f"User {user_id} already onboarded")
             return True, "/home", profile.demo_project_id
 
-        # 如果没有提供 demo_project_id，创建 Demo Project
         actual_demo_project_id = demo_project_id
         if actual_demo_project_id is None and self._project_service:
             try:
@@ -143,15 +108,12 @@ class ProfileService:
                     )
             except Exception as e:
                 log_error(f"Failed to create demo project for user {user_id}: {e}")
-                # 即使创建 Demo Project 失败，也继续完成 Onboarding
 
-        # 标记 Onboarding 完成
         updated_profile = self._profile_repo.mark_onboarded(
             user_id, actual_demo_project_id
         )
 
         if updated_profile:
-            # 返回重定向路径
             if actual_demo_project_id:
                 redirect_to = f"/projects/{actual_demo_project_id}/data?welcome=true"
             else:
@@ -162,9 +124,6 @@ class ProfileService:
             return False, "/home", None
 
     async def _create_demo_project(self, user_id: str):
-        """
-        为用户创建 Demo Project
-        """
         if not self._project_service:
             log_error("Project service not available")
             return None
@@ -196,37 +155,29 @@ class ProfileService:
 
         log_info(f"Created demo project: {project.id} for user {user_id}")
 
-        # 2. 创建预置文件夹和内容（如果 content_node_service 可用）
-        if self._content_node_service:
-            try:
-                await self._create_demo_content(project.id, user_id)
-            except Exception as e:
-                log_error(f"Failed to create demo content: {e}")
-                # 即使创建内容失败，项目已创建成功
+        try:
+            await self._create_demo_content(project.id, user_id)
+        except Exception as e:
+            log_error(f"Failed to create demo content: {e}")
 
         return project
 
     async def _create_demo_content(self, project_id: str, user_id: str):
         """
-        在 Demo Project 中创建预置内容（扁平化结构）
+        在 Demo Project 中创建预置内容
 
-        目录结构：
-        📄 01_Welcome.md
-        📄 02_Connect_Your_Data.md
-        📄 03_Multi_Agent_Collaboration.md
-        📄 04_Agent_Access_&_Tools.md
-        📄 [Gmail] Project_Kickoff.md
-        📄 [G-Doc] Tech_Spec.md
-        📊 Q1_Budget_Data.json
-        📁 Tool_Configs
-           📄 Report_Generator_Config.md
+        All writes go through MUT protocol (MutEphemeralClient).
         """
-        import asyncio
+        from src.mut_engine.dependencies import create_ephemeral_client
+        import json as json_mod
 
-        if not self._content_node_service:
-            return
+        auth_ctx = {
+            "agent": f"onboarding:{user_id}",
+            "_scope": {"id": "_onboarding", "path": "", "exclude": [], "mode": "rw"},
+        }
+        client = create_ephemeral_client(project_id, auth_ctx)
+        client.clone()
 
-        # --- 1. Guide Docs ---
         welcome_content = """# Welcome to PuppyOne! 🐕
 
 **Your AI Context Operating System.**
@@ -289,7 +240,6 @@ We created a **"Report Generator"** tool that:
 👉 **Your agents can call this tool directly via MCP!**
 """
 
-        # --- 2. Sample Data (JSON) ---
         json_content = {
             "project": "Alpha",
             "budget": {
@@ -326,63 +276,28 @@ Output format: Markdown
 """
 
         try:
-            from src.mut_engine.schemas import Mutation, MutationType, Operator
-            from src.mut_engine.dependencies import create_collaboration_service
-            collab = create_collaboration_service()
-            op = Operator(type="system", id=user_id, summary="onboarding demo")
-
-            tool_folder_result = await collab.commit(Mutation(
-                type=MutationType.NODE_CREATE, operator=op,
-                project_id=project_id, name="Tool_Configs",
-                node_type="folder", parent_id=None,
-                created_by=user_id,
-            ))
-            tool_folder = type("_Folder", (), {"id": tool_folder_result.node_id})()
-
-            md_items = [
-                ("01_Welcome.md", welcome_content, None),
-                ("02_Connect_Your_Data.md", connect_content, None),
-                ("03_Multi_Agent_Collaboration.md", collab_content, None),
-                ("04_Agent_Access_&_Tools.md", distribute_content, None),
-            ]
-            if tool_folder:
-                md_items.append(("Report_Generator_Config.md", tool_config_content, tool_folder.id))
-
-            for name, content, parent_id in md_items:
-                await collab.commit(Mutation(
-                    type=MutationType.NODE_CREATE, operator=op,
-                    project_id=project_id, name=name,
-                    content=content, node_type="markdown",
-                    parent_id=parent_id, created_by=user_id,
-                ))
-
-            placeholder_content_gmail = {
-                "_status": "not_connected",
-                "_placeholder_type": "gmail",
-                "_message": "Click to connect your Gmail account",
+            files: dict[str, bytes] = {
+                "01_Welcome.md": welcome_content.encode("utf-8"),
+                "02_Connect_Your_Data.md": connect_content.encode("utf-8"),
+                "03_Multi_Agent_Collaboration.md": collab_content.encode("utf-8"),
+                "04_Agent_Access_&_Tools.md": distribute_content.encode("utf-8"),
+                "Tool_Configs/Report_Generator_Config.md": tool_config_content.encode("utf-8"),
+                "Gmail - Connect Your Inbox.json": json_mod.dumps(
+                    {"_status": "not_connected", "_placeholder_type": "gmail", "_message": "Click to connect your Gmail account"},
+                    ensure_ascii=False, indent=2,
+                ).encode("utf-8"),
+                "Google Sheets - Connect.json": json_mod.dumps(
+                    {"_status": "not_connected", "_placeholder_type": "sheets", "_message": "Click to connect your Google Sheets account"},
+                    ensure_ascii=False, indent=2,
+                ).encode("utf-8"),
+                "Q1_Budget_Data.json": json_mod.dumps(json_content, ensure_ascii=False, indent=2).encode("utf-8"),
             }
-            placeholder_content_sheets = {
-                "_status": "not_connected",
-                "_placeholder_type": "sheets",
-                "_message": "Click to connect your Google Sheets account",
-            }
-            for pname, pcontent in [
-                ("Gmail - Connect Your Inbox", placeholder_content_gmail),
-                ("Google Sheets - Connect", placeholder_content_sheets),
-            ]:
-                await collab.commit(Mutation(
-                    type=MutationType.NODE_CREATE, operator=op,
-                    project_id=project_id, name=pname,
-                    content=pcontent, node_type="json",
-                    created_by=user_id,
-                ))
 
-            await collab.commit(Mutation(
-                type=MutationType.NODE_CREATE, operator=op,
-                project_id=project_id, name="Q1_Budget_Data.json",
-                content=json_content, node_type="json",
-                created_by=user_id,
-            ))
+            client.push(
+                modified=files,
+                message="onboarding demo content",
+                who=user_id,
+            )
 
             log_info(f"Demo content created for project {project_id}")
 
@@ -390,12 +305,6 @@ Output format: Markdown
             log_error(f"Error creating demo content: {e}")
 
     def reset_onboarding(self, user_id: str) -> Tuple[bool, str]:
-        """
-        重置用户 Onboarding 状态（用于测试）
-
-        Returns:
-            Tuple[success, message]
-        """
         profile = self._profile_repo.reset_onboarding(user_id)
 
         if profile:

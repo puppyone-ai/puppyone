@@ -41,19 +41,19 @@ class InMemoryNodes:
         node_id = kwargs.get("id", f"node-{self._counter}")
         self._counter += 1
         parent_id = kwargs.get("parent_id")
-        if "id_path" in kwargs:
-            id_path = kwargs["id_path"]
+        if "mut_path" in kwargs:
+            mut_path = kwargs["mut_path"]
         elif parent_id:
             parent = self._store.get(parent_id)
-            id_path = f"{parent['id_path']}/{node_id}" if parent else f"/{node_id}"
+            mut_path = f"{parent['mut_path']}/{kwargs.get('name', 'test')}" if parent else kwargs.get("name", "test")
         else:
-            id_path = f"/{node_id}"
+            mut_path = kwargs.get("name", "test")
         node = {
             "id": node_id,
             "project_id": kwargs.get("project_id", "proj-1"),
             "name": kwargs.get("name", "test"),
             "type": kwargs.get("type", "json"),
-            "id_path": id_path,
+            "mut_path": mut_path,
             "s3_key": kwargs.get("s3_key"),
             "current_version": kwargs.get("current_version", 0),
             "content_hash": kwargs.get("content_hash"),
@@ -77,7 +77,7 @@ class InMemoryNodes:
     def list_children(self, project_id: str, parent_id: str):
         if parent_id:
             parent = self._store.get(parent_id)
-            parent_path = parent["id_path"] if parent else None
+            parent_path = parent["mut_path"] if parent else None
         else:
             parent_path = None
         return [
@@ -85,9 +85,9 @@ class InMemoryNodes:
             for n in self._store.values()
             if n["project_id"] == project_id
             and (
-                (parent_path and n["id_path"].startswith(parent_path + "/")
-                 and n["id_path"].count("/") == parent_path.count("/") + 1)
-                or (not parent_path and n["id_path"].count("/") == 1)
+                (parent_path and n["mut_path"].startswith(parent_path + "/")
+                 and n["mut_path"].count("/") == parent_path.count("/") + 1)
+                or (not parent_path and "/" not in n["mut_path"])
             )
         ]
 

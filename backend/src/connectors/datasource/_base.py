@@ -194,8 +194,8 @@ class BaseConnector(ABC):
 @dataclass
 class ConnectorDeps:
     """Shared dependencies injected into connector setup() functions."""
-    node_service: Any
     s3_service: Any
+    node_service: Any = None
 
 
 @dataclass

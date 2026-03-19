@@ -45,7 +45,7 @@ import {
   type AccessPoint,
 } from '@/lib/mcpApi';
 
-import { createFolder, createJsonNode, createMarkdownNode } from '@/lib/contentNodesApi';
+import { writeFile, mkdir } from '@/lib/contentNodesApi';
 import { refreshProjects } from '@/lib/hooks/useData';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import {
@@ -506,19 +506,19 @@ export default function DataPage({ params }: DataPageProps) {
     const nodeType = PROVIDER_NODE_TYPE[saasProvider];
     if (!nodeType) { openSyncSetting(saasProvider); openSyncCreatePanel(); return; }
     const name = PROVIDER_DEFAULT_NAMES[saasProvider] || 'Untitled';
-    const parentId = currentFolderId ?? undefined;
+    const parentPath = currentFolderId ?? '';
     try {
-      let node: { id: string; name: string; type?: string };
+      const fullPath = parentPath ? `${parentPath}/${name}` : name;
       if (nodeType === 'json') {
-        node = await createJsonNode(name, projectId, null, parentId);
+        await writeFile(projectId, fullPath, null, 'json');
       } else if (nodeType === 'markdown') {
-        node = await createMarkdownNode(name, projectId, '', parentId);
+        await writeFile(projectId, fullPath, '', 'markdown');
       } else {
-        node = await createFolder(name, projectId, parentId);
+        await mkdir(projectId, fullPath);
       }
       await refreshAllContentNodes(projectId);
       openSyncSetting(saasProvider, {
-        nodeId: node.id, nodeName: node.name, nodeType: nodeType,
+        nodeId: fullPath, nodeName: name, nodeType: nodeType,
         readonly: true, jsonPath: '',
       } as any);
       openSyncCreatePanel();
@@ -529,12 +529,12 @@ export default function DataPage({ params }: DataPageProps) {
   }, [projectId, currentFolderId, openSyncSetting, openSyncCreatePanel]);
 
   const agentResources: AgentResource[] = useMemo(() => {
-    const toAgentResource = (r: { nodeId: string; readonly?: boolean; terminal?: boolean; terminalReadonly?: boolean }) => ({
+    const toAgentResource = (r: { nodeId: string; readonly?: boolean }) => ({
       nodeId: r.nodeId,
-      terminalReadonly: r.readonly ?? r.terminalReadonly ?? true,
+      readonly: r.readonly ?? true,
     });
 
-    if (hoveredSyncNodeId) return [{ nodeId: hoveredSyncNodeId, terminalReadonly: true }];
+    if (hoveredSyncNodeId) return [{ nodeId: hoveredSyncNodeId, readonly: true }];
     if (hoveredAgentId) {
       const agent = savedAgents.find(a => a.id === hoveredAgentId);
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
@@ -545,7 +545,7 @@ export default function DataPage({ params }: DataPageProps) {
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
     }
     if (selectedSyncId && selectedSyncNodeId) {
-      return [{ nodeId: selectedSyncNodeId, terminalReadonly: true }];
+      return [{ nodeId: selectedSyncNodeId, readonly: true }];
     }
     return [];
   }, [draftResources, editingAgentId, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, panelState.type]);
@@ -614,7 +614,7 @@ export default function DataPage({ params }: DataPageProps) {
   const tableNameByIdRef = useRef<string>('');
   const tableNameById = useMemo(() => {
     const map: Record<string, string> = {};
-    contentNodes.forEach(node => { map[node.id] = node.name; });
+    contentNodes.forEach(node => { map[node.path || node.id] = node.name; });
     if (currentTableData?.id && currentTableData?.name) map[currentTableData.id] = currentTableData.name;
     return map;
   }, [contentNodes, currentTableData?.id, currentTableData?.name]);
@@ -699,50 +699,25 @@ export default function DataPage({ params }: DataPageProps) {
 
   // ───── View Helpers ─────
 
-  const getPlaceholderSaasId = (nodeType: string): string | null => {
-    const mapping: Record<string, string> = {
-      'gmail': 'gmail', 'google_sheets': 'sheets', 'google_calendar': 'calendar',
-      'google_drive': 'drive', 'notion': 'notion', 'github': 'github',
-      'airtable': 'airtable', 'linear': 'linear',
-      'gmail_inbox': 'gmail', 'google_sheets_sync': 'sheets', 'google_calendar_sync': 'calendar',
-      'google_docs_sync': 'docs', 'notion_database': 'notion', 'github_repo': 'github',
-    };
-    return mapping[nodeType] || null;
-  };
-
   const items = contentNodes.map(node => ({
-    id: node.id,
+    id: node.path,
     name: node.name,
     type: node.type as ContentType,
-    id_path: node.id_path,
+    mut_path: node.mut_path,
     description: node.type === 'folder' ? 'Folder' :
                  node.type === 'json' ? 'JSON' :
                  node.type === 'markdown' ? 'Markdown' :
-                 node.type === 'file' ? 'File' :
-                 node.is_synced ? `Sync (${node.sync_source})` : 'Unknown',
-    is_synced: node.is_synced,
-    sync_source: node.sync_source,
-    sync_url: node.sync_url,
-    sync_status: node.sync_status,
-    last_synced_at: node.last_synced_at,
-    preview_snippet: node.preview_snippet,
+                 node.type === 'file' ? 'File' : 'Unknown',
+    is_synced: false,
+    sync_source: null as string | null,
+    sync_url: null as string | null,
+    sync_status: 'not_connected' as const,
+    last_synced_at: null as string | null,
+    preview_snippet: null as string | null,
     children_count: node.children_count,
     onClick: () => {
-      if (node.sync_status === 'not_connected') {
-        const saasId = getPlaceholderSaasId(node.type);
-        if (saasId) {
-          openSyncSetting(saasId, {
-            nodeId: node.id, nodeName: node.name, nodeType: node.type as any,
-            readonly: true, jsonPath: '',
-          } as any);
-          openSyncCreatePanel();
-        }
-        return;
-      }
-      if (node.type !== 'folder') setPendingActiveId(node.id);
-      const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
-      const newPath = currentPath ? `${currentPath}/${node.id}` : node.id;
-      navigateTo(newPath.split('/').filter(Boolean));
+      if (node.type !== 'folder') setPendingActiveId(node.path);
+      navigateTo(node.path.split('/').filter(Boolean));
     },
   }));
 
@@ -764,13 +739,11 @@ export default function DataPage({ params }: DataPageProps) {
 
   const handleMillerNavigate = (item: MillerColumnItem, pathToItem: string[]) => {
     setPendingActiveId(item.id);
-    navigateTo(pathToItem);
+    navigateTo(pathToItem.flatMap(p => p.split('/').filter(Boolean)));
   };
 
-  const handleRefresh = async (id: string) => {
-    const node = contentNodes.find(n => n.id === id);
-    if (!node?.sync_url) { alert('No sync URL available for this item'); return; }
-    alert(`Refreshing from: ${node.sync_url}\n\n(Not yet implemented)`);
+  const handleRefresh = async (path: string) => {
+    alert(`Refresh not yet implemented for path: ${path}`);
   };
 
   // ───── Icons & Breadcrumbs ─────
@@ -831,10 +804,11 @@ export default function DataPage({ params }: DataPageProps) {
     } else {
       folderBreadcrumbs.forEach((folder, index) => {
         const isLast = index === folderBreadcrumbs.length - 1;
-        const folderPath = folderBreadcrumbs.slice(0, index + 1).map(f => f.id).join('/');
+        // folder.id is the full path up to this folder segment
+        const folderUrlPath = folder.id.split('/').filter(Boolean).join('/');
         segments.push({
           label: folder.name,
-          href: !isLast || activeNodeId ? `/projects/${projectId}/data/${folderPath}` : undefined,
+          href: !isLast || activeNodeId ? `/projects/${projectId}/data/${folderUrlPath}` : undefined,
           icon: folderIcon,
         });
       });
@@ -861,43 +835,41 @@ export default function DataPage({ params }: DataPageProps) {
   // ───── CreateMenu Actions ─────
 
   const createMenuActions = useMemo<CreateMenuActions>(() => {
-    const targetFolderIdFn = () => createInFolderId === undefined ? currentFolderId : createInFolderId;
+    const targetFolderPathFn = () => createInFolderId === undefined ? currentFolderId : createInFolderId;
 
     return {
       onClose: () => setCreateMenuOpen(false),
       onCreateFolder: async () => {
-        const targetFolderId = targetFolderIdFn();
+        const targetFolderPath = targetFolderPathFn();
         try {
-          const result = await createFolder('New Folder', projectId, targetFolderId);
-          if (targetFolderId) ensureExpanded(targetFolderId);
+          const folderPath = targetFolderPath ? `${targetFolderPath}/New Folder` : 'New Folder';
+          await mkdir(projectId, folderPath);
+          if (targetFolderPath) ensureExpanded(targetFolderPath);
           await refreshAllContentNodes(projectId);
-          if (result?.id) { ensureExpanded(result.id); highlightCreatedNode(result.id); }
+          ensureExpanded(folderPath);
+          highlightCreatedNode(folderPath);
         } catch (err) { console.error('Failed to create folder:', err); }
       },
       onCreateBlankJson: async () => {
-        const targetFolderId = targetFolderIdFn();
+        const targetFolderPath = targetFolderPathFn();
         try {
-          const result = await createJsonNode('Untitled', projectId, {}, targetFolderId);
-          if (targetFolderId) ensureExpanded(targetFolderId);
+          const filePath = targetFolderPath ? `${targetFolderPath}/Untitled` : 'Untitled';
+          await writeFile(projectId, filePath, {}, 'json');
+          if (targetFolderPath) ensureExpanded(targetFolderPath);
           await refreshAllContentNodes(projectId);
-          if (result?.id) {
-            highlightCreatedNode(result.id);
-            const navPath = result.id_path?.replace(/^\//, '') || result.id;
-            navigateTo(navPath.split('/').filter(Boolean));
-          }
+          highlightCreatedNode(filePath);
+          navigateTo(filePath.split('/').filter(Boolean));
         } catch (err) { console.error('Failed to create JSON:', err); }
       },
       onCreateBlankMarkdown: async () => {
-        const targetFolderId = targetFolderIdFn();
+        const targetFolderPath = targetFolderPathFn();
         try {
-          const result = await createMarkdownNode('Untitled Note', projectId, '', targetFolderId);
-          if (targetFolderId) ensureExpanded(targetFolderId);
+          const filePath = targetFolderPath ? `${targetFolderPath}/Untitled Note` : 'Untitled Note';
+          await writeFile(projectId, filePath, '', 'markdown');
+          if (targetFolderPath) ensureExpanded(targetFolderPath);
           await refreshAllContentNodes(projectId);
-          if (result?.id) {
-            highlightCreatedNode(result.id);
-            const navPath = result.id_path?.replace(/^\//, '') || result.id;
-            navigateTo(navPath.split('/').filter(Boolean));
-          }
+          highlightCreatedNode(filePath);
+          navigateTo(filePath.split('/').filter(Boolean));
         } catch (err) { console.error('Failed to create markdown:', err); }
       },
       onImportFromFiles: () => { setDefaultStartOption('documents'); setCreateTableOpen(true); },
@@ -1025,11 +997,10 @@ export default function DataPage({ params }: DataPageProps) {
                 const ps = endpointToPanelState(endpoint, item.id);
                 togglePanel(ps);
               } else {
-                const nodeType = getNodeTypeConfig(item.type).renderAs;
                 openSyncSetting('_generic', {
                   nodeId: item.id,
                   nodeName: item.name,
-                  nodeType: nodeType === 'folder' ? 'folder' : nodeType === 'json' ? 'json' : 'file',
+                  nodeType: 'folder',
                   readonly: true,
                   jsonPath: '',
                 });
@@ -1157,9 +1128,7 @@ export default function DataPage({ params }: DataPageProps) {
                   setMarkdownViewMode={setMarkdownViewMode}
                   editorType={editorType}
                   configuredAccessPoints={configuredAccessPoints}
-                  onActiveTableChange={(id: string) => {
-                    const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
-                    const nodePath = currentPath ? `${currentPath}/${id}` : id;
+                  onActiveTableChange={(nodePath: string) => {
                     navigateTo(nodePath.split('/').filter(Boolean));
                   }}
                   onAccessPointChange={(apPath: string, permissions: McpToolPermissions) => {

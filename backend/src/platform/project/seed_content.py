@@ -4,12 +4,12 @@ Default seed content for new projects.
 Creates a Getting Started.md at root + a Guides/ folder with
 About PuppyOne.md, Connecting Data.md, and Agent Access.md.
 
+All writes go through MUT protocol (MutEphemeralClient).
+
 Used by both CLI `puppyone init` and web onboarding.
 """
 
-from src.content.service import ContentNodeService
-from src.mut_engine.schemas import Mutation, MutationType, Operator
-from src.mut_engine.compat_service import MutCompatService
+import json
 
 
 GETTING_STARTED_MD = """\
@@ -202,56 +202,41 @@ of all agent activity.
 
 
 async def seed_default_content(
-    service: ContentNodeService,
     project_id: str,
     created_by: str,
-    collab: MutCompatService | None = None,
+    writer=None,
 ) -> dict:
     """
     Populate a newly created project with default seed content.
 
-    All content writes go through MutCompatService.commit() (MUT).
+    All content writes go through MUT protocol (MutEphemeralClient).
     """
-    if collab is None:
-        from src.mut_engine.dependencies import create_collaboration_service
-        collab = create_collaboration_service()
+    from src.mut_engine.dependencies import create_ephemeral_client
 
-    op = Operator(type="system", id=created_by, summary="seed content")
+    auth_ctx = {
+        "agent": f"seed:{created_by}",
+        "_scope": {"id": "_seed", "path": "", "exclude": [], "mode": "rw"},
+    }
+    client = create_ephemeral_client(project_id, auth_ctx)
+    client.clone()
 
-    async def _create_md(name: str, content: str, parent_id=None) -> str:
-        result = await collab.commit(Mutation(
-            type=MutationType.NODE_CREATE,
-            operator=op,
-            project_id=project_id,
-            name=name,
-            content=content,
-            node_type="markdown",
-            parent_id=parent_id,
-            created_by=created_by,
-        ))
-        return result.node_id
+    files: dict[str, bytes] = {
+        "Getting Started.md": GETTING_STARTED_MD.encode("utf-8"),
+        "Guides/About PuppyOne.md": ABOUT_PUPPYONE_MD.encode("utf-8"),
+        "Guides/Connecting Data.md": CONNECTING_DATA_MD.encode("utf-8"),
+        "Guides/Agent Access.md": AGENT_ACCESS_MD.encode("utf-8"),
+    }
 
-    getting_started_id = await _create_md("Getting Started", GETTING_STARTED_MD)
-
-    guides_result = await collab.commit(Mutation(
-        type=MutationType.NODE_CREATE,
-        operator=op,
-        project_id=project_id,
-        name="Guides",
-        node_type="folder",
-        parent_id=None,
-        created_by=created_by,
-    ))
-    guides_folder_id = guides_result.node_id
-
-    about_id = await _create_md("About PuppyOne", ABOUT_PUPPYONE_MD, guides_folder_id)
-    connecting_id = await _create_md("Connecting Data", CONNECTING_DATA_MD, guides_folder_id)
-    agent_access_id = await _create_md("Agent Access", AGENT_ACCESS_MD, guides_folder_id)
+    client.push(
+        modified=files,
+        message="seed: project default content",
+        who=created_by,
+    )
 
     return {
-        "getting_started": getting_started_id,
-        "guides_folder": guides_folder_id,
-        "about": about_id,
-        "connecting": connecting_id,
-        "agent_access": agent_access_id,
+        "getting_started": "Getting Started.md",
+        "guides_folder": "Guides",
+        "about": "Guides/About PuppyOne.md",
+        "connecting": "Guides/Connecting Data.md",
+        "agent_access": "Guides/Agent Access.md",
     }
